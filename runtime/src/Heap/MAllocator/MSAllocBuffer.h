@@ -12,11 +12,11 @@
 #include "Heap/Allocator/RegionInfo.h"
 #include "Heap/MAllocator/MSCentralRegionPool.h"
 #include "Heap/MAllocator/MSRegionInfo.h"
+#include "Heap/MAllocator/MSScanClass.h"
 #include "Heap/MAllocator/MSSizeClass.h"
 #include "Heap/MCollector/MSMarkLocalStats.h"
 #include "Common/TypeDef.h"
-#include "Common/MarkWorkStack.h"
-#include "Common/LFStack.h"
+#include <new>
 #include <vector>
 
 namespace MapleRuntime {
@@ -62,7 +62,7 @@ public:
     void Fini();
 
     // Main allocation entry (called from AllocBuffer::Allocate in MS mode)
-    MAddress Allocate(size_t size);
+    MAddress Allocate(size_t size, MSScanClass scanClass);
 
     // Accumulate pacing debt for a given allocation size and trigger assist if needed.
     // Called by large-object paths that bypass Allocate().
@@ -72,91 +72,91 @@ public:
     // debt with one-shot central credit followed by direct assist work.
     void AccumulateSweepDebt(size_t allocatedRegions, uint8_t preferredCls);
 
-    // Record stack root (called from Mutator::GcPhaseEnum during root enumeration).
-    // This is root staging only, not grey-work production. Objects become grey
-    // later when MarkSweepCollector merges these buffered roots through
-    // TryEnqueueGreyObject / DiscoverAndPushObject.
-    void PushRoot(BaseObject* root) { stackRoots_.emplace_back(root); }
+    // Record one stack root during the Mutator safepoint. The reserved vector
+    // is the common path; overflow uses fixed native chunks retained by this
+    // AllocBufferMS across cycles. This is staging, not grey-work production.
+    void PushRoot(BaseObject* root);
 
     // Move buffered stack roots into a temporary root buffer.
     // This helper intentionally does not discover/mark/enqueue grey work; the
     // collector owns the later white->grey transition when it drains the merged
-    // root buffer into its grey-work queues.
+    // root staging buffer into MarkWordBatch.
     template<class WorkStack>
     inline void MergeRoots(WorkStack& workStack)
     {
-        if (stackRoots_.empty()) {
-            return;
-        }
         for (BaseObject* obj : stackRoots_) {
             workStack.push_back(obj);
         }
         stackRoots_.clear();
+
+        RootOverflowChunk* chunk = rootOverflowHead_;
+        rootOverflowHead_ = nullptr;
+        rootOverflowTail_ = nullptr;
+        while (chunk != nullptr) {
+            for (size_t i = 0; i < chunk->count; ++i) {
+                workStack.push_back(chunk->roots[i]);
+            }
+            RootOverflowChunk* next = chunk->next;
+            chunk->count = 0;
+            chunk->next = rootOverflowFree_;
+            rootOverflowFree_ = chunk;
+            chunk = next;
+        }
+    }
+
+    bool IsRootStagingEmpty() const
+    {
+        return stackRoots_.empty() && rootOverflowHead_ == nullptr;
     }
 
     // Get active Region for a given size class (for GC iteration)
-    MSRegionInfo* GetActiveRegion(uint8_t cls) const
+    MSRegionInfo* GetActiveRegion(uint8_t cls, MSScanClass scanClass) const
     {
         if (cls >= kNumSizeClasses) {
             return nullptr;
         }
-        return activeRegions_[cls];
+        return activeRegions_[cls][ToMSScanClassIndex(scanClass)];
     }
 
     size_t CountActiveRegions() const;
     size_t ReturnAllRegionsToCentral();
 
-    // Per-P GC Work buffer (Step5): used by Mutator assist during concurrent mark.
-    // Initialized by MarkSweepCollector::InitAllPerPGCWork() at GC start.
-    PerPGCWork& GetGCWork() { return gcWork_; }
     MSMarkAssistStats& GetMarkAssistStats() { return markAssistStats_; }
-
-    // Trusted-grey write-barrier log accessors.
-    WorkBuf* GetActiveLog() const { return activeLog_; }
-    WorkBuf*& ActiveLogRef() { return activeLog_; }
 
     uint16_t GetCachedHomeShardId() const { return cachedHomeShardId_; }
 
 private:
-    // LLVM fast-path compatibility: must be at offset 0 (same as AllocBuffer::tlRegion).
-    // Set to NullRegion() so fast-path allocation always fails → slow path.
-    RegionInfo* tlRegion_;
+    static constexpr size_t kRootStagingReserve = 256;
+    static constexpr size_t kRootOverflowChunkCapacity = 128;
+
+    struct RootOverflowChunk {
+        RootOverflowChunk* next = nullptr;
+        size_t count = 0;
+        BaseObject* roots[kRootOverflowChunkCapacity] = {};
+    };
+
+    RootOverflowChunk* AcquireRootOverflowChunk();
+    void DestroyRootOverflowChunks();
 
     // Fast path: try bitmap allocation on current active Region
-    MAddress FastAlloc(uint8_t cls);
+    MAddress FastAlloc(uint8_t cls, MSScanClass scanClass);
 
     // Slow path: current Region exhausted, refill from CentralRegionPool
-    MAddress SlowAlloc(uint8_t cls);
+    MAddress SlowAlloc(uint8_t cls, MSScanClass scanClass);
 
     // Refill: get a Region from CentralRegionPool
-    MSRegionInfo* RefillFromCentral(uint8_t cls);
+    MSRegionInfo* RefillFromCentral(uint8_t cls, MSScanClass scanClass);
 
     // Return an active region back to the central pool using the same
     // classification as ReturnRegion.
     void ReturnRegionToCentral(MSRegionInfo* region, uint8_t cls);
 
     // Return current active Region to CentralRegionPool
-    void ReturnRegion(uint8_t cls);
+    void ReturnRegion(uint8_t cls, MSScanClass scanClass);
 
-    // Per-size-class active Region (nullptr = no active Region for this class)
-    MSRegionInfo* activeRegions_[kNumSizeClasses] = {};
-
-    // Stable compiler/runtime ABI prefix. AArch64 and X86 load activeLog_ from
-    // AllocBufferMS + 896. Keep this prefix independent of std::mutex,
-    // std::vector, and every other platform/STL-dependent type.
-    static constexpr size_t kActiveLogOffset = 896;
-    static_assert(kActiveLogOffset >= sizeof(RegionInfo*) +
-        kNumSizeClasses * sizeof(MSRegionInfo*),
-        "AllocBufferMS fixed fast-path prefix exceeds activeLog_ offset");
-    uint8_t activeLogAbiReserved_[kActiveLogOffset - sizeof(RegionInfo*) -
-        kNumSizeClasses * sizeof(MSRegionInfo*)] = {};
-
-    // The barrier appends already shaded old-refs into *activeLog_. When full,
-    // it is published wholesale to the GC work queues (swap-and-publish) and
-    // replaced directly from the collector-global WorkBufPool. Consumers scan
-    // these trusted-grey objects directly. Kept at offset 896 for the
-    // AArch64/X86 fast-path ABI.
-    WorkBuf* activeLog_ = nullptr;
+    // Compiler-visible fixed ABI prefix. ScanClass is the inner dimension:
+    // activeRegions_[sizeClass][NO_REF/HAS_REF].
+    MSRegionInfo* activeRegions_[kNumSizeClasses][kMSScanClassCount] = {};
 
     // Runtime-only fields start after the compiler-visible fast-path prefix.
     // Their offsets may follow the target C++ ABI and are never embedded in
@@ -172,13 +172,13 @@ private:
 
     // Per-thread stack roots buffer (populated by Mutator::GcPhaseEnum)
     std::vector<BaseObject*> stackRoots_;
+    RootOverflowChunk* rootOverflowHead_ = nullptr;
+    RootOverflowChunk* rootOverflowTail_ = nullptr;
+    RootOverflowChunk* rootOverflowFree_ = nullptr;
 
-    // Mutator assist debt in fixed-point "object" units.
-    // debtScaled / AssistRatioScale = debtObjects.
+    // Mutator assist debt in fixed-point WorkUnit units.
+    // debtScaled / AssistRatioScale = debtWU.
     uint64_t gcAssistDebtScaled_ = 0;
-
-    // Step5: Per-P GC work buffer for mutator assist
-    PerPGCWork gcWork_;
 
     // Single-owner assist diagnostics. The collector aggregates these after
     // stopping mutators, so the assist hot path needs no shared atomics.

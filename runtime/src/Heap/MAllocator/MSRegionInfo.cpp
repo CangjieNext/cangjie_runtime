@@ -11,7 +11,11 @@
 #include "Heap/MSGCFastPath.h"
 
 #include <algorithm>
+#include <cstdlib>
 #include <cstring>
+#ifdef MRT_WINDOWS
+#include <malloc.h>
+#endif
 #include "Base/Log.h"
 
 namespace MapleRuntime {
@@ -20,89 +24,79 @@ namespace MapleRuntime {
 // MSRegionInfo — Lifecycle
 // ============================================================================
 
-void MSRegionInfo::InitForSizeClass(uint8_t cls)
+void MSRegionInfo::InitForSizeClass(uint8_t cls, MSScanClass scanClass)
 {
     uintptr_t regionStart = MSRegionInfoArray::GetRegionAddress(MSRegionInfoArray::GetRegionIdx(this));
     allocPtr = regionStart;
     regionEnd = regionStart + MS_REGION_SIZE;
+    SetCentralNextRegionIdx(INVALID_REGION_IDX);
+    SetMarkTaskNextRegionIdx(INVALID_REGION_IDX);
+    slotOrLargeMeta = 0;
+    collectEpoch = NO_COLLECT_EPOCH;
+    control = 0;
+    allocSummary = 0;
+    pendingWordSummary = 0;
+    reserved32 = 0;
+    allocMode = static_cast<uint8_t>(MSAllocMode::BUMP);
+    reserved8 = 0;
     sizeClass = cls;
-    sweepState = MSSweepState::UNSWEPT;
-    regionType = MSRegionType::MS_REGION_BUMP;
+    layout = static_cast<uint8_t>(MSRegionKind::SMALL);
+    SetScanClass(scanClass);
 
-    size_t slotSize = SizeClassInfo::ClassToSize(cls);
-    totalSlotCount = static_cast<uint16_t>(MS_REGION_SIZE / slotSize);
-    freeSlotCount = totalSlotCount;
-    divMagic = SizeClassInfo::ClassToDivMagic(cls);
-
-    flags_ = 0;
-    sweepGen = 0;
-    reserved = 0;  // searchHint = 0
-
-    // Use the fixed sidecar slot for this region:
-    // [allocBitmap | markBitmap].
-    size_t bitmapWords = (totalSlotCount + 63) / 64;
+    // Plane reservations are independent. NO_REF never touches the scan plane.
+    size_t bitmapWords = GetBitmapWordCount();
     size_t bitmapBytes = bitmapWords * sizeof(uint64_t);
     size_t regionIdx = MSRegionInfoArray::GetRegionIdx(this);
-    uint64_t* mem = MSBitmapArena::GetSlotBase(regionIdx);
-    if (mem == nullptr) {
-        allocBitmap = nullptr;
-        markBitmap = nullptr;
+    MSBitmapArena::EnsurePlaneRangeCommitted(MSBitmapPlane::ALLOC, regionIdx, 1);
+    MSBitmapArena::EnsurePlaneRangeCommitted(MSBitmapPlane::MARK, regionIdx, 1);
+    if (scanClass == MSScanClass::HAS_REF) {
+        MSBitmapArena::EnsurePlaneRangeCommitted(MSBitmapPlane::SCAN, regionIdx, 1);
+    }
+    uint64_t* allocBitmap = MSBitmapArena::GetAllocPlane(regionIdx);
+    uint64_t* markBitmap = MSBitmapArena::GetMarkPlane(regionIdx);
+    if (allocBitmap == nullptr || markBitmap == nullptr) {
         return;
     }
 
-    allocBitmap = mem;
-    markBitmap = reinterpret_cast<uint64_t*>(reinterpret_cast<uint8_t*>(mem) + bitmapBytes);
-
+    SetFreeSlotCount(GetTotalSlotCount());
     // Initialize: all slots free (allocBitmap all-1s), mark bits cleared
     memset(allocBitmap, 0xFF, bitmapBytes);
     memset(markBitmap, 0, bitmapBytes);
 
-    // Mask out invalid trailing bits in the last word if totalSlotCount % 64 != 0
-    size_t trailingBits = totalSlotCount % 64;
-    if (trailingBits != 0) {
-        allocBitmap[bitmapWords - 1] = (1ULL << trailingBits) - 1;
-    }
+    allocBitmap[bitmapWords - 1] = GetValidTailMask();
 
     // Build summary word (O4): all bitmap words have free slots
-    reserved = (bitmapWords == 64) ? ~0ULL : ((1ULL << bitmapWords) - 1);
+    allocSummary = (bitmapWords == 64) ? ~0ULL : ((1ULL << bitmapWords) - 1);
 }
 
-void MSRegionInfo::InitForLargeObject(uintptr_t start, uintptr_t end, size_t objectBytes)
+void MSRegionInfo::InitForLargeObject(
+    uintptr_t start, uintptr_t end, size_t objectBytes, MSScanClass scanClass)
 {
     allocPtr = start;
     regionEnd = end;
-    nextRegionIdx = INVALID_IDX;
-    prevRegionIdx = INVALID_IDX;
-
-    allocBitmap = nullptr;
-    markBitmap = nullptr;
-
-    // Large Regions do not have slots. Reuse their otherwise-unused slot
-    // metadata to retain the exact logical object size without changing the
-    // compiler-visible 64-byte MSRegionInfo ABI.
-    uint64_t packedObjectBytes = static_cast<uint64_t>(objectBytes);
-    totalSlotCount = static_cast<uint16_t>(packedObjectBytes);
-    freeSlotCount = static_cast<uint16_t>(packedObjectBytes >> 16);
-    divMagic = static_cast<uint32_t>(packedObjectBytes >> 32);
-
-    sizeClass = 0;  // N/A for large objects
-    sweepState = MSSweepState::UNSWEPT;
-    regionType = MSRegionType::MS_REGION_LARGE;
-
-    flags_ = 0;
-    sweepGen = 0;
-    reserved = 0;
+    SetCentralNextRegionIdx(INVALID_REGION_IDX);
+    SetMarkTaskNextRegionIdx(INVALID_REGION_IDX);
+    slotOrLargeMeta = static_cast<uint64_t>(objectBytes);
+    collectEpoch = NO_COLLECT_EPOCH;
+    control = 0;
+    allocSummary = 0;
+    pendingWordSummary = 0;
+    reserved32 = 0;
+    allocMode = static_cast<uint8_t>(MSAllocMode::NONE);
+    reserved8 = 0;
+    sizeClass = INVALID_SIZE_CLASS;
+    layout = static_cast<uint8_t>(MSRegionKind::LARGE);
+    SetScanClass(scanClass);
 }
 
 void MSRegionInfo::MaterializeBumpAllocationBitmap()
 {
-    CHECK_DETAIL(regionType == MSRegionType::MS_REGION_BUMP,
+    CHECK_DETAIL(GetRegionKind() == MSRegionKind::SMALL &&
+                     GetAllocMode() == MSAllocMode::BUMP,
                  "MaterializeBumpAllocationBitmap requires BUMP region, type=%u",
-                 static_cast<unsigned>(regionType));
-    CHECK_DETAIL(allocBitmap != nullptr,
-                 "MaterializeBumpAllocationBitmap requires allocBitmap, sizeClass=%u",
-                 static_cast<unsigned>(sizeClass));
+                 static_cast<unsigned>(GetRegionType()));
 
+    uint64_t* allocBitmap = GetAllocBitmap();
     size_t slotSize = SizeClassInfo::ClassToSize(sizeClass);
     uintptr_t regionStart = RegionStart();
     CHECK_DETAIL(slotSize != 0 && allocPtr >= regionStart && allocPtr <= regionEnd,
@@ -115,14 +109,15 @@ void MSRegionInfo::MaterializeBumpAllocationBitmap()
                  "MaterializeBumpAllocationBitmap unaligned allocPtr: allocatedBytes=%zu slotSize=%zu",
                  allocatedBytes, slotSize);
     size_t allocatedSlots = allocatedBytes / slotSize;
+    size_t totalSlotCount = GetTotalSlotCount();
     CHECK_DETAIL(allocatedSlots <= totalSlotCount &&
-                     allocatedSlots + freeSlotCount == totalSlotCount,
+                     allocatedSlots + GetFreeSlotCount() == totalSlotCount,
                  "MaterializeBumpAllocationBitmap inconsistent slots: allocated=%zu free=%u total=%u",
                  allocatedSlots,
-                 static_cast<unsigned>(freeSlotCount),
+                 static_cast<unsigned>(GetFreeSlotCount()),
                  static_cast<unsigned>(totalSlotCount));
 
-    size_t wordCount = (totalSlotCount + 63) / 64;
+    size_t wordCount = GetBitmapWordCount();
     CHECK_DETAIL(wordCount <= 64,
                  "MaterializeBumpAllocationBitmap wordCount overflow: wordCount=%zu",
                  wordCount);
@@ -144,15 +139,14 @@ void MSRegionInfo::MaterializeBumpAllocationBitmap()
             summary |= (1ULL << wordIdx);
         }
     }
-    reserved = summary;
+    allocSummary = summary;
+    SetAllocMode(MSAllocMode::BITMAP);
 }
 
 void MSRegionInfo::ReleaseBitmaps()
 {
-    if (allocBitmap != nullptr) {
-        allocBitmap = nullptr;
-        markBitmap = nullptr;
-    }
+    // Bitmap storage is indexed by Region and owned by MSBitmapArena. Resetting
+    // a Region never releases or stores per-Region plane pointers.
 }
 
 void MSRegionInfo::Reset()
@@ -160,52 +154,53 @@ void MSRegionInfo::Reset()
     ReleaseBitmaps();
     allocPtr = 0;
     regionEnd = 0;
-    nextRegionIdx = INVALID_IDX;
-    prevRegionIdx = INVALID_IDX;
-    totalSlotCount = 0;
-    freeSlotCount = 0;
-    divMagic = 0;
-    sizeClass = 0;
-    sweepState = MSSweepState::UNSWEPT;
-    regionType = MSRegionType::MS_REGION_FREE;
-    flags_ = 0;
-    sweepGen = 0;
-    reserved = 0;
+    SetCentralNextRegionIdx(INVALID_REGION_IDX);
+    SetMarkTaskNextRegionIdx(INVALID_REGION_IDX);
+    slotOrLargeMeta = 0;
+    collectEpoch = NO_COLLECT_EPOCH;
+    control = 0;
+    allocSummary = 0;
+    pendingWordSummary = 0;
+    reserved32 = 0;
+    allocMode = static_cast<uint8_t>(MSAllocMode::NONE);
+    reserved8 = 0;
+    sizeClass = INVALID_SIZE_CLASS;
+    layout = static_cast<uint8_t>(MSRegionKind::FREE);
 }
 
 void MSRegionInfo::ResetToBump()
 {
     // Reset a completely-free region back to BUMP for fast reuse (O3).
     // Preserves bitmap memory — avoids munmap/mmap cycle.
-    bool sweptEmpty = sweepState == MSSweepState::SWEPT &&
-                      freeSlotCount == totalSlotCount &&
-                      reserved == 0;
+    bool sweptEmpty = GetFreeSlotCount() == GetTotalSlotCount() &&
+                      allocSummary == 0;
     allocPtr = RegionStart();
-    sweepState = MSSweepState::UNSWEPT;
-    regionType = MSRegionType::MS_REGION_BUMP;
-    freeSlotCount = totalSlotCount;
-    flags_ = 0;
+    SetRegionKind(MSRegionKind::SMALL);
+    SetAllocMode(MSAllocMode::BUMP);
+    SetFreeSlotCount(GetTotalSlotCount());
+    MSScanClass scanClass = GetScanClass();
+    control = 0;
+    SetScanClass(scanClass);
     if (sweptEmpty) {
         // SweepRegion() already produced a fully-zero payload and a clear mark bitmap.
-        // Bump allocation does not consult allocBitmap/reserved, so avoid rebuilding
+        // Bump allocation does not consult the alloc plane/summary, so avoid rebuilding
         // the swept bitmap state when lazy sweep immediately hands this region back
         // to the mutator as a fresh BUMP region.
-        reserved = 0;
+        allocSummary = 0;
         return;
     }
 
     // Reset allocBitmap to all-1s (all slots free)
-    size_t bitmapWords = (totalSlotCount + 63) / 64;
+    uint64_t* allocBitmap = GetAllocBitmap();
+    uint64_t* markBitmap = GetMarkBitmap();
+    size_t bitmapWords = GetBitmapWordCount();
     memset(allocBitmap, 0xFF, bitmapWords * sizeof(uint64_t));
-    size_t trailingBits = totalSlotCount % 64;
-    if (trailingBits != 0) {
-        allocBitmap[bitmapWords - 1] = (1ULL << trailingBits) - 1;
-    }
+    allocBitmap[bitmapWords - 1] = GetValidTailMask();
     // Clear markBitmap for safety
     memset(markBitmap, 0, bitmapWords * sizeof(uint64_t));
 
     // Build summary word (O4): all bitmap words have free slots
-    reserved = (bitmapWords == 64) ? ~0ULL : ((1ULL << bitmapWords) - 1);
+    allocSummary = (bitmapWords == 64) ? ~0ULL : ((1ULL << bitmapWords) - 1);
 }
 
 void MSRegionInfo::ResetToEmptyCache()
@@ -213,16 +208,18 @@ void MSRegionInfo::ResetToEmptyCache()
     ReleaseBitmaps();
     allocPtr = 0;
     regionEnd = 0;
-    nextRegionIdx = INVALID_IDX;
-    prevRegionIdx = INVALID_IDX;
-    totalSlotCount = 0;
-    freeSlotCount = 0;
-    divMagic = 0;
+    SetCentralNextRegionIdx(INVALID_REGION_IDX);
+    SetMarkTaskNextRegionIdx(INVALID_REGION_IDX);
+    slotOrLargeMeta = 0;
+    collectEpoch = NO_COLLECT_EPOCH;
+    control = 0;
+    allocSummary = 0;
+    pendingWordSummary = 0;
+    reserved32 = 0;
+    allocMode = static_cast<uint8_t>(MSAllocMode::NONE);
+    reserved8 = 0;
     sizeClass = INVALID_SIZE_CLASS;
-    sweepState = MSSweepState::SWEPT;
-    regionType = MSRegionType::MS_REGION_EMPTY_CACHE;
-    flags_ = 0;
-    reserved = 0;
+    layout = static_cast<uint8_t>(MSRegionKind::FREE);
 }
 
 // ============================================================================
@@ -231,7 +228,10 @@ void MSRegionInfo::ResetToEmptyCache()
 
 size_t MSRegionInfo::SweepRegion()
 {
-    size_t wordCount = (totalSlotCount + 63) / 64;
+    const size_t totalSlotCount = GetTotalSlotCount();
+    const size_t wordCount = GetBitmapWordCount();
+    uint64_t* allocBitmap = GetAllocBitmap();
+    uint64_t* markBitmap = GetMarkBitmap();
     CHECK_DETAIL(wordCount <= MSBitmapArena::kMaxBitmapWords,
                  "[MS-GC] SweepRegion wordCount overflow: wordCount=%zu", wordCount);
     size_t trailingBits = totalSlotCount % 64;
@@ -247,10 +247,10 @@ size_t MSRegionInfo::SweepRegion()
     uintptr_t base = RegionStart();
     if (liveCount == 0) {
         memset(reinterpret_cast<void*>(base), 0, MS_REGION_SIZE);
-        freeSlotCount = totalSlotCount;
-        sweepState = MSSweepState::SWEPT;
-        reserved = 0;
-        return static_cast<size_t>(freeSlotCount) * slotSize;
+        SetFreeSlotCount(static_cast<uint16_t>(totalSlotCount));
+        SetAllocMode(MSAllocMode::BITMAP);
+        allocSummary = 0;
+        return static_cast<size_t>(GetFreeSlotCount()) * slotSize;
     }
 
     uint64_t summary = 0;
@@ -262,9 +262,9 @@ size_t MSRegionInfo::SweepRegion()
     };
 
     for (size_t i = 0; i < wordCount; i++) {
-        // Sweep ownership is serialized by CasSweepGen on unswept lists. The
-        // region is not returned to mutators until SweepRegion() completes, so
-        // allocBitmap publication does not race with allocation on this region.
+        // An acquire Pop from the unswept stack gives one worker exclusive
+        // ownership. The Region is not published to mutators until this method
+        // has rebuilt the entire allocation plane.
         size_t validBitCount = (i + 1 == wordCount && trailingBits != 0) ? trailingBits : 64;
         uint64_t validMask = validBitCount == 64 ? ~0ULL : ((1ULL << validBitCount) - 1);
         uint64_t validMarkBits = markBitmap[i] & validMask;
@@ -314,20 +314,20 @@ size_t MSRegionInfo::SweepRegion()
         clearDeadRun(runStartSlot, totalSlotCount);
     }
 
-    // All dead runs are zeroed before sweepState/reserved publish the region
-    // back to the swept lists. A run left open at a word boundary therefore
-    // naturally joins a free prefix in the following bitmap word.
+    // All dead runs are zeroed before the release Push publishes the Region
+    // back to a swept head. A run left open at a word boundary naturally joins
+    // a free prefix in the following bitmap word.
 
     // markBitmap is cleared by ClearAllMarkBitmaps at next MarkSetup,
     // not here — avoids redundant memset per-region during sweep.
 
-    freeSlotCount = totalSlotCount - static_cast<uint16_t>(liveCount);
-    sweepState = MSSweepState::SWEPT;
+    SetFreeSlotCount(static_cast<uint16_t>(totalSlotCount - liveCount));
+    SetAllocMode(MSAllocMode::BITMAP);
 
     // Store summary word (O4): bit[i]=1 if allocBitmap[i] has free slots
-    reserved = summary;
+    allocSummary = summary;
 
-    return static_cast<size_t>(freeSlotCount) * slotSize;
+    return static_cast<size_t>(GetFreeSlotCount()) * slotSize;
 }
 
 // ============================================================================
@@ -340,14 +340,15 @@ bool MSRegionInfo::GetMarkBit(uintptr_t objAddr) const
     size_t slotIdx = (objAddr - RegionStart()) / slotSize;
     size_t wordIdx = slotIdx / 64;
     size_t bitIdx = slotIdx % 64;
+    uint64_t* markBitmap = GetMarkBitmap();
     uint64_t word = __atomic_load_n(&markBitmap[wordIdx], __ATOMIC_RELAXED);
     return (word & (1ULL << bitIdx)) != 0;
 }
 
 bool MSRegionInfo::IsMarkBitSet(size_t wordIdx, uint64_t bitMask) const
 {
-    size_t bitmapWords = (static_cast<size_t>(totalSlotCount) + 63) / 64;
-    if (markBitmap == nullptr || wordIdx >= bitmapWords || bitMask == 0) {
+    size_t bitmapWords = GetBitmapWordCount();
+    if (wordIdx >= bitmapWords || bitMask == 0) {
         return false;
     }
     return IsMarkBitSetResolved(wordIdx, bitMask);
@@ -356,10 +357,11 @@ bool MSRegionInfo::IsMarkBitSet(size_t wordIdx, uint64_t bitMask) const
 bool MSRegionInfo::IsMarkBitSetResolved(size_t wordIdx, uint64_t bitMask) const
 {
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
-    size_t bitmapWords = (static_cast<size_t>(totalSlotCount) + 63) / 64;
-    MRT_ASSERT(markBitmap != nullptr && wordIdx < bitmapWords && bitMask != 0,
+    size_t bitmapWords = GetBitmapWordCount();
+    MRT_ASSERT(wordIdx < bitmapWords && bitMask != 0,
                "invalid resolved mark-bitmap coordinate");
 #endif
+    uint64_t* markBitmap = GetMarkBitmap();
     uint64_t word = __atomic_load_n(&markBitmap[wordIdx], __ATOMIC_RELAXED);
     return (word & bitMask) != 0;
 }
@@ -377,28 +379,29 @@ bool MSRegionInfo::TestAndSetMarkBit(uintptr_t objAddr)
         LOG(RTLOG_ERROR, "[MS-GC] TestAndSetMarkBit: addr=%p OUT OF RANGE [%p, %p), "
             "sizeClass=%u, regionType=%u, markBitmap=%p",
             (void*)objAddr, (void*)regionStart, (void*)regionEnd,
-            (unsigned)sizeClass, (unsigned)regionType, (void*)markBitmap);
+            (unsigned)sizeClass, (unsigned)GetRegionType(), (void*)GetMarkBitmap());
         return false;
     }
     // Division-free slot index via reciprocal magic (R-2). Exact because
     // (objAddr - regionStart) < MS_REGION_SIZE (2^15). See MSSizeClass.h.
     size_t slotIdx = SizeClassInfo::OffsetToSlotIndex(sizeClass, objAddr - regionStart);
-    if (slotIdx >= totalSlotCount) {
+    if (slotIdx >= GetTotalSlotCount()) {
         LOG(RTLOG_ERROR, "[MS-GC] TestAndSetMarkBit: slotIdx=%zu >= totalSlots=%u, addr=%p, "
             "regionStart=%p, slotSize=%zu",
-            slotIdx, totalSlotCount, (void*)objAddr, (void*)regionStart, slotSize);
+            slotIdx, GetTotalSlotCount(), (void*)objAddr, (void*)regionStart, slotSize);
         return false;
     }
     size_t wordIdx = slotIdx / 64;
     uint64_t bit = 1ULL << (slotIdx % 64);
+    uint64_t* markBitmap = GetMarkBitmap();
     uint64_t old = __atomic_fetch_or(&markBitmap[wordIdx], bit, __ATOMIC_RELAXED);
     return (old & bit) != 0;  // true if was already marked
 }
 
 uint64_t MSRegionInfo::MarkBitmapWord(size_t wordIdx, uint64_t mask)
 {
-    size_t bitmapWords = (static_cast<size_t>(totalSlotCount) + 63) / 64;
-    if (markBitmap == nullptr || wordIdx >= bitmapWords || mask == 0) {
+    size_t bitmapWords = GetBitmapWordCount();
+    if (wordIdx >= bitmapWords || mask == 0) {
         return 0;
     }
     return MarkBitmapWordResolved(wordIdx, mask);
@@ -407,10 +410,11 @@ uint64_t MSRegionInfo::MarkBitmapWord(size_t wordIdx, uint64_t mask)
 uint64_t MSRegionInfo::MarkBitmapWordResolved(size_t wordIdx, uint64_t mask)
 {
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
-    size_t bitmapWords = (static_cast<size_t>(totalSlotCount) + 63) / 64;
-    MRT_ASSERT(markBitmap != nullptr && wordIdx < bitmapWords && mask != 0,
+    size_t bitmapWords = GetBitmapWordCount();
+    MRT_ASSERT(wordIdx < bitmapWords && mask != 0,
                "invalid resolved mark-bitmap coordinate");
 #endif
+    uint64_t* markBitmap = GetMarkBitmap();
     uint64_t old = __atomic_fetch_or(&markBitmap[wordIdx], mask, __ATOMIC_RELAXED);
     return mask & ~old;
 }
@@ -421,14 +425,12 @@ uint64_t MSRegionInfo::MarkBitmapWordResolved(size_t wordIdx, uint64_t mask)
 
 bool MSRegionInfo::HasFreeSpace() const
 {
-    // After sweep, only bitmap matters — bump tail is stale
-    if (sweepState == MSSweepState::SWEPT) {
-        return freeSlotCount > 0;
+    if (GetAllocMode() == MSAllocMode::BITMAP) {
+        return GetFreeSlotCount() > 0;
     }
-    if (freeSlotCount > 0) {
-        return true;
+    if (GetAllocMode() != MSAllocMode::BUMP || GetFreeSlotCount() == 0) {
+        return false;
     }
-    // Bump-pointer tail space (only valid for BUMP regions before first sweep)
     size_t slotSize = SizeClassInfo::ClassToSize(sizeClass);
     return allocPtr + slotSize <= regionEnd;
 }
@@ -460,8 +462,17 @@ void MSRegionInfoArray::Init(uintptr_t heapStart, size_t maxRegionCount, MSRegio
             "arraySize=%zuKB (mmap front)",
             heapStart, maxRegionCount, arrayBytes / 1024);
     } else {
-        // Fallback: allocate via malloc (backward compatibility).
-        array_ = static_cast<MSRegionInfo*>(malloc(arrayBytes));
+        // Standalone/unit-test fallback. MSRegionInfo is over-aligned, so plain
+        // malloc is not a valid C++14 allocation strategy on every platform.
+#ifdef MRT_WINDOWS
+        array_ = static_cast<MSRegionInfo*>(
+            _aligned_malloc(arrayBytes, alignof(MSRegionInfo)));
+#else
+        void* alignedArray = nullptr;
+        int allocResult = posix_memalign(
+            &alignedArray, alignof(MSRegionInfo), arrayBytes);
+        array_ = allocResult == 0 ? static_cast<MSRegionInfo*>(alignedArray) : nullptr;
+#endif
         ownedByMalloc_ = true;
         if (array_ == nullptr) {
             LOG(RTLOG_ERROR, "[MS-GC] MSRegionInfoArray::Init: failed to allocate %zuKB",
@@ -470,12 +481,10 @@ void MSRegionInfoArray::Init(uintptr_t heapStart, size_t maxRegionCount, MSRegio
         }
         memset(array_, 0, arrayBytes);
         for (size_t i = 0; i < maxRegionCount; i++) {
-            array_[i].regionType = MSRegionType::MS_REGION_FREE;
-            array_[i].nextRegionIdx = MSRegionInfo::INVALID_IDX;
-            array_[i].prevRegionIdx = MSRegionInfo::INVALID_IDX;
+            array_[i].Reset();
         }
         LOG(RTLOG_INFO, "[MS-GC] MSRegionInfoArray::Init: heapStart=0x%zx, maxRegions=%zu, "
-            "arraySize=%zuKB (malloc'd)",
+            "arraySize=%zuKB (aligned fallback)",
             heapStart, maxRegionCount, arrayBytes / 1024);
     }
 
@@ -489,7 +498,11 @@ void MSRegionInfoArray::Cleanup()
     PublishMSGCFastPathRegionInfoArray(0);
     if (array_ != nullptr) {
         if (ownedByMalloc_) {
+#ifdef MRT_WINDOWS
+            _aligned_free(array_);
+#else
             free(array_);
+#endif
         }
         array_ = nullptr;
     }

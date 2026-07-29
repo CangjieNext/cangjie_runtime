@@ -206,15 +206,13 @@ void MSRegionManager::Initialize(uintptr_t mmapBase, size_t maxVirtualHeapSize)
     // touch them to avoid physical memory allocation.
     memset(array_, 0, committedRegionCount * sizeof(MSRegionInfo));
     for (size_t i = 0; i < committedRegionCount; i++) {
-        array_[i].regionType = MSRegionType::MS_REGION_FREE;
-        array_[i].nextRegionIdx = MSRegionInfo::INVALID_IDX;
-        array_[i].prevRegionIdx = MSRegionInfo::INVALID_IDX;
+        array_[i].Reset();
     }
 
     freeManager_.Initialize(unitSize_, unitsPerMSRegion_, static_cast<RegionCount>(committedRegionCount),
                             static_cast<RegionCount>(maxVirtualRegionCount),
                             heapStart_, committedEnd, maxHeapEnd, segmentSize, shardCount);
-    MSBitmapArena::Init(maxVirtualRegionCount, committedRegionCount);
+    MSBitmapArena::Init(maxVirtualRegionCount);
 
     VLOG(REPORT, "[MS-GC] MSRegionManager initialized (virtual reserve): mmapBase=0x%zx, "
         "maxMetadata=%zuKB, heapStart=0x%zx, committedEnd=0x%zx, maxHeapEnd=0x%zx, "
@@ -233,7 +231,6 @@ void MSRegionManager::InitializeFreshRegions(RegionIndex startIdx, RegionCount c
 {
     size_t startRegionIdx = static_cast<size_t>(startIdx);
     size_t regionCount = static_cast<size_t>(count);
-    MSBitmapArena::EnsureRegionRangeCommitted(startRegionIdx, regionCount);
     for (size_t i = 0; i < regionCount; ++i) {
         size_t regionIdx = startRegionIdx + i;
         // A grown segment can reuse a previously shrunk virtual range. Reset the
@@ -460,17 +457,19 @@ MSRegionInfo* MSRegionManager::TakeRegion(uint16_t homeShardId)
 
     MSRegionInfo* info = &array_[regionIdx];
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
-    if (UNLIKELY(info->regionType != MSRegionType::MS_REGION_FREE)) {
+    if (UNLIKELY(!info->IsFreeRegion())) {
         LOG(RTLOG_FATAL, "[MS-GC] TakeRegion: array_[%u] NOT FREE! "
             "regionType=%d, allocPtr=0x%zx, regionEnd=0x%zx, allocBitmap=%p, "
-            "sizeClass=%u, sweepState=%d, sweepGen=%u, "
-            "nextIdx=%d, prevIdx=%d, reserved=0x%llx, "
+            "sizeClass=%u, allocMode=%u, collectEpoch=%u, "
+            "centralNext=%d, markTaskNext=%d, reserved=0x%llx, "
             "array_=%p, info=%p",
-            regionIdx, (int)info->regionType, info->allocPtr, info->regionEnd,
-            (void*)info->allocBitmap, (unsigned)info->sizeClass,
-            (int)info->sweepState, info->sweepGen,
-            info->nextRegionIdx, info->prevRegionIdx,
-            (unsigned long long)info->reserved,
+            regionIdx, (int)info->GetRegionType(), info->allocPtr, info->regionEnd,
+            (void*)info->GetAllocBitmap(), (unsigned)info->sizeClass,
+            static_cast<unsigned>(info->GetAllocMode()),
+            static_cast<unsigned>(info->collectEpoch),
+            static_cast<int32_t>(info->GetCentralNextRegionIdx()),
+            static_cast<int32_t>(info->GetMarkTaskNextRegionIdx()),
+            (unsigned long long)info->allocSummary,
             (void*)array_, (void*)info);
     }
 #endif
@@ -525,9 +524,9 @@ void MSRegionManager::ReclaimRegionLarge(uintptr_t regionStart, size_t regionByt
 void MSRegionManager::ReclaimEmptyRegionToHotFree(MSRegionInfo* region)
 {
     size_t regionIdx = static_cast<size_t>(region - array_);
-    CHECK_DETAIL(region->regionType == MSRegionType::MS_REGION_EMPTY_CACHE,
+    CHECK_DETAIL(region->IsFreeRegion(),
                  "[MS-GC] ReclaimEmptyRegionToHotFree: bad regionType=%u idx=%zu",
-                 static_cast<unsigned>(region->regionType), regionIdx);
+                 static_cast<unsigned>(region->GetRegionType()), regionIdx);
 
     region->Reset();
     DLOG(REGION, "[MS-GC] ReclaimEmptyRegionToHotFree: regionIdx=%zu ownerShard=%u",
@@ -602,7 +601,7 @@ bool MSRegionManager::HasPendingShrinkWork(const CentralRegionPool* centralPool)
         bool hasInUseRegion = false;
         bool hasEmptyCacheRegion = false;
         for (size_t regionIdx = startRegionIdx; regionIdx < endRegionIdx; ++regionIdx) {
-            MSRegionType type = array_[regionIdx].regionType;
+            MSRegionType type = array_[regionIdx].GetRegionType();
             if (IsSegmentRegionTypeInUse(type)) {
                 hasInUseRegion = true;
                 break;
@@ -649,7 +648,7 @@ size_t MSRegionManager::ShrinkOneIdleSegment(CentralRegionPool* centralPool)
 
         bool hasInUseRegion = false;
         for (size_t regionIdx = startRegionIdx; regionIdx < endRegionIdx; ++regionIdx) {
-            if (IsSegmentRegionTypeInUse(array_[regionIdx].regionType)) {
+            if (IsSegmentRegionTypeInUse(array_[regionIdx].GetRegionType())) {
                 hasInUseRegion = true;
                 break;
             }

@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import argparse
+import contextlib
+import io
 import os
 import pathlib
 import tempfile
 import unittest
+from unittest import mock
 
 import rebuild_msgc_runtime_output as target
 
@@ -32,6 +36,34 @@ def make_host(os_name: str = "darwin", arch: str = "aarch64") -> target.HostLayo
 
 
 class RebuildRuntimePlanTests(unittest.TestCase):
+    def test_main_defaults_sdk_root_to_compiler_output_msgc(self) -> None:
+        workspace_root = pathlib.Path("/workspace")
+        repo = target.RepoLayout(
+            workspace_root=workspace_root,
+            compiler_root=workspace_root / "cangjie_compiler",
+            runtime_root=workspace_root / "cangjie_runtime" / "runtime",
+        )
+        args = argparse.Namespace(
+            runtime_root=None,
+            sdk_root=None,
+            build_type="release",
+            version="0.0.1",
+            skip_clean=False,
+            skip_verify_output=False,
+            dry_run=True,
+        )
+        output = io.StringIO()
+
+        with mock.patch.object(target, "parse_args", return_value=args), \
+             mock.patch.object(target, "resolve_repo_layout", return_value=repo), \
+             contextlib.redirect_stdout(output):
+            self.assertEqual(target.main(), 0)
+
+        self.assertIn(
+            "[info] sdk_root=/workspace/cangjie_compiler/output/msgc",
+            output.getvalue(),
+        )
+
     def test_build_subprocess_path_prepends_existing_darwin_tool_dirs(self) -> None:
         host = make_host()
         with tempfile.TemporaryDirectory() as temp_dir:

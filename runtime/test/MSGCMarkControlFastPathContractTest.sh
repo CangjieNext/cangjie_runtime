@@ -2,68 +2,39 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-COLLECTOR_HEADER="$ROOT_DIR/src/Heap/MCollector/MarkSweepCollector.h"
-COLLECTOR_SOURCE="$ROOT_DIR/src/Heap/MCollector/MarkSweepCollector.cpp"
+HEADER="$ROOT_DIR/src/Heap/MCollector/MarkSweepCollector.h"
+SOURCE="$ROOT_DIR/src/Heap/MCollector/MarkSweepCollector.cpp"
+SCHED_HEADER="$ROOT_DIR/src/Heap/MCollector/MSMarkScheduler.h"
+SCHED_SOURCE="$ROOT_DIR/src/Heap/MCollector/MSMarkScheduler.cpp"
 
-if ! rg -Uq 'WorkEpoch markWorkEpoch_;[[:space:]]*LFStack globalFull_\{&markWorkEpoch_\};' \
-    "$COLLECTOR_HEADER"; then
-    echo "MSGC Global WorkBuf queue must publish to the mark progress epoch" >&2
+rg -q 'MSMarkScheduler markScheduler_;' "$HEADER"
+rg -q 'WorkEpoch markWorkEpoch_;' "$HEADER"
+rg -q 'MSMarkWorkerControl markWorkerControl_\{&markWorkEpoch_\};' "$HEADER"
+rg -q 'RunMarkSlice\(' "$SCHED_HEADER"
+rg -q 'MSMarkWorkerCaps::GCWorker\(\)' "$SOURCE"
+rg -q 'MSMarkWorkerCaps::Assist\(\)' "$SOURCE"
+rg -q 'markWorkEpoch_\.WaitForChange' "$SOURCE"
+rg -Uq '(?s)outstanding == 0.*workersInFlight == 0.*assistsInFlight == 0.*ReadyEmptyForTermination\(\)' "$SOURCE"
+
+publish="$(sed -n '/bool MSMarkScheduler::TryPublishRegion/,/^}/p' "$SCHED_SOURCE")"
+idle_fast_reject="$(printf '%s\n' "$publish" |
+    rg -n 'GetScanState\(\) != MSScanState::IDLE' |
+    cut -d: -f1)"
+provisional="$(printf '%s\n' "$publish" | rg -n 'ledger_\.AddProvisional' | cut -d: -f1)"
+cas="$(printf '%s\n' "$publish" |
+    rg -n 'CasScanState\(MSScanState::IDLE, MSScanState::QUEUED\)' |
+    cut -d: -f1)"
+push="$(printf '%s\n' "$publish" | rg -n 'regionReady_\.Push' | cut -d: -f1)"
+if [[ -z "$idle_fast_reject" || -z "$provisional" || -z "$cas" || -z "$push" ||
+      "$idle_fast_reject" -ge "$provisional" ||
+      "$provisional" -ge "$cas" || "$cas" -ge "$push" ]]; then
+    echo 'TaskLedger admission must precede Region publication' >&2
     exit 1
 fi
 
-if ! rg -q 'MSMarkWorkerControl markWorkerControl_\{&markWorkEpoch_\};' "$COLLECTOR_HEADER"; then
-    echo "MSGC worker/assist control must publish to the mark progress epoch" >&2
+if rg -q 'globalFull_|workBufPool_|PerPGCWork|activeLog_' "$HEADER" "$SOURCE"; then
+    echo 'ordinary MSGC WorkBuf scheduling remains in the collector' >&2
     exit 1
 fi
 
-if ! rg -Uq 'StartMarkWorkers\(size_t maxHelpers, size_t initialHelpers\)[[:space:][:print:]]*SetMaxActiveThreadNum\(static_cast<int32_t>\(maxHelpers\)\)[[:space:][:print:]]*AddWork' \
-    "$COLLECTOR_SOURCE"; then
-    echo "MARK must restore the shared pool width before submitting long-lived tasks" >&2
-    exit 1
-fi
-
-if ! rg -q 'MSMarkWorkerControl::Snapshot controlSnapshot = markWorkerControl_\.GetSnapshot\(\);' \
-    "$COLLECTOR_SOURCE"; then
-    echo "GC main must use one worker/assist control snapshot per convergence check" >&2
-    exit 1
-fi
-
-if rg -q 'kMSMarkWorkerCreditPollInterval|TakePublishedWorkerCredit|publishedCredit_' \
-    "$COLLECTOR_SOURCE" "$ROOT_DIR/src/Heap/MCollector/MarkSweepCollector.h" \
-    "$ROOT_DIR/src/Heap/MCollector/MSMarkLocalStats.h"; then
-    echo "MSGC Helper must not retain the old background-credit publication path" >&2
-    exit 1
-fi
-
-if ! rg -q 'size_t backgroundScanned = scannedCount;' "$COLLECTOR_SOURCE"; then
-    echo "GC main background credit must only use GC-main scanned work" >&2
-    exit 1
-fi
-
-if ! rg -q 'markWorkerControl_\.CanContinueWorker\(workerId\)' "$COLLECTOR_SOURCE"; then
-    echo "MSGC Helper must continue multiple buffers inside one active claim" >&2
-    exit 1
-fi
-
-if ! rg -Uq 'PromotePutToGet\([[:space:][:print:]]*workBufPool_\.Capacity\(\) / 8\)[[:space:][:print:]]*AcquireOneBuffer\(\)[[:space:][:print:]]*PromotePutToGet\(1\)' \
-    "$COLLECTOR_SOURCE"; then
-    echo "MSGC Helper must consume Full/Partial through one Full-first Global claim" >&2
-    exit 1
-fi
-
-if ! rg -q 'adjustedRatio != publishedAssistRatio' "$COLLECTOR_SOURCE"; then
-    echo "GC main must avoid publishing an unchanged assist ratio" >&2
-    exit 1
-fi
-
-if ! rg -q 'markWorkEpoch_\.WaitForChange' "$COLLECTOR_SOURCE"; then
-    echo "GC main must use progress-epoch waiting instead of empty-queue busy looping" >&2
-    exit 1
-fi
-
-if ! rg -q 'kMSMarkEmptySpinRounds' "$COLLECTOR_SOURCE"; then
-    echo "GC main progress waiting must retain a bounded short-spin stage" >&2
-    exit 1
-fi
-
-echo "MSGC mark-control fast-path contract holds"
+echo 'MSGC unified scheduler/control contract holds'

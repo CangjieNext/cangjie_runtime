@@ -14,20 +14,30 @@
 
 namespace MapleRuntime {
 
+enum class MSBitmapPlane : uint8_t {
+    ALLOC = 0,
+    MARK = 1,
+    SCAN = 2,
+};
+
 class MSBitmapArena {
 public:
     static constexpr size_t kMaxBitmapWords = 64;
-    static constexpr size_t kBitmapSlotBytes = kMaxBitmapWords * sizeof(uint64_t) * 2;
+    static constexpr size_t kPlaneStrideBytes = kMaxBitmapWords * sizeof(uint64_t);
     static constexpr size_t kRegionsPerChunk = 256;
-    static constexpr size_t kChunkBytes = kRegionsPerChunk * kBitmapSlotBytes;
+    static constexpr size_t kChunkBytes = kRegionsPerChunk * kPlaneStrideBytes;
 
-    static void Init(size_t maxRegionCount, size_t committedRegionCount);
+    static void Init(size_t maxRegionCount);
     static void Cleanup();
 
-    static void EnsureRegionRangeCommitted(size_t startRegionIdx, size_t regionCount);
+    static void EnsurePlaneRangeCommitted(
+        MSBitmapPlane plane, size_t startRegionIdx, size_t regionCount);
     static void ShrinkToCommittedRegionCount(size_t committedRegionCount);
 
-    static uint64_t* GetSlotBase(size_t regionIdx);
+    static uint64_t* GetAllocPlane(size_t regionIdx);
+    static uint64_t* GetMarkPlane(size_t regionIdx);
+    static uint64_t* GetScanPlane(size_t regionIdx);
+    static uintptr_t GetPlaneBase(MSBitmapPlane plane);
 
 private:
     static size_t GetChunkCountForRegions(size_t regionCount);

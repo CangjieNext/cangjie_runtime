@@ -19,13 +19,14 @@ source = pathlib.Path(sys.argv[1]).read_text()
 clear = section(
     source,
     "void CentralRegionPool::ClearAllMarkBitmaps()",
-    "void CentralRegionPool::ReclassifyUnsweptToSwept()",
+    "void CentralRegionPool::ReenableLazySweep()",
 )
 
 for forbidden in (
     "GetMaxRegionCount()",
-    "GetRegionInfoByIdx",
     "maxRegions",
+    "VisitAllRegions",
+    "VisitLargeRegionsLocked",
 ):
     if forbidden in clear:
         raise SystemExit(
@@ -34,13 +35,12 @@ for forbidden in (
         )
 
 for required in (
-    "VisitAllRegions",
+    "collectSet_[cls][scan].ForEach",
     "VisitAllocBufferMS",
-    "VisitLargeRegionsLocked",
-    "ClearMarkBitmap",
+    "VisitLargeCollectSetLocked",
+    "ResetSmallMarkWorkState",
     "ClearMarkedFlag",
-    "SetSweepGen",
-    "centralSmallCleared",
+    "collectSetSmallCleared",
     "tlSmallCleared",
     "largeBaseCleared",
 ):

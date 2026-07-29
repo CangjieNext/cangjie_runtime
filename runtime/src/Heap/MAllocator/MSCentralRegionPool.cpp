@@ -44,16 +44,19 @@ void ClearSmallRegionPayload(uintptr_t regionStart)
 
 }
 
-// Global sweep generation counter (starts at 2 so that sg-2 == 0 is valid initial state)
-std::atomic<uint32_t> CentralRegionPool::globalSweepGen_{2};
+// Central-only cycle id. It invalidates delayed pacing/helper state across
+// cycles, but never classifies a Region or grants Sweep ownership.
+std::atomic<uint32_t> CentralRegionPool::sweepCycleId_{1};
 
 CentralRegionPool::CentralRegionPool(MSRegionManager* msRegionManager)
     : msRegionManager_(msRegionManager)
 {
     for (uint8_t cls = 0; cls < kNumSizeClasses; ++cls) {
-        buckets_[cls].BindAggregateCounters(&centralSmallActiveRegions_,
-                                            &centralSmallSweptRegions_,
-                                            &centralSmallUnsweptRegions_);
+        for (uint8_t scan = 0; scan < kMSScanClassCount; ++scan) {
+            buckets_[cls][scan].BindAggregateCounters(&centralSmallActiveRegions_,
+                                                      &centralSmallSweptRegions_,
+                                                      &centralSmallUnsweptRegions_);
+        }
     }
 }
 
@@ -150,9 +153,9 @@ std::array<uint8_t, kNumSizeClasses> CentralRegionPool::BuildBackgroundSweepClas
 // ============================================================================
 // TakePartialSweptRegion — fastest central-pool acquisition path.
 // ============================================================================
-MSRegionInfo* CentralRegionPool::TakePartialSweptRegion(uint8_t cls)
+MSRegionInfo* CentralRegionPool::TakePartialSweptRegion(uint8_t cls, MSScanClass scanClass)
 {
-    SizeClassBucket& bucket = buckets_[cls];
+    SizeClassBucket& bucket = buckets_[cls][ToMSScanClassIndex(scanClass)];
     MSRegionInfo* region = bucket.TakePartialSwept();
     if (region == nullptr) {
         return nullptr;
@@ -166,77 +169,17 @@ MSRegionInfo* CentralRegionPool::TakePartialSweptRegion(uint8_t cls)
             "sizeClass=%u, allocBitmap=%p, this=%p (idx=%zu)",
             region->regionEnd, expectedEnd, region->allocPtr,
             (unsigned)cls, (unsigned)region->sizeClass,
-            (void*)region->allocBitmap, (void*)region, ridx);
+            (void*)region->GetAllocBitmap(), (void*)region, ridx);
     }
-    region->regionType = MSRegionType::MS_REGION_BITMAP;
+    region->SetAllocMode(MSAllocMode::BITMAP);
     return region;
-}
-
-// ============================================================================
-// TakeUnsweptRegion — lazily sweep unswept lists and return a usable region.
-// Covers partialUnswept first, then fullUnswept.
-// ============================================================================
-MSRegionInfo* CentralRegionPool::TakeUnsweptRegion(uint8_t cls)
-{
-    SizeClassBucket& bucket = buckets_[cls];
-    uint32_t sg = globalSweepGen_.load(std::memory_order_acquire);
-    using UnsweptListKind = SizeClassBucket::UnsweptListKind;
-
-    auto SweepUnsweptList = [&](UnsweptListKind kind) -> MSRegionInfo* {
-        for (;;) {
-            MSRegionInfo* region = bucket.ClaimUnsweptHeadForSweep(kind, sg);
-            if (region == nullptr) {
-                return nullptr;
-            }
-
-            region->SweepRegion();
-            region->SetSweepGen(sg);
-            RecordLazySweep(1);
-
-            if (region->IsCompletelyFree()) {
-                region->ResetToBump();
-                return region;
-            }
-
-            if (kind == UnsweptListKind::PARTIAL || region->HasFreeSpace()) {
-                region->regionType = MSRegionType::MS_REGION_BITMAP;
-                return region;
-            }
-
-            // Still full after sweeping a full-unswept region → move to fullSwept
-            region->regionType = MSRegionType::MS_REGION_FULL;
-            bucket.PushFullSwept(region);
-        }
-    };
-
-    if (!TryEnterSweep()) {
-        return nullptr;
-    }
-
-    // Notify background sweep only when we actually enter unswept paths,
-    // rather than speculatively at central acquisition entry.
-    msRegionManager_->MaybeNotifySweep(this, cls);
-    activeLazySweepCount_.fetch_add(1, std::memory_order_relaxed);
-
-    if (skipLazySweep_.load(std::memory_order_acquire)) {
-        activeLazySweepCount_.fetch_sub(1, std::memory_order_release);
-        LeaveSweep();
-        return nullptr;
-    }
-
-    MSRegionInfo* sweptRegion = SweepUnsweptList(UnsweptListKind::PARTIAL);
-    if (sweptRegion == nullptr) {
-        sweptRegion = SweepUnsweptList(UnsweptListKind::FULL);
-    }
-    activeLazySweepCount_.fetch_sub(1, std::memory_order_release);
-    LeaveSweep();
-    return sweptRegion;
 }
 
 // ============================================================================
 // GetFreshRegion — allocate a brand-new Region from MSRegionManager
 // ============================================================================
-MSRegionInfo* CentralRegionPool::GetFreshRegion(uint8_t cls, uint16_t shardHint)
+MSRegionInfo* CentralRegionPool::GetFreshRegion(
+    uint8_t cls, MSScanClass scanClass, uint16_t shardHint)
 {
     // MSRegionManager::TakeRegion allocates one MS_REGION_SIZE region
     // and returns the corresponding MSRegionInfo* directly (one-level).
@@ -251,35 +194,34 @@ MSRegionInfo* CentralRegionPool::GetFreshRegion(uint8_t cls, uint16_t shardHint)
     ClearSmallRegionPayload(regionStart);
 
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
-    if (UNLIKELY(msInfo->regionType != MSRegionType::MS_REGION_FREE)) {
+    if (UNLIKELY(!msInfo->IsFreeRegion())) {
         LOG(RTLOG_FATAL, "[MS-GC] GetFreshRegion: TakeRegion returned non-FREE region! "
             "regionType=%d, allocPtr=0x%zx, regionEnd=0x%zx, allocBitmap=%p, "
-            "sizeClass=%u, sweepState=%d, sweepGen=%u, "
-            "nextIdx=%d, prevIdx=%d, reserved=0x%llx, "
+            "sizeClass=%u, allocMode=%u, collectEpoch=%u, "
+            "centralNext=%d, markTaskNext=%d, reserved=0x%llx, "
             "cls=%u, regionIdx=%zu, regionStart=0x%zx, this=%p",
-            (int)msInfo->regionType, msInfo->allocPtr, msInfo->regionEnd,
-            (void*)msInfo->allocBitmap, (unsigned)msInfo->sizeClass,
-            (int)msInfo->sweepState, msInfo->sweepGen,
-            msInfo->nextRegionIdx, msInfo->prevRegionIdx,
-            (unsigned long long)msInfo->reserved,
+            (int)msInfo->GetRegionType(), msInfo->allocPtr, msInfo->regionEnd,
+            (void*)msInfo->GetAllocBitmap(), (unsigned)msInfo->sizeClass,
+            static_cast<unsigned>(msInfo->GetAllocMode()),
+            static_cast<unsigned>(msInfo->collectEpoch),
+            static_cast<int32_t>(msInfo->GetCentralNextRegionIdx()),
+            static_cast<int32_t>(msInfo->GetMarkTaskNextRegionIdx()),
+            (unsigned long long)msInfo->allocSummary,
             (unsigned)cls, regionIdx, regionStart, (void*)msInfo);
     }
 #endif
 
     // Initialize for the requested size class (sets bitmaps, slot counts, state)
-    msInfo->InitForSizeClass(cls);
+    msInfo->InitForSizeClass(cls, scanClass);
 
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
-    if (UNLIKELY(msInfo->allocBitmap == nullptr)) {
+    if (UNLIKELY(msInfo->GetAllocBitmap() == nullptr)) {
         LOG(RTLOG_FATAL, "[MS-GC] GetFreshRegion: InitForSizeClass failed to alloc bitmap, "
             "cls=%u, regionIdx=%zu, regionStart=0x%zx, totalSlots=%u, this=%p",
-            (unsigned)cls, regionIdx, regionStart, (unsigned)msInfo->totalSlotCount,
+            (unsigned)cls, regionIdx, regionStart, (unsigned)msInfo->GetTotalSlotCount(),
             (void*)msInfo);
     }
 #endif
-
-    // Stamp the current sweep generation so this Region is seen as "already swept"
-    msInfo->SetSweepGen(globalSweepGen_.load(std::memory_order_acquire));
 
     return msInfo;
 }
@@ -307,14 +249,11 @@ void CentralRegionPool::ReturnPartialRegion(MSRegionInfo* region, uint8_t cls)
             static_cast<unsigned>(bucketCls),
             static_cast<void*>(region));
     }
-    SizeClassBucket& bucket = buckets_[bucketCls];
-    region->regionType = MSRegionType::MS_REGION_PARTIAL;
-    uint32_t sg = globalSweepGen_.load(std::memory_order_acquire);
-    if (region->GetSweepGen() == sg) {
-        bucket.PushPartialSwept(region);
-    } else {
-        bucket.PushPartialUnswept(region);
-    }
+    SizeClassBucket& bucket =
+        buckets_[bucketCls][ToMSScanClassIndex(region->GetScanClass())];
+    region->SetAllocMode(MSAllocMode::BITMAP);
+    region->collectEpoch = MSRegionInfo::NO_COLLECT_EPOCH;
+    bucket.PushPartialSwept(region);
 }
 
 void CentralRegionPool::ReturnFullRegion(MSRegionInfo* region, uint8_t cls)
@@ -331,14 +270,11 @@ void CentralRegionPool::ReturnFullRegion(MSRegionInfo* region, uint8_t cls)
             static_cast<unsigned>(bucketCls),
             static_cast<void*>(region));
     }
-    SizeClassBucket& bucket = buckets_[bucketCls];
-    region->regionType = MSRegionType::MS_REGION_FULL;
-    uint32_t sg = globalSweepGen_.load(std::memory_order_acquire);
-    if (region->GetSweepGen() == sg) {
-        bucket.PushFullSwept(region);
-    } else {
-        bucket.PushFullUnswept(region);
-    }
+    SizeClassBucket& bucket =
+        buckets_[bucketCls][ToMSScanClassIndex(region->GetScanClass())];
+    region->SetAllocMode(MSAllocMode::BITMAP);
+    region->collectEpoch = MSRegionInfo::NO_COLLECT_EPOCH;
+    bucket.PushFullSwept(region);
 }
 
 void CentralRegionPool::ReturnEmptyRegion(MSRegionInfo* region)
@@ -430,9 +366,9 @@ size_t CentralRegionPool::ReclaimEmptyRegion(size_t maxRegions)
     spans.reserve(reclaimed.size());
     for (MSRegionInfo* region : reclaimed) {
         size_t regionIdx = MSRegionInfoArray::GetRegionIdx(region);
-        CHECK_DETAIL(region->regionType == MSRegionType::MS_REGION_EMPTY_CACHE,
+        CHECK_DETAIL(region->IsFreeRegion(),
                      "[MS-GC] ReclaimEmptyRegion: bad regionType=%u idx=%zu",
-                     static_cast<unsigned>(region->regionType), regionIdx);
+                     static_cast<unsigned>(region->GetRegionType()), regionIdx);
         region->Reset();
         spans.push_back({ static_cast<FreeManager::RegionIndex>(regionIdx), 1 });
         promotedBytes += MS_REGION_SIZE;
@@ -517,9 +453,9 @@ size_t CentralRegionPool::ReclaimIdleSegmentCaches(size_t startRegionIdx, size_t
         spans.reserve(reclaimedEmptyRegions.size());
         for (MSRegionInfo* region : reclaimedEmptyRegions) {
             size_t regionIdx = MSRegionInfoArray::GetRegionIdx(region);
-            CHECK_DETAIL(region->regionType == MSRegionType::MS_REGION_EMPTY_CACHE,
+            CHECK_DETAIL(region->IsFreeRegion(),
                          "[MS-GC] ReclaimIdleSegmentCaches: bad empty-cache regionType=%u idx=%zu",
-                         static_cast<unsigned>(region->regionType), regionIdx);
+                         static_cast<unsigned>(region->GetRegionType()), regionIdx);
             region->Reset();
             spans.push_back({ static_cast<FreeManager::RegionIndex>(regionIdx), 1 });
             promotedBytes += MS_REGION_SIZE;
@@ -571,47 +507,114 @@ size_t CentralRegionPool::ReclaimIdleSegmentCaches(size_t startRegionIdx, size_t
 // GC operations
 // ============================================================================
 
-void CentralRegionPool::PrepareForSweep()
+uint32_t CentralRegionPool::BuildCollectSet()
 {
-    // At this point MarkSetup has already stopped sweep and promoted any residual
-    // unswept regions to swept. FlushAllAllocBuffers returns TL regions to swept.
-    // O(1) per-bucket flip:
-    //   partialSwept → partialUnswept (StealChainTo: head pointer transfer)
-    //   fullSwept    ↔ fullUnswept    (Swap: head/count exchange)
-    // Count AFTER the flip: FlipSweptToUnswept moves the regions that need sweeping
-    // this cycle from the swept lists into the unswept lists. Counting before the
-    // flip would read the previous cycle's residual unswept lists (already drained
-    // to ~0 by ForceFinishAllUnswept), yielding totalUnswept==0 and a zero ratio.
+    uint32_t previousEpoch = currentMarkEpoch_.load(std::memory_order_relaxed);
+    uint32_t epoch = previousEpoch + 1;
+    if (UNLIKELY(epoch == MSRegionInfo::NO_COLLECT_EPOCH)) {
+        epoch = 1;
+    }
+
+    size_t collected = 0;
+    for (uint8_t cls = 0; cls < kNumSizeClasses; ++cls) {
+        for (uint8_t scan = 0; scan < kMSScanClassCount; ++scan) {
+            RegionChain& chain = collectSet_[cls][scan];
+            CHECK_DETAIL(chain.IsEmpty(),
+                         "[MS-GC] BuildCollectSet: stale collect-set chain cls=%u scan=%u count=%zu",
+                         static_cast<unsigned>(cls), static_cast<unsigned>(scan), chain.count);
+            buckets_[cls][scan].StealSweptToCollectSet(chain);
+            chain.ForEach([epoch, cls, scan](MSRegionInfo* region) {
+                CHECK_DETAIL(
+                    region->GetRegionKind() == MSRegionKind::SMALL &&
+                    region->GetAllocMode() == MSAllocMode::BITMAP &&
+                    region->sizeClass == cls &&
+                    ToMSScanClassIndex(region->GetScanClass()) == scan,
+                    "[MS-GC] BuildCollectSet: invalid lane member idx=%zu cls=%u/%u scan=%u/%u "
+                    "kind=%u mode=%u",
+                    MSRegionInfoArray::GetRegionIdx(region),
+                    static_cast<unsigned>(region->sizeClass),
+                    static_cast<unsigned>(cls),
+                    static_cast<unsigned>(ToMSScanClassIndex(region->GetScanClass())),
+                    static_cast<unsigned>(scan),
+                    static_cast<unsigned>(region->GetRegionKind()),
+                    static_cast<unsigned>(region->GetAllocMode()));
+                region->collectEpoch = epoch;
+            });
+            collected += chain.count;
+        }
+    }
+    // Freeze LARGE membership with one O(1) vector swap. Later allocations
+    // append only to largeNextSupply_ and are outside this cycle.
+    {
+        std::lock_guard<std::mutex> lg(largeLock_);
+        CHECK_DETAIL(
+            largeCollectSet_.empty(),
+            "[MS-GC] BuildCollectSet: stale LARGE collect-set entries=%zu",
+            largeCollectSet_.size());
+        largeCollectSet_.swap(largeNextSupply_);
+        for (uint32_t idx : largeCollectSet_) {
+            MSRegionInfo* region =
+                MSRegionInfoArray::GetRegionInfoByIdx(idx);
+            CHECK_DETAIL(
+                region != nullptr &&
+                region->GetRegionKind() == MSRegionKind::LARGE,
+                "[MS-GC] BuildCollectSet: invalid LARGE primary idx=%u",
+                idx);
+            region->collectEpoch = epoch;
+        }
+    }
+
+    currentMarkEpoch_.store(epoch, std::memory_order_release);
+    PublishMSGCFastPathMarkEpoch(epoch);
+
+    VLOG(REPORT,
+         "[MS-GC] BuildCollectSet: epoch=%u smallRegions=%zu activeOutside=%zu",
+         static_cast<unsigned>(epoch), collected, GetAllAllocBufferActiveRegionCount());
+    return epoch;
+}
+
+size_t CentralRegionPool::GetCollectSetRegionCount() const
+{
+    size_t total = 0;
+    for (uint8_t cls = 0; cls < kNumSizeClasses; ++cls) {
+        for (uint8_t scan = 0; scan < kMSScanClassCount; ++scan) {
+            total += collectSet_[cls][scan].count;
+        }
+    }
+    return total;
+}
+
+void CentralRegionPool::PublishCollectSetForSweep()
+{
     size_t totalUnswept = 0;
-    for (uint8_t cls = 0; cls < kNumSizeClasses; cls++) {
-        buckets_[cls].FlipSweptToUnswept();
-        totalUnswept += buckets_[cls].CountPartialUnswept() + buckets_[cls].CountFullUnswept();
+    for (uint8_t cls = 0; cls < kNumSizeClasses; ++cls) {
+        for (uint8_t scan = 0; scan < kMSScanClassCount; ++scan) {
+            RegionChain& chain = collectSet_[cls][scan];
+            totalUnswept += chain.count;
+            buckets_[cls][scan].PublishCollectSetToUnswept(chain);
+            CHECK(chain.IsEmpty());
+        }
     }
     centralSmallUnsweptRegions_.store(totalUnswept, std::memory_order_release);
 
-    // Reset the per-cycle central credit and publish the fixed-point proportional
-    // Sweep ratio once. Allocation progress and debt live in each AllocBufferMS.
-    // runway = how much more allocation can happen before the next GC trigger,
-    // measured on the swept-region-bytes axis the HEU trigger actually compares
-    // against (threshold vs GetSweptHeapBytes), consistent with
-    // BackgroundProcessor::HasPendingSweepWork. At cycle start sweptBytes is ~0 so
-    // runway ~= threshold. threshold is stable within a cycle (only changed at GC
-    // boundaries), so the ratio is fixed here and read without re-computation.
     forceHighSweepPressure_.store(false, std::memory_order_relaxed);
-    sweepPressureMode_.store(static_cast<int>(SweepPressureMode::LOW), std::memory_order_relaxed);
+    sweepPressureMode_.store(
+        static_cast<int>(SweepPressureMode::LOW), std::memory_order_relaxed);
     sweepCredit_.Reset();
-    {
-        RegionSpaceMS& space = static_cast<RegionSpaceMS&>(Heap::GetHeap().GetAllocator());
-        size_t threshold = space.GetHeapThresholdBytes();
-        size_t sweptBytes = space.GetSweptHeapBytes();
-        size_t runwayRegions = ComputeRunwayRegions(threshold, sweptBytes, MS_REGION_SIZE);
-        sweepRegionsPerAllocScaled_.store(
-            ComputeMSSweepAssistRatioScaled(totalUnswept, runwayRegions),
-            std::memory_order_relaxed);
-    }
+    RegionSpaceMS& space = static_cast<RegionSpaceMS&>(Heap::GetHeap().GetAllocator());
+    size_t runwayRegions = ComputeRunwayRegions(
+        space.GetHeapThresholdBytes(), space.GetSweptHeapBytes(), MS_REGION_SIZE);
+    sweepRegionsPerAllocScaled_.store(
+        ComputeMSSweepAssistRatioScaled(totalUnswept, runwayRegions),
+        std::memory_order_relaxed);
+    sweepCycleId_.fetch_add(1, std::memory_order_release);
+    sweepDone_.store(totalUnswept == 0, std::memory_order_release);
 
-    globalSweepGen_.fetch_add(2, std::memory_order_release);
-    sweepDone_.store(false, std::memory_order_release);
+    VLOG(REPORT,
+         "[MS-GC] PublishCollectSetForSweep: epoch=%u unsweptRegions=%zu",
+         static_cast<unsigned>(
+             currentMarkEpoch_.load(std::memory_order_relaxed)),
+         totalUnswept);
 }
 
 // ============================================================================
@@ -634,7 +637,6 @@ void CentralRegionPool::BackgroundSweep(uint8_t preferredCls, uint64_t deadlineU
         return;
     }
 
-    uint32_t sg = globalSweepGen_.load(std::memory_order_acquire);
     size_t remainingUnswept = GetTotalUnsweptCount();
     if (remainingUnswept == 0) {
         finish();
@@ -643,14 +645,12 @@ void CentralRegionPool::BackgroundSweep(uint8_t preferredCls, uint64_t deadlineU
     size_t sweptInSlice = 0;
 
     auto SweepBucket = [&](uint8_t cls) -> bool {
-        SizeClassBucket& bucket = buckets_[cls];
-        if (!SweepUnsweptList(bucket, SizeClassBucket::UnsweptListKind::PARTIAL,
-                              sg, sweptInSlice, SIZE_MAX, deadlineUs)) {
-            return false;
-        }
-        if (!SweepUnsweptList(bucket, SizeClassBucket::UnsweptListKind::FULL,
-                              sg, sweptInSlice, SIZE_MAX, deadlineUs)) {
-            return false;
+        for (uint8_t scan = 0; scan < kMSScanClassCount; ++scan) {
+            SizeClassBucket& bucket = buckets_[cls][scan];
+            if (!SweepUnsweptList(
+                bucket, sweptInSlice, SIZE_MAX, deadlineUs)) {
+                return false;
+            }
         }
         return true;
     };
@@ -679,17 +679,19 @@ void CentralRegionPool::ParallelSweep(uint8_t preferredCls, uint64_t deadlineUs)
         return;
     }
 
-    uint32_t sg = globalSweepGen_.load(std::memory_order_acquire);
     size_t sweptInSlice = 0;
     auto classOrder = BuildMSSweepCyclicClassOrder<kNumSizeClasses>(preferredCls);
     for (uint8_t cls : classOrder) {
-        SizeClassBucket& bucket = buckets_[cls];
-        if (!SweepUnsweptList(bucket, SizeClassBucket::UnsweptListKind::PARTIAL,
-                              sg, sweptInSlice, SIZE_MAX, deadlineUs)) {
-            break;
+        bool completedClass = true;
+        for (uint8_t scan = 0; scan < kMSScanClassCount; ++scan) {
+            SizeClassBucket& bucket = buckets_[cls][scan];
+            if (!SweepUnsweptList(
+                bucket, sweptInSlice, SIZE_MAX, deadlineUs)) {
+                completedClass = false;
+                break;
+            }
         }
-        if (!SweepUnsweptList(bucket, SizeClassBucket::UnsweptListKind::FULL,
-                              sg, sweptInSlice, SIZE_MAX, deadlineUs)) {
+        if (!completedClass) {
             break;
         }
     }
@@ -703,21 +705,20 @@ void CentralRegionPool::ParallelSweepOnceForOOM(uint8_t preferredCls)
 {
     // PreEnumRoots closed every ordinary Sweep lane before Mark. OOM PostMark
     // deliberately keeps them closed while the GC main thread and all configured
-    // Sweep helpers claim disjoint Regions from the same generation.
+    // Sweep helpers claim disjoint Regions from the same unswept head.
     CHECK(stopSweepRequested_.load(std::memory_order_acquire));
     CHECK(skipLazySweep_.load(std::memory_order_acquire));
     CHECK(skipAssistSweep_.load(std::memory_order_acquire));
     CHECK(skipHelperSweep_.load(std::memory_order_acquire));
 
-    uint32_t sg = globalSweepGen_.load(std::memory_order_acquire);
     size_t sweptInPass = 0;
     auto classOrder = BuildMSSweepCyclicClassOrder<kNumSizeClasses>(preferredCls);
     for (uint8_t cls : classOrder) {
-        SizeClassBucket& bucket = buckets_[cls];
-        (void)SweepUnsweptList(bucket, SizeClassBucket::UnsweptListKind::PARTIAL,
-                               sg, sweptInPass, SIZE_MAX, UINT64_MAX);
-        (void)SweepUnsweptList(bucket, SizeClassBucket::UnsweptListKind::FULL,
-                               sg, sweptInPass, SIZE_MAX, UINT64_MAX);
+        for (uint8_t scan = 0; scan < kMSScanClassCount; ++scan) {
+            SizeClassBucket& bucket = buckets_[cls][scan];
+            (void)SweepUnsweptList(
+                bucket, sweptInPass, SIZE_MAX, UINT64_MAX);
+        }
     }
 }
 
@@ -804,20 +805,17 @@ size_t CentralRegionPool::AssistSweep(size_t targetRegions, uint8_t preferredCls
         return 0;
     }
 
-    uint32_t sg = globalSweepGen_.load(std::memory_order_acquire);
     size_t sweptRegions = 0;
     auto classOrder = BuildMSSweepCyclicClassOrder<kNumSizeClasses>(preferredCls);
     for (uint8_t cls : classOrder) {
-        SizeClassBucket& bucket = buckets_[cls];
-        while (sweptRegions < targetRegions &&
-               SweepOneUnsweptRegionForAssist(bucket, SizeClassBucket::UnsweptListKind::PARTIAL,
-                                             sg)) {
-            ++sweptRegions;
-        }
-        while (sweptRegions < targetRegions &&
-               SweepOneUnsweptRegionForAssist(bucket, SizeClassBucket::UnsweptListKind::FULL,
-                                             sg)) {
-            ++sweptRegions;
+        for (uint8_t scan = 0;
+             scan < kMSScanClassCount && sweptRegions < targetRegions;
+             ++scan) {
+            SizeClassBucket& bucket = buckets_[cls][scan];
+            while (sweptRegions < targetRegions &&
+                   SweepOneUnsweptRegionForAssist(bucket)) {
+                ++sweptRegions;
+            }
         }
         if (sweptRegions >= targetRegions) {
             break;
@@ -828,39 +826,34 @@ size_t CentralRegionPool::AssistSweep(size_t targetRegions, uint8_t preferredCls
     return sweptRegions;
 }
 
-bool CentralRegionPool::SweepOneUnsweptRegionForAssist(SizeClassBucket& bucket,
-                                                       SizeClassBucket::UnsweptListKind listKind,
-                                                       uint32_t sg,
-                                                       size_t* emptiedInSlice)
+bool CentralRegionPool::SweepOneUnsweptRegionForAssist(
+    SizeClassBucket& bucket, size_t* emptiedInSlice)
 {
-    for (;;) {
-        MSRegionInfo* region = bucket.ClaimUnsweptHeadForSweep(listKind, sg);
-        if (region == nullptr) {
-            return false;
-        }
-
-        region->SweepRegion();
-        region->SetSweepGen(sg);
-        if (region->IsCompletelyFree()) {
-            PushEmptySweptRegion(region);
-            if (emptiedInSlice != nullptr) {
-                (*emptiedInSlice)++;
-            }
-        } else if (region->HasFreeSpace()) {
-            region->regionType = MSRegionType::MS_REGION_PARTIAL;
-            bucket.PushPartialSwept(region);
-        } else {
-            region->regionType = MSRegionType::MS_REGION_FULL;
-            bucket.PushFullSwept(region);
-        }
-        return true;
+    MSRegionInfo* region = bucket.ClaimUnswept();
+    if (region == nullptr) {
+        return false;
     }
+
+    region->SweepRegion();
+    region->collectEpoch = MSRegionInfo::NO_COLLECT_EPOCH;
+    if (region->IsCompletelyFree()) {
+        PushEmptySweptRegion(region);
+        if (emptiedInSlice != nullptr) {
+            (*emptiedInSlice)++;
+        }
+    } else if (region->HasFreeSpace()) {
+        region->SetAllocMode(MSAllocMode::BITMAP);
+        bucket.PushPartialSwept(region);
+    } else {
+        region->SetAllocMode(MSAllocMode::BITMAP);
+        bucket.PushFullSwept(region);
+    }
+    return true;
 }
 
-bool CentralRegionPool::SweepUnsweptList(SizeClassBucket& bucket, SizeClassBucket::UnsweptListKind listKind,
-                                         uint32_t sg,
-                                         size_t& sweptInSlice, size_t maxRegions, uint64_t deadlineUs,
-                                         size_t* emptiedInSlice)
+bool CentralRegionPool::SweepUnsweptList(
+    SizeClassBucket& bucket, size_t& sweptInSlice, size_t maxRegions,
+    uint64_t deadlineUs, size_t* emptiedInSlice)
 {
     for (;;) {
         if (sweptInSlice >= maxRegions) {
@@ -871,13 +864,13 @@ bool CentralRegionPool::SweepUnsweptList(SizeClassBucket& bucket, SizeClassBucke
             return false;
         }
 
-        MSRegionInfo* region = bucket.ClaimUnsweptHeadForSweep(listKind, sg);
+        MSRegionInfo* region = bucket.ClaimUnswept();
         if (region == nullptr) {
             break;
         }
 
         region->SweepRegion();
-        region->SetSweepGen(sg);
+        region->collectEpoch = MSRegionInfo::NO_COLLECT_EPOCH;
         sweptInSlice++;
 
         if (region->IsCompletelyFree()) {
@@ -888,10 +881,10 @@ bool CentralRegionPool::SweepUnsweptList(SizeClassBucket& bucket, SizeClassBucke
                 (*emptiedInSlice)++;
             }
         } else if (region->HasFreeSpace()) {
-            region->regionType = MSRegionType::MS_REGION_PARTIAL;
+            region->SetAllocMode(MSAllocMode::BITMAP);
             bucket.PushPartialSwept(region);
         } else {
-            region->regionType = MSRegionType::MS_REGION_FULL;
+            region->SetAllocMode(MSAllocMode::BITMAP);
             bucket.PushFullSwept(region);
         }
 
@@ -911,8 +904,9 @@ size_t CentralRegionPool::GetTotalUnsweptCountReference() const
 {
     size_t total = 0;
     for (uint8_t cls = 0; cls < kNumSizeClasses; cls++) {
-        total += buckets_[cls].CountPartialUnswept();
-        total += buckets_[cls].CountFullUnswept();
+        for (uint8_t scan = 0; scan < kMSScanClassCount; ++scan) {
+            total += buckets_[cls][scan].CountUnswept();
+        }
     }
     return total;
 }
@@ -928,21 +922,22 @@ size_t CentralRegionPool::GetTotalUnsweptBytes() const
 
 size_t CentralRegionPool::GetLargeRegionCount() const
 {
-    return largeRegionList_.Count();
+    std::lock_guard<std::mutex> lg(const_cast<std::mutex&>(largeLock_));
+    return largeCollectSet_.size() + largeNextSupply_.size();
 }
 
-void CentralRegionPool::ForceFinishUnsweptList(SizeClassBucket& bucket, SizeClassBucket::UnsweptListKind listKind,
-                                               uint32_t sg, size_t& sweptRegions, size_t& emptiedRegions,
-                                               size_t& retainedRegions, size_t& freedBytes)
+void CentralRegionPool::ForceFinishUnsweptList(
+    SizeClassBucket& bucket, size_t& sweptRegions, size_t& emptiedRegions,
+    size_t& retainedRegions, size_t& freedBytes)
 {
     for (;;) {
-        MSRegionInfo* region = bucket.ClaimUnsweptHeadForSweep(listKind, sg);
+        MSRegionInfo* region = bucket.ClaimUnswept();
         if (region == nullptr) {
             break;
         }
 
         size_t regionFreedBytes = region->SweepRegion();
-        region->SetSweepGen(sg);
+        region->collectEpoch = MSRegionInfo::NO_COLLECT_EPOCH;
         sweptRegions++;
         freedBytes += regionFreedBytes;
 
@@ -954,30 +949,29 @@ void CentralRegionPool::ForceFinishUnsweptList(SizeClassBucket& bucket, SizeClas
 
         retainedRegions++;
         if (region->HasFreeSpace()) {
-            region->regionType = MSRegionType::MS_REGION_PARTIAL;
+            region->SetAllocMode(MSAllocMode::BITMAP);
             bucket.PushPartialSwept(region);
             continue;
         }
 
-        region->regionType = MSRegionType::MS_REGION_FULL;
+        region->SetAllocMode(MSAllocMode::BITMAP);
         bucket.PushFullSwept(region);
     }
 }
 
 void CentralRegionPool::ForceFinishAllUnswept()
 {
-    uint32_t sg = globalSweepGen_.load(std::memory_order_acquire);
     size_t sweptRegions = 0;
     size_t emptiedRegions = 0;
     size_t retainedRegions = 0;
     size_t freedBytes = 0;
 
     for (uint8_t cls = 0; cls < kNumSizeClasses; cls++) {
-        SizeClassBucket& bucket = buckets_[cls];
-        ForceFinishUnsweptList(bucket, SizeClassBucket::UnsweptListKind::PARTIAL, sg,
-                            sweptRegions, emptiedRegions, retainedRegions, freedBytes);
-        ForceFinishUnsweptList(bucket, SizeClassBucket::UnsweptListKind::FULL, sg,
-                            sweptRegions, emptiedRegions, retainedRegions, freedBytes);
+        for (uint8_t scan = 0; scan < kMSScanClassCount; ++scan) {
+            SizeClassBucket& bucket = buckets_[cls][scan];
+            ForceFinishUnsweptList(
+                bucket, sweptRegions, emptiedRegions, retainedRegions, freedBytes);
+        }
     }
 
     VLOG(REPORT,
@@ -1017,8 +1011,10 @@ size_t CentralRegionPool::CountTLActiveRegions() const
     // VisitAllocBufferMS requires non-const; safe to const_cast for read-only counting
     const_cast<CentralRegionPool*>(this)->VisitAllocBufferMS([&count](AllocBufferMS& buf) {
         for (uint8_t cls = 0; cls < kNumSizeClasses; cls++) {
-            if (buf.GetActiveRegion(cls) != nullptr) {
-                count++;
+            for (uint8_t scan = 0; scan < kMSScanClassCount; ++scan) {
+                if (buf.GetActiveRegion(cls, static_cast<MSScanClass>(scan)) != nullptr) {
+                    count++;
+                }
             }
         }
     });
@@ -1053,8 +1049,10 @@ size_t CentralRegionPool::GetSweptMSRegionCountReference() const
 {
     size_t total = 0;
     for (uint8_t cls = 0; cls < kNumSizeClasses; cls++) {
-        total += buckets_[cls].CountPartialSwept();
-        total += buckets_[cls].CountFullSwept();
+        for (uint8_t scan = 0; scan < kMSScanClassCount; ++scan) {
+            total += buckets_[cls][scan].CountPartialSwept();
+            total += buckets_[cls][scan].CountFullSwept();
+        }
     }
     total += largeLiveSpanCount_.load(std::memory_order_acquire);
     return total;
@@ -1070,10 +1068,11 @@ size_t CentralRegionPool::GetActiveMSRegionCountReference() const
 {
     size_t total = 0;
     for (uint8_t cls = 0; cls < kNumSizeClasses; cls++) {
-        total += buckets_[cls].CountPartialSwept();
-        total += buckets_[cls].CountFullSwept();
-        total += buckets_[cls].CountPartialUnswept();
-        total += buckets_[cls].CountFullUnswept();
+        for (uint8_t scan = 0; scan < kMSScanClassCount; ++scan) {
+            total += buckets_[cls][scan].CountPartialSwept();
+            total += buckets_[cls][scan].CountFullSwept();
+            total += buckets_[cls][scan].CountUnswept();
+        }
     }
     total += largeLiveSpanCount_.load(std::memory_order_acquire);
     return total;
@@ -1091,32 +1090,38 @@ size_t CentralRegionPool::GetLargeHotCacheRegionCount() const
 
 CentralRegionPool::BucketPressure CentralRegionPool::GetBucketPressure(uint8_t cls) const
 {
-    return buckets_[cls].GetPressure();
+    BucketPressure total;
+    for (uint8_t scan = 0; scan < kMSScanClassCount; ++scan) {
+        BucketPressure lane = buckets_[cls][scan].GetPressure();
+        total.partialSwept += lane.partialSwept;
+        total.fullSwept += lane.fullSwept;
+        total.unswept += lane.unswept;
+    }
+    return total;
 }
 
 void CentralRegionPool::DumpPoolStats() const
 {
     size_t partialSweptTotal = 0;
     size_t fullSweptTotal = 0;
-    size_t partialUnsweptTotal = 0;
-    size_t fullUnsweptTotal = 0;
+    size_t unsweptTotal = 0;
     size_t emptySweptTotal = GetEmptySweptRegionCount();
 
     for (uint8_t cls = 0; cls < kNumSizeClasses; cls++) {
-        partialSweptTotal += buckets_[cls].CountPartialSwept();
-        fullSweptTotal += buckets_[cls].CountFullSwept();
-        partialUnsweptTotal += buckets_[cls].CountPartialUnswept();
-        fullUnsweptTotal += buckets_[cls].CountFullUnswept();
+        for (uint8_t scan = 0; scan < kMSScanClassCount; ++scan) {
+            partialSweptTotal += buckets_[cls][scan].CountPartialSwept();
+            fullSweptTotal += buckets_[cls][scan].CountFullSwept();
+            unsweptTotal += buckets_[cls][scan].CountUnswept();
+        }
     }
 
-    size_t totalSmall = partialSweptTotal + fullSweptTotal + partialUnsweptTotal + fullUnsweptTotal +
-                        emptySweptTotal;
+    size_t totalSmall =
+        partialSweptTotal + fullSweptTotal + unsweptTotal + emptySweptTotal;
 
     VLOG(REPORT, "[MS-GC]   CentralPool small (%u classes aggregated):", kNumSizeClasses);
     VLOG(REPORT, "[MS-GC]     partialSwept: %zu regions  fullSwept: %zu regions",
          partialSweptTotal, fullSweptTotal);
-    VLOG(REPORT, "[MS-GC]     partialUnswept: %zu regions  fullUnswept: %zu regions",
-         partialUnsweptTotal, fullUnsweptTotal);
+    VLOG(REPORT, "[MS-GC]     unswept: %zu regions", unsweptTotal);
     VLOG(REPORT, "[MS-GC]     emptySwept(global+local): %zu regions", emptySweptTotal);
     VLOG(REPORT, "[MS-GC]     total small: %zu regions", totalSmall);
     VLOG(REPORT, "[MS-GC]     large regions: %zu", GetLargeRegionCount());
@@ -1133,7 +1138,8 @@ void CentralRegionPool::AddLargeLiveRegion(MSRegionInfo* region)
 {
     size_t spanCount = region->LargeSpanCount();
     std::lock_guard<std::mutex> lg(largeLock_);
-    largeRegionList_.Prepend(region);
+    largeNextSupply_.push_back(static_cast<uint32_t>(
+        MSRegionInfoArray::GetRegionIdx(region)));
     largeLiveSpanCount_.fetch_add(spanCount, std::memory_order_release);
     largeLiveObjectBytes_.fetch_add(region->LargeObjectSize(), std::memory_order_release);
 }
@@ -1143,22 +1149,30 @@ void CentralRegionPool::RegisterLargeRegion(MSRegionInfo* region)
     AddLargeLiveRegion(region);
 }
 
-void CentralRegionPool::CollectDeadLargeRegions(std::vector<MSRegionInfo*>& deadRegions)
+void CentralRegionPool::CollectDeadLargeRegions(
+    uint32_t collectEpoch, std::vector<MSRegionInfo*>& deadRegions)
 {
     std::lock_guard<std::mutex> lg(largeLock_);
-    std::vector<MSRegionInfo*> toRemove;
-    largeRegionList_.ForEach([&toRemove](MSRegionInfo* region) {
-        if (!region->IsMarked()) {
-            toRemove.push_back(region);
+    for (uint32_t idx : largeCollectSet_) {
+        MSRegionInfo* region =
+            MSRegionInfoArray::GetRegionInfoByIdx(idx);
+        CHECK_DETAIL(
+            region != nullptr &&
+            region->GetRegionKind() == MSRegionKind::LARGE,
+            "[MS-GC] CollectDeadLargeRegions: invalid primary idx=%u",
+            idx);
+        if (region->collectEpoch == collectEpoch && !region->IsMarked()) {
+            size_t spanCount = region->LargeSpanCount();
+            largeLiveSpanCount_.fetch_sub(
+                spanCount, std::memory_order_release);
+            largeLiveObjectBytes_.fetch_sub(
+                region->LargeObjectSize(), std::memory_order_release);
+            deadRegions.push_back(region);
+        } else {
+            largeNextSupply_.push_back(idx);
         }
-    });
-    for (MSRegionInfo* region : toRemove) {
-        size_t spanCount = region->LargeSpanCount();
-        largeRegionList_.Remove(region);
-        largeLiveSpanCount_.fetch_sub(spanCount, std::memory_order_release);
-        largeLiveObjectBytes_.fetch_sub(region->LargeObjectSize(), std::memory_order_release);
-        deadRegions.push_back(region);
     }
+    largeCollectSet_.clear();
 }
 
 // ============================================================================
@@ -1258,7 +1272,8 @@ void CentralRegionPool::SweepLargeRegions()
     // Two-pass to avoid holding largeLock_ during ReclaimRegion.
     std::vector<MSRegionInfo*> deadRegions;
 
-    CollectDeadLargeRegions(deadRegions);
+    CollectDeadLargeRegions(
+        currentMarkEpoch_.load(std::memory_order_acquire), deadRegions);
 
     // Release dead large regions
     for (MSRegionInfo* msInfo : deadRegions) {
@@ -1315,54 +1330,34 @@ MSMarkedStats CentralRegionPool::ComputeMarkedStats() const
 {
     MSMarkedStats stats;
 
-    // 1. Walk all small regions in CentralPool (all 4 lists × 36 classes)
+    // 1. Walk only the immutable small collect-set. OUTSIDE_SET central/TLS
+    // Regions survive this cycle but are not part of its live-mark result.
     for (uint8_t cls = 0; cls < kNumSizeClasses; cls++) {
-        const SizeClassBucket& bucket = buckets_[cls];
         size_t slotSize = SizeClassInfo::ClassToSize(cls);
 
         auto countRegion = [slotSize, &stats](MSRegionInfo* region) {
-            if (region->markBitmap == nullptr || region->totalSlotCount == 0) {
+            if (region->GetRegionKind() != MSRegionKind::SMALL ||
+                region->GetTotalSlotCount() == 0) {
                 return;
             }
-            size_t wordCount = (region->totalSlotCount + 63) / 64;
+            uint64_t* markBitmap = region->GetMarkBitmap();
+            size_t wordCount = region->GetBitmapWordCount();
             size_t marked = 0;
             for (size_t i = 0; i < wordCount; i++) {
-                marked += __builtin_popcountll(region->markBitmap[i]);
+                marked += __builtin_popcountll(markBitmap[i]);
             }
             stats.AddSlots(marked, slotSize);
         };
 
-        bucket.VisitPartialSweptUnsafe(countRegion);
-        bucket.VisitLockedLists(countRegion, countRegion, countRegion);
-    }
-
-    // 2. Walk thread-local AllocBufferMS active regions (not in central pool)
-    {
-        std::lock_guard<std::mutex> lg(const_cast<std::mutex&>(msAllocBufferLock_));
-        for (AllocBufferMS* buffer : msAllocBuffers_) {
-            if (buffer == nullptr) {
-                continue;
-            }
-            for (uint8_t cls = 0; cls < kNumSizeClasses; cls++) {
-                MSRegionInfo* region = buffer->GetActiveRegion(cls);
-                if (region == nullptr || region->markBitmap == nullptr ||
-                    region->totalSlotCount == 0) {
-                    continue;
-                }
-                size_t slotSize = SizeClassInfo::ClassToSize(cls);
-                size_t wordCount = (region->totalSlotCount + 63) / 64;
-                size_t marked = 0;
-                for (size_t i = 0; i < wordCount; i++) {
-                    marked += __builtin_popcountll(region->markBitmap[i]);
-                }
-                stats.AddSlots(marked, slotSize);
-            }
+        for (uint8_t scan = 0; scan < kMSScanClassCount; ++scan) {
+            collectSet_[cls][scan].ForEach(countRegion);
         }
     }
 
-    // 3. Live large regions (isMarked == 1 after CollectLargeGarbage)
+    // 2. Walk only the immutable LARGE collect-set, before its live/dead
+    // partition moves survivors back to largeNextSupply_.
     {
-        VisitLargeRegionsLocked([&stats](MSRegionInfo* region) {
+        VisitLargeCollectSetLocked([&stats](MSRegionInfo* region) {
             if (region->IsMarked()) {
                 stats.AddLargeObject(region->LargeSpanBytes());
             }
@@ -1382,13 +1377,15 @@ void CentralRegionPool::VisitMarkedObjects(const std::function<void(BaseObject*)
 {
     // Walk one region's markBitmap, emitting each marked slot as a BaseObject*.
     auto visitRegion = [&func](MSRegionInfo* region, size_t slotSize) {
-        if (region->markBitmap == nullptr || region->totalSlotCount == 0) {
+        if (region->GetRegionKind() != MSRegionKind::SMALL ||
+            region->GetTotalSlotCount() == 0) {
             return;
         }
+        uint64_t* markBitmap = region->GetMarkBitmap();
         uintptr_t base = region->RegionStart();
-        size_t wordCount = (region->totalSlotCount + 63) / 64;
+        size_t wordCount = region->GetBitmapWordCount();
         for (size_t w = 0; w < wordCount; w++) {
-            uint64_t bits = region->markBitmap[w];
+            uint64_t bits = markBitmap[w];
             while (bits != 0) {
                 size_t bit = static_cast<size_t>(__builtin_ctzll(bits));
                 bits &= (bits - 1);
@@ -1399,15 +1396,18 @@ void CentralRegionPool::VisitMarkedObjects(const std::function<void(BaseObject*)
         }
     };
 
-    // 1. All small regions across all 4 lists × size classes.
+    // 1. Immutable collect-set plus OUTSIDE_SET central supply.
     for (uint8_t cls = 0; cls < kNumSizeClasses; cls++) {
-        const SizeClassBucket& bucket = buckets_[cls];
         size_t slotSize = SizeClassInfo::ClassToSize(cls);
         auto countRegion = [&visitRegion, slotSize](MSRegionInfo* region) {
             visitRegion(region, slotSize);
         };
-        bucket.VisitPartialSweptUnsafe(countRegion);
-        bucket.VisitLockedLists(countRegion, countRegion, countRegion);
+        for (uint8_t scan = 0; scan < kMSScanClassCount; ++scan) {
+            const SizeClassBucket& bucket = buckets_[cls][scan];
+            collectSet_[cls][scan].ForEach(countRegion);
+            bucket.VisitPartialSweptUnsafe(countRegion);
+            bucket.VisitNonPartialUnsafe(countRegion, countRegion);
+        }
     }
 
     // 2. Thread-local AllocBufferMS active regions.
@@ -1418,11 +1418,14 @@ void CentralRegionPool::VisitMarkedObjects(const std::function<void(BaseObject*)
                 continue;
             }
             for (uint8_t cls = 0; cls < kNumSizeClasses; cls++) {
-                MSRegionInfo* region = buffer->GetActiveRegion(cls);
-                if (region == nullptr) {
-                    continue;
+                for (uint8_t scan = 0; scan < kMSScanClassCount; ++scan) {
+                    MSRegionInfo* region =
+                        buffer->GetActiveRegion(cls, static_cast<MSScanClass>(scan));
+                    if (region == nullptr) {
+                        continue;
+                    }
+                    visitRegion(region, SizeClassInfo::ClassToSize(cls));
                 }
-                visitRegion(region, SizeClassInfo::ClassToSize(cls));
             }
         }
     }
@@ -1493,102 +1496,108 @@ void CentralRegionPool::StopAndWaitForAllSweep()
 void CentralRegionPool::ClearAllMarkBitmaps()
 {
     uint64_t clearStartUs = TimeUtil::MicroSeconds();
-    uint32_t sg = globalSweepGen_.load(std::memory_order_acquire);
-    size_t centralSmallCleared = 0;
+    uint32_t markEpoch = currentMarkEpoch_.load(std::memory_order_acquire);
+    size_t collectSetSmallCleared = 0;
     size_t tlSmallCleared = 0;
     size_t largeBaseCleared = 0;
 
-    // StopAndWaitForAllSweep() has quiesced all central-list claimants, and
-    // PreEnumRoots holds STW while this method runs. The central lists therefore
-    // form a stable, active-only view without scanning committed metadata.
-    VisitAllRegions([sg, &centralSmallCleared](MSRegionInfo* region) {
+    // BuildCollectSet() already removed this cycle's sealed Regions from the
+    // allocation supply. ALLOC remains untouched and authoritative for these
+    // Regions; only per-cycle MARK/SCAN work state is reset.
+    for (uint8_t cls = 0; cls < kNumSizeClasses; ++cls) {
+        for (uint8_t scan = 0; scan < kMSScanClassCount; ++scan) {
+            collectSet_[cls][scan].ForEach(
+                [markEpoch, &collectSetSmallCleared](MSRegionInfo* region) {
+                    (void)markEpoch;
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
-        CHECK_DETAIL(region != nullptr,
-                     "[MS-GC] null central Region during mark bitmap clear");
-        CHECK_DETAIL(
-            region->regionType == MSRegionType::MS_REGION_PARTIAL ||
-            region->regionType == MSRegionType::MS_REGION_FULL,
-            "[MS-GC] unexpected central Region type during mark bitmap clear: "
-            "idx=%zu type=%u",
-            MSRegionInfoArray::GetRegionIdx(region),
-            static_cast<unsigned>(region->regionType));
-        CHECK_DETAIL(
-            region->GetSweepGen() == sg,
-            "[MS-GC] stale central Region generation during mark bitmap clear: "
-            "idx=%zu sweepGen=%u expected=%u",
-            MSRegionInfoArray::GetRegionIdx(region),
-            static_cast<unsigned>(region->GetSweepGen()),
-            static_cast<unsigned>(sg));
-#else
-        (void)sg;
+                    CHECK_DETAIL(
+                        region != nullptr &&
+                        region->GetRegionKind() == MSRegionKind::SMALL &&
+                        region->GetAllocMode() == MSAllocMode::BITMAP &&
+                        region->collectEpoch == markEpoch,
+                        "[MS-GC] invalid collect-set Region during mark reset: "
+                        "idx=%zu epoch=%u expected=%u kind=%u mode=%u",
+                        MSRegionInfoArray::GetRegionIdx(region),
+                        static_cast<unsigned>(region->collectEpoch),
+                        static_cast<unsigned>(markEpoch),
+                        static_cast<unsigned>(region->GetRegionKind()),
+                        static_cast<unsigned>(region->GetAllocMode()));
 #endif
-        region->ClearMarkBitmap();
-        ++centralSmallCleared;
-    });
+                    region->ResetSmallMarkWorkState();
+                    ++collectSetSmallCleared;
+                });
+        }
+    }
 
-    // Active-local Regions are disjoint from the central lists. Some may have
-    // stayed in their AllocBufferMS across the previous Sweep epoch, so retain
-    // the existing generation normalization before clearing their mark bits.
-    VisitAllocBufferMS([sg, &tlSmallCleared](AllocBufferMS& buffer) {
+    // ACTIVE Regions are outside this collection boundary. Clear only their
+    // MARK/SCAN task workspace; never materialize or read their live ALLOC
+    // plane. They remain owned by the mutator across this cycle.
+    VisitAllocBufferMS([&tlSmallCleared](AllocBufferMS& buffer) {
         for (uint8_t cls = 0; cls < kNumSizeClasses; ++cls) {
-            MSRegionInfo* region = buffer.GetActiveRegion(cls);
-            if (region == nullptr) {
-                continue;
-            }
+            for (uint8_t scan = 0; scan < kMSScanClassCount; ++scan) {
+                MSRegionInfo* region =
+                    buffer.GetActiveRegion(cls, static_cast<MSScanClass>(scan));
+                if (region == nullptr) {
+                    continue;
+                }
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
-            CHECK_DETAIL(
-                region->regionType == MSRegionType::MS_REGION_BUMP ||
-                region->regionType == MSRegionType::MS_REGION_BITMAP,
-                "[MS-GC] unexpected TLS Region type during mark bitmap clear: "
-                "idx=%zu cls=%u type=%u",
-                MSRegionInfoArray::GetRegionIdx(region),
-                static_cast<unsigned>(cls),
-                static_cast<unsigned>(region->regionType));
+                CHECK_DETAIL(
+                    region->GetRegionKind() == MSRegionKind::SMALL &&
+                    (region->GetAllocMode() == MSAllocMode::BUMP ||
+                     region->GetAllocMode() == MSAllocMode::BITMAP),
+                    "[MS-GC] unexpected TLS Region type during mark bitmap clear: "
+                    "idx=%zu cls=%u scan=%u type=%u",
+                    MSRegionInfoArray::GetRegionIdx(region),
+                    static_cast<unsigned>(cls),
+                    static_cast<unsigned>(scan),
+                    static_cast<unsigned>(region->GetRegionType()));
 #endif
-            if (region->GetSweepGen() == sg - 2) {
-                region->SetSweepGen(sg);
+                region->collectEpoch = MSRegionInfo::NO_COLLECT_EPOCH;
+                region->ResetSmallMarkWorkState();
+                ++tlSmallCleared;
             }
-#if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
-            CHECK_DETAIL(
-                region->GetSweepGen() == sg,
-                "[MS-GC] stale TLS Region generation during mark bitmap clear: "
-                "idx=%zu cls=%u sweepGen=%u expected=%u",
-                MSRegionInfoArray::GetRegionIdx(region),
-                static_cast<unsigned>(cls),
-                static_cast<unsigned>(region->GetSweepGen()),
-                static_cast<unsigned>(sg));
-#endif
-            region->ClearMarkBitmap();
-            ++tlSmallCleared;
         }
     });
 
-    // LARGE base objects are tracked densely. Secondary SPAN entries never
-    // carry independent mark state and are intentionally not visited.
-    VisitLargeRegionsLocked([&largeBaseCleared](MSRegionInfo* region) {
+    // Only the frozen LARGE collect-set is reset. largeNextSupply_ is empty at
+    // this STW boundary and later allocations are outside this collection.
+    // Secondary SPAN entries never carry independent mark state.
+    VisitLargeCollectSetLocked([&largeBaseCleared](MSRegionInfo* region) {
+        CHECK_DETAIL(
+            region->GetMarkTaskNextRegionIdx() ==
+                MSRegionInfo::INVALID_REGION_IDX,
+            "[MS-GC] LARGE Region still linked to ObjectReady at cycle reset: idx=%zu next=%u",
+            MSRegionInfoArray::GetRegionIdx(region),
+            region->GetMarkTaskNextRegionIdx());
         region->ClearMarkedFlag();
         ++largeBaseCleared;
     });
 
     VLOG(REPORT,
-         "[MS-GC] ClearAllMarkBitmaps: centralSmall=%zu tlSmall=%zu "
+         "[MS-GC] ClearAllMarkBitmaps: collectSetSmall=%zu tlSmall=%zu "
          "largeBase=%zu elapsed=%sus",
-         centralSmallCleared, tlSmallCleared, largeBaseCleared,
+         collectSetSmallCleared, tlSmallCleared, largeBaseCleared,
          Pretty(TimeUtil::MicroSeconds() - clearStartUs).Str());
 }
 
-void CentralRegionPool::ReclassifyUnsweptToSwept()
+void CentralRegionPool::VisitMarkPendingRegionsUnderSTW(
+    const std::function<void(MSRegionInfo*)>& visitor)
 {
-    size_t partialMoved = 0;
-    size_t fullMoved = 0;
-    for (uint8_t cls = 0; cls < kNumSizeClasses; cls++) {
-        buckets_[cls].ReclassifyUnsweptToSwept(partialMoved, fullMoved);
+    constexpr uint8_t kHasRef = ToMSScanClassIndex(MSScanClass::HAS_REF);
+    for (uint8_t cls = 0; cls < kNumSizeClasses; ++cls) {
+        collectSet_[cls][kHasRef].ForEach(visitor);
+        buckets_[cls][kHasRef].VisitAllUnsafe(visitor);
     }
-    centralSmallUnsweptRegions_.store(0, std::memory_order_release);
 
-    VLOG(REPORT,
-         "[MS-GC] ReclassifyUnsweptToSwept: partial=%zu regions, full=%zu regions, total=%zu",
-         partialMoved, fullMoved, partialMoved + fullMoved);
+    VisitAllocBufferMS([&visitor](AllocBufferMS& buffer) {
+        for (uint8_t cls = 0; cls < kNumSizeClasses; ++cls) {
+            MSRegionInfo* region =
+                buffer.GetActiveRegion(cls, MSScanClass::HAS_REF);
+            if (region != nullptr) {
+                visitor(region);
+            }
+        }
+    });
 }
 
 void CentralRegionPool::ReenableLazySweep()

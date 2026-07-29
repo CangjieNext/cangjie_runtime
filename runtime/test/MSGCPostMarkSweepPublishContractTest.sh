@@ -20,8 +20,9 @@ end = source.index("void MarkSweepCollector::ProcessFinalizers()", start)
 post_mark = source[start:end]
 
 required = [
-    "CollectLargeGarbage();",
     "MSMarkedStats markedStats = centralPool->ComputeMarkedStats();",
+    "CollectLargeGarbage();",
+    "centralPool->PublishCollectSetForSweep();",
     "backgroundProcessor.NotifyToSweep(kNoPreferredSweepClass);",
     "backgroundProcessor.NotifyToScavenge();",
 ]

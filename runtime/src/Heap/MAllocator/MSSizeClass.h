@@ -98,6 +98,78 @@ static_assert(kNumSizeClasses == 36, "compiler/runtime MSGC size-class count cha
 static_assert(kSizeClasses[kNumSizeClasses - 1] == kLargeObjectThreshold,
               "the final MSGC size class must match the small-object boundary");
 
+struct MSSizeClassDesc {
+    uint64_t validTailMask;
+    uint32_t divMagic;
+    uint16_t slotSize;
+    uint16_t totalSlots;
+    uint8_t bitmapWords;
+    uint8_t reserved[7];
+};
+
+constexpr MSSizeClassDesc MakeMSSizeClassDesc(size_t slotSize)
+{
+    const size_t totalSlots = MS_REGION_SIZE / slotSize;
+    const size_t tailBits = totalSlots % 64;
+    return MSSizeClassDesc {
+        tailBits == 0 ? ~0ULL : ((1ULL << tailBits) - 1),
+        static_cast<uint32_t>((0x100000000ULL + slotSize - 1) / slotSize),
+        static_cast<uint16_t>(slotSize),
+        static_cast<uint16_t>(totalSlots),
+        static_cast<uint8_t>((totalSlots + 63) / 64),
+        { 0, 0, 0, 0, 0, 0, 0 },
+    };
+}
+
+#define MRT_MS_SIZE_CLASS_DESC_ENTRY(slotSize) MakeMSSizeClassDesc(slotSize)
+static constexpr MSSizeClassDesc kMSSizeClassDescs[kNumSizeClasses] = {
+    MRT_MS_SIZE_CLASS_DESC_ENTRY(8),
+    MRT_MS_SIZE_CLASS_DESC_ENTRY(16),
+    MRT_MS_SIZE_CLASS_DESC_ENTRY(24),
+    MRT_MS_SIZE_CLASS_DESC_ENTRY(32),
+    MRT_MS_SIZE_CLASS_DESC_ENTRY(48),
+    MRT_MS_SIZE_CLASS_DESC_ENTRY(64),
+    MRT_MS_SIZE_CLASS_DESC_ENTRY(80),
+    MRT_MS_SIZE_CLASS_DESC_ENTRY(96),
+    MRT_MS_SIZE_CLASS_DESC_ENTRY(112),
+    MRT_MS_SIZE_CLASS_DESC_ENTRY(128),
+    MRT_MS_SIZE_CLASS_DESC_ENTRY(160),
+    MRT_MS_SIZE_CLASS_DESC_ENTRY(192),
+    MRT_MS_SIZE_CLASS_DESC_ENTRY(224),
+    MRT_MS_SIZE_CLASS_DESC_ENTRY(256),
+    MRT_MS_SIZE_CLASS_DESC_ENTRY(320),
+    MRT_MS_SIZE_CLASS_DESC_ENTRY(384),
+    MRT_MS_SIZE_CLASS_DESC_ENTRY(448),
+    MRT_MS_SIZE_CLASS_DESC_ENTRY(512),
+    MRT_MS_SIZE_CLASS_DESC_ENTRY(640),
+    MRT_MS_SIZE_CLASS_DESC_ENTRY(768),
+    MRT_MS_SIZE_CLASS_DESC_ENTRY(896),
+    MRT_MS_SIZE_CLASS_DESC_ENTRY(1024),
+    MRT_MS_SIZE_CLASS_DESC_ENTRY(1280),
+    MRT_MS_SIZE_CLASS_DESC_ENTRY(1536),
+    MRT_MS_SIZE_CLASS_DESC_ENTRY(1792),
+    MRT_MS_SIZE_CLASS_DESC_ENTRY(2048),
+    MRT_MS_SIZE_CLASS_DESC_ENTRY(2560),
+    MRT_MS_SIZE_CLASS_DESC_ENTRY(3072),
+    MRT_MS_SIZE_CLASS_DESC_ENTRY(3584),
+    MRT_MS_SIZE_CLASS_DESC_ENTRY(4096),
+    MRT_MS_SIZE_CLASS_DESC_ENTRY(5120),
+    MRT_MS_SIZE_CLASS_DESC_ENTRY(6144),
+    MRT_MS_SIZE_CLASS_DESC_ENTRY(8192),
+    MRT_MS_SIZE_CLASS_DESC_ENTRY(10240),
+    MRT_MS_SIZE_CLASS_DESC_ENTRY(12288),
+    MRT_MS_SIZE_CLASS_DESC_ENTRY(16384),
+};
+#undef MRT_MS_SIZE_CLASS_DESC_ENTRY
+
+static_assert(sizeof(MSSizeClassDesc) == 24, "MSSizeClassDesc layout changed");
+static_assert(kMSSizeClassDescs[0].totalSlots == 4096, "8-byte class slot count");
+static_assert(kMSSizeClassDescs[0].bitmapWords == 64, "8-byte class bitmap words");
+static_assert(kMSSizeClassDescs[0].validTailMask == ~0ULL, "8-byte class tail mask");
+static_assert(kMSSizeClassDescs[2].totalSlots == 1365, "24-byte class slot count");
+static_assert(kMSSizeClassDescs[2].validTailMask == ((1ULL << 21) - 1), "24-byte class tail mask");
+static_assert(kMSSizeClassDescs[kNumSizeClasses - 1].totalSlots == 2, "16KB class slot count");
+
 // ============================================================================
 // SizeToClass lookup acceleration
 // ============================================================================
@@ -139,7 +211,27 @@ public:
     // O(1) class -> slot size lookup.
     static inline size_t ClassToSize(uint8_t cls)
     {
-        return kSizeClasses[cls];
+        return kMSSizeClassDescs[cls].slotSize;
+    }
+
+    static inline const MSSizeClassDesc& ClassToDesc(uint8_t cls)
+    {
+        return kMSSizeClassDescs[cls];
+    }
+
+    static inline uint16_t ClassToTotalSlots(uint8_t cls)
+    {
+        return ClassToDesc(cls).totalSlots;
+    }
+
+    static inline uint8_t ClassToBitmapWords(uint8_t cls)
+    {
+        return ClassToDesc(cls).bitmapWords;
+    }
+
+    static inline uint64_t ClassToValidTailMask(uint8_t cls)
+    {
+        return ClassToDesc(cls).validTailMask;
     }
 
     // Reciprocal magic for dividing a region offset by ClassToSize(cls) without
@@ -150,21 +242,20 @@ public:
     //  crosses an integer boundary. See Step37 §5.6.)
     static inline uint32_t ClassToDivMagic(uint8_t cls)
     {
-        return slotDivMagic_[cls];
+        return ClassToDesc(cls).divMagic;
     }
 
     // slotIdx = offset / ClassToSize(cls), division-free.
     static inline size_t OffsetToSlotIndex(uint8_t cls, size_t offset)
     {
         return static_cast<size_t>(
-            (static_cast<uint64_t>(offset) * slotDivMagic_[cls]) >> 32);
+            (static_cast<uint64_t>(offset) * ClassToDesc(cls).divMagic) >> 32);
     }
 
 private:
     // Lookup tables (populated in Init())
     static uint8_t smallLookup_[kSmallLookupEntries];   // size/8 -> class (size <= 1024)
     static uint8_t largeLookup_[kLargeLookupEntries];   // (size-1024)/256 -> class (size > 1024)
-    static uint32_t slotDivMagic_[kNumSizeClasses];     // class -> ceil(2^32/slotSize)
 };
 
 } // namespace MapleRuntime

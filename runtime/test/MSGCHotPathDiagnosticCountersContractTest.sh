@@ -96,7 +96,7 @@ for function_name in DumpGCStateSnapshot DumpRegionStatsMS; do
     fi
 done
 
-if ! rg -q 'trueLiveBytes|gcMainProcessedObjects|helperProcessedObjects|assistProcessedObjects' "$MARK_HEADER" ||
+if ! rg -q 'trueLiveBytes|gcMainCompletedTasks|helperCompletedWU|assistCompletedWU' "$MARK_HEADER" ||
    rg -q 'publishedCredit_|pendingCredit_|pendingBuffers_' "$MARK_LOCAL_STATS"; then
     echo "cycle totals must remain while Helper background-credit state is removed" >&2
     exit 1

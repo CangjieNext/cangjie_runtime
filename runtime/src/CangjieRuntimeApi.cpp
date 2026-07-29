@@ -315,7 +315,7 @@ RTErrorCode InitCJRuntime(const struct RuntimeParam* param)
             .msBackgroundSweepMaxTime = param->gcParam.msBackgroundSweepMaxTime == 0 ?
                 2 * MapleRuntime::MILLI_SECOND_TO_NANO_SECOND : param->gcParam.msBackgroundSweepMaxTime,
             .msMarkTimeBudget = param->gcParam.msMarkTimeBudget == 0 ?
-                20 * MapleRuntime::SECOND_TO_NANO_SECOND : param->gcParam.msMarkTimeBudget,
+                100 * MapleRuntime::MILLI_SECOND_TO_NANO_SECOND : param->gcParam.msMarkTimeBudget,
             .msAssistBaseRatioPercent = param->gcParam.msAssistBaseRatioPercent == 0 ?
                 MapleRuntime::kMSAssistBaseRatioPercentDefault : param->gcParam.msAssistBaseRatioPercent,
             .msAssistBacklogStepBuffers = param->gcParam.msAssistBacklogStepBuffers == 0 ?

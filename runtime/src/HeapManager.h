@@ -15,6 +15,9 @@
 
 namespace MapleRuntime {
 struct ThreadLocalData;
+#ifdef MRT_USE_MARK_SWEEP
+enum class MSScanClass : uint8_t;
+#endif
 
 // replace this for Heap.
 class HeapManager {
@@ -29,8 +32,8 @@ public:
     // alloc returns a memory address, not an "object" pointer that has not been initialized
     static MAddress Allocate(size_t allocSize, AllocType allocType = AllocType::MOVEABLE_OBJECT);
 #ifdef MRT_USE_MARK_SWEEP
-    static MAddress Allocate(size_t allocSize, ThreadLocalData* local,
-                             AllocType allocType = AllocType::MOVEABLE_OBJECT);
+    static MAddress AllocateMS(size_t allocSize, AllocType allocType,
+                               MSScanClass scanClass, ThreadLocalData* local);
 #endif
     static inline void RequestGC(GCReason reason, bool async);
 };

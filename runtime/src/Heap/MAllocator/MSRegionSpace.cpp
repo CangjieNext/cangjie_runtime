@@ -47,28 +47,31 @@ RegionSpaceMS::~RegionSpaceMS()
 
 MAddress RegionSpaceMS::Allocate(size_t size, AllocType allocType)
 {
-    return Allocate(size, allocType, ThreadLocal::GetThreadLocalData());
+    return Allocate(
+        size, allocType, MSScanClass::HAS_REF, ThreadLocal::GetThreadLocalData());
 }
 
-MAddress RegionSpaceMS::Allocate(size_t size, AllocType allocType, ThreadLocalData* local)
+MAddress RegionSpaceMS::Allocate(
+    size_t size, AllocType allocType, MSScanClass scanClass, ThreadLocalData* local)
 {
     (void)allocType;
     size_t allocSize = ToAllocSize(size);
     if (UNLIKELY(SizeClassInfo::IsLargeObjectSize(allocSize))) {
-        return AllocateLargeObject(size, allocSize, local);
+        return AllocateLargeObject(size, allocSize, scanClass, local);
     }
 
-    return AllocateRegularObject(size, allocSize, local);
+    return AllocateRegularObject(size, allocSize, scanClass, local);
 }
 
-MAddress RegionSpaceMS::AllocateLargeObject(size_t size, size_t allocSize, ThreadLocalData* local)
+MAddress RegionSpaceMS::AllocateLargeObject(
+    size_t size, size_t allocSize, MSScanClass scanClass, ThreadLocalData* local)
 {
     AllocBufferMS* msBuffer = local != nullptr ? local->msAllocBuffer : AllocBufferMS::GetAllocBufferMS();
     bool allowEmergency = !IsGcThread();
     uintptr_t internalAddr = TryMSAllocationWithEmergencyRetry(
         allowEmergency,
-        [this, size, allocSize, local, msBuffer]() {
-            return TryAllocateLargeObjectOnce(size, allocSize, local, msBuffer);
+        [this, size, allocSize, scanClass, local, msBuffer]() {
+            return TryAllocateLargeObjectOnce(size, allocSize, scanClass, local, msBuffer);
         },
         [size]() {
             VLOG(REPORT, "Large allocation failed for %zu(B), trigger one synchronous OOM GC", size);
@@ -88,14 +91,15 @@ MAddress RegionSpaceMS::AllocateLargeObject(size_t size, size_t allocSize, Threa
     return internalAddr + HEADER_SIZE;
 }
 
-MAddress RegionSpaceMS::AllocateRegularObject(size_t size, size_t allocSize, ThreadLocalData* local)
+MAddress RegionSpaceMS::AllocateRegularObject(
+    size_t size, size_t allocSize, MSScanClass scanClass, ThreadLocalData* local)
 {
     AllocBufferMS* msBuffer = local != nullptr ? local->msAllocBuffer : AllocBufferMS::GetAllocBufferMS();
     bool allowEmergency = !IsGcThread();
     uintptr_t internalAddr = TryMSAllocationWithEmergencyRetry(
         allowEmergency,
-        [this, allocSize, local, &msBuffer]() {
-            return TryAllocateRegularObjectOnce(allocSize, local, msBuffer);
+        [this, allocSize, scanClass, local, &msBuffer]() {
+            return TryAllocateRegularObjectOnce(allocSize, scanClass, local, msBuffer);
         },
         [size]() {
             VLOG(REPORT, "Regular allocation failed for %zu(B), trigger one synchronous OOM GC", size);
@@ -384,8 +388,9 @@ bool RegionSpaceMS::ForEachObj(const std::function<void(BaseObject*)>& visitor, 
     return true;
 }
 
-MAddress RegionSpaceMS::TryAllocateLargeObjectOnce(size_t objectBytes, size_t allocSize, ThreadLocalData* local,
-                                                   AllocBufferMS* msBuffer)
+MAddress RegionSpaceMS::TryAllocateLargeObjectOnce(
+    size_t objectBytes, size_t allocSize, MSScanClass scanClass,
+    ThreadLocalData* local, AllocBufferMS* msBuffer)
 {
     if (msBuffer == nullptr) {
         msBuffer = AllocBufferMS::GetOrCreateAllocBufferMS(local);
@@ -403,7 +408,7 @@ MAddress RegionSpaceMS::TryAllocateLargeObjectOnce(size_t objectBytes, size_t al
         MAddress addr = static_cast<MAddress>(hotCacheStart);
         // Zero-fill the region so the mutator sees a clean object.
         ::memset(reinterpret_cast<void*>(hotCacheStart), 0, regionBytes);
-        RegisterLargeObjectMS(addr, objectBytes, regionBytes);
+        RegisterLargeObjectMS(addr, objectBytes, regionBytes, scanClass);
         if (msBuffer != nullptr) {
             msBuffer->AccumulatePacingDebt(allocSize);
             msBuffer->AccumulateSweepDebt(regionBytes / MS_REGION_SIZE, kNumSizeClasses);
@@ -430,7 +435,7 @@ MAddress RegionSpaceMS::TryAllocateLargeObjectOnce(size_t objectBytes, size_t al
     // Large arrays rely on zero-filled content after only their header is initialized.
     // TakeRegionForLarge may return hot-free pages that were not scavenged by the OS.
     ::memset(reinterpret_cast<void*>(regionStart), 0, regionBytes);
-    RegisterLargeObjectMS(addr, objectBytes, regionBytes);
+    RegisterLargeObjectMS(addr, objectBytes, regionBytes, scanClass);
     // Pacing debt: large objects bypass AllocBufferMS::Allocate, so we must
     // accumulate assist debt explicitly here to keep GC pacing correct.
     if (msBuffer != nullptr) {
@@ -441,13 +446,14 @@ MAddress RegionSpaceMS::TryAllocateLargeObjectOnce(size_t objectBytes, size_t al
 }
 
 
-MAddress RegionSpaceMS::TryAllocateRegularObjectOnce(size_t allocSize, ThreadLocalData* local, AllocBufferMS*& msBuffer)
+MAddress RegionSpaceMS::TryAllocateRegularObjectOnce(
+    size_t allocSize, MSScanClass scanClass, ThreadLocalData* local, AllocBufferMS*& msBuffer)
 {
     if (msBuffer == nullptr) {
         msBuffer = AllocBufferMS::GetOrCreateAllocBufferMS(local);
     }
     if (msBuffer != nullptr) {
-        MAddress addr = msBuffer->Allocate(allocSize);
+        MAddress addr = msBuffer->Allocate(allocSize, scanClass);
         if (LIKELY(addr != 0)) {
             return addr;
         }
@@ -472,11 +478,12 @@ bool Allocator::IsMarkedObject(const BaseObject* obj)
     if (MSRegionInfoArray::IsHeapAddress(addr)) {
         MSRegionInfo* msInfo = MSRegionInfoArray::GetRegionInfoValidated(addr);
         if (msInfo != nullptr) {
-            if (IsLargeRegionEntryType(msInfo->regionType)) {
+            if (msInfo->IsLargeRegionEntry()) {
                 MSRegionInfo* base = MSRegionInfoArray::ResolveLargeBaseInfo(msInfo);
                 return base != nullptr && base->IsMarked();
             }
-            if (msInfo->markBitmap != nullptr && msInfo->totalSlotCount > 0) {
+            if (msInfo->GetRegionKind() == MSRegionKind::SMALL &&
+                msInfo->GetTotalSlotCount() > 0) {
                 return msInfo->GetMarkBit(addr);
             }
         }
@@ -573,12 +580,10 @@ bool Allocator::IsResurrectedObject([[maybe_unused]] const BaseObject* obj)
 
 void Allocator::EnsureThreadLocalBuffer()
 {
-    AllocBufferMS* msBuffer = AllocBufferMS::GetOrCreateAllocBufferMS();
-    // Set ThreadLocalData::buffer so LLVM fast-path (in pre-built SDK libs)
-    // reads tlRegion_ (NullRegion) at offset 0 and falls to slow MCC_* call.
-    if (ThreadLocal::GetAllocBuffer() == nullptr) {
-        ThreadLocal::SetAllocBuffer(reinterpret_cast<AllocBuffer*>(msBuffer));
-    }
+    // MSGC compiler fast paths load the dedicated msAllocBuffer field. The
+    // CopyGC `buffer` field remains in ThreadLocalData for the other build
+    // mode, but MSGC never aliases an AllocBufferMS through that type.
+    (void)AllocBufferMS::GetOrCreateAllocBufferMS();
 }
 
 void Allocator::CommitRawPointerRegions()
@@ -597,8 +602,10 @@ void Allocator::PushRootToBuffer(BaseObject* root)
     }
 }
 
-void RegionSpaceMS::RegisterLargeObjectMS(MAddress addr, size_t objectBytes, size_t regionBytes)
+void RegionSpaceMS::RegisterLargeObjectMS(
+    MAddress addr, size_t objectBytes, size_t regionBytes, MSScanClass scanClass)
 {
+    (void)scanClass;
     uintptr_t start = static_cast<uintptr_t>(addr);
     uintptr_t end = start + regionBytes;
 
@@ -608,44 +615,44 @@ void RegionSpaceMS::RegisterLargeObjectMS(MAddress addr, size_t objectBytes, siz
     size_t spanCount = (regionBytes + MS_REGION_SIZE - 1) / MS_REGION_SIZE;
     for (size_t i = 0; i < spanCount; i++) {
         MSRegionInfo* entry = MSRegionInfoArray::GetRegionInfoByIdx(baseIdx + i);
-        if (entry->regionType != MSRegionType::MS_REGION_FREE &&
-            entry->regionType != MSRegionType::MS_REGION_LARGE) {
+        if (!entry->IsFreeRegion() &&
+            entry->GetRegionKind() != MSRegionKind::LARGE) {
             LOG(RTLOG_FATAL, "[MS-GC] RegisterLargeObjectMS: span[%zu/%zu] (idx=%zu) has "
                 "non-free regionType=%d! allocPtr=0x%zx, regionEnd=0x%zx, "
                 "allocBitmap=%p, sizeClass=%u, freeSlots=%u, totalSlots=%u, "
-                "sweepState=%d, sweepGen=%u, nextIdx=%d, prevIdx=%d, reserved=0x%llx. "
+                "allocMode=%u, collectEpoch=%u, centralNext=%d, markTaskNext=%d, reserved=0x%llx. "
                 "Large: start=0x%zx, end=0x%zx, regionBytes=%zu",
                 i, spanCount, baseIdx + i,
-                (int)entry->regionType, entry->allocPtr, entry->regionEnd,
-                (void*)entry->allocBitmap, (unsigned)entry->sizeClass,
-                (unsigned)entry->freeSlotCount, (unsigned)entry->totalSlotCount,
-                (int)entry->sweepState, entry->sweepGen,
-                entry->nextRegionIdx, entry->prevRegionIdx,
-                (unsigned long long)entry->reserved,
+                (int)entry->GetRegionType(), entry->allocPtr, entry->regionEnd,
+                (void*)entry->GetAllocBitmap(), (unsigned)entry->sizeClass,
+                (unsigned)entry->GetFreeSlotCount(), (unsigned)entry->GetTotalSlotCount(),
+                static_cast<unsigned>(entry->GetAllocMode()),
+                static_cast<unsigned>(entry->collectEpoch),
+                static_cast<int32_t>(entry->GetCentralNextRegionIdx()),
+                static_cast<int32_t>(entry->GetMarkTaskNextRegionIdx()),
+                (unsigned long long)entry->allocSummary,
                 start, end, regionBytes);
         }
     }
 
-    baseInfo->InitForLargeObject(start, end, objectBytes);
-    baseInfo->reserved = static_cast<uint64_t>(baseIdx);
-
+    baseInfo->InitForLargeObject(start, end, objectBytes, scanClass);
     for (size_t i = 1; i < spanCount; i++) {
         MSRegionInfo* spanInfo = MSRegionInfoArray::GetRegionInfoByIdx(baseIdx + i);
         spanInfo->allocPtr = 0;
         spanInfo->regionEnd = 0;
-        spanInfo->nextRegionIdx = MSRegionInfo::INVALID_IDX;
-        spanInfo->prevRegionIdx = MSRegionInfo::INVALID_IDX;
-        spanInfo->markBitmap = nullptr;
-        spanInfo->allocBitmap = nullptr;
-        spanInfo->totalSlotCount = 0;
-        spanInfo->freeSlotCount = 0;
-        spanInfo->divMagic = 0;
+        spanInfo->SetCentralNextRegionIdx(MSRegionInfo::INVALID_REGION_IDX);
+        spanInfo->SetMarkTaskNextRegionIdx(MSRegionInfo::INVALID_REGION_IDX);
+        spanInfo->slotOrLargeMeta = 0;
+        spanInfo->collectEpoch = MSRegionInfo::NO_COLLECT_EPOCH;
+        spanInfo->control = 0;
+        spanInfo->allocSummary = 0;
+        spanInfo->pendingWordSummary = 0;
+        spanInfo->reserved32 = 0;
+        spanInfo->allocMode = static_cast<uint8_t>(MSAllocMode::NONE);
+        spanInfo->reserved8 = 0;
         spanInfo->sizeClass = MSRegionInfo::INVALID_SIZE_CLASS;
-        spanInfo->sweepState = MSSweepState::UNSWEPT;
-        spanInfo->regionType = MSRegionType::MS_REGION_SPAN;
-        spanInfo->flags_ = 0;
-        spanInfo->sweepGen = 0;
-        spanInfo->reserved = static_cast<uint64_t>(baseIdx);
+        spanInfo->layout = static_cast<uint8_t>(MSRegionKind::SPAN);
+        spanInfo->SetSpanBaseRegionIdx(static_cast<uint32_t>(baseIdx));
     }
 
     baseInfo->AtomicSetMarked();

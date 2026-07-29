@@ -44,6 +44,8 @@ fi
 for field in \
     'historySize=%zu' \
     'medianStableLive=%zuB' \
+    'minRunway=%zuB' \
+    'minThreshold=%zuB' \
     'deadbandLower=%zuB' \
     'deadbandUpper=%zuB' \
     'deadbandHeld=%d' \

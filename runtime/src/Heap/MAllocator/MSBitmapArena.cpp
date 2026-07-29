@@ -9,10 +9,12 @@
 #include "Heap/MAllocator/MSBitmapArena.h"
 
 #include <algorithm>
+#include <array>
 #include <mutex>
 
 #include "Allocator/MemMap.h"
 #include "Base/Log.h"
+#include "Heap/MSGCFastPath.h"
 
 #ifdef _WIN64
 #include <memoryapi.h>
@@ -24,24 +26,48 @@ namespace MapleRuntime {
 namespace {
 
 std::mutex g_bitmapArenaLock;
-MemMap* g_bitmapArenaMap = nullptr;
-uintptr_t g_bitmapArenaBase = 0;
+
+struct MSBitmapPlaneState {
+    MemMap* map = nullptr;
+    uintptr_t base = 0;
+    size_t committedChunkCount = 0;
+    const char* tag = nullptr;
+};
+
+std::array<MSBitmapPlaneState, 3> g_bitmapPlanes {{
+    {nullptr, 0, 0, "ms_alloc_plane"},
+    {nullptr, 0, 0, "ms_mark_plane"},
+    {nullptr, 0, 0, "ms_scan_plane"},
+}};
 size_t g_bitmapArenaMaxRegionCount = 0;
 size_t g_bitmapArenaChunkCount = 0;
-size_t g_bitmapArenaCommittedChunkCount = 0;
 
-inline uintptr_t GetChunkBase(size_t chunkIdx)
+inline size_t PlaneIndex(MSBitmapPlane plane)
 {
-    return g_bitmapArenaBase + chunkIdx * MSBitmapArena::kChunkBytes;
+    return static_cast<size_t>(plane);
 }
 
-bool RemapChunkRange(size_t startChunkIdx, size_t chunkCount, bool active)
+inline MSBitmapPlaneState& GetPlaneState(MSBitmapPlane plane)
+{
+    size_t planeIdx = PlaneIndex(plane);
+    CHECK_DETAIL(planeIdx < g_bitmapPlanes.size(),
+                 "[MS-GC] invalid bitmap plane=%zu", planeIdx);
+    return g_bitmapPlanes[planeIdx];
+}
+
+inline uintptr_t GetChunkBase(const MSBitmapPlaneState& state, size_t chunkIdx)
+{
+    return state.base + chunkIdx * MSBitmapArena::kChunkBytes;
+}
+
+bool RemapChunkRange(
+    MSBitmapPlaneState& state, size_t startChunkIdx, size_t chunkCount, bool active)
 {
     if (chunkCount == 0) {
         return true;
     }
 
-    uintptr_t chunkBase = GetChunkBase(startChunkIdx);
+    uintptr_t chunkBase = GetChunkBase(state, startChunkIdx);
     size_t chunkBytes = chunkCount * MSBitmapArena::kChunkBytes;
 
 #ifdef _WIN64
@@ -87,58 +113,70 @@ size_t MSBitmapArena::GetChunkCountForRegions(size_t regionCount)
     return (regionCount + kRegionsPerChunk - 1) / kRegionsPerChunk;
 }
 
-void MSBitmapArena::Init(size_t maxRegionCount, size_t committedRegionCount)
+void MSBitmapArena::Init(size_t maxRegionCount)
 {
     std::lock_guard<std::mutex> lg(g_bitmapArenaLock);
 
-    CHECK_DETAIL(g_bitmapArenaMap == nullptr, "[MS-GC] MSBitmapArena double init");
-
-    size_t totalBytes = maxRegionCount * kBitmapSlotBytes;
-    MemMap::Option opt = MemMap::DEFAULT_OPTIONS;
-    opt.tag = "ms_bitmap_arena";
-#ifndef _WIN64
-    opt.prot = PROT_NONE;
-    opt.protAll = true;
-#endif
-
-    g_bitmapArenaMap = MemMap::MapMemory(totalBytes, totalBytes, opt);
-    CHECK_DETAIL(g_bitmapArenaMap != nullptr,
-                 "[MS-GC] failed to reserve MS bitmap arena, maxRegionCount=%zu", maxRegionCount);
-
-    g_bitmapArenaBase = reinterpret_cast<uintptr_t>(g_bitmapArenaMap->GetBaseAddr());
-    g_bitmapArenaMaxRegionCount = maxRegionCount;
-    g_bitmapArenaChunkCount = GetChunkCountForRegions(maxRegionCount);
-    g_bitmapArenaCommittedChunkCount = 0;
-
-    size_t initialChunkCount = GetChunkCountForRegions(committedRegionCount);
-    if (initialChunkCount != 0) {
-        CHECK_DETAIL(RemapChunkRange(0, initialChunkCount, true),
-                     "[MS-GC] failed to activate initial bitmap chunks: committedRegions=%zu",
-                     committedRegionCount);
-        g_bitmapArenaCommittedChunkCount = initialChunkCount;
+    for (const MSBitmapPlaneState& state : g_bitmapPlanes) {
+        CHECK_DETAIL(state.map == nullptr, "[MS-GC] MSBitmapArena double init");
     }
 
+    CHECK_DETAIL(maxRegionCount <= SIZE_MAX / kPlaneStrideBytes,
+                 "[MS-GC] bitmap plane size overflow: maxRegions=%zu", maxRegionCount);
+    size_t totalBytes = maxRegionCount * kPlaneStrideBytes;
+    g_bitmapArenaMaxRegionCount = maxRegionCount;
+    g_bitmapArenaChunkCount = GetChunkCountForRegions(maxRegionCount);
+
+    for (MSBitmapPlaneState& state : g_bitmapPlanes) {
+        MemMap::Option opt = MemMap::DEFAULT_OPTIONS;
+        opt.tag = state.tag;
+#ifndef _WIN64
+        opt.prot = PROT_NONE;
+        opt.protAll = true;
+#endif
+
+        state.map = MemMap::MapMemory(totalBytes, totalBytes, opt);
+        CHECK_DETAIL(state.map != nullptr,
+                     "[MS-GC] failed to reserve %s, maxRegionCount=%zu",
+                     state.tag, maxRegionCount);
+        state.base = reinterpret_cast<uintptr_t>(state.map->GetBaseAddr());
+        state.committedChunkCount = 0;
+    }
+
+    PublishMSGCFastPathPlaneBases(
+        g_bitmapPlanes[PlaneIndex(MSBitmapPlane::ALLOC)].base,
+        g_bitmapPlanes[PlaneIndex(MSBitmapPlane::MARK)].base,
+        g_bitmapPlanes[PlaneIndex(MSBitmapPlane::SCAN)].base);
+
     LOG(RTLOG_REPORT,
-        "[MS-GC] MSBitmapArena initialized: maxRegions=%zu, chunkRegions=%zu, chunkBytes=%zu, initialChunks=%zu",
-        maxRegionCount, kRegionsPerChunk, kChunkBytes, initialChunkCount);
+        "[MS-GC] MSBitmapArena initialized: maxRegions=%zu, planeStride=%zu, "
+        "chunkRegions=%zu, chunkBytes=%zu",
+        maxRegionCount, kPlaneStrideBytes, kRegionsPerChunk, kChunkBytes);
 }
 
 void MSBitmapArena::Cleanup()
 {
     std::lock_guard<std::mutex> lg(g_bitmapArenaLock);
 
-    if (g_bitmapArenaMap == nullptr) {
+    if (g_bitmapPlanes[0].map == nullptr) {
         return;
     }
 
-    MemMap::DestroyMemMap(g_bitmapArenaMap);
-    g_bitmapArenaBase = 0;
+    PublishMSGCFastPathPlaneBases(0, 0, 0);
+    for (MSBitmapPlaneState& state : g_bitmapPlanes) {
+        if (state.map != nullptr) {
+            MemMap::DestroyMemMap(state.map);
+        }
+        state.map = nullptr;
+        state.base = 0;
+        state.committedChunkCount = 0;
+    }
     g_bitmapArenaMaxRegionCount = 0;
     g_bitmapArenaChunkCount = 0;
-    g_bitmapArenaCommittedChunkCount = 0;
 }
 
-void MSBitmapArena::EnsureRegionRangeCommitted(size_t startRegionIdx, size_t regionCount)
+void MSBitmapArena::EnsurePlaneRangeCommitted(
+    MSBitmapPlane plane, size_t startRegionIdx, size_t regionCount)
 {
     if (regionCount == 0) {
         return;
@@ -146,7 +184,8 @@ void MSBitmapArena::EnsureRegionRangeCommitted(size_t startRegionIdx, size_t reg
 
     std::lock_guard<std::mutex> lg(g_bitmapArenaLock);
 
-    CHECK_DETAIL(g_bitmapArenaMap != nullptr, "[MS-GC] MSBitmapArena not initialized");
+    MSBitmapPlaneState& state = GetPlaneState(plane);
+    CHECK_DETAIL(state.map != nullptr, "[MS-GC] MSBitmapArena not initialized");
 
     size_t requiredRegionCount = startRegionIdx + regionCount;
     CHECK_DETAIL(requiredRegionCount <= g_bitmapArenaMaxRegionCount,
@@ -157,23 +196,23 @@ void MSBitmapArena::EnsureRegionRangeCommitted(size_t startRegionIdx, size_t reg
     CHECK_DETAIL(requiredChunkCount <= g_bitmapArenaChunkCount,
                  "[MS-GC] bitmap arena chunk overflow: required=%zu, max=%zu",
                  requiredChunkCount, g_bitmapArenaChunkCount);
-    if (requiredChunkCount <= g_bitmapArenaCommittedChunkCount) {
+    if (requiredChunkCount <= state.committedChunkCount) {
         return;
     }
 
-    size_t activateChunkStart = g_bitmapArenaCommittedChunkCount;
-    size_t activateChunkCount = requiredChunkCount - g_bitmapArenaCommittedChunkCount;
-    CHECK_DETAIL(RemapChunkRange(activateChunkStart, activateChunkCount, true),
-                 "[MS-GC] failed to activate bitmap chunk range: start=%zu, count=%zu",
-                 activateChunkStart, activateChunkCount);
-    g_bitmapArenaCommittedChunkCount = requiredChunkCount;
+    size_t activateChunkStart = state.committedChunkCount;
+    size_t activateChunkCount = requiredChunkCount - state.committedChunkCount;
+    CHECK_DETAIL(RemapChunkRange(state, activateChunkStart, activateChunkCount, true),
+                 "[MS-GC] failed to activate %s chunk range: start=%zu, count=%zu",
+                 state.tag, activateChunkStart, activateChunkCount);
+    state.committedChunkCount = requiredChunkCount;
 }
 
 void MSBitmapArena::ShrinkToCommittedRegionCount(size_t committedRegionCount)
 {
     std::lock_guard<std::mutex> lg(g_bitmapArenaLock);
 
-    if (g_bitmapArenaMap == nullptr) {
+    if (g_bitmapPlanes[0].map == nullptr) {
         return;
     }
 
@@ -181,24 +220,51 @@ void MSBitmapArena::ShrinkToCommittedRegionCount(size_t committedRegionCount)
     CHECK_DETAIL(requiredChunkCount <= g_bitmapArenaChunkCount,
                  "[MS-GC] bitmap arena shrink overflow: required=%zu, max=%zu",
                  requiredChunkCount, g_bitmapArenaChunkCount);
-    if (requiredChunkCount >= g_bitmapArenaCommittedChunkCount) {
-        return;
-    }
+    for (MSBitmapPlaneState& state : g_bitmapPlanes) {
+        if (requiredChunkCount >= state.committedChunkCount) {
+            continue;
+        }
 
-    size_t deactivateChunkStart = requiredChunkCount;
-    size_t deactivateChunkCount = g_bitmapArenaCommittedChunkCount - requiredChunkCount;
-    CHECK_DETAIL(RemapChunkRange(deactivateChunkStart, deactivateChunkCount, false),
-                 "[MS-GC] failed to deactivate bitmap chunk range: start=%zu, count=%zu",
-                 deactivateChunkStart, deactivateChunkCount);
-    g_bitmapArenaCommittedChunkCount = requiredChunkCount;
+        size_t deactivateChunkStart = requiredChunkCount;
+        size_t deactivateChunkCount = state.committedChunkCount - requiredChunkCount;
+        CHECK_DETAIL(RemapChunkRange(state, deactivateChunkStart, deactivateChunkCount, false),
+                     "[MS-GC] failed to deactivate %s chunk range: start=%zu, count=%zu",
+                     state.tag, deactivateChunkStart, deactivateChunkCount);
+        state.committedChunkCount = requiredChunkCount;
+    }
 }
 
-uint64_t* MSBitmapArena::GetSlotBase(size_t regionIdx)
+uintptr_t MSBitmapArena::GetPlaneBase(MSBitmapPlane plane)
 {
-    if (g_bitmapArenaMap == nullptr || regionIdx >= g_bitmapArenaMaxRegionCount) {
+    const MSBitmapPlaneState& state = GetPlaneState(plane);
+    return state.base;
+}
+
+namespace {
+uint64_t* GetRegionPlane(MSBitmapPlane plane, size_t regionIdx)
+{
+    const MSBitmapPlaneState& state = GetPlaneState(plane);
+    if (state.map == nullptr || regionIdx >= g_bitmapArenaMaxRegionCount) {
         return nullptr;
     }
-    return reinterpret_cast<uint64_t*>(g_bitmapArenaBase + regionIdx * kBitmapSlotBytes);
+    return reinterpret_cast<uint64_t*>(
+        state.base + regionIdx * MSBitmapArena::kPlaneStrideBytes);
+}
+} // namespace
+
+uint64_t* MSBitmapArena::GetAllocPlane(size_t regionIdx)
+{
+    return GetRegionPlane(MSBitmapPlane::ALLOC, regionIdx);
+}
+
+uint64_t* MSBitmapArena::GetMarkPlane(size_t regionIdx)
+{
+    return GetRegionPlane(MSBitmapPlane::MARK, regionIdx);
+}
+
+uint64_t* MSBitmapArena::GetScanPlane(size_t regionIdx)
+{
+    return GetRegionPlane(MSBitmapPlane::SCAN, regionIdx);
 }
 
 } // namespace MapleRuntime

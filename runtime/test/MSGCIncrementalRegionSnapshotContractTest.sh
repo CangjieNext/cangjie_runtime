@@ -36,8 +36,10 @@ require_file_pattern "$CENTRAL_H" 'forceFinishSweepRunning_' \
     'Sweep completion must track the GC force-finisher'
 require_file_pattern "$CENTRAL_H" 'BindAggregateCounters' \
     'SizeClassBucket must publish list transitions into parent aggregates'
-require_file_pattern "$CENTRAL_H" 'AdjustSweptAggregate' \
-    'bulk swept/unswept transitions must adjust the swept aggregate by delta'
+require_file_pattern "$CENTRAL_H" 'StealSweptToCollectSet' \
+    'PreEnum must steal swept supply into the collect-set'
+require_file_pattern "$CENTRAL_H" 'PublishCollectSetToUnswept' \
+    'PostMark must publish the collect-set to one unswept head'
 
 require_file_pattern "$FREE_H" 'totalHotFreeRegions_' \
     'FreeManager must own the global hot-free aggregate'
@@ -77,21 +79,21 @@ import sys
 header = pathlib.Path(sys.argv[1]).read_text()
 source = pathlib.Path(sys.argv[2]).read_text()
 
-method = header.index('void PushPartialSweptBatch')
-aggregate = header.index('EnterCentralList(true, count);', method)
-publish = header.index('partialSwept_.PushBatch(regions, count);', method)
+method = header.index('void PushPartialSwept(')
+aggregate = header.index('EnterCentralList(true);', method)
+publish = header.index('partialSwept_.Push(region);', method)
 if aggregate > publish:
     raise SystemExit(
         'lock-free partial-swept Push must update the aggregate before publishing the Region')
 
-enter_start = header.index('void EnterCentralList(bool swept, size_t count = 1)')
-enter_end = header.index('void LeaveCentralList(bool swept, size_t count = 1)', enter_start)
+enter_start = header.index('void EnterCentralList(bool swept)')
+enter_end = header.index('void LeaveCentralList(bool swept)', enter_start)
 enter = header[enter_start:enter_end]
 if 'unsweptRegions_' not in enter:
     raise SystemExit('unswept Push must increment the parent aggregate')
 
 leave_start = enter_end
-leave_end = header.index('void AdjustSweptAggregate', leave_start)
+leave_end = header.index('std::atomic<size_t>* activeRegions_', leave_start)
 leave = header[leave_start:leave_end]
 if 'unsweptRegions_' not in leave:
     raise SystemExit('normal and stale-head claims must decrement the unswept aggregate')
@@ -101,17 +103,11 @@ is_done_end = header.index('// ===== Monitoring =====', is_done_start)
 if 'forceFinishSweepRunning_.load' not in header[is_done_start:is_done_end]:
     raise SystemExit('IsSweepDone must reject an active GC force-finisher')
 
-prepare_start = source.index('void CentralRegionPool::PrepareForSweep()')
-prepare_end = source.index('void CentralRegionPool::BackgroundSweep', prepare_start)
-prepare = source[prepare_start:prepare_end]
-if 'centralSmallUnsweptRegions_.store(totalUnswept' not in prepare:
-    raise SystemExit('PrepareForSweep must publish the exact post-flip unswept total')
-
-reclassify_start = source.index('void CentralRegionPool::ReclassifyUnsweptToSwept()')
-reclassify_end = source.index('void CentralRegionPool::ReenableLazySweep()', reclassify_start)
-reclassify = source[reclassify_start:reclassify_end]
-if 'centralSmallUnsweptRegions_.store(0' not in reclassify:
-    raise SystemExit('STW unswept reclassification must reset the aggregate')
+publish_set_start = source.index('void CentralRegionPool::PublishCollectSetForSweep()')
+publish_set_end = source.index('void CentralRegionPool::BackgroundSweep', publish_set_start)
+publish_set = source[publish_set_start:publish_set_end]
+if 'centralSmallUnsweptRegions_.store(totalUnswept' not in publish_set:
+    raise SystemExit('collect-set publication must publish the exact unswept total')
 
 fast_start = source.index('size_t CentralRegionPool::GetTotalUnsweptCount() const')
 reference_start = source.index('size_t CentralRegionPool::GetTotalUnsweptCountReference() const', fast_start)
@@ -120,8 +116,8 @@ fast_getter = source[fast_start:reference_start]
 reference_getter = source[reference_start:bytes_start]
 if 'centralSmallUnsweptRegions_.load' not in fast_getter or 'for (' in fast_getter:
     raise SystemExit('normal unswept count getter must remain a single-aggregate fast path')
-if 'CountPartialUnswept()' not in reference_getter or 'CountFullUnswept()' not in reference_getter:
-    raise SystemExit('unswept reference getter must retain both 36-class list scans')
+if 'CountUnswept()' not in reference_getter:
+    raise SystemExit('unswept reference getter must scan the unified 36x2 heads')
 
 publish_start = source.index('void CentralRegionPool::PublishSweepDoneAfterQuiescence()')
 publish_end = source.index('void CentralRegionPool::MaybeNotifySweep', publish_start)

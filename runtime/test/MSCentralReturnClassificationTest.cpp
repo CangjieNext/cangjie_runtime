@@ -35,9 +35,17 @@ const size_t MRT_PAGE_SIZE = 16 * 1024;
 #include "src/Heap/MAllocator/MSSizeClass.h"
 
 namespace MapleRuntime {
-uint32_t SizeClassInfo::slotDivMagic_[kNumSizeClasses] = {};
 
-uint64_t* MSBitmapArena::GetSlotBase(size_t)
+void MSBitmapArena::EnsurePlaneRangeCommitted(MSBitmapPlane, size_t, size_t)
+{
+}
+
+uint64_t* MSBitmapArena::GetAllocPlane(size_t)
+{
+    return nullptr;
+}
+
+uint64_t* MSBitmapArena::GetMarkPlane(size_t)
 {
     return nullptr;
 }

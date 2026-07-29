@@ -15,20 +15,21 @@
 #include <vector>
 
 #include "Heap/Collector/TracingCollector.h"
-#include "Common/LFStack.h"
 #include "Heap/MCollector/MSAssistPacing.h"
 #include "Heap/MCollector/MSHeapThresholdPolicy.h"
+#include "Heap/MCollector/MSMarkBatch.h"
 #include "Heap/MCollector/MSMarkLocalStats.h"
+#include "Heap/MCollector/MSMarkScheduler.h"
 #include "Heap/MCollector/MSMarkTerminationPolicy.h"
 #include "Heap/MCollector/MSMarkWorkerControl.h"
 #include "Heap/MCollector/MSMarkWorkerPolicy.h"
+#include "Heap/MCollector/MSWorkUnit.h"
 
 namespace MapleRuntime {
 
 class CentralRegionPool;
 class AllocBufferMS;
 struct MSRegionInfo;
-struct WorkBuf;
 
 // Per-GC-cycle timing and statistics for DFX logging (Step 5).
 // Accumulated during a single GC cycle, logged in LogGCSummary(), then reset.
@@ -36,25 +37,19 @@ struct MSGCCycleStats {
     // ── Timing (microseconds) ──
     uint64_t preEnumRootsUs = 0;      // PreEnumRoots wall time: stop sweep, clear bitmaps, reclassify unswept.
     uint64_t markSetupUs = 0;         // EnumRoots wall time: handshake + EnumAndMarkRoots root discovery.
-    uint64_t concurrentMarkUs = 0;    // ConcurrentMark wall time: RunConcurrentMarkLoop and assist snapshot.
+    uint64_t concurrentMarkUs = 0;    // Unified scheduler wall time.
     uint64_t markTerminationUs = 0;   // MarkTermination wall time: STW drain, WB flush, deferred queue drain, idle transition.
     uint64_t postMarkUs = 0;          // PostMarkTermination wall time: post-mark cleanup, stats and Sweep/Scavenge handoff.
     uint64_t postGcHookUs = 0;        // PostGarbageCollection hook wall time after UpdateGCStats completes.
 
     // ── Counting ──
-    size_t rootsCount = 0;                // markWorkStack_.size() right after EnumAndMarkRoots finishes.
-    size_t gcMainProcessedObjects = 0;    // Concurrent buffers scanned by the GC main thread.
-    size_t gcMainProcessedBuffers = 0;    // WorkBufs completed by the GC main thread.
-    size_t helperProcessedObjects = 0;    // Concurrent buffers scanned by all helper workers.
-    size_t markCheckpointCount = 0;
-    size_t markDebtBuffers = 0;
-    size_t markDebtObjects = 0;
-    size_t markPressureLevel = 0;
-    size_t markNoProgressWindows = 0;
+    size_t rootsCount = 0;                // rootStaging_.size() after root enumeration.
+    size_t gcMainCompletedTasks = 0;
+    size_t helperCompletedWU = 0;
     MSMarkTerminationReason markTerminationReason = MSMarkTerminationReason::NATURAL;
 
     // ── Mutator assist stats (Step 2.2 §4) ──
-    size_t assistProcessedObjects = 0;
+    size_t assistCompletedWU = 0;
 
     // ── True live bytes (computed from markBitmaps after marking) ──
     size_t trueLiveBytes = 0;            // ComputeMarkedStats() result, used by UpdateGCStats and GC-end logs.
@@ -77,12 +72,6 @@ struct MSGCCycleStats {
 // Step 2: Tri-color marking (PreEnumRoots → EnumRoots → ConcurrentMark → MarkTermination → PostMarkTermination)
 class MarkSweepCollector : public TracingCollector {
 public:
-    class GreyWorkSink {
-    public:
-        virtual ~GreyWorkSink() = default;
-        virtual void PushGrey(BaseObject* obj) = 0;
-    };
-
     explicit MarkSweepCollector(Allocator& allocator, CollectorResources& resources)
         : TracingCollector(allocator, resources)
     {
@@ -100,13 +89,13 @@ public:
     void PreGarbageCollection(bool isConcurrent) override;
     void PostGarbageCollection(uint64_t gcIndex) override;
 
-    // ── MarkNewObject: keep new objects live and defer one scan until mark termination ──
+    // ── MarkNewObject: publish finalizer-registration/removal roots during Mark ──
     void MarkNewObject(BaseObject* obj) override;
 
     // ── Mutator assist interface (Step 2.2 §4) ──
     // Called from AllocBufferMS::Allocate() during concurrent marking.
-    // Pays mutator assist debt (in object units) and returns paid objects.
-    size_t MSMarkAssist(AllocBufferMS& allocBuffer, size_t debtObjects);
+    // Pays mutator assist debt in WorkUnits and returns paid WorkUnits.
+    size_t MSMarkAssist(AllocBufferMS& allocBuffer, size_t debtWU);
     uint64_t GetAssistWorkPerByteScaled() const
     {
         return assistWorkPerByteScaled_.load(std::memory_order_acquire);
@@ -116,37 +105,20 @@ public:
     {
         return activeCollector_.load(std::memory_order_acquire);
     }
-    // Write-barrier log lifecycle.
-    // Ensure the owner has an activeLog_ WorkBuf to append into; returns it
-    // (nullptr only on pool exhaustion).
-    WorkBuf* EnsureActiveLog(AllocBufferMS& ab);
-    // Overflow: publish the full activeLog_ wholesale into globalFull_, then
-    // install a fresh empty log. Entries have already won the mark CAS.
-    void PublishAndSwapLog(AllocBufferMS& ab);
-    // Owner exit: publish the partial activeLog_ to globalFull_, or return the
-    // empty active log directly to the pool.
-    void PublishExitedLog(AllocBufferMS& ab);
-
-    // Route-A (Step37 §10): shade (mark) an overwritten old-ref at write time.
-    // Returns true if THIS call won the mark-CAS (object was white → now grey),
-    // meaning the caller should log it for later scanning; false if it was
-    // already grey/black or not a traceable object (perfect dedup at the source).
-    bool ShadeRefForBarrier(BaseObject* ref, TypeInfo** markedTypeInfo = nullptr)
+    // Step62 barrier producer API. Scalar barriers publish immediately. Bulk
+    // barriers may coalesce old references in a stack-local batch, but must
+    // FlushMarkBatch before overwriting the old slots.
+    void PublishManagedRefForBarrier(BaseObject* ref);
+    void AddManagedRefToMarkBatch(BaseObject* ref, MSMarkWordBatch& batch,
+                                  MSWorkUnitCounter& work);
+    void FlushMarkBatch(MSMarkWordBatch& batch, MSWorkUnitCounter& work);
+    void FlushBarrierMarkBatch(MSMarkWordBatch& batch,
+                               MSWorkUnitCounter& work);
+    void NotifyAllocBufferExit(AllocBufferMS& allocBuffer);
+    void AccountMarkAllocationBytes(size_t bytes)
     {
-        return DiscoverObject(ref, markedTypeInfo);
+        cycleAllocatedMarkBytes_.fetch_add(bytes, std::memory_order_relaxed);
     }
-    // Same operation for barrier paths that already rejected non-heap refs.
-    // This is Runtime-internal and only skips the duplicate heap-range check;
-    // Region/slot/stateWord validation remains mandatory.
-    bool ShadeManagedRefForBarrier(BaseObject* ref, TypeInfo** markedTypeInfo = nullptr)
-    {
-        return DiscoverManagedObject(ref, markedTypeInfo);
-    }
-    // Resolves a known-managed small object to its mark-bitmap word and bit.
-    // LARGE objects return false and retain the dedicated managed shade path.
-    bool ResolveManagedSmallRefForBarrier(BaseObject* ref, MSRegionInfo*& info,
-                                          size_t& wordIdx, uint64_t& bitMask,
-                                          TypeInfo*& whiteTypeInfo) const;
 
     // ── CopyGC-specific overrides: safe no-ops ──
     BaseObject* ForwardObject(BaseObject*) override { return nullptr; }
@@ -188,8 +160,6 @@ public:
 
     bool ShouldIgnoreRequest(GCRequest& request) override { return request.ShouldBeIgnored(); }
     void UpdateGCStats() override;
-    bool TryEnqueueGreyObject(BaseObject* obj, GreyWorkSink& sink);
-
 private:
     // ── MS GC phases ──
     void DoGarbageCollection();
@@ -201,10 +171,21 @@ private:
 
     // ── Step 2.1 internals ──
     void EnumAndMarkRoots(WorkStack& workStack);
-    void DiscoverAndPushObject(BaseObject* obj, WorkStack& workStack);
-    bool TryEnqueueGreyObject(BaseObject* obj, GreyWorkQueue& queue);
     bool DiscoverObject(BaseObject* obj, TypeInfo** markedTypeInfo = nullptr);
-    bool DiscoverManagedObject(BaseObject* obj, TypeInfo** markedTypeInfo = nullptr);
+    void AddRefToMarkBatch(BaseObject* obj, bool knownManaged,
+                           MSMarkWordBatch& batch, MSWorkUnitCounter& work);
+    void FlushMarkWordEntry(const MSMarkWordBatchEntry& entry,
+                            MSWorkUnitCounter& work,
+                            const MSMarkWordBatch& batch);
+    void PublishRootStaging();
+    void RunSchedulerMarkLoop();
+    void RunSchedulerTask(MSTaskLease& lease, MSWorkUnitCounter& work,
+                          uint64_t taskBudgetWU);
+    void RunRegionTask(MSTaskLease& lease, MSWorkUnitCounter& work,
+                       uint64_t taskBudgetWU);
+    void RunObjectTask(MSTaskLease& lease, MSWorkUnitCounter& work);
+    uint64_t DrainSchedulerUnderSTW();
+    void VerifyMarkSchedulerQuiescence(const char* closureName);
     // Bitmap-only discovery. MSGC derives cycle object counts from a post-mark
     // bitmap walk instead of updating a hot global counter.
     // Diagnostic: after marking completes (in PostMarkTermination, before sweep
@@ -215,41 +196,14 @@ private:
     void VerifyMarkCompleteness();
 
     // ── Step 2.2 internals ──
-    void RunConcurrentMarkLoop();
-    void DrainMarkWorkStack();
-    // Claim and drain one published buffer. GC main/helpers accept any length;
-    // mutator assist passes requireFull=true to preserve its credit granularity.
-    size_t DrainOneBufRound(PerPGCWork& gcw, bool requireFull,
-                            LFStack::Counts* countsAfterPop = nullptr,
-                            bool* processedBuffer = nullptr);
-    size_t DrainCurrentBuf(PerPGCWork& gcw);
-    void TraceObjectRefFieldsToGCWork(BaseObject* obj, TypeInfo* typeInfo,
-                                      PerPGCWork& gcw);
-    void TraceRefField(RefField<>& field, WorkStack& workStack);
-    void TransferRootsToGCWork();
     void StartMarkWorkers(size_t maxHelpers, size_t initialHelpers);
     void RunMarkWorker(size_t workerId);
     size_t QuiesceMarkWorkers();
     void SnapshotAssistStats();
     void MergeExitedAssistStats(AllocBufferMS& allocBuffer);
 
-    // ── Step5: LFStack global queue helpers ──
-    void PushSingleToDeferredMainThread(BaseObject* obj);
-    void PushTrustedGreyToDeferredMainThread(BaseObject* obj);
-    void DrainGlobalLFStackToMainQueue(GreyWorkQueue& mainQueue);
-    size_t TryStealBgCreditPartial(size_t debtObjects);
-    void InitAllPerPGCWork();
-    void DisposeAllPerPGCWork();
-    void ResetAllPerPGCWork();
-
     // ── Step 2.3 internals ──
-    void FlushAllWriteBarrierBuffers(GreyWorkQueue& mainQueue);
-
-    void DrainDeferredMainThreadQueueToMainQueue(GreyWorkQueue& mainQueue);
-    size_t DrainMarkTerminationToFixedPoint(GreyWorkQueue& mainQueue);
     void PrepareFinalizersForResurrection();
-    void CollectResurrectionCandidatesToMain(GreyWorkQueue& mainQueue);
-    void ExecuteLikeDrainMainQueue(GreyWorkQueue& mainQueue);
     void ClearWeakRefsAfterMark();
 
     // ── Step 2.4 internals ──
@@ -262,37 +216,26 @@ private:
     // Assist tuning parameters
     // ============================================================
     //
-    // Environment variables (runtime):
-    //   cjMSAssistBaseRatioPercent      - Percentage applied to the computed base ratio. Default 50.
-    //   cjMSAssistBacklogStepBuffers    - Full backlog buffers per 1x increase. Default 16.
-    //   cjMSAssistMaxMultiplier         - Maximum backlog multiplier. Default 4.
-    //   cjMSAssistCreditDecayRounds     - Background-credit linear decay rounds. Default 100.
-    // ============================================================
-    // ── Work stack (populated in EnumRoots, consumed in ConcurrentMark) ──
-    GreyWorkQueue markWorkStack_;
+    // ── Root staging (populated and fully drained inside EnumRoots) ──
+    GreyWorkQueue rootStaging_;
 
-    // ── Step5: LFStack global work queue ──
+    // Step62 unified Region/Object mark scheduler. Ordinary small grey work is
+    // represented by mark/scan
+    // planes plus Region tasks.
+    MSMarkScheduler markScheduler_;
+    MSWorkUnitPacer markPacer_;
+    std::atomic<uint64_t> cycleCompletedMarkWU_{0};
+    std::atomic<uint64_t> cycleAllocatedMarkBytes_{0};
+
+    // Scheduler progress epoch and helper control.
     WorkEpoch markWorkEpoch_;
-    LFStack globalFull_{&markWorkEpoch_};
-    WorkBufPool workBufPool_;
-    PerPGCWork gcThreadWork_;
     struct MSMarkWorkerSlot {
-        PerPGCWork work;
         MSMarkWorkerLocalStats stats;
     };
     std::vector<std::unique_ptr<MSMarkWorkerSlot>> markWorkerSlots_;
     MSMarkWorkerControl markWorkerControl_{&markWorkEpoch_};
-    std::atomic<int64_t> bgScanCredit_{0};
     std::atomic<uint64_t> assistWorkPerByteScaled_{0};
     std::atomic<size_t> prevCycleMarkedObjects_{0};
-    uint64_t previousAssistBaseRatioScaled_ = 1;
-    size_t previousAssistProcessedObjects_ = 0;
-    size_t previousBackgroundProcessedObjects_ = 0;
-    bool assistBaseRatioInitialized_ = false;
-
-    // ── Main-thread-only deferred work (e.g. weak refs discovered by assist) ──
-    GreyWorkQueue deferredMainThreadQueue_;
-    mutable std::mutex deferredMainThreadMutex_;
 
     // ── Assist control ──
     static std::atomic<MarkSweepCollector*> activeCollector_;

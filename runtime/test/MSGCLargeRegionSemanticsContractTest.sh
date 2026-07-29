@@ -15,8 +15,8 @@ central = pathlib.Path(sys.argv[2]).read_text()
 central_header = pathlib.Path(sys.argv[3]).read_text()
 
 required_space = (
-    'TryAllocateLargeObjectOnce(size_t objectBytes, size_t allocSize,',
-    'RegisterLargeObjectMS(addr, objectBytes, regionBytes);',
+    'size_t objectBytes, size_t allocSize, MSScanClass scanClass,',
+    'RegisterLargeObjectMS(addr, objectBytes, regionBytes, scanClass);',
     'return msCentralPool_->GetLargeObjectBytes();',
 )
 for token in required_space:
@@ -25,8 +25,10 @@ for token in required_space:
 
 required_central = (
     'region->LargeSpanCount()',
+    'largeNextSupply_.push_back',
+    'largeCollectSet_.swap(largeNextSupply_)',
     'largeLiveObjectBytes_.fetch_add(region->LargeObjectSize()',
-    'largeLiveObjectBytes_.fetch_sub(region->LargeObjectSize()',
+    'largeLiveObjectBytes_.fetch_sub(',
     'stats.AddLargeObject(region->LargeSpanBytes())',
     'reinterpret_cast<BaseObject*>(region->LargeObjectStart())',
 )

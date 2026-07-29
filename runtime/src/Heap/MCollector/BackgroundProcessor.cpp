@@ -95,7 +95,7 @@ BackgroundProcessor::BackgroundProcessor()
     preferredSweepCls_.store(kNoPreferredSweepClass, std::memory_order_relaxed);
     targetSweepHelperCount_.store(0, std::memory_order_relaxed);
     activeSweepHelperCount_.store(0, std::memory_order_relaxed);
-    observedSweepGeneration_.store(CentralRegionPool::GetGlobalSweepGen(), std::memory_order_relaxed);
+    observedSweepGeneration_.store(CentralRegionPool::GetSweepCycleId(), std::memory_order_relaxed);
 }
 
 void BackgroundProcessor::Start()
@@ -398,7 +398,7 @@ size_t BackgroundProcessor::RefreshSweepHelperControl(CentralRegionPool& pool, R
                                                        CollectorResources& resources,
                                                        bool advanceHelpers)
 {
-    uint32_t sweepGeneration = CentralRegionPool::GetGlobalSweepGen();
+    uint32_t sweepGeneration = CentralRegionPool::GetSweepCycleId();
     if (observedSweepGeneration_.load(std::memory_order_acquire) != sweepGeneration) {
         ResetSweepHelperControl(sweepGeneration);
         advanceHelpers = true;
@@ -476,7 +476,7 @@ bool BackgroundProcessor::ParallelSweepLoop()
 
     CollectorResources& resources = Heap::GetHeap().GetCollectorResources();
     if (Heap::GetHeap().IsGcStarted()) {
-        ResetSweepHelperControl(CentralRegionPool::GetGlobalSweepGen());
+        ResetSweepHelperControl(CentralRegionPool::GetSweepCycleId());
         return false;
     }
     RegionSpaceMS& space = static_cast<RegionSpaceMS&>(Heap::GetHeap().GetAllocator());
@@ -495,13 +495,13 @@ bool BackgroundProcessor::ParallelSweepLoop(size_t helperCount)
     RegionSpaceMS& space = static_cast<RegionSpaceMS&>(Heap::GetHeap().GetAllocator());
     CentralRegionPool* centralPool = space.GetCentralPool();
     if (centralPool == nullptr || Heap::GetHeap().IsGcStarted()) {
-        ResetSweepHelperControl(CentralRegionPool::GetGlobalSweepGen());
+        ResetSweepHelperControl(CentralRegionPool::GetSweepCycleId());
         return false;
     }
 
     size_t unsweptRegions = centralPool->GetTotalUnsweptCount();
     if (unsweptRegions == 0) {
-        ResetSweepHelperControl(CentralRegionPool::GetGlobalSweepGen());
+        ResetSweepHelperControl(CentralRegionPool::GetSweepCycleId());
         return false;
     }
     SweepPressureMode mode = centralPool->GetSweepPressureMode();
@@ -537,7 +537,7 @@ bool BackgroundProcessor::ParallelSweepLoop(size_t helperCount)
         GCThreadPool* threadPool = resources.GetThreadPool();
         if (Heap::GetHeap().IsGcStarted() || threadPool == nullptr) {
             resources.ReleaseMSGCWorkerPool(MSGCWorkerPoolOwner::SWEEP);
-            ResetSweepHelperControl(CentralRegionPool::GetGlobalSweepGen());
+            ResetSweepHelperControl(CentralRegionPool::GetSweepCycleId());
             return false;
         }
 
@@ -595,7 +595,7 @@ bool BackgroundProcessor::HasPendingSweepWork()
     RegionSpaceMS& space = static_cast<RegionSpaceMS&>(Heap::GetHeap().GetAllocator());
     CentralRegionPool* pool = space.GetCentralPool();
     if (pool == nullptr || !pool->HasPendingSweepWork()) {
-        ResetSweepHelperControl(CentralRegionPool::GetGlobalSweepGen());
+        ResetSweepHelperControl(CentralRegionPool::GetSweepCycleId());
         shouldParallelSweep_.store(false, std::memory_order_release);
         shouldBackgroundSweep_.store(false, std::memory_order_release);
         return false;

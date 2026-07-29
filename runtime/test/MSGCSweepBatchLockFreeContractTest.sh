@@ -17,57 +17,39 @@ def block(text, begin, end):
     finish = text.index(end, start)
     return text[start:finish]
 
-assert "kSweepBatchSize = 64" in header, "shared sweep batch size must be 64"
-assert "ClaimUnsweptBatch" in header and "ClaimUnsweptBatch" in source, (
-    "CentralRegionPool must expose a batched unswept claim"
+assert "LockFreeRegionStack partialSwept_" in header
+assert "LockFreeRegionStack fullSwept_" in header
+assert "LockFreeRegionStack unswept_" in header
+assert "partialUnswept_" not in header and "fullUnswept_" not in header, (
+    "Step62 must use one unswept head per size/scan lane"
 )
-assert "PushPartialSweptBatch" in header
-assert "PushFullSweptBatch" in header
-assert "PushEmptySweptBatch" in header and "PushEmptySweptBatch" in source
-
-assert "LockFreeRegionStack partialUnswept_" in header, (
-    "partial unswept list must use the tagged lock-free stack"
+claim = block(header, "MSRegionInfo* ClaimUnswept()", "void PushPartialSwept")
+assert "unswept_.Pop()" in claim and "lock_guard" not in claim, (
+    "unified unswept claim must be one lock-free Pop"
 )
-assert "LockFreeRegionStack fullUnswept_" in header, (
-    "full unswept list must use the tagged lock-free stack"
-)
-assert "mutable std::mutex lock_;              // protects fullSwept_" in header, (
-    "bucket mutex must not protect unswept lists"
-)
-claim = block(header, "size_t ClaimUnsweptBatch", "void PushPartialSwept")
-assert "PopBatch" in claim and "lock_guard" not in claim, (
-    "unswept batch claim must be lock-free"
-)
-
-lazy = block(source, "MSRegionInfo* CentralRegionPool::TakeUnsweptRegion",
-             "MSRegionInfo* CentralRegionPool::GetFreshRegion")
-assert "ClaimUnsweptHeadForSweep" in lazy, "Lazy sweep must retain single-Region claim"
-assert "ClaimUnsweptBatch" not in lazy, "Lazy sweep must not claim a batch"
 
 assist = block(source, "size_t CentralRegionPool::AssistSweep",
-               "bool CentralRegionPool::SweepUnsweptList")
-assert "ClaimUnsweptBatch" in assist, "Assist sweep must claim in one batch"
-assert "targetRegions" in assist, "Assist batch size must follow the requested target"
+               "bool CentralRegionPool::SweepOneUnsweptRegionForAssist")
+assert "SweepOneUnsweptRegionForAssist" in assist
+assert "targetRegions" in assist, "Assist slice must follow the requested target"
 
 background = block(source, "void CentralRegionPool::BackgroundSweep",
                    "void CentralRegionPool::ParallelSweep")
 parallel = block(source, "void CentralRegionPool::ParallelSweep",
-                 "MSSweepAssistResult CentralRegionPool::MSSweepAssist")
+                 "void CentralRegionPool::ParallelSweepOnceForOOM")
 force = block(source, "void CentralRegionPool::ForceFinishUnsweptList",
               "void CentralRegionPool::ForceFinishAllUnswept")
 common = block(source, "bool CentralRegionPool::SweepUnsweptList",
                "// ===== Monitoring =====")
-assert "kSweepBatchSize" in common, "shared sweep loop must use the 64-Region batch"
-assert "ClaimUnsweptBatch" in common and "PublishSweptBatch" in common, (
-    "shared sweep loop must claim and publish classified batches"
-)
+assert "bucket.ClaimUnswept()" in common
+assert "PushPartialSwept" in common and "PushFullSwept" in common
 assert "SweepUnsweptList" in background, "Background sweep must use the shared batch loop"
 assert "SweepUnsweptList" in parallel, "Parallel helper must use the shared batch loop"
-assert "kSweepBatchSize" in force, "GC force sweep must use the shared 64-Region batch"
-assert "PublishSweptBatch" in force, "GC force sweep must publish classified results in bulk"
+assert "bucket.ClaimUnswept()" in force
+assert "PushPartialSwept" in force and "PushFullSwept" in force
 
-assert "PushBatch" in header, "lock-free stack must support one-CAS batch publication"
-assert "PopBatch" in header, "lock-free stack must support one-CAS batch claim"
+assert "PushChain" in header, "collect-set handoff must publish one intrusive chain"
+assert "PublishCollectSetToUnswept" in header
 
-print("MSGCSweepBatchLockFreeContractTest: PASS")
+print("MSGCSweepBatchLockFreeContractTest: PASS (unified Step62 head)")
 PY

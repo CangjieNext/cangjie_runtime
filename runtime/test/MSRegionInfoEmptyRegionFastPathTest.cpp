@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -34,33 +35,53 @@ const size_t MRT_PAGE_SIZE = 16 * 1024;
 
 #include "src/Heap/MAllocator/MSBitmapArena.h"
 #include "src/Heap/MAllocator/MSSizeClass.h"
+#include "src/Heap/MSGCFastPath.h"
 
 namespace MapleRuntime {
-uint32_t SizeClassInfo::slotDivMagic_[kNumSizeClasses] = {};
+extern "C" MSGCFastPathState CJ_MRT_MSGCFastPathState = {};
 
-uint64_t* MSBitmapArena::GetSlotBase(size_t)
+void MSBitmapArena::EnsurePlaneRangeCommitted(MSBitmapPlane, size_t, size_t)
 {
-    return nullptr;
+}
+
+uint64_t* MSBitmapArena::GetAllocPlane(size_t regionIdx)
+{
+    return reinterpret_cast<uint64_t*>(
+        CJ_MRT_MSGCFastPathState.allocPlaneBase +
+        regionIdx * kPlaneStrideBytes);
+}
+
+uint64_t* MSBitmapArena::GetMarkPlane(size_t regionIdx)
+{
+    return reinterpret_cast<uint64_t*>(
+        CJ_MRT_MSGCFastPathState.markPlaneBase +
+        regionIdx * kPlaneStrideBytes);
+}
+
+uint64_t* MSBitmapArena::GetScanPlane(size_t regionIdx)
+{
+    return reinterpret_cast<uint64_t*>(
+        CJ_MRT_MSGCFastPathState.scanPlaneBase +
+        regionIdx * kPlaneStrideBytes);
 }
 } // namespace MapleRuntime
 
 #include "src/Heap/MAllocator/MSRegionInfo.cpp"
 
-namespace MapleRuntime {
-extern "C" MSGCFastPathState CJ_MRT_MSGCFastPathState = {};
-}
-
 namespace {
 
 using MapleRuntime::MS_REGION_SIZE;
+using MapleRuntime::MSAllocMode;
+using MapleRuntime::MSBitmapArena;
+using MapleRuntime::MSCentralReturnKind;
 using MapleRuntime::MSRegionInfo;
-using MapleRuntime::MSRegionType;
-using MapleRuntime::MSSweepState;
+using MapleRuntime::MSRegionKind;
+using MapleRuntime::MSScanClass;
+using MapleRuntime::SizeClassInfo;
 
-constexpr uint8_t kTestSizeClass = 5; // 64-byte slots, no trailing bitmap bits.
-constexpr uint8_t kTrailingSizeClass = 6; // 80-byte slots, 409 valid bits in 7 words.
+constexpr uint8_t kTestSizeClass = 5;     // 64-byte slots.
+constexpr uint8_t kTrailingSizeClass = 6; // 80-byte slots, 409 valid bits.
 constexpr uint64_t kAllocBitmapPoison = 0x0123456789ABCDEFULL;
-constexpr uint64_t kSummaryPoison = 0xDEADBEEFCAFEBABEULL;
 
 void ExpectTrue(bool value, const char* message)
 {
@@ -73,7 +94,9 @@ void ExpectTrue(bool value, const char* message)
 void ExpectEq(size_t actual, size_t expected, const char* message)
 {
     if (actual != expected) {
-        std::fprintf(stderr, "%s: expected=%zu actual=%zu\n", message, expected, actual);
+        std::fprintf(
+            stderr, "%s: expected=%zu actual=%zu\n",
+            message, expected, actual);
         std::abort();
     }
 }
@@ -81,19 +104,20 @@ void ExpectEq(size_t actual, size_t expected, const char* message)
 void ExpectEq64(uint64_t actual, uint64_t expected, const char* message)
 {
     if (actual != expected) {
-        std::fprintf(stderr, "%s: expected=0x%llx actual=0x%llx\n",
-                     message,
-                     static_cast<unsigned long long>(expected),
-                     static_cast<unsigned long long>(actual));
+        std::fprintf(
+            stderr, "%s: expected=0x%llx actual=0x%llx\n",
+            message, static_cast<unsigned long long>(expected),
+            static_cast<unsigned long long>(actual));
         std::abort();
     }
 }
 
 struct RegionFixture {
     void* payload = nullptr;
-    std::vector<uint64_t> allocWords;
-    std::vector<uint64_t> markWords;
-    MSRegionInfo region {};
+    alignas(64) MSRegionInfo region {};
+    alignas(64) std::array<uint64_t, MSBitmapArena::kMaxBitmapWords> allocWords {};
+    alignas(64) std::array<uint64_t, MSBitmapArena::kMaxBitmapWords> markWords {};
+    alignas(64) std::array<uint64_t, MSBitmapArena::kMaxBitmapWords> scanWords {};
 
     explicit RegionFixture(uint8_t sizeClass = kTestSizeClass)
     {
@@ -102,29 +126,27 @@ struct RegionFixture {
             std::fprintf(stderr, "malloc failed\n");
             std::abort();
         }
+
+        MapleRuntime::MSRegionInfoArray::Init(
+            reinterpret_cast<uintptr_t>(payload), 1, &region);
+        MapleRuntime::CJ_MRT_MSGCFastPathState.heapReservedStart =
+            reinterpret_cast<uintptr_t>(payload);
+        MapleRuntime::CJ_MRT_MSGCFastPathState.heapReservedEnd =
+            reinterpret_cast<uintptr_t>(payload) + MS_REGION_SIZE;
+        MapleRuntime::CJ_MRT_MSGCFastPathState.allocPlaneBase =
+            reinterpret_cast<uintptr_t>(allocWords.data());
+        MapleRuntime::CJ_MRT_MSGCFastPathState.markPlaneBase =
+            reinterpret_cast<uintptr_t>(markWords.data());
+        MapleRuntime::CJ_MRT_MSGCFastPathState.scanPlaneBase =
+            reinterpret_cast<uintptr_t>(scanWords.data());
+
+        region.InitForSizeClass(sizeClass, MSScanClass::HAS_REF);
+        region.allocPtr = region.regionEnd;
+        region.SetFreeSlotCount(0);
+        region.SetAllocMode(MSAllocMode::BITMAP);
+        std::fill(allocWords.begin(), allocWords.end(), kAllocBitmapPoison);
+        std::fill(markWords.begin(), markWords.end(), 0);
         std::memset(payload, 0xA5, MS_REGION_SIZE);
-
-        size_t slotSize = MapleRuntime::SizeClassInfo::ClassToSize(sizeClass);
-        size_t slotCount = MS_REGION_SIZE / slotSize;
-        size_t wordCount = (slotCount + 63) / 64;
-
-        allocWords.assign(wordCount, kAllocBitmapPoison);
-        markWords.assign(wordCount, 0);
-
-        region.allocPtr = reinterpret_cast<uintptr_t>(payload);
-        region.regionEnd = reinterpret_cast<uintptr_t>(payload) + MS_REGION_SIZE;
-        region.totalSlotCount = static_cast<uint16_t>(slotCount);
-        region.freeSlotCount = 0;
-        region.sizeClass = sizeClass;
-        region.sweepState = MSSweepState::UNSWEPT;
-        region.regionType = MSRegionType::MS_REGION_PARTIAL;
-        region.flags_ = 0;
-        region.sweepGen = 0;
-        region.reserved = kSummaryPoison;
-        region.allocBitmap = allocWords.data();
-        region.markBitmap = markWords.data();
-        region.nextRegionIdx = MSRegionInfo::INVALID_IDX;
-        region.prevRegionIdx = MSRegionInfo::INVALID_IDX;
     }
 
     ~RegionFixture()
@@ -135,153 +157,195 @@ struct RegionFixture {
 
 void ExpectPayloadZeroed(const RegionFixture& fixture)
 {
-    auto* bytes = static_cast<const unsigned char*>(fixture.payload);
+    const auto* bytes = static_cast<const unsigned char*>(fixture.payload);
     for (size_t i = 0; i < MS_REGION_SIZE; ++i) {
         if (bytes[i] != 0) {
-            std::fprintf(stderr, "payload not zeroed at offset=%zu value=0x%x\n", i, bytes[i]);
+            std::fprintf(
+                stderr, "payload not zeroed at offset=%zu value=0x%x\n",
+                i, bytes[i]);
             std::abort();
         }
     }
 }
 
-void ExpectAllocBitmapPoisoned(const RegionFixture& fixture, const char* message)
+void ExpectAllocBitmapPoisoned(
+    const RegionFixture& fixture, const char* message)
 {
-    for (size_t i = 0; i < fixture.allocWords.size(); ++i) {
+    for (size_t i = 0; i < fixture.region.GetBitmapWordCount(); ++i) {
         if (fixture.allocWords[i] != kAllocBitmapPoison) {
-            std::fprintf(stderr,
-                         "%s: word[%zu] expected=0x%llx actual=0x%llx\n",
-                         message,
-                         i,
-                         static_cast<unsigned long long>(kAllocBitmapPoison),
-                         static_cast<unsigned long long>(fixture.allocWords[i]));
+            std::fprintf(
+                stderr,
+                "%s: word[%zu] expected=0x%llx actual=0x%llx\n",
+                message, i,
+                static_cast<unsigned long long>(kAllocBitmapPoison),
+                static_cast<unsigned long long>(fixture.allocWords[i]));
             std::abort();
         }
     }
 }
 
-void ExpectMarkBitmapZero(const RegionFixture& fixture, const char* message)
+void TestFullBumpReturnMaterializesAllocatedPlane()
 {
-    for (size_t i = 0; i < fixture.markWords.size(); ++i) {
-        if (fixture.markWords[i] != 0) {
-            std::fprintf(stderr,
-                         "%s: word[%zu] expected=0 actual=0x%llx\n",
-                         message,
-                         i,
-                         static_cast<unsigned long long>(fixture.markWords[i]));
-            std::abort();
-        }
+    RegionFixture fixture;
+    fixture.region.SetAllocMode(MSAllocMode::BUMP);
+    fixture.region.allocPtr = fixture.region.regionEnd;
+    fixture.region.SetFreeSlotCount(0);
+    fixture.region.allocSummary =
+        (UINT64_C(1) << fixture.region.GetBitmapWordCount()) - 1;
+    for (size_t word = 0; word < fixture.region.GetBitmapWordCount(); ++word) {
+        fixture.allocWords[word] = ~UINT64_C(0);
+    }
+    fixture.allocWords[fixture.region.GetBitmapWordCount() - 1] =
+        fixture.region.GetValidTailMask();
+
+    auto decision =
+        fixture.region.PrepareForCentralReturn(kTestSizeClass);
+
+    ExpectTrue(
+        decision.kind == MSCentralReturnKind::FULL,
+        "full BUMP Region must route to FULL");
+    ExpectTrue(
+        fixture.region.GetAllocMode() == MSAllocMode::BITMAP,
+        "full BUMP Region must publish BITMAP mode");
+    ExpectEq64(
+        fixture.region.allocSummary, 0,
+        "full BUMP Region must publish an empty free-word summary");
+    for (size_t word = 0; word < fixture.region.GetBitmapWordCount(); ++word) {
+        ExpectEq64(
+            fixture.allocWords[word], 0,
+            "full BUMP Region must mark every valid slot allocated");
     }
 }
 
-void TestSweepRegionAllDeadSkipsSweptBitmapConstruction()
+void TestSweepRegionAllDeadSkipsAllocPlaneConstruction()
 {
     RegionFixture fixture;
 
     size_t freedBytes = fixture.region.SweepRegion();
 
-    ExpectEq(freedBytes, MS_REGION_SIZE, "empty sweep should free full region");
-    ExpectEq(fixture.region.freeSlotCount, fixture.region.totalSlotCount, "empty sweep free slots");
-    ExpectTrue(fixture.region.sweepState == MSSweepState::SWEPT, "empty sweep should enter SWEPT state");
-    ExpectEq64(fixture.region.reserved, 0, "empty sweep should not build summary");
-    ExpectAllocBitmapPoisoned(fixture, "empty sweep should not rewrite alloc bitmap");
-    ExpectMarkBitmapZero(fixture, "empty sweep should keep mark bitmap clear");
+    ExpectEq(
+        freedBytes,
+        static_cast<size_t>(fixture.region.GetTotalSlotCount()) *
+            fixture.region.GetSlotSize(),
+        "empty sweep freed bytes");
+    ExpectEq(
+        fixture.region.GetFreeSlotCount(),
+        fixture.region.GetTotalSlotCount(),
+        "empty sweep free slots");
+    ExpectTrue(
+        fixture.region.GetAllocMode() == MSAllocMode::BITMAP,
+        "empty sweep must publish BITMAP mode");
+    ExpectEq64(
+        fixture.region.allocSummary, 0,
+        "empty sweep must not build a bitmap summary");
+    ExpectAllocBitmapPoisoned(
+        fixture, "empty sweep must not rewrite alloc plane");
     ExpectPayloadZeroed(fixture);
 }
 
-void TestResetToBumpAfterEmptySweepPreservesBitmapState()
+void TestResetToBumpAfterEmptySweepPreservesPlaneState()
 {
     RegionFixture fixture;
-    fixture.region.freeSlotCount = fixture.region.totalSlotCount;
-    fixture.region.sweepState = MSSweepState::SWEPT;
-    fixture.region.regionType = MSRegionType::MS_REGION_PARTIAL;
-    fixture.region.reserved = 0;
+    fixture.region.SetFreeSlotCount(fixture.region.GetTotalSlotCount());
+    fixture.region.allocSummary = 0;
 
     fixture.region.ResetToBump();
 
-    ExpectEq(fixture.region.allocPtr, reinterpret_cast<uintptr_t>(fixture.payload), "reset-to-bump allocPtr");
-    ExpectEq(fixture.region.freeSlotCount, fixture.region.totalSlotCount, "reset-to-bump free slots");
-    ExpectTrue(fixture.region.sweepState == MSSweepState::UNSWEPT,
-               "reset-to-bump should leave region in UNSWEPT state");
-    ExpectTrue(fixture.region.regionType == MSRegionType::MS_REGION_BUMP,
-               "reset-to-bump should leave region in BUMP state");
-    ExpectEq64(fixture.region.reserved, 0, "reset-to-bump should not rebuild summary for empty region");
-    ExpectAllocBitmapPoisoned(fixture, "reset-to-bump should preserve alloc bitmap for swept-empty region");
-    ExpectMarkBitmapZero(fixture, "reset-to-bump should preserve mark bitmap for swept-empty region");
+    ExpectEq(
+        fixture.region.allocPtr,
+        reinterpret_cast<uintptr_t>(fixture.payload),
+        "reset-to-bump allocPtr");
+    ExpectTrue(
+        fixture.region.GetRegionKind() == MSRegionKind::SMALL &&
+        fixture.region.GetAllocMode() == MSAllocMode::BUMP,
+        "reset-to-bump small BUMP role");
+    ExpectEq64(
+        fixture.region.allocSummary, 0,
+        "reset-to-bump keeps swept-empty summary");
+    ExpectAllocBitmapPoisoned(
+        fixture, "reset-to-bump preserves swept-empty alloc plane");
 }
 
 void SetAllValidMarkBits(RegionFixture& fixture)
 {
-    std::fill(fixture.markWords.begin(), fixture.markWords.end(), ~0ULL);
-    size_t trailingBits = fixture.region.totalSlotCount % 64;
-    if (trailingBits != 0) {
-        fixture.markWords.back() = (1ULL << trailingBits) - 1;
+    size_t words = fixture.region.GetBitmapWordCount();
+    for (size_t i = 0; i < words; ++i) {
+        fixture.markWords[i] = ~UINT64_C(0);
     }
+    fixture.markWords[words - 1] =
+        fixture.region.GetValidTailMask();
 }
 
-void ClearMarkRange(RegionFixture& fixture, size_t startSlot, size_t endSlot)
+void ClearMarkRange(
+    RegionFixture& fixture, size_t startSlot, size_t endSlot)
 {
     for (size_t slot = startSlot; slot < endSlot; ++slot) {
-        fixture.markWords[slot / 64] &= ~(1ULL << (slot % 64));
+        fixture.markWords[slot / 64] &=
+            ~(UINT64_C(1) << (slot % 64));
     }
 }
 
 bool IsDeadTestSlot(size_t slot)
 {
-    return (slot >= 62 && slot < 67) || (slot >= 407 && slot < 409);
+    return (slot >= 62 && slot < 67) ||
+        (slot >= 407 && slot < 409);
 }
 
 void TestSweepRegionDeadRunsCrossWordsAndMaskTrailingBits()
 {
     RegionFixture fixture(kTrailingSizeClass);
     SetAllValidMarkBits(fixture);
-    ClearMarkRange(fixture, 62, 67);   // One dead run spanning bitmap words 0 and 1.
-    ClearMarkRange(fixture, 407, 409); // One dead run ending at totalSlotCount.
-    const std::vector<uint64_t> originalMarks = fixture.markWords;
+    ClearMarkRange(fixture, 62, 67);
+    ClearMarkRange(fixture, 407, 409);
+    auto originalMarks = fixture.markWords;
 
-    size_t slotSize = MapleRuntime::SizeClassInfo::ClassToSize(kTrailingSizeClass);
+    size_t slotSize = SizeClassInfo::ClassToSize(kTrailingSizeClass);
     size_t freedBytes = fixture.region.SweepRegion();
 
     ExpectEq(freedBytes, 7 * slotSize, "partial sweep freed bytes");
-    ExpectEq(fixture.region.freeSlotCount, 7, "partial sweep free slots");
-    ExpectTrue(fixture.region.sweepState == MSSweepState::SWEPT,
-               "partial sweep should enter SWEPT state");
-    ExpectEq64(fixture.region.reserved, (1ULL << 0) | (1ULL << 1) | (1ULL << 6),
-               "partial sweep summary");
-    ExpectTrue(fixture.markWords == originalMarks, "sweep must not clear or rewrite mark bitmap");
+    ExpectEq(
+        fixture.region.GetFreeSlotCount(), 7,
+        "partial sweep free slots");
+    ExpectEq64(
+        fixture.region.allocSummary,
+        (UINT64_C(1) << 0) | (UINT64_C(1) << 1) |
+            (UINT64_C(1) << 6),
+        "partial sweep summary");
+    ExpectTrue(
+        fixture.markWords == originalMarks,
+        "sweep must not rewrite mark plane");
 
-    auto* bytes = static_cast<const unsigned char*>(fixture.payload);
-    for (size_t slot = 0; slot < fixture.region.totalSlotCount; ++slot) {
+    const auto* bytes =
+        static_cast<const unsigned char*>(fixture.payload);
+    for (size_t slot = 0;
+         slot < fixture.region.GetTotalSlotCount(); ++slot) {
         unsigned char expected = IsDeadTestSlot(slot) ? 0 : 0xA5;
         for (size_t byte = 0; byte < slotSize; ++byte) {
             if (bytes[slot * slotSize + byte] != expected) {
-                std::fprintf(stderr,
-                             "slot payload mismatch: slot=%zu byte=%zu expected=0x%x actual=0x%x\n",
-                             slot,
-                             byte,
-                             expected,
-                             bytes[slot * slotSize + byte]);
+                std::fprintf(
+                    stderr,
+                    "slot payload mismatch: slot=%zu byte=%zu "
+                    "expected=0x%x actual=0x%x\n",
+                    slot, byte, expected,
+                    bytes[slot * slotSize + byte]);
                 std::abort();
             }
         }
     }
 
-    size_t payloadBytes = fixture.region.totalSlotCount * slotSize;
-    for (size_t offset = payloadBytes; offset < MS_REGION_SIZE; ++offset) {
-        if (bytes[offset] != 0xA5) {
-            std::fprintf(stderr, "trailing payload was cleared at offset=%zu\n", offset);
-            std::abort();
-        }
-    }
-
-    for (size_t word = 0; word < fixture.allocWords.size(); ++word) {
+    for (size_t word = 0;
+         word < fixture.region.GetBitmapWordCount(); ++word) {
         uint64_t expected = 0;
         for (size_t bit = 0; bit < 64; ++bit) {
             size_t slot = word * 64 + bit;
-            if (slot < fixture.region.totalSlotCount && IsDeadTestSlot(slot)) {
-                expected |= 1ULL << bit;
+            if (slot < fixture.region.GetTotalSlotCount() &&
+                IsDeadTestSlot(slot)) {
+                expected |= UINT64_C(1) << bit;
             }
         }
-        ExpectEq64(fixture.allocWords[word], expected, "partial sweep allocation bitmap");
+        ExpectEq64(
+            fixture.allocWords[word], expected,
+            "partial sweep alloc plane");
     }
 }
 
@@ -292,20 +356,29 @@ void TestLargeRegionUsesDistinctObjectAndSpanSemantics()
     constexpr size_t spanBytes = 4 * MS_REGION_SIZE;
     constexpr size_t objectBytes = 3 * MS_REGION_SIZE + 123;
 
-    region.InitForLargeObject(start, start + spanBytes, objectBytes);
+    region.InitForLargeObject(
+        start, start + spanBytes, objectBytes,
+        MSScanClass::HAS_REF);
 
     ExpectEq(region.LargeObjectStart(), start, "large object start");
-    ExpectEq(region.LargeObjectSize(), objectBytes, "large logical object bytes");
+    ExpectEq(
+        region.LargeObjectSize(), objectBytes,
+        "large logical object bytes");
     ExpectEq(region.LargeSpanBytes(), spanBytes, "large span bytes");
-    ExpectEq(region.LargeSpanCount(), 4, "large span Region count");
+    ExpectEq(region.LargeSpanCount(), 4, "large span count");
+    ExpectTrue(
+        region.GetRegionKind() == MSRegionKind::LARGE &&
+        region.GetScanClass() == MSScanClass::HAS_REF,
+        "large primary role and ScanClass");
 }
 
 } // namespace
 
 int main()
 {
-    TestSweepRegionAllDeadSkipsSweptBitmapConstruction();
-    TestResetToBumpAfterEmptySweepPreservesBitmapState();
+    TestFullBumpReturnMaterializesAllocatedPlane();
+    TestSweepRegionAllDeadSkipsAllocPlaneConstruction();
+    TestResetToBumpAfterEmptySweepPreservesPlaneState();
     TestSweepRegionDeadRunsCrossWordsAndMaskTrailingBits();
     TestLargeRegionUsesDistinctObjectAndSpanSemantics();
     return 0;

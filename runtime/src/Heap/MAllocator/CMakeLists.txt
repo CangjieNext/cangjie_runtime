@@ -6,6 +6,7 @@
 
 set(SRC_LIST
     "MSBitmapArena.cpp"
+    "MSScanClass.cpp"
     "MSSizeClass.cpp"
     "MSFreeManager.cpp"
     "MSRegionInfo.cpp"

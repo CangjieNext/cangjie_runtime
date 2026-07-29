@@ -112,21 +112,28 @@ if gc_finalizer_gate not in background_pending:
 if "ProcessDeferredWeakRefsPreSTW" in header or "ProcessDeferredWeakRefsPreSTW" in source:
     raise SystemExit("WeakRefs must not be classified before the MarkTermination STW fixed point")
 
-execute = extract_function(source, "void MarkSweepCollector::ExecuteLikeDrainMainQueue")
-weak_start = execute.index("if (UNLIKELY(obj->IsWeakRef()))")
-weak_end = execute.index("continue;", weak_start)
-weak_branch = execute[weak_start:weak_end]
-if "WeakRefBuffer::Instance().Insert(obj);" not in weak_branch:
-    raise SystemExit("the termination drain must register live WeakRef objects")
-if "TraceObjectRefFields(referent" in weak_branch or "DiscoverObject(referent" in weak_branch:
-    raise SystemExit("a WeakRef referent must not be traced as a strong edge")
+for signature in [
+    "void MarkSweepCollector::RunRegionTask",
+    "void MarkSweepCollector::RunObjectTask",
+]:
+    task = extract_function(source, signature)
+    weak_start = task.index("if (UNLIKELY(obj->IsWeakRef()))")
+    weak_branch_end = task.index("} else {", weak_start)
+    weak_branch = task[weak_start:weak_branch_end]
+    if "weakRefs.Add(obj);" not in weak_branch:
+        raise SystemExit(
+            f"{signature} must stage live WeakRef objects in its worker-local batch"
+        )
+    if "ForEachRefField" in weak_branch or "AddRefToMarkBatch" in weak_branch:
+        raise SystemExit("a WeakRef referent must not be traced as a strong edge")
 
 termination = extract_function(source, "void MarkSweepCollector::MarkTermination()")
 ordered = [
-    "DrainMarkTerminationToFixedPoint(mainQueue",
+    "ordinaryTerminationWU = DrainSchedulerUnderSTW();",
     "PrepareFinalizersForResurrection();",
-    "CollectResurrectionCandidatesToMain(mainQueue);",
-    "DrainMarkTerminationToFixedPoint(mainQueue",
+    "VisitFinalizerRoots(",
+    "FlushMarkBatch(resurrectionBatch, resurrectionPublishWork);",
+    "resurrectionClosureWU = DrainSchedulerUnderSTW();",
     "ClearWeakRefsAfterMark();",
     "VerifyMarkCompleteness();",
     "TransitionToGCPhase(GCPhase::GC_PHASE_IDLE, false);",

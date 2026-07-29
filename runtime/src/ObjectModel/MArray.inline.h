@@ -15,6 +15,7 @@
 #include "Heap/Heap.h"
 #include "HeapManager.inline.h"
 #ifdef MRT_USE_MARK_SWEEP
+#include "Heap/MAllocator/MSScanClass.h"
 #include "Mutator/ThreadLocal.h"
 #endif
 // module internal interfaces
@@ -131,7 +132,8 @@ inline MArray* MArray::NewKnownWidthArray(MIndex nElems, TypeInfo& arrayClass, c
     }
 #ifdef MRT_USE_MARK_SWEEP
     ThreadLocalData* local = ThreadLocal::GetThreadLocalData();
-    auto address = HeapManager::Allocate(arraySize, local, allocType);
+    auto address = HeapManager::AllocateMS(
+        arraySize, allocType, ClassifyMSScanClass(&arrayClass), local);
 #else
     auto address = HeapManager::Allocate(arraySize, allocType);
 #endif

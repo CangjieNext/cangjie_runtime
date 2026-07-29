@@ -15,18 +15,10 @@ namespace MapleRuntime {
 // Static member definitions
 uint8_t SizeClassInfo::smallLookup_[kSmallLookupEntries] = { 0 };
 uint8_t SizeClassInfo::largeLookup_[kLargeLookupEntries] = { 0 };
-uint32_t SizeClassInfo::slotDivMagic_[kNumSizeClasses] = { 0 };
 
 void SizeClassInfo::Init()
 {
-    // 1. Populate the reciprocal magic for slot indexing.
-    for (size_t cls = 0; cls < kNumSizeClasses; cls++) {
-        // magic = ceil(2^32 / slotSize); fits in u32 since slotSize >= 8.
-        slotDivMagic_[cls] = static_cast<uint32_t>(
-            (0x100000000ULL + kSizeClasses[cls] - 1) / kSizeClasses[cls]);
-    }
-
-    // 2. Build small lookup table: for size in [1, 1024], index = ceil(size/8)
+    // 1. Build small lookup table: for size in [1, 1024], index = ceil(size/8)
     //    Each entry stores the class whose ClassToSize >= size
     size_t cls = 0;
     for (size_t idx = 0; idx < kSmallLookupEntries; idx++) {
@@ -41,7 +33,7 @@ void SizeClassInfo::Init()
         smallLookup_[idx] = static_cast<uint8_t>(cls);
     }
 
-    // 3. Build large lookup table: for size in (1024, 16384], index = ceil((size-1024)/256)
+    // 2. Build large lookup table: for size in (1024, 16384], index = ceil((size-1024)/256)
     cls = 0;
     // Find the first class >= 1024
     while (cls < kNumSizeClasses && kSizeClasses[cls] < kSmallLookupBound) {
@@ -59,7 +51,7 @@ void SizeClassInfo::Init()
         largeLookup_[idx] = static_cast<uint8_t>(cls);
     }
 
-    // 4. Validate: SizeToClass must satisfy ClassToSize(SizeToClass(n)) >= n for all n in [1, kLargeObjectThreshold]
+    // 3. Validate: SizeToClass must satisfy ClassToSize(SizeToClass(n)) >= n for all n in [1, kLargeObjectThreshold]
 #if defined(MRT_DEBUG) && MRT_DEBUG
     for (size_t n = 1; n <= kLargeObjectThreshold; n++) {
         uint8_t c = SizeToClass(n);

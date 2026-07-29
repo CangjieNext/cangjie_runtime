@@ -24,45 +24,14 @@
 #include <cstring>
 
 namespace MapleRuntime {
-static inline void AppendMarkedRefInto(MarkSweepCollector* collector,
-                                       AllocBufferMS* allocBuf, BaseObject* ref)
+static inline MarkSweepCollector* ResolveMarkOwner()
 {
-    WorkBuf* log = collector->EnsureActiveLog(*allocBuf);
-    if (UNLIKELY(log->Full())) {
-        collector->PublishAndSwapLog(*allocBuf);
-        log = allocBuf->GetActiveLog();
+    if (__atomic_load_n(
+            &CJ_MRT_MSGCFastPathState.barrierPhase,
+            __ATOMIC_ACQUIRE) == 0) {
+        return nullptr;
     }
-    log->Objects()[log->len++] = ref;
-}
-
-// Append an already shaded old-ref into the owner's activeLog_ WorkBuf.
-// On overflow the full buffer is published wholesale (O(1)) and a fresh one
-// installed. The caller must pass the active collector and current owner.
-static inline void EnqueueRefInto(MarkSweepCollector* collector,
-                                  AllocBufferMS* allocBuf, BaseObject* ref)
-{
-    // Route-A: shade (mark) the old-ref at write time. Only the mark-CAS winner
-    // logs it — already-grey / non-traceable refs are dropped here (perfect
-    // dedup at the source). The logged buffer therefore holds only grey objects,
-    // so the consumer scans them directly (no deferred discover).
-    TypeInfo* typeInfo = nullptr;
-    bool newlyMarked = collector->ShadeManagedRefForBarrier(ref, &typeInfo);
-    if (newlyMarked && typeInfo->HasRefField()) {
-        AppendMarkedRefInto(collector, allocBuf, ref);
-    }
-}
-
-static inline bool ResolveLogOwner(MarkSweepCollector*& collector, AllocBufferMS*& allocBuf)
-{
-    collector = MarkSweepCollector::GetActiveCollector();
-    if (collector == nullptr) {
-        return false;
-    }
-    allocBuf = ThreadLocal::GetAllocBufferMS();
-    if (UNLIKELY(allocBuf == nullptr)) {
-        allocBuf = AllocBufferMS::GetOrCreateAllocBufferMS();
-    }
-    return true;
+    return MarkSweepCollector::GetActiveCollector();
 }
 
 static inline void EnqueueRefFast(BaseObject* ref)
@@ -72,117 +41,48 @@ static inline void EnqueueRefFast(BaseObject* ref)
     }
     // Only log during concurrent mark; outside it there is no SATB snapshot to
     // preserve, so drop the ref entirely (no buffering/clearing needed).
-    MarkSweepCollector* collector = nullptr;
-    AllocBufferMS* allocBuf = nullptr;
-    if (!ResolveLogOwner(collector, allocBuf)) {
+    MarkSweepCollector* collector = ResolveMarkOwner();
+    if (collector == nullptr) {
         return;
     }
-    EnqueueRefInto(collector, allocBuf, ref);
+    collector->PublishManagedRefForBarrier(ref);
+}
+
+static inline MemoryOrder CASFailureOrder(MemoryOrder order)
+{
+    if (order == std::memory_order_release) {
+        return std::memory_order_relaxed;
+    }
+    if (order == std::memory_order_acq_rel) {
+        return std::memory_order_acquire;
+    }
+    return order;
 }
 
 class BulkRefMarker {
 public:
-    BulkRefMarker(MarkSweepCollector* collector, AllocBufferMS* allocBuf)
-        : collector_(collector), allocBuf_(allocBuf)
+    explicit BulkRefMarker(MarkSweepCollector* collector)
+        : collector_(collector)
     {
     }
 
-    ~BulkRefMarker() { FlushAll(); }
+    ~BulkRefMarker()
+    {
+        collector_->FlushBarrierMarkBatch(batch_, work_);
+    }
 
     void Add(BaseObject* ref)
     {
         if (ref == nullptr || !Heap::IsHeapAddress(ref)) {
             return;
         }
-
-        MSRegionInfo* info = nullptr;
-        size_t wordIdx = 0;
-        uint64_t bitMask = 0;
-        TypeInfo* typeInfo = nullptr;
-        if (!collector_->ResolveManagedSmallRefForBarrier(
-                ref, info, wordIdx, bitMask, typeInfo)) {
-            bool newlyMarked = collector_->ShadeManagedRefForBarrier(ref, &typeInfo);
-            if (newlyMarked && typeInfo->HasRefField()) {
-                AppendMarkedRefInto(collector_, allocBuf_, ref);
-            }
-            return;
-        }
-
-        Entry* entry = FindOrAllocate(info, wordIdx);
-        unsigned bitIdx = static_cast<unsigned>(__builtin_ctzll(bitMask));
-        if ((entry->mask & bitMask) == 0) {
-            entry->refs[bitIdx] = ref;
-            entry->typeInfos[bitIdx] = typeInfo;
-            entry->mask |= bitMask;
-        }
-    }
-
-    void FlushAll()
-    {
-        for (size_t i = 0; i < kEntryCount; ++i) {
-            Flush(entries_[i]);
-        }
+        collector_->AddManagedRefToMarkBatch(ref, batch_, work_);
     }
 
 private:
-    static constexpr size_t kEntryCount = 2;
-
-    struct Entry {
-        MSRegionInfo* info = nullptr;
-        size_t wordIdx = 0;
-        uint64_t mask = 0;
-        BaseObject* refs[64] = {};
-        TypeInfo* typeInfos[64] = {};
-    };
-
-    Entry* FindOrAllocate(MSRegionInfo* info, size_t wordIdx)
-    {
-        for (size_t i = 0; i < kEntryCount; ++i) {
-            if (entries_[i].info == info && entries_[i].wordIdx == wordIdx) {
-                return &entries_[i];
-            }
-        }
-        for (size_t i = 0; i < kEntryCount; ++i) {
-            if (entries_[i].info == nullptr) {
-                entries_[i].info = info;
-                entries_[i].wordIdx = wordIdx;
-                return &entries_[i];
-            }
-        }
-        Flush(entries_[nextEvict_]);
-        Entry* entry = &entries_[nextEvict_];
-        nextEvict_ = (nextEvict_ + 1) % kEntryCount;
-        entry->info = info;
-        entry->wordIdx = wordIdx;
-        return entry;
-    }
-
-    void Flush(Entry& entry)
-    {
-        if (entry.info == nullptr) {
-            return;
-        }
-        uint64_t newBits = entry.info->MarkBitmapWord(entry.wordIdx, entry.mask);
-        while (newBits != 0) {
-            unsigned bitIdx = static_cast<unsigned>(__builtin_ctzll(newBits));
-            BaseObject* ref = entry.refs[bitIdx];
-            TypeInfo* typeInfo = entry.typeInfos[bitIdx];
-#if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
-            MRT_ASSERT(typeInfo != nullptr,
-                       "bulk mark winner must retain its validated TypeInfo");
-#endif
-            if (typeInfo->HasRefField()) {
-                AppendMarkedRefInto(collector_, allocBuf_, ref);
-            }
-            newBits &= newBits - 1;
-        }
-        entry = Entry {};
-    }
-
     MarkSweepCollector* collector_;
-    AllocBufferMS* allocBuf_;
-    Entry entries_[kEntryCount];
-    size_t nextEvict_ = 0;
+    MSMarkWordBatch batch_;
+    MSWorkUnitCounter work_;
 };
 
 static inline void EnqueueStructRefsInRange(BaseObject* obj, MAddress start, size_t size)
@@ -190,12 +90,11 @@ static inline void EnqueueStructRefsInRange(BaseObject* obj, MAddress start, siz
     if (obj == nullptr || obj->GetTypeInfo() == nullptr || size == 0) {
         return;
     }
-    MarkSweepCollector* collector = nullptr;
-    AllocBufferMS* allocBuf = nullptr;
-    if (!ResolveLogOwner(collector, allocBuf)) {
+    MarkSweepCollector* collector = ResolveMarkOwner();
+    if (collector == nullptr) {
         return;
     }
-    BulkRefMarker marker(collector, allocBuf);
+    BulkRefMarker marker(collector);
     obj->ForEachRefInStruct(
         [&marker](RefField<false>& refField) {
             marker.Add(MSLoadRawReference(refField));
@@ -218,12 +117,11 @@ static inline void EnqueueStructArrayRefsInRange(BaseObject* obj, MAddress start
     if (component == nullptr || !component->IsStructType() || !component->HasRefField()) {
         return;
     }
-    MarkSweepCollector* collector = nullptr;
-    AllocBufferMS* allocBuf = nullptr;
-    if (!ResolveLogOwner(collector, allocBuf)) {
+    MarkSweepCollector* collector = ResolveMarkOwner();
+    if (collector == nullptr) {
         return;
     }
-    BulkRefMarker marker(collector, allocBuf);
+    BulkRefMarker marker(collector);
     array->ForEachRefFieldInRange(
         [&marker](RefField<false>& refField) {
             marker.Add(MSLoadRawReference(refField));
@@ -233,12 +131,11 @@ static inline void EnqueueStructArrayRefsInRange(BaseObject* obj, MAddress start
 
 static inline void EnqueueStaticStructRefs(MAddress start, const GCTib gctib)
 {
-    MarkSweepCollector* collector = nullptr;
-    AllocBufferMS* allocBuf = nullptr;
-    if (!ResolveLogOwner(collector, allocBuf)) {
+    MarkSweepCollector* collector = ResolveMarkOwner();
+    if (collector == nullptr) {
         return;
     }
-    BulkRefMarker marker(collector, allocBuf);
+    BulkRefMarker marker(collector);
     gctib.ForEachBitmapWord(start, [&marker](RefField<>& refField) {
         marker.Add(MSLoadRawReference(refField));
     });
@@ -246,14 +143,13 @@ static inline void EnqueueStaticStructRefs(MAddress start, const GCTib gctib)
 
 static inline void EnqueueRefArrayRange(MAddress start, size_t size)
 {
-    MarkSweepCollector* collector = nullptr;
-    AllocBufferMS* allocBuf = nullptr;
-    if (!ResolveLogOwner(collector, allocBuf)) {
+    MarkSweepCollector* collector = ResolveMarkOwner();
+    if (collector == nullptr) {
         return;
     }
     size_t refCount = size / sizeof(MAddress);
     RefField<false>* refs = reinterpret_cast<RefField<false>*>(start);
-    BulkRefMarker marker(collector, allocBuf);
+    BulkRefMarker marker(collector);
     for (size_t i = 0; i < refCount; ++i) {
         marker.Add(MSLoadRawReference(refs[i]));
     }
@@ -403,14 +299,18 @@ void MSMarkBarrier::AtomicWriteReference(BaseObject* obj, RefField<true>& field,
                                          BaseObject* ref, MemoryOrder order) const
 {
     (void)obj;
-
-    // discover(old)
-    BaseObject* oldRef = MSLoadRawReference(field, std::memory_order_relaxed);
-    EnqueueRefFast(oldRef);
-
-    // atomic store
-    MSStoreRawReference(field, ref, order);
-
+    MemoryOrder failOrder = CASFailureOrder(order);
+    BaseObject* expected =
+        MSLoadRawReference(field, std::memory_order_relaxed);
+    for (;;) {
+        // Publication completes before the CAS can delete this exact edge.
+        EnqueueRefFast(expected);
+        if (MSCompareExchangeRawReference(
+                field, expected, ref, order, failOrder)) {
+            return;
+        }
+        expected = MSLoadRawReference(field, failOrder);
+    }
 }
 
 BaseObject* MSMarkBarrier::AtomicSwapReference(BaseObject* obj, RefField<true>& field,
@@ -418,13 +318,17 @@ BaseObject* MSMarkBarrier::AtomicSwapReference(BaseObject* obj, RefField<true>& 
 {
     (void)obj;
 
-    // atomic exchange
-    BaseObject* oldRef = MSExchangeRawReference(field, newRef, order);
-
-    // discover(old): the swapped-out reference
-    EnqueueRefFast(oldRef);
-
-    return oldRef;
+    MemoryOrder failOrder = CASFailureOrder(order);
+    BaseObject* expected =
+        MSLoadRawReference(field, std::memory_order_relaxed);
+    for (;;) {
+        EnqueueRefFast(expected);
+        if (MSCompareExchangeRawReference(
+                field, expected, newRef, order, failOrder)) {
+            return expected;
+        }
+        expected = MSLoadRawReference(field, failOrder);
+    }
 }
 
 bool MSMarkBarrier::CompareAndSwapReference(BaseObject* obj, RefField<true>& field,
@@ -433,12 +337,12 @@ bool MSMarkBarrier::CompareAndSwapReference(BaseObject* obj, RefField<true>& fie
 {
     (void)obj;
 
-    bool success = MSCompareExchangeRawReference(field, oldRef, newRef, succOrder, failOrder);
-    if (success) {
-        // CAS succeeded: preserve the deleted edge.
-        EnqueueRefFast(oldRef);
-    }
-    return success;
+    // Conservatively shade the expected edge before the mutation. A failed CAS
+    // may perform redundant work, but a successful CAS can never expose an
+    // unprotected deletion window.
+    EnqueueRefFast(oldRef);
+    return MSCompareExchangeRawReference(
+        field, oldRef, newRef, succOrder, failOrder);
 }
 
 } // namespace MapleRuntime

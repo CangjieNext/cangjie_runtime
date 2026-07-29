@@ -507,10 +507,13 @@ static RuntimeParam InitRuntimeParam()
                                                   EnvBoundKind::OPEN),
 #ifdef MRT_USE_MARK_SWEEP
             // Total MSGC mark threads, including the GC main thread.
-            .gcThreads = static_cast<int32_t>(ReadCountParameter(
-                "cjGCThreads", ResolveMSMarkTotalThreads(processorNum, logicalCpuCount, 0),
-                0, EnvBoundKind::OPEN,
-                processorNum, EnvBoundKind::CLOSED)),
+            .gcThreads = static_cast<int32_t>(ResolveMSMarkTotalThreads(
+                processorNum, logicalCpuCount,
+                ReadCountParameter(
+                    "cjGCThreads",
+                    ResolveMSMarkTotalThreads(processorNum, logicalCpuCount, 0),
+                    0, EnvBoundKind::OPEN,
+                    processorNum, EnvBoundKind::CLOSED))),
 #else
             // CopyGC keeps one GC main thread and one helper thread.
             .gcThreads = 2,
@@ -520,7 +523,7 @@ static RuntimeParam InitRuntimeParam()
 #ifdef MRT_USE_MARK_SWEEP
             .msBackgroundSweepMaxTime = ReadTimeParameter("cjGCBGSweepMaxTime", 2 * MILLI_SECOND_TO_NANO_SECOND,
                                                           0, EnvBoundKind::OPEN, true),
-            .msMarkTimeBudget = ReadTimeParameter("cjMSMarkTimeBudget", 20 * SECOND_TO_NANO_SECOND,
+            .msMarkTimeBudget = ReadTimeParameter("cjMSMarkTimeBudget", 100 * MILLI_SECOND_TO_NANO_SECOND,
                                                   0, EnvBoundKind::OPEN, true),
             .msAssistBaseRatioPercent = ReadCountParameter(
                 "cjMSAssistBaseRatioPercent", kMSAssistBaseRatioPercentDefault, 0,

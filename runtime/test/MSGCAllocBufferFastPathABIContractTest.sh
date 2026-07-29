@@ -4,46 +4,52 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 ALLOC_HEADER="$ROOT_DIR/src/Heap/MAllocator/MSAllocBuffer.h"
 ALLOC_SOURCE="$ROOT_DIR/src/Heap/MAllocator/MSAllocBuffer.cpp"
+REGION_SPACE_SOURCE="$ROOT_DIR/src/Heap/MAllocator/MSRegionSpace.cpp"
+THREAD_LOCAL_HEADER="$ROOT_DIR/src/Mutator/ThreadLocal.h"
 
-require_pattern() {
-    local file="$1"
-    local pattern="$2"
-    local message="$3"
-    if ! rg -Uq "$pattern" "$file"; then
-        echo "$message" >&2
+require() {
+    if ! rg -Uq "$2" "$1"; then
+        echo "$3" >&2
+        exit 1
+    fi
+}
+reject() {
+    if rg -q "$2" "$1"; then
+        echo "$3" >&2
         exit 1
     fi
 }
 
-require_pattern "$ALLOC_HEADER" \
-    'static constexpr size_t kActiveLogOffset = 896;' \
-    'AllocBufferMS must define one explicit cross-target activeLog_ ABI offset'
-require_pattern "$ALLOC_HEADER" \
-    'activeLogAbiReserved_\[kActiveLogOffset - sizeof\(RegionInfo\*\) -[[:space:]]*kNumSizeClasses \* sizeof\(MSRegionInfo\*\)\]' \
-    'activeLog_ padding must depend only on the fixed pointer prefix'
-require_pattern "$ALLOC_SOURCE" \
-    'offsetof\(AllocBufferMS, activeLog_\) == AllocBufferMS::kActiveLogOffset' \
-    'the Runtime static assertion must use the shared AllocBufferMS ABI constant'
+require "$ALLOC_HEADER" \
+    'MSRegionInfo\* activeRegions_\[kNumSizeClasses\]\[kMSScanClassCount\] = \{\};' \
+    'AllocBufferMS compiler prefix must be the 36x2 ScanClass Region table'
+require "$ALLOC_SOURCE" \
+    'offsetof\(AllocBufferMS, activeRegions_\) == 0' \
+    'activeRegions_ must remain at offset zero'
+require "$ALLOC_SOURCE" \
+    'std::extent<decltype\(activeRegions_\), 1>::value == kMSScanClassCount' \
+    'Runtime must assert the inner ScanClass ABI dimension'
+require "$ALLOC_SOURCE" \
+    'kNumSizeClasses \* kMSScanClassCount \* sizeof\(MSRegionInfo\*\)' \
+    'Runtime must assert that the compiler prefix contains only Region pointers'
 
-active_regions_line="$(rg -n 'MSRegionInfo\* activeRegions_' "$ALLOC_HEADER" | cut -d: -f1)"
-padding_line="$(rg -n 'activeLogAbiReserved_' "$ALLOC_HEADER" | cut -d: -f1)"
-active_log_line="$(rg -n 'WorkBuf\* activeLog_' "$ALLOC_HEADER" | cut -d: -f1)"
-central_line="$(rg -n 'CentralRegionPool\* central_' "$ALLOC_HEADER" | cut -d: -f1)"
-vector_line="$(rg -n 'std::vector<BaseObject\*> stackRoots_' "$ALLOC_HEADER" | cut -d: -f1)"
-
-for line in "$active_regions_line" "$padding_line" "$active_log_line" "$central_line" "$vector_line"; do
-    if [[ -z "$line" ]]; then
-        echo 'AllocBufferMS fast-path ABI fields are incomplete' >&2
-        exit 1
-    fi
+for pattern in 'activeLog_' 'activeLogAbiReserved_' 'gcWork_' 'WorkBuf'; do
+    reject "$ALLOC_HEADER" "$pattern" "retired AllocBuffer ABI member remains: $pattern"
+    reject "$ALLOC_SOURCE" "$pattern" "retired AllocBuffer ABI assertion remains: $pattern"
 done
 
-if [[ "$active_regions_line" -ge "$padding_line" ||
-      "$padding_line" -ge "$active_log_line" ||
-      "$active_log_line" -ge "$central_line" ||
-      "$active_log_line" -ge "$vector_line" ]]; then
-    echo 'activeLog_ must be in a fixed prefix before all STL/platform-dependent members' >&2
+ensure="$(sed -n '/void Allocator::EnsureThreadLocalBuffer()/,/^}/p' "$REGION_SPACE_SOURCE")"
+printf '%s\n' "$ensure" | rg -q 'AllocBufferMS::GetOrCreateAllocBufferMS\(\)'
+if printf '%s\n' "$ensure" | rg -q 'SetAllocBuffer\(|reinterpret_cast<AllocBuffer'; then
+    echo 'MSGC EnsureThreadLocalBuffer must not alias AllocBufferMS through CopyGC ThreadLocalData::buffer' >&2
     exit 1
 fi
 
-echo 'MSGC AllocBuffer fast-path ABI contract holds'
+require "$THREAD_LOCAL_HEADER" \
+    'static AllocBufferMS\* GetAllocBufferMS\(\) \{ return GetThreadLocalData\(\)->msAllocBuffer; \}' \
+    'MSGC must use the dedicated ThreadLocalData::msAllocBuffer field'
+reject "$ALLOC_SOURCE" \
+    'SetAllocBuffer\(reinterpret_cast<AllocBuffer\*>' \
+    'MSGC AllocBuffer creation must not publish a CopyGC buffer alias'
+
+echo 'MSGC AllocBuffer 36x2 fast-path ABI and dedicated TLS field contract holds'

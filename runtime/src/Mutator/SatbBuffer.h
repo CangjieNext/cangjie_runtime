@@ -328,6 +328,18 @@ public:
         std::lock_guard<std::mutex> lock(mtx); // For potential concurrency problems
         refObjBuffer.insert(obj);
     }
+    void InsertBatch(BaseObject* const* objects, size_t count)
+    {
+        if (count == 0) {
+            return;
+        }
+        std::lock_guard<std::mutex> lock(mtx);
+        for (size_t i = 0; i < count; ++i) {
+            if (objects[i] != nullptr) {
+                refObjBuffer.insert(objects[i]);
+            }
+        }
+    }
 private:
     std::unordered_set<BaseObject*> refObjBuffer;
     std::mutex mtx;

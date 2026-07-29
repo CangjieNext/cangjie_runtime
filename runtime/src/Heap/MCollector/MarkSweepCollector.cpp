@@ -47,7 +47,6 @@
 namespace MapleRuntime {
 
 namespace {
-constexpr size_t kMSMarkEmptySpinRounds = 8;
 constexpr uint64_t kMSMarkProgressWaitUs = 50;
 
 bool IsMSGCReportEnabled()
@@ -59,18 +58,35 @@ bool IsMSGCReportEnabled()
 #endif
 }
 
-class WorkStackGreySink final : public MarkSweepCollector::GreyWorkSink {
+class MSWeakRefLocalBatch {
 public:
-    explicit WorkStackGreySink(MarkSweepCollector::WorkStack& workStack) : workStack_(workStack) {}
+    static constexpr size_t kCapacity = 32;
 
-    void PushGrey(BaseObject* obj) override
+    ~MSWeakRefLocalBatch()
     {
-        workStack_.push_back(obj);
+        CHECK_DETAIL(count_ == 0,
+                     "[MS-GC] destroying non-empty WeakRef local batch");
+    }
+
+    void Add(BaseObject* obj)
+    {
+        refs_[count_++] = obj;
+        if (count_ == kCapacity) {
+            Flush();
+        }
+    }
+
+    void Flush()
+    {
+        WeakRefBuffer::Instance().InsertBatch(refs_, count_);
+        count_ = 0;
     }
 
 private:
-    MarkSweepCollector::WorkStack& workStack_;
+    BaseObject* refs_[kCapacity] = {};
+    size_t count_ = 0;
 };
+
 }
 
 static const char* GetDiagTypeName(const BaseObject* obj)
@@ -222,7 +238,7 @@ static inline bool IsManagedAddress(MAddress addr)
     return Heap::IsHeapAddress(addr);
 }
 
-static inline bool IsCurrentSweepGenObject(BaseObject* obj, uint32_t currentSweepGen)
+static inline bool IsOutsideCurrentCollectSetObject(BaseObject* obj, uint32_t currentMarkEpoch)
 {
     if (obj == nullptr) {
         return false;
@@ -238,13 +254,15 @@ static inline bool IsCurrentSweepGenObject(BaseObject* obj, uint32_t currentSwee
         return false;
     }
 
-    if (IsLargeRegionEntryType(msInfo->regionType)) {
+    if (msInfo->GetRegionKind() == MSRegionKind::SPAN) {
         msInfo = MSRegionInfoArray::ResolveLargeBaseInfo(msInfo);
-        if (msInfo == nullptr) {
-            return false;
-        }
     }
-    return msInfo->GetSweepGen() == currentSweepGen;
+    if (msInfo == nullptr ||
+        (msInfo->GetRegionKind() != MSRegionKind::SMALL &&
+         msInfo->GetRegionKind() != MSRegionKind::LARGE)) {
+        return false;
+    }
+    return msInfo->collectEpoch != currentMarkEpoch;
 }
 
 // Validate that `obj` is a live traceable heap object, and on success also hand
@@ -268,7 +286,7 @@ static inline bool IsTraceableObjectAddressEx(BaseObject* obj, MSRegionInfo*& ou
         return false;
     }
 
-    if (IsLargeRegionEntryType(msInfo->regionType)) {
+    if (msInfo->IsLargeRegionEntry()) {
         MSRegionInfo* base = MSRegionInfoArray::ResolveLargeBaseInfo(msInfo);
         if (base == nullptr) {
             return false;
@@ -280,8 +298,7 @@ static inline bool IsTraceableObjectAddressEx(BaseObject* obj, MSRegionInfo*& ou
         return false;
     }
 
-    if (msInfo->regionType == MSRegionType::MS_REGION_FREE ||
-        msInfo->regionType == MSRegionType::MS_REGION_EMPTY_CACHE) {
+    if (msInfo->IsFreeRegion()) {
         return false;
     }
 
@@ -297,10 +314,10 @@ static inline bool IsTraceableObjectAddressEx(BaseObject* obj, MSRegionInfo*& ou
         return false;
     }
     size_t slotIdx = (addr - regionStart) / slotSize;
-    if (slotIdx >= msInfo->totalSlotCount) {
+    if (slotIdx >= msInfo->GetTotalSlotCount()) {
         return false;
     }
-    if (msInfo->regionType == MSRegionType::MS_REGION_BUMP && addr >= msInfo->allocPtr) {
+    if (msInfo->GetAllocMode() == MSAllocMode::BUMP && addr >= msInfo->allocPtr) {
         return false;
     }
 
@@ -354,7 +371,7 @@ static inline bool ResolveMarkTargetImpl(BaseObject* obj, ResolvedMarkTarget& ou
     size_t regionOffset = 0;
     MSRegionInfo* info = MSRegionInfoArray::GetRegionInfoDirect(addr, regionOffset);
 
-    if (IsLargeRegionEntryType(info->regionType)) {
+    if (info->IsLargeRegionEntry()) {
         MSRegionInfo* base = MSRegionInfoArray::ResolveLargeBaseInfo(info);
         if (base == nullptr ||
             base->allocPtr != addr || base->regionEnd < addr ||
@@ -373,10 +390,9 @@ static inline bool ResolveMarkTargetImpl(BaseObject* obj, ResolvedMarkTarget& ou
         return true;
     }
 
-    if (info->regionType == MSRegionType::MS_REGION_FREE ||
-        info->regionType == MSRegionType::MS_REGION_EMPTY_CACHE ||
-        info->sizeClass >= kNumSizeClasses || info->markBitmap == nullptr ||
-        info->totalSlotCount == 0) {
+    if (info->IsFreeRegion() ||
+        info->sizeClass >= kNumSizeClasses ||
+        info->GetTotalSlotCount() == 0) {
         return false;
     }
 
@@ -386,13 +402,9 @@ static inline bool ResolveMarkTargetImpl(BaseObject* obj, ResolvedMarkTarget& ou
     }
 
     size_t slotIdx = SizeClassInfo::OffsetToSlotIndex(info->sizeClass, regionOffset);
-    if (slotIdx >= info->totalSlotCount || slotIdx * slotSize != regionOffset) {
+    if (slotIdx >= info->GetTotalSlotCount() || slotIdx * slotSize != regionOffset) {
         return false;
     }
-    if (info->regionType == MSRegionType::MS_REGION_BUMP && addr >= info->allocPtr) {
-        return false;
-    }
-
     out.info = info;
     out.wordIdx = slotIdx / 64;
     out.bitMask = 1ULL << (slotIdx % 64);
@@ -417,6 +429,26 @@ static inline bool ResolveManagedMarkTarget(BaseObject* obj, ResolvedMarkTarget&
     return ResolveMarkTargetImpl(obj, out, true);
 }
 
+static inline uint32_t GetOrInitBatchMarkEpoch(MSMarkWordBatch& batch)
+{
+    if (LIKELY(batch.HasMarkEpoch())) {
+#if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
+        CHECK_DETAIL(batch.HasBitmapPlaneBases(),
+                     "[MS-GC] MarkWordBatch epoch without bitmap planes");
+#endif
+        return batch.GetMarkEpoch();
+    }
+    uint32_t markEpoch = __atomic_load_n(
+        &CJ_MRT_MSGCFastPathState.currentMarkEpoch, __ATOMIC_ACQUIRE);
+    batch.SetMarkEpoch(markEpoch);
+    batch.SetBitmapPlaneBases(
+        static_cast<uintptr_t>(__atomic_load_n(
+            &CJ_MRT_MSGCFastPathState.allocPlaneBase, __ATOMIC_ACQUIRE)),
+        static_cast<uintptr_t>(__atomic_load_n(
+            &CJ_MRT_MSGCFastPathState.markPlaneBase, __ATOMIC_ACQUIRE)));
+    return markEpoch;
+}
+
 // Static member definition
 std::atomic<MarkSweepCollector*> MarkSweepCollector::activeCollector_{nullptr};
 
@@ -427,18 +459,6 @@ std::atomic<MarkSweepCollector*> MarkSweepCollector::activeCollector_{nullptr};
 void MarkSweepCollector::Init()
 {
     LOG(RTLOG_REPORT, "[MS-GC] MarkSweepCollector::Init()");
-    MSWorkBufScaleConfig workBufConfig = CangjieRuntime::GetMSWorkBufScaleConfig();
-    CHECK_DETAIL(workBufPool_.Configure(workBufConfig.capacity),
-                 "MSGC WorkBufPool cannot configure capacity=%zu after allocation",
-                 workBufConfig.capacity);
-    LOG(RTLOG_REPORT,
-        "[MS-GC] WorkBuf scale: P=%u capacity=%zu checkpointObjects=%zu "
-        "backlogObjectsPerLevel=%zu helperPromoteObjects=%zu",
-        workBufConfig.processors,
-        workBufConfig.capacity,
-        workBufConfig.checkpointObjects,
-        workBufConfig.backlogObjectsPerLevel,
-        workBufConfig.helperPromoteObjects);
     TracingCollector::Init();
     g_gcRequests[GC_REASON_HEU].SetMinInterval(CangjieRuntime::GetGCParam().gcInterval);
 }
@@ -534,6 +554,9 @@ void MarkSweepCollector::PreEnumRoots()
 {
     uint64_t t0 = TimeUtil::MicroSeconds();
     VLOG(REPORT, "[MS-GC] --- PreEnumRoots ---");
+    cycleCompletedMarkWU_.store(0, std::memory_order_relaxed);
+    cycleAllocatedMarkBytes_.store(0, std::memory_order_relaxed);
+    assistWorkPerByteScaled_.store(0, std::memory_order_relaxed);
 
     // Set activeCollector_ for MSMarkAssist (Mutator assist during concurrent mark).
     activeCollector_.store(this, std::memory_order_release);
@@ -559,11 +582,11 @@ void MarkSweepCollector::PreEnumRoots()
         uint64_t stwT0 = TimeUtil::MicroSeconds();
         {
             ScopedStopTheWorld stw("MS PreEnumRoots clear/reclassify/prepare STW");
+            markScheduler_.ResetCycle();
+            centralPool->BuildCollectSet();
             uint64_t clearBitmapT0 = TimeUtil::MicroSeconds();
             centralPool->ClearAllMarkBitmaps();
             clearBitmapUs = TimeUtil::MicroSeconds() - clearBitmapT0;
-            centralPool->ReclassifyUnsweptToSwept();
-            centralPool->PrepareForSweep();
         }
         uint64_t stwUs = TimeUtil::MicroSeconds() - stwT0;
         VLOG(REPORT,
@@ -593,10 +616,11 @@ void MarkSweepCollector::EnumRoots()
     TransitionToGCPhase(GCPhase::GC_PHASE_MS_MARK_SETUP, true);
 
     // GC thread enumerates global roots + marks root set.
-    markWorkStack_.clear();
+    rootStaging_.clear();
     {
-        EnumAndMarkRoots(markWorkStack_.UnsafeRaw());
-        cycleStats_.rootsCount = markWorkStack_.size();
+        EnumAndMarkRoots(rootStaging_.UnsafeRaw());
+        cycleStats_.rootsCount = rootStaging_.size();
+        PublishRootStaging();
     }
 
     cycleStats_.markSetupUs = TimeUtil::MicroSeconds() - phaseStart;
@@ -647,88 +671,464 @@ bool MarkSweepCollector::DiscoverObject(BaseObject* obj, TypeInfo** markedTypeIn
     return true;
 }
 
-bool MarkSweepCollector::DiscoverManagedObject(BaseObject* obj, TypeInfo** markedTypeInfo)
+void MarkSweepCollector::AddRefToMarkBatch(
+    BaseObject* obj, bool knownManaged, MSMarkWordBatch& batch,
+    MSWorkUnitCounter& work)
 {
-    if (markedTypeInfo != nullptr) {
-        *markedTypeInfo = nullptr;
-    }
     ResolvedMarkTarget target;
-    if (UNLIKELY(!ResolveManagedMarkTarget(obj, target))) {
-        return false;
+    bool resolved = knownManaged
+        ? ResolveManagedMarkTarget(obj, target)
+        : ResolveMarkTarget(obj, target);
+    if (UNLIKELY(!resolved)) {
+        return;
     }
-    if (target.IsMarked()) {
-        return false;
+    work.AddResolvedRefs();
+
+    // LARGE/SPAN has one canonical mark flag and one OBJECT task. It is not
+    // mixed into the small-object word batch.
+    if (target.isLarge) {
+        if (LIKELY(target.IsMarked())) {
+            return;
+        }
+        TypeInfo* typeInfo = obj->GetTypeInfo();
+        if (UNLIKELY(typeInfo == nullptr)) {
+            return;
+        }
+        work.AddMarkWordRMW();
+        if (!target.info->AtomicTestAndSetMarked() &&
+            target.info->GetScanClass() == MSScanClass::HAS_REF) {
+            if (markScheduler_.PublishObject(target.info)) {
+                markWorkEpoch_.Notify();
+            }
+        }
+        return;
     }
-    TypeInfo* typeInfo = obj->GetTypeInfo();
-    if (UNLIKELY(typeInfo == nullptr)) {
-        return false;
+
+    uint32_t currentEpoch = GetOrInitBatchMarkEpoch(batch);
+    uint32_t regionIdx =
+        static_cast<uint32_t>(MSRegionInfoArray::GetRegionIdx(target.info));
+    uint64_t* markWord =
+        &batch.GetMarkBitmap(regionIdx)[target.wordIdx];
+    // Mark bits are monotonic for the lifetime of one batch/GC epoch. Avoid
+    // entering the coalescing cache and executing an atomic RMW for the common
+    // shared/cyclic-graph case where another edge already discovered target.
+    if (LIKELY(
+            (__atomic_load_n(markWord, __ATOMIC_RELAXED) &
+             target.bitMask) != 0)) {
+        return;
     }
-    if (!target.TryMark()) {
-        return false;
+
+    bool inCollectSet =
+        currentEpoch != MSRegionInfo::NO_COLLECT_EPOCH &&
+        target.info->collectEpoch == currentEpoch;
+    if (!inCollectSet) {
+        // OUTSIDE_SET ALLOC may still be owned and modified by a mutator. Do
+        // not read it. The exact slot coordinate was checked above; validate
+        // object publication through stateWord/TypeInfo before caching the bit.
+        TypeInfo* typeInfo = obj->GetTypeInfo();
+        if (UNLIKELY(typeInfo == nullptr)) {
+            return;
+        }
+#if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
+        if (target.info->GetScanClass() == MSScanClass::NO_REF) {
+            CHECK_DETAIL(!typeInfo->HasRefField(),
+                         "[MS-GC] NO_REF Region contains HAS_REF object obj=%p idx=%zu",
+                         static_cast<void*>(obj),
+                         MSRegionInfoArray::GetRegionIdx(target.info));
+        }
+#endif
     }
-    if (markedTypeInfo != nullptr) {
-        *markedTypeInfo = typeInfo;
-    }
-    return true;
+
+    batch.Add(regionIdx, target.wordIdx, target.bitMask,
+              [this, &work, &batch](const MSMarkWordBatchEntry& entry) {
+                  FlushMarkWordEntry(entry, work, batch);
+              });
 }
 
-bool MarkSweepCollector::ResolveManagedSmallRefForBarrier(BaseObject* ref, MSRegionInfo*& info,
-                                                          size_t& wordIdx, uint64_t& bitMask,
-                                                          TypeInfo*& whiteTypeInfo) const
+void MarkSweepCollector::FlushMarkWordEntry(
+    const MSMarkWordBatchEntry& entry, MSWorkUnitCounter& work,
+    const MSMarkWordBatch& batch)
 {
-    info = nullptr;
-    whiteTypeInfo = nullptr;
-    ResolvedMarkTarget target;
-    if (UNLIKELY(!ResolveManagedMarkTarget(ref, target)) || target.isLarge) {
-        return false;
+    MSRegionInfo* info =
+        MSRegionInfoArray::GetRegionInfoByIdx(entry.regionIdx);
+#if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
+    CHECK_DETAIL(
+        info->GetRegionKind() == MSRegionKind::SMALL &&
+        entry.wordIdx < info->GetBitmapWordCount(),
+        "[MS-GC] stale MarkWordBatch entry region=%u word=%u kind=%u words=%u",
+        entry.regionIdx, static_cast<unsigned>(entry.wordIdx),
+        static_cast<unsigned>(info->GetRegionKind()),
+        static_cast<unsigned>(info->GetBitmapWordCount()));
+#endif
+
+    uint64_t mask = entry.mask;
+    uint32_t markEpoch = batch.GetMarkEpoch();
+    if (markEpoch != MSRegionInfo::NO_COLLECT_EPOCH &&
+        info->collectEpoch == markEpoch) {
+        uint64_t validMask =
+            entry.wordIdx + 1 == info->GetBitmapWordCount()
+            ? info->GetValidTailMask()
+            : ~UINT64_C(0);
+        uint64_t allocWord =
+            __atomic_load_n(&batch.GetAllocBitmap(entry.regionIdx)[entry.wordIdx],
+                            __ATOMIC_RELAXED);
+        mask &= ~allocWord & validMask;
     }
-    // Already-marked entries are safe to batch without touching stateWord:
-    // MarkBitmapWord will return no winning bit, so Flush never dereferences
-    // the candidate. White entries still require stale-slot validation.
-    if (!target.IsMarked()) {
-        whiteTypeInfo = ref->GetTypeInfo();
-        if (UNLIKELY(whiteTypeInfo == nullptr)) {
-            return false;
+    if (mask == 0) {
+        return;
+    }
+
+    uint64_t* markWord = &batch.GetMarkBitmap(entry.regionIdx)[entry.wordIdx];
+    mask &= ~__atomic_load_n(markWord, __ATOMIC_RELAXED);
+    if (mask == 0) {
+        return;
+    }
+
+    work.AddMarkWordRMW();
+    uint64_t old = __atomic_fetch_or(markWord, mask, __ATOMIC_RELAXED);
+    uint64_t newBits = mask & ~old;
+    if (newBits == 0 || info->GetScanClass() == MSScanClass::NO_REF) {
+        return;
+    }
+
+    info->PublishPendingMarkWord(entry.wordIdx);
+    if (markScheduler_.TryPublishRegion(info)) {
+        markWorkEpoch_.Notify();
+    }
+}
+
+void MarkSweepCollector::AddManagedRefToMarkBatch(
+    BaseObject* ref, MSMarkWordBatch& batch, MSWorkUnitCounter& work)
+{
+    AddRefToMarkBatch(ref, true, batch, work);
+}
+
+void MarkSweepCollector::FlushMarkBatch(
+    MSMarkWordBatch& batch, MSWorkUnitCounter& work)
+{
+    if (batch.IsEmpty()) {
+        return;
+    }
+    batch.FlushAll([this, &work, &batch](const MSMarkWordBatchEntry& entry) {
+        FlushMarkWordEntry(entry, work, batch);
+    });
+}
+
+void MarkSweepCollector::FlushBarrierMarkBatch(
+    MSMarkWordBatch& batch, MSWorkUnitCounter& work)
+{
+    FlushMarkBatch(batch, work);
+    cycleCompletedMarkWU_.fetch_add(
+        work.Total(), std::memory_order_relaxed);
+}
+
+void MarkSweepCollector::PublishManagedRefForBarrier(BaseObject* ref)
+{
+    MSMarkWordBatch batch;
+    MSWorkUnitCounter work;
+    AddManagedRefToMarkBatch(ref, batch, work);
+    FlushBarrierMarkBatch(batch, work);
+}
+
+void MarkSweepCollector::NotifyAllocBufferExit(AllocBufferMS& allocBuffer)
+{
+    MergeExitedAssistStats(allocBuffer);
+}
+
+void MarkSweepCollector::RunRegionTask(
+    MSTaskLease& lease, MSWorkUnitCounter& work, uint64_t taskBudgetWU)
+{
+    MSRegionInfo* info = lease.GetRegionInfo();
+    CHECK_DETAIL(
+        info != nullptr &&
+        info->GetRegionKind() == MSRegionKind::SMALL &&
+        info->GetScanClass() == MSScanClass::HAS_REF &&
+        info->GetScanState() == MSScanState::OWNED,
+        "[MS-GC] invalid Region task lease idx=%u", lease.GetRegionIdx());
+
+    MSMarkWordBatch batch;
+    uint32_t currentEpoch = GetOrInitBatchMarkEpoch(batch);
+    bool inCollectSet =
+        currentEpoch != MSRegionInfo::NO_COLLECT_EPOCH &&
+        info->collectEpoch == currentEpoch;
+    const size_t bitmapWordCount = info->GetBitmapWordCount();
+    const uint64_t validTailMask = info->GetValidTailMask();
+    uint32_t regionIdx = lease.GetRegionIdx();
+    uint64_t* markBitmap = batch.GetMarkBitmap(regionIdx);
+    uint64_t* scanBitmap = info->GetScanBitmap();
+    uint64_t* allocBitmap =
+        inCollectSet ? batch.GetAllocBitmap(regionIdx) : nullptr;
+    const uintptr_t regionStart = info->RegionStart();
+    const size_t slotSize = info->GetSlotSize();
+    MSWeakRefLocalBatch weakRefs;
+    bool budgetExpired = false;
+    for (;;) {
+        uint64_t summary = info->TakePendingMarkWords();
+        while (summary != 0) {
+            size_t wordIdx = static_cast<size_t>(__builtin_ctzll(summary));
+            summary &= summary - 1;
+
+            uint64_t markWord =
+                __atomic_load_n(&markBitmap[wordIdx],
+                                __ATOMIC_RELAXED);
+            uint64_t oldScanWord = scanBitmap[wordIdx];
+            uint64_t scanWord = oldScanWord;
+            uint64_t candidates = markWord & ~scanWord;
+            if (inCollectSet) {
+                uint64_t validMask =
+                    wordIdx + 1 == bitmapWordCount
+                    ? validTailMask
+                    : ~UINT64_C(0);
+                uint64_t allocWord =
+                    __atomic_load_n(&allocBitmap[wordIdx],
+                                    __ATOMIC_RELAXED);
+                candidates &= ~allocWord & validMask;
+            }
+            work.AddScanWords();
+
+            while (candidates != 0) {
+                size_t bitIdx =
+                    static_cast<size_t>(__builtin_ctzll(candidates));
+                uint64_t bit = UINT64_C(1) << bitIdx;
+                candidates &= candidates - 1;
+
+                size_t slotIdx = wordIdx * 64 + bitIdx;
+                BaseObject* obj = reinterpret_cast<BaseObject*>(
+                    regionStart + slotIdx * slotSize);
+                TypeInfo* typeInfo = obj->GetTypeInfo();
+#if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
+                CHECK_DETAIL(
+                    typeInfo != nullptr,
+                    "[MS-GC] Region owner found invalid marked object obj=%p "
+                    "region=%u word=%zu bit=%zu",
+                    static_cast<void*>(obj), lease.GetRegionIdx(),
+                    wordIdx, bitIdx);
+#endif
+
+                if (UNLIKELY(obj->IsWeakRef())) {
+                    weakRefs.Add(obj);
+                } else {
+                    auto refVisitor =
+                        [this, &batch, &work](RefField<>& field) {
+                            AddRefToMarkBatch(
+                                MSLoadRawReference(field), false, batch, work);
+                        };
+                    ForEachRefFieldGCKnownType(
+                        obj, typeInfo, refVisitor);
+                }
+                // Only this Region owner writes SCAN. Child publications may
+                // still be local to batch, but the active lease keeps global
+                // termination from observing a false fixed point.
+                scanWord |= bit;
+            }
+            if (scanWord != oldScanWord) {
+                scanBitmap[wordIdx] = scanWord;
+            }
+
+            if (work.Total() >= taskBudgetWU && summary != 0) {
+                __atomic_fetch_or(
+                    &info->pendingWordSummary, summary, __ATOMIC_RELEASE);
+                budgetExpired = true;
+                break;
+            }
+        }
+
+        FlushMarkBatch(batch, work);
+        weakRefs.Flush();
+        if (budgetExpired) {
+            break;
+        }
+        CHECK_DETAIL(
+            info->CasScanState(MSScanState::OWNED, MSScanState::IDLE),
+            "[MS-GC] Region owner release failed idx=%u state=%u",
+            lease.GetRegionIdx(),
+            static_cast<unsigned>(info->GetScanState()));
+
+        // Producer publication is summary-first. If it raced the final owner
+        // drain while this Region was OWNED, its TryPublishRegion() fast path
+        // could not enqueue a token. Once IDLE, immediately republish any
+        // such residual summary before completing this lease. A producer that
+        // arrives after this load observes IDLE and publishes for itself; the
+        // MarkTermination reconciliation is the final STW safety net.
+        if (info->LoadPendingMarkWordsAcquire() != 0 &&
+            markScheduler_.TryPublishRegion(info)) {
+            markWorkEpoch_.Notify();
+        }
+        lease.Complete(batch.IsEmpty());
+        return;
+    }
+
+    CHECK_DETAIL(
+        budgetExpired &&
+            info->LoadPendingMarkWordsAcquire() != 0,
+        "[MS-GC] expired Region owner without pending work idx=%u",
+        lease.GetRegionIdx());
+    if (markScheduler_.RequeueOwnedRegion(info)) {
+        markWorkEpoch_.Notify();
+    }
+    lease.Complete(batch.IsEmpty());
+}
+
+void MarkSweepCollector::RunObjectTask(
+    MSTaskLease& lease, MSWorkUnitCounter& work)
+{
+    MSRegionInfo* info = lease.GetRegionInfo();
+    CHECK_DETAIL(
+        info != nullptr &&
+        info->GetRegionKind() == MSRegionKind::LARGE &&
+        info->GetScanClass() == MSScanClass::HAS_REF &&
+        info->IsMarked(),
+        "[MS-GC] invalid Object task lease idx=%u", lease.GetRegionIdx());
+
+    BaseObject* obj =
+        reinterpret_cast<BaseObject*>(info->LargeObjectStart());
+    TypeInfo* typeInfo = obj->GetTypeInfo();
+#if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
+    CHECK_DETAIL(typeInfo != nullptr,
+                 "[MS-GC] Object task has invalid TypeInfo obj=%p idx=%u",
+                 static_cast<void*>(obj), lease.GetRegionIdx());
+#endif
+
+    MSMarkWordBatch batch;
+    (void)GetOrInitBatchMarkEpoch(batch);
+    MSWeakRefLocalBatch weakRefs;
+    if (UNLIKELY(obj->IsWeakRef())) {
+        weakRefs.Add(obj);
+    } else {
+        auto refVisitor = [this, &batch, &work](RefField<>& field) {
+            AddRefToMarkBatch(
+                MSLoadRawReference(field), false, batch, work);
+        };
+        ForEachRefFieldGCKnownType(obj, typeInfo, refVisitor);
+    }
+    FlushMarkBatch(batch, work);
+    weakRefs.Flush();
+    lease.Complete(batch.IsEmpty());
+}
+
+void MarkSweepCollector::RunSchedulerTask(
+    MSTaskLease& lease, MSWorkUnitCounter& work, uint64_t taskBudgetWU)
+{
+    if (lease.GetKind() == MSMarkTaskKind::REGION) {
+        RunRegionTask(lease, work, taskBudgetWU);
+    } else {
+        RunObjectTask(lease, work);
+    }
+}
+
+uint64_t MarkSweepCollector::DrainSchedulerUnderSTW()
+{
+    uint64_t completedWU = 0;
+    while (markScheduler_.OutstandingForTermination() != 0) {
+        MSTaskLease lease;
+        bool claimed = markScheduler_.TryClaim(
+            MSMarkWorkerCaps::GCWorker(), true, lease);
+        CHECK_DETAIL(
+            claimed,
+            "[MS-GC] TaskLedger nonzero without ready work under STW: "
+            "outstanding=%llu",
+            static_cast<unsigned long long>(
+                markScheduler_.OutstandingForTermination()));
+        MSWorkUnitCounter work;
+        RunSchedulerTask(
+            lease, work, std::numeric_limits<uint64_t>::max());
+        completedWU = SaturatingMSWUAdd(completedWU, work.Total());
+    }
+    CHECK_DETAIL(
+        markScheduler_.ReadyEmptyForTermination(),
+        "[MS-GC] ready stack non-empty with zero TaskLedger");
+    cycleCompletedMarkWU_.fetch_add(completedWU, std::memory_order_relaxed);
+    return completedWU;
+}
+
+void MarkSweepCollector::VerifyMarkSchedulerQuiescence(
+    const char* closureName)
+{
+    if (!IsVerifyMarkEnabled()) {
+        return;
+    }
+
+    constexpr size_t kMaxReport = 32;
+    size_t badRegions = 0;
+    size_t strandedPendingRegions = 0;
+    size_t nonIdleRegions = 0;
+    size_t unscannedObjects = 0;
+    size_t reported = 0;
+    const size_t regionCount = MSRegionInfoArray::GetMaxRegionCount();
+    for (size_t idx = 0; idx < regionCount; ++idx) {
+        MSRegionInfo* info = MSRegionInfoArray::GetRegionInfoByIdx(idx);
+        if (info->GetRegionKind() != MSRegionKind::SMALL ||
+            info->GetScanClass() != MSScanClass::HAS_REF) {
+            continue;
+        }
+
+        uint64_t pending = info->LoadPendingMarkWordsAcquire();
+        MSScanState state = info->GetScanState();
+        size_t regionUnscanned = 0;
+        uint64_t* markBitmap = info->GetMarkBitmap();
+        uint64_t* scanBitmap = info->GetScanBitmap();
+        for (size_t wordIdx = 0;
+             wordIdx < info->GetBitmapWordCount(); ++wordIdx) {
+            uint64_t markWord =
+                __atomic_load_n(&markBitmap[wordIdx], __ATOMIC_RELAXED);
+            regionUnscanned += static_cast<size_t>(
+                __builtin_popcountll(markWord & ~scanBitmap[wordIdx]));
+        }
+
+        if (pending == 0 && state == MSScanState::IDLE &&
+            regionUnscanned == 0) {
+            continue;
+        }
+        ++badRegions;
+        strandedPendingRegions += pending != 0 ? 1 : 0;
+        nonIdleRegions += state != MSScanState::IDLE ? 1 : 0;
+        unscannedObjects += regionUnscanned;
+        if (reported < kMaxReport) {
+            VLOG(REPORT,
+                 "[MS-GC][VERIFY] scheduler-not-quiescent: closure=%s "
+                 "region=%zu state=%u pending=0x%llx "
+                 "unscannedObjects=%zu",
+                 closureName, idx, static_cast<unsigned>(state),
+                 static_cast<unsigned long long>(pending),
+                 regionUnscanned);
+            ++reported;
         }
     }
-    info = target.info;
-    wordIdx = target.wordIdx;
-    bitMask = target.bitMask;
-    return true;
-}
 
-bool MarkSweepCollector::TryEnqueueGreyObject(BaseObject* obj, GreyWorkSink& sink)
-{
-    TypeInfo* typeInfo = nullptr;
-    bool newlyMarked = DiscoverObject(obj, &typeInfo);
-    if (newlyMarked && typeInfo->HasRefField()) {
-        sink.PushGrey(obj);
-    }
-    return newlyMarked;
-}
-
-bool MarkSweepCollector::TryEnqueueGreyObject(BaseObject* obj, GreyWorkQueue& queue)
-{
-    TypeInfo* typeInfo = nullptr;
-    bool newlyMarked = DiscoverObject(obj, &typeInfo);
-    if (newlyMarked && typeInfo->HasRefField()) {
-        queue.PushNewlyGrey(obj);
-    }
-    return newlyMarked;
-}
-
-void MarkSweepCollector::DiscoverAndPushObject(BaseObject* obj, WorkStack& workStack)
-{
-    WorkStackGreySink sink(workStack);
-    (void)TryEnqueueGreyObject(obj, sink);
+    VLOG(REPORT,
+         "[MS-GC][VERIFY] scheduler-quiescence: closure=%s badRegions=%zu "
+         "pendingRegions=%zu nonIdleRegions=%zu "
+         "unscannedObjects=%zu",
+         closureName, badRegions, strandedPendingRegions,
+         nonIdleRegions, unscannedObjects);
+    CHECK_DETAIL(
+        badRegions == 0,
+         "[MS-GC] Mark scheduler reached false fixed point: closure=%s "
+         "badRegions=%zu pendingRegions=%zu "
+         "nonIdleRegions=%zu unscannedObjects=%zu",
+         closureName, badRegions, strandedPendingRegions,
+         nonIdleRegions, unscannedObjects);
 }
 
 void MarkSweepCollector::EnumAndMarkRoots(WorkStack& workStack)
 {
-    // MSGC does not need the parallel root-enumeration thread pool used by
-    // CopyGC. Enumerate all roots serially into a single work stack.
+    // Root enumeration only stages raw candidates. One GC-owned MarkWordBatch
+    // below performs the white->grey transition and task publication.
     EnumAllCommonRootsSerial(workStack);
     EnumAllExportRoots(workStack);
+}
+
+void MarkSweepCollector::PublishRootStaging()
+{
+    MSMarkWordBatch batch;
+    MSWorkUnitCounter work;
+    while (!rootStaging_.empty()) {
+        BaseObject* obj = rootStaging_.back();
+        rootStaging_.pop_back();
+        AddRefToMarkBatch(obj, false, batch, work);
+    }
+    FlushMarkBatch(batch, work);
+    cycleCompletedMarkWU_.fetch_add(work.Total(), std::memory_order_relaxed);
 }
 
 void MarkSweepCollector::MergeRootsFromAllocBuffers(WorkStack& workStack)
@@ -743,7 +1143,7 @@ void MarkSweepCollector::MergeRootsFromAllocBuffers(WorkStack& workStack)
         while (!mutatorRoots.empty()) {
             BaseObject* obj = mutatorRoots.back();
             mutatorRoots.pop_back();
-            DiscoverAndPushObject(obj, workStack);
+            workStack.push_back(obj);
         }
     }
 }
@@ -754,353 +1154,145 @@ void MarkSweepCollector::MergeRootsFromAllocBuffers(WorkStack& workStack)
 
 void MarkSweepCollector::ConcurrentMark()
 {
-    // activeCollector_ was already set in MarkSetup (before STW).
-
-    // 8. Transition to concurrent marking phase
     TransitionToGCPhase(GCPhase::GC_PHASE_MS_CONCURRENT_MARK, true);
-
-    // 9. Reset cycle-global assist state. Per-P feedback is reset while
-    // initializing each AllocBufferMS below.
     {
         std::lock_guard<std::mutex> lock(exitedAssistStatsMutex_);
         exitedAssistStats_ = MSMarkAssistStats{};
     }
-    bgScanCredit_.store(0, std::memory_order_relaxed);
-
-    // 10. Init per-P GCWork for all existing mutators before enabling assist.
-    //     New mutators that join later will lazily init in MSMarkAssist.
-    InitAllPerPGCWork();
     markWorkerControl_.Start(0);
 
-    // 11. Compute this cycle's base ratio from the previous mark density, then
-    //     apply cycle-to-cycle rise limiting and assist-share feedback.
-    {
-        uint64_t baseRatioPercent = CangjieRuntime::GetGCParam().msAssistBaseRatioPercent;
-        size_t prevMarked = prevCycleMarkedObjects_.load(std::memory_order_relaxed);
-        size_t allocSize = Heap::GetHeap().GetAllocatedSize();
-        uint64_t rawRatio = ComputeMSAssistBaseRatioScaled(prevMarked, allocSize, baseRatioPercent);
-        MSAssistBaseRatioDecision decision = EvaluateMSAssistBaseRatio(
-            rawRatio, previousAssistBaseRatioScaled_, assistBaseRatioInitialized_,
-            previousAssistProcessedObjects_, previousBackgroundProcessedObjects_);
-        bool disableAssist = ReadBoolParameter("CJ_MS_DISABLE_ASSIST", false);
-        uint64_t initialRatioScaled = ApplyMSAssistDisableOverride(decision.nextRatio, disableAssist);
-        if (!disableAssist) {
-            previousAssistBaseRatioScaled_ = initialRatioScaled;
-            if (prevMarked != 0 && allocSize != 0) {
-                assistBaseRatioInitialized_ = true;
-            }
-        }
-        assistWorkPerByteScaled_.store(initialRatioScaled, std::memory_order_release);
-        VLOG(REPORT,
-             "[MS-GC] Assist pacing: disabled=%d effectiveRatio=%llu basePercent=%llu "
-             "(prevMarked=%zu, allocSize=%zu)",
-             static_cast<int>(disableAssist),
-             static_cast<unsigned long long>(initialRatioScaled),
-             static_cast<unsigned long long>(baseRatioPercent),
-             prevMarked,
-             allocSize);
-        VLOG(REPORT,
-             "[MS-GC] [assist-pacing] rawBase=%llu prevBase=%llu nextBase=%llu riseLimit=%llu "
-             "feedbackLimit=%llu assistShare=%llu.%02llu%% riseLimited=%d shareLimited=%d "
-             "prevMainHelper=%zu prevAssist=%zu",
-             static_cast<unsigned long long>(decision.rawRatio),
-             static_cast<unsigned long long>(decision.previousRatio),
-             static_cast<unsigned long long>(decision.nextRatio),
-             static_cast<unsigned long long>(decision.riseLimit),
-             static_cast<unsigned long long>(decision.feedbackLimit),
-             static_cast<unsigned long long>(decision.assistShareBasisPoints / 100),
-             static_cast<unsigned long long>(decision.assistShareBasisPoints % 100),
-             static_cast<int>(decision.riseLimited),
-             static_cast<int>(decision.shareLimited),
-             previousBackgroundProcessedObjects_,
-             previousAssistProcessedObjects_);
-    }
+    bool disableAssist = ReadBoolParameter("CJ_MS_DISABLE_ASSIST", false);
+    uint64_t assistRatio = ApplyMSAssistDisableOverride(
+        ComputeMSAssistRatioQ16(
+            markPacer_.GetWorkDensityQ16(), MSMarkPressure::NORMAL,
+            markScheduler_.OutstandingHint()),
+        disableAssist);
+    assistWorkPerByteScaled_.store(assistRatio, std::memory_order_release);
+    VLOG(REPORT,
+         "[MS-GC] Assist pacing: disabled=%d effectiveRatio=%llu",
+         static_cast<int>(disableAssist),
+         static_cast<unsigned long long>(assistRatio));
 
-    // 12. Run concurrent marking loop using gcThreadWork_ + globalFull_.
-    RunConcurrentMarkLoop();
-
-    // 11. Stop assist by clearing ratio. WeakRefs deferred by concurrent
-    // workers remain in deferredMainThreadQueue_ and are classified only after
-    // all mutators have stopped in MarkTermination.
+    RunSchedulerMarkLoop();
     assistWorkPerByteScaled_.store(0, std::memory_order_release);
 }
 
-void MarkSweepCollector::RunConcurrentMarkLoop()
+void MarkSweepCollector::RunSchedulerMarkLoop()
 {
     uint64_t t0 = TimeUtil::MicroSeconds();
-    VLOG(REPORT, "[MS-GC] --- ConcurrentMark (gcThreadWork_ + globalFull_ LFStack) ---");
+    VLOG(REPORT,
+         "[MS-GC] --- ConcurrentMark (REGION/OBJECT scheduler) ---");
 
-    // Init GC thread's own PerPGCWork (sets its global queue and pool).
-    // Then pack all root objects into WorkBufs and push directly to globalFull_.
-    // GC thread and assist threads both compete for work from globalFull_.
-    gcThreadWork_.Init(&globalFull_, &workBufPool_);
-    TransferRootsToGCWork();
-
-    size_t configuredThreads = std::max<int32_t>(1, CangjieRuntime::GetGCParam().gcThreads);
+    size_t configuredThreads =
+        std::max<int32_t>(1, CangjieRuntime::GetGCParam().gcThreads);
     size_t maxHelpers = configuredThreads > 1 ? configuredThreads - 1 : 0;
     GCThreadPool* threadPool = GetThreadPool();
     if (threadPool == nullptr) {
         maxHelpers = 0;
     } else {
-        maxHelpers = std::min(maxHelpers, static_cast<size_t>(threadPool->GetMaxThreadNum()));
+        maxHelpers = std::min(
+            maxHelpers, static_cast<size_t>(threadPool->GetMaxThreadNum()));
     }
+
     bool markPoolOwned = false;
     if (maxHelpers != 0) {
         markPoolOwned = collectorResources.AcquireMSGCWorkerPoolForMark();
         if (!markPoolOwned) {
-            // Runtime shutdown may close the pool owner gate while a queued GC is
-            // finishing. Complete the mark serially instead of publishing work
-            // into a pool that is entering STOPPING.
             maxHelpers = 0;
         }
     }
-    bool isOOM = gcReason == GC_REASON_OOM;
-    LFStack::Counts initialCounts = globalFull_.GetApproxCounts();
-    size_t initialDebt = initialCounts.objects;
-    const size_t maxAssistMultiplier = CangjieRuntime::GetGCParam().msAssistMaxMultiplier;
-    MSMarkPressurePolicy pressurePolicy(maxHelpers, maxAssistMultiplier, isOOM, initialDebt);
-    cycleStats_.markDebtBuffers = initialCounts.total;
-    cycleStats_.markDebtObjects = initialDebt;
-    cycleStats_.markPressureLevel = pressurePolicy.GetPressureLevel();
-    size_t activeHelpers = pressurePolicy.GetTargetHelpers();
+
+    MSMarkPressure pressure =
+        gcReason == GC_REASON_OOM
+        ? MSMarkPressure::CRITICAL
+        : MSMarkPressure::NORMAL;
+    size_t activeHelpers = ComputeMSMarkHelperTarget(
+        markScheduler_.OutstandingHint(),
+        maxHelpers, pressure);
     StartMarkWorkers(maxHelpers, activeHelpers);
 
-    // Preserve the legacy configuration in object units. The old value counted
-    // 1024-object WorkBuf rounds; using scanned objects keeps the decay window
-    // stable when the runtime-selected WorkBuf capacity changes.
-    const size_t creditDecayRounds = CangjieRuntime::GetGCParam().msAssistCreditDecayRounds;
-    const size_t creditDecayObjects =
-        creditDecayRounds > std::numeric_limits<size_t>::max() /
-                                kMSAssistCreditDecayReferenceCapacity
-            ? std::numeric_limits<size_t>::max()
-            : creditDecayRounds * kMSAssistCreditDecayReferenceCapacity;
-    size_t creditDecayProcessedObjects = 0;
-
-    // Helper width and assist pacing share one monotonic pressure level.
-    const uint64_t baseAssistRatio = assistWorkPerByteScaled_.load(std::memory_order_acquire);
-    uint64_t publishedAssistRatio = ScaleMSAssistRatioForPressure(
-        baseAssistRatio, pressurePolicy.GetAssistMultiplier());
-    if (publishedAssistRatio != baseAssistRatio) {
-        assistWorkPerByteScaled_.store(publishedAssistRatio, std::memory_order_release);
-    }
-    VLOG(REPORT,
-         "[MS-GC] [mark-pressure-start] reason=%s debtObjects=%zu debtBuffers=%zu level=%zu "
-         "helpers=%zu assistMultiplier=%zu forceAll=%d",
-         g_gcRequests[gcReason].name,
-         initialDebt,
-         initialCounts.total,
-         pressurePolicy.GetPressureLevel(),
-         activeHelpers,
-         pressurePolicy.GetAssistMultiplier(),
-         static_cast<int>(isOOM));
-
-    uint64_t quiesceDurationUs = 0;
-    size_t quiesceResidualBuffers = 0;
-
-    // Mark time budget: if concurrent marking exceeds this wall-clock budget,
-    // force-converge and hand the residual grey work to MarkTermination (STW).
-    // Under STW all mutators are frozen, so no new objects are allocated and the
-    // remaining work set is bounded and guaranteed to drain — no missed marks.
-    // Configurable via cjMSMarkTimeBudget (default 20s;
-    // 0 disables the budget and restores pure convergence-based exit).
     uint64_t markBudgetNs = CangjieRuntime::GetGCParam().msMarkTimeBudget;
-    const uint64_t markBudgetUs = markBudgetNs == 0 ? 0 : std::max<uint64_t>(1, markBudgetNs / 1000ULL);
+    uint64_t markBudgetUs = markBudgetNs == 0
+        ? 0
+        : std::max<uint64_t>(1, markBudgetNs / 1000);
+    uint64_t mainBudgetWU = ComputeMSMarkSliceBudget(
+        markPacer_.GetThroughputQ16(), MS_WU_MAIN_WALL_BUDGET_US);
+    size_t mainTasks = 0;
+    uint64_t mainWU = 0;
     bool forceConverged = false;
-    size_t gcMainProcessed = 0;
-    size_t completedMarkBuffers = 0;
-    size_t processedSinceCheckpoint = 0;
-    size_t emptyPollRounds = 0;
 
-    while (true) {
-        // Capture before checking the work predicates. A publication or final
-        // in-flight exit racing with the checks changes the epoch and makes the
-        // later wait return immediately instead of losing the notification.
+    for (;;) {
         uint64_t observedProgressEpoch = markWorkEpoch_.Load();
+        MSMarkSliceResult slice = markScheduler_.RunMarkSlice(
+            MSMarkWorkerCaps::GCWorker(), mainBudgetWU,
+            MS_WU_MAIN_WALL_BUDGET_US,
+            [this, mainBudgetWU](
+                MSTaskLease& lease, MSWorkUnitCounter& work) {
+                RunSchedulerTask(lease, work, mainBudgetWU);
+            });
+        mainWU = SaturatingMSWUAdd(mainWU, slice.completedWU);
+        mainTasks += slice.completedTasks;
+        cycleCompletedMarkWU_.fetch_add(
+            slice.completedWU, std::memory_order_relaxed);
 
-        // Every published buffer is one GC-main mark slice, regardless of length.
-        LFStack::Counts backlog { 0, 0, 0 };
-        bool processedBuffer = false;
-        size_t scannedCount = DrainOneBufRound(
-            gcThreadWork_, false, &backlog, &processedBuffer);
-        gcMainProcessed += scannedCount;
-        processedSinceCheckpoint += scannedCount;
-        if (processedBuffer) {
-            ++completedMarkBuffers;
-        }
-        // The Pop snapshot precedes scanning. A non-empty scan can publish new
-        // output, so refresh from the lock-free scheduling snapshot before
-        // evaluating convergence or the next pressure checkpoint. A failed Pop already
-        // returned an exact empty-time snapshot under the queue mutex.
-        if (processedBuffer) {
-            backlog = globalFull_.GetApproxCounts();
-        }
-
-        size_t publishedBacklogBuffers = backlog.total;
-        size_t publishedBacklogObjects = backlog.objects;
-
-        // Helper work is intentionally excluded from assist credit. Helpers keep
-        // only exit-time diagnostics; GC-main work remains the sole background
-        // credit source.
-        size_t backgroundScanned = scannedCount;
-        if (creditDecayProcessedObjects < creditDecayObjects && backgroundScanned > 0) {
-            double w = static_cast<double>(
-                           creditDecayObjects - creditDecayProcessedObjects) /
-                       static_cast<double>(creditDecayObjects);
-            size_t inj = static_cast<size_t>(static_cast<double>(backgroundScanned) * w);
-            if (inj > 0) {
-                bgScanCredit_.fetch_add(static_cast<int64_t>(inj), std::memory_order_release);
-            }
-            creditDecayProcessedObjects =
-                backgroundScanned > creditDecayObjects - creditDecayProcessedObjects
-                    ? creditDecayObjects
-                    : creditDecayProcessedObjects + backgroundScanned;
-        }
-
-        MSMarkWorkerControl::Snapshot controlSnapshot = markWorkerControl_.GetSnapshot();
-        bool gcMainInputEmpty = gcThreadWork_.ConcurrentInputEmpty();
-        bool convergenceCandidate = gcMainInputEmpty && publishedBacklogBuffers == 0 &&
-                                    controlSnapshot.workersInFlight == 0 &&
-                                    controlSnapshot.assistsInFlight == 0;
-        if (convergenceCandidate) {
-            // Approximate counts avoid a second queue lock on ordinary rounds.
-            // Zero is confirmed under the queue mutex before one-way quiesce.
-            if (globalFull_.GetCounts().total != 0) {
-                emptyPollRounds = 0;
-                continue;
-            }
-            cycleStats_.markTerminationReason = MSMarkTerminationReason::NATURAL;
-            uint64_t quiesceStartUs = TimeUtil::MicroSeconds();
-            quiesceResidualBuffers = QuiesceMarkWorkers();
-            quiesceDurationUs = TimeUtil::MicroSeconds() - quiesceStartUs;
+        uint64_t outstanding = markScheduler_.OutstandingHint();
+        MSMarkWorkerControl::Snapshot control =
+            markWorkerControl_.GetSnapshot();
+        if (outstanding == 0 &&
+            control.workersInFlight == 0 &&
+            control.assistsInFlight == 0 &&
+            markScheduler_.ReadyEmptyForTermination()) {
+            cycleStats_.markTerminationReason =
+                MSMarkTerminationReason::NATURAL;
+            (void)QuiesceMarkWorkers();
             break;
         }
 
-        bool shouldForce = false;
-        MSMarkTerminationReason terminationReason = MSMarkTerminationReason::NATURAL;
-        if (processedSinceCheckpoint >= MSMarkPressurePolicy::kCheckpointObjects) {
-            processedSinceCheckpoint = 0;
-            MSMarkCheckpointDecision decision = pressurePolicy.Checkpoint(publishedBacklogObjects);
-            ++cycleStats_.markCheckpointCount;
-            cycleStats_.markDebtBuffers = publishedBacklogBuffers;
-            cycleStats_.markDebtObjects = decision.currentDebt;
-            cycleStats_.markPressureLevel = decision.pressureLevel;
-            cycleStats_.markNoProgressWindows = decision.noProgressWindows;
-
-            if (decision.targetHelpers > activeHelpers) {
-                activeHelpers = decision.targetHelpers;
-                markWorkerControl_.SetTargetHelpers(activeHelpers);
-            }
-            uint64_t adjustedRatio = ScaleMSAssistRatioForPressure(
-                baseAssistRatio, decision.assistMultiplier);
-            if (adjustedRatio != publishedAssistRatio) {
-                assistWorkPerByteScaled_.store(adjustedRatio, std::memory_order_release);
-                publishedAssistRatio = adjustedRatio;
-            }
-
-            int64_t debtDelta = static_cast<int64_t>(decision.previousDebt) -
-                                static_cast<int64_t>(decision.currentDebt);
-            VLOG(REPORT,
-                 "[MS-GC] [mark-pressure] completedBuffers=%zu debtObjects=%zu "
-                 "debtBuffers=%zu previousDebtObjects=%zu "
-                 "debtDelta=%lld noProgress=%zu level=%zu helpers=%zu "
-                 "assistMultiplier=%zu",
-                 completedMarkBuffers,
-                 decision.currentDebt,
-                 publishedBacklogBuffers,
-                 decision.previousDebt,
-                 static_cast<long long>(debtDelta),
-                 decision.noProgressWindows,
-                 decision.pressureLevel,
-                 decision.targetHelpers,
-                 decision.assistMultiplier);
-
-            if (decision.ShouldTerminate()) {
-                shouldForce = true;
-                terminationReason = MSMarkTerminationReason::DEBT_STALLED;
-            }
+        size_t targetHelpers = ComputeMSMarkHelperTarget(
+            outstanding,
+            maxHelpers, pressure);
+        if (targetHelpers != control.targetHelpers) {
+            markWorkerControl_.SetTargetHelpers(targetHelpers);
         }
 
-        // Keep the configured fixed time budget as an independent fallback.
-        bool configuredBudgetExpired =
-            markBudgetUs != 0 && TimeUtil::MicroSeconds() - t0 >= markBudgetUs;
-        if (!shouldForce && configuredBudgetExpired) {
-            shouldForce = true;
-            terminationReason = MSMarkTerminationReason::TIME_BUDGET;
-        }
-
-        if (shouldForce) {
+        if (markBudgetUs != 0 &&
+            TimeUtil::MicroSeconds() - t0 >= markBudgetUs) {
             forceConverged = true;
-            cycleStats_.markTerminationReason = terminationReason;
-            cycleStats_.markDebtBuffers = publishedBacklogBuffers;
-            cycleStats_.markDebtObjects = publishedBacklogObjects;
-            cycleStats_.markPressureLevel = pressurePolicy.GetPressureLevel();
-            VLOG(REPORT,
-                 "[MS-GC] [mark-termination-request] reason=%s debtObjects=%zu "
-                 "debtBuffers=%zu "
-                 "level=%zu noProgress=%zu",
-                 GetMSMarkTerminationReasonName(terminationReason),
-                 publishedBacklogObjects,
-                 publishedBacklogBuffers,
-                 pressurePolicy.GetPressureLevel(),
-                 cycleStats_.markNoProgressWindows);
-            uint64_t quiesceStartUs = TimeUtil::MicroSeconds();
-            quiesceResidualBuffers = QuiesceMarkWorkers();
-            quiesceDurationUs = TimeUtil::MicroSeconds() - quiesceStartUs;
+            cycleStats_.markTerminationReason =
+                MSMarkTerminationReason::TIME_BUDGET;
+            (void)QuiesceMarkWorkers();
             break;
         }
 
-        size_t inFlight = controlSnapshot.workersInFlight + controlSnapshot.assistsInFlight;
-        if (gcMainInputEmpty && publishedBacklogBuffers == 0 && inFlight != 0) {
-            if (emptyPollRounds < kMSMarkEmptySpinRounds) {
-                ++emptyPollRounds;
-                std::this_thread::yield();
-            } else {
-                (void)markWorkEpoch_.WaitForChange(
-                    observedProgressEpoch, std::chrono::microseconds(kMSMarkProgressWaitUs));
-                emptyPollRounds = 0;
-            }
-        } else {
-            emptyPollRounds = 0;
+        if (slice.completedTasks == 0) {
+            (void)markWorkEpoch_.WaitForChange(
+                observedProgressEpoch,
+                std::chrono::microseconds(kMSMarkProgressWaitUs));
         }
     }
 
     cycleStats_.concurrentMarkUs = TimeUtil::MicroSeconds() - t0;
-    cycleStats_.gcMainProcessedBuffers = completedMarkBuffers;
-    VLOG(REPORT,
-         "[MS-GC] ConcurrentMark time: %sus (forceConverged=%d reason=%s "
-         "completedBuffers=%zu debtObjects=%zu debtBuffers=%zu "
-         "level=%zu noProgress=%zu)",
-         Pretty(cycleStats_.concurrentMarkUs).Str(),
-         static_cast<int>(forceConverged),
-         GetMSMarkTerminationReasonName(cycleStats_.markTerminationReason),
-         completedMarkBuffers,
-         cycleStats_.markDebtObjects,
-         cycleStats_.markDebtBuffers,
-         cycleStats_.markPressureLevel,
-         cycleStats_.markNoProgressWindows);
-    size_t helperProcessed = 0;
+    cycleStats_.gcMainCompletedTasks = mainTasks;
+    size_t helperWU = 0;
     for (const auto& slot : markWorkerSlots_) {
-        helperProcessed += slot->stats.TotalProcessed();
+        helperWU += slot->stats.TotalProcessed();
     }
-    cycleStats_.gcMainProcessedObjects = gcMainProcessed;
-    cycleStats_.helperProcessedObjects = helperProcessed;
+    cycleStats_.helperCompletedWU = helperWU;
     VLOG(REPORT,
-         "[MS-GC] [mark-workers] configured=%zu processed=%zu workersInFlight=%zu "
-         "assistInFlight=%zu mainProcessed=%zu mainBuffers=%zu",
-         maxHelpers + 1,
-         helperProcessed,
-         markWorkerControl_.GetWorkersInFlight(),
-         markWorkerControl_.GetAssistsInFlight(),
-         gcMainProcessed,
-         completedMarkBuffers);
-    VLOG(REPORT,
-         "[MS-GC] [mark-quiesce] duration=%sus quiesceResidualBuffers=%zu",
-         Pretty(quiesceDurationUs).Str(),
-         quiesceResidualBuffers);
+         "[MS-GC] ConcurrentMark scheduler: time=%sus forceConverged=%d "
+         "mainTasks=%zu mainWU=%llu helperWU=%zu outstanding=%llu",
+         Pretty(cycleStats_.concurrentMarkUs).Str(),
+         static_cast<int>(forceConverged), mainTasks,
+         static_cast<unsigned long long>(mainWU), helperWU,
+         static_cast<unsigned long long>(
+             markScheduler_.OutstandingHint()));
+
     if (markPoolOwned) {
-        collectorResources.ReleaseMSGCWorkerPool(MSGCWorkerPoolOwner::MARK);
+        collectorResources.ReleaseMSGCWorkerPool(
+            MSGCWorkerPoolOwner::MARK);
     }
 }
+
 
 void MarkSweepCollector::StartMarkWorkers(size_t maxHelpers, size_t initialHelpers)
 {
@@ -1119,7 +1311,6 @@ void MarkSweepCollector::StartMarkWorkers(size_t maxHelpers, size_t initialHelpe
     for (size_t i = 0; i < maxHelpers; ++i) {
         std::unique_ptr<MSMarkWorkerSlot> slot(new (std::nothrow) MSMarkWorkerSlot());
         CHECK_DETAIL(slot != nullptr, "new MSGC mark worker slot failed");
-        slot->work.Init(&globalFull_, &workBufPool_);
         markWorkerSlots_.push_back(std::move(slot));
         threadPool->AddWork(new (std::nothrow) LambdaWork([this, i](size_t) { RunMarkWorker(i); }));
     }
@@ -1137,18 +1328,26 @@ void MarkSweepCollector::RunMarkWorker(size_t workerId)
         uint64_t observedProgressEpoch = markWorkEpoch_.Load();
         while (markWorkerControl_.CanContinueWorker(workerId)) {
             observedProgressEpoch = markWorkEpoch_.Load();
-            bool acquired = slot.work.PromotePutToGet(
-                                std::max<size_t>(1, workBufPool_.Capacity() / 8)) ||
-                            slot.work.AcquireOneBuffer() ||
-                            slot.work.PromotePutToGet(1);
-            if (!acquired) {
+            uint64_t sliceBudget = ComputeMSMarkSliceBudget(
+                markPacer_.GetThroughputQ16(),
+                MS_WU_HELPER_WALL_BUDGET_US);
+            MSMarkSliceResult slice = markScheduler_.RunMarkSlice(
+                MSMarkWorkerCaps::GCWorker(), sliceBudget,
+                MS_WU_HELPER_WALL_BUDGET_US,
+                [this, sliceBudget](
+                    MSTaskLease& lease, MSWorkUnitCounter& work) {
+                    RunSchedulerTask(lease, work, sliceBudget);
+                });
+            if (slice.completedTasks == 0) {
                 break;
             }
-
-            size_t scanned = DrainCurrentBuf(slot.work);
-            if (scanned != 0) {
-                slot.stats.RecordScanned(scanned);
-            }
+            size_t completed = static_cast<size_t>(
+                std::min<uint64_t>(
+                    slice.completedWU,
+                    std::numeric_limits<size_t>::max()));
+            slot.stats.RecordScanned(completed);
+            cycleCompletedMarkWU_.fetch_add(
+                slice.completedWU, std::memory_order_relaxed);
         }
 
         markWorkerControl_.ExitWorker();
@@ -1157,165 +1356,23 @@ void MarkSweepCollector::RunMarkWorker(size_t workerId)
                 observedProgressEpoch, std::chrono::microseconds(kMSMarkProgressWaitUs));
         }
     }
-    slot.work.Dispose();
 }
 
 size_t MarkSweepCollector::QuiesceMarkWorkers()
 {
     markWorkerControl_.BeginQuiesce();
     markWorkerControl_.WaitForNoInFlight();
-    // Do not publish private partial putCur_ tails here. Under sustained write-
-    // barrier traffic, repeatedly closing those tails concurrently can prevent
-    // convergence while every new allocation is conservatively marked live.
-    // MarkTermination disposes and drains the bounded tails under STW.
-    size_t residualBuffers = globalFull_.GetApproxCounts().total;
+    size_t residualTasks = static_cast<size_t>(
+        std::min<uint64_t>(
+            markScheduler_.OutstandingHint(),
+            std::numeric_limits<size_t>::max()));
     markWorkerControl_.Stop();
     if (!markWorkerSlots_.empty()) {
         GetThreadPool()->WaitFinish();
     }
-    return residualBuffers;
+    return residualTasks;
 }
 
-void MarkSweepCollector::DrainMarkWorkStack()
-{
-    while (!markWorkStack_.empty()) {
-        BaseObject* obj = markWorkStack_.back();
-        markWorkStack_.pop_back();
-        if (UNLIKELY(!IsTraceableObjectAddress(obj))) {
-            continue;
-        }
-
-        if (UNLIKELY(!obj->IsValidObject())) {
-            LOG(RTLOG_FATAL, "[MS-GC] DrainMarkWorkStack: FATAL invalid stateWord obj=%p, "
-                "stateWord=0x%zx, markBit=%d",
-                (void*)obj,
-                *reinterpret_cast<uintptr_t*>(obj),
-                (int)IsMarkedObject(obj));
-        }
-
-        if (!obj->HasRefField()) {
-            continue;
-        }
-
-        if (UNLIKELY(obj->IsWeakRef())) {
-            PushSingleToDeferredMainThread(obj);
-            continue;
-        }
-
-        TraceObjectRefFields(obj, markWorkStack_.UnsafeRaw());
-    }
-}
-
-// ============================================================================
-// TraceObjectRefFieldsToGCWork: trace all ref fields of obj, push grey children
-// into PerPGCWork (Step5 replacement for TraceObjectRefFields on WorkStack).
-// ============================================================================
-void MarkSweepCollector::TraceObjectRefFieldsToGCWork(BaseObject* obj, TypeInfo* typeInfo,
-                                                      PerPGCWork& gcw)
-{
-    auto refFunc = [this, &gcw](RefField<>& field) {
-        BaseObject* target = MSLoadRawReference(field);
-        TypeInfo* targetTypeInfo = nullptr;
-        bool newlyMarked = DiscoverObject(target, &targetTypeInfo);
-        if (newlyMarked && targetTypeInfo->HasRefField()) {
-            gcw.PutObj(target);
-        }
-    };
-    ForEachRefFieldGCKnownType(obj, typeInfo, refFunc);
-}
-
-// ============================================================================
-// TransferRootsToGCWork: pack root objects into WorkBufs and push directly to
-// globalFull_, same as activeLog_ overflow does.
-// GC thread and assist threads both consume from globalFull_.
-// Called once at start of ConcurrentMark after root enumeration.
-// ============================================================================
-void MarkSweepCollector::TransferRootsToGCWork()
-{
-    if (markWorkStack_.empty()) {
-        VLOG(REPORT, "[MS-GC] TransferRootsToGCWork: 0 root objects → globalFull_");
-        return;
-    }
-
-    size_t transferred = 0;
-    WorkBuf* buf = workBufPool_.Get();
-    while (!markWorkStack_.empty()) {
-        BaseObject* obj = markWorkStack_.back();
-        markWorkStack_.pop_back();
-        if (buf->Full()) {
-            globalFull_.Push(buf);
-            buf = workBufPool_.Get();
-        }
-        buf->Push(obj);
-        transferred++;
-    }
-    // Push the last (possibly partial) buf
-    if (!buf->Empty()) {
-        globalFull_.Push(buf);
-    } else {
-        workBufPool_.Put(buf);
-    }
-
-    VLOG(REPORT, "[MS-GC] TransferRootsToGCWork: %zu root objects → globalFull_", transferred);
-}
-
-void MarkSweepCollector::TraceRefField(RefField<>& field, WorkStack& workStack)
-{
-    BaseObject* target = MSLoadRawReference(field);
-#if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
-    bool targetMarked = IsMarkedObject(target);
-    if (!targetMarked) {
-        DiscoverAndPushObject(target, workStack);
-    }
-#else
-    DiscoverAndPushObject(target, workStack);
-#endif
-}
-
-// ============================================================================
-// Global work queue helpers (Step5: LFStack-based, lock-free)
-// ============================================================================
-
-// The write-barrier log is a WorkBuf pointer (activeLog_) that holds old refs
-// which already won the mark CAS. Overflow publishes the buffer wholesale and
-// installs a fresh one.
-WorkBuf* MarkSweepCollector::EnsureActiveLog(AllocBufferMS& ab)
-{
-    WorkBuf* log = ab.GetActiveLog();
-    if (log == nullptr) {
-        log = workBufPool_.Get();
-        ab.ActiveLogRef() = log;
-    }
-    return log;
-}
-
-void MarkSweepCollector::PublishAndSwapLog(AllocBufferMS& ab)
-{
-    WorkBuf* full = ab.GetActiveLog();
-    if (full == nullptr || full->Empty()) {
-        return;
-    }
-    // Entries were already shaded by the barrier, so consumers scan directly.
-    // Make every complete log visible to the GC thread and all assists.
-    globalFull_.Push(full);
-
-    ab.ActiveLogRef() = workBufPool_.Get();
-}
-
-void MarkSweepCollector::PublishExitedLog(AllocBufferMS& ab)
-{
-    MergeExitedAssistStats(ab);
-    WorkBuf* log = ab.GetActiveLog();
-    if (log != nullptr) {
-        if (!log->Empty()) {
-            // Owner is leaving: publish directly; entries are already grey.
-            globalFull_.Push(log);
-        } else {
-            workBufPool_.Put(log);
-        }
-        ab.ActiveLogRef() = nullptr;
-    }
-}
 
 void MarkSweepCollector::MergeExitedAssistStats(AllocBufferMS& allocBuffer)
 {
@@ -1340,221 +1397,17 @@ void MarkSweepCollector::SnapshotAssistStats()
         });
     }
 
-    cycleStats_.assistProcessedObjects = total.processed;
+    cycleStats_.assistCompletedWU = total.processed;
     VLOG(REPORT, "[MS-GC] [assist] processed=%zu", total.processed);
 }
 
-void MarkSweepCollector::PushSingleToDeferredMainThread(BaseObject* obj)
-{
-    if (obj == nullptr) {
-        return;
-    }
-    if (UNLIKELY(!IsTraceableObjectAddress(obj))) {
-        return;
-    }
-    if (UNLIKELY(!obj->IsValidObject())) {
-        return;
-    }
-    std::lock_guard<std::mutex> lock(deferredMainThreadMutex_);
-    deferredMainThreadQueue_.PushMovedGrey(obj);
-}
-
-void MarkSweepCollector::PushTrustedGreyToDeferredMainThread(BaseObject* obj)
-{
-#if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
-    if (UNLIKELY(obj == nullptr || !IsTraceableObjectAddress(obj) ||
-                 !obj->IsValidObject() || !IsMarkedObject(obj) ||
-                 !obj->HasRefField())) {
-        LOG(RTLOG_FATAL, "[MS-GC] invalid trusted-grey deferred object: %p",
-            static_cast<void*>(obj));
-    }
-#endif
-    std::lock_guard<std::mutex> lock(deferredMainThreadMutex_);
-    deferredMainThreadQueue_.PushMovedGrey(obj);
-}
 
 // ============================================================================
-// Step5: LFStack helpers
+// MSMarkAssist: consume Region tasks in WorkUnit-bounded slices.
 // ============================================================================
-
-void MarkSweepCollector::DrainGlobalLFStackToMainQueue(GreyWorkQueue& mainQueue)
+size_t MarkSweepCollector::MSMarkAssist(AllocBufferMS& allocBuffer, size_t debtWU)
 {
-    while (true) {
-        WorkBuf* buf = globalFull_.Pop();
-        if (buf == nullptr) {
-            break;
-        }
-        for (size_t i = 0; i < buf->len; i++) {
-            BaseObject* obj = buf->Objects()[i];
-#if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
-            if (obj == nullptr) {
-                continue;
-            }
-            if (UNLIKELY(!IsTraceableObjectAddress(obj))) {
-                continue;
-            }
-            if (UNLIKELY(!obj->IsValidObject())) {
-                continue;
-            }
-#endif
-            mainQueue.PushMovedGrey(obj);
-        }
-        workBufPool_.Put(buf);
-    }
-}
-
-size_t MarkSweepCollector::TryStealBgCreditPartial(size_t debtObjects)
-{
-    int64_t credit = bgScanCredit_.load(std::memory_order_acquire);
-    if (credit <= 0) {
-        return 0;
-    }
-    int64_t stolen = std::min(static_cast<int64_t>(debtObjects), credit);
-    while (!bgScanCredit_.compare_exchange_weak(
-               credit, credit - stolen,
-               std::memory_order_release, std::memory_order_relaxed)) {
-        if (credit <= 0) {
-            return 0;
-        }
-        stolen = std::min(static_cast<int64_t>(debtObjects), credit);
-    }
-    return static_cast<size_t>(stolen);
-}
-
-void MarkSweepCollector::InitAllPerPGCWork()
-{
-    RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(theAllocator);
-    CentralRegionPool* centralPool = space.GetCentralPool();
-    if (centralPool != nullptr) {
-        centralPool->VisitAllocBufferMS([this](AllocBufferMS& buf) {
-            buf.GetMarkAssistStats() = MSMarkAssistStats{};
-            buf.GetGCWork().Init(&globalFull_, &workBufPool_);
-        });
-    }
-}
-
-void MarkSweepCollector::DisposeAllPerPGCWork()
-{
-    RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(theAllocator);
-    CentralRegionPool* centralPool = space.GetCentralPool();
-    if (centralPool != nullptr) {
-        centralPool->VisitAllocBufferMS([](AllocBufferMS& buf) {
-            if (buf.GetGCWork().IsInitialized()) {
-                buf.GetGCWork().Dispose();
-            }
-        });
-    }
-    // Also dispose the GC thread's own work
-    gcThreadWork_.Dispose();
-    for (const auto& slot : markWorkerSlots_) {
-        if (slot->work.IsInitialized()) {
-            slot->work.Dispose();
-        }
-    }
-}
-
-void MarkSweepCollector::ResetAllPerPGCWork()
-{
-    RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(theAllocator);
-    CentralRegionPool* centralPool = space.GetCentralPool();
-    if (centralPool != nullptr) {
-        centralPool->VisitAllocBufferMS([](AllocBufferMS& buf) {
-            if (buf.GetGCWork().IsInitialized()) {
-                buf.GetGCWork().Reset();
-            }
-        });
-    }
-    gcThreadWork_.Reset();
-    for (const auto& slot : markWorkerSlots_) {
-        if (slot->work.IsInitialized()) {
-            slot->work.Reset();
-        }
-    }
-    markWorkerSlots_.clear();
-}
-
-// ============================================================================
-// DrainOneBufRound: acquire and drain exactly one published buffer. GC
-// main/helpers accept partial buffers; mutator assist remains full-only.
-// Children go to private putCur_ until full or a convergence handshake.
-// ============================================================================
-size_t MarkSweepCollector::DrainOneBufRound(PerPGCWork& gcw, bool requireFull,
-                                           LFStack::Counts* countsAfterPop,
-                                           bool* processedBuffer)
-{
-    if (processedBuffer != nullptr) {
-        *processedBuffer = false;
-    }
-    bool acquired = false;
-    if (requireFull) {
-        acquired = gcw.AcquireOneFullBuffer();
-        if (countsAfterPop != nullptr) {
-            *countsAfterPop = globalFull_.GetApproxCounts();
-        }
-    } else if (countsAfterPop != nullptr) {
-        acquired = gcw.AcquireOneBuffer(*countsAfterPop);
-    } else {
-        acquired = gcw.AcquireOneBuffer();
-    }
-    if (!acquired) {
-        return 0;
-    }
-    if (processedBuffer != nullptr) {
-        *processedBuffer = true;
-    }
-    return DrainCurrentBuf(gcw);
-}
-
-size_t MarkSweepCollector::DrainCurrentBuf(PerPGCWork& gcw)
-{
-    WorkBuf* input = gcw.getCur_;
-#if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
-    size_t nProcessed = 0;
-#else
-    size_t nProcessed = input == nullptr ? 0 : input->len;
-#endif
-    while (input != nullptr && !input->Empty()) {
-        BaseObject* obj = input->Pop();
-#if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
-        if (UNLIKELY(!IsTraceableObjectAddress(obj))) {
-            LOG(RTLOG_FATAL, "[MS-GC] DrainCurrentBuf: FATAL non-traceable "
-                "trusted-grey obj=%p", static_cast<void*>(obj));
-        }
-#endif
-        TypeInfo* typeInfo = obj->GetTypeInfo();
-#if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
-        if (UNLIKELY(typeInfo == nullptr || !IsMarkedObject(obj) ||
-                     !typeInfo->HasRefField())) {
-            LOG(RTLOG_FATAL, "[MS-GC] DrainCurrentBuf: FATAL invalid trusted-grey obj=%p, "
-                "stateWord=0x%zx, markBit=%d, hasRef=%d",
-                (void*)obj,
-                *reinterpret_cast<uintptr_t*>(obj),
-                (int)IsMarkedObject(obj),
-                typeInfo == nullptr ? 0 : (int)typeInfo->HasRefField());
-        }
-        nProcessed++;
-#endif
-        if (UNLIKELY(typeInfo->IsWeakRefType())) {
-            PushTrustedGreyToDeferredMainThread(obj);
-            continue;
-        }
-        TraceObjectRefFieldsToGCWork(obj, typeInfo, gcw);
-    }
-    // Never cascade into partial putCur_ in the same slice.
-    if (input != nullptr) {
-        gcw.RecycleCurrentInput();
-    }
-    return nProcessed;
-}
-
-// ============================================================================
-// MSMarkAssist: consume at most one full global input per call. After claiming
-// that input, merge newly discovered objects into one Global Partial builder and
-// publish the builder before returning.
-// ============================================================================
-size_t MarkSweepCollector::MSMarkAssist(AllocBufferMS& allocBuffer, size_t debtObjects)
-{
-    if (debtObjects == 0) {
+    if (debtWU == 0) {
         return 0;
     }
 
@@ -1563,31 +1416,24 @@ size_t MarkSweepCollector::MSMarkAssist(AllocBufferMS& allocBuffer, size_t debtO
     }
 
     MSMarkAssistStats& stats = allocBuffer.GetMarkAssistStats();
-    PerPGCWork& gcw = allocBuffer.GetGCWork();
-    if (!gcw.IsInitialized()) {
-        gcw.Init(&globalFull_, &workBufPool_);
-    }
-
-    // ① Steal GC-supplied credit.
-    size_t paidByBg = TryStealBgCreditPartial(debtObjects);
-
-    // ② One full global buffer pays exactly one buffer of remaining debt.
-    size_t remainDebt = (debtObjects > paidByBg) ? (debtObjects - paidByBg) : 0;
-    size_t paidByGlobal = 0;
-    size_t workBufCapacity = workBufPool_.Capacity();
-    if (remainDebt >= workBufCapacity && gcw.AcquireOneFullBuffer()) {
-        WorkBuf* output = gcw.AcquirePartialOutputBuffer();
-        CHECK_DETAIL(output != nullptr, "MSGC Mark Assist failed to acquire an output WorkBuf");
-        size_t nDrained = DrainCurrentBuf(gcw);
-        gcw.PublishPartialOutput();
-        if (nDrained > 0) {
-            paidByGlobal = workBufCapacity;
-            stats.processed += nDrained;
-        }
-    }
+    uint64_t budgetWU = std::max<uint64_t>(
+        MS_WU_MIN_SLICE_BUDGET, debtWU);
+    MSMarkSliceResult slice = markScheduler_.RunMarkSlice(
+        MSMarkWorkerCaps::Assist(), budgetWU,
+        MS_WU_ASSIST_WALL_BUDGET_US,
+        [this, budgetWU](
+            MSTaskLease& lease, MSWorkUnitCounter& work) {
+            RunSchedulerTask(lease, work, budgetWU);
+        });
 
     markWorkerControl_.ExitAssist();
-    return paidByBg + paidByGlobal;
+    size_t paidWU = static_cast<size_t>(
+        std::min<uint64_t>(
+            slice.completedWU, std::numeric_limits<size_t>::max()));
+    stats.processed += paidWU;
+    cycleCompletedMarkWU_.fetch_add(
+        slice.completedWU, std::memory_order_relaxed);
+    return std::min(paidWU, debtWU);
 }
 
 // ============================================================================
@@ -1599,15 +1445,11 @@ void MarkSweepCollector::MarkTermination()
     uint64_t phaseStart = TimeUtil::MicroSeconds();
     VLOG(REPORT, "[MS-GC] --- MarkTermination (STW) ---");
     VLOG(REPORT,
-         "[MS-GC] [mark-stw-entry] branch=%s gcReason=%s debtObjects=%zu "
-         "debtBuffers=%zu level=%zu "
-         "noProgress=%zu",
+         "[MS-GC] [mark-stw-entry] branch=%s gcReason=%s outstanding=%llu",
          GetMSMarkTerminationReasonName(cycleStats_.markTerminationReason),
          g_gcRequests[gcReason].name,
-         cycleStats_.markDebtObjects,
-         cycleStats_.markDebtBuffers,
-         cycleStats_.markPressureLevel,
-         cycleStats_.markNoProgressWindows);
+         static_cast<unsigned long long>(
+             markScheduler_.OutstandingHint()));
 
     // STW: freeze all mutators
     ScopedStopTheWorld stw("MS MarkTermination", true, GCPhase::GC_PHASE_MS_MARK_TERMINATION);
@@ -1619,11 +1461,66 @@ void MarkSweepCollector::MarkTermination()
     CentralRegionPool* centralPool = space.GetCentralPool();
     SnapshotAssistStats();
 
-    GreyWorkQueue mainQueue;
+    // With no mutator or concurrent mark worker running, reconcile the
+    // summary-first producer protocol to a true fixed point.  A producer may
+    // have published a pending word while its Region was OWNED, observed that
+    // state in TryPublishRegion(), and raced the owner's final post-release
+    // check.  The Region itself is the durable record; this STW walk needs no
+    // extra queue or producer-side control-word RMW.
+    auto drainMarkClosureToFixedPoint = [this, centralPool](const char* closureName) {
+        uint64_t closureWU = 0;
+        size_t reconcilePasses = 0;
+        size_t reconciledRegions = 0;
+        size_t visitedRegions = 0;
+        for (;;) {
+            closureWU = SaturatingMSWUAdd(
+                closureWU, DrainSchedulerUnderSTW());
+            if (centralPool == nullptr) {
+                break;
+            }
+
+            size_t passVisited = 0;
+            size_t passReconciled = 0;
+            centralPool->VisitMarkPendingRegionsUnderSTW(
+                [this, &passVisited, &passReconciled](MSRegionInfo* region) {
+                    CHECK_DETAIL(
+                        region != nullptr &&
+                        region->GetRegionKind() == MSRegionKind::SMALL &&
+                        region->GetScanClass() == MSScanClass::HAS_REF,
+                        "[MS-GC] invalid Region in pending-mark reconciliation");
+                    ++passVisited;
+                    if (region->LoadPendingMarkWordsAcquire() == 0) {
+                        return;
+                    }
+                    CHECK_DETAIL(
+                        region->GetScanState() == MSScanState::IDLE,
+                        "[MS-GC] pending Region not IDLE after STW drain: idx=%zu state=%u",
+                        MSRegionInfoArray::GetRegionIdx(region),
+                        static_cast<unsigned>(region->GetScanState()));
+                    ++passReconciled;
+                    if (markScheduler_.TryPublishRegion(region)) {
+                        markWorkEpoch_.Notify();
+                    }
+                });
+            visitedRegions += passVisited;
+            reconciledRegions += passReconciled;
+            if (passReconciled == 0) {
+                break;
+            }
+            ++reconcilePasses;
+        }
+        VLOG(REPORT,
+             "[MS-GC] MarkTermination reconciliation: closure=%s passes=%zu "
+             "regions=%zu visited=%zu",
+             closureName, reconcilePasses, reconciledRegions, visitedRegions);
+        return closureWU;
+    };
+
     // 1. Complete the ordinary mark closure first. Finalizer reachability must
     // be classified against this stable bitmap, before resurrection marks are
     // added to it.
-    size_t pendingSourceEntries = DrainMarkTerminationToFixedPoint(mainQueue);
+    uint64_t ordinaryTerminationWU = drainMarkClosureToFixedPoint("ordinary");
+    VerifyMarkSchedulerQuiescence("ordinary");
 
     // 2. Snapshot the registered Finalizer population and move only objects
     // that are unreachable in the ordinary closure into the finalizable roots.
@@ -1632,9 +1529,23 @@ void MarkSweepCollector::MarkTermination()
     // 3. Mark newly-finalizable objects and their strong children to complete
     // the resurrection closure. Weak referents encountered here are registered
     // but are not followed as strong edges.
-    CollectResurrectionCandidatesToMain(mainQueue);
-    size_t resurrectionEntries = mainQueue.size();
-    pendingSourceEntries += DrainMarkTerminationToFixedPoint(mainQueue);
+    MSMarkWordBatch resurrectionBatch;
+    MSWorkUnitCounter resurrectionPublishWork;
+    size_t resurrectionEntries = 0;
+    VisitFinalizerRoots(
+        [this, &resurrectionBatch, &resurrectionPublishWork,
+         &resurrectionEntries](ObjectRef& ref) {
+            ++resurrectionEntries;
+            AddRefToMarkBatch(
+                ref.object, false, resurrectionBatch,
+                resurrectionPublishWork);
+        });
+    FlushMarkBatch(resurrectionBatch, resurrectionPublishWork);
+    cycleCompletedMarkWU_.fetch_add(
+        resurrectionPublishWork.Total(), std::memory_order_relaxed);
+    uint64_t resurrectionClosureWU =
+        drainMarkClosureToFixedPoint("resurrection");
+    VerifyMarkSchedulerQuiescence("resurrection");
 
     // 4. The final mark bitmap is now stable. Resolve every live WeakRef before
     // mutators resume and before any Region can be published for sweep.
@@ -1646,24 +1557,22 @@ void MarkSweepCollector::MarkTermination()
     // env var cjMSVerifyMark is set.
     VerifyMarkCompleteness();
 
-    // 6. Reset all per-P gcWork and return WorkBufs to pool.
-    // NOTE: sweep generation is flipped in PreEnumRoots (before mark), NOT
-    // here. Flipping after mark would let regions allocated during this
-    // cycle's mark phase keep the old generation and be swept this cycle,
-    // wrongly reclaiming live stack-only objects (not covered by the barrier).
-    ResetAllPerPGCWork();
-
     cycleStats_.markTerminationUs = TimeUtil::MicroSeconds() - phaseStart;
     VLOG(REPORT,
-         "[MS-GC] MarkTermination total: %sus, flushed=%zu entries, resurrection=%zu entries",
+         "[MS-GC] MarkTermination total: %sus ordinaryWU=%llu "
+         "resurrectionRoots=%zu resurrectionPublishWU=%llu "
+         "resurrectionClosureWU=%llu",
          Pretty(cycleStats_.markTerminationUs).Str(),
-         pendingSourceEntries,
-         resurrectionEntries);
+         static_cast<unsigned long long>(ordinaryTerminationWU),
+         resurrectionEntries,
+         static_cast<unsigned long long>(
+             resurrectionPublishWork.Total()),
+         static_cast<unsigned long long>(resurrectionClosureWU));
 
     // Restore IDLE INSIDE STW so that when Mutators resume, the mark barrier
-    // has already been disabled. This eliminates a gap where Mutators could
-    // still buffer write-barrier entries after the last drain. The independent
-    // Sweep epoch remains open and is tracked by CentralRegionPool counters.
+    // has already been disabled. This eliminates a gap where a mutator could
+    // publish new scheduler work after the last drain. The independent Sweep
+    // epoch remains open and is tracked by CentralRegionPool counters.
     TransitionToGCPhase(GCPhase::GC_PHASE_IDLE, false);
 
     MSPostMarkSweepPlan sweepPlan = BuildMSPostMarkSweepPlan(gcReason == GC_REASON_OOM);
@@ -1672,83 +1581,6 @@ void MarkSweepCollector::MarkTermination()
     }
 }
 
-void MarkSweepCollector::FlushAllWriteBarrierBuffers(GreyWorkQueue& mainQueue)
-{
-    RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(theAllocator);
-    CentralRegionPool* centralPool = space.GetCentralPool();
-    if (centralPool == nullptr) {
-        return;
-    }
-
-    centralPool->VisitAllocBufferMS([this, &mainQueue](AllocBufferMS& buffer) {
-        // Move the owner's unpublished partial log (activeLog_). Already
-        // published logs live in globalFull_ and are handled by
-        // DisposeAllPerPGCWork + DrainGlobalLFStackToMainQueue.
-        WorkBuf* log = buffer.GetActiveLog();
-        if (log != nullptr) {
-            size_t n = log->len;
-            // Route-A: entries are already grey (shaded at write time), so enqueue
-            // them for scanning directly — a re-discover would see them already
-            // marked and wrongly skip scanning their fields.
-            for (size_t i = 0; i < n; ++i) {
-                BaseObject* obj = log->Objects()[i];
-                if (obj == nullptr) {
-                    continue;
-                }
-                if (UNLIKELY(!IsTraceableObjectAddress(obj) || !obj->IsValidObject())) {
-                    continue;
-                }
-                mainQueue.PushMovedGrey(obj);
-            }
-            workBufPool_.Put(log);
-            buffer.ActiveLogRef() = nullptr;
-        }
-    });
-}
-
-void MarkSweepCollector::DrainDeferredMainThreadQueueToMainQueue(GreyWorkQueue& mainQueue)
-{
-    std::lock_guard<std::mutex> lock(deferredMainThreadMutex_);
-    while (!deferredMainThreadQueue_.empty()) {
-        BaseObject* obj = deferredMainThreadQueue_.back();
-        deferredMainThreadQueue_.pop_back();
-        if (obj == nullptr) {
-            continue;
-        }
-        if (UNLIKELY(!IsTraceableObjectAddress(obj))) {
-            continue;
-        }
-        if (UNLIKELY(!obj->IsValidObject())) {
-            continue;
-        }
-        mainQueue.PushMovedGrey(obj);
-    }
-}
-
-size_t MarkSweepCollector::DrainMarkTerminationToFixedPoint(GreyWorkQueue& mainQueue)
-{
-    size_t sourceEntries = 0;
-    size_t drainRounds = 0;
-    do {
-        drainRounds++;
-        ExecuteLikeDrainMainQueue(mainQueue);
-
-        size_t before = mainQueue.size();
-        FlushAllWriteBarrierBuffers(mainQueue);
-        DisposeAllPerPGCWork();
-        DrainGlobalLFStackToMainQueue(mainQueue);
-        DrainDeferredMainThreadQueueToMainQueue(mainQueue);
-        sourceEntries += mainQueue.size() - before;
-    } while (!mainQueue.empty());
-
-    if (sourceEntries != 0 || drainRounds > 1) {
-        VLOG(REPORT,
-             "[MS-GC] MarkTermination fixed-point drain: rounds=%zu sourceEntries=%zu",
-             drainRounds,
-             sourceEntries);
-    }
-    return sourceEntries;
-}
 
 void MarkSweepCollector::PrepareFinalizersForResurrection()
 {
@@ -1764,43 +1596,6 @@ void MarkSweepCollector::PrepareFinalizersForResurrection()
     collectorResources.EnqueueFinalizables(finalizable, snapshotFinalizerNum);
 }
 
-void MarkSweepCollector::CollectResurrectionCandidatesToMain(GreyWorkQueue& mainQueue)
-{
-    VisitFinalizerRoots([&mainQueue, this](ObjectRef& ref) {
-        BaseObject* finalizerObj = ref.object;
-        if (IsTraceableObjectAddress(finalizerObj) && finalizerObj->IsValidObject()) {
-            (void)TryEnqueueGreyObject(finalizerObj, mainQueue);
-        }
-    });
-}
-
-void MarkSweepCollector::ExecuteLikeDrainMainQueue(GreyWorkQueue& mainQueue)
-{
-    while (!mainQueue.empty()) {
-        BaseObject* obj = mainQueue.back();
-        mainQueue.pop_back();
-        // Guard: objects in released/reclaimed regions must not appear in
-        // the mark queue. A zeroed stateWord is a fatal GC invariant violation.
-        if (!obj->IsValidObject()) {
-            LOG(RTLOG_FATAL, "[MS-GC] ExecuteLikeDrainMainQueue: FATAL invalid stateWord obj=%p, "
-                "stateWord=0x%zx",
-                (void*)obj,
-                *reinterpret_cast<uintptr_t*>(obj));
-        }
-
-        if (!obj->HasRefField()) {
-            continue;
-        }
-
-        if (UNLIKELY(obj->IsWeakRef())) {
-            WeakRefBuffer::Instance().Insert(obj);
-            continue;
-        }
-
-        TraceObjectRefFields(obj, mainQueue.UnsafeRaw());
-    }
-
-}
 
 void MarkSweepCollector::ClearWeakRefsAfterMark()
 {
@@ -1855,9 +1650,6 @@ void MarkSweepCollector::PostMarkTermination()
              snapshotFinalizerNum, Pretty(finalizerUs).Str());
     }
 
-    // 6. Large object garbage collection (eager sweep for in-heap large regions).
-    CollectLargeGarbage();
-
     // 4. Publish the stable mark statistics and hand small-Region sweep over
     // to the background processor. MarkTermination has already restored IDLE
     // and installed the idle barrier before Mutators resumed, so this does not
@@ -1872,6 +1664,16 @@ void MarkSweepCollector::PostMarkTermination()
         prevCycleMarkedObjects_.store(markedStats.objectCount, std::memory_order_relaxed);
         VLOG(REPORT, "[MS-GC] Mark bitmap: objects=%zu liveBytes=%zuB",
              markedStats.objectCount, markedStats.liveBytes);
+
+        // Partition the frozen LARGE collect-set only after statistics have
+        // consumed it. Survivors are appended to largeNextSupply_; dead spans
+        // are reset before publication to the large hot cache.
+        CollectLargeGarbage();
+
+        // The immutable Mark boundary becomes Sweep work only after the final
+        // bitmap/stats consumers have finished. Regions returned or allocated
+        // after PreEnum remain in swept allocation supply for the next cycle.
+        centralPool->PublishCollectSetForSweep();
 
         if (sweepPlan.parallelSweepOnceInPostMark) {
             RunOOMEmergencyParallelSweep(*centralPool);
@@ -2015,12 +1817,12 @@ void MarkSweepCollector::VerifyMarkCompleteness()
     constexpr size_t kMaxReport = 32;
     size_t violations = 0;
     size_t markedScanned = 0;
-    size_t benignCurrentSweepGenTargets = 0;
+    size_t benignOutsideSetTargets = 0;
     size_t staleManagedTargets = 0;
     size_t staleNonTraceableTargets = 0;
     size_t staleInvalidTargets = 0;
     size_t staleReported = 0;
-    const uint32_t currentSweepGen = CentralRegionPool::GetGlobalSweepGen();
+    const uint32_t currentMarkEpoch = centralPool->GetCurrentMarkEpoch();
 
     centralPool->VisitMarkedObjects([&](BaseObject* obj) {
         markedScanned++;
@@ -2074,18 +1876,14 @@ void MarkSweepCollector::VerifyMarkCompleteness()
             if (IsMarkedObject(target)) {
                 return;
             }
-            // Regions allocated/rebound after PreEnumRoots carry the current
-            // sweep generation and are treated as "already swept" for this
-            // cycle. Unmarked objects there are not reclaim candidates in the
-            // current sweep, so do not count them as missed-mark violations.
-            if (IsCurrentSweepGenObject(target, currentSweepGen)) {
-                benignCurrentSweepGenTargets++;
+            // TLS-active and post-boundary Regions have no current collectEpoch.
+            // They are not reclaim candidates in this cycle.
+            if (IsOutsideCurrentCollectSetObject(target, currentMarkEpoch)) {
+                benignOutsideSetTargets++;
                 return;
             }
 
-            // Marked referrer -> unmarked managed target in an older sweepGen:
-            // target is a real reclaim candidate this cycle, so this is the
-            // missed-mark UAF we want to catch.
+            // Marked referrer -> unmarked current collect-set target.
             if (violations < kMaxReport) {
                 uintptr_t refState = LoadStateWordForDiag(obj);
                 uintptr_t tgtState = LoadStateWordForDiag(target);
@@ -2123,13 +1921,13 @@ void MarkSweepCollector::VerifyMarkCompleteness()
 
     VLOG(REPORT,
          "[MS-GC][VERIFY] mark-completeness: scanned=%zu markedObjs, violations=%zu, "
-         "benignCurrentSg=%zu, staleManaged=%zu, staleNonTraceable=%zu, staleInvalid=%zu",
-         markedScanned, violations, benignCurrentSweepGenTargets,
+         "benignOutsideSet=%zu, staleManaged=%zu, staleNonTraceable=%zu, staleInvalid=%zu",
+         markedScanned, violations, benignOutsideSetTargets,
          staleManagedTargets, staleNonTraceableTargets, staleInvalidTargets);
 }
 
 // ============================================================================
-// MarkNewObject: mark newly allocated objects during marking phases
+// MarkNewObject: publish finalizer roots that cross a Mark phase boundary
 // ============================================================================
 
 void MarkSweepCollector::MarkNewObject(BaseObject* obj)
@@ -2141,10 +1939,15 @@ void MarkSweepCollector::MarkNewObject(BaseObject* obj)
         return;
     }
 
-    MarkObject(obj);
-    if (obj->HasRefField()) {
-        PushSingleToDeferredMainThread(obj);
-    }
+    // Ordinary allocation does not call MarkNewObject. FinalizerWorkList invokes
+    // it while holding listLock when a finalizer root is inserted or removed,
+    // so the list mutation and scheduler publication form one linearization.
+    MSMarkWordBatch batch;
+    MSWorkUnitCounter work;
+    AddRefToMarkBatch(obj, true, batch, work);
+    FlushMarkBatch(batch, work);
+    cycleCompletedMarkWU_.fetch_add(
+        work.Total(), std::memory_order_relaxed);
 }
 
 // ============================================================================
@@ -2154,20 +1957,25 @@ void MarkSweepCollector::MarkNewObject(BaseObject* obj)
 void MarkSweepCollector::EnumRefFieldRoot(RefField<>& ref, RootSet& rootSet) const
 {
     BaseObject* target = MSLoadRawReference(ref);
-    const_cast<MarkSweepCollector*>(this)->DiscoverAndPushObject(target, rootSet);
+    rootSet.push_back(target);
 }
 
 void MarkSweepCollector::EnumAndTagRawRoot(ObjectRef& root, RootSet& rootSet) const
 {
-    // MS version: no tag/CAS, just push heap objects into root set
-    BaseObject* obj = root.object;
-    const_cast<MarkSweepCollector*>(this)->DiscoverAndPushObject(obj, rootSet);
+    // MS version: no tag/CAS and no discovery during enumeration. The root
+    // staging boundary flushes one coalescing batch after all sources merge.
+    rootSet.push_back(root.object);
 }
 
 void MarkSweepCollector::TraceObjectRefFields(BaseObject* obj, WorkStack& workStack)
 {
     auto refFunc = [this, &workStack](RefField<>& field) {
-        TraceRefField(field, workStack);
+        BaseObject* target = MSLoadRawReference(field);
+        TypeInfo* typeInfo = nullptr;
+        if (DiscoverObject(target, &typeInfo) &&
+            typeInfo != nullptr && typeInfo->HasRefField()) {
+            workStack.push_back(target);
+        }
     };
     ForEachRefFieldGCInline(obj, refFunc);
 }
@@ -2202,9 +2010,9 @@ RefField<> MarkSweepCollector::GetAndTryTagRefField(BaseObject* obj) const
 // Block ①: GC Entry — 3 lines
 void MarkSweepCollector::LogGCEntry(uint64_t gcIndex, GCReason reason)
 {
-    uint32_t sweepGen = CentralRegionPool::GetGlobalSweepGen();
-    VLOG(REPORT, "[MS-GC] === GC START cycle=%llu === sweepGen=%u reason=%u(%s)",
-         static_cast<unsigned long long>(gcCycle_), sweepGen,
+    uint32_t sweepCycleId = CentralRegionPool::GetSweepCycleId();
+    VLOG(REPORT, "[MS-GC] === GC START cycle=%llu === sweepCycleId=%u reason=%u(%s)",
+         static_cast<unsigned long long>(gcCycle_), sweepCycleId,
          static_cast<unsigned>(reason), g_gcRequests[reason].name);
     RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(theAllocator);
     VLOG(REPORT, "[MS-GC] active-region bytes %s B, threshold %s B, gcIndex=%llu",
@@ -2230,11 +2038,11 @@ void MarkSweepCollector::DumpRegionStatsMS()
     if (!IsMSGCReportEnabled()) {
         return;
     }
-    uint32_t sweepGen = CentralRegionPool::GetGlobalSweepGen();
+    uint32_t sweepCycleId = CentralRegionPool::GetSweepCycleId();
     RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(theAllocator);
 
     VLOG(REPORT, "[MS-GC] --- Total ---");
-    VLOG(REPORT, "[MS-GC] region statistics when gc ends (sweepGen=%u)", sweepGen);
+    VLOG(REPORT, "[MS-GC] region statistics when gc ends (sweepCycleId=%u)", sweepCycleId);
 
     // RegionManager basic stats (total/active units)
     size_t totalSize = space.GetMaxCapacity();
@@ -2263,10 +2071,6 @@ void MarkSweepCollector::DumpRegionStatsMS()
              emptyRegionCount,
              hotFreeRegionCount,
              largeCacheRegionCount);
-
-        // Per-shard snapshot: segments, total owned regions, used, free, hotFree (resident), coldFree (scavenged).
-        uint32_t shardCount = msRegionManager->GetShardCount();
-        VLOG(REPORT, "[MS-GC]   shard snapshots (P: segCnt / totalReg / used / free / hotFree / coldFree):");
     }
 
     // CentralRegionPool 4-list breakdown
@@ -2305,15 +2109,15 @@ void MarkSweepCollector::DumpGCStateSnapshot(const char* stage)
 
     for (uint8_t cls = 0; cls < kNumSizeClasses; ++cls) {
         CentralRegionPool::BucketPressure pressure = centralPool->GetBucketPressure(cls);
-        size_t clsTotal = pressure.partialSwept + pressure.partialUnswept + pressure.fullSwept + pressure.fullUnswept;
+        size_t clsTotal = pressure.partialSwept + pressure.fullSwept + pressure.unswept;
         if (clsTotal == 0) {
             continue;
         }
         VLOG(REPORT,
-             "[MS-GC]     cls=%u partialSwept=%zu fullSwept=%zu partialUnswept=%zu fullUnswept=%zu total=%zu",
+             "[MS-GC]     cls=%u partialSwept=%zu fullSwept=%zu unswept=%zu total=%zu",
              static_cast<unsigned>(cls),
              pressure.partialSwept, pressure.fullSwept,
-             pressure.partialUnswept, pressure.fullUnswept, clsTotal);
+             pressure.unswept, clsTotal);
     }
 }
 
@@ -2391,9 +2195,18 @@ void MarkSweepCollector::UpdateGCStats()
     size_t gcThresholdCap = maxHeapBytes != 0
         ? maxHeapBytes
         : CangjieRuntime::GetGCParam().gcThreshold;
-    // Floor to avoid GC thrash when base is tiny; cap at the allocator's actual
-    // maximum heap rather than the initial committed heap.
-    size_t minThreshold = std::min(gcThresholdCap, static_cast<size_t>(20) * 1024 * 1024);
+    // A multiplicative target alone gives a tiny allocation runway when the
+    // stable live set is small. Region marking then repeatedly enters MARK and
+    // assist before the previous cycle's fixed costs can be amortized. Keep
+    // five allocator segments of runway while preserving the configured
+    // multiplier for large live sets. The heap cap remains a hard bound.
+    constexpr size_t kMSMinConcurrentMarkRunwayBytes =
+        static_cast<size_t>(5) * kMSShardSegmentBytes;
+    size_t absoluteMinThreshold =
+        std::min(gcThresholdCap, static_cast<size_t>(20) * 1024 * 1024);
+    size_t minThreshold = ComputeMSHeapThresholdFloor(
+        baseBytes, absoluteMinThreshold, kMSMinConcurrentMarkRunwayBytes,
+        gcThresholdCap);
     bool bypassTransition =
         exceptionalBypass || !stableDecision.hadAcceptedHistory;
     MSHeapThresholdDecision thresholdDecision =
@@ -2426,9 +2239,20 @@ void MarkSweepCollector::UpdateGCStats()
     gcStats.SetThreshold(newThreshold);
     gcStats.SetScavengeThreshold(newScavengeThreshold);
     gcStats.lastSurvivingRegionBytes = liveBytes;
-    previousAssistProcessedObjects_ = cycleStats_.assistProcessedObjects;
-    previousBackgroundProcessedObjects_ = cycleStats_.gcMainProcessedObjects +
-                                          cycleStats_.helperProcessedObjects;
+    uint64_t completedWU =
+        cycleCompletedMarkWU_.load(std::memory_order_relaxed);
+    uint64_t allocatedMarkBytes =
+        cycleAllocatedMarkBytes_.load(std::memory_order_relaxed);
+    markPacer_.UpdateFullCycle(
+        completedWU, allocatedMarkBytes, cycleStats_.concurrentMarkUs);
+    VLOG(REPORT,
+         "[MS-GC] mark pacer: completedWU=%llu allocatedBytes=%llu "
+         "concurrentUs=%llu densityQ16=%llu throughputQ16=%llu",
+         static_cast<unsigned long long>(completedWU),
+         static_cast<unsigned long long>(allocatedMarkBytes),
+         static_cast<unsigned long long>(cycleStats_.concurrentMarkUs),
+         static_cast<unsigned long long>(markPacer_.GetWorkDensityQ16()),
+         static_cast<unsigned long long>(markPacer_.GetThroughputQ16()));
     VLOG(REPORT,
          "[MS-GC] heapThreshold: oldThreshold=%zuB newThreshold=%zuB "
          "oldScavengeThreshold=%zuB newScavengeThreshold=%zuB "
@@ -2436,7 +2260,7 @@ void MarkSweepCollector::UpdateGCStats()
          "markStartInUse=%zuB markEndInUse=%zuB inUseBurst=%zuB "
          "floatingLiveInflated=%d acceptedSample=%d historySize=%zu "
          "medianStableLive=%zuB exceptionalBypass=%d "
-         "growth=%.2f "
+         "growth=%.2f minRunway=%zuB minThreshold=%zuB "
          "rawTarget=%zuB deadbandLower=%zuB deadbandUpper=%zuB deadbandHeld=%d "
          "riseLimit=%zuB fallLimit=%zuB riseLimited=%d fallLimited=%d "
          "transitionLimited=%d transitionBypassed=%d "
@@ -2454,7 +2278,8 @@ void MarkSweepCollector::UpdateGCStats()
          static_cast<int>(stableDecision.acceptedSample),
          stableDecision.historySize, stableDecision.medianStableLive,
          static_cast<int>(stableDecision.exceptionalBypass),
-         1.0 + heapGrowth, thresholdDecision.rawTarget,
+         1.0 + heapGrowth, kMSMinConcurrentMarkRunwayBytes, minThreshold,
+         thresholdDecision.rawTarget,
          thresholdDecision.deadbandLower, thresholdDecision.deadbandUpper,
          static_cast<int>(thresholdDecision.deadbandHeld),
          thresholdDecision.riseLimit, thresholdDecision.fallLimit,

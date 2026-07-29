@@ -100,16 +100,14 @@ void FinalizerWorkList::ProcessFinalizableList(const std::function<bool()>& shou
             LOG(RTLOG_FATAL, "FatalException happened in finalizer");
         }
         ExceptionManager::ClearPendingException();
-#ifdef MRT_USE_MARK_SWEEP
-        // A Finalizer that started before MSGC may finish after the initial
-        // root snapshot. Shade it before removing the working-list root so a
-        // self-resurrection (or its current strong closure) cannot be swept.
-        // MarkNewObject is phase-gated and defers ref-field scanning to the
-        // MarkTermination fixed point.
-        Heap::GetHeap().GetCollector().MarkNewObject(finalizeObjAddr);
-#endif
         {
             std::lock_guard<std::mutex> l(listLock);
+#ifdef MRT_USE_MARK_SWEEP
+            // Publish before removing the working-list root, under the same
+            // lock used by VisitGCRoots. MarkTermination therefore observes
+            // either the list entry or the scheduler publication.
+            Heap::GetHeap().GetCollector().MarkNewObject(finalizeObjAddr);
+#endif
             itor = workingFinalizables.erase(itor);
         }
     }
@@ -137,8 +135,14 @@ void FinalizerWorkList::ProcessFinalizables(const std::function<bool()>& shouldK
 void FinalizerWorkList::RegisterFinalizer(BaseObject* obj)
 {
     RefField<> tmpField(nullptr);
-    Heap::GetHeap().GetBarrier().WriteStaticRef(tmpField, obj);
     std::lock_guard<std::mutex> l(listLock);
+    Heap::GetHeap().GetBarrier().WriteStaticRef(tmpField, obj);
     finalizers.push_back(reinterpret_cast<BaseObject*>(tmpField.GetFieldValue()));
+#ifdef MRT_USE_MARK_SWEEP
+    // Keep publication inside listLock. The MarkTermination snapshot takes
+    // this lock as well, so it cannot miss both the registered root and the
+    // scheduler task even when registration crosses the phase boundary.
+    Heap::GetHeap().GetCollector().MarkNewObject(obj);
+#endif
 }
 } // namespace MapleRuntime

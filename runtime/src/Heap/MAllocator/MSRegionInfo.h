@@ -16,7 +16,10 @@
 #include <type_traits>
 
 #include "Base/Globals.h"
+#include "Heap/MAllocator/MSBitmapArena.h"
+#include "Heap/MAllocator/MSScanClass.h"
 #include "Heap/MAllocator/MSSizeClass.h"
+#include "Heap/MSGCFastPath.h"
 
 namespace MapleRuntime {
 
@@ -47,10 +50,23 @@ inline bool IsLargeRegionEntryType(MSRegionType type)
            type == MSRegionType::MS_REGION_SPAN;
 }
 
-// Sweep state for lazy sweep protocol
-enum class MSSweepState : uint8_t {
-    UNSWEPT  = 0,
-    SWEPT    = 2,
+enum class MSRegionKind : uint8_t {
+    FREE = 0,
+    SMALL = 1,
+    LARGE = 2,
+    SPAN = 3,
+};
+
+enum class MSAllocMode : uint8_t {
+    NONE = 0,
+    BUMP = 1,
+    BITMAP = 2,
+};
+
+enum class MSScanState : uint8_t {
+    IDLE = 0,
+    QUEUED = 1,
+    OWNED = 2,
 };
 
 enum class MSCentralReturnKind : uint8_t {
@@ -79,64 +95,263 @@ struct MSCentralReturnDecision {
 //   MSRegionInfo[i] corresponds to Region[i] at heapStart + i * MS_REGION_SIZE
 //   Mirror stored at heapStart - (i+1) * sizeof(MSRegionInfo)
 //
-struct MSRegionInfo {
+struct alignas(64) MSRegionInfo {
     static constexpr uint8_t INVALID_SIZE_CLASS = 0xFF;
+    static constexpr uint32_t INVALID_REGION_IDX = UINT32_MAX;
+    static constexpr int32_t INVALID_IDX = static_cast<int32_t>(INVALID_REGION_IDX);
+    static constexpr uint32_t NO_COLLECT_EPOCH = 0;
 
-    // ========== Allocation core (offset 0, compiler fast-path) ==========
-    uintptr_t   allocPtr;           // +0   bump-pointer current position (8B)
-    uintptr_t   regionEnd;          // +8   Region end address (8B)
+    uintptr_t allocPtr;                   // +0
+    uintptr_t regionEnd;                  // +8
+    uint32_t centralNextRegionIdx;        // +16
+    uint32_t markTaskNextRegionIdx;       // +20
+    uint64_t slotOrLargeMeta;             // +24
+    uint32_t collectEpoch;                // +32
+    uint32_t control;                     // +36
+    uint64_t allocSummary;                // +40
+    uint64_t pendingWordSummary;          // +48
+    uint32_t reserved32;                  // +56
+    uint8_t allocMode;                    // +60
+    uint8_t reserved8;                    // +61
+    uint8_t sizeClass;                    // +62
+    uint8_t layout;                       // +63
 
-    // ========== Region list management ==========
-    int32_t     nextRegionIdx;      // +16  linked list next index (4B)
-    int32_t     prevRegionIdx;      // +20  linked list prev index (4B)
+    static constexpr uint8_t LAYOUT_REGION_KIND_MASK = 0x03;
+    static constexpr uint8_t LAYOUT_SCAN_CLASS_MASK = 0x08;
+    static constexpr uint32_t CONTROL_SCAN_STATE_MASK = 0x03;
+    static constexpr uint32_t CONTROL_LARGE_MARKED = 0x04;
 
-    // ========== Bitmap pointers ==========
-    // Allocation is performed only by the owning AllocBufferMS/P. The Runtime
-    // and compiler fast paths intentionally update this bitmap with ordinary
-    // loads/stores; Region ownership prevents concurrent allocators.
-    uint64_t*   allocBitmap;        // +24  allocation bitmap: 1=free, 0=allocated (8B)
-    uint64_t*   markBitmap;         // +32  mark bitmap: 1=alive, 0=dead (8B)
-
-    // ========== Statistics ==========
-    // LARGE has no slots and packs its exact logical object size across these
-    // otherwise-unused 64 bits (low 16 / middle 16 / high 32).
-    uint16_t    totalSlotCount;     // +40  total slots / large object bytes[15:0] (2B)
-    uint16_t    freeSlotCount;      // +42  free slots / large object bytes[31:16] (2B)
-    uint32_t    divMagic;           // +44  slot div magic / large object bytes[63:32] (4B)
-
-    // ========== Classification ==========
-    uint8_t      sizeClass;         // +48  Size Class index (1B)
-    MSSweepState sweepState;        // +49  sweep state (1B)
-    MSRegionType regionType;        // +50  Region type (1B)
-
-    // ========== Flag bits (atomic for large-object concurrent safety) ==========
-    // bit 0: isMarked
-    static constexpr uint8_t FLAG_MARKED = 0x01;
-    uint8_t     flags_;              // +51  all GC flag bits (use atomic accessors for large objects)
-
-    // Atomic accessors — safe for concurrent mark on large objects
-    bool IsMarked() const { return (__atomic_load_n(&flags_, __ATOMIC_RELAXED) & FLAG_MARKED) != 0; }
-
-    // Returns true if was already marked (skip), false if newly marked (enqueue)
-    bool AtomicTestAndSetMarked() {
-        uint8_t old = __atomic_fetch_or(&flags_, FLAG_MARKED, __ATOMIC_RELAXED);
-        return (old & FLAG_MARKED) != 0;
+    uint32_t GetCentralNextRegionIdx() const
+    {
+        return __atomic_load_n(&centralNextRegionIdx, __ATOMIC_RELAXED);
     }
-    void AtomicSetMarked() { __atomic_fetch_or(&flags_, FLAG_MARKED, __ATOMIC_RELAXED); }
-    void ClearMarkedFlag() {
-        uint8_t old = __atomic_load_n(&flags_, __ATOMIC_RELAXED);
-        uint8_t nv = old & ~FLAG_MARKED;
-        __atomic_store_n(&flags_, nv, __ATOMIC_RELAXED);
+    void SetCentralNextRegionIdx(uint32_t idx)
+    {
+        __atomic_store_n(&centralNextRegionIdx, idx, __ATOMIC_RELAXED);
+    }
+    uint32_t GetMarkTaskNextRegionIdx() const
+    {
+        return __atomic_load_n(&markTaskNextRegionIdx, __ATOMIC_RELAXED);
+    }
+    void SetMarkTaskNextRegionIdx(uint32_t idx)
+    {
+        __atomic_store_n(&markTaskNextRegionIdx, idx, __ATOMIC_RELAXED);
     }
 
-    // ========== Alignment padding ==========
-    uint32_t    sweepGen;           // +52  sweep generation for lazy sweep (4B)
+    uint16_t GetFreeSlotCount() const { return static_cast<uint16_t>(slotOrLargeMeta); }
+    void SetFreeSlotCount(uint16_t count)
+    {
+        slotOrLargeMeta = (slotOrLargeMeta & ~UINT64_C(0xFFFF)) | count;
+    }
+    void DecrementFreeSlotCount() { SetFreeSlotCount(GetFreeSlotCount() - 1); }
+    uint16_t GetTotalSlotCount() const
+    {
+        return sizeClass < kNumSizeClasses ? SizeClassInfo::ClassToTotalSlots(sizeClass) : 0;
+    }
+    uint8_t GetBitmapWordCount() const
+    {
+        return sizeClass < kNumSizeClasses ? SizeClassInfo::ClassToBitmapWords(sizeClass) : 0;
+    }
+    uint64_t GetValidTailMask() const
+    {
+        return sizeClass < kNumSizeClasses ? SizeClassInfo::ClassToValidTailMask(sizeClass) : 0;
+    }
+    uint32_t GetDivMagic() const
+    {
+        return sizeClass < kNumSizeClasses ? SizeClassInfo::ClassToDivMagic(sizeClass) : 0;
+    }
 
-    // ========== Reserved for future ==========
-    uint64_t    reserved;           // +56  summary word (PARTIAL: bit[i]=1 if allocBitmap[i] has free) / large obj base idx (8B)
+    size_t GetRegionIndex() const
+    {
+        uintptr_t arrayBase = static_cast<uintptr_t>(
+            __atomic_load_n(&CJ_MRT_MSGCFastPathState.regionInfoArray, __ATOMIC_ACQUIRE));
+        return (reinterpret_cast<uintptr_t>(this) - arrayBase) / sizeof(MSRegionInfo);
+    }
+    uint64_t* GetAllocBitmap() const
+    {
+        uintptr_t base = static_cast<uintptr_t>(
+            __atomic_load_n(&CJ_MRT_MSGCFastPathState.allocPlaneBase, __ATOMIC_ACQUIRE));
+        return reinterpret_cast<uint64_t*>(
+            base + GetRegionIndex() * MSBitmapArena::kPlaneStrideBytes);
+    }
+    uint64_t* GetMarkBitmap() const
+    {
+        uintptr_t base = static_cast<uintptr_t>(
+            __atomic_load_n(&CJ_MRT_MSGCFastPathState.markPlaneBase, __ATOMIC_ACQUIRE));
+        return reinterpret_cast<uint64_t*>(
+            base + GetRegionIndex() * MSBitmapArena::kPlaneStrideBytes);
+    }
+    uint64_t* GetScanBitmap() const
+    {
+        uintptr_t base = static_cast<uintptr_t>(
+            __atomic_load_n(&CJ_MRT_MSGCFastPathState.scanPlaneBase, __ATOMIC_ACQUIRE));
+        return reinterpret_cast<uint64_t*>(
+            base + GetRegionIndex() * MSBitmapArena::kPlaneStrideBytes);
+    }
 
-    // === Constants ===
-    static constexpr int32_t INVALID_IDX = static_cast<int32_t>(0xFFFFFFFF);
+    bool IsMarked() const
+    {
+        return (__atomic_load_n(&control, __ATOMIC_RELAXED) & CONTROL_LARGE_MARKED) != 0;
+    }
+    bool AtomicTestAndSetMarked()
+    {
+        uint32_t old = __atomic_fetch_or(&control, CONTROL_LARGE_MARKED, __ATOMIC_RELAXED);
+        return (old & CONTROL_LARGE_MARKED) != 0;
+    }
+    void AtomicSetMarked()
+    {
+        __atomic_fetch_or(&control, CONTROL_LARGE_MARKED, __ATOMIC_RELAXED);
+    }
+    void ClearMarkedFlag()
+    {
+        __atomic_fetch_and(&control, ~CONTROL_LARGE_MARKED, __ATOMIC_RELAXED);
+    }
+
+    MSRegionKind GetRegionKind() const
+    {
+        return static_cast<MSRegionKind>(layout & LAYOUT_REGION_KIND_MASK);
+    }
+    void SetRegionKind(MSRegionKind kind)
+    {
+        layout = static_cast<uint8_t>(
+            (layout & ~LAYOUT_REGION_KIND_MASK) | static_cast<uint8_t>(kind));
+    }
+    MSScanClass GetScanClass() const
+    {
+        return (layout & LAYOUT_SCAN_CLASS_MASK) != 0 ? MSScanClass::HAS_REF : MSScanClass::NO_REF;
+    }
+    void SetScanClass(MSScanClass scanClass)
+    {
+        layout = static_cast<uint8_t>(
+            (layout & ~LAYOUT_SCAN_CLASS_MASK) |
+            (scanClass == MSScanClass::HAS_REF ? LAYOUT_SCAN_CLASS_MASK : 0));
+    }
+    MSAllocMode GetAllocMode() const { return static_cast<MSAllocMode>(allocMode); }
+    void SetAllocMode(MSAllocMode mode) { allocMode = static_cast<uint8_t>(mode); }
+    MSScanState GetScanState() const
+    {
+        return static_cast<MSScanState>(
+            __atomic_load_n(&control, __ATOMIC_ACQUIRE) & CONTROL_SCAN_STATE_MASK);
+    }
+    void SetScanState(MSScanState state)
+    {
+        uint32_t old = __atomic_load_n(&control, __ATOMIC_RELAXED);
+        uint32_t desired;
+        do {
+            desired = (old & ~CONTROL_SCAN_STATE_MASK) | static_cast<uint32_t>(state);
+        } while (!__atomic_compare_exchange_n(
+            &control, &old, desired, true, __ATOMIC_RELEASE, __ATOMIC_RELAXED));
+    }
+    bool CasScanState(MSScanState expectedState, MSScanState desiredState)
+    {
+        uint32_t old = __atomic_load_n(&control, __ATOMIC_ACQUIRE);
+        for (;;) {
+            if ((old & CONTROL_SCAN_STATE_MASK) !=
+                static_cast<uint32_t>(expectedState)) {
+                return false;
+            }
+            uint32_t desired =
+                (old & ~CONTROL_SCAN_STATE_MASK) |
+                static_cast<uint32_t>(desiredState);
+            if (__atomic_compare_exchange_n(
+                &control, &old, desired, true,
+                __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) {
+                return true;
+            }
+        }
+    }
+    void StoreScanStateRelaxed(MSScanState state)
+    {
+        uint32_t old = __atomic_load_n(&control, __ATOMIC_RELAXED);
+        uint32_t desired;
+        do {
+            desired = (old & ~CONTROL_SCAN_STATE_MASK) |
+                static_cast<uint32_t>(state);
+        } while (!__atomic_compare_exchange_n(
+            &control, &old, desired, true,
+            __ATOMIC_RELAXED, __ATOMIC_RELAXED));
+    }
+    void PublishPendingMarkWord(size_t wordIdx)
+    {
+        CHECK_DETAIL(wordIdx < 64,
+                     "[MS-GC] pending mark word index overflow: %zu", wordIdx);
+        // The pending summary is the producer-to-owner publication record.
+        // Release makes the preceding MARK update visible to a Region owner
+        // that consumes the summary with TakePendingMarkWords().  A producer
+        // that races OWNED -> IDLE can leave this bit behind; the owner does a
+        // post-release republish and MarkTermination performs a final STW
+        // reconciliation, so no per-publication state-word DIRTY handshake is
+        // needed on this hot path.
+        __atomic_fetch_or(
+            &pendingWordSummary, UINT64_C(1) << wordIdx, __ATOMIC_RELEASE);
+    }
+    uint64_t TakePendingMarkWords()
+    {
+        return __atomic_exchange_n(
+            &pendingWordSummary, UINT64_C(0), __ATOMIC_ACQUIRE);
+    }
+    uint64_t LoadPendingMarkWordsAcquire() const
+    {
+        return __atomic_load_n(&pendingWordSummary, __ATOMIC_ACQUIRE);
+    }
+
+    MSRegionType GetRegionType() const
+    {
+        switch (GetRegionKind()) {
+            case MSRegionKind::LARGE:
+                return MSRegionType::MS_REGION_LARGE;
+            case MSRegionKind::SPAN:
+                return MSRegionType::MS_REGION_SPAN;
+            case MSRegionKind::SMALL:
+                return GetAllocMode() == MSAllocMode::BUMP
+                    ? MSRegionType::MS_REGION_BUMP : MSRegionType::MS_REGION_BITMAP;
+            case MSRegionKind::FREE:
+            default:
+                return MSRegionType::MS_REGION_FREE;
+        }
+    }
+    void SetRegionType(MSRegionType type)
+    {
+        switch (type) {
+            case MSRegionType::MS_REGION_BUMP:
+                SetRegionKind(MSRegionKind::SMALL);
+                SetAllocMode(MSAllocMode::BUMP);
+                break;
+            case MSRegionType::MS_REGION_BITMAP:
+            case MSRegionType::MS_REGION_PARTIAL:
+            case MSRegionType::MS_REGION_FULL:
+                SetRegionKind(MSRegionKind::SMALL);
+                SetAllocMode(MSAllocMode::BITMAP);
+                break;
+            case MSRegionType::MS_REGION_LARGE:
+                SetRegionKind(MSRegionKind::LARGE);
+                SetAllocMode(MSAllocMode::NONE);
+                break;
+            case MSRegionType::MS_REGION_SPAN:
+                SetRegionKind(MSRegionKind::SPAN);
+                SetAllocMode(MSAllocMode::NONE);
+                break;
+            case MSRegionType::MS_REGION_FREE:
+            case MSRegionType::MS_REGION_EMPTY_CACHE:
+            default:
+                SetRegionKind(MSRegionKind::FREE);
+                SetAllocMode(MSAllocMode::NONE);
+                break;
+        }
+    }
+    bool IsLargeRegionEntry() const
+    {
+        return GetRegionKind() == MSRegionKind::LARGE || GetRegionKind() == MSRegionKind::SPAN;
+    }
+    bool IsFreeRegion() const { return GetRegionKind() == MSRegionKind::FREE; }
+    uint32_t GetSpanBaseRegionIdx() const
+    {
+        return static_cast<uint32_t>(pendingWordSummary);
+    }
+    void SetSpanBaseRegionIdx(uint32_t idx)
+    {
+        pendingWordSummary = static_cast<uint64_t>(idx);
+    }
 
     // === Address helpers ===
     // RegionStart() describes one small Region. Large objects may span several
@@ -145,17 +360,14 @@ struct MSRegionInfo {
     uintptr_t LargeObjectStart() const { return allocPtr; }
     size_t LargeObjectSize() const
     {
-        uint64_t objectBytes = (static_cast<uint64_t>(divMagic) << 32) |
-            (static_cast<uint64_t>(freeSlotCount) << 16) |
-            static_cast<uint64_t>(totalSlotCount);
-        return static_cast<size_t>(objectBytes);
+        return static_cast<size_t>(slotOrLargeMeta);
     }
     size_t LargeSpanBytes() const { return regionEnd - allocPtr; }
     size_t LargeSpanCount() const { return LargeSpanBytes() / MS_REGION_SIZE; }
 
     // === Lifecycle: Init / Release ===
-    void InitForSizeClass(uint8_t cls);
-    void InitForLargeObject(uintptr_t start, uintptr_t end, size_t objectBytes);
+    void InitForSizeClass(uint8_t cls, MSScanClass scanClass);
+    void InitForLargeObject(uintptr_t start, uintptr_t end, size_t objectBytes, MSScanClass scanClass);
     void ReleaseBitmaps();
     void Reset();
     // Reset a completely-free region back to BUMP for fast reuse (O3).
@@ -174,7 +386,7 @@ struct MSRegionInfo {
         if (LIKELY(allocPtr + slotSize <= regionEnd)) {
             uintptr_t addr = allocPtr;
             allocPtr += slotSize;
-            freeSlotCount--;
+            DecrementFreeSlotCount();
             return addr;
         }
         return 0;  // Region full
@@ -183,26 +395,27 @@ struct MSRegionInfo {
     // Bitmap-based allocation for swept regions owned exclusively by this P.
     // Keep the ordinary load/store updates in sync with the compiler emitter;
     // no atomic RMW or lock is required while the Region remains P-local.
-    // Uses summary word (reserved) for O(1) lookup: bit[i]=1 means allocBitmap[i] has free slots.
+    // Uses allocSummary for O(1) lookup: bit[i]=1 means the alloc word has free slots.
     inline uintptr_t AllocFromBitmapFast()
     {
-        uint64_t summary = reserved;
+        uint64_t* allocBitmap = GetAllocBitmap();
+        uint64_t summary = allocSummary;
         while (summary != 0) {
             size_t wordIdx = static_cast<size_t>(__builtin_ctzll(summary));
             uint64_t word = allocBitmap[wordIdx];
             if (LIKELY(word != 0)) {
                 int bit = __builtin_ctzll(word);
                 allocBitmap[wordIdx] = word & ~(1ULL << bit);
-                freeSlotCount--;
+                DecrementFreeSlotCount();
                 if (allocBitmap[wordIdx] == 0) {
-                    reserved = reserved & ~(1ULL << wordIdx);
+                    allocSummary &= ~(1ULL << wordIdx);
                 }
                 size_t slotIndex = wordIdx * 64 + static_cast<size_t>(bit);
                 return RegionStart() + slotIndex * SizeClassInfo::ClassToSize(sizeClass);
             }
             // Summary was stale for this word, self-correct and try next
             summary &= ~(1ULL << wordIdx);
-            reserved = reserved & ~(1ULL << wordIdx);
+            allocSummary &= ~(1ULL << wordIdx);
         }
         return 0;  // Region full
     }
@@ -230,24 +443,33 @@ struct MSRegionInfo {
     // to clear mark-at-alloc dirty bits on TL regions before returning to pool.
     void ClearMarkBitmap()
     {
-        if (markBitmap != nullptr && totalSlotCount > 0) {
-            size_t bitmapWords = (totalSlotCount + 63) / 64;
+        if (GetRegionKind() == MSRegionKind::SMALL && GetTotalSlotCount() > 0) {
+            uint64_t* markBitmap = GetMarkBitmap();
+            size_t bitmapWords = GetBitmapWordCount();
             memset(markBitmap, 0, bitmapWords * sizeof(uint64_t));
         }
     }
 
-    // === Sweep Generation (CAS-based lazy sweep protocol) ===
-    uint32_t GetSweepGen() const { return sweepGen; }
-    void SetSweepGen(uint32_t gen) { sweepGen = gen; }
-
-    bool CasSweepGen(uint32_t expected, uint32_t desired)
+    // STW/quiescent cycle initialization. ALLOC is intentionally untouched:
+    // collect-set ALLOC is the sealed allocation snapshot, while ACTIVE ALLOC
+    // may still be a non-materialized BUMP view owned by its mutator.
+    void ResetSmallMarkWorkState()
     {
-        return reinterpret_cast<std::atomic<uint32_t>*>(&sweepGen)
-            ->compare_exchange_strong(expected, desired, std::memory_order_acq_rel);
+        if (GetRegionKind() != MSRegionKind::SMALL || GetTotalSlotCount() == 0) {
+            return;
+        }
+        size_t bitmapBytes = GetBitmapWordCount() * sizeof(uint64_t);
+        memset(GetMarkBitmap(), 0, bitmapBytes);
+        if (GetScanClass() == MSScanClass::HAS_REF) {
+            memset(GetScanBitmap(), 0, bitmapBytes);
+        }
+        __atomic_store_n(&pendingWordSummary, 0, __ATOMIC_RELAXED);
+        __atomic_store_n(&control, 0, __ATOMIC_RELAXED);
+        SetMarkTaskNextRegionIdx(INVALID_REGION_IDX);
     }
 
     // === Queries ===
-    bool IsCompletelyFree() const { return freeSlotCount == totalSlotCount; }
+    bool IsCompletelyFree() const { return GetFreeSlotCount() == GetTotalSlotCount(); }
     bool HasFreeSpace() const;
     MSCentralReturnDecision PrepareForCentralReturn(uint8_t callerCls)
     {
@@ -257,18 +479,21 @@ struct MSRegionInfo {
             callerCls != sizeClass,
         };
         if (IsCompletelyFree()) {
-            regionType = MSRegionType::MS_REGION_EMPTY_CACHE;
             return decision;
         }
+        // BUMP allocation intentionally leaves ALLOC untouched on the hot path.
+        // Materialize it before publishing either a PARTIAL or FULL Region:
+        // Mark treats ALLOC bit 1 as a free slot, so a full BUMP Region with its
+        // initial all-1 plane would otherwise have every real object filtered.
+        if (GetAllocMode() == MSAllocMode::BUMP) {
+            MaterializeBumpAllocationBitmap();
+        }
         if (HasFreeSpace()) {
-            if (regionType == MSRegionType::MS_REGION_BUMP) {
-                MaterializeBumpAllocationBitmap();
-            }
-            regionType = MSRegionType::MS_REGION_PARTIAL;
+            SetAllocMode(MSAllocMode::BITMAP);
             decision.kind = MSCentralReturnKind::PARTIAL;
             return decision;
         }
-        regionType = MSRegionType::MS_REGION_FULL;
+        SetAllocMode(MSAllocMode::BITMAP);
         decision.kind = MSCentralReturnKind::FULL;
         return decision;
     }
@@ -276,7 +501,7 @@ struct MSRegionInfo {
 
 private:
     // BUMP allocation does not update allocBitmap on the hot path. Before a
-    // partially-used BUMP region is published as PARTIAL, materialize the
+    // non-empty BUMP Region is published as PARTIAL or FULL, materialize the
     // allocated prefix and rebuild the free-word summary used by bitmap alloc.
     void MaterializeBumpAllocationBitmap();
 };
@@ -284,19 +509,34 @@ private:
 static_assert(std::is_standard_layout<MSRegionInfo>::value,
               "MSRegionInfo must remain standard-layout for compiler ABI checks");
 static_assert(sizeof(MSRegionInfo) == 64, "MSRegionInfo must be exactly 64 bytes (one cache line)");
+static_assert(alignof(MSRegionInfo) == 64, "MSRegionInfo must be cache-line aligned");
 static_assert(offsetof(MSRegionInfo, allocPtr) == 0, "compiler ABI: MSRegionInfo::allocPtr");
 #if UINTPTR_MAX == UINT64_MAX
 static_assert(offsetof(MSRegionInfo, regionEnd) == 8, "compiler ABI: MSRegionInfo::regionEnd");
-static_assert(offsetof(MSRegionInfo, allocBitmap) == 24, "compiler ABI: MSRegionInfo::allocBitmap");
-static_assert(offsetof(MSRegionInfo, markBitmap) == 32, "compiler ABI: MSRegionInfo::markBitmap");
-static_assert(offsetof(MSRegionInfo, totalSlotCount) == 40,
-              "compiler ABI: MSRegionInfo::totalSlotCount");
-static_assert(offsetof(MSRegionInfo, freeSlotCount) == 42,
-              "compiler ABI: MSRegionInfo::freeSlotCount");
-static_assert(offsetof(MSRegionInfo, divMagic) == 44, "compiler ABI: MSRegionInfo::divMagic");
-static_assert(offsetof(MSRegionInfo, regionType) == 50, "compiler ABI: MSRegionInfo::regionType");
-static_assert(offsetof(MSRegionInfo, flags_) == 51, "compiler ABI: MSRegionInfo::flags_");
-static_assert(offsetof(MSRegionInfo, reserved) == 56, "compiler ABI: MSRegionInfo::reserved");
+static_assert(offsetof(MSRegionInfo, centralNextRegionIdx) == 16,
+              "compiler ABI: MSRegionInfo::centralNextRegionIdx");
+static_assert(offsetof(MSRegionInfo, markTaskNextRegionIdx) == 20,
+              "compiler ABI: MSRegionInfo::markTaskNextRegionIdx");
+static_assert(offsetof(MSRegionInfo, slotOrLargeMeta) == 24,
+              "compiler ABI: MSRegionInfo::slotOrLargeMeta");
+static_assert(offsetof(MSRegionInfo, collectEpoch) == 32,
+              "compiler ABI: MSRegionInfo::collectEpoch");
+static_assert(offsetof(MSRegionInfo, control) == 36,
+              "compiler ABI: MSRegionInfo::control");
+static_assert(offsetof(MSRegionInfo, allocSummary) == 40,
+              "compiler ABI: MSRegionInfo::allocSummary");
+static_assert(offsetof(MSRegionInfo, pendingWordSummary) == 48,
+              "compiler ABI: MSRegionInfo::pendingWordSummary");
+static_assert(offsetof(MSRegionInfo, reserved32) == 56,
+              "compiler ABI: MSRegionInfo::reserved32");
+static_assert(offsetof(MSRegionInfo, allocMode) == 60,
+              "compiler ABI: MSRegionInfo::allocMode");
+static_assert(offsetof(MSRegionInfo, reserved8) == 61,
+              "compiler ABI: MSRegionInfo::reserved8");
+static_assert(offsetof(MSRegionInfo, sizeClass) == 62,
+              "compiler ABI: MSRegionInfo::sizeClass");
+static_assert(offsetof(MSRegionInfo, layout) == 63,
+              "compiler ABI: MSRegionInfo::layout");
 #endif
 static_assert(MS_REGION_SIZE == 32768, "compiler ABI: MSGC Region size");
 static_assert(static_cast<uint8_t>(MSRegionType::MS_REGION_BUMP) == 1,
@@ -317,8 +557,8 @@ static_assert(static_cast<uint8_t>(MSRegionType::MS_REGION_SPAN) == 6,
 // ============================================================================
 class MSRegionInfoArray {
 public:
-    // Initialize with external array pointer (from mmap front) — no malloc.
-    // If array is nullptr, falls back to malloc (for backward compatibility).
+    // Initialize with external array pointer (from mmap front). If array is
+    // nullptr, use a cache-line-aligned standalone/test allocation.
     static void Init(uintptr_t heapStart, size_t maxRegionCount, MSRegionInfo* array = nullptr);
 
     // O(1) address -> MSRegionInfo lookup (no branching)
@@ -347,19 +587,19 @@ public:
         if (info == nullptr) {
             return nullptr;
         }
-        if (info->regionType == MSRegionType::MS_REGION_LARGE) {
+        if (info->GetRegionKind() == MSRegionKind::LARGE) {
             return (info->allocPtr != 0 && info->regionEnd != 0) ? info : nullptr;
         }
-        if (info->regionType != MSRegionType::MS_REGION_SPAN) {
+        if (info->GetRegionKind() != MSRegionKind::SPAN) {
             return nullptr;
         }
 
-        size_t baseIdx = static_cast<size_t>(info->reserved);
+        size_t baseIdx = static_cast<size_t>(info->GetSpanBaseRegionIdx());
         if (baseIdx >= maxRegionCount_) {
             return nullptr;
         }
         MSRegionInfo* base = &array_[baseIdx];
-        if (base->regionType != MSRegionType::MS_REGION_LARGE ||
+        if (base->GetRegionKind() != MSRegionKind::LARGE ||
             base->allocPtr == 0 || base->regionEnd == 0) {
             return nullptr;
         }
@@ -375,15 +615,15 @@ public:
         size_t regionIdx = (addr - heapStartAddress_) / MS_REGION_SIZE;
         MSRegionInfo* info = &array_[regionIdx];
 
-        if (info->regionType == MSRegionType::MS_REGION_LARGE) {
+        if (info->GetRegionKind() == MSRegionKind::LARGE) {
             // LARGE base entry: only object base pointer is valid.
             if (info->regionEnd != 0 && addr == info->allocPtr) {
                 return info;
             }
             // addr not in this large object — cross-contamination from
             // adjacent unaligned small region. Fall through to slow path.
-        } else if (info->regionType == MSRegionType::MS_REGION_SPAN) {
-            // SPAN entry (reserved=baseIdx).
+        } else if (info->GetRegionKind() == MSRegionKind::SPAN) {
+            // SPAN entry (pendingWordSummary low32=baseIdx).
             // Validate base entry liveness/range to avoid treating stale
             // span metadata (after large object reclaimed/reset) as valid.
             MSRegionInfo* base = ResolveLargeBaseInfo(info);
@@ -406,7 +646,7 @@ public:
         if (regionIdx > 0) {
             MSRegionInfo* prev = &array_[regionIdx - 1];
             if (prev->regionEnd != 0 &&
-                !IsLargeRegionEntryType(prev->regionType) &&
+                !prev->IsLargeRegionEntry() &&
                 addr >= prev->RegionStart() && addr < prev->regionEnd) {
                 return prev;
             }
@@ -414,7 +654,7 @@ public:
         if (regionIdx + 1 < maxRegionCount_) {
             MSRegionInfo* next = &array_[regionIdx + 1];
             if (next->regionEnd != 0 &&
-                !IsLargeRegionEntryType(next->regionType) &&
+                !next->IsLargeRegionEntry() &&
                 addr >= next->RegionStart() && addr < next->regionEnd) {
                 return next;
             }
@@ -466,7 +706,7 @@ public:
     // Precondition: msInfo != nullptr && msInfo == GetRegionInfoValidated(addr).
     static inline bool MarkObjectInHeapKnown(MSRegionInfo* msInfo, uintptr_t addr)
     {
-        if (IsLargeRegionEntryType(msInfo->regionType)) {
+        if (msInfo->IsLargeRegionEntry()) {
             MSRegionInfo* base = ResolveLargeBaseInfo(msInfo);
             // Guard: base entry already Reset (stale large region)
             if (base == nullptr) {
@@ -474,7 +714,8 @@ public:
             }
             return base->AtomicTestAndSetMarked();
         }
-        if (msInfo->markBitmap != nullptr && msInfo->totalSlotCount > 0) {
+        if (msInfo->GetRegionKind() == MSRegionKind::SMALL &&
+            msInfo->GetTotalSlotCount() > 0) {
             return msInfo->TestAndSetMarkBit(addr);
         }
         return true;  // uninitialized region — treat as already marked
@@ -484,11 +725,11 @@ public:
     static void Cleanup();
 
 private:
-    static MSRegionInfo* array_;           // Array (mmap front or malloc fallback)
+    static MSRegionInfo* array_;           // Array (mmap front or aligned fallback)
     static uintptr_t heapStartAddress_;    // First Region address
     static uintptr_t heapEndAddress_;      // Past-the-end address
     static size_t maxRegionCount_;
-    static bool ownedByMalloc_;            // true if array_ was malloc'd (needs free)
+    static bool ownedByMalloc_;            // true if fallback storage must be freed
 };
 
 } // namespace MapleRuntime

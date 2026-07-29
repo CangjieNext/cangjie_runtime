@@ -7,6 +7,7 @@
 set(SRC_LIST
     "MarkSweepCollector.cpp"
     "BackgroundProcessor.cpp"
+    "MSMarkScheduler.cpp"
 )
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../)

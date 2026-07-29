@@ -450,6 +450,17 @@ inline size_t ComputeMSMaxSweepHelpers(size_t gcThreads, size_t configuredMaxHel
 
 ## 8. Phase B：建立受最大堆约束的 Scavenge 水位
 
+> 2026-07-26 实施更新：最终没有采用本节原先的固定倍数与 80% max-heap cap 方案，也没有新增
+> `MSScavengeThresholdPolicy.h`。MSGC 现在在现有 `MSHeapThresholdPolicy.h` 内维护最近 64 轮
+> `markEndInUse`/`inUseBurst` 历史。FreeManager 在已 Scavenge Region 被重新分配时累计实际 cold
+> Region 重用数，GC 取相邻快照差得到 `coldReuseBytes`。`residentReserve` 以 `recentBurst`
+> 为下限：cold 重用时立即增加，连续 32 个无重用周期后每轮按剩余差值的 1/64 缓慢下降。
+> 候选水线为 `min(recentPeakInUse + residentReserve, maxHeap)`。`inUse` 通过
+> `committed - free - scavenging - emptySwept - largeHotCache` 计算，包含 TLS active Region。
+> 后台释放缺口使用 `retained - max(scavengeThreshold, currentInUse)`。
+> `cjScavengeGrowth` 对 MSGC 仅保留参数兼容性，不再参与计算。下文固定倍数/80% cap 内容保留为
+> 历史备选方案，不代表当前实现。
+
 ### 8.1 提取统一纯策略
 
 新增 `src/Heap/MCollector/MSScavengeThresholdPolicy.h`：
@@ -495,7 +506,10 @@ threshold = min(raw, maxHeapWatermark)
 maxHeapBytes = Heap::GetHeap().GetMaxCapacity()
 ```
 
-不能用当前本地源码的 `GCParam::gcThreshold` 代替 max heap：该字段仍由初始 committed heap 派生，Phase D 降低 initial Segment 后它可能只有 512MiB。CopyGC 保留原有 `GcStats.cpp` 计算；通过 `#ifdef MRT_USE_MARK_SWEEP` 选择新纯策略，不能把 MSGC 80% 水位无条件施加给 CopyGC。
+不能用当前本地源码的 `GCParam::gcThreshold` 代替 max heap：该字段仍由初始 committed
+heap 派生，Phase D 默认只保留一个 initial Segment 后它可能只有 64MiB。CopyGC 保留
+原有 `GcStats.cpp` 计算；通过 `#ifdef MRT_USE_MARK_SWEEP` 选择新纯策略，不能把 MSGC
+80% 水位无条件施加给 CopyGC。
 
 ### 8.3 诊断字段
 
@@ -573,111 +587,174 @@ inline bool IsMSFloatingLiveInflated(size_t markStartActiveBytes,
 inflated 周期:
   thresholdBase = max(lastStableLive, markStartActiveBytes)
   不用本轮放大的 markBitmapLive 覆盖 lastStableLive
-  请求一次 stabilization GC
 ```
 
-inflated 周期仍用现有 `EvaluateMSHeapThreshold()` 计算，但传入 `thresholdBase`，并在 Sweep epoch 发布后安排一次 HEU stabilization cycle。异步任务现有 pending/running 去重必须继续生效，不能在当前 GC 执行中递归提交。
+inflated 周期仍用现有 `EvaluateMSHeapThreshold()` 计算，但传入 `thresholdBase`。当前实现只稳定
+threshold 基线，不额外安排 stabilization GC，避免在已经存在 pending/running 去重的异步 GC 队列上
+再引入一套周期状态。
 
-如果 stabilization cycle 再次分类为 inflated，不能无限追发；每次 inflated 只设置一个原子 pending flag，下一次非 inflated 周期清除。
+### 9.4 WorkBuf debt 驱动的并发 Mark 压力与 STW
 
-### 9.4 动态 headroom deadline
-
-当前 `cjMSMarkTimeBudget` 默认 20 秒，只能防止极端不收敛；问题周期为 2～4.4 秒，不会命中。
-
-新增 `MSMarkHeadroomPolicy.h`，输入：
+不使用 Mark 期间分配速率、时间窗口、上一轮增长量乘二或 active heap 百分比推导 deadline。
+GC main 只统计自己完整处理的 WorkBuf；每完成 100 个 WorkBuf 做一次 checkpoint：
 
 ```text
-currentActiveBytes
-maxHeapBytes
-recentAllocationBytes
-recentWindowUs
-configuredBudgetUs
+debt = Global Full WorkBuf + Global Partial WorkBuf
+backlogLevel = ceil(debt / 100)
+
+若本窗口 debt 没有下降:
+  noProgressWindows += 1
+  pressureLevel += 1
+否则:
+  noProgressWindows = 0
+
+targetHelpers = min(pressureLevel, maxHelpers)
+assistMultiplier = min(max(pressureLevel, 1), cjMSAssistMaxMultiplier)
 ```
 
-返回结构和接口：
+Helper 宽度和 Assist ratio 只接受同一个单调不降的 `pressureLevel`，不再各自使用 backlog/EMA
+判定。OOM cycle 从一开始就使用最大 Helper 宽度和最大 Assist multiplier。
 
-```cpp
-struct MSMarkHeadroomDecision {
-    uint64_t allocationRateBytesPerSecond = 0;
-    uint64_t timeToExhaustUs = 0;
-    uint64_t dynamicBudgetUs = 0;
-    bool pressureLimited = false;
-};
+以下条件沿已有 one-way quiesce 进入 STW `MarkTermination`：
 
-MSMarkHeadroomDecision EvaluateMSMarkHeadroom(
-    size_t currentActiveBytes, size_t maxHeapBytes,
-    size_t recentAllocationBytes, uint64_t recentWindowUs,
-    uint64_t configuredBudgetUs);
-```
+- checkpoint 时 `debt <= 32`；
+- 连续 3 个 checkpoint 的 debt 没有净下降；
+- Small Region 在中央池、unswept 和 committed FreeManager 供给均未命中，即将 grow；
+- Large allocation 的 committed contiguous Region 供给未命中，即将 grow。
 
-计算：
+Small/Large 由 `TakeRegion()` 与 `TakeRegionForLarge()` 的调用路径显式传递，不能按 Region 数量
+猜测；一个只占 1 个 Region 的大对象仍属于 Large。grow 请求只通知 GC main 并唤醒其等待，
+Mutator 随后继续原有 grow/retry，不同步等待 STW。
 
-```text
-allocationRate = recentAllocationBytes / recentWindowUs
-headroom = max(maxHeapBytes - currentActiveBytes, 0)
-timeToExhaust = headroom / allocationRate
-dynamicBudget = clamp(timeToExhaust / 2, 50ms, configuredBudget)
-```
-
-`RunConcurrentMarkLoop()` 每处理固定数量 WorkBuf 或每 10ms 更新一次，不允许逐对象读取堆统计。命中 dynamic budget 后沿现有 `forceConverged` 路径进入 STW MarkTermination，不新增第二套收敛协议。
-
-这是内存安全阀，不是默认吞吐路径。Phase A 后正常 P=128/16 不应频繁命中；若频繁命中，应继续增加后台 Mark capacity或降低 Mutator 并发，而不是长期接受大 STW。
+自然 fixed point 仍优先正常退出；原有 `cjMSMarkTimeBudget` 仅作为独立固定时间兜底。
 
 ### 9.5 Phase C 验收条件
 
 - 正常稳定 live 增长仍遵守现有 12.5% rise limit 和 25% live headroom。
 - 问题日志形态 `278MB→16GB/14GB live` 被分类为 inflated。
 - 普通 `1GB→2GB/1.5GB live` 不因单一条件误分类。
-- stabilization pending 同时最多一个，不能制造 HEU storm。
-- dynamic budget 只复用现有 `forceConverged`/MarkTermination 正确性路径。
+- 每 100 个 GC-main WorkBuf 才更新一次 pressure，Helper 与 Assist 使用同一级别。
+- `debt <= 32`、连续 3 个无净下降窗口以及 grow-before 条件都只复用现有
+  `forceConverged`/MarkTermination 正确性路径。
+- 不读取 active heap 百分比，不增加基于时间的分配速率采样。
 - 60 秒日志不再出现 threshold 在约 1GiB 与 16GiB 间交替跳变。
 
-## 10. Phase D：拆分 Processor、Shard 与初始 Segment
+## 10. Phase D：方案 A——拆分 Processor、Shard 与初始 Segment
 
-### 10.1 新策略函数
+### 10.1 P→Shard：三次根目标 + 整除约束
+
+2026-07-26 确认以下正式设计目标：
+
+- P=1/2/4/8 时，默认一个 P 对应一个 shard。
+- P=16/128/1024 时，分别使用 8/16/32 个 shard。
+- P 增长 8 倍时，目标 shard 数只增长 2 倍，即按三次根速度增长。
+- `processorsPerShard = P / shardCount` 必须是整数；所有 shard 绑定完全相同数量的 P。
+- Processor 到 shard 沿用取模路由：`processorId % shardCount`。因为
+  `P % shardCount == 0`，每个 shard 恰好接收 `P / shardCount` 个 Processor。
+
+先计算连续目标：
+
+```text
+P <= 8:
+  targetShard = P
+
+P > 8:
+  targetShard = ceil(cuberoot(32 * P))
+```
+
+再把目标向下规整为 P 的因数：
+
+```text
+shardCount = max { d | 1 <= d <= targetShard 且 P % d == 0 }
+processorsPerShard = P / shardCount
+```
+
+不能使用浮点 `std::cbrt()` 后直接取整；实现使用 `uint64_t` 整数立方根或二分查找，
+避免立方边界因浮点误差选错档位。`32 * P` 也先提升到 `uint64_t`。
+
+典型结果：
+
+| P | 连续目标 | 最终 shard | P/shard |
+| ---: | ---: | ---: | ---: |
+| 1 | 1 | 1 | 1 |
+| 2 | 2 | 2 | 1 |
+| 4 | 4 | 4 | 1 |
+| 8 | 8 | 8 | 1 |
+| 16 | 8 | 8 | 2 |
+| 32 | 11 | 8 | 4 |
+| 64 | 13 | 8 | 8 |
+| 128 | 16 | 16 | 8 |
+| 256 | 21 | 16 | 16 |
+| 512 | 26 | 16 | 32 |
+| 1024 | 32 | 32 | 32 |
+| 2048 | 41 | 32 | 64 |
+| 4096 | 51 | 32 | 128 |
+| 8192 | 64 | 64 | 128 |
+
+严格整除存在一个不可回避的边界：P=127 这类质数在目标值以下只有因数 1，因此默认会
+退化为 1 个 shard。这是“所有 shard 完全均分 P”优先于“接近三次根目标”的确定结果，
+不能偷偷改成 15/16 个 shard。需要避免该退化时，运维可显式选择能整除的 P，或显式设置
+`cjMSShardCount=P`。
+
+### 10.2 策略函数与显式配置
 
 在 `MSShardRouting.h` 增加：
 
 ```cpp
-constexpr uint32_t kMSDefaultMaxShardCount = 64;
-constexpr uint32_t kMSDefaultInitialSegmentCount = 8;
+constexpr uint32_t kMSLowProcessorDirectShardLimit = 8;
+constexpr uint32_t kMSDefaultInitialSegmentCount = 1;
 
-inline uint32_t ResolveMSShardCount(uint32_t processorCount, uint32_t configured)
-{
-    uint32_t processors = std::max<uint32_t>(1, processorCount);
-    if (configured != 0) {
-        return std::max<uint32_t>(1, std::min(configured, processors));
-    }
-    return std::min(processors, kMSDefaultMaxShardCount);
-}
+uint32_t ComputeMSShardTarget(uint32_t processorCount);
+uint32_t FindLargestMSShardDivisor(uint32_t processorCount,
+                                  uint32_t targetShardCount);
+uint32_t ResolveMSShardCount(uint32_t processorCount,
+                            uint32_t configuredShardCount);
 
-inline uint32_t ResolveMSInitialSegmentCount(uint32_t shardCount, uint32_t configured)
+inline uint32_t ResolveMSInitialSegmentCount(uint32_t configured)
 {
-    if (configured != 0) {
-        return std::max<uint32_t>(1, configured);
-    }
-    return std::min(shardCount, kMSDefaultInitialSegmentCount);
+    return configured == 0
+        ? kMSDefaultInitialSegmentCount
+        : std::max<uint32_t>(1, configured);
 }
 ```
 
-第一版默认候选：
+`configuredShardCount=0` 使用默认曲线；非 0 时，先 clamp 到 `[1, P]`，再向下规整为
+P 的最大因数。例：P=128、显式配置 24，最终得到 16，并在启动日志同时打印
+`configured=24, resolved=16`，不能静默造成不均分。显式配置 P=128 可恢复 128 个 shard。
+当前 shard ID 使用 `uint16_t`，且 `UINT16_MAX` 保留为 invalid ID，因此 resolver 必须把
+候选 shard count 限制在可表示的有效数量内，再选择 P 的因数；显式配置不能截断后静默
+产生重复 shard ID。
 
-- P=128：64 shard。
-- 初始 8 个 Segment，即 512MiB current capacity。
-- 后续由请求 shard 按需 grow 64MiB Segment。
-
-64/8 是待正式矩阵选择的候选，不得仅凭本文直接固化。为避免修改公共 `GCParam` ABI，两个诊断值在 Runtime 参数解析阶段通过 `Base/EnvParam.h::ReadCountParameter()` 读取，并保存到 `CangjieRuntime` 的内部 MSGC scale config：
+为避免修改公共 `GCParam` ABI，两个诊断值在 Runtime 参数解析阶段通过
+`Base/EnvParam.h::ReadCountParameter()` 读取，并保存到 `CangjieRuntime` 的内部
+MSGC scale config：
 
 ```text
 cjMSShardCount
 cjMSInitialSegmentCount
 ```
 
-正式默认值确定后，环境变量继续保留为诊断/回退开关。
+环境变量保留为诊断/回退开关。`MSAllocatorScaleConfig` 同时保存
+`processorsPerShard`，启动时检查：
 
-### 10.2 初始化布局与阈值容量分离
+```text
+processorCount >= 1
+shardCount >= 1
+processorCount % shardCount == 0
+processorsPerShard == processorCount / shardCount
+```
 
-当前 `CjScheduler.cpp` 和 `CangjieRuntimeApi.cpp` 的 `ComputeMSInitialHeapSizeKB(processorNum)` 仍返回 `processorNum * 64MB`，同时 `GCParam::gcThreshold` 也由这个 initial heap 派生。只修改 `MSRegionManager` 会导致 Runtime 参数、RegionManager committed 范围和 GC threshold 三者失配。
+`MSRegionManager::ResolveHomeShardId()` 必须把 `freeManager_.GetShardCount()` 写入
+`MSShardRouteContext::shardCount`，不能继续重新读取
+`GetConcurrencyModel().GetProcessorNum()`。后者是 P，不是解析后的 shard 数；如果仍传 P，
+`processorId % shardCount` 会退化回一 P 一 shard，并使 steal 接口收到越界 receiver ID。
+
+### 10.3 初始只提交一个 Segment
+
+当前 `CjScheduler.cpp` 和 `CangjieRuntimeApi.cpp` 的
+`ComputeMSInitialHeapSizeKB(processorNum)` 仍返回 `processorNum * 64MB`，同时
+`GCParam::gcThreshold` 也由这个 initial heap 派生。只修改 `MSRegionManager` 会导致
+Runtime 参数、RegionManager committed 范围和 GC threshold 三者失配。
 
 需要统一修改：
 
@@ -692,15 +769,17 @@ cjMSInitialSegmentCount
 ```cpp
 struct MSAllocatorScaleConfig {
     uint32_t shardCount;
+    uint32_t processorsPerShard;
     uint32_t initialSegmentCount;
 };
 ```
 
-然后：
+默认：
 
 ```text
-heapParam.heapSize = initialSegmentCount * 64MB
-MSRegionManager initial committed = initialSegmentCount * 64MB
+initialSegmentCount = 1
+heapParam.heapSize = 64MB
+MSRegionManager initial committed = 64MB
 GC threshold cap = configured max virtual heap
 ```
 
@@ -719,24 +798,47 @@ initialSegments = scale.initialSegmentCount
 committedHeap = initialSegments * 64MB
 ```
 
-这样可避免同一环境变量被两处独立解析。`CjScheduler.cpp` 和 `CangjieRuntimeApi.cpp` 必须共享同一个 resolver，保证普通 `cjc` 入口和显式 `InitCJRuntime(param)` 入口行为一致。
+这样可避免同一环境变量被两处独立解析。`CjScheduler.cpp` 和
+`CangjieRuntimeApi.cpp` 必须共享同一个 resolver，保证普通 `cjc` 入口和显式
+`InitCJRuntime(param)` 入口行为一致。
 
-本地当前源码的 `GCParam::gcThreshold` 仍等于 initial heap；Phase D 必须同时改成 MSGC max virtual heap，否则 initial=512MiB 后 Heap Threshold 会被错误限制在 512MiB。这个修改仍位于 `MRT_USE_MARK_SWEEP` 分支，CopyGC 的 `gcThreshold` 推导不变。
+本地当前源码的 `GCParam::gcThreshold` 仍等于 initial heap；Phase D 必须同时改成
+MSGC max virtual heap，否则 initial=64MiB 后 Heap Threshold 会被错误限制在 64MiB。
+这个修改仍位于 `MRT_USE_MARK_SWEEP` 分支，CopyGC 的 `gcThreshold` 推导不变。
 
-`FreeManager::Initialize()` 已能建立没有 `ownedViews_` 的 shard，但必须补齐下面的首次使用规则。
+### 10.4 所有 Shard 均匀共享已提交 Segment
 
-### 10.3 空 shard 首次分配
+默认只有第 0 个 shard 拥有初始 Segment；其余 shard 没有 `ownedViews_`。空 local shard
+不等于 committed heap 无可用空间，更不能直接触发 Grow。
 
-当前 single-region steal 只轮转尝试 2 个 donor。新初始化可能只有 8/64 shard 有 Segment，因此需要：
+single-region 路径按以下顺序执行：
 
-1. home shard 没有 owned Segment 时，先从全局“有 free Region 的 shard bitmap”选择 donor。
-2. donor 没有可用 Region时，在 `growMutex_` 下直接为 home shard grow 一个 Segment。
-3. grow 完成后更新 shard bitmap、take/reclaim cursor 和 `segmentOwnerShard_`。
-4. 不改变 Segment 的固定 owner，不在 steal 时迁移 ownership。
+1. 从 home shard 的 `borrowedSpans_` 获取 Region。
+2. 从 home shard 自有 Segment 获取 Region。
+3. 从全局 `nonEmptyFreeShardBits` 选择 donor，并沿用批量借用，首版保持现有每批最多
+   4 个 Region，避免每次分配都争用初始 owner 锁。
+4. bitmap 候选必须在 donor shard 锁内重新确认；陈旧的置位只算 donor miss。
+5. 只有确认所有 committed owner shard 都没有 free Region 后，才进入 Grow。
 
-新增原子 `nonEmptyFreeShardBits` 或分层 bitmap，Region take/reclaim/grow/scavenge 后更新。最多 64 shard 时一个 `uint64_t` 足够；如果保留显式配置超过 64，则必须使用多 word 结构或把 override clamp 到 64，不能静默移位越界。
+`nonEmptyFreeShardBits` 使用多 word 原子位图，不能假设 shard 永远不超过 64。free Region
+从 0 变为非 0 时发布 bit；从非 0 变为 0 时在 shard 锁内清 bit。选 donor 时从 home
+shard 后一位轮转，避免所有空 shard 固定打到 shard 0。
 
-### 10.4 NUMA 边界
+large/contiguous 路径不使用 single-region 的“两次 donor 尝试”上限，而是遍历 bitmap
+中的全部候选 owner，寻找满足长度的连续 run。只有 committed 范围内不存在满足要求的
+连续 run 时，才 Grow 足够数量的连续 Segment。
+
+Grow 必须经过 `growMutex_` 并二次检查 committed supply：记录 miss 时的
+`committedGeneration`，拿到锁后若 generation 已变化，则重新执行 donor/contiguous
+查询；仍然失败才真正扩展。这样多个空 shard 同时首次分配时不会各自无意义地增长一个
+64MiB Segment。
+
+新 Segment 的固定 owner 是触发 Grow 的 home shard。Grow 完成后更新
+`segmentOwnerShard_`、owner view、free snapshot、non-empty bitmap 和
+`committedGeneration`。借用只转移 Region 的临时使用权，不修改 Segment owner；
+Region 回收时仍按 `segmentOwnerShard_` 返回原 owner。
+
+### 10.5 NUMA 边界
 
 Phase D 第一版只控制逻辑规模，不声称完成 NUMA-aware allocation。后续若引入 NUMA node：
 
@@ -746,13 +848,18 @@ Phase D 第一版只控制逻辑规模，不声称完成 NUMA-aware allocation�
 
 没有 `mbind/numa_alloc` 和拓扑证据前，不把“4 node × N shard”写成正式算法。
 
-### 10.5 Phase D 验收条件
+### 10.6 Phase D 验收条件
 
-- P=128 初始化不再隐式创建 128 个 Segment。
-- 只有少量 shard 初始拥有 Segment 时，所有 64 个逻辑 shard 都能成功完成首次 single/large allocation。
+- 纯策略覆盖 P=1/2/4/8/16/32/64/128/256/512/1024，以及 P=127 质数边界。
+- 对每个测试输入都断言 `P % shardCount == 0`，每个 shard 的 Processor 数完全相同。
+- P=16/128/1024 分别解析为 8/16/32 shard；P=128 的 `P/shard=8`。
+- P=128 默认只初始化 1 个 Segment，即 64MiB committed heap，而不是 8GiB。
+- 只有 shard 0 初始拥有 Segment 时，全部 16 个逻辑 shard 都能完成首次
+  single/large allocation。
 - donor miss 不导致无意义地连续 grow，也不出现跨 shard 双重分配。
+- 并发首次分配只在全局 committed supply 确实不足时 Grow。
 - `allocBits/scavengedBits/scavengingBits` 不变式和 grow/shrink lock order 测试通过。
-- shard=32/64、initialSegments=4/8/16 做独立矩阵后，再选择正式默认值。
+- 显式 `cjMSShardCount=processorNum`、`cjMSInitialSegmentCount=processorNum` 能恢复旧拓扑。
 
 ## 11. Phase E：消除 O(committedRegions) 的周期维护
 
@@ -811,10 +918,13 @@ Debug/诊断构建保留原 committed-range reference scan：
 processors=128
 markThreads=16
 sweepAutoCap=8
-shardCount=64
-initialSegments=8
+configuredShardCount=0
+targetShardCount=16
+shardCount=16
+processorsPerShard=8
+initialSegments=1
 segmentSize=64MB
-initialCommitted=512MB
+initialCommitted=64MB
 maxHeap=16GB
 ```
 
@@ -831,8 +941,12 @@ configured/activePeakHelpers
 gcMain/helper/assist processed
 assistShare
 forceConverged
-timeToExhaustUs
-dynamicBudgetUs
+completedMarkBuffers
+markDebtBuffers
+markPressureLevel
+markNoProgressWindows
+markTerminationReason
+markGrowRequestRegions
 ```
 
 ### 12.3 Heap/Scavenge 控制
@@ -861,6 +975,7 @@ segmentsPerShard min/max
 donorHit/donorMiss
 growCount/growBytes
 crossShardBorrowedRegions
+committedGeneration
 ```
 
 这些计数使用 shard-local 或已有锁内普通计数，在 REPORT 周期汇总；不能让每次 Region take 都争用同一个全局 atomic。
@@ -879,18 +994,19 @@ crossShardBorrowedRegions
 | B | `src/Heap/MCollector/MarkSweepCollector.cpp` | 修改 | 周期 Scavenge threshold 和 REPORT 使用统一策略 |
 | B | `test/MSScavengeThresholdPolicyTest.cpp` | 新增 | 正常比例、80% cap、0 max heap、溢出测试 |
 | C | `src/Heap/MCollector/MSHeapThresholdPolicy.h` | 修改 | floating-live 分类和稳定基线决策 |
-| C | `src/Heap/MCollector/MSMarkHeadroomPolicy.h` | 新增 | 基于分配速率/headroom 的动态 Mark budget |
-| C | `src/Heap/MCollector/MarkSweepCollector.h` | 修改 | 增加周期采样和 stabilization 状态 |
-| C | `src/Heap/MCollector/MarkSweepCollector.cpp` | 修改 | 采集、阈值更新、单 pending stabilization、动态收敛 |
+| C | `src/Heap/MCollector/MSMarkTerminationPolicy.h` | 新增 | WorkBuf debt、统一 pressure 和 STW 决策 |
+| C | `src/Heap/MCollector/MarkSweepCollector.h` | 修改 | 增加周期 pressure/termination 采样和 grow 请求状态 |
+| C | `src/Heap/MCollector/MarkSweepCollector.cpp` | 修改 | 每 100 个 GC-main WorkBuf checkpoint 和 one-way quiesce |
+| C | `src/Heap/MAllocator/MSRegionManager.h/.cpp` | 修改 | Small/Large committed supply miss 的 grow-before 请求 |
 | C | `src/Heap/Collector/GcStats.h` | 修改 | 保存 `lastStableLiveBytes` |
 | C | `test/MSHeapThresholdPolicyTest.cpp` | 修改 | floating 分类、稳定基线、溢出边界 |
-| C | `test/MSMarkHeadroomPolicyTest.cpp` | 新增 | allocation rate、无分配、无 headroom、budget clamp |
-| D | `src/Heap/MAllocator/MSShardRouting.h` | 修改 | P→shard、shard→initial Segment 纯策略 |
+| C | `test/MSMarkTerminationPolicyTest.cpp` | 新增 | backlog、无进展、debt budget、OOM、Assist 饱和 |
+| D | `src/Heap/MAllocator/MSShardRouting.h` | 修改 | 三次根目标、P 因数规整、P/shard 与单初始 Segment 纯策略 |
 | D | `src/CjScheduler.cpp` | 修改 | 环境入口解析 MSGC scale config，分离 initial heap 与 max heap threshold |
 | D | `src/CangjieRuntimeApi.cpp` | 修改 | 显式 API 入口使用同一 MSGC scale resolver |
 | D | `src/CangjieRuntime.h` | 修改 | 保存内部 `MSAllocatorScaleConfig`，不改变公共 RuntimeParam ABI |
 | D | `src/CangjieRuntime.cpp` | 修改 | 定义内部 scale config 状态 |
-| D | `src/Heap/MAllocator/MSRegionManager.cpp` | 修改 | 读取已解析 scale config，按 initial Segment 初始化 |
+| D | `src/Heap/MAllocator/MSRegionManager.cpp` | 修改 | 读取已解析 scale config，按 initial Segment 初始化并用实际 shardCount 路由 |
 | D | `src/Heap/MAllocator/MSFreeManager.h` | 修改 | 非空 donor bitmap 和统计字段 |
 | D | `src/Heap/MAllocator/MSFreeManager.cpp` | 修改 | 空 shard donor/grow、bitmap 发布和回收 |
 | D | `test/MSShardRoutingTest.cpp` | 修改 | 默认 cap、显式 override、initial Segment |
@@ -1096,17 +1212,19 @@ git add src/Heap/MCollector/MSScavengeThresholdPolicy.h \
 git commit -m "opt: cap MSGC scavenge threshold by max heap"
 ```
 
-### Task 3：floating-live 稳定阈值与 headroom 安全阀
+### Task 3：floating-live 稳定阈值与并发 Mark 安全阀
 
 **Files:**
 
 - Modify: `src/Heap/MCollector/MSHeapThresholdPolicy.h`
-- Create: `src/Heap/MCollector/MSMarkHeadroomPolicy.h`
+- Create: `src/Heap/MCollector/MSMarkTerminationPolicy.h`
 - Modify: `src/Heap/MCollector/MarkSweepCollector.h`
 - Modify: `src/Heap/MCollector/MarkSweepCollector.cpp`
+- Modify: `src/Heap/MAllocator/MSRegionManager.h`
+- Modify: `src/Heap/MAllocator/MSRegionManager.cpp`
 - Modify: `src/Heap/Collector/GcStats.h`
 - Modify: `test/MSHeapThresholdPolicyTest.cpp`
-- Create: `test/MSMarkHeadroomPolicyTest.cpp`
+- Create: `test/MSMarkTerminationPolicyTest.cpp`
 
 - [ ] **Step 1：添加 floating 分类 RED 用例**
 
@@ -1125,28 +1243,11 @@ ExpectFalse(IsMSFloatingLiveInflated(
     "small allocation delta");
 ```
 
-- [ ] **Step 2：添加 headroom RED 用例**
+- [ ] **Step 2：添加 Mark pressure RED 用例**
 
-```cpp
-auto decision = EvaluateMSMarkHeadroom(
-    12 * GiB, 16 * GiB, 4 * GiB, 1000000, 20000000);
-ExpectEq(decision.timeToExhaustUs, 1000000,
-         "4GiB headroom at 4GiB/s");
-ExpectEq(decision.dynamicBudgetUs, 500000,
-         "half time-to-exhaust budget");
-
-auto idle = EvaluateMSMarkHeadroom(
-    4 * GiB, 16 * GiB, 0, 1000000, 20000000);
-ExpectEq(idle.dynamicBudgetUs, 20000000,
-         "zero allocation keeps configured budget");
-
-auto exhausted = EvaluateMSMarkHeadroom(
-    16 * GiB, 16 * GiB, 1 * GiB, 1000000, 20000000);
-ExpectEq(exhausted.dynamicBudgetUs, 50000,
-         "no headroom uses fifty millisecond floor");
-```
-
-另加一组 `SIZE_MAX` 输入，断言 allocation rate 和 time-to-exhaust 使用饱和算术且不回绕。
+覆盖 debt 每 100 个 Global WorkBuf 提升一级、debt 未下降时额外提升一级、连续 3 个
+无进展窗口请求 STW、`debt <= 32` 请求 STW、OOM 满 pressure，以及 Assist ratio
+乘法饱和和 Small/Large grow 原因显式分类。
 
 - [ ] **Step 3：运行并确认新符号不存在**
 
@@ -1154,7 +1255,7 @@ ExpectEq(exhausted.dynamicBudgetUs, 50000,
 clang++ -std=c++14 -pthread -I. -Isrc \
   test/MSHeapThresholdPolicyTest.cpp -o .tmp/step49/MSHeapThresholdPolicyTest
 clang++ -std=c++14 -pthread -I. -Isrc \
-  test/MSMarkHeadroomPolicyTest.cpp -o .tmp/step49/MSMarkHeadroomPolicyTest
+  test/MSMarkTerminationPolicyTest.cpp -o .tmp/step49/MSMarkTerminationPolicyTest
 ```
 
 Expected：编译失败，提示新策略符号/头文件不存在。
@@ -1188,7 +1289,10 @@ if (!cycleStats_.floatingLiveInflated) {
 }
 ```
 
-inflated 周期通过一个 `std::atomic<bool>` CAS 设置 stabilization pending；Sweep epoch 发布完成后只消费一次。`RunConcurrentMarkLoop()` 每 10ms 或每 8 个 WorkBuf 调用 `EvaluateMSMarkHeadroom()`，命中后设置现有 `forceConverged=true` 并调用 `QuiesceMarkWorkers()`。
+inflated 周期只调整 threshold 基线，不主动追加 stabilization GC。`RunConcurrentMarkLoop()`
+每完成 100 个 GC-main WorkBuf 调用 `MSMarkPressurePolicy::Checkpoint()`；Helper 与 Assist
+使用同一个 pressure level。debt budget、连续无进展或 grow-before 条件命中后，设置现有
+`forceConverged=true` 并调用 `QuiesceMarkWorkers()`。
 
 - [ ] **Step 5：运行策略和现有 Mark 控制测试**
 
@@ -1196,9 +1300,9 @@ inflated 周期通过一个 `std::atomic<bool>` CAS 设置 stabilization pending
 clang++ -std=c++14 -pthread -I. -Isrc \
   test/MSHeapThresholdPolicyTest.cpp -o .tmp/step49/MSHeapThresholdPolicyTest
 clang++ -std=c++14 -pthread -I. -Isrc \
-  test/MSMarkHeadroomPolicyTest.cpp -o .tmp/step49/MSMarkHeadroomPolicyTest
+  test/MSMarkTerminationPolicyTest.cpp -o .tmp/step49/MSMarkTerminationPolicyTest
 ./.tmp/step49/MSHeapThresholdPolicyTest
-./.tmp/step49/MSMarkHeadroomPolicyTest
+./.tmp/step49/MSMarkTerminationPolicyTest
 ./.tmp/step49/MSMarkWorkerPolicyTest
 ```
 
@@ -1208,12 +1312,14 @@ Expected：退出码均为 0。
 
 ```bash
 git add src/Heap/MCollector/MSHeapThresholdPolicy.h \
-  src/Heap/MCollector/MSMarkHeadroomPolicy.h \
+  src/Heap/MCollector/MSMarkTerminationPolicy.h \
   src/Heap/MCollector/MarkSweepCollector.h \
   src/Heap/MCollector/MarkSweepCollector.cpp \
+  src/Heap/MAllocator/MSRegionManager.h \
+  src/Heap/MAllocator/MSRegionManager.cpp \
   src/Heap/Collector/GcStats.h \
   test/MSHeapThresholdPolicyTest.cpp \
-  test/MSMarkHeadroomPolicyTest.cpp
+  test/MSMarkTerminationPolicyTest.cpp
 git commit -m "opt: stabilize MSGC heap pacing under mark lag"
 ```
 
@@ -1238,15 +1344,30 @@ git commit -m "opt: stabilize MSGC heap pacing under mark lag"
 - [ ] **Step 1：先更新纯策略测试**
 
 ```cpp
-ExpectEq(ResolveMSShardCount(32, 0), 32, "32P default shards");
-ExpectEq(ResolveMSShardCount(128, 0), 64, "128P shard cap");
-ExpectEq(ResolveMSShardCount(128, 24), 24, "explicit shard count");
-ExpectEq(ResolveMSInitialSegmentCount(64, 0), 8,
-         "default initial segments");
-ExpectEq(ResolveMSInitialSegmentCount(4, 0), 4,
-         "initial segments do not exceed shards");
-ExpectEq(ResolveMSInitialSegmentCount(64, 16), 16,
+ExpectEq(ResolveMSShardCount(8, 0), 8, "8P direct shards");
+ExpectEq(ResolveMSShardCount(16, 0), 8, "16P default shards");
+ExpectEq(ResolveMSShardCount(32, 0), 8, "32P divisor below cube-root target");
+ExpectEq(ResolveMSShardCount(128, 0), 16, "128P default shards");
+ExpectEq(ResolveMSShardCount(1024, 0), 32, "1024P default shards");
+ExpectEq(ResolveMSShardCount(127, 0), 1, "prime P strict equal-share fallback");
+ExpectEq(ResolveMSShardCount(128, 24), 16,
+         "explicit non-divisor rounds down");
+ExpectEq(ResolveMSShardCount(128, 128), 128,
+         "explicit processor-sized rollback");
+ExpectEq(ResolveMSInitialSegmentCount(0), 1,
+         "default one initial segment");
+ExpectEq(ResolveMSInitialSegmentCount(16), 16,
          "explicit initial segments");
+```
+
+再对表内全部 P 统一断言：
+
+```cpp
+uint32_t shards = ResolveMSShardCount(processors, 0);
+ExpectEq(processors % shards, 0, "P must be evenly divisible by shards");
+ExpectEq(processors / shards,
+         ComputeMSProcessorsPerShard(processors, shards),
+         "all shards have the same processor count");
 ```
 
 - [ ] **Step 2：运行 RED**
@@ -1265,8 +1386,10 @@ Expected：编译失败，提示 `ResolveMSShardCount`/`ResolveMSInitialSegmentC
 ```cpp
 uint32_t shardCount = ResolveMSShardCount(processorCount, configuredShards);
 uint32_t initialSegments =
-    ResolveMSInitialSegmentCount(shardCount, configuredInitialSegments);
-CangjieRuntime::SetMSAllocatorScaleConfig({shardCount, initialSegments});
+    ResolveMSInitialSegmentCount(configuredInitialSegments);
+uint32_t processorsPerShard = processorCount / shardCount;
+CangjieRuntime::SetMSAllocatorScaleConfig(
+    {shardCount, processorsPerShard, initialSegments});
 size_t initHeapSizeKB =
     static_cast<size_t>(initialSegments) * kMSShardSegmentBytes / KB;
 ```
@@ -1297,14 +1420,16 @@ size_t committedHeapSize = RoundUp<size_t>(
     MS_REGION_SIZE);
 ```
 
-- [ ] **Step 4：添加稀疏 owner FreeManager 测试**
+- [ ] **Step 4：添加单初始 owner 的 FreeManager 测试**
 
-创建 64 shard、8 committed Segment 的 fixture，验证：
+创建 16 shard、1 committed Segment 的 fixture，模拟 P=128 默认拓扑，验证：
 
 1. 无 owned view 的 shard 能从 non-empty donor 获取一个 Region。
-2. donor 全空时只 grow 一个 home Segment。
-3. 并发首次分配不会给同一 Region 双重所有权。
-4. steal 后 `segmentOwnerShard_` 不改变。
+2. 16 个 shard 并发首次分配时优先共享初始 Segment，不会各自 Grow。
+3. committed donor 全空时只 Grow 一个 home Segment；等待者拿到 `growMutex_` 后二次检查。
+4. 并发首次分配不会给同一 Region 双重所有权。
+5. steal 后 `segmentOwnerShard_` 不改变，回收返回原 owner。
+6. shardCount 超过 64 时，多 word non-empty bitmap 不丢失 donor。
 
 - [ ] **Step 5：运行 FreeManager 定向测试**
 
@@ -1634,8 +1759,9 @@ Phase E active Region clear
 
 ### 17.3 仍不是结论
 
-- 不能根据 P=32 的 Scheduler 结果直接认定 Allocator shard 默认必须是 32。
-- 64 shard、8 initial Segment 和 80% Scavenge 水位都是第一版候选，需要矩阵选择。
+- Phase D 已确认三次根目标、严格整除和单初始 Segment 的设计，但尚未实施或完成性能验证。
+- P=127 等质数默认退化为单 shard 的代价需要单独验证；本文不把它描述成普遍最优。
+- 80% Scavenge 水位仍是历史第一版候选，不代表当前实现。
 - 增加 Mark 线程本身不能保证 RSS 下降。
 - 降低 Scavenge threshold 本身不能解决 ConcurrentMark 追不上分配。
 - 在没有三次 60 秒回归、低核验证和 LLT/HLT 前，不能宣称 128 核规模扩展问题已修复。
@@ -1894,4 +2020,88 @@ duration；动态策略会随 backlog 扩展，不能据此断言 3 个 Helper �
 ```text
 case27_http_complex_json_msgc_high_p/result/
 20260724_232204_four_gc_threads_no_mark_assist_p160_c1000_100K_60000ms
+```
+
+### 18.7 OOM Mark/Sweep 全 Helper 与单次 Sweep 判定
+
+2026-07-25 按 OOM 紧急路径补充以下策略：
+
+- OOM ConcurrentMark 从本轮开始就启用全部已配置 Mark Helper，并在该轮内保持
+  全宽；普通 heuristic GC 继续使用动态 Helper 策略。
+- OOM PostMark 在普通 Lazy/Assist/Helper Sweep gate 保持关闭时，使用全部已配置
+  Sweep Helper，并由 GC main 同时参与同一 sweep generation 的 Region claim。
+- 所有 OOM Sweep task join 后只读取一次 residual unswept 数量用于日志；不重试、
+  不断言必须为 0，也不发布 `sweepDone`。随后刷新 OOM cache 并重新开放普通 Sweep。
+- `StopAndWaitForAllSweep()` 仍在下一轮 `PreEnumRoots()` 清 bitmap 前执行，原有跨轮
+  安全边界不变；串行 `ForceFinishAllUnsweptForOOM()` 仅保留为诊断入口。
+
+实现涉及：
+
+```text
+src/Heap/MAllocator/MSOOMEmergencyPolicy.h
+src/Heap/MAllocator/MSCentralRegionPool.h
+src/Heap/MAllocator/MSCentralRegionPool.cpp
+src/Heap/MCollector/MarkSweepCollector.h
+src/Heap/MCollector/MarkSweepCollector.cpp
+test/MSOOMEmergencyPolicyTest.cpp
+```
+
+验证使用 `cangjie_compiler/output/msgc` 的 compiler、stdlib/stdx，并将本次
+MarkSweep Runtime 构建产物替换到该 SDK 后重新编译用例。配置为 P128、c1000、
+100K payload、16GB heap、`cjGCThreads=4`，执行一次 60 秒 case27：
+
+```text
+case27_http_complex_json_msgc_high_p/result/
+20260725_211055_oom_parallel_sweep_once_p128_c1000_100K_60000ms
+```
+
+6 次 OOM cycle 均记录 `initialHelpers=3 forceAll=1`；Sweep 均使用 3 个 Helper
+加 GC main，`allocationFallback=0`。本次 residual 恰好都为 0，但代码不依赖
+这个结果。
+
+| OOM 口径 | 修改前 P128 | 修改后 P128 | 变化 |
+| --- | ---: | ---: | ---: |
+| OOM cycle 数 | 8 | 6 | -25.00% |
+| OOM GC 平均总时间 | 3788.72ms | 2381.27ms | -37.14% |
+| OOM ConcurrentMark 平均 | 800.11ms | 224.13ms | -71.99% |
+| OOM PostMark 平均 | 2681.96ms | 1854.68ms | -30.85% |
+| OOM Sweep Region/PostMark 秒 | 约 8.91 万 | 约 14.22 万 | +59.72% |
+| 同步 OOM 分配失败日志 | 895 | 768 | -14.19% |
+
+OOM ConcurrentMark 的基线均值受一个 5311.114ms cycle 明显抬高，因此
+`-71.99%` 不能单独作为稳定的 Mark 加速结论；而 Sweep 吞吐按实际处理 Region
+总量归一化后仍有约 60% 提升，更能反映本次并行 Sweep 的直接收益。
+
+全局结果中，成功吞吐从 216.90 增至 219.02 req/s（+0.98%），RSS 平均/峰值
+分别下降 7.74%/8.98%；但失败率从 16.39% 升到 19.26%，CPU 平均上升 13.18%，
+GC P95 从 6567.85ms 升到 7652.75ms。主要抵消项是普通 heuristic cycle 的
+ConcurrentMark 合计从 32.407s 增至 41.966s；因此本轮确认 OOM Sweep 改造有效，
+但总尾延迟的下一瓶颈仍是普通大对象图周期的 Mark/EnumRoots，而不是 OOM
+PostMark。
+
+### 18.8 Helper/Assist 统一压力与提前 STW（2026-07-26）
+
+本轮将普通 ConcurrentMark 的 Helper 扩容、Assist 权重和提前 STW 统一到
+`MSMarkPressurePolicy`：
+
+- GC main 每完成 100 个 WorkBuf 执行一次 checkpoint，Helper/Assist 不更新该计数。
+- Global Full+Partial debt 每 100 个 WorkBuf 对应一级 backlog pressure。
+- 每个 debt 没有净下降的 checkpoint 再升一级；连续 3 个无净下降窗口请求 STW。
+- checkpoint 时 debt 不超过 32 个 WorkBuf，直接把有界尾部交给 STW MarkTermination。
+- OOM cycle 从启动即使用最大 Helper 与最大 Assist pressure。
+- Small/Large committed Region 供给在 grow 前请求 STW；请求不阻塞分配线程，随后仍按原路径
+  grow/retry。Large 类型由分配入口显式传递，因此单 Region 大对象不会误判为 Small。
+- 删除 active heap 达到最大堆 90% 的提前 STW 判定，不引入 allocation-rate 或时间窗口。
+  自然收敛和 `cjMSMarkTimeBudget` 固定兜底保持不变。
+
+新增周期日志包括起始 pressure、每个 checkpoint 的 debt/debtDelta、终止原因、GC-main
+完成的 WorkBuf 数、无进展窗口数和 grow 请求 Region 数。实现涉及：
+
+```text
+src/Heap/MCollector/MSMarkTerminationPolicy.h
+src/Heap/MCollector/MarkSweepCollector.h
+src/Heap/MCollector/MarkSweepCollector.cpp
+src/Heap/MAllocator/MSRegionManager.h
+src/Heap/MAllocator/MSRegionManager.cpp
+test/MSMarkTerminationPolicyTest.cpp
 ```

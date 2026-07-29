@@ -7,6 +7,7 @@ TEST_BINARY="${TMPDIR:-/tmp}/msgc_fast_path_state_abi.$$"
 trap 'rm -f "$TEST_BINARY"' EXIT
 
 clang++ -std=c++14 -DMRT_USE_MARK_SWEEP -I"$ROOT_DIR" -I"$ROOT_DIR/src" \
+    -I"$ROOT_DIR/third_party/third_party_bounds_checking_function/include" \
     "$TEST_SOURCE" -o "$TEST_BINARY"
 "$TEST_BINARY"
 

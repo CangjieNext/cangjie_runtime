@@ -11,22 +11,19 @@
 
 namespace MapleRuntime {
 
+constexpr size_t kMSMaxTotalMarkThreads = 2;
+
 inline size_t ResolveMSMarkTotalThreads(size_t processorCount, size_t logicalCpuCount,
                                         size_t configuredThreads)
 {
     size_t processors = std::max<size_t>(1, processorCount);
-    if (configuredThreads != 0) {
-        return std::max<size_t>(1, std::min(configuredThreads, processors));
-    }
-
     size_t logicalCpus = std::max<size_t>(1, logicalCpuCount);
     size_t availableCpus = std::min(processors, logicalCpus);
-    if (availableCpus < 8) {
-        return std::max<size_t>(1, availableCpus / 2);
-    }
-    size_t scaledThreads = (availableCpus + 7) / 8;
-    return std::min(availableCpus,
-                    std::min<size_t>(16, std::max<size_t>(4, scaledThreads)));
+    size_t requestedThreads =
+        configuredThreads == 0 ? kMSMaxTotalMarkThreads : configuredThreads;
+    return std::max<size_t>(
+        1, std::min(availableCpus,
+                    std::min(kMSMaxTotalMarkThreads, requestedThreads)));
 }
 
 class MSMarkWorkerPolicy {

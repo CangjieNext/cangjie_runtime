@@ -66,16 +66,20 @@ if printf '%s\n' "$maybe_notify_body" | rg -q 'RefreshSweepDebtSnapshot'; then
     exit 1
 fi
 threshold_line="$(printf '%s\n' "$maybe_notify_body" | rg -n 'sweptBytes < threshold' | sed -n '1s/:.*//p')"
+probe_line="$(printf '%s\n' "$maybe_notify_body" | rg -n 'markPressureProbeInProgress_\.compare_exchange_strong' | sed -n '1s/:.*//p')"
+reference_line="$(printf '%s\n' "$maybe_notify_body" | rg -n 'GetSweptHeapBytesReference' | sed -n '1s/:.*//p')"
 mode_line="$(printf '%s\n' "$maybe_notify_body" | rg -n 'pool->GetSweepPressureMode\(\)' | sed -n '1s/:.*//p')"
 pressure_line="$(printf '%s\n' "$maybe_notify_body" | rg -n 'pressureMode != SweepPressureMode::LOW' | sed -n '1s/:.*//p')"
 notify_line="$(printf '%s\n' "$maybe_notify_body" | rg -n 'NotifyToParallelSweep\(\)' | sed -n '1s/:.*//p')"
-cas_line="$(printf '%s\n' "$maybe_notify_body" | rg -n 'compare_exchange_strong' | sed -n '1s/:.*//p')"
+cas_line="$(printf '%s\n' "$maybe_notify_body" | rg -n 'lastHeuRequestNs_\.compare_exchange_strong' | sed -n '1s/:.*//p')"
 request_line="$(printf '%s\n' "$maybe_notify_body" | rg -n 'RequestGC\(GC_REASON_HEU, true\)' | sed -n '1s/:.*//p')"
-if [[ -z "$threshold_line" || -z "$mode_line" || -z "$pressure_line" || -z "$notify_line" ||
-      -z "$cas_line" || -z "$request_line" || "$threshold_line" -ge "$mode_line" ||
+if [[ -z "$threshold_line" || -z "$probe_line" || -z "$reference_line" ||
+      -z "$mode_line" || -z "$pressure_line" || -z "$notify_line" ||
+      -z "$cas_line" || -z "$request_line" || "$threshold_line" -ge "$probe_line" ||
+      "$probe_line" -ge "$reference_line" || "$reference_line" -ge "$mode_line" ||
       "$mode_line" -ge "$pressure_line" || "$pressure_line" -ge "$notify_line" ||
       "$notify_line" -ge "$cas_line" || "$cas_line" -ge "$request_line" ]]; then
-    echo "MaybeNotifyMark must pass the threshold, read published pressure, wake parallel Sweep under pressure, then submit HEU" >&2
+    echo "MaybeNotifyMark must elect one probe, confirm the threshold, wake pressured Sweep, then submit HEU" >&2
     exit 1
 fi
 

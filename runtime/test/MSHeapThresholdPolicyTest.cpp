@@ -195,6 +195,31 @@ void TestThresholdFloorAndCapRemainHardBounds()
                 "an old threshold outside hard bounds must re-establish from the raw target");
 }
 
+void TestThresholdFloorIncludesFixedRunway()
+{
+    constexpr size_t mib = 1024ULL * 1024ULL;
+    ExpectEqual(
+        MapleRuntime::ComputeMSHeapThresholdFloor(
+            24 * mib, 20 * mib, 320 * mib, 12ULL * 1024 * mib),
+        344 * mib,
+        "small live sets must retain the fixed concurrent-mark runway");
+    ExpectEqual(
+        MapleRuntime::ComputeMSHeapThresholdFloor(
+            2ULL * 1024 * mib, 20 * mib, 320 * mib, 12ULL * 1024 * mib),
+        2368 * mib,
+        "fixed runway must stay additive for a large persistent live set");
+    ExpectEqual(
+        MapleRuntime::ComputeMSHeapThresholdFloor(
+            900 * mib, 20 * mib, 320 * mib, 1024 * mib),
+        1024 * mib,
+        "runway floor must remain capped by the maximum heap");
+    ExpectEqual(
+        MapleRuntime::ComputeMSHeapThresholdFloor(
+            static_cast<size_t>(-1) - 10, 20, 100, static_cast<size_t>(-1)),
+        static_cast<size_t>(-1),
+        "runway addition must saturate instead of wrapping");
+}
+
 void TestScavengeThresholdKeepsRecentBurstAsResidentReserve()
 {
     constexpr size_t gib = 1024ULL * 1024ULL * 1024ULL;
@@ -349,6 +374,7 @@ int main()
     TestThresholdTransitionIsLimitedSymmetrically();
     TestThresholdBootstrapBypassesSmoothing();
     TestThresholdFloorAndCapRemainHardBounds();
+    TestThresholdFloorIncludesFixedRunway();
     TestScavengeThresholdKeepsRecentBurstAsResidentReserve();
     TestColdReuseRaisesResidentReserveImmediately();
     TestResidentReserveDecaysOnlyAfterThirtyTwoQuietCycles();

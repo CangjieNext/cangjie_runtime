@@ -16,7 +16,6 @@
 #include "schedule.h"
 #ifdef MRT_USE_MARK_SWEEP
 #include "Heap/MAllocator/MSShardRouting.h"
-#include "Heap/MCollector/MSWorkBufScalePolicy.h"
 #endif
 
 #include <unordered_map>
@@ -48,7 +47,6 @@ public:
 #ifdef MRT_USE_MARK_SWEEP
     static void ConfigureMSAllocatorScale(uint32_t processorCount, size_t maxVirtualHeapSizeKB);
     static MSAllocatorScaleConfig GetMSAllocatorScaleConfig() { return msAllocatorScaleConfig; }
-    static MSWorkBufScaleConfig GetMSWorkBufScaleConfig() { return msWorkBufScaleConfig; }
 #endif
     RuntimeParam GetRuntimeParam() const override { return param; }
     void SetCommandLinesArgs(int argc, const char* argv[])
@@ -88,7 +86,6 @@ private:
     static size_t msMaxVirtualHeapSizeKB;
 #ifdef MRT_USE_MARK_SWEEP
     static MSAllocatorScaleConfig msAllocatorScaleConfig;
-    static MSWorkBufScaleConfig msWorkBufScaleConfig;
 #endif
 };
 } // namespace MapleRuntime

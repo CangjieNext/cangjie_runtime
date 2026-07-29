@@ -13,6 +13,7 @@
 #include "Heap/Allocator/AllocUtil.h"
 #include "Heap/Allocator/Allocator.h"
 #include "Heap/MAllocator/MSFreeManager.h"
+#include "Heap/MAllocator/MSScanClass.h"
 
 namespace MapleRuntime {
 
@@ -46,7 +47,8 @@ public:
 
     void Init(const HeapParam&) override;
     MAddress Allocate(size_t size, AllocType allocType) override;
-    MAddress Allocate(size_t size, AllocType allocType, ThreadLocalData* local);
+    MAddress Allocate(size_t size, AllocType allocType,
+                      MSScanClass scanClass, ThreadLocalData* local);
 
     MAddress GetSpaceStartAddress() const override { return reservedStart; }
     MAddress GetSpaceEndAddress() const override;
@@ -121,12 +123,17 @@ public:
     friend class Allocator;
 
 private:
-    MAddress AllocateLargeObject(size_t size, size_t allocSize, ThreadLocalData* local);
-    MAddress AllocateRegularObject(size_t size, size_t allocSize, ThreadLocalData* local);
+    MAddress AllocateLargeObject(
+        size_t size, size_t allocSize, MSScanClass scanClass, ThreadLocalData* local);
+    MAddress AllocateRegularObject(
+        size_t size, size_t allocSize, MSScanClass scanClass, ThreadLocalData* local);
     MAddress TryAllocateLargeObjectOnce(size_t objectBytes, size_t allocSize,
-                                        ThreadLocalData* local, AllocBufferMS* msBuffer);
-    MAddress TryAllocateRegularObjectOnce(size_t allocSize, ThreadLocalData* local, AllocBufferMS*& msBuffer);
-    void RegisterLargeObjectMS(MAddress addr, size_t objectBytes, size_t regionBytes);
+                                        MSScanClass scanClass, ThreadLocalData* local,
+                                        AllocBufferMS* msBuffer);
+    MAddress TryAllocateRegularObjectOnce(size_t allocSize, MSScanClass scanClass,
+                                          ThreadLocalData* local, AllocBufferMS*& msBuffer);
+    void RegisterLargeObjectMS(
+        MAddress addr, size_t objectBytes, size_t regionBytes, MSScanClass scanClass);
 
     MAddress reservedStart = 0;
     MAddress reservedEnd = 0;

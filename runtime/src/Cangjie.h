@@ -276,9 +276,9 @@ struct GCParam {
 
     /*
      * Total number of GC threads, including the GC main thread.
-     * MSGC automatic width uses both scheduler processors and logical CPUs, scales
-     * up to 16 total threads on high-core hosts; CopyGC defaults to 2.
-     * A positive MSGC value is capped at the scheduler processor count.
+     * MSGC uses at most 2 total threads: one GC main and one helper.
+     * A positive MSGC value is capped at 2 and at the available processor count.
+     * CopyGC defaults to 2.
      */
     int32_t gcThreads;
 
@@ -296,7 +296,7 @@ struct GCParam {
 
     /*
      * Concurrent mark wall-clock time budget for MSGC.
-     * Measured in ns. 0 means disable the budget.
+     * Measured in ns. Defaults to 100 ms. 0 selects the runtime default.
      */
     uint64_t msMarkTimeBudget;
 

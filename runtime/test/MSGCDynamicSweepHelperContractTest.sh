@@ -108,12 +108,12 @@ background_sweep = section(
 parallel_sweep = section(
     central,
     'void CentralRegionPool::ParallelSweep(',
-    'MSSweepAssistResult CentralRegionPool::MSSweepAssist(',
+    'void CentralRegionPool::ParallelSweepOnceForOOM(',
 )
 assist_sweep = section(
     central,
     'size_t CentralRegionPool::AssistSweep(',
-    'bool CentralRegionPool::SweepUnsweptList(',
+    'bool CentralRegionPool::SweepOneUnsweptRegionForAssist(',
 )
 sweep_list = section(
     central,
@@ -127,8 +127,8 @@ if parallel_sweep.count('stopSweepRequested_.load') != 1:
     raise SystemExit('Parallel Helper must check closure only once at slice admission')
 if assist_sweep.count('stopSweepRequested_.load') != 1:
     raise SystemExit('Assist must check closure once at admission, not for each Region')
-if 'ClaimUnsweptBatch' not in assist_sweep:
-    raise SystemExit('Assist must claim its requested sweep amount in one batch')
+if 'SweepOneUnsweptRegionForAssist' not in assist_sweep:
+    raise SystemExit('Assist must claim from the unified unswept head')
 if 'stopSweepRequested_.load' in sweep_list:
     raise SystemExit('bounded Background/Helper slices must not recheck closure for each Region')
 if 'std::this_thread::yield()' in sweep_list:

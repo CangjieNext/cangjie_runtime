@@ -42,15 +42,8 @@ if rg -q 'sweepAssistStats_|MSSweepAssistAtomicStats|SnapshotSweepAssistStats' \
     exit 1
 fi
 
-active_log_line="$(rg -n 'WorkBuf\* activeLog_' "$ALLOC_HEADER" | cut -d: -f1)"
-sweep_debt_line="$(rg -n 'sweepAssistDebtScaled_' "$ALLOC_HEADER" | tail -1 | cut -d: -f1)"
-if [[ -z "$active_log_line" || -z "$sweep_debt_line" || "$sweep_debt_line" -le "$active_log_line" ]]; then
-    echo "P-level Sweep metadata must stay after the activeLog_ ABI slot" >&2
-    exit 1
-fi
-
-if ! rg -q 'offsetof\(AllocBufferMS, activeLog_\) == AllocBufferMS::kActiveLogOffset' "$ALLOC_SOURCE"; then
-    echo "the AArch64/X86 activeLog_ 896-byte ABI assertion must remain" >&2
+if rg -q 'activeLog_|WorkBuf' "$ALLOC_HEADER" "$ALLOC_SOURCE"; then
+    echo "P-level Sweep metadata must not depend on retired Mark WorkBuf ABI" >&2
     exit 1
 fi
 
@@ -102,13 +95,14 @@ if rg -q 'allocFreshRegionsThisCycle_' "$CENTRAL_HEADER" "$CENTRAL_SOURCE"; then
     exit 1
 fi
 
-slow_alloc="$(extract_function "$ALLOC_SOURCE" 'MAddress AllocBufferMS::SlowAlloc(uint8_t cls)')"
+slow_alloc="$(extract_function "$ALLOC_SOURCE" \
+    'MAddress AllocBufferMS::SlowAlloc(uint8_t cls, MSScanClass scanClass)')"
 if [[ -z "$slow_alloc" ]]; then
     echo "failed to extract AllocBufferMS::SlowAlloc" >&2
     exit 1
 fi
 if ! printf '%s\n' "$slow_alloc" | awk '
-    /activeRegions_\[cls\] = newRegion/ { published = NR }
+    /activeRegions_\[cls\]\[scanIdx\] = newRegion/ { published = NR }
     /AccumulateSweepDebt\(1, cls\)/ { charged = NR }
     END { exit !(published > 0 && charged > published) }
 '; then
@@ -116,7 +110,8 @@ if ! printf '%s\n' "$slow_alloc" | awk '
     exit 1
 fi
 
-refill="$(extract_function "$ALLOC_SOURCE" 'MSRegionInfo* AllocBufferMS::RefillFromCentral(uint8_t cls)')"
+refill="$(extract_function "$ALLOC_SOURCE" \
+    'MSRegionInfo* AllocBufferMS::RefillFromCentral(uint8_t cls, MSScanClass scanClass)')"
 if [[ -z "$refill" ]]; then
     echo "failed to extract AllocBufferMS::RefillFromCentral" >&2
     exit 1
@@ -127,7 +122,7 @@ if printf '%s\n' "$refill" | rg -q 'AccumulateSweepDebt|MSSweepAssist'; then
 fi
 
 large_alloc="$(extract_function "$REGION_SPACE_SOURCE" \
-    'MAddress RegionSpaceMS::TryAllocateLargeObjectOnce(size_t objectBytes, size_t allocSize, ThreadLocalData* local,')"
+    'MAddress RegionSpaceMS::TryAllocateLargeObjectOnce(')"
 if [[ -z "$large_alloc" ]]; then
     echo "failed to extract RegionSpaceMS::TryAllocateLargeObjectOnce" >&2
     exit 1

@@ -30,10 +30,10 @@ uintptr_t AllocateFromRefilledRegion(MSRegionInfo* region)
     if (region == nullptr) {
         return 0;
     }
-    if (region->regionType == MSRegionType::MS_REGION_BUMP) {
+    if (region->GetAllocMode() == MSAllocMode::BUMP) {
         return region->AllocBump();
     }
-    if (region->regionType == MSRegionType::MS_REGION_BITMAP) {
+    if (region->GetAllocMode() == MSAllocMode::BITMAP) {
         return region->AllocFromBitmapFast();
     }
     return 0;
@@ -49,21 +49,21 @@ void LogRefillRegionAllocationFailure(const char* stage, uint8_t cls, const MSRe
 
     LOG(RTLOG_ERROR,
         "[MS-GC] %s: refill region unusable, cls=%u, region=%p, regionType=%u, "
-        "sweepState=%u, sizeClass=%u, freeSlots=%u/%u, sweepGen=%u, "
+        "allocMode=%u, sizeClass=%u, freeSlots=%u/%u, collectEpoch=%u, "
         "allocPtr=0x%zx, regionEnd=0x%zx, allocBitmap=%p, reserved=0x%llx",
         stage,
         static_cast<unsigned>(cls),
         static_cast<const void*>(region),
-        static_cast<unsigned>(region->regionType),
-        static_cast<unsigned>(region->sweepState),
+        static_cast<unsigned>(region->GetRegionType()),
+        static_cast<unsigned>(region->GetAllocMode()),
         static_cast<unsigned>(region->sizeClass),
-        static_cast<unsigned>(region->freeSlotCount),
-        static_cast<unsigned>(region->totalSlotCount),
-        static_cast<unsigned>(region->GetSweepGen()),
+        static_cast<unsigned>(region->GetFreeSlotCount()),
+        static_cast<unsigned>(region->GetTotalSlotCount()),
+        static_cast<unsigned>(region->collectEpoch),
         region->allocPtr,
         region->regionEnd,
-        static_cast<void*>(region->allocBitmap),
-        static_cast<unsigned long long>(region->reserved));
+        static_cast<void*>(region->GetAllocBitmap()),
+        static_cast<unsigned long long>(region->allocSummary));
 }
 
 AllocBufferMS::~AllocBufferMS()
@@ -75,32 +75,20 @@ AllocBufferMS::AllocBufferMS()
 {
     static_assert(std::is_standard_layout<AllocBufferMS>::value,
                   "AllocBufferMS must remain standard-layout for compiler ABI checks");
-    // Ensure tlRegion_ is at offset 0 — same as AllocBuffer::tlRegion.
-    // LLVM fast-path reads *(buffer + 0) as RegionInfo* and calls Alloc().
-    static_assert(offsetof(AllocBufferMS, tlRegion_) == 0,
-                  "tlRegion_ must be at offset 0 for LLVM fast-path compatibility");
 #if UINTPTR_MAX == UINT64_MAX
-    static_assert(offsetof(AllocBufferMS, activeRegions_) == 8,
+    static_assert(offsetof(AllocBufferMS, activeRegions_) == 0,
                   "activeRegions_ offset changed; update AArch64/X86 MSGC allocation fast path");
-    static_assert(sizeof(activeRegions_[0]) == 8,
+    static_assert(sizeof(activeRegions_[0][0]) == 8,
                   "activeRegions_ stride changed; update AArch64/X86 MSGC allocation fast path");
 #endif
     static_assert(std::extent<decltype(activeRegions_)>::value == 36,
                   "activeRegions_ length changed; update AArch64/X86 MSGC allocation fast path");
-    // The AArch64/X86 MSGC write-barrier fast paths load the WorkBuf pointer
-    // activeLog_ (kept at offset 896), then appends an already shaded old-ref
-    // into activeLog_->objs[len++]. These offsets are the ABI contract with
-    // target emitters (activeLogOffsetInAllocBuffer / WorkBufLenOffset /
-    // WorkBufObjsOffset / WorkBufCapacity). Keep them in sync.
-    static_assert(offsetof(AllocBufferMS, activeLog_) == AllocBufferMS::kActiveLogOffset,
-                  "activeLog_ offset changed; update AArch64/X86 MSGC write-barrier fast path");
-    static_assert(offsetof(WorkBuf, len) == 8,
-                  "WorkBuf::len offset changed; update AArch64/X86 MSGC write-barrier fast path");
-    static_assert(offsetof(WorkBuf, capacity) == 12,
-                  "WorkBuf::capacity offset changed; update AArch64/X86 MSGC write-barrier fast path");
-    static_assert(sizeof(WorkBuf) == 16,
-                  "WorkBuf object array offset changed; update AArch64/X86 MSGC write-barrier fast path");
-    tlRegion_ = RegionInfo::NullRegion();
+    static_assert(std::extent<decltype(activeRegions_), 1>::value == kMSScanClassCount,
+                  "activeRegions_ ScanClass dimension changed");
+    static_assert(
+        sizeof(activeRegions_) ==
+            kNumSizeClasses * kMSScanClassCount * sizeof(MSRegionInfo*),
+        "AllocBufferMS compiler-visible prefix must contain only active Region pointers");
 }
 
 void AllocBufferMS::Init(CentralRegionPool* central)
@@ -110,7 +98,17 @@ void AllocBufferMS::Init(CentralRegionPool* central)
         ? central_->ResolveHomeShardId()
         : kMSInvalidShardId;
     for (uint8_t cls = 0; cls < kNumSizeClasses; cls++) {
-        activeRegions_[cls] = nullptr;
+        for (uint8_t scan = 0; scan < kMSScanClassCount; ++scan) {
+            activeRegions_[cls][scan] = nullptr;
+        }
+    }
+    if (stackRoots_.capacity() < kRootStagingReserve) {
+        stackRoots_.reserve(kRootStagingReserve);
+    }
+    if (rootOverflowFree_ == nullptr) {
+        rootOverflowFree_ = new (std::nothrow) RootOverflowChunk();
+        CHECK_DETAIL(rootOverflowFree_ != nullptr,
+                     "[MS-GC] failed to preallocate root staging overflow chunk");
     }
     // Register with CentralRegionPool so GC can FlushAll
     if (central_ != nullptr) {
@@ -122,20 +120,7 @@ void AllocBufferMS::Fini()
 {
     MarkSweepCollector* collector = MarkSweepCollector::GetActiveCollector();
     if (collector != nullptr) {
-        // Owner exiting mid-mark: publish its partial log so a consumer discovers
-        // it, then return its active GC work buffers to the global pool.
-        collector->PublishExitedLog(*this);
-        if (gcWork_.IsInitialized()) {
-            gcWork_.Dispose();
-            gcWork_.Reset();
-        }
-    } else {
-        // Not marking: the active log was already returned to the collector-global
-        // pool by the cycle-end reset.
-        activeLog_ = nullptr;
-        if (gcWork_.IsInitialized()) {
-            gcWork_.Reset();
-        }
+        collector->NotifyAllocBufferExit(*this);
     }
 
     if (central_ != nullptr) {
@@ -145,14 +130,68 @@ void AllocBufferMS::Fini()
         central_->RemoveAllocBufferMS(this);
     }
     central_ = nullptr;
+    stackRoots_.clear();
+    DestroyRootOverflowChunks();
+}
+
+AllocBufferMS::RootOverflowChunk* AllocBufferMS::AcquireRootOverflowChunk()
+{
+    RootOverflowChunk* chunk = rootOverflowFree_;
+    if (chunk != nullptr) {
+        rootOverflowFree_ = chunk->next;
+        chunk->next = nullptr;
+        chunk->count = 0;
+        return chunk;
+    }
+    chunk = new (std::nothrow) RootOverflowChunk();
+    CHECK_DETAIL(chunk != nullptr,
+                 "[MS-GC] root staging overflow allocation failed");
+    return chunk;
+}
+
+void AllocBufferMS::PushRoot(BaseObject* root)
+{
+    if (stackRoots_.size() < stackRoots_.capacity()) {
+        stackRoots_.emplace_back(root);
+        return;
+    }
+
+    if (rootOverflowTail_ == nullptr ||
+        rootOverflowTail_->count == kRootOverflowChunkCapacity) {
+        RootOverflowChunk* chunk = AcquireRootOverflowChunk();
+        if (rootOverflowTail_ == nullptr) {
+            rootOverflowHead_ = chunk;
+        } else {
+            rootOverflowTail_->next = chunk;
+        }
+        rootOverflowTail_ = chunk;
+    }
+    rootOverflowTail_->roots[rootOverflowTail_->count++] = root;
+}
+
+void AllocBufferMS::DestroyRootOverflowChunks()
+{
+    RootOverflowChunk* lists[] = {rootOverflowHead_, rootOverflowFree_};
+    rootOverflowHead_ = nullptr;
+    rootOverflowTail_ = nullptr;
+    rootOverflowFree_ = nullptr;
+    for (RootOverflowChunk* chunk : lists) {
+        while (chunk != nullptr) {
+            RootOverflowChunk* next = chunk->next;
+            delete chunk;
+            chunk = next;
+        }
+    }
 }
 
 size_t AllocBufferMS::CountActiveRegions() const
 {
     size_t total = 0;
     for (uint8_t cls = 0; cls < kNumSizeClasses; ++cls) {
-        if (activeRegions_[cls] != nullptr) {
-            ++total;
+        for (uint8_t scan = 0; scan < kMSScanClassCount; ++scan) {
+            if (activeRegions_[cls][scan] != nullptr) {
+                ++total;
+            }
         }
     }
     return total;
@@ -165,26 +204,26 @@ size_t AllocBufferMS::CountActiveRegions() const
 // SlowAlloc(), covering both the compiler fast-path (Allocate() bypassed) and
 // the runtime slow-path uniformly.
 // ============================================================================
-MAddress AllocBufferMS::Allocate(size_t size)
+MAddress AllocBufferMS::Allocate(size_t size, MSScanClass scanClass)
 {
     uint8_t cls = SizeClassInfo::SizeToClass(size);
     if (UNLIKELY(cls >= kNumSizeClasses)) {
         return 0;  // Large object — caller handles it via the large-region path
     }
-    return FastAlloc(cls);
+    return FastAlloc(cls, scanClass);
 }
 
 // ============================================================================
 // FastAlloc — try allocation on the current active Region
 // ============================================================================
-MAddress AllocBufferMS::FastAlloc(uint8_t cls)
+MAddress AllocBufferMS::FastAlloc(uint8_t cls, MSScanClass scanClass)
 {
-    MSRegionInfo* region = activeRegions_[cls];
+    MSRegionInfo* region = activeRegions_[cls][ToMSScanClassIndex(scanClass)];
     if (LIKELY(region != nullptr)) {
         uintptr_t addr = 0;
-        if (region->regionType == MSRegionType::MS_REGION_BUMP) {
+        if (region->GetAllocMode() == MSAllocMode::BUMP) {
             addr = region->AllocBump();
-        } else if (region->regionType == MSRegionType::MS_REGION_BITMAP) {
+        } else if (region->GetAllocMode() == MSAllocMode::BITMAP) {
             addr = region->AllocFromBitmapFast();
         }
         if (LIKELY(addr != 0)) {
@@ -193,25 +232,26 @@ MAddress AllocBufferMS::FastAlloc(uint8_t cls)
     }
 
     // Current Region has no free slots (or no Region at all) — slow path
-    return SlowAlloc(cls);
+    return SlowAlloc(cls, scanClass);
 }
 
 // ============================================================================
 // SlowAlloc — refill from CentralRegionPool
 // ============================================================================
-MAddress AllocBufferMS::SlowAlloc(uint8_t cls)
+MAddress AllocBufferMS::SlowAlloc(uint8_t cls, MSScanClass scanClass)
 {
+    uint8_t scanIdx = ToMSScanClassIndex(scanClass);
     // Step 1: Return the exhausted Region to the central pool (if any).
     // When the compiler fast path (EnableGCFastPath) is enabled, the mutator
     // bump-allocates inline and never calls Allocate(), so activeRegions_[cls]
     // may already be null here.  Pacing debt is recorded after the new region
     // is installed (Step 3) regardless of this condition.
-    if (activeRegions_[cls] != nullptr) {
-        ReturnRegion(cls);
+    if (activeRegions_[cls][scanIdx] != nullptr) {
+        ReturnRegion(cls, scanClass);
     }
 
     // O2: Refill directly from the central empty-region cache.
-    MSRegionInfo* newRegion = RefillFromCentral(cls);
+    MSRegionInfo* newRegion = RefillFromCentral(cls, scanClass);
     if (UNLIKELY(newRegion == nullptr)) {
         return 0;  // OOM or GC needed — caller handles
     }
@@ -223,7 +263,7 @@ MAddress AllocBufferMS::SlowAlloc(uint8_t cls)
         LogRefillRegionAllocationFailure("SlowAlloc primary", cls, newRegion);
         central_->ReturnFullRegion(newRegion, cls);
 
-        newRegion = central_->GetFreshRegion(cls, cachedHomeShardId_);
+        newRegion = central_->GetFreshRegion(cls, scanClass, cachedHomeShardId_);
         if (UNLIKELY(newRegion == nullptr)) {
             return 0;
         }
@@ -242,7 +282,7 @@ MAddress AllocBufferMS::SlowAlloc(uint8_t cls)
     //     was null on entry), so no per-object debt was recorded.
     //   - runtime slow-path: Allocate() no longer tracks per-object debt; all debt
     //     is consolidated here at region-acquisition granularity.
-    activeRegions_[cls] = newRegion;
+    activeRegions_[cls][scanIdx] = newRegion;
     AccumulatePacingDebt(MS_REGION_SIZE);
     AccumulateSweepDebt(1, cls);
 
@@ -256,14 +296,15 @@ MAddress AllocBufferMS::SlowAlloc(uint8_t cls)
 // ============================================================================
 // ReturnRegion — classify and return active Region to CentralRegionPool
 // ============================================================================
-void AllocBufferMS::ReturnRegion(uint8_t cls)
+void AllocBufferMS::ReturnRegion(uint8_t cls, MSScanClass scanClass)
 {
-    MSRegionInfo* region = activeRegions_[cls];
+    uint8_t scanIdx = ToMSScanClassIndex(scanClass);
+    MSRegionInfo* region = activeRegions_[cls][scanIdx];
     if (region == nullptr) {
         return;
     }
 
-    activeRegions_[cls] = nullptr;
+    activeRegions_[cls][scanIdx] = nullptr;
     ReturnRegionToCentral(region, cls);
 }
 
@@ -273,11 +314,6 @@ void AllocBufferMS::ReturnRegionToCentral(MSRegionInfo* region, uint8_t cls)
         return;
     }
 
-    // Experimental policy: TL regions returned after the cycle boundary are
-    // stamped as swept in the current generation so they participate in the
-    // next GC cycle instead of the current sweep.
-    region->SetSweepGen(CentralRegionPool::GetGlobalSweepGen());
-
     MSCentralReturnDecision decision = region->PrepareForCentralReturn(cls);
     if (UNLIKELY(decision.callerClassMismatch)) {
         LOG(RTLOG_ERROR,
@@ -286,9 +322,9 @@ void AllocBufferMS::ReturnRegionToCentral(MSRegionInfo* region, uint8_t cls)
             static_cast<unsigned>(cls),
             static_cast<unsigned>(decision.bucketSizeClass),
             static_cast<void*>(region),
-            static_cast<unsigned>(region->regionType),
-            static_cast<unsigned>(region->freeSlotCount),
-            static_cast<unsigned>(region->totalSlotCount),
+            static_cast<unsigned>(region->GetRegionType()),
+            static_cast<unsigned>(region->GetFreeSlotCount()),
+            static_cast<unsigned>(region->GetTotalSlotCount()),
             region->allocPtr,
             region->regionEnd);
     }
@@ -315,13 +351,15 @@ size_t AllocBufferMS::ReturnAllRegionsToCentral()
 
     size_t returned = 0;
     for (uint8_t cls = 0; cls < kNumSizeClasses; ++cls) {
-        MSRegionInfo* region = activeRegions_[cls];
-        if (region == nullptr) {
-            continue;
+        for (uint8_t scan = 0; scan < kMSScanClassCount; ++scan) {
+            MSRegionInfo* region = activeRegions_[cls][scan];
+            if (region == nullptr) {
+                continue;
+            }
+            activeRegions_[cls][scan] = nullptr;
+            ReturnRegionToCentral(region, cls);
+            ++returned;
         }
-        activeRegions_[cls] = nullptr;
-        ReturnRegionToCentral(region, cls);
-        ++returned;
     }
     return returned;
 }
@@ -329,29 +367,24 @@ size_t AllocBufferMS::ReturnAllRegionsToCentral()
 // ============================================================================
 // RefillFromCentral — get a Region from CentralRegionPool
 // ============================================================================
-MSRegionInfo* AllocBufferMS::RefillFromCentral(uint8_t cls)
+MSRegionInfo* AllocBufferMS::RefillFromCentral(uint8_t cls, MSScanClass scanClass)
 {
     if (UNLIKELY(central_ == nullptr)) {
         return nullptr;
     }
-    MSRegionInfo* region = central_->TakePartialSweptRegion(cls);
+    MSRegionInfo* region = central_->TakePartialSweptRegion(cls, scanClass);
     if (region != nullptr) {
         return region;
     }
     region = central_->TakeGlobalEmptyRegion();
     if (region != nullptr) {
-        CHECK_DETAIL(region->regionType == MSRegionType::MS_REGION_EMPTY_CACHE,
+        CHECK_DETAIL(region->IsFreeRegion(),
                      "RefillFromCentral got bad global empty regionType=%u",
-                     static_cast<unsigned>(region->regionType));
-        region->InitForSizeClass(cls);
-        region->SetSweepGen(CentralRegionPool::GetGlobalSweepGen());
+                     static_cast<unsigned>(region->GetRegionType()));
+        region->InitForSizeClass(cls, scanClass);
         return region;
     }
-    region = central_->TakeUnsweptRegion(cls);
-    if (region != nullptr) {
-        return region;
-    }
-    return central_->GetFreshRegion(cls, cachedHomeShardId_);
+    return central_->GetFreshRegion(cls, scanClass, cachedHomeShardId_);
 }
 
 AllocBufferMS* AllocBufferMS::GetAllocBufferMS()
@@ -400,23 +433,21 @@ void AllocBufferMS::AccumulatePacingDebt(size_t size)
         gcAssistDebtScaled_ = 0;
         return;
     }
+    collector->AccountMarkAllocationBytes(size);
     uint64_t ratioScaled = collector->GetAssistWorkPerByteScaled();
     if (ratioScaled == 0) {
         gcAssistDebtScaled_ = 0;  // Marking not active — clear stale debt
         return;
     }
-    uint64_t deltaDebt = static_cast<uint64_t>(size) * ratioScaled;
-    if (UNLIKELY(gcAssistDebtScaled_ > UINT64_MAX - deltaDebt)) {
-        gcAssistDebtScaled_ = UINT64_MAX;
-    } else {
-        gcAssistDebtScaled_ += deltaDebt;
-    }
+    uint64_t deltaDebt = SaturatingMSWUMul(
+        static_cast<uint64_t>(size), ratioScaled);
+    gcAssistDebtScaled_ = SaturatingMSWUAdd(
+        gcAssistDebtScaled_, deltaDebt);
     const uint64_t ratioScale = MarkSweepCollector::GetAssistRatioScale();
-    size_t debtObjects = static_cast<size_t>(gcAssistDebtScaled_ / ratioScale);
-    size_t workBufCapacity = CangjieRuntime::GetMSWorkBufScaleConfig().capacity;
-    if (UNLIKELY(debtObjects >= workBufCapacity)) {
-        size_t paidObjects = collector->MSMarkAssist(*this, debtObjects);
-        size_t accounted = std::min(paidObjects, debtObjects);
+    size_t debtWU = static_cast<size_t>(gcAssistDebtScaled_ / ratioScale);
+    if (UNLIKELY(debtWU >= MS_WU_ASSIST_THRESHOLD)) {
+        size_t paidWU = collector->MSMarkAssist(*this, debtWU);
+        size_t accounted = std::min(paidWU, debtWU);
         gcAssistDebtScaled_ -= static_cast<uint64_t>(accounted) * ratioScale;
     }
 }
@@ -424,9 +455,8 @@ void AllocBufferMS::AccumulatePacingDebt(size_t size)
 // ============================================================================
 // AccumulateSweepDebt — P-local Sweep pacing
 // Called only after a successful Region/span consumption. Background cache fill
-// never reaches this function. A generation mismatch lazily discards the old
-// P's fractional debt and statistics after PrepareForSweep publishes the new
-// central ratio.
+// never reaches this function. A cycle-id mismatch lazily discards the old P's
+// fractional debt and statistics after PostMark publishes the new central ratio.
 // ============================================================================
 void AllocBufferMS::AccumulateSweepDebt(size_t allocatedRegions, uint8_t preferredCls)
 {
@@ -434,7 +464,7 @@ void AllocBufferMS::AccumulateSweepDebt(size_t allocatedRegions, uint8_t preferr
         return;
     }
 
-    uint32_t currentGeneration = CentralRegionPool::GetGlobalSweepGen();
+    uint32_t currentGeneration = CentralRegionPool::GetSweepCycleId();
     uint32_t localGeneration = sweepDebtGen_;
     if (localGeneration != currentGeneration) {
         sweepAssistDebtScaled_ = 0;

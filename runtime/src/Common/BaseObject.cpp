@@ -153,9 +153,15 @@ size_t BaseObject::GetSize() const
 void BaseObject::OnFinalizerCreated()
 {
     Heap& heap = Heap::GetHeap();
-    // every newly-created object is marked during gc for mark-sweep gc.
+#ifdef MRT_USE_MARK_SWEEP
+    // FinalizerWorkList publishes the MSGC root while holding the same lock
+    // used by the MarkTermination finalizer snapshot. This makes registration
+    // and root publication one linearized operation.
+    heap.GetCollectorResources().RegisterFinalizer(this);
+#else
     heap.GetCollector().MarkNewObject(this);
     heap.GetCollectorResources().RegisterFinalizer(this);
+#endif
 }
 
 bool BaseObject::IsInTraceRegion() const

@@ -29,10 +29,9 @@ assert "PublishSweepDoneAfterQuiescence" in source
 assert "TryPublishSweepDone" not in source
 
 for begin, end in (
-    ("MSRegionInfo* CentralRegionPool::TakeUnsweptRegion", "MSRegionInfo* CentralRegionPool::GetFreshRegion"),
     ("void CentralRegionPool::BackgroundSweep", "void CentralRegionPool::ParallelSweep"),
-    ("void CentralRegionPool::ParallelSweep", "MSSweepAssistResult CentralRegionPool::MSSweepAssist"),
-    ("size_t CentralRegionPool::AssistSweep", "bool CentralRegionPool::SweepUnsweptList"),
+    ("void CentralRegionPool::ParallelSweep", "void CentralRegionPool::ParallelSweepOnceForOOM"),
+    ("size_t CentralRegionPool::AssistSweep", "bool CentralRegionPool::SweepOneUnsweptRegionForAssist"),
 ):
     assert "PublishSweepDoneAfterQuiescence" not in block(source, begin, end), (
         f"worker path must not publish sweep done: {begin}"

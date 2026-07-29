@@ -10,6 +10,7 @@
 #include "Heap/Heap.h"
 #ifdef MRT_USE_MARK_SWEEP
 #include "Heap/MAllocator/MSRegionSpace.h"
+#include "Heap/MAllocator/MSScanClass.h"
 #endif
 
 namespace MapleRuntime {
@@ -21,10 +22,11 @@ MAddress HeapManager::Allocate(size_t allocSize, AllocType allocType)
 }
 
 #ifdef MRT_USE_MARK_SWEEP
-MAddress HeapManager::Allocate(size_t allocSize, ThreadLocalData* local, AllocType allocType)
+MAddress HeapManager::AllocateMS(size_t allocSize, AllocType allocType,
+                                 MSScanClass scanClass, ThreadLocalData* local)
 {
     auto& allocator = reinterpret_cast<RegionSpaceMS&>(Heap::GetHeap().GetAllocator());
-    return allocator.Allocate(allocSize, allocType, local);
+    return allocator.Allocate(allocSize, allocType, scanClass, local);
 }
 #endif
 

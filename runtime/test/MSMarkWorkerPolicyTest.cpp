@@ -39,15 +39,17 @@ void TestThreadCountResolution()
 {
     ExpectEq(ResolveMSMarkTotalThreads(1, 128, 0), 1, "1P default mark threads");
     ExpectEq(ResolveMSMarkTotalThreads(4, 128, 0), 2, "4P default mark threads");
-    ExpectEq(ResolveMSMarkTotalThreads(8, 128, 0), 4, "8P default mark threads");
-    ExpectEq(ResolveMSMarkTotalThreads(32, 128, 0), 4, "32P default mark threads");
-    ExpectEq(ResolveMSMarkTotalThreads(64, 128, 0), 8, "64P default mark threads");
-    ExpectEq(ResolveMSMarkTotalThreads(128, 128, 0), 16, "128P default mark threads");
-    ExpectEq(ResolveMSMarkTotalThreads(256, 256, 0), 16, "default mark thread cap");
-    ExpectEq(ResolveMSMarkTotalThreads(160, 8, 0), 4, "160P on 8 logical CPUs");
-    ExpectEq(ResolveMSMarkTotalThreads(160, 8, 12), 12, "explicit mark thread override");
+    ExpectEq(ResolveMSMarkTotalThreads(8, 128, 0), 2, "8P default mark threads");
+    ExpectEq(ResolveMSMarkTotalThreads(32, 128, 0), 2, "32P default mark threads");
+    ExpectEq(ResolveMSMarkTotalThreads(64, 128, 0), 2, "64P default mark threads");
+    ExpectEq(ResolveMSMarkTotalThreads(128, 128, 0), 2, "128P default mark threads");
+    ExpectEq(ResolveMSMarkTotalThreads(256, 256, 0), 2, "default mark thread cap");
+    ExpectEq(ResolveMSMarkTotalThreads(160, 8, 0), 2, "160P on 8 logical CPUs");
+    ExpectEq(ResolveMSMarkTotalThreads(160, 8, 12), 2, "explicit mark thread cap");
     ExpectEq(ResolveMSMarkTotalThreads(2, 128, 8), 2,
              "explicit mark threads should not exceed processors");
+    ExpectEq(ResolveMSMarkTotalThreads(8, 128, 1), 1,
+             "explicit single-thread mark should remain supported");
 }
 
 } // namespace

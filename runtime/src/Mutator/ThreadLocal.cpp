@@ -104,15 +104,19 @@ extern "C" void MCC_CheckThreadLocalDataOffset()
                   "need to modify the offset of this value in llvm-project at the same time");
     static_assert(offsetof(MSRegionInfo, regionEnd) == 8,
                   "need to modify the offset of this value in llvm-project at the same time");
-    static_assert(offsetof(MSRegionInfo, allocBitmap) == 24,
+    static_assert(offsetof(MSRegionInfo, slotOrLargeMeta) == 24,
                   "need to modify the offset of this value in llvm-project at the same time");
-    static_assert(offsetof(MSRegionInfo, freeSlotCount) == 42,
+    static_assert(offsetof(MSRegionInfo, collectEpoch) == 32,
                   "need to modify the offset of this value in llvm-project at the same time");
-    static_assert(offsetof(MSRegionInfo, divMagic) == 44,
+    static_assert(offsetof(MSRegionInfo, control) == 36,
                   "need to modify the offset of this value in llvm-project at the same time");
-    static_assert(offsetof(MSRegionInfo, regionType) == 50,
+    static_assert(offsetof(MSRegionInfo, allocSummary) == 40,
                   "need to modify the offset of this value in llvm-project at the same time");
-    static_assert(offsetof(MSRegionInfo, reserved) == 56,
+    static_assert(offsetof(MSRegionInfo, allocMode) == 60,
+                  "need to modify the offset of this value in llvm-project at the same time");
+    static_assert(offsetof(MSRegionInfo, sizeClass) == 62,
+                  "need to modify the offset of this value in llvm-project at the same time");
+    static_assert(offsetof(MSRegionInfo, layout) == 63,
                   "need to modify the offset of this value in llvm-project at the same time");
 #endif
 }
