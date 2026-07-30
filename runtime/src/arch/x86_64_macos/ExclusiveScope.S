@@ -4,37 +4,114 @@
 //
 // See https://cangjie-lang.cn/pages/LICENSE for license information.
 
-// ==============================================================================
-// ExclusiveScope stub implementation for macOS x86_64
-// ==============================================================================
+// ------------------------------------------------------------------------------
+// _CJ_MCC_ExclusiveScope
 //
-// ExclusiveScope is not supported on macOS platform.
-// This file provides stub symbols to allow compilation and linking.
-// If these functions are called at runtime, they will return NULL immediately.
+// Glue (CodeGen) owns pin + protectAddr via CJ_MCC_ExclusiveScopeEnter/Leave and
+// only calls this stub when destSp != 0. This stub:
+//   1) builds the CJ exclusive stub frame on the heap stack
+//   2) switches SP to destSp
+//   3) builds the exclusive OS bridge and invokes the AutoEnv closure
+//
+// protectAddr and exclusiveScopeCnt are owned by Enter/Leave in the glue finally
+// (EH skips this epilogue).
+//
+// ABI: void _CJ_MCC_ExclusiveScope(void* sret, void* fn, uintptr_t destSp)
+//      SysV x86_64: rdi=sret, rsi=fn, rdx=destSp
+//
+// GC: sret must not live in callee-saved regs across AutoEnv
+// (a safepoint may snapshot it as a GC root). Keep sret/fn in the arg regs
+// (caller-saved) through bridge setup; hold stub FA in rax.
+// ------------------------------------------------------------------------------
+
+// CJ exclusive stub frame (heap stack):
+//   [rbp]     saved rbp | return addr
+//   -8..-40   r15,r14,r13,r12,rbx   (RecordStubCalleeSaved)
+#define ExclusiveScopeFrameSize     (8 * 5)
+
+// OS bridge frame:
+//   [rbp]     saved rbp | return addr
+//   -8..-24   N2CSlotData (GetSlotData = fa-24)
+// Callee-saved live on the CJ stub (RecordStubCalleeSaved); bridge records none.
+#define ExclusiveBridgeFrameSize    (8 * 4)
 
     .text
     .align 2
-    
-// Stub implementation for CJ_MCC_ExclusiveScope
     .global _CJ_MCC_ExclusiveScope
+    .cfi_sections .debug_frame
 _CJ_MCC_ExclusiveScope:
-    xor     %rax, %rax
-    ret
+    .cfi_startproc
 
-// Stub symbol for unwindPCForExclusiveStub
+    pushq   %rbp
+    .cfi_def_cfa_offset 16
+    .cfi_offset %rbp, -16
+    movq    %rsp, %rbp
+    .cfi_def_cfa_register %rbp
+    subq    $ExclusiveScopeFrameSize, %rsp
+
+    // Callee-saved order must match RecordStubCalleeSaved (GC register roots).
+    movq    %r15, -8(%rbp)
+    movq    %r14, -16(%rbp)
+    movq    %r13, -24(%rbp)
+    movq    %r12, -32(%rbp)
+    movq    %rbx, -40(%rbp)
+    .cfi_rel_offset %rbx, -40
+    .cfi_rel_offset %r12, -32
+    .cfi_rel_offset %r13, -24
+    .cfi_rel_offset %r14, -16
+    .cfi_rel_offset %r15, -8
+
+    // rdi=sret, rsi=fn stay in arg regs; rax = stub FA for bridge setup.
+    movq    %rbp, %rax
+
+    // IP stored into the bridge N2CSlotData so stack walk lands on this stub.
     .global _unwindPCForExclusiveStub
 _unwindPCForExclusiveStub:
-    xor     %rax, %rax
-    ret
 
-// Stub implementation for ExecuteExclusiveCangjieStub
-    .global _ExecuteExclusiveCangjieStub
-_ExecuteExclusiveCangjieStub:
-    xor     %rax, %rax
-    ret
+    // Red-zone / align for bridge frame on OS stack, then switch SP.
+    subq    $128, %rdx
+    andq    $-16, %rdx
+    movq    %rdx, %rsp
 
-// Stub symbol for unwindPCForExclusiveStubFull
+    // Build OS bridge frame: saved rbp links to the CJ stub FA; return addr is glue.
+    pushq   8(%rax)
+    pushq   %rax
+    movq    %rsp, %rbp
+    subq    $ExclusiveBridgeFrameSize, %rsp
+
+    // Fill N2CSlotData at fa-24 (do not clobber rdi/rsi).
+    leaq    _unwindPCForExclusiveStub(%rip), %rcx
+    movq    %rcx, -24(%rbp)         // slot->pc
+    movq    %rax, -16(%rbp)         // slot->fa
+    movq    $2, -8(%rbp)            // slot->status = RISKY
+
+    // AutoEnv Invoke: *(fn+8)(sret, fn, OuterTypeInfo=*(fn+0))
+    // rdi/rsi still hold sret/fn from entry.
+    movq    (%rsi), %rdx            // OuterTypeInfo
+    movq    8(%rsi), %r11           // GENERIC_VIRTUAL_FUNC
+    callq   *%r11
+    // Post-call PC: exclusive bridge identity for IsExclusiveBridgeFrame.
     .global _unwindPCForExclusiveStubFull
 _unwindPCForExclusiveStubFull:
-    xor     %rax, %rax
-    ret
+
+    // Tear down bridge frame.
+    movq    %rbp, %rsp
+    popq    %rbp                    // restore CJ exclusive stub fa into %rbp
+    addq    $8, %rsp                // discard bridge return address
+
+    // Restore heap SP.
+    leaq    -ExclusiveScopeFrameSize(%rbp), %rsp
+
+    // Restore callee-saved registers
+    movq    -8(%rbp),  %r15
+    movq    -16(%rbp), %r14
+    movq    -24(%rbp), %r13
+    movq    -32(%rbp), %r12
+    movq    -40(%rbp), %rbx
+
+    addq    $ExclusiveScopeFrameSize, %rsp
+    popq    %rbp
+    .cfi_def_cfa %rsp, 8
+    retq
+
+    .cfi_endproc

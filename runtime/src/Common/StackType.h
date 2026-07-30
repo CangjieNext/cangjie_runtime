@@ -35,12 +35,13 @@ enum class FrameType {
     C2R_STUB = 6,
     NATIVE = 7,
     STACKGROW = 8,
-    EXSLUSIVE = 9,
+    EXCLUSIVE_STUB = 9,
+    EXCLUSIVE_BRIDGE = 10,
 #ifdef INTERPRETER_ENABLED
-    INTERPRETER = 10,
-    INTERPRETER_C2I = 11,
-    INTERPRETER_I2I = 12,
-    INTERPRETER_I2N = 13,
+    INTERPRETER = 11,
+    INTERPRETER_C2I = 12,
+    INTERPRETER_I2I = 13,
+    INTERPRETER_I2N = 14,
 #endif
 };
 
@@ -182,6 +183,8 @@ public:
     bool IsC2RStubFrame() const;
 
     bool IsExclusiveStubFrame() const;
+
+    bool IsExclusiveBridgeFrame() const;
 
 #if defined(ENABLE_BACKWARD_PTRAUTH_CFI)
     bool IsC2NExceptionStubFrame() const;

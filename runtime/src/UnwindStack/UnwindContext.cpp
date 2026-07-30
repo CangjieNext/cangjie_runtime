@@ -11,20 +11,25 @@
 namespace MapleRuntime {
 
 #ifndef _WIN64
-bool UnwindContext::UnwindToCallerContextFromN2CStub(UnwindContext& caller) const
+static bool UnwindAcrossSlot(const MachineFrame& mFrame, UnwindContext& caller)
 {
-    N2CSlotData* n2cSlotData = N2CFrame::GetSlotData(frameInfo.mFrame.GetFA());
-    if (n2cSlotData->status == UnwindContextStatus::RISKY ||
-        n2cSlotData->status == UnwindContextStatus::SIGNAL_STATUS ||
-        n2cSlotData->status == UnwindContextStatus::UNKNOWN) {
-        caller.frameInfo.mFrame.SetFA(n2cSlotData->fa);
-        caller.frameInfo.mFrame.SetIP(n2cSlotData->pc);
-    } else if (n2cSlotData->status == UnwindContextStatus::RELIABLE) {
-        frameInfo.mFrame.UnwindToCallerMachineFrame(caller.frameInfo.mFrame);
+    N2CSlotData* slotData = N2CFrame::GetSlotData(mFrame.GetFA());
+    if (slotData->status == UnwindContextStatus::RISKY ||
+        slotData->status == UnwindContextStatus::SIGNAL_STATUS ||
+        slotData->status == UnwindContextStatus::UNKNOWN) {
+        caller.frameInfo.mFrame.SetFA(slotData->fa);
+        caller.frameInfo.mFrame.SetIP(slotData->pc);
+    } else if (slotData->status == UnwindContextStatus::RELIABLE) {
+        mFrame.UnwindToCallerMachineFrame(caller.frameInfo.mFrame);
     }
 
     caller.SetUnwindContextStatus(UnwindContextStatus::RELIABLE);
     return true;
+}
+
+bool UnwindContext::UnwindToCallerContextFromN2CStub(UnwindContext& caller) const
+{
+    return UnwindAcrossSlot(frameInfo.mFrame, caller);
 }
 
 bool UnwindContext::UnwindToCallerContext(UnwindContext& caller) const
@@ -37,8 +42,9 @@ bool UnwindContext::UnwindToCallerContext(UnwindContext& caller) const
     DLOG(UNWIND, "FrameInfoType\t%d", frameInfo.GetFrameType());
     DLOG(UNWIND, "FrameInfo->lsda\t%p", reinterpret_cast<uintptr_t>(frameInfo.GetLsdaProc()));
     DLOG(UNWIND, "FrameInfo->startProc\t%p", reinterpret_cast<uintptr_t>(frameInfo.GetStartProc()));
-    if (frameInfo.GetFrameType() == FrameType::N2C_STUB) {
-        UnwindToCallerContextFromN2CStub(caller);
+    if (frameInfo.GetFrameType() == FrameType::N2C_STUB ||
+        frameInfo.mFrame.IsExclusiveBridgeFrame()) {
+        UnwindAcrossSlot(frameInfo.mFrame, caller);
     } else {
 #if defined(ENABLE_BACKWARD_PTRAUTH_CFI)
         auto res = frameInfo.mFrame.UnwindToCallerMachineFrame(caller.frameInfo.mFrame);
@@ -67,7 +73,8 @@ bool UnwindContext::UnwindToCallerContext(UnwindContext& caller, UnwindContextSt
     DLOG(UNWIND, "FrameInfoType\t%d", frameInfo.GetFrameType());
     DLOG(UNWIND, "FrameInfo->lsda\t%p", reinterpret_cast<uintptr_t>(frameInfo.GetLsdaProc()));
     DLOG(UNWIND, "FrameInfo->startProc\t%p", reinterpret_cast<uintptr_t>(frameInfo.GetStartProc()));
-    if (frameInfo.GetFrameType() == FrameType::N2C_STUB) {
+    if (frameInfo.GetFrameType() == FrameType::N2C_STUB ||
+        frameInfo.mFrame.IsExclusiveBridgeFrame()) {
         N2CSlotData* n2cSlotData = N2CFrame::GetSlotData(frameInfo.mFrame.GetFA());
         if (n2cSlotData->status == UnwindContextStatus::RISKY ||
             n2cSlotData->status == UnwindContextStatus::SIGNAL_STATUS ||

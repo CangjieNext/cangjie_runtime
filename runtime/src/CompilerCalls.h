@@ -114,7 +114,7 @@ extern "C" MRT_EXPORT int32_t __ccc_personality_v0();
 extern "C" MRT_EXPORT void CJ_MCC_C2NStub(...);
 extern "C" MRT_EXPORT void CJ_MCC_N2CStub(...);
 extern "C" MRT_EXPORT void CJ_MCC_StackGrowStub(...);
-extern "C" MRT_EXPORT void* CJ_MCC_ExclusiveScope(...);
+extern "C" MRT_EXPORT void CJ_MCC_ExclusiveScope(void* sret, void* fn, uintptr_t destSp);
 extern "C" MRT_EXPORT ArrayRef CJ_MCC_DecodeStackTrace(const ArrayRef pcArray, const TypeInfo* steObjInfo,
                                                        const TypeInfo* steArrayInfo, const TypeInfo* charArrayInfo);
 extern "C" MRT_EXPORT ArrayRef CJ_MCC_GetAllThreadSnapshot(const TypeInfo* arraySnapshot,
