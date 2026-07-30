@@ -36,13 +36,13 @@ private enum Result<T> {
     | Err(Error)
 }
 
-@Intrinsic 
-func exclusiveScopeImpl<T>(executeClosure: (() -> T) -> T, fn: () -> T): T
+@Intrinsic
+func exclusiveScopeImpl<T>(fn: () -> T): T
 
 private class ExclusiveScope<T> {
     var result: Result<T> = unsafe { zeroValue<Result<T>>() }
     func run(fn: () -> T): Unit {
-        exclusiveScopeImpl(Future<Unit>.executeClosure) {
+        exclusiveScopeImpl {
             try {
                 result = Val(fn())
             } catch (e: Exception) {
