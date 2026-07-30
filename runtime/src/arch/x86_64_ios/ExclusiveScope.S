@@ -4,45 +4,44 @@
 //
 // See https://cangjie-lang.cn/pages/LICENSE for license information.
 
-#define CJTHREAD_THREAD_OFFSET      0x10
-#define CJTHREAD_CONTEXT_OFFSET     0x18
-
-#define CONTEXT_RSP                 0x00
-#define CONTEXT_RBP                 0x08
-#define CONTEXT_RBX                 0x10
-#define CONTEXT_RIP                 0x18
-#define CONTEXT_R12                 0x20
-#define CONTEXT_R13                 0x28
-#define CONTEXT_R14                 0x30
-#define CONTEXT_R15                 0x38
-#define CONTEXT_MXCSR               0x40
-#define CONTEXT_FPU_CW              0x44
-
-#define THREAD_CONTEXT_OFFSET       0x78
-#define ExclusiveScopeFrameSize     (8 * 22)
-
-
-// ==============================================================================
-// CJ_MCC_ExclusiveScope: from cjthread switch OS thread and exclusive this thread
-// ==============================================================================
+// ------------------------------------------------------------------------------
+// _CJ_MCC_ExclusiveScope
 //
-//   void* CJ_MCC_ExclusiveScope(void* executeClosure, void* closurePtr)
-//                                    rdi              rsi
+// Glue (CodeGen) owns pin + protectAddr via CJ_MCC_ExclusiveScopeEnter/Leave and
+// only calls this stub when destSp != 0. This stub:
+//   1) builds the CJ exclusive stub frame on the heap stack
+//   2) switches SP to destSp
+//   3) builds the exclusive OS bridge and invokes the AutoEnv closure
 //
+// protectAddr and exclusiveScopeCnt are owned by Enter/Leave in the glue finally
+// (EH skips this epilogue).
 //
-// 1. call MCC_NewExclusiveCJThread to creat exclusive cjthread
-// 2. switch to OS thread
-// 3. call ExclusiveExecutor to execute closure
-// 4. switch to normal cjthread
+// ABI: void _CJ_MCC_ExclusiveScope(void* sret, void* fn, uintptr_t destSp)
+//      SysV x86_64: rdi=sret, rsi=fn, rdx=destSp
+//
+// GC: sret must not live in callee-saved regs across AutoEnv
+// (a safepoint may snapshot it as a GC root). Keep sret/fn in the arg regs
+// (caller-saved) through bridge setup; hold stub FA in rax.
+// ------------------------------------------------------------------------------
+
+// CJ exclusive stub frame (heap stack):
+//   [rbp]     saved rbp | return addr
+//   -8..-40   r15,r14,r13,r12,rbx   (RecordStubCalleeSaved)
+#define ExclusiveScopeFrameSize     (8 * 5)
+
+// OS bridge frame:
+//   [rbp]     saved rbp | return addr
+//   -8..-24   N2CSlotData (GetSlotData = fa-24)
+// Callee-saved live on the CJ stub (RecordStubCalleeSaved); bridge records none.
+#define ExclusiveBridgeFrameSize    (8 * 4)
 
     .text
     .align 2
     .global _CJ_MCC_ExclusiveScope
     .cfi_sections .debug_frame
-
 _CJ_MCC_ExclusiveScope:
     .cfi_startproc
-    
+
     pushq   %rbp
     .cfi_def_cfa_offset 16
     .cfi_offset %rbp, -16
@@ -50,6 +49,7 @@ _CJ_MCC_ExclusiveScope:
     .cfi_def_cfa_register %rbp
     subq    $ExclusiveScopeFrameSize, %rsp
 
+    // Callee-saved order must match RecordStubCalleeSaved (GC register roots).
     movq    %r15, -8(%rbp)
     movq    %r14, -16(%rbp)
     movq    %r13, -24(%rbp)
@@ -61,161 +61,48 @@ _CJ_MCC_ExclusiveScope:
     .cfi_rel_offset %r14, -16
     .cfi_rel_offset %r15, -8
 
-    movq    %rdi, -48(%rbp)     // executeClosure
-    movq    %rsi, -56(%rbp)     // closurePtr
-    movq    %r15, -64(%rbp)     // original ThreadLocalData*
+    // rdi=sret, rsi=fn stay in arg regs; rax = stub FA for bridge setup.
+    movq    %rbp, %rax
 
-
-    // get oldCJThread thread oldProcessor
-    callq   _CJ_CJThreadGetHandle
-    testq   %rax, %rax
-    jz      .L_exc_no_cjthread
-    movq    %rax, -80(%rbp)     // oldCJThread
-
-    // thread = oldCJThread->thread
-    movq    CJTHREAD_THREAD_OFFSET(%rax), %r12
-    testq   %r12, %r12
-    jz      .L_exc_no_thread
-    movq    %r12, -88(%rbp)     // thread
-
-    // Save original processor (thread->processor) before it's modified
-    // thread->processor is at offset 0x38 in Thread struct
-    movq    0x38(%r12), %r11
-    movq    %r11, -168(%rbp)    // oldProcessor
-
-    // MCC_NewExclusiveCJThread(executeClosure, closurePtr, futureTi)
-    //                              rdi           rsi        rdx
-    movq    -48(%rbp), %rdi     // executeClosure
-    movq    -56(%rbp), %rsi     // closurePtr
-    movq    $0, %rdx            // futureTi = 0
-    callq   _MCC_NewExclusiveCJThread
-    
-    testq   %rax, %rax
-    jz      .L_exc_create_failed
-    movq    %rax, -160(%rbp)    // newCJThread
-
-    movq    %rbp,  %rsi                  // rsi = fa (frame address)
-    call    .L_exc_get_pc
-.L_exc_get_pc:
+    // IP stored into the bridge N2CSlotData so stack walk lands on this stub.
     .global _unwindPCForExclusiveStub
 _unwindPCForExclusiveStub:
-    pop     %rdi
-    mov     %r15, %rdx
-    callq   _MRT_SaveC2NContext
 
-    movq    $0, %rdi
-    callq   _MRT_EnterSaferegion
-    movq    %rax, -96(%rbp)     // enterSafe
+    // Red-zone / align for bridge frame on OS stack, then switch SP.
+    subq    $128, %rdx
+    andq    $-16, %rdx
+    movq    %rdx, %rsp
 
+    // Build OS bridge frame: saved rbp links to the CJ stub FA; return addr is glue.
+    pushq   8(%rax)
+    pushq   %rax
+    movq    %rsp, %rbp
+    subq    $ExclusiveBridgeFrameSize, %rsp
 
-    movq    %rsp, -104(%rbp)
+    // Fill N2CSlotData at fa-24 (do not clobber rdi/rsi).
+    leaq    _unwindPCForExclusiveStub(%rip), %rcx
+    movq    %rcx, -24(%rbp)         // slot->pc
+    movq    %rax, -16(%rbp)         // slot->fa
+    movq    $2, -8(%rbp)            // slot->status = RISKY
 
-    // ==================== save cjthread context ====================
-    movq    -80(%rbp), %rax         // oldCJThread
-    leaq    CJTHREAD_CONTEXT_OFFSET(%rax), %r14
+    // AutoEnv Invoke: *(fn+8)(sret, fn, OuterTypeInfo=*(fn+0))
+    // rdi/rsi still hold sret/fn from entry.
+    movq    (%rsi), %rdx            // OuterTypeInfo
+    movq    8(%rsi), %r11           // GENERIC_VIRTUAL_FUNC
+    callq   *%r11
+    // Post-call PC: exclusive bridge identity for IsExclusiveBridgeFrame.
+    .global _unwindPCForExclusiveStubFull
+_unwindPCForExclusiveStubFull:
 
-    leaq    8(%rsp), %r11
-    movq    %r11, CONTEXT_RSP(%r14)
-    movq    %rbp, CONTEXT_RBP(%r14)
-    movq    %rbx, CONTEXT_RBX(%r14)
-    // Save return IP: use call/.L trick to get address of resume point
-    call    .L_exc_get_rip_for_ctx
-.L_exc_get_rip_for_ctx:
-    pop     %r11
-    movq    %r11, CONTEXT_RIP(%r14)
-    movq    %r12, CONTEXT_R12(%r14)
-    movq    %r13, CONTEXT_R13(%r14)
-    movq    -16(%rbp), %r11
-    movq    %r11, CONTEXT_R14(%r14)
-    movq    -8(%rbp), %r11
-    movq    %r11, CONTEXT_R15(%r14)
-    stmxcsr CONTEXT_MXCSR(%r14)
-    fstcw   CONTEXT_FPU_CW(%r14)
+    // Tear down bridge frame.
+    movq    %rbp, %rsp
+    popq    %rbp                    // restore CJ exclusive stub fa into %rbp
+    addq    $8, %rsp                // discard bridge return address
 
-    // Nested exclusive scope is already on OS thread stack.
-    // Switching rsp again to thread->context.rsp may clobber current frames.
-    movq    -80(%rbp), %rdi
-    callq   _IsExclusiveCJThread
-    testl   %eax, %eax
-    jnz     .L_exc_skip_stack_switch
+    // Restore heap SP.
+    leaq    -ExclusiveScopeFrameSize(%rbp), %rsp
 
-    // ==================== switch to OS thread ====================
-    movq    -88(%rbp), %r12             // thread
-    leaq    THREAD_CONTEXT_OFFSET(%r12), %r15
-    
-    movq    CONTEXT_RSP(%r15), %r11
-    testq   %r11, %r11
-    jz      .L_exc_skip_stack_switch
-    js      .L_exc_skip_stack_switch
-    cmpq    $0x1000, %r11
-    jb      .L_exc_skip_stack_switch
-    movq    %r11, %rsp
-    ldmxcsr CONTEXT_MXCSR(%r15)
-    fldcw   CONTEXT_FPU_CW(%r15)
-
-    subq    $128, %rsp
-    andq    $-16, %rsp
-
-    // ExclusiveExecutor(thread, newCJThread)
-    //                     rdi      rsi
-    movq    -88(%rbp), %rdi
-    movq    -160(%rbp), %rsi
-    callq   _ExclusiveExecutor
-    jmp     .L_exc_after_executor
-
-.L_exc_skip_stack_switch:
-    // Already on OS thread stack, execute directly without switching rsp.
-    movq    -88(%rbp), %rdi
-    movq    -160(%rbp), %rsi
-    callq   _ExclusiveExecutor
-
-.L_exc_after_executor:
-
-    movq    %rax, %r13
-    movapd  %xmm0, -128(%rbp)
-    movapd  %xmm1, -144(%rbp)
-
-    // ==================== switch back to cjthread stack ====================
-    movq    -104(%rbp), %rsp
-
-    // ExclusiveRestore(oldCJThread, thread, newCJThread, oldProcessor)
-    //                     rdi         rsi      rdx         rcx
-    movq    -80(%rbp), %rdi
-    movq    -88(%rbp), %rsi
-    movq    -160(%rbp), %rdx
-    movq    -168(%rbp), %rcx    // oldProcessor
-    callq   _ExclusiveRestore
-
-    // ==================== continue ====================
-    movq    %r13, -112(%rbp)
-
-    // ==================== LeaveSaferegion ====================
-    movq    -96(%rbp), %rax
-    cmpq    $0, %rax
-    je      .L_exc_skip_leave
-    callq   _MRT_LeaveSaferegion
-    callq   _MRT_GetThreadLocalData
-    movq    %rax, %r13
-    jmp     .L_exc_do_delete
-.L_exc_skip_leave:
-    movq    -64(%rbp), %r13
-.L_exc_do_delete:
-    movq    %r13, %rdi
-    callq   _MRT_DeleteC2NContext
-
-    movq    -112(%rbp), %rax
-    movapd  -128(%rbp), %xmm0
-    movapd  -144(%rbp), %xmm1
-
-    jmp     .L_exc_cleanup
-
-// ==================== exception ====================
-.L_exc_create_failed:
-.L_exc_no_cjthread:
-.L_exc_no_thread:
-    xorq    %rax, %rax
-
-.L_exc_cleanup:
+    // Restore callee-saved registers
     movq    -8(%rbp),  %r15
     movq    -16(%rbp), %r14
     movq    -24(%rbp), %r13
@@ -227,75 +114,4 @@ _unwindPCForExclusiveStub:
     .cfi_def_cfa %rsp, 8
     retq
 
-    .cfi_endproc
-
-
-//   void* ExecuteExclusiveCangjieStub(void* sret, void* arg1, void* closureObj, void* executeClosure, void* threadData)
-//                                     rdi         rsi         rdx             rcx                 r8
-//
-// Update r15 with threadData before executing closure
-
-    .text
-    .align 2
-    .global   _ExecuteExclusiveCangjieStub
-    .cfi_sections .debug_frame
-
-_ExecuteExclusiveCangjieStub:
-    .cfi_startproc
-    pushq   %rbp
-    .cfi_def_cfa_offset 16
-    .cfi_offset %rbp, -16
-    movq    %rsp, %rbp
-    .cfi_def_cfa_register %rbp
-    subq    $96, %rsp
-
-    movq    %r15, -8(%rbp)
-    movq    %r14, -16(%rbp)
-    movq    %r13, -24(%rbp)
-    movq    %r12, -32(%rbp)
-    movq    %rbx, -40(%rbp)
-    .cfi_rel_offset %rbx, -40
-    .cfi_rel_offset %r12, -32
-    .cfi_rel_offset %r13, -24
-    .cfi_rel_offset %r14, -16
-    .cfi_rel_offset %r15, -8
-
-    // Save arguments directly to the slots used for closure call
-    movq    %rdi, -48(%rbp)     // sret
-    movq    %rdx, -56(%rbp)     // closureObj (remap to arg1 slot)
-    movq    %rcx, -64(%rbp)     // executeClosure (remap to arg2 slot)
-    movq    %r8,  -80(%rbp)     // threadData
-
-    // Update r15 with new ThreadLocalData from r8
-    movq    %r8, %r15
-
-    // SaveTopManagedContext
-    movq    %rbp, %rdi
-    callq   _MRT_SaveTopManagedContextToN2CStub
-
-    movq    -48(%rbp), %rdi
-    movq    -56(%rbp), %rdx
-
-    // get func from executeClosure
-    movq    -64(%rbp), %r11
-    movq    8(%r11),   %r11
-
-    callq   *%r11
-    .global _unwindPCForExclusiveStubFull
-_unwindPCForExclusiveStubFull:
-
-    // RestoreTopManagedContext
-    movq    %rbp, %rdi
-    callq   _MRT_RestoreTopManagedContextFromN2CStub
-
-    movq    -8(%rbp),  %r15
-    movq    -16(%rbp), %r14
-    movq    -24(%rbp), %r13
-    movq    -32(%rbp), %r12
-    movq    -40(%rbp), %rbx
-
-    addq    $96, %rsp
-    popq    %rbp
-    .cfi_def_cfa %rsp, 8
-    retq
     .cfi_endproc
