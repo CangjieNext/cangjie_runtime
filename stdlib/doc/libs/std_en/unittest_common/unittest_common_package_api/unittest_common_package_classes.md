@@ -236,7 +236,7 @@ Returns:
 
 ```cangjie
 extend ConfigurationKey {
-    static func create<T>(name: String): ConfigurationKey 
+    public static func create<T>(name: String): ConfigurationKey
 }
 ```
 
