@@ -18,9 +18,7 @@ int main() {
   using namespace MapleRuntime;
 
   static_assert(sizeof(MSGCFastPathState) == 64, "MSGC fast-path state size");
-  static_assert(offsetof(MSGCFastPathState, barrierPhase) == 0,
-                "barrier phase offset");
-  static_assert(offsetof(MSGCFastPathState, currentMarkEpoch) == 4,
+  static_assert(offsetof(MSGCFastPathState, currentMarkEpoch) == 0,
                 "mark epoch offset");
   static_assert(offsetof(MSGCFastPathState, heapReservedStart) == 8,
                 "heap start offset");
@@ -66,7 +64,6 @@ int main() {
   PublishMSGCFastPathPlaneBases(0x400000000ULL, 0x500000000ULL,
                                0x600000000ULL);
   PublishMSGCFastPathMarkEpoch(7);
-  PublishMSGCFastPathBarrierPhase(1);
 
   assert(__atomic_load_n(&CJ_MRT_MSGCFastPathState.heapReservedStart,
                          __ATOMIC_ACQUIRE) == 0x100000000ULL);
@@ -82,8 +79,6 @@ int main() {
                          __ATOMIC_ACQUIRE) == 0x600000000ULL);
   assert(__atomic_load_n(&CJ_MRT_MSGCFastPathState.currentMarkEpoch,
                          __ATOMIC_ACQUIRE) == 7);
-  assert(__atomic_load_n(&CJ_MRT_MSGCFastPathState.barrierPhase,
-                         __ATOMIC_ACQUIRE) == 1);
 
   alignas(64) MSRegionInfo regions[2] {};
   alignas(64) uint64_t allocPlane[2 * MSBitmapArena::kMaxBitmapWords] {};
@@ -106,10 +101,7 @@ int main() {
   PublishMSGCFastPathRegionInfoArray(0);
   PublishMSGCFastPathPlaneBases(0, 0, 0);
   PublishMSGCFastPathMarkEpoch(0);
-  PublishMSGCFastPathBarrierPhase(0);
   assert(__atomic_load_n(&CJ_MRT_MSGCFastPathState.regionInfoArray,
-                         __ATOMIC_ACQUIRE) == 0);
-  assert(__atomic_load_n(&CJ_MRT_MSGCFastPathState.barrierPhase,
                          __ATOMIC_ACQUIRE) == 0);
   return 0;
 }

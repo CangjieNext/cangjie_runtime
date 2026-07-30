@@ -25,6 +25,7 @@ namespace MapleRuntime {
 
 class CentralRegionPool;
 class AllocBufferMS;
+struct MSBarrierMarkBuffer;
 struct MSRegionInfo;
 
 // Per-GC-cycle timing and statistics for DFX logging (Step 5).
@@ -96,15 +97,13 @@ public:
     {
         return activeCollector_.load(std::memory_order_acquire);
     }
-    // Step62 barrier producer API. Scalar barriers publish immediately. Bulk
-    // barriers may coalesce old references in a stack-local batch, but must
-    // FlushMarkBatch before overwriting the old slots.
-    void PublishManagedRefForBarrier(BaseObject* ref);
-    void AddManagedRefToMarkBatch(BaseObject* ref, MSMarkWordBatch& batch,
-                                  MSWorkUnitCounter& work);
+    // Persistent per-owner barrier producer API. Barrier publication is
+    // deliberately excluded from cycleCompletedMarkWU_ pacing statistics.
+    void AddManagedRefToBarrierBuffer(
+        BaseObject* ref, MSBarrierMarkBuffer& buffer);
+    void PublishManagedRefForBarrierImmediately(BaseObject* ref);
+    void FlushBarrierMarkBuffer(MSBarrierMarkBuffer& buffer);
     void FlushMarkBatch(MSMarkWordBatch& batch, MSWorkUnitCounter& work);
-    void FlushBarrierMarkBatch(MSMarkWordBatch& batch,
-                               MSWorkUnitCounter& work);
     void NotifyAllocBufferExit(AllocBufferMS& allocBuffer);
     void AccountMarkAllocationBytes(size_t bytes)
     {
@@ -165,9 +164,18 @@ private:
     bool DiscoverObject(BaseObject* obj, TypeInfo** markedTypeInfo = nullptr);
     void AddRefToMarkBatch(BaseObject* obj, bool knownManaged,
                            MSMarkWordBatch& batch, MSWorkUnitCounter& work);
-    void FlushMarkWordEntry(const MSMarkWordBatchEntry& entry,
-                            MSWorkUnitCounter& work,
-                            const MSMarkWordBatch& batch);
+    template<typename WorkCounter>
+    void AddRefToMarkBatchImpl(BaseObject* obj, bool knownManaged,
+                               MSMarkWordBatch& batch, WorkCounter& work);
+    template<typename WorkCounter>
+    void FlushMarkWordEntryImpl(const MSMarkWordBatchEntry& entry,
+                                WorkCounter& work,
+                                const MSMarkWordBatch& batch);
+    template<typename WorkCounter>
+    void FlushMarkBatchImpl(MSMarkWordBatch& batch, WorkCounter& work);
+    void FlushAllBarrierMarkBuffersUnderSTW(CentralRegionPool& central);
+    void PrepareBarrierMarkBuffersForNewEpochUnderSTW(
+        CentralRegionPool& central);
     void PublishRootStaging();
     void RunSchedulerMarkLoop();
     void RunSchedulerTask(MSTaskLease& lease, MSWorkUnitCounter& work,

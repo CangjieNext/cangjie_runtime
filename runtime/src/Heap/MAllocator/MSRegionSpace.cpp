@@ -52,10 +52,8 @@ MAddress RegionSpaceMS::Allocate(size_t size, AllocType allocType)
         size, MSScanClass::HAS_REF, ThreadLocal::GetThreadLocalData());
 }
 
-MAddress RegionSpaceMS::Allocate(
-    size_t size, AllocType allocType, MSScanClass scanClass, ThreadLocalData* local)
+MAddress RegionSpaceMS::Allocate(size_t size, MSScanClass scanClass, ThreadLocalData* local)
 {
-    (void)allocType;
     return AllocateInternal(size, scanClass, local);
 }
 

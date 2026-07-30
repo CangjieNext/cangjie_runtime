@@ -49,6 +49,16 @@ namespace MapleRuntime {
 namespace {
 constexpr uint64_t kMSMarkProgressWaitUs = 50;
 
+struct MSNoopWorkUnitCounter {
+    void AddResolvedRefs(uint64_t = 1)
+    {
+    }
+
+    void AddMarkWordRMW(uint64_t = 1)
+    {
+    }
+};
+
 bool IsMSGCReportEnabled()
 {
 #if defined(__OHOS__)
@@ -583,6 +593,7 @@ void MarkSweepCollector::PreEnumRoots()
         {
             ScopedStopTheWorld stw("MS PreEnumRoots clear/reclassify/prepare STW");
             markScheduler_.ResetCycle();
+            PrepareBarrierMarkBuffersForNewEpochUnderSTW(*centralPool);
             centralPool->BuildCollectSet();
             uint64_t clearBitmapT0 = TimeUtil::MicroSeconds();
             centralPool->ClearAllMarkBitmaps();
@@ -671,9 +682,10 @@ bool MarkSweepCollector::DiscoverObject(BaseObject* obj, TypeInfo** markedTypeIn
     return true;
 }
 
-void MarkSweepCollector::AddRefToMarkBatch(
+template<typename WorkCounter>
+void MarkSweepCollector::AddRefToMarkBatchImpl(
     BaseObject* obj, bool knownManaged, MSMarkWordBatch& batch,
-    MSWorkUnitCounter& work)
+    WorkCounter& work)
 {
     ResolvedMarkTarget target;
     bool resolved = knownManaged
@@ -741,12 +753,13 @@ void MarkSweepCollector::AddRefToMarkBatch(
 
     batch.Add(regionIdx, target.wordIdx, target.bitMask,
               [this, &work, &batch](const MSMarkWordBatchEntry& entry) {
-                  FlushMarkWordEntry(entry, work, batch);
+                  FlushMarkWordEntryImpl(entry, work, batch);
               });
 }
 
-void MarkSweepCollector::FlushMarkWordEntry(
-    const MSMarkWordBatchEntry& entry, MSWorkUnitCounter& work,
+template<typename WorkCounter>
+void MarkSweepCollector::FlushMarkWordEntryImpl(
+    const MSMarkWordBatchEntry& entry, WorkCounter& work,
     const MSMarkWordBatch& batch)
 {
     MSRegionInfo* info =
@@ -797,42 +810,257 @@ void MarkSweepCollector::FlushMarkWordEntry(
     }
 }
 
-void MarkSweepCollector::AddManagedRefToMarkBatch(
-    BaseObject* ref, MSMarkWordBatch& batch, MSWorkUnitCounter& work)
-{
-    AddRefToMarkBatch(ref, true, batch, work);
-}
-
-void MarkSweepCollector::FlushMarkBatch(
-    MSMarkWordBatch& batch, MSWorkUnitCounter& work)
+template<typename WorkCounter>
+void MarkSweepCollector::FlushMarkBatchImpl(
+    MSMarkWordBatch& batch, WorkCounter& work)
 {
     if (batch.IsEmpty()) {
         return;
     }
     batch.FlushAll([this, &work, &batch](const MSMarkWordBatchEntry& entry) {
-        FlushMarkWordEntry(entry, work, batch);
+        FlushMarkWordEntryImpl(entry, work, batch);
     });
 }
 
-void MarkSweepCollector::FlushBarrierMarkBatch(
-    MSMarkWordBatch& batch, MSWorkUnitCounter& work)
+void MarkSweepCollector::AddRefToMarkBatch(
+    BaseObject* obj, bool knownManaged, MSMarkWordBatch& batch,
+    MSWorkUnitCounter& work)
 {
-    FlushMarkBatch(batch, work);
-    cycleCompletedMarkWU_.fetch_add(
-        work.Total(), std::memory_order_relaxed);
+    AddRefToMarkBatchImpl(obj, knownManaged, batch, work);
 }
 
-void MarkSweepCollector::PublishManagedRefForBarrier(BaseObject* ref)
+void MarkSweepCollector::AddManagedRefToBarrierBuffer(
+    BaseObject* ref, MSBarrierMarkBuffer& buffer)
+{
+    ResolvedMarkTarget target;
+    if (UNLIKELY(!ResolveManagedMarkTarget(ref, target))) {
+        return;
+    }
+
+    // LARGE/SPAN retains its canonical mark flag and OBJECT publication. It
+    // does not consume a Small-word entry or force existing entries to flush.
+    if (target.isLarge) {
+        if (LIKELY(target.IsMarked())) {
+            return;
+        }
+        TypeInfo* typeInfo = ref->GetTypeInfo();
+        if (UNLIKELY(typeInfo == nullptr)) {
+            return;
+        }
+        if (!target.info->AtomicTestAndSetMarked() &&
+            target.info->GetScanClass() == MSScanClass::HAS_REF) {
+            if (markScheduler_.PublishObject(target.info)) {
+                markWorkEpoch_.Notify();
+            }
+        }
+        return;
+    }
+
+    uint32_t currentEpoch = __atomic_load_n(
+        &CJ_MRT_MSGCFastPathState.currentMarkEpoch, __ATOMIC_ACQUIRE);
+
+    uint32_t regionIdx = static_cast<uint32_t>(
+        MSRegionInfoArray::GetRegionIdx(target.info));
+    uint64_t wordKey = MakeMSBarrierMarkWordKey(
+        regionIdx, static_cast<uint32_t>(target.wordIdx));
+    uint8_t localEntry = FindMSBarrierMarkEntry(buffer, wordKey);
+    if (localEntry != kMSBarrierMarkBufferInvalidEntry &&
+        (buffer.entries[localEntry].mask & target.bitMask) != 0) {
+        buffer.lastEntry = localEntry;
+        return;
+    }
+
+    bool inCollectSet =
+        currentEpoch != MSRegionInfo::NO_COLLECT_EPOCH &&
+        target.info->collectEpoch == currentEpoch;
+    if (!inCollectSet) {
+        // OUTSIDE_SET allocation metadata can still be owner-mutated. Do not
+        // read its alloc plane; validate publication before caching a new bit.
+        TypeInfo* typeInfo = ref->GetTypeInfo();
+        if (UNLIKELY(typeInfo == nullptr)) {
+            return;
+        }
+#if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
+        if (target.info->GetScanClass() == MSScanClass::NO_REF) {
+            CHECK_DETAIL(
+                !typeInfo->HasRefField(),
+                "[MS-GC] NO_REF Region contains HAS_REF object obj=%p idx=%u",
+                static_cast<void*>(ref), regionIdx);
+        }
+#endif
+    }
+
+    // Local keys are owner-private and win over a shared-plane probe. Probe
+    // only new keys so repeated writes to one word stay on the TLS cache line.
+    if (localEntry == kMSBarrierMarkBufferInvalidEntry) {
+        uintptr_t markPlaneBase = static_cast<uintptr_t>(__atomic_load_n(
+            &CJ_MRT_MSGCFastPathState.markPlaneBase, __ATOMIC_ACQUIRE));
+        CHECK_DETAIL(
+            markPlaneBase != 0,
+            "[MS-GC] barrier add without a published mark plane");
+        uint64_t* markWord =
+            reinterpret_cast<uint64_t*>(markPlaneBase) + wordKey;
+        if (LIKELY(
+                (__atomic_load_n(markWord, __ATOMIC_RELAXED) &
+                 target.bitMask) != 0)) {
+            return;
+        }
+    }
+
+    MSBarrierMarkAddResult result = TryAddMSBarrierMarkPendingBits(
+        buffer, wordKey, target.bitMask);
+    if (LIKELY(result != MSBarrierMarkAddResult::NEEDS_FLUSH)) {
+        return;
+    }
+
+    FlushBarrierMarkBuffer(buffer);
+    result = TryAddMSBarrierMarkPendingBits(
+        buffer, wordKey, target.bitMask);
+    CHECK_DETAIL(
+        result != MSBarrierMarkAddResult::NEEDS_FLUSH,
+        "[MS-GC] empty barrier mark buffer rejected one bit key=0x%llx",
+        static_cast<unsigned long long>(wordKey));
+}
+
+void MarkSweepCollector::PublishManagedRefForBarrierImmediately(
+    BaseObject* ref)
 {
     MSMarkWordBatch batch;
-    MSWorkUnitCounter work;
-    AddManagedRefToMarkBatch(ref, batch, work);
-    FlushBarrierMarkBatch(batch, work);
+    MSNoopWorkUnitCounter noWork;
+    AddRefToMarkBatchImpl(ref, true, batch, noWork);
+    FlushMarkBatchImpl(batch, noWork);
+}
+
+void MarkSweepCollector::FlushBarrierMarkBuffer(
+    MSBarrierMarkBuffer& buffer)
+{
+    if (IsMSBarrierMarkBufferEmpty(buffer)) {
+        return;
+    }
+
+    uint32_t currentEpoch = __atomic_load_n(
+        &CJ_MRT_MSGCFastPathState.currentMarkEpoch, __ATOMIC_ACQUIRE);
+    uintptr_t allocPlaneBase = static_cast<uintptr_t>(__atomic_load_n(
+        &CJ_MRT_MSGCFastPathState.allocPlaneBase, __ATOMIC_ACQUIRE));
+    uintptr_t markPlaneBase = static_cast<uintptr_t>(__atomic_load_n(
+        &CJ_MRT_MSGCFastPathState.markPlaneBase, __ATOMIC_ACQUIRE));
+    CHECK_DETAIL(
+        allocPlaneBase != 0 && markPlaneBase != 0,
+        "[MS-GC] barrier flush without published bitmap planes");
+
+    struct PendingRegionPublication {
+        MSRegionInfo* info;
+        uint64_t wordMask;
+    };
+    PendingRegionPublication pending[kMSBarrierMarkBufferCapacity] {};
+    size_t pendingCount = 0;
+
+    uint32_t occupied = buffer.occupancy;
+    while (occupied != 0) {
+        uint32_t entryIdx =
+            static_cast<uint32_t>(__builtin_ctz(occupied));
+        occupied &= occupied - 1;
+        const MSBarrierMarkEntry& entry = buffer.entries[entryIdx];
+        uint32_t regionIdx = GetMSBarrierMarkRegionIndex(entry.wordKey);
+        uint32_t wordIdx = GetMSBarrierMarkWordIndex(entry.wordKey);
+        CHECK_DETAIL(
+            regionIdx < MSRegionInfoArray::GetMaxRegionCount(),
+            "[MS-GC] barrier entry Region index overflow: %u", regionIdx);
+        MSRegionInfo* info =
+            MSRegionInfoArray::GetRegionInfoByIdx(regionIdx);
+        CHECK_DETAIL(
+            info->GetRegionKind() == MSRegionKind::SMALL &&
+            wordIdx < info->GetBitmapWordCount(),
+            "[MS-GC] stale barrier entry region=%u word=%u kind=%u words=%u",
+            regionIdx, wordIdx,
+            static_cast<unsigned>(info->GetRegionKind()),
+            static_cast<unsigned>(info->GetBitmapWordCount()));
+
+        uint64_t mask = entry.mask;
+        if (currentEpoch != MSRegionInfo::NO_COLLECT_EPOCH &&
+            info->collectEpoch == currentEpoch) {
+            uint64_t validMask =
+                wordIdx + 1 == info->GetBitmapWordCount()
+                ? info->GetValidTailMask()
+                : ~UINT64_C(0);
+            uint64_t* allocWord =
+                reinterpret_cast<uint64_t*>(allocPlaneBase) + entry.wordKey;
+            uint64_t allocated =
+                __atomic_load_n(allocWord, __ATOMIC_RELAXED);
+            mask &= ~allocated & validMask;
+        }
+        if (mask == 0) {
+            continue;
+        }
+
+        uint64_t* markWord =
+            reinterpret_cast<uint64_t*>(markPlaneBase) + entry.wordKey;
+        mask &= ~__atomic_load_n(markWord, __ATOMIC_RELAXED);
+        if (mask == 0) {
+            continue;
+        }
+        uint64_t old =
+            __atomic_fetch_or(markWord, mask, __ATOMIC_RELAXED);
+        uint64_t newBits = mask & ~old;
+        if (newBits == 0 ||
+            info->GetScanClass() == MSScanClass::NO_REF) {
+            continue;
+        }
+
+        size_t publicationIdx = 0;
+        while (publicationIdx < pendingCount &&
+               pending[publicationIdx].info != info) {
+            ++publicationIdx;
+        }
+        if (publicationIdx == pendingCount) {
+            pending[pendingCount++] =
+                PendingRegionPublication {info, 0};
+        }
+        pending[publicationIdx].wordMask |= UINT64_C(1) << wordIdx;
+    }
+
+    for (size_t i = 0; i < pendingCount; ++i) {
+        pending[i].info->PublishPendingMarkWords(pending[i].wordMask);
+        if (markScheduler_.TryPublishRegion(pending[i].info)) {
+            markWorkEpoch_.Notify();
+        }
+    }
+
+    ClearMSBarrierMarkPendingBits(buffer);
+}
+
+void MarkSweepCollector::FlushMarkBatch(
+    MSMarkWordBatch& batch, MSWorkUnitCounter& work)
+{
+    FlushMarkBatchImpl(batch, work);
 }
 
 void MarkSweepCollector::NotifyAllocBufferExit(AllocBufferMS& allocBuffer)
 {
-    (void)allocBuffer;
+    FlushBarrierMarkBuffer(allocBuffer.GetBarrierMarkBuffer());
+}
+
+void MarkSweepCollector::FlushAllBarrierMarkBuffersUnderSTW(
+    CentralRegionPool& central)
+{
+    central.VisitAllocBufferMS([this](AllocBufferMS& buffer) {
+        FlushBarrierMarkBuffer(buffer.GetBarrierMarkBuffer());
+    });
+}
+
+void MarkSweepCollector::PrepareBarrierMarkBuffersForNewEpochUnderSTW(
+    CentralRegionPool& central)
+{
+    central.VisitAllocBufferMS([](AllocBufferMS& buffer) {
+        MSBarrierMarkBuffer& markBuffer = buffer.GetBarrierMarkBuffer();
+        CHECK_DETAIL(
+            IsMSBarrierMarkBufferEmpty(markBuffer) &&
+            markBuffer.pendingBitCount == 0,
+            "[MS-GC] non-empty barrier buffer crossed into PreEnum "
+            "occupancy=0x%x pendingBits=%u",
+            markBuffer.occupancy, markBuffer.pendingBitCount);
+        ResetMSBarrierMarkBuffer(markBuffer);
+    });
 }
 
 void MarkSweepCollector::RunRegionTask(
@@ -1160,7 +1388,7 @@ void MarkSweepCollector::ConcurrentMark()
     TransitionToGCPhase(GCPhase::GC_PHASE_MS_CONCURRENT_MARK, true);
     markWorkerControl_.Start(0);
 
-    bool disableAssist = ReadBoolParameter("CJ_MS_DISABLE_ASSIST", false);
+    bool disableAssist = ReadBoolParameter("CJ_MS_DISABLE_ASSIST", true);
     uint64_t assistRatio = ApplyMSAssistDisableOverride(
         ComputeMSAssistRatioQ16(
             markPacer_.GetWorkDensityQ16(), MSMarkPressure::NORMAL,
@@ -1399,11 +1627,17 @@ void MarkSweepCollector::MarkTermination()
     // STW: freeze all mutators
     ScopedStopTheWorld stw("MS MarkTermination", true, GCPhase::GC_PHASE_MS_MARK_TERMINATION);
 
-    // Now that all mutators are frozen, clear activeCollector_.
-    activeCollector_.store(nullptr, std::memory_order_release);
-
     RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(theAllocator);
     CentralRegionPool* centralPool = space.GetCentralPool();
+
+    // Mutators are frozen, so their owner-private entries are now stable.
+    // Publish every residual old edge before closing the collector gate and
+    // before evaluating the ordinary mark closure.
+    if (centralPool != nullptr) {
+        FlushAllBarrierMarkBuffersUnderSTW(*centralPool);
+    }
+
+    activeCollector_.store(nullptr, std::memory_order_release);
 
     // With no mutator or concurrent mark worker running, reconcile the
     // summary-first producer protocol to a true fixed point.  A producer may

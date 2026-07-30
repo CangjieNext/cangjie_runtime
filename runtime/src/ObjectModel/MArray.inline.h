@@ -107,19 +107,12 @@ static inline bool TryCalculateArraySize(MIndex nElems, U32 elemBytes, MIndex& a
 inline MArray* MArray::NewArray(MIndex nElems, TypeInfo& arrayClass, AllocType allocType)
 {
     DCHECK_D(arrayClass.IsArrayType(), "Expect an array type");
-    MArray* newArray = nullptr;
-    if (arrayClass.GetComponentTypeInfo()->IsObjectType()) {
-        newArray = NewRefArray(nElems, arrayClass, allocType);
-    } else {
-        // component is value type
-        auto elem = arrayClass.GetSuperTypeInfo();
-        auto elemBytes = sizeof(void*);
-        if (!elem->IsRef()) {
-            elemBytes = arrayClass.GetSuperTypeInfo()->GetComponentSize();
-        }
-        newArray = NewKnownWidthArray(nElems, arrayClass, elemBytes, allocType);
+    TypeInfo* componentTypeInfo = arrayClass.GetComponentTypeInfo();
+    if (componentTypeInfo->IsRef()) {
+        return NewRefArray(nElems, arrayClass, allocType);
     }
-    return newArray;
+    return NewKnownWidthArray(
+        nElems, arrayClass, componentTypeInfo->GetComponentSize(), allocType);
 }
 
 inline MArray* MArray::NewRefArray(MIndex nElems, TypeInfo& arrayClass, AllocType allocType)
@@ -139,7 +132,7 @@ inline MArray* MArray::NewKnownWidthArray(MIndex nElems, TypeInfo& arrayClass, c
 #ifdef MRT_USE_MARK_SWEEP
     ThreadLocalData* local = ThreadLocal::GetThreadLocalData();
     auto address = HeapManager::AllocateMS(
-        arraySize, allocType, ClassifyMSScanClass(&arrayClass), local);
+        arraySize, ClassifyMSScanClass(&arrayClass), local);
 #else
     auto address = HeapManager::Allocate(arraySize, allocType);
 #endif

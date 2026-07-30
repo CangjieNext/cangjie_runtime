@@ -13,6 +13,7 @@
 #include "Heap/MAllocator/MSRegionSpace.h"
 #include "Common/BaseObject.h"
 #include "Base/CString.h"
+#include "Base/EnvParam.h"
 #include "Base/Log.h"
 #include "Base/LogFile.h"
 #include "Base/SysCall.h"
@@ -600,17 +601,23 @@ void CentralRegionPool::PublishCollectSetForSweep()
     RegionSpaceMS& space = static_cast<RegionSpaceMS&>(Heap::GetHeap().GetAllocator());
     size_t runwayRegions = ComputeRunwayRegions(
         space.GetHeapThresholdBytes(), space.GetSweptHeapBytes(), MS_REGION_SIZE);
+    bool disableAssist = ReadBoolParameter("CJ_MS_DISABLE_ASSIST", true);
+    uint64_t sweepAssistRatio = disableAssist
+        ? 0
+        : ComputeMSSweepAssistRatioScaled(totalUnswept, runwayRegions);
     sweepRegionsPerAllocScaled_.store(
-        ComputeMSSweepAssistRatioScaled(totalUnswept, runwayRegions),
-        std::memory_order_relaxed);
+        sweepAssistRatio, std::memory_order_relaxed);
     sweepCycleId_.fetch_add(1, std::memory_order_release);
     sweepDone_.store(totalUnswept == 0, std::memory_order_release);
 
     VLOG(REPORT,
-         "[MS-GC] PublishCollectSetForSweep: epoch=%u unsweptRegions=%zu",
+         "[MS-GC] PublishCollectSetForSweep: epoch=%u unsweptRegions=%zu "
+         "mutatorAssistDisabled=%d assistRatio=%llu",
          static_cast<unsigned>(
              currentMarkEpoch_.load(std::memory_order_relaxed)),
-         totalUnswept);
+         totalUnswept,
+         static_cast<int>(disableAssist),
+         static_cast<unsigned long long>(sweepAssistRatio));
 }
 
 // ============================================================================

@@ -17,11 +17,10 @@ namespace MapleRuntime {
 #ifdef MRT_USE_MARK_SWEEP
 
 // Stable C data ABI consumed by the AArch64 and X86-64 MSGC emitters. Fields
-// may only be appended; existing offsets and meanings are compiler ABI.
+// and offsets are compiler ABI.
 struct MSGCFastPathState {
-  uint8_t barrierPhase;          // +0
-  uint8_t explicitPad0[3];       // +1
-  uint32_t currentMarkEpoch;     // +4
+  uint32_t currentMarkEpoch;     // +0
+  uint8_t explicitPad0[4];       // +4
   uint64_t heapReservedStart;    // +8
   uint64_t heapReservedEnd;      // +16
   uint64_t regionInfoArray;      // +24
@@ -41,9 +40,7 @@ static_assert(__atomic_always_lock_free(sizeof(uint64_t), nullptr),
               "MSGC requires lock-free 64-bit atomics");
 static_assert(sizeof(MSGCFastPathState) == 64,
               "compiler ABI: MSGCFastPathState size");
-static_assert(offsetof(MSGCFastPathState, barrierPhase) == 0,
-              "compiler ABI: MSGCFastPathState::barrierPhase");
-static_assert(offsetof(MSGCFastPathState, currentMarkEpoch) == 4,
+static_assert(offsetof(MSGCFastPathState, currentMarkEpoch) == 0,
               "compiler ABI: MSGCFastPathState::currentMarkEpoch");
 static_assert(offsetof(MSGCFastPathState, heapReservedStart) == 8,
               "compiler ABI: MSGCFastPathState::heapReservedStart");
@@ -59,11 +56,6 @@ static_assert(offsetof(MSGCFastPathState, scanPlaneBase) == 48,
               "compiler ABI: MSGCFastPathState::scanPlaneBase");
 static_assert(offsetof(MSGCFastPathState, reservedAbi) == 56,
               "compiler ABI: MSGCFastPathState::reservedAbi");
-
-inline void PublishMSGCFastPathBarrierPhase(uint8_t phase) {
-  __atomic_store_n(&CJ_MRT_MSGCFastPathState.barrierPhase, phase,
-                   __ATOMIC_RELEASE);
-}
 
 inline void PublishMSGCFastPathMarkEpoch(uint32_t epoch) {
   __atomic_store_n(&CJ_MRT_MSGCFastPathState.currentMarkEpoch, epoch,

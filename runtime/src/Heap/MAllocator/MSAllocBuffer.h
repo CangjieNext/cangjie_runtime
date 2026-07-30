@@ -14,6 +14,7 @@
 #include "Heap/MAllocator/MSRegionInfo.h"
 #include "Heap/MAllocator/MSScanClass.h"
 #include "Heap/MAllocator/MSSizeClass.h"
+#include "Heap/MBarrier/MSBarrierMarkBuffer.h"
 #include "Common/TypeDef.h"
 #include <new>
 #include <vector>
@@ -42,7 +43,7 @@ struct ThreadLocalData;
 // LLVM-generated allocation wrappers use the same BUMP/BITMAP protocol and
 // fall back to the runtime helper for refills and unsupported cases.
 //
-class AllocBufferMS {
+class alignas(64) AllocBufferMS {
 public:
     // Mirror of AllocBuffer::GetOrCreateAllocBuffer / GetAllocBuffer for MS mode.
     static AllocBufferMS* GetOrCreateAllocBufferMS();
@@ -52,6 +53,12 @@ public:
     AllocBufferMS();
 
     ~AllocBufferMS();
+
+    static void* operator new(size_t size);
+    static void* operator new(size_t size, const std::nothrow_t&) noexcept;
+    static void operator delete(void* ptr) noexcept;
+    static void operator delete(void* ptr, size_t size) noexcept;
+    static void operator delete(void* ptr, const std::nothrow_t&) noexcept;
 
     void Init(CentralRegionPool* central);
     void Fini();
@@ -118,6 +125,16 @@ public:
 
     uint16_t GetCachedHomeShardId() const { return cachedHomeShardId_; }
 
+    MSBarrierMarkBuffer& GetBarrierMarkBuffer()
+    {
+        return barrierMarkBuffer_;
+    }
+
+    const MSBarrierMarkBuffer& GetBarrierMarkBuffer() const
+    {
+        return barrierMarkBuffer_;
+    }
+
 private:
     static constexpr size_t kRootStagingReserve = 256;
     static constexpr size_t kRootOverflowChunkCapacity = 128;
@@ -150,6 +167,10 @@ private:
     // Compiler-visible fixed ABI prefix. ScanClass is the inner dimension:
     // activeRegions_[sizeClass][NO_REF/HAS_REF].
     MSRegionInfo* activeRegions_[kNumSizeClasses][kMSScanClassCount] = {};
+
+    // Compiler-visible fixed barrier buffer. AArch64/X86 address it from the
+    // AllocBufferMS base, so this field must immediately follow activeRegions_.
+    MSBarrierMarkBuffer barrierMarkBuffer_ {};
 
     // Runtime-only fields start after the compiler-visible fast-path prefix.
     // Their offsets may follow the target C++ ABI and are never embedded in

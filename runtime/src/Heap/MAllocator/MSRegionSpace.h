@@ -47,8 +47,8 @@ public:
 
     void Init(const HeapParam&) override;
     MAddress Allocate(size_t size, AllocType allocType) override;
-    MAddress Allocate(size_t size, AllocType allocType,
-                      MSScanClass scanClass, ThreadLocalData* local);
+    MAddress Allocate(size_t size, MSScanClass scanClass,
+                      ThreadLocalData* local);
 
     MAddress GetSpaceStartAddress() const override { return reservedStart; }
     MAddress GetSpaceEndAddress() const override;

@@ -38,12 +38,12 @@ WB_LLVM = Wbuf LLVM
 | 普通读屏障 | LLVM 直接降成 load/memcpy | LLVM 直接降成 load/memcpy | 实现和成本基本一致 |
 | atomic read | 当前仍调用 Runtime，Runtime raw atomic load | 同左 | 两边都有一个可继续优化的调用空档 |
 | Idle 写屏障 | 支持的 target 内联 phase gate + raw store/copy | 同左 | 基本一致 |
-| Mark 标量写 | 支持的 target 可内联 mark winner + `activeLog_` append | target 一律回 Runtime | Region-scan 标量写更容易出现调用开销 |
-| Mark bulk 写 | bitmap-word 合并，winner 对象进入 WorkBuf | bitmap-word 合并，发布 pending word/Region task | dense/bulk 场景 Region-scan 可能更有利 |
+| Mark 标量写 | 支持的 target 可内联 mark winner + `activeLog_` append | phase 2 下 Ref/StaticRef 的 collect-set Small 可直接合并到 TLS bitmap batch；其他情况回 Runtime | 两边常见标量路径均可避免 Runtime call，但 Region-scan 延迟全局 publication |
+| Mark bulk 写 | bitmap-word 合并，winner 对象进入 WorkBuf | Runtime 枚举 old ref 并合并进持久 TLS bitmap batch，wrapper 返回不 flush | dense/bulk 与后续标量可继续合并 |
 | Mark 工作表示 | 每个待扫描对象一个 WorkBuf entry | `markBitmap & ~scanBitmap` | Region-scan 不需要普通灰对象队列 |
 | 原子写顺序 | swap/CAS 先 mutation，成功后 enqueue old | old-before-mutation，store/swap 使用 CAS loop | Region-scan 顺序更强，但竞争时更重 |
-| LLVM/Runtime ABI | LLVM 直接依赖 TLS、`activeLog_`、WorkBuf、Region/TypeInfo 布局 | 写屏障 LLVM 当前只依赖公开 `barrierPhase` | Region-scan ABI 更小，Mark fast path 也更保守 |
-| 代码体积 | Mark inline 展开较大 | phase gate 后调用 Runtime | Wbuf 减少热调用，Region-scan 减少 callsite 代码体积 |
+| LLVM/Runtime ABI | LLVM 直接依赖 TLS、`activeLog_`、WorkBuf、Region/TypeInfo 布局 | LLVM 依赖 versioned phase、固定 528B buffer、RegionInfo、bitmap plane 与 size-class descriptor | Region-scan 以 V3 signature/phase 显式版本化 ABI |
+| 代码体积 | Mark inline 展开较大 | Ref/StaticRef 展开 coordinate + 4-way cache；Struct/ArrayCopy Mark 仍是 wrapper | Region-scan 第一版控制在标量入口 |
 
 ## 3. 总体编译与调用链
 
@@ -123,19 +123,20 @@ CJ_MCC_WriteStructField(
 
 这不是重新引入 CopyGC read barrier，而是读取操作附带的 heap destination write barrier。
 
-## 5. phase 安装：两边相同
+## 5. phase 安装
 
-Wbuf 与 Region-scan 的 `HeapImpl::InstallBarrier()` 当前相同。
+两边的 IDLE/Mark barrier 语义相同，但 Region-scan 用 phase 值表达 LLVM/Runtime ABI
+capability：
 
-| GC phase | Runtime barrier | `barrierPhase` | 读语义 | 写语义 |
-|---|---|---:|---|---|
-| `GC_PHASE_IDLE` | `MSIdleBarrier` | 0 | raw load/memcpy | raw store/memcpy/memmove |
-| `GC_PHASE_FINISH` | `MSIdleBarrier` | 0 | 同上 | 同上 |
-| `GC_PHASE_RECLAIM_SATB_NODE` | `MSIdleBarrier` | 0 | 同上 | 同上 |
-| `GC_PHASE_MS_MARK_SETUP` | `MSMarkBarrier` | 1 | 仍为 raw load/memcpy | old-only deletion barrier |
-| `GC_PHASE_MS_CONCURRENT_MARK` | `MSMarkBarrier` | 1 | 仍为 raw load/memcpy | old-only deletion barrier |
-| `GC_PHASE_MS_MARK_TERMINATION` | `MSMarkBarrier` | 1 | 仍为 raw load/memcpy | old-only deletion barrier |
-| 未审计 phase | conservative `stwBarrier` | 1 | 保守 Runtime 行为 | 保守 Runtime 行为 |
+| 状态 | Wbuf `barrierPhase` | Region-scan `barrierPhase` | 写语义 |
+|---|---:|---:|---|
+| IDLE/FINISH/RECLAIM | 0 | 0 | raw store/memcpy/memmove |
+| MarkSetup/ConcurrentMark/MarkTermination | 1 | 2（V3 开启）或 1（诊断回退） | old-only deletion barrier |
+| 未知非零值 | Runtime Mark 路径 | wrapper-only | 保守 Runtime 行为 |
+
+Region-scan 的值 2 表示 `MARK_TLS_BATCH_V3`；只有这个值允许 LLVM 访问
+`AllocBufferMS + 576` 的固定 buffer。`CJ_MS_BARRIER_TLS_BATCH=0` 在启动时固定发布值 1，
+使 Ref/StaticRef 也回 wrapper并立即提交。未知未来 phase 不得按 V3 布局解释。
 
 两边共同的 Mark 写语义是：
 
@@ -234,9 +235,9 @@ atomic 和未进入六类 wrapper 的 generic/copy 入口，不使用这套 targ
 | 读取旧值 | `old = MSLoadRawReference(field)` | 同左 |
 | 相同值写 | `old == new` 时跳过 enqueue | 同左 |
 | heap gate | null/非 heap 直接跳过 | 同左 |
-| owner | active collector + 当前线程 `AllocBufferMS` | acquire-load `barrierPhase` + active collector |
-| 标记 | old 对象竞争 mark bit | old 加入栈内 `MSMarkWordBatch`，flush 时 OR mark word |
-| 去重 | 只有 mark-CAS winner 继续 | 只有 `newBits` 继续 |
+| owner | active collector + 当前线程 `AllocBufferMS` | acquire-load versioned `barrierPhase` + active collector + 当前线程 `AllocBufferMS` |
+| 标记 | old 对象竞争 mark bit | small old ref 合并进 `MSBarrierMarkBuffer`；flush 时 OR mark word |
+| 去重 | 只有 mark-CAS winner 继续 | TLS mask 先去重；flush 时只有全局 `newBits` 继续 |
 | 无引用对象 | mark 后不进入 WorkBuf | mark 后不发布 scan task；普通情况依赖 Region `ScanClass` |
 | 待扫描发布 | winner append 到当前 P 的 `activeLog_` | small：pending word + Region task；large：OBJECT task |
 | 最终写入 | `MSStoreRawReference(field, new)` | 同左 |
@@ -258,46 +259,49 @@ Region-scan 标量路径：
 
 ```text
 old
-  -> PublishManagedRefForBarrier
-  -> 创建 16-entry MSMarkWordBatch
-  -> AddManagedRefToMarkBatch(old)
-  -> 立即 FlushBarrierMarkBatch
-       -> atomic OR mark word
-       -> small HAS_REF: PublishPendingMarkWord + TryPublishRegion
-       -> large HAS_REF: PublishObject
+  -> BarrierMarkContext.AddOldRef
+  -> Small:
+       AddManagedRefToBarrierBuffer
+       -> wordKey/bitMask
+       -> lastEntry + 8-set/4-way 合并
+       -> 128 unique-bit 或 set 冲突时 flush
+  -> Large:
+       立即竞争 marked flag并按需 PublishObject
   -> store new
 ```
 
-Region-scan 的 16-entry batch 在单次标量屏障中只加入一个 old ref 后立即 flush，因此不能在
-多个标量写之间合并；这个 batch 的主要合并收益来自 tracing 和 bulk barrier。
+Region-scan 的 persistent buffer 有 32 个 entry。低于阈值的 tail 可跨 scalar、bulk 和
+atomic wrapper 调用保留，直到 threshold/conflict、owner 退出或 MarkTermination STW。
+普通 safepoint/saferegion 不刷新它。
 
 ### 8.2 struct/static-struct 与数组 bulk
 
 | 操作 | 旧引用枚举 | Wbuf | Region-scan |
 |---|---|---|---|
-| object struct write | 按目标对象 GCTib/TypeInfo 枚举被覆盖范围 | `MSMarkWordBatch` 聚合同 word；winner 对象 append activeLog | 16-entry word batch；flush 后发布 pending word/Region task |
+| object struct write | 按目标对象 GCTib/TypeInfo 枚举被覆盖范围 | `MSMarkWordBatch` 聚合同 word；winner 对象 append activeLog | old refs 逐个加入持久 `MSBarrierMarkBuffer` |
 | static struct write | 按传入 GCTib 枚举 static destination | 同上 | 同上 |
 | ref array copy | 按目标覆盖范围逐 ref | 同 word 聚合，winner 入 activeLog | 同 word 聚合，发布 Region/OBJECT work |
 | struct array copy | 按 component TypeInfo/GCTib 枚举 | 同上 | 同上 |
-| 覆盖动作 | 必须先 flush，再 memcpy/memmove | 满足 | 满足 |
+| 覆盖动作 | 必须先完成 old-ref capture，再 memcpy/memmove | 先 flush WorkBuf batch | 加入持久 buffer即可，不要求全局 flush |
 
 Wbuf bulk batch 当前有 4 个 word entry，每个 entry 最多缓存 16 个 HAS_REF candidate；
 flush 后只把本次 mark winner 写入 WorkBuf。
 
-Region-scan bulk batch 是 8 set × 2 way，共 16 个 word entry。entry 只保存
-`(regionIdx, wordIdx, mask)`，flush 时重新取得 bitmap plane 和 collect epoch。
+Region-scan barrier buffer 是 8 set × 4 way，共 32 个 word entry。entry 保存
+`(wordKey, mask)`；flush 时读取 bitmap plane，过滤 collect-set free slot，并按 Region
+合并 pending word publication。
 
 ### 8.3 工作发布与消费
 
 | 项目 | Wbuf | Region-scan |
 |---|---|---|
-| producer 私有状态 | `AllocBufferMS::activeLog_` | 无灰对象 log |
-| 默认 buffer capacity | WorkBuf 默认 1024 个对象地址 | 不适用 |
-| 全局发布 | activeLog 满、owner 退出或 MarkTermination | Region 从 IDLE 变 QUEUED 时发布 token；large 发布 OBJECT |
+| producer 私有状态 | `AllocBufferMS::activeLog_` | `AllocBufferMS::barrierMarkBuffer_` bitmap mask |
+| 默认 buffer capacity | WorkBuf 默认 1024 个对象地址 | 32 个 word entry、128 个 unique bit |
+| 全局发布 | activeLog 满、owner 退出或 MarkTermination | threshold/set 冲突、owner 退出或 MarkTermination flush；large 立即发布 OBJECT |
 | small work 粒度 | object pointer | bitmap word + Region task |
 | 去重 | mark winner 保证对象只进入 grey work 一次 | `markBitmap & ~scanBitmap` 保证对象只扫描一次 |
 | 同 Region 新 work | 每个 winner 占一个 WorkBuf entry | `pendingWordSummary` 合并，同一 QUEUED/OWNED Region 不重复发 token |
-| MarkTermination | flush 所有 P 的 partial activeLog，drain global WorkBuf | scheduler ledger closure + pending summary/Region state reconciliation |
+| MarkTermination | flush 所有 P 的 partial activeLog，drain global WorkBuf | STW 先 drain 所有 TLS bitmap tail，再做 scheduler closure 与 pending summary reconciliation |
 
 Region task不是整区盲扫。owner 只处理 pending summary 指定的 bitmap word，并计算：
 
@@ -313,13 +317,13 @@ candidates = markBitmap[word] & ~scanBitmap[word]
 
 | target / 屏障 | Wbuf Mark | Region-scan Mark |
 |---|---|---|
-| AArch64 ref/static-ref | inline small/large mark、HasRef 判断、activeLog append；异常情况回 wrapper | 全部回 Runtime wrapper |
+| AArch64 ref/static-ref | inline small/large mark、HasRef 判断、activeLog append；异常情况回 wrapper | phase 2 的 collect-set Small 直接写 TLS buffer；其他情况回 wrapper |
 | AArch64 struct/static-struct | 尽量 inline GCTib 枚举和 mark；short descriptor 可 pair commit；校验失败回 wrapper/helper | 全部回 Runtime wrapper |
 | AArch64 array-copy ref/struct | Mark 一律回 Runtime bulk barrier | Mark 一律回 Runtime bulk barrier |
-| X86-64 ELF ref/static-ref | inline small `lock btsq`、large mark、HasRef、activeLog append | 全部回 Runtime wrapper |
+| X86-64 ELF ref/static-ref | inline small `lock btsq`、large mark、HasRef、activeLog append | phase 2 的 collect-set Small 直接写 TLS buffer，owner-private 路径无 `lock` |
 | X86-64 ELF struct/static-struct | inline/leaf helper 枚举，异常情况回 wrapper | 全部回 Runtime wrapper |
-| X86-64 COFF ref/struct | 与 ELF 类似，并按 Win64 ABI 保存/恢复参数 | 全部回 Runtime wrapper |
-| X86-64 Mach-O Mark | 回 Runtime wrapper | 回 Runtime wrapper |
+| X86-64 COFF ref/struct | 与 ELF 类似，并按 Win64 ABI 保存/恢复参数 | Ref/StaticRef 与 ELF 同逻辑并保留 Win64 slow-call 参数；Struct 回 wrapper |
+| X86-64 Mach-O Mark | 回 Runtime wrapper | Ref/StaticRef 支持相同 V3 fast-add；其他 Mark wrapper |
 | X86-64 array-copy Mark | 回 Runtime wrapper | 回 Runtime wrapper |
 | atomic read/write/swap/CAS | 无 MSGC target inline | 无 MSGC target inline |
 | assign/payload/array-generic/copy-struct | 无专用 target inline | 无专用 target inline |
@@ -351,17 +355,22 @@ large mark 使用原子 byte 更新。
 
 ### 9.3 Region-scan inline 如何实现
 
-Region-scan 当前 target emitter 只实现 phase gate：
+Region-scan 当前 Ref/StaticRef target emitter 实现：
 
 ```text
-phase = acquire_load(CJ_MRT_MSGCFastPathState.barrierPhase)
-if phase == 0:
-    raw store / memcpy / memmove
-else:
-    call *_Fast_MSGC wrapper slow body
+phase 0 -> raw store
+phase 1/unknown -> wrapper
+phase 2:
+  old null/equal -> store
+  精确校验 heap/Small/collect epoch/slot
+  用 36-entry divMagic table得到 slot/word/bit
+  取得 TLS AllocBufferMS + 576
+  local-first查 lastEntry，再查 hash set 的 4 ways
+  合并 bit；threshold/set conflict/校验失败 -> wrapper
+  成功 capture 后 store new
 ```
 
-LLVM 当前不会直接修改：
+owner-private fast-add 只有普通 load/store，不执行全局 bitmap atomic。LLVM仍不会直接修改：
 
 - mark/scan plane；
 - `pendingWordSummary`；
@@ -369,8 +378,9 @@ LLVM 当前不会直接修改：
 - scheduler ledger；
 - Region/Object ready lane。
 
-这些状态都由 Runtime 统一维护，降低了 ABI 耦合和 target-specific 正确性风险，但也意味着
-Mark 标量写会跨越 Runtime 调用边界。
+这些全局状态都由 Runtime flush 统一维护。Struct/StaticStruct 的 short-GCTib direct
+在设计中属于 P2；当前 Mark 仍回 wrapper。ArrayCopy 与 atomic 同样回 Runtime，但 wrapper
+返回不再强制 flush。
 
 ## 10. atomic 写屏障对比
 
@@ -413,19 +423,21 @@ mutation-success 与 old publication 之间的窗口。代价是：
 | ABI 项 | Wbuf LLVM write inline | Region-scan LLVM write inline |
 |---|---|---|
 | `CJ_MRT_MSGCFastPathState.barrierPhase` | 使用 | 使用 |
-| heap reserved start/end | Mark inline 使用 | 当前 write inline 不使用 |
-| RegionInfo array base | Mark inline 使用 | 当前 write inline 不使用 |
-| Region type/slot/bitmap offset | 使用 | 当前 write inline 不使用 |
-| large marked flag | 使用 | 当前 write inline 不使用 |
-| TLS `AllocBufferMS` offset | 使用 | 不使用 |
+| heap reserved start/end | Mark inline 使用 | Ref/StaticRef Mark inline 使用 |
+| RegionInfo array base | Mark inline 使用 | Ref/StaticRef Mark inline 使用 |
+| Region type/slot/bitmap offset | 使用 | 使用 |
+| large marked flag | 使用 | LLVM不直接使用，LARGE回 wrapper |
+| TLS `AllocBufferMS` offset | 使用 | 固定为 88，使用 |
 | `AllocBufferMS::activeLog_` offset | 固定为 896，使用 | 已移除，不使用 |
 | WorkBuf len/capacity/objects offset | 使用 | 不使用 |
 | TypeInfo payload/flag/component offset | 使用 | 不使用 |
-| pending summary / scan state / ledger | 不使用 | 也不由 LLVM 使用，统一留给 Runtime |
+| `MSBarrierMarkBuffer` | 不使用 | `AllocBufferMS + 576`，528B，32-entry，使用 |
+| mark size-class descriptor | 不使用 | 36 × 8B divMagic/slotSize/totalSlots，使用 |
+| pending summary / scan state / ledger | 不使用 | 不由 LLVM 使用，统一留给 Runtime flush |
 
 Wbuf 的 inline fast path性能更积极，但任何相关 Runtime 布局变化都要求 LLVM、Runtime、
-stdlib/stdx 和应用整体重编。Region-scan 当前 barrier ABI 主要收缩到 phase byte 与 wrapper
-函数签名，维护边界更清晰。
+stdlib/stdx 和应用整体重编。Region-scan 同样形成固定跨仓 ABI，但通过 V3 signature 与
+phase capability 显式版本化；布局不兼容时必须发布新 phase 值并完整重编 SDK。
 
 ## 13. 性能影响判断
 
@@ -433,15 +445,14 @@ stdlib/stdx 和应用整体重编。Region-scan 当前 barrier ABI 主要收缩�
 
 - 普通 ref/weak/static/struct read：两边都在 LLVM 层变成直接内存操作；
 - Idle 六类 write wrapper：两边都是 phase gate 后 raw store/copy；
-- dense bulk write：Region-scan 的 16-entry word batch、pending-word 合并和单 Region token
+- dense bulk write：Region-scan 的 32-entry word batch、pending-word 合并和单 Region token
   可能减少 object-pointer queue 流量；
-- callsite 代码体积：Region-scan Mark 路径较小，可能减少 I-cache 和二进制体积压力。
+- Struct/ArrayCopy Mark 仍回 wrapper，代码体积没有扩展到全部 bulk callsite。
 
 ### 13.2 Region-scan 更容易劣化的路径
 
-- Concurrent Mark 中高频标量 ref/static-ref write：
-  - Wbuf 可在 target 中完成常见路径；
-  - Region-scan 每次进入 Runtime，且标量 batch 立即 flush；
+- Concurrent Mark 中 Ref/StaticRef 的 direct coordinate/4-way lookup 代码较长，
+  可能增加 I-cache 与寄存器压力；
 - 稀疏、随机、跨大量 Region 的 old ref：
   - bitmap word/pending summary/Region task不容易聚合；
 - 多 mutator 同时发现同一 Region 中不同对象：
@@ -508,9 +519,10 @@ stdlib/stdx 和应用整体重编。Region-scan 当前 barrier ABI 主要收缩�
 | 组件 | `RS_RT` / `RS_LLVM` 下的文件 |
 |---|---|
 | barrier producer | `RS_RT/src/Heap/MBarrier/MSMarkBarrier.cpp` |
-| mark-word flush / Region consumer | `RS_RT/src/Heap/MCollector/MarkSweepCollector.cpp` |
-| 16-entry mark batch | `RS_RT/src/Heap/MCollector/MSMarkBatch.h` |
+| TLS bitmap batch ABI | `RS_RT/src/Heap/MBarrier/MSBarrierMarkBuffer.h`、`MSAllocBuffer.h` |
+| barrier buffer flush / Region consumer | `RS_RT/src/Heap/MCollector/MarkSweepCollector.cpp` |
+| worker/root mark batch | `RS_RT/src/Heap/MCollector/MSMarkBatch.h` |
 | pending summary / scan state | `RS_RT/src/Heap/MAllocator/MSRegionInfo.h` |
 | REGION/OBJECT scheduler | `RS_RT/src/Heap/MCollector/MSMarkScheduler.cpp`、`.h` |
-| AArch64 phase-only inline | `RS_LLVM/llvm/lib/Target/AArch64/AArch64MSGCEmitter.cpp` |
-| X86 phase-only inline | `RS_LLVM/llvm/lib/Target/X86/X86MSGCEmitter.cpp` |
+| AArch64 Ref/StaticRef V3 inline | `RS_LLVM/llvm/lib/Target/AArch64/AArch64MSGCEmitter.cpp` |
+| X86 Ref/StaticRef V3 inline | `RS_LLVM/llvm/lib/Target/X86/X86MSGCEmitter.cpp` |

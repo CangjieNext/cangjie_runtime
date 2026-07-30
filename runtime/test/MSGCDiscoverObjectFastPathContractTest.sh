@@ -32,9 +32,14 @@ if [[ -z "$weak_ref_line" || -z "$has_ref_guard_line" ||
     exit 1
 fi
 
-rg -Uq '(?s)ResolveMarkOwner\(\).*barrierPhase.*__ATOMIC_ACQUIRE' "$BARRIER"
-rg -q 'collector->PublishManagedRefForBarrier\(ref\)' "$BARRIER"
-rg -q 'collector_->FlushBarrierMarkBatch\(batch_, work_\)' "$BARRIER"
+rg -Uq '(?s)ResolveMarkOwner\(.*GetThreadLocalData\(\)->encodedGCPhase' "$BARRIER"
+rg -q 'collector_->AddManagedRefToBarrierBuffer\(ref, \*buffer_\)' "$BARRIER"
+rg -q 'collector_->PublishManagedRefForBarrierImmediately\(ref\)' "$BARRIER"
+if rg -q 'AddManagedRefToMarkBatch|FlushBarrierMarkBatch|PublishManagedRefForBarrier\(' \
+    "$COLLECTOR" "$BARRIER"; then
+    echo 'obsolete stack-local barrier batch API remains' >&2
+    exit 1
+fi
 
 if rg -q 'TraceObjectRefFieldsToGCWork|EnqueueRefInto|PerPGCWork|activeLog_' \
     "$COLLECTOR" "$BARRIER"; then

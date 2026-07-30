@@ -19,7 +19,7 @@ MObject* MObject::NewObjectImpl(TypeInfo* ti, MSize size, AllocType allocType,
 {
 #ifdef MRT_USE_MARK_SWEEP
     ThreadLocalData* local = ThreadLocal::GetThreadLocalData();
-    auto addr = HeapManager::AllocateMS(size, allocType, ClassifyMSScanClass(ti), local);
+    auto addr = HeapManager::AllocateMS(size, ClassifyMSScanClass(ti), local);
 #else
     auto addr = HeapManager::Allocate(size, allocType);
 #endif

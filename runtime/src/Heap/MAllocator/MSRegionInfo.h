@@ -282,6 +282,17 @@ struct alignas(64) MSRegionInfo {
         __atomic_fetch_or(
             &pendingWordSummary, UINT64_C(1) << wordIdx, __ATOMIC_RELEASE);
     }
+    void PublishPendingMarkWords(uint64_t wordMask)
+    {
+        if (wordMask == 0) {
+            return;
+        }
+        // A barrier-buffer flush may win several mark words in one Region.
+        // Publish them with one release RMW before the single Region enqueue
+        // attempt, preserving the existing summary-first protocol.
+        __atomic_fetch_or(
+            &pendingWordSummary, wordMask, __ATOMIC_RELEASE);
+    }
     uint64_t TakePendingMarkWords()
     {
         return __atomic_exchange_n(

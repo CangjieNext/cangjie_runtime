@@ -22,11 +22,11 @@ MAddress HeapManager::Allocate(size_t allocSize, AllocType allocType)
 }
 
 #ifdef MRT_USE_MARK_SWEEP
-MAddress HeapManager::AllocateMS(size_t allocSize, AllocType allocType,
-                                 MSScanClass scanClass, ThreadLocalData* local)
+MAddress HeapManager::AllocateMS(size_t allocSize, MSScanClass scanClass,
+                                 ThreadLocalData* local)
 {
     auto& allocator = reinterpret_cast<RegionSpaceMS&>(Heap::GetHeap().GetAllocator());
-    return allocator.Allocate(allocSize, allocType, scanClass, local);
+    return allocator.Allocate(allocSize, scanClass, local);
 }
 #endif
 

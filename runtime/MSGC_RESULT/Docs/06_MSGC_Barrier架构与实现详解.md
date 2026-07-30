@@ -1,6 +1,7 @@
 # Cangjie MSGC Barrier 架构与实现详解
 
-> 当前代码基线：`MSGC-bugfix-regionScan` / `24ca097ace`。Barrier 已直接发布 bitmap/Region work，不再写 mutator WorkBuf。
+> 当前代码基线：`MSGC-bugfix-regionScan` 的 2026-07-30 工作树。Barrier 使用
+> `AllocBufferMS` 内嵌的固定布局 `MSBarrierMarkBuffer`，不再写 mutator WorkBuf。
 
 ## 1. 核心结论
 
@@ -13,9 +14,12 @@ discover_and_publish(old)
 store(destination, new)
 ```
 
-“publish”在当前实现中的含义是：
+“discover”在当前实现中的含义是：
 
-- 小对象：加入 `MSMarkWordBatch`，flush mark word，发布 pending word/REGION task；
+- 小对象：先加入 owner-private `MSBarrierMarkBuffer`；达到 128 个 unique bit、
+  发生 4-way set 冲突、owner 退出或 MarkTermination STW 时统一 flush；
+- buffer flush：按 mark word 原子 OR，并按 Region 合并
+  `pendingWordSummary`/REGION task publication；
 - 大对象：竞争 large marked flag，必要时发布 OBJECT task；
 - `NO_REF` 对象：只标记，不产生扫描 task。
 
@@ -24,8 +28,11 @@ store(destination, new)
 `ResolveMarkOwner()` 先 acquire 读取
 `CJ_MRT_MSGCFastPathState.barrierPhase`：
 
-- `barrierPhase == 0`：当前没有 SATB snapshot 要维护，直接返回；
-- 非 0：再读取 `MarkSweepCollector::GetActiveCollector()`。
+- `barrierPhase == 0`：IDLE，当前没有 SATB snapshot，直接写；
+- `barrierPhase == 1`：Mark wrapper-only，Runtime 立即提交 old ref；
+- `barrierPhase == 2`：Mark TLS batch V3，Runtime wrapper 和 LLVM 支持的
+  Ref/StaticRef inline 共用 `AllocBufferMS::barrierMarkBuffer_`；
+- 其他非零值：保守回 Runtime wrapper。
 
 phase 与 active collector 必须由 collector 的阶段切换共同维护。编译器 fast path 可以复用
 这个 gate，但不能自行推导 scheduler 是否存在工作。
@@ -39,31 +46,36 @@ Runtime 路径位于
 WriteRefField(field, newRef):
     oldRef = MSLoadRawReference(field)
     if oldRef != newRef:
-        EnqueueRefFast(oldRef)
+        BarrierMarkContext.AddOldRef(oldRef)
     MSStoreRawReference(field, newRef)
 ```
 
-`EnqueueRefFast()` 的名字是历史沿用；当前内部调用
-`PublishManagedRefForBarrier()`。该函数创建一个栈上 `MSMarkWordBatch`，加入 old ref，
-并立即 `FlushBarrierMarkBatch()`。所以标量路径的关键顺序是：
+`BarrierMarkContext` 是非 owning handle。phase 2 且当前线程存在 `AllocBufferMS` 时，
+`AddOldRef()` 将 small old ref 转为 `(wordKey, bitMask)` 并合并进持久 buffer；phase 1
+或当前线程没有 `AllocBufferMS` 时走立即提交 fallback。它没有栈内 batch、析构 flush
+或显式 `Flush()`。
+
+标量路径的关键顺序是：
 
 ```text
-load old → bitmap publication visible → store new
+load old → old edge captured in owner-private buffer or immediate fallback → store new
 ```
 
-不能把 flush 移到 store 之后，也不能让 batch 跨 barrier 调用或 mark epoch 存活。
+buffer 可以跨 barrier 调用保留，但不能跨 mark epoch；普通 safepoint/saferegion 不刷新
+buffer，上一轮 MarkTermination 和下一轮 PreEnum 的检查共同保证 epoch 边界。
 
 ## 4. Bulk barrier
 
-struct、static struct、ref array 和 struct array copy 可能一次覆盖多个旧引用。当前实现使用
-`BulkRefMarker`：
+struct、static struct、ref array 和 struct array copy 可能一次覆盖多个旧引用。当前实现
+与标量共用 `BarrierMarkContext`：
 
-- 持有一个栈上 `MSMarkWordBatch` 与 `MSWorkUnitCounter`；
-- 对覆盖范围中的每个旧引用调用 `AddManagedRefToMarkBatch()`；
-- 析构时调用 `FlushBarrierMarkBatch()`；
-- marker 的生命周期结束后才执行 memcpy/memmove。
+- 对覆盖范围中的每个旧引用调用 `AddOldRef()`；
+- 每个 old ref 必须在对应 memcpy/memmove 之前完成 capture；
+- wrapper 返回时不做特殊 flush，bulk tail 可与后续 scalar/bulk 合并；
+- threshold/set 冲突由 `AddManagedRefToBarrierBuffer()` 内部 flush 后重试。
 
-这既合并同一 bitmap word 的多个置位，也保持 SATB 的 old-before-overwrite。
+这既合并同一 bitmap word 的多个置位，也保持 SATB 的 old-before-overwrite。当前 LLVM
+第一版在 Mark phase 仍让 Struct/ArrayCopy 回 wrapper；所有入口最终使用同一持久 buffer。
 
 | 操作 | 旧引用枚举方式 |
 |---|---|
@@ -84,12 +96,14 @@ order。CAS 只有在真正替换旧值的路径上保护相应旧边；failure 
 flowchart TD
     W[pre-write barrier loads old ref] --> R{managed heap ref?}
     R -->|no| S[perform store]
-    R -->|yes| A[AddRefToMarkBatch]
+    R -->|yes| A[AddManagedRefToBarrierBuffer]
     A --> K{object kind}
-    K -->|small| B[coalesce region/word/mask]
-    B --> F[flush atomic OR mark word]
+    K -->|small| B[coalesce wordKey/mask in TLS buffer]
+    B --> C{threshold/conflict/exit/termination?}
+    C -->|yes| F[flush atomic OR mark words]
+    C -->|no| S
     F --> H{new HAS_REF bits?}
-    H -->|yes| P[publish pending word]
+    H -->|yes| P[publish merged pending words]
     P --> Q[TryPublishRegion]
     K -->|large| L[large marked winner]
     L --> O[PublishObject when HAS_REF]
@@ -107,25 +121,23 @@ flowchart TD
 Region 已经 `QUEUED/OWNED` 时不需要第二个 token；owner 会消费或在释放后重新发布
 residual summary。
 
-## 7. 当前没有 TLS grey-log ABI
+## 7. 固定 TLS bitmap-batch ABI
 
-旧版本的 AArch64 barrier 曾直接依赖 `AllocBufferMS::activeLog_`、对象数组、长度和容量
-偏移。当前 runtime 的 `AllocBufferMS` 不再承载这套标记日志，编译器也不应把对象地址写入
-旧布局。
+旧版本的 AArch64 barrier 曾直接依赖 `AllocBufferMS::activeLog_` 与 WorkBuf 对象地址
+布局。当前版本改为固定 bitmap-batch ABI：
 
-当前 compiler/runtime 契约应限定为：
+- `ThreadLocalData::msAllocBuffer == 88`；
+- `AllocBufferMS::barrierMarkBuffer_ == 576`，`AllocBufferMS` 为 64B 对齐；
+- 32 个 16B entry，8 set × 4 way；
+- header offset 为 512/516/520/524，总大小 528B；
+- `wordKey = (regionIdx << 6) | wordIdx`，hash multiplier 为 5；
+- unique-bit flush threshold 为 128；
+- V3 signature 为 `0x4D53424203100240`。
 
-- barrier intrinsic/wrapper 的函数签名与调用约定；
-- `barrierPhase` 等公开 fast-path gate；
-- heap/Region/bitmap 基础布局中确实由 `MSGCFastPathState` 暴露的字段；
-- fast path 失败时回退到 runtime wrapper。
-
-Compiler 的 `llvm/CodeGen/CJMSGCABI.h` 镜像了完整 `MSGCFastPathState` 和 64B
-`MSRegionInfo` offset，其中包括 scan-plane base、
-`markTaskNextRegionIdx` 与 `pendingWordSummary`。这些 offset 已是 compiler/runtime 布局
-合同；但当前 AArch64/X86 **写屏障** emitter 只读取 `barrierPhase`：IDLE 内联 raw
-store/copy，MARK 回退 runtime wrapper。它们当前不直接修改 Region task state或 pending
-summary。
+Compiler 的 `llvm/CodeGen/CJMSGCABI.h` 镜像上述布局以及 heap、RegionInfo、bitmap
+plane 和 36 档 size-class descriptor。AArch64/X86 在 phase 2 的 collect-set Small
+Ref/StaticRef 常见路径直接更新 owner-private entry；LLVM 不直接修改全局 mark plane、
+`pendingWordSummary`、scan state 或 scheduler，统一由 Runtime flush 完成。
 
 ## 8. 无读屏障
 
@@ -155,8 +167,9 @@ MSGC 写侧优化必须满足：
 1. Mark phase 能正确走 SATB old-value publication；
 2. 非 Mark phase 可安全走 store-only；
 3. bulk 操作不能在覆盖后才枚举旧值；
-4. 不直接写已经移除的 TLS 日志布局；
-5. 不绕过 runtime 的 Region/OBJECT 分类和 mark epoch 检查；
+4. 只有 phase 2 才能按 V3 固定布局直接写 TLS buffer；
+5. LLVM direct 只接受经过精确 slot 校验的 collect-set Small；OUTSIDE_SET、LARGE、
+   非法 Region、threshold/set 冲突均在覆盖前回 wrapper；
 6. 不支持的 target/calling convention 保留 wrapper slow path。
 
 ## 10. 与 CopyGC 的差异
@@ -172,14 +185,16 @@ MSGC 写侧优化必须满足：
 ## 11. 正确性不变式
 
 1. heap old ref 必须在目标位置被覆盖前进入 Mark 发现路径。
-2. 标量 barrier 返回 publication 前必须清空栈上 batch。
-3. bulk batch 必须在 memcpy/memmove 前 flush。
-4. batch 不得跨 mark epoch。
+2. 标量和 bulk 必须在覆盖前把 old edge 加入 owner-private buffer或完成立即 fallback。
+3. bulk wrapper 返回不构成 flush 边界。
+4. 非空 buffer 不得跨 mark epoch。
 5. phase gate 和 active collector 的发布/撤销必须形成闭环。
 6. 编译器不能假定所有 old ref 都是 small object。
 7. large/span 必须解析到 primary，并遵循 OBJECT task publication。
 8. `NO_REF` 可省扫描 task，但不能漏掉存活标记。
 9. compiler fast path 必须有等价的 runtime slow path。
+10. 普通 safepoint/saferegion 不访问 buffer；owner 退出和 MarkTermination STW 必须 drain。
+11. barrier Add/flush 不计算或累计 `cycleCompletedMarkWU_`。
 
 ## 12. 建议验证
 
@@ -195,13 +210,15 @@ MSGC 写侧优化必须满足：
 
 - [`MSMarkBarrier.cpp`](../../src/Heap/MBarrier/MSMarkBarrier.cpp)：runtime barrier 行为
 - [`MarkSweepCollector.cpp`](../../src/Heap/MCollector/MarkSweepCollector.cpp)：
-  `PublishManagedRefForBarrier`、`AddManagedRefToMarkBatch`、`FlushBarrierMarkBatch`
-- [`MSMarkBatch.h`](../../src/Heap/MCollector/MSMarkBatch.h)：bulk coalescing
+  `AddManagedRefToBarrierBuffer`、`FlushBarrierMarkBuffer`、termination drain
+- [`MSBarrierMarkBuffer.h`](../../src/Heap/MBarrier/MSBarrierMarkBuffer.h)：固定 TLS ABI 与本地合并
+- [`MSMarkBatch.h`](../../src/Heap/MCollector/MSMarkBatch.h)：worker/root 等非 barrier mark batch
 - [`MSMarkScheduler.h`](../../src/Heap/MCollector/MSMarkScheduler.h)：publication 后的 task 语义
 - [`MSGCFastPath.h`](../../src/Heap/MSGCFastPath.h)：runtime 暴露的 fast-path state
 
 ## 14. 历史口径
 
 旧文档中的 Route-A mark-before-log、active log、global-full buffer 和 partial-buffer flush
-描述的是已移除实现。其 bug 根因仍可作为历史参考，但当前正确性检查应落在
-mark-word flush、pending publication、task ledger 与 STW reconciliation 上。
+以及“barrier 返回前必须 flush 栈内 batch”的描述都属于已移除实现。当前正确性检查应落在
+old-before-overwrite capture、TLS lifecycle drain、mark-word flush、pending publication、
+task ledger 与 STW reconciliation 上。

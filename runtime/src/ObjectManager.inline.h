@@ -29,9 +29,7 @@ inline ObjRef ObjectManager::NewObject(const TypeInfo* ti, MSize size, AllocType
 
 inline ObjRef ObjectManager::NewWeakRefObject(const TypeInfo* ti, MSize size, AllocType allocType)
 {
-    CHECK_DETAIL(ti != nullptr, "klass is nullptr");
-    auto obj = MObject::NewObject(const_cast<TypeInfo*>(ti), size, allocType);
-    return static_cast<ObjRef>(obj);
+    return NewObject(ti, size, allocType);
 }
 
 inline ObjRef ObjectManager::NewPinnedObject(const TypeInfo* ti, MSize size, bool isFinalizer)

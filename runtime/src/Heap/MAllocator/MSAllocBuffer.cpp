@@ -18,12 +18,39 @@
 #include "Common/BaseObject.h"
 #include "ObjectModel/MClass.inline.h"
 #include <algorithm>
+#include <cstdlib>
 #include <cstdint>
 #include <functional>
 #include <thread>
 #include <type_traits>
+#if defined(_WIN32)
+#include <malloc.h>
+#endif
 
 namespace MapleRuntime {
+namespace {
+void* AllocateMSAllocBufferStorage(size_t size) noexcept
+{
+#if defined(_WIN32)
+    return _aligned_malloc(size, alignof(AllocBufferMS));
+#else
+    void* storage = nullptr;
+    if (posix_memalign(&storage, alignof(AllocBufferMS), size) != 0) {
+        return nullptr;
+    }
+    return storage;
+#endif
+}
+
+void FreeMSAllocBufferStorage(void* storage) noexcept
+{
+#if defined(_WIN32)
+    _aligned_free(storage);
+#else
+    free(storage);
+#endif
+}
+} // namespace
 
 uintptr_t AllocateFromRefilledRegion(MSRegionInfo* region)
 {
@@ -71,13 +98,45 @@ AllocBufferMS::~AllocBufferMS()
     Fini();
 }
 
+void* AllocBufferMS::operator new(size_t size)
+{
+    void* storage = AllocateMSAllocBufferStorage(size);
+    CHECK_DETAIL(storage != nullptr, "aligned AllocBufferMS allocation failed");
+    return storage;
+}
+
+void* AllocBufferMS::operator new(size_t size, const std::nothrow_t&) noexcept
+{
+    return AllocateMSAllocBufferStorage(size);
+}
+
+void AllocBufferMS::operator delete(void* ptr) noexcept
+{
+    FreeMSAllocBufferStorage(ptr);
+}
+
+void AllocBufferMS::operator delete(void* ptr, size_t) noexcept
+{
+    FreeMSAllocBufferStorage(ptr);
+}
+
+void AllocBufferMS::operator delete(
+    void* ptr, const std::nothrow_t&) noexcept
+{
+    FreeMSAllocBufferStorage(ptr);
+}
+
 AllocBufferMS::AllocBufferMS()
 {
     static_assert(std::is_standard_layout<AllocBufferMS>::value,
                   "AllocBufferMS must remain standard-layout for compiler ABI checks");
+    static_assert(alignof(AllocBufferMS) == 64,
+                  "AllocBufferMS must remain cache-line aligned");
 #if UINTPTR_MAX == UINT64_MAX
     static_assert(offsetof(AllocBufferMS, activeRegions_) == 0,
                   "activeRegions_ offset changed; update AArch64/X86 MSGC allocation fast path");
+    static_assert(offsetof(AllocBufferMS, barrierMarkBuffer_) == 576,
+                  "barrierMarkBuffer_ offset changed; update AArch64/X86 MSGC barrier fast path");
     static_assert(sizeof(activeRegions_[0][0]) == 8,
                   "activeRegions_ stride changed; update AArch64/X86 MSGC allocation fast path");
 #endif
@@ -89,10 +148,14 @@ AllocBufferMS::AllocBufferMS()
         sizeof(activeRegions_) ==
             kNumSizeClasses * kMSScanClassCount * sizeof(MSRegionInfo*),
         "AllocBufferMS compiler-visible prefix must contain only active Region pointers");
+    CHECK_DETAIL(
+        (reinterpret_cast<uintptr_t>(this) & (alignof(AllocBufferMS) - 1)) == 0,
+        "[MS-GC] AllocBufferMS instance is not cache-line aligned");
 }
 
 void AllocBufferMS::Init(CentralRegionPool* central)
 {
+    ResetMSBarrierMarkBuffer(barrierMarkBuffer_);
     central_ = central;
     cachedHomeShardId_ = (central_ != nullptr)
         ? central_->ResolveHomeShardId()
@@ -121,6 +184,13 @@ void AllocBufferMS::Fini()
     MarkSweepCollector* collector = MarkSweepCollector::GetActiveCollector();
     if (collector != nullptr) {
         collector->NotifyAllocBufferExit(*this);
+    } else {
+        CHECK_DETAIL(
+            IsMSBarrierMarkBufferEmpty(barrierMarkBuffer_),
+            "[MS-GC] AllocBufferMS finalized with pending barrier work "
+            "outside an active mark epoch: occupancy=0x%x pendingBits=%u",
+            barrierMarkBuffer_.occupancy,
+            barrierMarkBuffer_.pendingBitCount);
     }
 
     if (central_ != nullptr) {
@@ -242,10 +312,9 @@ MAddress AllocBufferMS::SlowAlloc(uint8_t cls, MSScanClass scanClass)
 {
     uint8_t scanIdx = ToMSScanClassIndex(scanClass);
     // Step 1: Return the exhausted Region to the central pool (if any).
-    // When the compiler fast path (EnableGCFastPath) is enabled, the mutator
-    // bump-allocates inline and never calls Allocate(), so activeRegions_[cls]
-    // may already be null here.  Pacing debt is recorded after the new region
-    // is installed (Step 3) regardless of this condition.
+    // Compiler allocation hits bypass Allocate(). On a miss, Runtime reloads
+    // the same active Region here; if it is exhausted, SlowAlloc returns it
+    // before installing a replacement.
     if (activeRegions_[cls][scanIdx] != nullptr) {
         ReturnRegion(cls, scanClass);
     }
@@ -278,8 +347,8 @@ MAddress AllocBufferMS::SlowAlloc(uint8_t cls, MSScanClass scanClass)
     // Step 3: Set as active Region and record pacing debt for the consumed region.
     // AccumulatePacingDebt(MS_REGION_SIZE) accounts for ~one region worth of bytes,
     // covering both paths:
-    //   - compiler fast-path: the previous region was exhausted inline (activeRegions_
-    //     was null on entry), so no per-object debt was recorded.
+    //   - compiler fast-path: allocations in the previous Region happened
+    //     inline, so no per-object debt was recorded.
     //   - runtime slow-path: Allocate() no longer tracks per-object debt; all debt
     //     is consolidated here at region-acquisition granularity.
     activeRegions_[cls][scanIdx] = newRegion;

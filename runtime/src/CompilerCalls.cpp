@@ -33,6 +33,7 @@
 #include "Heap/Heap.h"
 #ifdef MRT_USE_MARK_SWEEP
 #include "Heap/MBarrier/MSMarkBarrier.h"
+#include "Heap/MAllocator/MSSizeClass.h"
 #endif
 #include "HeapManager.inline.h"
 #include "LoaderManager.h"
@@ -186,51 +187,56 @@ ArrayRef AllocateArrayOrThrow(const TypeInfo* arrayInfo, MIndex nElems,
     }
     return array;
 }
+
+template<typename Allocator>
+ObjRef AllocateObjectOrThrow(const TypeInfo* klass, MSize size,
+                             const char* allocationKind,
+                             const char* failureContext, Allocator allocator)
+{
+    DCHECK(size == (AlignUp<size_t>(klass->GetInstanceSize(), 8) + TYPEINFO_PTR_SIZE));
+    ObjRef obj = allocator();
+    if (obj == nullptr) {
+        VLOG(REPORT, "Allocating %s %s (%zu B) failed and throw OutOfMemoryError",
+            allocationKind, klass->GetName(), size);
+        ExceptionManager::CheckAndThrowPendingException(failureContext);
+    }
+    return obj;
+}
+
+ArrayRef AllocateKnownWidthArrayOrThrow(const TypeInfo* arrayInfo, MIndex nElems,
+                                        ObjectManager::ArrayElementWidth elemWidth,
+                                        const char* failureContext)
+{
+    return AllocateArrayOrThrow(arrayInfo, nElems, failureContext,
+        [&]() { return ObjectManager::NewKnownWidthArray(nElems, arrayInfo, elemWidth); });
+}
 } // namespace
 
 extern "C" ObjRef MCC_NewObject(const TypeInfo* klass, MSize size)
 {
-    DCHECK(size == (AlignUp<size_t>(klass->GetInstanceSize(), 8) + TYPEINFO_PTR_SIZE)); // 8-byte alignment
-    ObjRef obj = ObjectManager::NewObject(klass, size);
-    if (obj == nullptr) {
-        VLOG(REPORT, "Allocating object %s (%zu B) failed and throw OutOfMemoryError", klass->GetName(), size);
-        ExceptionManager::CheckAndThrowPendingException("ObjectManager::NewObject return nullptr");
-    }
-    return obj;
+    return AllocateObjectOrThrow(klass, size, "object", "ObjectManager::NewObject return nullptr",
+        [&]() { return ObjectManager::NewObject(klass, size); });
 }
 
 extern "C" ObjRef MCC_NewWeakRefObject(const TypeInfo* klass, MSize size)
 {
-    DCHECK(size == (AlignUp<size_t>(klass->GetInstanceSize(), 8) + TYPEINFO_PTR_SIZE)); // 8-byte alignment
-    ObjRef obj = ObjectManager::NewWeakRefObject(klass, size);
-    if (obj == nullptr) {
-        VLOG(REPORT, "Allocating weak reference %s (%zu B) failed and throw OutOfMemoryError", klass->GetName(), size);
-        ExceptionManager::CheckAndThrowPendingException("ObjectManager::NewWeakRefObject return nullptr");
-    }
-    return obj;
+    return AllocateObjectOrThrow(klass, size, "weak reference",
+        "ObjectManager::NewWeakRefObject return nullptr",
+        [&]() { return ObjectManager::NewWeakRefObject(klass, size); });
 }
 
 extern "C" ObjRef MCC_NewPinnedObject(const TypeInfo* klass, MSize size, bool isFinalizer)
 {
-    DCHECK(size == (AlignUp<size_t>(klass->GetInstanceSize(), 8) + TYPEINFO_PTR_SIZE)); // 8-byte alignment
-    ObjRef obj = ObjectManager::NewPinnedObject(klass, size, isFinalizer);
-    if (obj == nullptr) {
-        VLOG(REPORT, "Allocating object %s (%zu B) failed and throw OutOfMemoryError", klass->GetName(), size);
-        ExceptionManager::CheckAndThrowPendingException("ObjectManager::NewPinnedObject return nullptr");
-    }
-    return obj;
+    return AllocateObjectOrThrow(klass, size, "object",
+        "ObjectManager::NewPinnedObject return nullptr",
+        [&]() { return ObjectManager::NewPinnedObject(klass, size, isFinalizer); });
 }
 
 extern "C" ObjRef MCC_NewFinalizer(const TypeInfo* klass, MSize size)
 {
-    DCHECK(size == (AlignUp<size_t>(klass->GetInstanceSize(), 8) + TYPEINFO_PTR_SIZE)); // 8-byte alignment
-    ObjRef obj = ObjectManager::NewFinalizer(klass, size);
-    if (obj == nullptr) {
-        VLOG(REPORT, "Allocating object with ~init %s (%zu B) failed and throw OutOfMemoryError",
-            klass->GetName(), size);
-        ExceptionManager::CheckAndThrowPendingException("ObjectManager::NewFinalizer return nullptr");
-    }
-    return obj;
+    return AllocateObjectOrThrow(klass, size, "object with ~init",
+        "ObjectManager::NewFinalizer return nullptr",
+        [&]() { return ObjectManager::NewFinalizer(klass, size); });
 }
 
 extern "C" ObjRef MCC_OnFinalizerCreated(ObjRef ref)
@@ -252,38 +258,26 @@ extern "C" ArrayRef MCC_NewObjArray(const TypeInfo* arrayInfo, MIndex nElems)
 
 extern "C" ArrayRef MCC_NewArray8(const TypeInfo* arrayInfo, MIndex nElems)
 {
-    return AllocateArrayOrThrow(arrayInfo, nElems, "ObjectManager::NewKnownWidthArray(1 byte) return nullptr",
-        [&]() {
-            return ObjectManager::NewKnownWidthArray(
-                nElems, arrayInfo, ObjectManager::ArrayElementWidth::ONE_BYTE);
-        });
+    return AllocateKnownWidthArrayOrThrow(arrayInfo, nElems, ObjectManager::ArrayElementWidth::ONE_BYTE,
+        "ObjectManager::NewKnownWidthArray(1 byte) return nullptr");
 }
 
 extern "C" ArrayRef MCC_NewArray16(const TypeInfo* arrayInfo, MIndex nElems)
 {
-    return AllocateArrayOrThrow(arrayInfo, nElems, "ObjectManager::NewKnownWidthArray(2 bytes) return nullptr",
-        [&]() {
-            return ObjectManager::NewKnownWidthArray(
-                nElems, arrayInfo, ObjectManager::ArrayElementWidth::TWO_BYTES);
-        });
+    return AllocateKnownWidthArrayOrThrow(arrayInfo, nElems, ObjectManager::ArrayElementWidth::TWO_BYTES,
+        "ObjectManager::NewKnownWidthArray(2 bytes) return nullptr");
 }
 
 extern "C" ArrayRef MCC_NewArray32(const TypeInfo* arrayInfo, MIndex nElems)
 {
-    return AllocateArrayOrThrow(arrayInfo, nElems, "ObjectManager::NewKnownWidthArray(4 bytes) return nullptr",
-        [&]() {
-            return ObjectManager::NewKnownWidthArray(
-                nElems, arrayInfo, ObjectManager::ArrayElementWidth::FOUR_BYTES);
-        });
+    return AllocateKnownWidthArrayOrThrow(arrayInfo, nElems, ObjectManager::ArrayElementWidth::FOUR_BYTES,
+        "ObjectManager::NewKnownWidthArray(4 bytes) return nullptr");
 }
 
 extern "C" ArrayRef MCC_NewArray64(const TypeInfo* arrayInfo, MIndex nElems)
 {
-    return AllocateArrayOrThrow(arrayInfo, nElems, "ObjectManager::NewKnownWidthArray(8 bytes) return nullptr",
-        [&]() {
-            return ObjectManager::NewKnownWidthArray(
-                nElems, arrayInfo, ObjectManager::ArrayElementWidth::EIGHT_BYTES);
-        });
+    return AllocateKnownWidthArrayOrThrow(arrayInfo, nElems, ObjectManager::ArrayElementWidth::EIGHT_BYTES,
+        "ObjectManager::NewKnownWidthArray(8 bytes) return nullptr");
 }
 
 extern "C" void MCC_WriteRefField(const ObjectPtr ref, const ObjectPtr obj, RefField<false>* field)
@@ -1762,11 +1756,6 @@ extern "C" void CJ_MCC_UpdateVMT(TypeInfo* ti, TypeInfo* itf, ExtensionData* ext
     }
 }
 
-extern "C" ObjRef MCC_NewGenericObject(const TypeInfo* klass, MSize size)
-{
-    return MCC_NewObject(klass, size);
-}
-
 namespace {
 ArrayRef AllocateGenericArray(const TypeInfo* arrayInfo, MIndex nElems)
 {
@@ -1822,9 +1811,8 @@ ArrayRef AllocateGenericArray(const TypeInfo* arrayInfo, MIndex nElems)
 ArrayRef NewGenericArrayOrThrow(const TypeInfo* arrayInfo, MIndex nElems,
                                 const char* failureContext)
 {
-    if (!arrayInfo->IsArrayType()) {
-        return nullptr;
-    }
+    CHECK_DETAIL(arrayInfo != nullptr && arrayInfo->IsArrayType(),
+        "generic array allocation requires array TypeInfo");
     return AllocateArrayOrThrow(arrayInfo, nElems, failureContext,
         [&]() { return AllocateGenericArray(arrayInfo, nElems); });
 }
@@ -1839,9 +1827,10 @@ extern "C" ArrayRef MCC_NewArrayGeneric(const TypeInfo* arrayInfo, MIndex nElems
 extern "C" MRT_EXPORT ArrayRef MCC_NewArrayGenericFast3_MSGC(const TypeInfo* arrayInfo, MIndex nElems,
                                                               MSize totalSize)
 {
-    // LLVM supplies a checked total size for inline allocation. Reaching this
-    // slow body means the target fast path declined; Runtime recomputes the
-    // allocation from TypeInfo and length and therefore does not trust it.
+    // The third argument is the compiler-checked 32-bit fast-allocation size:
+    // 0 means the object exceeds the small-object path. Runtime slow allocation
+    // always recomputes size from TypeInfo and length.
+    DCHECK(totalSize <= kLargeObjectThreshold);
     (void)totalSize;
     return NewGenericArrayOrThrow(
         arrayInfo, nElems, "NewArrayGenericFast3_MSGC return nullptr");
