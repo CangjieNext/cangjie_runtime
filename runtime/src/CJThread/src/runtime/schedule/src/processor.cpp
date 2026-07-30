@@ -861,6 +861,11 @@ void ProcessorFree(struct Schedule *schedule, struct Processor *processor)
     atomic_fetch_add(&schdProcessor->freeNum, 1u);
 }
 
+void ProcessorNonDefaultScheduleWake(struct Schedule *schedule)
+{
+    ThreadWakeIfSleeping(schedule->thread0);
+}
+
 /* Wakes up a processor or randomly selects a free processor for startup. */
 void ProcessorWake(struct Schedule *schedule, void *specPro)
 {
@@ -872,7 +877,7 @@ void ProcessorWake(struct Schedule *schedule, void *specPro)
         return;
     }
     if (schedule->scheduleType != SCHEDULE_DEFAULT) {
-        ThreadWakeIfSleeping(schedule->thread0);
+        ProcessorNonDefaultScheduleWake(schedule);
         return;
     }
 
