@@ -535,6 +535,51 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
         return Option<V>.None
     }
 
+    /**
+     * Adds a key-value pair to the HashMap only if the key is not already present.
+     *
+     * This method directly manipulates the hash table without going through the
+     * MapEntryView abstraction, avoiding unnecessary object allocation and
+     * redundant bucket index computations. Benchmark shows the default
+     * implementation via entryView is 4x slower than contains + add.
+     *
+     * @param key the key of the key-value pair to be added.
+     * @param value the value of the key-value pair to be added.
+     * @return If the key exists before the invocation, the existing value is returned.
+     * Otherwise, None is returned and the key-value pair is inserted.
+     *
+     * @since 0.59.3
+     */
+    @Frozen
+    @OverflowWrapping
+    public func addIfAbsent(key: K, value: V): ?V {
+        let hash: Int64 = getHash(key.hashCode())
+        var bucketIndex: Int64 = getIndex(hash, buckets.size)
+        var entryIndex: Int64 = buckets[bucketIndex]
+        while (entryIndex >= 0) {
+            if (hash == entries[entryIndex].hash && key == entries[entryIndex].key) {
+                return Some(entries[entryIndex].value)
+            }
+            entryIndex = entries[entryIndex].next
+        }
+        if (freeSize > 0) {
+            entryIndex = freeIndex
+            freeIndex = entries[entryIndex].next
+            freeSize--
+        } else {
+            if (resize(size + 1)) {
+                bucketIndex = getIndex(hash, buckets.size)
+            }
+            entryIndex = appendIndex
+            appendIndex++
+        }
+
+        entries[entryIndex] = HashMapEntry<K, V>(hash, buckets[bucketIndex], key, value)
+        modCount++
+        buckets[bucketIndex] = entryIndex
+        return None
+    }
+
     @Frozen
     @OverflowWrapping
     protected func putWithoutResize(key: K, value: V): Unit {
