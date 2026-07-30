@@ -12,9 +12,9 @@ CANGJIE_HEADER="$ROOT_DIR/src/Cangjie.h"
 SCHEDULER_SOURCE="$ROOT_DIR/src/CjScheduler.cpp"
 RUNTIME_API_SOURCE="$ROOT_DIR/src/CangjieRuntimeApi.cpp"
 
-if ! rg -q 'activeHelperSweepCount_' "$CENTRAL_HEADER" ||
-   rg -q 'helperSweptRegions' "$CENTRAL_HEADER"; then
-    echo "parallel Sweep must retain helper activity without REPORT-only source statistics" >&2
+if ! rg -q 'sweepAdmission_' "$CENTRAL_HEADER" ||
+   rg -q 'activeHelperSweepCount_|helperSweptRegions' "$CENTRAL_HEADER"; then
+    echo "parallel Sweep must use unified admission without REPORT-only helper counters" >&2
     exit 1
 fi
 

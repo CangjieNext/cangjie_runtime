@@ -33,10 +33,10 @@ if [[ -z "$publish_line" || -z "$erase_line" || "$publish_line" -ge "$erase_line
 fi
 
 termination="$(sed -n '/void MarkSweepCollector::MarkTermination/,/^}/p' "$COLLECTOR_SOURCE")"
-ordinary_line="$(printf '%s\n' "$termination" | rg -n 'ordinaryTerminationWU = DrainSchedulerUnderSTW' | cut -d: -f1)"
+ordinary_line="$(printf '%s\n' "$termination" | rg -n 'ordinaryTerminationWU = drainMarkClosureToFixedPoint' | cut -d: -f1)"
 prepare_line="$(printf '%s\n' "$termination" | rg -n 'PrepareFinalizersForResurrection' | cut -d: -f1)"
 roots_line="$(printf '%s\n' "$termination" | rg -n 'VisitFinalizerRoots' | cut -d: -f1)"
-closure_line="$(printf '%s\n' "$termination" | rg -n 'resurrectionClosureWU = DrainSchedulerUnderSTW' | cut -d: -f1)"
+closure_line="$(printf '%s\n' "$termination" | rg -n 'resurrectionClosureWU =' | cut -d: -f1)"
 weak_line="$(printf '%s\n' "$termination" | rg -n 'ClearWeakRefsAfterMark' | cut -d: -f1)"
 if [[ "$ordinary_line" -ge "$prepare_line" ||
       "$prepare_line" -ge "$roots_line" ||

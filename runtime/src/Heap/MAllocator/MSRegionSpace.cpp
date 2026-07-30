@@ -47,14 +47,21 @@ RegionSpaceMS::~RegionSpaceMS()
 
 MAddress RegionSpaceMS::Allocate(size_t size, AllocType allocType)
 {
-    return Allocate(
-        size, allocType, MSScanClass::HAS_REF, ThreadLocal::GetThreadLocalData());
+    (void)allocType;
+    return AllocateInternal(
+        size, MSScanClass::HAS_REF, ThreadLocal::GetThreadLocalData());
 }
 
 MAddress RegionSpaceMS::Allocate(
     size_t size, AllocType allocType, MSScanClass scanClass, ThreadLocalData* local)
 {
     (void)allocType;
+    return AllocateInternal(size, scanClass, local);
+}
+
+MAddress RegionSpaceMS::AllocateInternal(
+    size_t size, MSScanClass scanClass, ThreadLocalData* local)
+{
     size_t allocSize = ToAllocSize(size);
     if (UNLIKELY(SizeClassInfo::IsLargeObjectSize(allocSize))) {
         return AllocateLargeObject(size, allocSize, scanClass, local);
@@ -320,14 +327,12 @@ size_t RegionSpaceMS::FlushCentralCacheToThreshold(size_t thresholdBytes)
     return flushedBytes;
 }
 
-size_t RegionSpaceMS::BackgroundScavenge(
-    size_t quantumBytes,
-    FreeManager::ScavengeSliceStats* stats)
+size_t RegionSpaceMS::BackgroundScavenge(size_t quantumBytes)
 {
     if (msRegionManager_ == nullptr) {
         return 0;
     }
-    return msRegionManager_->ScavengeFreeRegionsUpTo(quantumBytes, stats);
+    return msRegionManager_->ScavengeFreeRegionsUpTo(quantumBytes);
 }
 
 size_t RegionSpaceMS::BackgroundShrinkOneSegment()
@@ -417,9 +422,8 @@ MAddress RegionSpaceMS::TryAllocateLargeObjectOnce(
     }
 
     uintptr_t regionStart = 0;
-    AllocBufferMS* msBuffer2 = ThreadLocal::GetAllocBufferMS();
-    uint16_t homeShardId = (msBuffer2 != nullptr)
-        ? msBuffer2->GetCachedHomeShardId()
+    uint16_t homeShardId = (msBuffer != nullptr)
+        ? msBuffer->GetCachedHomeShardId()
         : static_cast<uint16_t>(static_cast<uint32_t>(GetTid()) % msRegionManager_->GetShardCount());
     MSRegionInfo* baseInfo = msRegionManager_->TakeRegionForLarge(unitCount, regionStart, homeShardId);
     if (baseInfo == nullptr) {
@@ -625,7 +629,7 @@ void RegionSpaceMS::RegisterLargeObjectMS(
                 i, spanCount, baseIdx + i,
                 (int)entry->GetRegionType(), entry->allocPtr, entry->regionEnd,
                 (void*)entry->GetAllocBitmap(), (unsigned)entry->sizeClass,
-                (unsigned)entry->GetFreeSlotCount(), (unsigned)entry->GetTotalSlotCount(),
+                (unsigned)entry->CountFreeSlots(), (unsigned)entry->GetTotalSlotCount(),
                 static_cast<unsigned>(entry->GetAllocMode()),
                 static_cast<unsigned>(entry->collectEpoch),
                 static_cast<int32_t>(entry->GetCentralNextRegionIdx()),
@@ -642,7 +646,7 @@ void RegionSpaceMS::RegisterLargeObjectMS(
         spanInfo->regionEnd = 0;
         spanInfo->SetCentralNextRegionIdx(MSRegionInfo::INVALID_REGION_IDX);
         spanInfo->SetMarkTaskNextRegionIdx(MSRegionInfo::INVALID_REGION_IDX);
-        spanInfo->slotOrLargeMeta = 0;
+        spanInfo->largeObjectBytes = 0;
         spanInfo->collectEpoch = MSRegionInfo::NO_COLLECT_EPOCH;
         spanInfo->control = 0;
         spanInfo->allocSummary = 0;

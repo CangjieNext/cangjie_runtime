@@ -51,8 +51,6 @@ class MSRegionManager : private FreeManager::HeapRangeHandler {
     using RegionIndex = FreeManager::RegionIndex;
     using RegionCount = FreeManager::RegionCount;
 public:
-    using ScavengeSliceStats = FreeManager::ScavengeSliceStats;
-
     MSRegionManager() = default;
     ~MSRegionManager();
 
@@ -111,7 +109,7 @@ public:
 
     // Scavenge up to maxBytes of hot-free regions (pages returned to OS).
     // Used by BackgroundScavengeLoop for per-quantum budget control.
-    size_t ScavengeFreeRegionsUpTo(size_t maxBytes, ScavengeSliceStats* stats = nullptr);
+    size_t ScavengeFreeRegionsUpTo(size_t maxBytes);
 
     // Shrink the committed heap after background reclaim/scavenge has exposed trailing hot-free space.
     // The actual trailing-tail reclaim and committed-end update are managed by FreeManager.

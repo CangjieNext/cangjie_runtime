@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-"""Fully rebuild the MSGC SDK into cangjie_compiler/output/msgc."""
+"""Fully rebuild the MSGC SDK into cangjie_compiler_region_mark/output/msgc."""
 
 from __future__ import annotations
 

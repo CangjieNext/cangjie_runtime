@@ -102,6 +102,21 @@ class RunCase27ThroughputTests(unittest.TestCase):
     def test_parse_args_uses_case27_validation_defaults(self):
         args = self.module.parse_args([])
 
+        self.assertEqual(
+            pathlib.Path(args.sdk_root),
+            pathlib.Path(
+                "/Users/lipeisheng/code/cangjie/cangjie/"
+                "cangjie_compiler_region_mark/output/msgc"
+            ),
+        )
+        self.assertEqual(
+            pathlib.Path(args.stdx_dir),
+            pathlib.Path(
+                "/Users/lipeisheng/code/cangjie/cangjie/"
+                "cangjie_compiler_region_mark/output/msgc/"
+                "darwin_aarch64_cjnative/dynamic/stdx"
+            ),
+        )
         self.assertEqual(args.payload, "100K")
         self.assertEqual(args.concurrency, 1000)
         self.assertEqual(args.duration_ms, 60000)
@@ -202,10 +217,31 @@ class RunCase27ThroughputTests(unittest.TestCase):
         child_script = self.module.render_child_script()
 
         self.assertIn('export DYLD_LIBRARY_PATH=""', child_script)
+        self.assertIn('--gc-mode "$CJC_GC_MODE"', child_script)
         self.assertLess(
             child_script.index('export DYLD_LIBRARY_PATH=""'),
             child_script.index('source "$ENVSETUP"'),
         )
+
+    def test_build_run_environment_selects_marksweep_compilation(self):
+        args = self.module.parse_args(
+            [
+                "--sdk-root",
+                "/tmp/msgc",
+                "--stdx-dir",
+                "/tmp/stdx",
+                "--case-dir",
+                "/tmp/case27",
+            ]
+        )
+
+        env = self.module.build_run_environment(
+            args=args,
+            out_dir=pathlib.Path("/tmp/out/run1"),
+            port=19127,
+        )
+
+        self.assertEqual(env["CJC_GC_MODE"], "marksweep")
 
     def test_main_exits_on_child_timeout_and_reports_diagnostics(self):
         args = self.module.parse_args(

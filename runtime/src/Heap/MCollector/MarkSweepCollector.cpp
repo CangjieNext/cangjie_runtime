@@ -832,7 +832,7 @@ void MarkSweepCollector::PublishManagedRefForBarrier(BaseObject* ref)
 
 void MarkSweepCollector::NotifyAllocBufferExit(AllocBufferMS& allocBuffer)
 {
-    MergeExitedAssistStats(allocBuffer);
+    (void)allocBuffer;
 }
 
 void MarkSweepCollector::RunRegionTask(
@@ -907,7 +907,10 @@ void MarkSweepCollector::RunRegionTask(
 
                 if (UNLIKELY(obj->IsWeakRef())) {
                     weakRefs.Add(obj);
-                } else {
+                } else if (LIKELY(typeInfo->HasRefField())) {
+                    // HAS_REF is a Region allocation class, not a per-object
+                    // guarantee. Finalizable and conservatively classified
+                    // objects may legitimately have no reference fields.
                     auto refVisitor =
                         [this, &batch, &work](RefField<>& field) {
                             AddRefToMarkBatch(
@@ -1155,10 +1158,6 @@ void MarkSweepCollector::MergeRootsFromAllocBuffers(WorkStack& workStack)
 void MarkSweepCollector::ConcurrentMark()
 {
     TransitionToGCPhase(GCPhase::GC_PHASE_MS_CONCURRENT_MARK, true);
-    {
-        std::lock_guard<std::mutex> lock(exitedAssistStatsMutex_);
-        exitedAssistStats_ = MSMarkAssistStats{};
-    }
     markWorkerControl_.Start(0);
 
     bool disableAssist = ReadBoolParameter("CJ_MS_DISABLE_ASSIST", false);
@@ -1217,10 +1216,6 @@ void MarkSweepCollector::RunSchedulerMarkLoop()
         : std::max<uint64_t>(1, markBudgetNs / 1000);
     uint64_t mainBudgetWU = ComputeMSMarkSliceBudget(
         markPacer_.GetThroughputQ16(), MS_WU_MAIN_WALL_BUDGET_US);
-    size_t mainTasks = 0;
-    uint64_t mainWU = 0;
-    bool forceConverged = false;
-
     for (;;) {
         uint64_t observedProgressEpoch = markWorkEpoch_.Load();
         MSMarkSliceResult slice = markScheduler_.RunMarkSlice(
@@ -1230,8 +1225,6 @@ void MarkSweepCollector::RunSchedulerMarkLoop()
                 MSTaskLease& lease, MSWorkUnitCounter& work) {
                 RunSchedulerTask(lease, work, mainBudgetWU);
             });
-        mainWU = SaturatingMSWUAdd(mainWU, slice.completedWU);
-        mainTasks += slice.completedTasks;
         cycleCompletedMarkWU_.fetch_add(
             slice.completedWU, std::memory_order_relaxed);
 
@@ -1257,7 +1250,6 @@ void MarkSweepCollector::RunSchedulerMarkLoop()
 
         if (markBudgetUs != 0 &&
             TimeUtil::MicroSeconds() - t0 >= markBudgetUs) {
-            forceConverged = true;
             cycleStats_.markTerminationReason =
                 MSMarkTerminationReason::TIME_BUDGET;
             (void)QuiesceMarkWorkers();
@@ -1272,18 +1264,11 @@ void MarkSweepCollector::RunSchedulerMarkLoop()
     }
 
     cycleStats_.concurrentMarkUs = TimeUtil::MicroSeconds() - t0;
-    cycleStats_.gcMainCompletedTasks = mainTasks;
-    size_t helperWU = 0;
-    for (const auto& slot : markWorkerSlots_) {
-        helperWU += slot->stats.TotalProcessed();
-    }
-    cycleStats_.helperCompletedWU = helperWU;
     VLOG(REPORT,
-         "[MS-GC] ConcurrentMark scheduler: time=%sus forceConverged=%d "
-         "mainTasks=%zu mainWU=%llu helperWU=%zu outstanding=%llu",
+         "[MS-GC] ConcurrentMark scheduler: time=%sus termination=%s "
+         "outstanding=%llu",
          Pretty(cycleStats_.concurrentMarkUs).Str(),
-         static_cast<int>(forceConverged), mainTasks,
-         static_cast<unsigned long long>(mainWU), helperWU,
+         GetMSMarkTerminationReasonName(cycleStats_.markTerminationReason),
          static_cast<unsigned long long>(
              markScheduler_.OutstandingHint()));
 
@@ -1296,8 +1281,7 @@ void MarkSweepCollector::RunSchedulerMarkLoop()
 
 void MarkSweepCollector::StartMarkWorkers(size_t maxHelpers, size_t initialHelpers)
 {
-    markWorkerSlots_.clear();
-    markWorkerSlots_.reserve(maxHelpers);
+    markWorkerCount_ = maxHelpers;
     markWorkerControl_.SetTargetHelpers(initialHelpers);
     if (maxHelpers == 0) {
         return;
@@ -1309,9 +1293,6 @@ void MarkSweepCollector::StartMarkWorkers(size_t maxHelpers, size_t initialHelpe
     // submitting long-lived tasks; targetHelpers gates actual scan activity.
     threadPool->SetMaxActiveThreadNum(static_cast<int32_t>(maxHelpers));
     for (size_t i = 0; i < maxHelpers; ++i) {
-        std::unique_ptr<MSMarkWorkerSlot> slot(new (std::nothrow) MSMarkWorkerSlot());
-        CHECK_DETAIL(slot != nullptr, "new MSGC mark worker slot failed");
-        markWorkerSlots_.push_back(std::move(slot));
         threadPool->AddWork(new (std::nothrow) LambdaWork([this, i](size_t) { RunMarkWorker(i); }));
     }
     threadPool->Start();
@@ -1319,7 +1300,6 @@ void MarkSweepCollector::StartMarkWorkers(size_t maxHelpers, size_t initialHelpe
 
 void MarkSweepCollector::RunMarkWorker(size_t workerId)
 {
-    MSMarkWorkerSlot& slot = *markWorkerSlots_[workerId];
     while (markWorkerControl_.WaitUntilEligible(workerId)) {
         if (!markWorkerControl_.TryEnterWorker(workerId)) {
             continue;
@@ -1341,11 +1321,6 @@ void MarkSweepCollector::RunMarkWorker(size_t workerId)
             if (slice.completedTasks == 0) {
                 break;
             }
-            size_t completed = static_cast<size_t>(
-                std::min<uint64_t>(
-                    slice.completedWU,
-                    std::numeric_limits<size_t>::max()));
-            slot.stats.RecordScanned(completed);
             cycleCompletedMarkWU_.fetch_add(
                 slice.completedWU, std::memory_order_relaxed);
         }
@@ -1367,45 +1342,17 @@ size_t MarkSweepCollector::QuiesceMarkWorkers()
             markScheduler_.OutstandingHint(),
             std::numeric_limits<size_t>::max()));
     markWorkerControl_.Stop();
-    if (!markWorkerSlots_.empty()) {
+    if (markWorkerCount_ != 0) {
         GetThreadPool()->WaitFinish();
     }
     return residualTasks;
 }
 
 
-void MarkSweepCollector::MergeExitedAssistStats(AllocBufferMS& allocBuffer)
-{
-    MSMarkAssistStats exited = allocBuffer.GetMarkAssistStats().TakeAndReset();
-    std::lock_guard<std::mutex> lock(exitedAssistStatsMutex_);
-    exitedAssistStats_.Merge(exited);
-}
-
-void MarkSweepCollector::SnapshotAssistStats()
-{
-    MSMarkAssistStats total;
-    {
-        std::lock_guard<std::mutex> lock(exitedAssistStatsMutex_);
-        total.Merge(exitedAssistStats_.TakeAndReset());
-    }
-
-    RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(theAllocator);
-    CentralRegionPool* centralPool = space.GetCentralPool();
-    if (centralPool != nullptr) {
-        centralPool->VisitAllocBufferMS([&total](AllocBufferMS& buffer) {
-            total.Merge(buffer.GetMarkAssistStats().TakeAndReset());
-        });
-    }
-
-    cycleStats_.assistCompletedWU = total.processed;
-    VLOG(REPORT, "[MS-GC] [assist] processed=%zu", total.processed);
-}
-
-
 // ============================================================================
 // MSMarkAssist: consume Region tasks in WorkUnit-bounded slices.
 // ============================================================================
-size_t MarkSweepCollector::MSMarkAssist(AllocBufferMS& allocBuffer, size_t debtWU)
+size_t MarkSweepCollector::MSMarkAssist(AllocBufferMS&, size_t debtWU)
 {
     if (debtWU == 0) {
         return 0;
@@ -1415,7 +1362,6 @@ size_t MarkSweepCollector::MSMarkAssist(AllocBufferMS& allocBuffer, size_t debtW
         return 0;
     }
 
-    MSMarkAssistStats& stats = allocBuffer.GetMarkAssistStats();
     uint64_t budgetWU = std::max<uint64_t>(
         MS_WU_MIN_SLICE_BUDGET, debtWU);
     MSMarkSliceResult slice = markScheduler_.RunMarkSlice(
@@ -1430,7 +1376,6 @@ size_t MarkSweepCollector::MSMarkAssist(AllocBufferMS& allocBuffer, size_t debtW
     size_t paidWU = static_cast<size_t>(
         std::min<uint64_t>(
             slice.completedWU, std::numeric_limits<size_t>::max()));
-    stats.processed += paidWU;
     cycleCompletedMarkWU_.fetch_add(
         slice.completedWU, std::memory_order_relaxed);
     return std::min(paidWU, debtWU);
@@ -1459,7 +1404,6 @@ void MarkSweepCollector::MarkTermination()
 
     RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(theAllocator);
     CentralRegionPool* centralPool = space.GetCentralPool();
-    SnapshotAssistStats();
 
     // With no mutator or concurrent mark worker running, reconcile the
     // summary-first producer protocol to a true fixed point.  A producer may

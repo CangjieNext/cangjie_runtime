@@ -2,19 +2,23 @@
 
 """Incrementally rebuild CJC and fully rebuild the remaining MSGC SDK parts.
 
-The compiler build and ``cangjie_compiler/output/msgc`` are preserved. Runtime,
-stdlib, and stdx are each cleaned, rebuilt, installed, and synchronized into the
-MSGC SDK before the next component starts.
+The compiler build and ``cangjie_compiler_region_mark/output/msgc`` are
+preserved unless the compiler CMake cache belongs to another checkout. Runtime,
+stdlib, and stdx are each cleaned, rebuilt, installed, and synchronized into
+the MSGC SDK before the next component starts.
 """
 
 from __future__ import annotations
 
+import pathlib
+import shutil
 import subprocess
 import sys
 from typing import Sequence
 
 import full_sdk_builder as full_builder
 import rebuild_sdk_and_stdx as sdk_helpers
+import rebuild_msgc_runtime_output as runtime_output
 
 
 BuildStage = full_builder.BuildStage
@@ -39,6 +43,79 @@ _INCREMENTAL_STAGE_ORDER = [
 ]
 
 
+def _cmake_cache_value(cache_path: pathlib.Path, key: str) -> pathlib.Path | None:
+    if not cache_path.is_file():
+        return None
+
+    prefix = f"{key}:"
+    for line in cache_path.read_text(errors="replace").splitlines():
+        if line.startswith(prefix):
+            _, separator, value = line.partition("=")
+            if separator and value:
+                return pathlib.Path(value)
+    return None
+
+
+def _same_path(left: pathlib.Path, right: pathlib.Path) -> bool:
+    return left.expanduser().resolve() == right.expanduser().resolve()
+
+
+def reset_relocated_compiler_build(config: FullBuildConfig) -> bool:
+    """Discard compiler build metadata configured for a different checkout."""
+
+    compiler_root = config.compiler_root.resolve()
+    build_root = compiler_root / "build"
+    cache_expectations = (
+        (
+            build_root / "build" / "CMakeCache.txt",
+            compiler_root,
+        ),
+        (
+            sdk_helpers.compiler_cjnative_build_dir(config) / "CMakeCache.txt",
+            compiler_root / "third_party" / "llvm-project" / "llvm",
+        ),
+    )
+
+    mismatches: list[str] = []
+    for cache_path, expected_source_dir in cache_expectations:
+        cached_source_dir = _cmake_cache_value(cache_path, "CMAKE_HOME_DIRECTORY")
+        cached_build_dir = _cmake_cache_value(cache_path, "CMAKE_CACHEFILE_DIR")
+        if cached_source_dir is not None and not _same_path(
+            cached_source_dir, expected_source_dir
+        ):
+            mismatches.append(
+                f"{cache_path}: source {cached_source_dir} != {expected_source_dir}"
+            )
+        if cached_build_dir is not None and not _same_path(
+            cached_build_dir, cache_path.parent
+        ):
+            mismatches.append(
+                f"{cache_path}: build {cached_build_dir} != {cache_path.parent}"
+            )
+
+    if not mismatches:
+        return False
+
+    print("\n== reset relocated compiler build ==", flush=True)
+    for mismatch in mismatches:
+        print(f"[stale-cache] {mismatch}", flush=True)
+    print(f"[reset] {build_root}", flush=True)
+    if not config.dry_run:
+        shutil.rmtree(build_root)
+    return True
+
+
+def prepare_compiler_release(config: FullBuildConfig) -> None:
+    """Force relinking the release compiler artifact copied by install."""
+
+    release_compiler = (
+        config.compiler_root / "build" / "build" / "bin" / "cjc-release"
+    )
+    print(f"[remove stale compiler release] {release_compiler}", flush=True)
+    if not config.dry_run:
+        release_compiler.unlink(missing_ok=True)
+
+
 def build_incremental_stage_plan(
     config: FullBuildConfig,
     host: HostLayout,
@@ -60,16 +137,45 @@ def build_incremental_stage_plan(
     if missing:
         raise ValueError(f"missing build stages: {missing}")
 
-    return [stage_by_key[key] for key in _INCREMENTAL_STAGE_ORDER]
+    stages: list[BuildStage] = []
+    for key in _INCREMENTAL_STAGE_ORDER:
+        stages.append(stage_by_key[key])
+        if key == ("compiler", "build"):
+            # Release SDK installation renames cjc-release to bin/cjc. The
+            # cjc-release target only has an order-only dependency on cjc, so
+            # rebuilding cjc alone does not relink the artifact that install
+            # actually copies.
+            stages.append(
+                BuildStage(
+                    component="compiler-release",
+                    action="build",
+                    cwd=config.compiler_root / "build" / "build",
+                    command=[
+                        "cmake",
+                        "--build",
+                        ".",
+                        "--parallel",
+                        str(config.jobs),
+                        "--target",
+                        "cjc-release",
+                    ],
+                )
+            )
+    return stages
 
 
-def _run_stage(config: FullBuildConfig, stage: BuildStage) -> None:
+def _run_stage(
+    config: FullBuildConfig,
+    stage: BuildStage,
+    environment: dict[str, str] | None = None,
+) -> None:
     print(f"\n== {stage.component} {stage.action} ==", flush=True)
     sdk_helpers.run_command(
         stage.command,
         cwd=stage.cwd,
         dry_run=config.dry_run,
         envsetup=stage.envsetup,
+        environment=environment,
     )
 
 
@@ -129,8 +235,21 @@ def execute_incremental_build(
     """Run the incremental compiler and sequential full component rebuilds."""
 
     full_builder.ensure_paths_exist(config)
+    reset_relocated_compiler_build(config)
+    runtime_environment = runtime_output.build_subprocess_environment(
+        host,
+        validate_tools=not config.dry_run,
+    )
     for stage in build_incremental_stage_plan(config, host):
-        _run_stage(config, stage)
+        if stage.component == "compiler-release":
+            prepare_compiler_release(config)
+        _run_stage(
+            config,
+            stage,
+            environment=(
+                runtime_environment if stage.component == "runtime" else None
+            ),
+        )
         _after_install(config, host, stage)
 
 

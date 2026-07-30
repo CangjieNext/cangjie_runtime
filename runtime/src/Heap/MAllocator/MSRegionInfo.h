@@ -79,6 +79,7 @@ struct MSCentralReturnDecision {
     MSCentralReturnKind kind;
     uint8_t bucketSizeClass;
     bool callerClassMismatch;
+    uint16_t freeSlots;
 };
 
 // ============================================================================
@@ -105,11 +106,16 @@ struct alignas(64) MSRegionInfo {
     uintptr_t regionEnd;                  // +8
     uint32_t centralNextRegionIdx;        // +16
     uint32_t markTaskNextRegionIdx;       // +20
-    uint64_t slotOrLargeMeta;             // +24
+    union {
+        uint64_t* allocBitmap;            // +24, SMALL: 1=free, 0=allocated
+        uint64_t largeObjectBytes;        // +24, LARGE: exact logical object size
+    };
     uint32_t collectEpoch;                // +32
     uint32_t control;                     // +36
     uint64_t allocSummary;                // +40
     uint64_t pendingWordSummary;          // +48
+    // Legacy LLVM binaries may still decrement the low halfword at +56.
+    // Runtime must never use or repurpose these bytes without ABI versioning.
     uint32_t reserved32;                  // +56
     uint8_t allocMode;                    // +60
     uint8_t reserved8;                    // +61
@@ -138,12 +144,6 @@ struct alignas(64) MSRegionInfo {
         __atomic_store_n(&markTaskNextRegionIdx, idx, __ATOMIC_RELAXED);
     }
 
-    uint16_t GetFreeSlotCount() const { return static_cast<uint16_t>(slotOrLargeMeta); }
-    void SetFreeSlotCount(uint16_t count)
-    {
-        slotOrLargeMeta = (slotOrLargeMeta & ~UINT64_C(0xFFFF)) | count;
-    }
-    void DecrementFreeSlotCount() { SetFreeSlotCount(GetFreeSlotCount() - 1); }
     uint16_t GetTotalSlotCount() const
     {
         return sizeClass < kNumSizeClasses ? SizeClassInfo::ClassToTotalSlots(sizeClass) : 0;
@@ -169,10 +169,7 @@ struct alignas(64) MSRegionInfo {
     }
     uint64_t* GetAllocBitmap() const
     {
-        uintptr_t base = static_cast<uintptr_t>(
-            __atomic_load_n(&CJ_MRT_MSGCFastPathState.allocPlaneBase, __ATOMIC_ACQUIRE));
-        return reinterpret_cast<uint64_t*>(
-            base + GetRegionIndex() * MSBitmapArena::kPlaneStrideBytes);
+        return allocBitmap;
     }
     uint64_t* GetMarkBitmap() const
     {
@@ -360,7 +357,7 @@ struct alignas(64) MSRegionInfo {
     uintptr_t LargeObjectStart() const { return allocPtr; }
     size_t LargeObjectSize() const
     {
-        return static_cast<size_t>(slotOrLargeMeta);
+        return static_cast<size_t>(largeObjectBytes);
     }
     size_t LargeSpanBytes() const { return regionEnd - allocPtr; }
     size_t LargeSpanCount() const { return LargeSpanBytes() / MS_REGION_SIZE; }
@@ -386,7 +383,6 @@ struct alignas(64) MSRegionInfo {
         if (LIKELY(allocPtr + slotSize <= regionEnd)) {
             uintptr_t addr = allocPtr;
             allocPtr += slotSize;
-            DecrementFreeSlotCount();
             return addr;
         }
         return 0;  // Region full
@@ -406,7 +402,6 @@ struct alignas(64) MSRegionInfo {
             if (LIKELY(word != 0)) {
                 int bit = __builtin_ctzll(word);
                 allocBitmap[wordIdx] = word & ~(1ULL << bit);
-                DecrementFreeSlotCount();
                 if (allocBitmap[wordIdx] == 0) {
                     allocSummary &= ~(1ULL << wordIdx);
                 }
@@ -421,8 +416,10 @@ struct alignas(64) MSRegionInfo {
     }
 
     // === Sweep ===
-    // Returns bytes freed. Sets allocBitmap = ~markBitmap.
-    size_t SweepRegion();
+    // Rebuilds the allocation state and returns the exact Central route.
+    // Empty Sweep deliberately leaves allocBitmap unmaterialized; its result
+    // therefore comes from liveCount rather than a post-Sweep bitmap scan.
+    MSCentralReturnDecision SweepRegion();
 
     // === Mark ===
     bool GetMarkBit(uintptr_t objAddr) const;
@@ -469,37 +466,16 @@ struct alignas(64) MSRegionInfo {
     }
 
     // === Queries ===
-    bool IsCompletelyFree() const { return GetFreeSlotCount() == GetTotalSlotCount(); }
-    bool HasFreeSpace() const;
-    MSCentralReturnDecision PrepareForCentralReturn(uint8_t callerCls)
-    {
-        MSCentralReturnDecision decision {
-            MSCentralReturnKind::EMPTY_CACHE,
-            sizeClass,
-            callerCls != sizeClass,
-        };
-        if (IsCompletelyFree()) {
-            return decision;
-        }
-        // BUMP allocation intentionally leaves ALLOC untouched on the hot path.
-        // Materialize it before publishing either a PARTIAL or FULL Region:
-        // Mark treats ALLOC bit 1 as a free slot, so a full BUMP Region with its
-        // initial all-1 plane would otherwise have every real object filtered.
-        if (GetAllocMode() == MSAllocMode::BUMP) {
-            MaterializeBumpAllocationBitmap();
-        }
-        if (HasFreeSpace()) {
-            SetAllocMode(MSAllocMode::BITMAP);
-            decision.kind = MSCentralReturnKind::PARTIAL;
-            return decision;
-        }
-        SetAllocMode(MSAllocMode::BITMAP);
-        decision.kind = MSCentralReturnKind::FULL;
-        return decision;
-    }
+    // Exact but cold: intended for return-boundary diagnostics, not allocation.
+    uint16_t CountFreeSlots() const;
+    MSCentralReturnDecision PrepareForCentralReturn(uint8_t callerCls);
     size_t GetSlotSize() const { return SizeClassInfo::ClassToSize(sizeClass); }
 
 private:
+    uint16_t DeriveBumpFreeSlots() const;
+    uint16_t CanonicalizeBitmapFreeSlots();
+    MSCentralReturnDecision BuildCentralReturnDecision(
+        uint8_t callerCls, uint16_t freeSlots) const;
     // BUMP allocation does not update allocBitmap on the hot path. Before a
     // non-empty BUMP Region is published as PARTIAL or FULL, materialize the
     // allocated prefix and rebuild the free-word summary used by bitmap alloc.
@@ -517,8 +493,10 @@ static_assert(offsetof(MSRegionInfo, centralNextRegionIdx) == 16,
               "compiler ABI: MSRegionInfo::centralNextRegionIdx");
 static_assert(offsetof(MSRegionInfo, markTaskNextRegionIdx) == 20,
               "compiler ABI: MSRegionInfo::markTaskNextRegionIdx");
-static_assert(offsetof(MSRegionInfo, slotOrLargeMeta) == 24,
-              "compiler ABI: MSRegionInfo::slotOrLargeMeta");
+static_assert(offsetof(MSRegionInfo, allocBitmap) == 24,
+              "compiler ABI: MSRegionInfo::allocBitmap");
+static_assert(offsetof(MSRegionInfo, largeObjectBytes) == 24,
+              "compiler ABI: MSRegionInfo::largeObjectBytes");
 static_assert(offsetof(MSRegionInfo, collectEpoch) == 32,
               "compiler ABI: MSRegionInfo::collectEpoch");
 static_assert(offsetof(MSRegionInfo, control) == 36,
@@ -528,7 +506,7 @@ static_assert(offsetof(MSRegionInfo, allocSummary) == 40,
 static_assert(offsetof(MSRegionInfo, pendingWordSummary) == 48,
               "compiler ABI: MSRegionInfo::pendingWordSummary");
 static_assert(offsetof(MSRegionInfo, reserved32) == 56,
-              "compiler ABI: MSRegionInfo::reserved32");
+              "compiler ABI: MSRegionInfo legacy free-slot-count tombstone");
 static_assert(offsetof(MSRegionInfo, allocMode) == 60,
               "compiler ABI: MSRegionInfo::allocMode");
 static_assert(offsetof(MSRegionInfo, reserved8) == 61,

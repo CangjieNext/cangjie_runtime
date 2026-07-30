@@ -835,9 +835,6 @@ private:
     std::atomic<bool> skipLazySweep_{false};          // Disable lazy sweep in GetRegion P2/P3
     std::atomic<bool> skipAssistSweep_{false};        // Disable mutator assist sweep before STW
     std::atomic<bool> skipHelperSweep_{false};        // Disable GC-helper pool sweep before STW
-    std::atomic<size_t> activeLazySweepCount_{0};     // In-flight lazy sweep counter
-    std::atomic<size_t> activeAssistSweepCount_{0};   // In-flight mutator assist sweep counter
-    std::atomic<size_t> activeHelperSweepCount_{0};   // In-flight parallel helper sweep counter
     std::atomic<bool> forceFinishSweepRunning_{false}; // GC main owns ForceFinishAllUnswept
     // ===== P-local proportional Sweep pacing =====
     // PostMark publishes one fixed-point ratio for the new sweep cycle.

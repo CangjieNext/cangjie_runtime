@@ -14,7 +14,6 @@ BACKGROUND_HEADER="$ROOT_DIR/src/Heap/MCollector/BackgroundProcessor.h"
 BACKGROUND_SOURCE="$ROOT_DIR/src/Heap/MCollector/BackgroundProcessor.cpp"
 MARK_HEADER="$ROOT_DIR/src/Heap/MCollector/MarkSweepCollector.h"
 MARK_SOURCE="$ROOT_DIR/src/Heap/MCollector/MarkSweepCollector.cpp"
-MARK_LOCAL_STATS="$ROOT_DIR/src/Heap/MCollector/MSMarkLocalStats.h"
 WB_STATS_HEADER="$ROOT_DIR/src/Heap/MCollector/MSGCWriteBarrierFlushStats.h"
 RUNTIME_STATS_HEADER="$ROOT_DIR/src/RuntimeStats.h"
 
@@ -37,8 +36,8 @@ if rg -q 'MSSweepCounts|backgroundSweptRegions_|lazySweptRegions_|assistSweptReg
 fi
 
 if ! rg -q 'sweepCredit_\.Add' "$CENTRAL_HEADER" ||
-   ! rg -q 'activeLazySweepCount_|activeAssistSweepCount_|activeHelperSweepCount_' "$CENTRAL_HEADER"; then
-    echo "functional Sweep credit and in-flight counters must remain" >&2
+   ! rg -q 'sweepAdmission_' "$CENTRAL_HEADER"; then
+    echo "functional Sweep credit and unified admission state must remain" >&2
     exit 1
 fi
 
@@ -54,9 +53,10 @@ if [[ -e "$WB_STATS_HEADER" ]] ||
     exit 1
 fi
 
-if rg -q '\b(calls|bgStolen|globalPaid)\b' "$MARK_LOCAL_STATS" "$MARK_SOURCE" ||
-   ! rg -q 'size_t processed = 0' "$MARK_LOCAL_STATS"; then
-    echo "mark assist statistics must retain only pacing-relevant processed work" >&2
+if [[ -e "$ROOT_DIR/src/Heap/MCollector/MSMarkLocalStats.h" ]] ||
+   rg -q 'MSMarkAssistStats|MSMarkWorkerLocalStats|markAssistStats_' \
+       "$MARK_HEADER" "$MARK_SOURCE" "$ALLOC_HEADER"; then
+    echo "mark worker and assist REPORT-only statistics must be removed" >&2
     exit 1
 fi
 
@@ -96,9 +96,9 @@ for function_name in DumpGCStateSnapshot DumpRegionStatsMS; do
     fi
 done
 
-if ! rg -q 'trueLiveBytes|gcMainCompletedTasks|helperCompletedWU|assistCompletedWU' "$MARK_HEADER" ||
-   rg -q 'publishedCredit_|pendingCredit_|pendingBuffers_' "$MARK_LOCAL_STATS"; then
-    echo "cycle totals must remain while Helper background-credit state is removed" >&2
+if ! rg -q 'trueLiveBytes' "$MARK_HEADER" ||
+   rg -q 'gcMainCompletedTasks|helperCompletedWU|assistCompletedWU' "$MARK_HEADER" "$MARK_SOURCE"; then
+    echo "functional live-byte accounting must remain without REPORT-only mark totals" >&2
     exit 1
 fi
 

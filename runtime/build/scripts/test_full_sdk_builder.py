@@ -6,6 +6,7 @@ import pathlib
 import shutil
 import tempfile
 import unittest
+from unittest import mock
 
 import full_sdk_builder as target
 
@@ -46,6 +47,30 @@ def make_host() -> target.HostLayout:
 
 
 class ModeBindingTests(unittest.TestCase):
+    def test_msgc_cli_defaults_to_region_mark_compiler_and_sdk(self) -> None:
+        openssl_lib = pathlib.Path("/tmp/openssl/lib")
+        with mock.patch.object(
+            target.sdk_helpers,
+            "resolve_default_openssl_lib",
+            return_value=openssl_lib,
+        ):
+            config = target.parse_args_for_mode(target.GCMode.MSGC, [])
+
+        self.assertEqual(
+            config.compiler_root,
+            pathlib.Path(
+                "/Users/lipeisheng/code/cangjie/cangjie/"
+                "cangjie_compiler_region_mark"
+            ),
+        )
+        self.assertEqual(
+            config.sdk_root,
+            pathlib.Path(
+                "/Users/lipeisheng/code/cangjie/cangjie/"
+                "cangjie_compiler_region_mark/output/msgc"
+            ),
+        )
+
     def test_msgc_defaults_to_marksweep_and_msgc_output(self) -> None:
         root = pathlib.Path("/tmp/cangjie-full-sdk-test")
         config = target.default_config_for_mode(

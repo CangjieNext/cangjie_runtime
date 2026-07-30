@@ -104,13 +104,15 @@ extern "C" void MCC_CheckThreadLocalDataOffset()
                   "need to modify the offset of this value in llvm-project at the same time");
     static_assert(offsetof(MSRegionInfo, regionEnd) == 8,
                   "need to modify the offset of this value in llvm-project at the same time");
-    static_assert(offsetof(MSRegionInfo, slotOrLargeMeta) == 24,
+    static_assert(offsetof(MSRegionInfo, allocBitmap) == 24,
                   "need to modify the offset of this value in llvm-project at the same time");
     static_assert(offsetof(MSRegionInfo, collectEpoch) == 32,
                   "need to modify the offset of this value in llvm-project at the same time");
     static_assert(offsetof(MSRegionInfo, control) == 36,
                   "need to modify the offset of this value in llvm-project at the same time");
     static_assert(offsetof(MSRegionInfo, allocSummary) == 40,
+                  "need to modify the offset of this value in llvm-project at the same time");
+    static_assert(offsetof(MSRegionInfo, reserved32) == 56,
                   "need to modify the offset of this value in llvm-project at the same time");
     static_assert(offsetof(MSRegionInfo, allocMode) == 60,
                   "need to modify the offset of this value in llvm-project at the same time");

@@ -10,7 +10,6 @@
 
 #include <algorithm>
 #include <cerrno>
-#include <chrono>
 #include <cstring>
 #include <thread>
 
@@ -728,10 +727,10 @@ size_t FreeManager::ScavengeFreeRegions(bool releaseAll)
     }
 
     size_t regionBudget = releaseAll ? committedRegionCount_ : std::max<size_t>(1, segmentSize_ / GetRegionSizeBytes());
-    return ScavengeFreeRegionsByRegionBudget(regionBudget, nullptr) * GetRegionSizeBytes();
+    return ScavengeFreeRegionsByRegionBudget(regionBudget) * GetRegionSizeBytes();
 }
 
-size_t FreeManager::ScavengeFreeRegionsByRegionBudget(size_t regionBudget, ScavengeSliceStats* stats)
+size_t FreeManager::ScavengeFreeRegionsByRegionBudget(size_t regionBudget)
 {
     if (regionBudget == 0 || committedRegionCount_ == 0) {
         return 0;
@@ -745,74 +744,27 @@ size_t FreeManager::ScavengeFreeRegionsByRegionBudget(size_t regionBudget, Scave
         uint16_t ownerShardId = static_cast<uint16_t>((startShardId + scannedShardCount) % shardCount_);
         FreeManagerShard& shardState = GetShard(ownerShardId);
         std::vector<PendingScavengeSpan> spans;
-        if (stats != nullptr) {
-            ++stats->visitedShards;
-        }
-        auto scanStart = std::chrono::steady_clock::time_point {};
-        if (stats != nullptr) {
-            scanStart = std::chrono::steady_clock::now();
-        }
         {
             std::unique_lock<std::mutex> shardLock(shardState.shardMutex_, std::try_to_lock);
             if (!shardLock.owns_lock()) {
-                if (stats != nullptr) {
-                    ++stats->lockMissShards;
-                    stats->scanClaimUs += static_cast<uint64_t>(
-                        std::chrono::duration_cast<std::chrono::microseconds>(
-                            std::chrono::steady_clock::now() - scanStart).count());
-                }
                 continue;
             }
-            size_t firstSpan = spans.size();
-            size_t claimed = ClaimScavengeSpansLocked(
-                shardState, regionBudget - scavengedRegions, spans, stats);
-            if (stats != nullptr) {
-                stats->claimedRegions += claimed;
-                stats->candidateRuns += spans.size() - firstSpan;
-            }
-        }
-        if (stats != nullptr) {
-            stats->scanClaimUs += static_cast<uint64_t>(
-                std::chrono::duration_cast<std::chrono::microseconds>(
-                    std::chrono::steady_clock::now() - scanStart).count());
+            (void)ClaimScavengeSpansLocked(
+                shardState, regionBudget - scavengedRegions, spans);
         }
 
         size_t releasedRegions = 0;
-        auto releaseStart = std::chrono::steady_clock::time_point {};
-        if (stats != nullptr) {
-            releaseStart = std::chrono::steady_clock::now();
-        }
         for (PendingScavengeSpan& span : spans) {
-            if (stats != nullptr) {
-                ++stats->releaseCalls;
-            }
             span.released = ReleaseUnits(RegionToUnitIdx(span.idx), RegionCountToUnitCount(span.num));
             if (span.released) {
                 releasedRegions += span.num;
-            } else if (stats != nullptr) {
-                ++stats->releaseFailures;
             }
-        }
-        if (stats != nullptr) {
-            stats->releasedRegions += releasedRegions;
-            stats->releaseUs += static_cast<uint64_t>(
-                std::chrono::duration_cast<std::chrono::microseconds>(
-                    std::chrono::steady_clock::now() - releaseStart).count());
         }
 
         if (!spans.empty()) {
-            auto completeStart = std::chrono::steady_clock::time_point {};
-            if (stats != nullptr) {
-                completeStart = std::chrono::steady_clock::now();
-            }
             std::lock_guard<std::mutex> shardLock(shardState.shardMutex_);
             for (const PendingScavengeSpan& span : spans) {
                 CompleteScavengingLocked(shardState, span.idx, span.num, span.released);
-            }
-            if (stats != nullptr) {
-                stats->completeUs += static_cast<uint64_t>(
-                    std::chrono::duration_cast<std::chrono::microseconds>(
-                        std::chrono::steady_clock::now() - completeStart).count());
             }
         }
         scavengedRegions += releasedRegions;
@@ -1031,18 +983,14 @@ size_t FreeManager::ReleaseCompletelyFreeSegment(size_t segmentIdx)
     return releasedRegions * GetRegionSizeBytes();
 }
 
-size_t FreeManager::ScavengeFreeRegionsUpTo(size_t maxBytes, ScavengeSliceStats* stats)
+size_t FreeManager::ScavengeFreeRegionsUpTo(size_t maxBytes)
 {
-    if (stats != nullptr) {
-        *stats = {};
-        stats->requestedBytes = maxBytes;
-    }
     if (maxBytes == 0) {
         return 0;
     }
     size_t regionSize = GetRegionSizeBytes();
     size_t regionBudget = (maxBytes + regionSize - 1) / regionSize;
-    return ScavengeFreeRegionsByRegionBudget(regionBudget, stats) * regionSize;
+    return ScavengeFreeRegionsByRegionBudget(regionBudget) * regionSize;
 }
 
 bool FreeManager::IsRegionFreeLocked(RegionIndex idx) const
@@ -1632,8 +1580,7 @@ size_t FreeManager::ClaimScavengeWordMaskLocked(FreeManagerShard& shard,
 
 size_t FreeManager::ClaimScavengeSpansLocked(FreeManagerShard& shard,
                                              size_t regionBudget,
-                                             std::vector<PendingScavengeSpan>& spans,
-                                             ScavengeSliceStats* stats)
+                                             std::vector<PendingScavengeSpan>& spans)
 {
     if (regionBudget == 0 || shard.freeRegionCount_ <= shard.scavengedRegionCount_ ||
         shard.ownedViews_.empty()) {
@@ -1647,9 +1594,6 @@ size_t FreeManager::ClaimScavengeSpansLocked(FreeManagerShard& shard,
 
     auto moveToPreviousView = [&](size_t currentView) {
         if (currentView == 0) {
-            if (stats != nullptr) {
-                ++stats->cursorWraps;
-            }
             return viewCount - 1;
         }
         return currentView - 1;
@@ -1659,9 +1603,6 @@ size_t FreeManager::ClaimScavengeSpansLocked(FreeManagerShard& shard,
          visitedViews < viewCount && claimedRegions < regionBudget;
          ++visitedViews) {
         OwnedSegmentView& view = shard.ownedViews_[viewIdx];
-        if (stats != nullptr) {
-            ++stats->visitedViews;
-        }
         size_t committedLocal = 0;
         if (view.regionStart_ < committedRegionCount_) {
             committedLocal = static_cast<size_t>(
@@ -1674,11 +1615,7 @@ size_t FreeManager::ClaimScavengeSpansLocked(FreeManagerShard& shard,
             : (wordCount == kChunkBits ? ~0ULL : ((1ULL << wordCount) - 1));
         uint64_t hotWords = view.hotWordMask_ & validWordMask;
 
-        if (hotWords == 0) {
-            if (stats != nullptr) {
-                ++stats->skippedColdViews;
-            }
-        } else {
+        if (hotWords != 0) {
             size_t claimedBeforeView = claimedRegions;
             size_t currentWord = std::min(wordCursor, wordCount - 1);
             uint64_t remainingHotWords = hotWords;
@@ -1688,15 +1625,9 @@ size_t FreeManager::ClaimScavengeSpansLocked(FreeManagerShard& shard,
                     : remainingHotWords & ((1ULL << (currentWord + 1)) - 1);
                 if (atOrBelow == 0) {
                     atOrBelow = remainingHotWords;
-                    if (stats != nullptr) {
-                        ++stats->cursorWraps;
-                    }
                 }
                 size_t wordIdx = static_cast<size_t>(63 - __builtin_clzll(atOrBelow));
                 remainingHotWords &= ~(1ULL << wordIdx);
-                if (stats != nullptr) {
-                    ++stats->visitedHotWords;
-                }
 
                 uint64_t hotFree = HotFreeMaskForWord(view, wordIdx, committedLocal);
                 size_t remainingBudget = regionBudget - claimedRegions;

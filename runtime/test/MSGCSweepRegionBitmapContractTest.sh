@@ -25,7 +25,7 @@ def section(source, start_token, end_token):
 
 sweep_region = section(
     region_source,
-    'size_t MSRegionInfo::SweepRegion()',
+    'MSCentralReturnDecision MSRegionInfo::SweepRegion()',
     '// ============================================================================\n// MSRegionInfo — Mark',
 )
 sweep_list = section(

@@ -21,7 +21,10 @@ class RebuildMSGCRuntimeSDKTests(unittest.TestCase):
             forwarded,
             [
                 "--sdk-root",
-                "/workspace/cangjie_compiler/output/msgc",
+                (
+                    "/Users/lipeisheng/code/cangjie/cangjie/"
+                    "cangjie_compiler_region_mark/output/msgc"
+                ),
                 "--dry-run",
             ],
         )

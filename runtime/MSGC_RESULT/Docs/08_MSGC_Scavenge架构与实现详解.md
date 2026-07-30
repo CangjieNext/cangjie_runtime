@@ -1,6 +1,6 @@
 # MSGC Scavenge 架构与实现详解
 
-> 本文以 2026-07-17 当前工作树中的 MSGC Runtime 源码为准，专门解释 `FreeManager` 的页堆模型、Scavenge 的触发与后台执行、物理页归还以及与 Reclaim/Sweep/Shrink 的边界。历史 Implementation 文档只用于说明演进动机；当其与函数体冲突时，本文按当前源码描述。
+> 当前代码基线：`MSGC-bugfix-regionScan` / `24ca097ace`。本文专门解释 `FreeManager` 的页堆模型、Scavenge 的触发与后台执行、物理页归还以及与 Reclaim/Sweep/Shrink 的边界。Region-scan Mark 只改变 Scavenge 上游的闭包表示，不改变 FreeManager 的 hot/cold-free 状态机。
 
 ## 目录
 
@@ -29,6 +29,7 @@
 
 先给出实现结论：
 
+0. Scavenge 不读取 MARK/SCAN plane，也不参与 Mark task ledger；它只接收 Sweep/Reclaim 已经转换出的逻辑空闲 Region。当前 Mark 结束的安全前提是 scheduler ledger、ready lanes、pending summary 与 Region owner 已收口。
 1. `Sweep`、`Reclaim`、`Scavenge` 不是同一个动作。Sweep 根据 mark bitmap 清理对象槽位并生成可分配 Region；Reclaim 把这些 Region 交给 `FreeManager`；Scavenge 只处理已经空闲但仍保留在运行时逻辑堆中的 Region，向操作系统请求丢弃/撤销物理页；Shrink 则是更高层的容量收缩策略。
 2. 当前 `FreeManager` 不是历史版本中的全局有序树，而是“按 owner shard 管理 Segment、每个 Segment 使用分层位图和 64-Region 摘要”的页堆。每个 Segment 只有一个固定 owner，其他 shard 可以借用，但不会改变 owner。
 3. FreeManager 中的 Region 有两个独立 bit：`allocBits` 表示逻辑上是否已分配，`scavengedBits` 表示该空闲页是否已经执行过 Scavenge。合法状态只有 `10`（已分配）、`00`（hot-free）和 `01`（scavenged/cold-free）；`11` 是禁止发布的中间/错误状态。
@@ -38,6 +39,28 @@
 7. 当前 Scavenge 只改变页的物理驻留状态和 FreeManager 位图，不改变逻辑 committed heap 的尾端。`FreeManager::ShrinkHeap()` 虽然保留了真正缩短 committed tail 的接口，但当前主线没有调用它；后台 Shrink 走的是“释放一个完整空闲 Segment 的物理页”路径，也不拆除视图。
 
 阅读下文时，`free` 指逻辑空闲 Region 总数，`hot-free` 指 `free - scavenged`，`cold-free` 指已经设置 `scavengedBits` 的空闲 Region。它们是页堆策略状态，不等价于某一时刻操作系统报告的 RSS。
+
+### 1.1 Region-scan Mark 对 Scavenge 的影响范围
+
+当前上游链路是：
+
+```text
+MARK/SCAN closure + task ledger
+  → stable MARK plane
+  → Sweep converts dead slots/Regions to reusable state
+  → Reclaim transfers fully free Regions to FreeManager
+  → Scavenge changes hot-free to cold-free
+```
+
+因此排查 Scavenge 时要守住两层边界：
+
+- 若对象被错误回收、reachable target 未标记或 MarkTermination ledger 不归零，问题仍在
+  Mark/Barrier/Scheduler，不应归因于 Scavenge。
+- 只有 Region 已由 Sweep/Reclaim 证明逻辑空闲后，Scavenge 才能操作 OS 物理页和
+  `scavengedBits`；它不知道对象 TypeInfo、MARK/SCAN bit 或 REGION/OBJECT task。
+
+Region-scan 合入后，Scavenge 的阈值、通知、shard 扫描、`ReleaseUnits/ReuseUnits` 与
+Shrink 边界保持原职责。
 
 ## 2. 先分清 Sweep、Reclaim、Scavenge 和 Shrink
 

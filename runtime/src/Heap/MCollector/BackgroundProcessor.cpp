@@ -689,19 +689,10 @@ bool BackgroundProcessor::BackgroundScavengeLoop()
             return false;
         }
         size_t quantum = std::min(roundTarget, availableToRelease);
-        FreeManager::ScavengeSliceStats stats;
-        size_t releasedBytes = space.BackgroundScavenge(quantum, &stats);
+        size_t releasedBytes = space.BackgroundScavenge(quantum);
         VLOG(REPORT,
-             "[MS-GC] ScavengeSlice: requestedBytes=%zu releasedBytes=%zu claimedRegions=%zu "
-             "releasedRegions=%zu visitedShards=%zu lockMissShards=%zu visitedViews=%zu "
-             "skippedColdViews=%zu visitedHotWords=%zu cursorWraps=%zu candidateRuns=%zu "
-             "releaseCalls=%zu releaseFailures=%zu scanClaimUs=%llu releaseUs=%llu completeUs=%llu",
-             stats.requestedBytes, releasedBytes, stats.claimedRegions, stats.releasedRegions,
-             stats.visitedShards, stats.lockMissShards, stats.visitedViews, stats.skippedColdViews,
-             stats.visitedHotWords, stats.cursorWraps, stats.candidateRuns, stats.releaseCalls,
-             stats.releaseFailures, static_cast<unsigned long long>(stats.scanClaimUs),
-             static_cast<unsigned long long>(stats.releaseUs),
-             static_cast<unsigned long long>(stats.completeUs));
+             "[MS-GC] ScavengeSlice: requestedBytes=%zu releasedBytes=%zu",
+             quantum, releasedBytes);
     }
 
     // Check whether we still have work.

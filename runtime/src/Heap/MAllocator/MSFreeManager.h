@@ -44,24 +44,6 @@ public:
         size_t freeRegions = 0;
     };
 
-    struct ScavengeSliceStats {
-        size_t requestedBytes = 0;
-        size_t claimedRegions = 0;
-        size_t releasedRegions = 0;
-        size_t visitedShards = 0;
-        size_t lockMissShards = 0;
-        size_t visitedViews = 0;
-        size_t skippedColdViews = 0;
-        size_t visitedHotWords = 0;
-        size_t cursorWraps = 0;
-        size_t candidateRuns = 0;
-        size_t releaseCalls = 0;
-        size_t releaseFailures = 0;
-        uint64_t scanClaimUs = 0;
-        uint64_t releaseUs = 0;
-        uint64_t completeUs = 0;
-    };
-
     struct BorrowedSpan {
         uint16_t ownerShardId = 0;
         RegionIndex idx = 0;
@@ -129,7 +111,7 @@ public:
 
     // Like ScavengeFreeRegions, but caps the work at maxBytes.
     // Returns actual bytes released (madvise'd).
-    size_t ScavengeFreeRegionsUpTo(size_t maxBytes, ScavengeSliceStats* stats = nullptr);
+    size_t ScavengeFreeRegionsUpTo(size_t maxBytes);
 
     uintptr_t GetCommittedEnd() const { return committedEnd_; }
     uintptr_t GetMaxHeapEnd() const { return maxHeapEnd_; }
@@ -271,8 +253,7 @@ private:
     void RefreshRegionSnapshotsLocked(FreeManagerShard& shard);
     size_t ClaimScavengeSpansLocked(FreeManagerShard& shard,
                                     size_t regionBudget,
-                                    std::vector<PendingScavengeSpan>& spans,
-                                    ScavengeSliceStats* stats);
+                                    std::vector<PendingScavengeSpan>& spans);
     size_t ClaimScavengeWordMaskLocked(FreeManagerShard& shard,
                                        OwnedSegmentView& view,
                                        size_t wordIdx,
@@ -288,7 +269,7 @@ private:
                                        RegionCount num) const;
     void ReclaimRegionsReleasedImpl(const RegionSpan* spans, size_t count);
     void ApplyGroupedOwnerReclaim(std::vector<std::vector<RegionSpan>>& groupedSpans);
-    size_t ScavengeFreeRegionsByRegionBudget(size_t regionBudget, ScavengeSliceStats* stats);
+    size_t ScavengeFreeRegionsByRegionBudget(size_t regionBudget);
     bool TryTakeLocalRegionsLocked(FreeManagerShard& shard, RegionCount num, RegionIndex& idx, bool& reusedScavenged);
     bool TryTakeOneRegionFastLocked(FreeManagerShard& shard, RegionIndex& idx, bool& reusedScavenged);
     bool TryTakeOneRegionFromOwnedViewsLocked(FreeManagerShard& shard,

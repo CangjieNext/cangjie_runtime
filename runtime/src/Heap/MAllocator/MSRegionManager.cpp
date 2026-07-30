@@ -544,9 +544,9 @@ size_t MSRegionManager::ScavengeFreeRegions(bool releaseAll)
     return freeManager_.ScavengeFreeRegions(releaseAll);
 }
 
-size_t MSRegionManager::ScavengeFreeRegionsUpTo(size_t maxBytes, ScavengeSliceStats* stats)
+size_t MSRegionManager::ScavengeFreeRegionsUpTo(size_t maxBytes)
 {
-    return freeManager_.ScavengeFreeRegionsUpTo(maxBytes, stats);
+    return freeManager_.ScavengeFreeRegionsUpTo(maxBytes);
 }
 
 // ============================================================================

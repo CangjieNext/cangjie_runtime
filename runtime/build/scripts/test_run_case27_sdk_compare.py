@@ -38,7 +38,7 @@ class RunCase27SdkCompareTests(unittest.TestCase):
             pathlib.Path(args.msgc_sdk_root),
             pathlib.Path(
                 "/Users/lipeisheng/code/cangjie/cangjie/"
-                "cangjie_compiler/output/msgc"
+                "cangjie_compiler_region_mark/output/msgc"
             ),
         )
         self.assertEqual(

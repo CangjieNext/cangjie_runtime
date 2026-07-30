@@ -69,10 +69,15 @@ def repo_root_for_script(script_path: pathlib.Path) -> pathlib.Path:
 
 
 def default_sdk_root() -> pathlib.Path:
-    return pathlib.Path("/Users/lipeisheng/code/cangjie/cangjie/cangjie_compiler/output")
+    return pathlib.Path(
+        "/Users/lipeisheng/code/cangjie/cangjie/"
+        "cangjie_compiler_region_mark/output/msgc"
+    )
 
 
 def default_compiler_root(sdk_root: pathlib.Path) -> pathlib.Path:
+    if sdk_root.name in {"msgc", "copygc"} and sdk_root.parent.name == "output":
+        return sdk_root.resolve().parents[1]
     return sdk_root.resolve().parent
 
 

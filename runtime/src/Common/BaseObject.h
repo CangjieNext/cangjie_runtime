@@ -91,9 +91,9 @@ public:
     }
 
 protected:
-    // SetClassInfo turns a managed address into a valid "BaseObject"
-    // can only be invoked when object initialised in order to avoid competetion.
-    // caller should ensure that address is valid (not doing null check here)
+    // Initialize the header of freshly allocated, zeroed managed memory. The
+    // object must not be published until this initialization is complete.
+    // The caller guarantees that address is valid and non-null.
     static inline BaseObject* SetClassInfo(MAddress address, TypeInfo* klass)
     {
         auto ref = reinterpret_cast<BaseObject*>(address);

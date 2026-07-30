@@ -17,6 +17,21 @@ rg -q 'ForEachRefFieldGCKnownType' "$COLLECTOR"
 rg -q 'scanBitmap\[wordIdx\] = scanWord' "$COLLECTOR"
 rg -q 'markScheduler_\.PublishObject\(target.info\)' "$COLLECTOR"
 
+region_task="$(sed -n '/void MarkSweepCollector::RunRegionTask/,/^}/p' "$COLLECTOR")"
+weak_ref_line="$(printf '%s\n' "$region_task" |
+    rg -n 'obj->IsWeakRef\(\)' | head -1 | cut -d: -f1)"
+has_ref_guard_line="$(printf '%s\n' "$region_task" |
+    rg -n 'typeInfo->HasRefField\(\)' | head -1 | cut -d: -f1 || true)"
+known_type_scan_line="$(printf '%s\n' "$region_task" |
+    rg -n 'ForEachRefFieldGCKnownType' | head -1 | cut -d: -f1)"
+if [[ -z "$weak_ref_line" || -z "$has_ref_guard_line" ||
+      -z "$known_type_scan_line" ||
+      "$weak_ref_line" -ge "$has_ref_guard_line" ||
+      "$has_ref_guard_line" -ge "$known_type_scan_line" ]]; then
+    echo 'Region owner must skip no-ref objects after weak-reference handling' >&2
+    exit 1
+fi
+
 rg -Uq '(?s)ResolveMarkOwner\(\).*barrierPhase.*__ATOMIC_ACQUIRE' "$BARRIER"
 rg -q 'collector->PublishManagedRefForBarrier\(ref\)' "$BARRIER"
 rg -q 'collector_->FlushBarrierMarkBatch\(batch_, work_\)' "$BARRIER"

@@ -57,7 +57,7 @@ void LogRefillRegionAllocationFailure(const char* stage, uint8_t cls, const MSRe
         static_cast<unsigned>(region->GetRegionType()),
         static_cast<unsigned>(region->GetAllocMode()),
         static_cast<unsigned>(region->sizeClass),
-        static_cast<unsigned>(region->GetFreeSlotCount()),
+        static_cast<unsigned>(region->CountFreeSlots()),
         static_cast<unsigned>(region->GetTotalSlotCount()),
         static_cast<unsigned>(region->collectEpoch),
         region->allocPtr,
@@ -323,7 +323,7 @@ void AllocBufferMS::ReturnRegionToCentral(MSRegionInfo* region, uint8_t cls)
             static_cast<unsigned>(decision.bucketSizeClass),
             static_cast<void*>(region),
             static_cast<unsigned>(region->GetRegionType()),
-            static_cast<unsigned>(region->GetFreeSlotCount()),
+            static_cast<unsigned>(decision.freeSlots),
             static_cast<unsigned>(region->GetTotalSlotCount()),
             region->allocPtr,
             region->regionEnd);

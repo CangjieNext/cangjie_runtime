@@ -60,7 +60,10 @@ class RebuildRuntimePlanTests(unittest.TestCase):
             self.assertEqual(target.main(), 0)
 
         self.assertIn(
-            "[info] sdk_root=/workspace/cangjie_compiler/output/msgc",
+            (
+                "[info] sdk_root=/Users/lipeisheng/code/cangjie/cangjie/"
+                "cangjie_compiler_region_mark/output/msgc"
+            ),
             output.getvalue(),
         )
 

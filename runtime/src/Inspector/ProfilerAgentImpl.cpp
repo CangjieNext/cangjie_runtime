@@ -10,21 +10,11 @@
 #include "Heap/Collector/CollectorResources.h"
 #include "Heap/Collector/GcRequest.h"
 #include "Inspector/FileStream.h"
-#include "Inspector/CjAllocData.h"
 #include "Heap/Allocator/RegionInfo.h"
 #include "Heap/Allocator/AllocBuffer.h"
 #include "Inspector/ProfilerAgentImpl.h"
 namespace MapleRuntime {
-int EnableAllocRecord(bool enable)
-{
-    MapleRuntime::CjAllocData::GetCjAllocData()->SetRecording(enable);
-    if (enable) {
-        MapleRuntime::CjAllocData::SetCjAllocData();
-    } else {
-        MapleRuntime::CjAllocData::GetCjAllocData()->DeleteCjAllocData();
-    }
-    return 0;
-}
+
 std::string ParseDomain(const std::string &message)
 {
     std::string key = "\"id\":";
@@ -76,13 +66,13 @@ void DumpHeapSnapshot(SendMsgCB sendMsg)
 
 void StartTrackingHeapObjects(const std::string &message, SendMsgCB sendMsg)
 {
-    SetEnd(message, MapleRuntime::MsgType::END);
-    EnableAllocRecord(true);
+    // Allocation sampling depended on a removed platform-specific stack walker.
+    // Keep the inspector command ABI, but report the feature as disabled.
+    SetEnd(message, MapleRuntime::MsgType::DISABLE);
 }
 
 void StopTrackingHeapObjects(const std::string &message, SendMsgCB sendMsg)
 {
-    EnableAllocRecord(false);
     SetEnd(message, MapleRuntime::MsgType::END);
 }
 
@@ -137,7 +127,7 @@ void ProfilerAgentImpl(const std::string &message, SendMsgCB sendMsg)
     } else if (message.find("collectGarbage", 0) != std::string::npos) {
         CollectGarbage(message, sendMsg);
     } else {
-        LOG(RTLOG_ERROR, "invaild request\n");
+        LOG(RTLOG_ERROR, "invalid profiler request\n");
     }
 }
-}
+} // namespace MapleRuntime

@@ -10,15 +10,11 @@
 #ifdef MRT_USE_MARK_SWEEP
 
 #include <atomic>
-#include <memory>
-#include <mutex>
-#include <vector>
 
 #include "Heap/Collector/TracingCollector.h"
 #include "Heap/MCollector/MSAssistPacing.h"
 #include "Heap/MCollector/MSHeapThresholdPolicy.h"
 #include "Heap/MCollector/MSMarkBatch.h"
-#include "Heap/MCollector/MSMarkLocalStats.h"
 #include "Heap/MCollector/MSMarkScheduler.h"
 #include "Heap/MCollector/MSMarkTerminationPolicy.h"
 #include "Heap/MCollector/MSMarkWorkerControl.h"
@@ -44,12 +40,7 @@ struct MSGCCycleStats {
 
     // ── Counting ──
     size_t rootsCount = 0;                // rootStaging_.size() after root enumeration.
-    size_t gcMainCompletedTasks = 0;
-    size_t helperCompletedWU = 0;
     MSMarkTerminationReason markTerminationReason = MSMarkTerminationReason::NATURAL;
-
-    // ── Mutator assist stats (Step 2.2 §4) ──
-    size_t assistCompletedWU = 0;
 
     // ── True live bytes (computed from markBitmaps after marking) ──
     size_t trueLiveBytes = 0;            // ComputeMarkedStats() result, used by UpdateGCStats and GC-end logs.
@@ -199,8 +190,6 @@ private:
     void StartMarkWorkers(size_t maxHelpers, size_t initialHelpers);
     void RunMarkWorker(size_t workerId);
     size_t QuiesceMarkWorkers();
-    void SnapshotAssistStats();
-    void MergeExitedAssistStats(AllocBufferMS& allocBuffer);
 
     // ── Step 2.3 internals ──
     void PrepareFinalizersForResurrection();
@@ -229,10 +218,7 @@ private:
 
     // Scheduler progress epoch and helper control.
     WorkEpoch markWorkEpoch_;
-    struct MSMarkWorkerSlot {
-        MSMarkWorkerLocalStats stats;
-    };
-    std::vector<std::unique_ptr<MSMarkWorkerSlot>> markWorkerSlots_;
+    size_t markWorkerCount_ = 0;
     MSMarkWorkerControl markWorkerControl_{&markWorkEpoch_};
     std::atomic<uint64_t> assistWorkPerByteScaled_{0};
     std::atomic<size_t> prevCycleMarkedObjects_{0};
@@ -241,11 +227,6 @@ private:
     static std::atomic<MarkSweepCollector*> activeCollector_;
 
     // (assist parameters are grouped above with other tuning constants)
-
-    // Mutators that exit during mark fold their processed-work feedback here.
-    // Active mutators are aggregated directly under STW at mark termination.
-    std::mutex exitedAssistStatsMutex_;
-    MSMarkAssistStats exitedAssistStats_;
 
     // ── DFX: Per-cycle stats ──
     MSGCCycleStats cycleStats_;

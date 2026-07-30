@@ -66,14 +66,12 @@ inline ArrayRef ObjectManager::NewObjArray(MIndex nElems, const TypeInfo* arrayT
     return MArray::NewRefArray(nElems, *const_cast<TypeInfo*>(arrayTi), allocType);
 }
 
-inline ArrayRef ObjectManager::NewKnownWidthArray(MIndex nElems, const TypeInfo* arrayTi, ArrayElemBits elemBits,
+inline ArrayRef ObjectManager::NewKnownWidthArray(MIndex nElems, const TypeInfo* arrayTi, ArrayElementWidth elemWidth,
                                                   AllocType allocType)
 {
     CHECK_DETAIL(arrayTi != nullptr, "arrayTi is nullptr");
-    constexpr U32 bitsToByte = 3;
-    // Note here we need Bytes instead of Bits
     return MArray::NewKnownWidthArray(nElems, *const_cast<TypeInfo*>(arrayTi),
-                                      (static_cast<U32>(elemBits) >> bitsToByte), allocType);
+                                      static_cast<U32>(elemWidth), allocType);
 }
 } // namespace MapleRuntime
 

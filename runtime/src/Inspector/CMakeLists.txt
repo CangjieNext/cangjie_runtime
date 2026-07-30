@@ -12,7 +12,6 @@ set(SRC_LIST
 "HeapSnapshotJsonSerializer.cpp"
 "FileStream.cpp"
 "CjHeapData.cpp"
-"CjAllocData.cpp"
 )
 endif ()
 

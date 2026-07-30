@@ -117,6 +117,28 @@ class VerifyArrayCopyFastLoweringTests(unittest.TestCase):
             ],
         )
 
+    def test_defaults_use_region_mark_msgc_sdk_and_stdx(self):
+        sdk_root = self.module.default_sdk_root()
+
+        self.assertEqual(
+            sdk_root,
+            pathlib.Path(
+                "/Users/lipeisheng/code/cangjie/cangjie/"
+                "cangjie_compiler_region_mark/output/msgc"
+            ),
+        )
+        self.assertEqual(
+            self.module.default_compiler_root(sdk_root),
+            pathlib.Path(
+                "/Users/lipeisheng/code/cangjie/cangjie/"
+                "cangjie_compiler_region_mark"
+            ),
+        )
+        self.assertEqual(
+            self.module.default_stdx_dir(sdk_root),
+            sdk_root / "darwin_aarch64_cjnative" / "dynamic" / "stdx",
+        )
+
     def test_main_dry_run_skips_real_probe_execution(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             result_root = pathlib.Path(tmpdir) / "result"

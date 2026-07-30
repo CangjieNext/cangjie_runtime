@@ -241,14 +241,8 @@ void TestScavengeSkipsColdViewsAndUsesSavedCursor()
         manager.CompleteScavengingLocked(shard, kRegionsPerSegment, kRegionsPerSegment * 2, true);
     }
 
-    FreeManager::ScavengeSliceStats stats;
-    ExpectEq(manager.ScavengeFreeRegionsUpTo(kRegionSize, &stats), kRegionSize,
+    ExpectEq(manager.ScavengeFreeRegionsUpTo(kRegionSize), kRegionSize,
              "sparse slice should release one Region from the only hot view");
-    ExpectEq(stats.visitedViews, 3, "sparse slice should inspect each view at most once");
-    ExpectEq(stats.skippedColdViews, 2, "cold view summaries should skip two views");
-    ExpectEq(stats.visitedHotWords, 1, "sparse slice should inspect one indexed hot word");
-    ExpectEq(stats.claimedRegions, 1, "sparse slice should claim one Region");
-    ExpectEq(stats.releasedRegions, 1, "sparse slice should release one Region");
     if (shard.scavengeViewCursor_ >= shard.ownedViews_.size()) {
         std::fprintf(stderr, "saved Scavenge view cursor escaped owned view bounds\n");
         std::abort();
@@ -284,19 +278,13 @@ void TestScavengeCoalescesOnlyAdjacentRegions()
 
     ExpectTake(manager, kRegionCount, 0, 0, "test setup should allocate the complete view");
     manager.ReclaimRegionsReleased(63, 2);
-    FreeManager::ScavengeSliceStats adjacentStats;
-    ExpectEq(manager.ScavengeFreeRegionsUpTo(2 * kRegionSize, &adjacentStats), 2 * kRegionSize,
+    ExpectEq(manager.ScavengeFreeRegionsUpTo(2 * kRegionSize), 2 * kRegionSize,
              "adjacent cross-word Regions should be released");
-    ExpectEq(adjacentStats.releaseCalls, 1, "cross-word adjacency should use one OS release call");
-    ExpectEq(adjacentStats.candidateRuns, 1, "cross-word adjacency should form one candidate run");
 
     manager.ReclaimRegionsReleased(62, 1);
     manager.ReclaimRegionsReleased(64, 1);
-    FreeManager::ScavengeSliceStats fragmentedStats;
-    ExpectEq(manager.ScavengeFreeRegionsUpTo(2 * kRegionSize, &fragmentedStats), 2 * kRegionSize,
+    ExpectEq(manager.ScavengeFreeRegionsUpTo(2 * kRegionSize), 2 * kRegionSize,
              "fragmented hot Regions should both be released");
-    ExpectEq(fragmentedStats.releaseCalls, 2, "non-adjacent Regions require two OS release calls");
-    ExpectEq(fragmentedStats.candidateRuns, 2, "allocated gap must preserve two candidate runs");
 
     FreeHeap(heap, kHeapBytes);
 }
@@ -550,18 +538,15 @@ void TestScavengeSkipsBusyShardWithTryLock()
         2);
 
     size_t releasedBytes = 0;
-    FreeManager::ScavengeSliceStats stats;
     std::unique_lock<std::mutex> holdShard0(manager.shards_[0].shardMutex_);
     std::thread worker([&]() {
-        releasedBytes = manager.ScavengeFreeRegionsUpTo(kRegionSize, &stats);
+        releasedBytes = manager.ScavengeFreeRegionsUpTo(kRegionSize);
     });
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
     holdShard0.unlock();
     worker.join();
 
     ExpectEq(releasedBytes, kRegionSize, "try-lock scavenge should still release one region");
-    ExpectEq(stats.visitedShards, 2, "try-lock slice should visit the busy and fallback shards");
-    ExpectEq(stats.lockMissShards, 1, "try-lock slice should count one busy shard");
     ExpectEq(manager.GetScavengedRegionCount(0), 0, "busy shard0 should be skipped");
     ExpectEq(manager.GetScavengedRegionCount(1), 1, "shard1 should receive the scavenge budget after shard0 skip");
     ExpectHotFreeSnapshotsMatch(manager, "aggregate after busy-shard scavenge");
@@ -617,15 +602,10 @@ void TestScavengeFailureRollsBackToHotFree()
                        kSegmentSize, 1);
 
     size_t hotFreeBefore = manager.GetHotFreeBytes();
-    FreeManager::ScavengeSliceStats stats;
     gForceReleaseFailure = true;
-    ExpectEq(manager.ScavengeFreeRegionsUpTo(kRegionSize, &stats), 0,
+    ExpectEq(manager.ScavengeFreeRegionsUpTo(kRegionSize), 0,
              "failed OS release must not be reported as scavenged");
     gForceReleaseFailure = false;
-    ExpectEq(stats.claimedRegions, 1, "failed release should still count its claimed Region");
-    ExpectEq(stats.releasedRegions, 0, "failed release must not count a released Region");
-    ExpectEq(stats.releaseCalls, 1, "failed release should attempt one OS call");
-    ExpectEq(stats.releaseFailures, 1, "failed release should count one OS failure");
     ExpectEq(manager.GetScavengedRegionCount(0), 0,
              "failed OS release must not publish scavenged metadata");
     ExpectEq(manager.GetHotFreeBytes(), hotFreeBefore,

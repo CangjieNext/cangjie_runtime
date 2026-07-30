@@ -19,8 +19,8 @@ namespace MapleRuntime {
 //  Motivation: all interfaces related to object model implementation should have a separated control plane
 class ObjectManager {
 public:
-    // used to regulate accepted fixed width element type
-    enum class ArrayElemBits : U32 { ELEM_8B = 8, ELEM_16B = 16, ELEM_32B = 32, ELEM_64B = 64 };
+    // Fixed array element widths are expressed in bytes.
+    enum class ArrayElementWidth : U32 { ONE_BYTE = 1, TWO_BYTES = 2, FOUR_BYTES = 4, EIGHT_BYTES = 8 };
 
     // Runtime module lifetime interfaces
     void Init() const {};
@@ -42,7 +42,7 @@ public:
     static inline ArrayRef NewObjArray(MIndex nElems, const TypeInfo* arrayTi,
                                        AllocType allocType = AllocType::MOVEABLE_OBJECT);
 
-    static inline ArrayRef NewKnownWidthArray(MIndex nElems, const TypeInfo* arrayTi, ArrayElemBits elemBits,
+    static inline ArrayRef NewKnownWidthArray(MIndex nElems, const TypeInfo* arrayTi, ArrayElementWidth elemWidth,
                                               AllocType allocType = AllocType::MOVEABLE_OBJECT);
 };
 } // namespace MapleRuntime

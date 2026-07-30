@@ -98,9 +98,7 @@ public:
     // remaining cache footprint is <= thresholdBytes. Large cache is drained first.
     size_t FlushCentralCacheToThreshold(size_t thresholdBytes);
     // Step B: release up to quantumBytes of hot-free regions to OS. Returns bytes released.
-    size_t BackgroundScavenge(
-        size_t quantumBytes,
-        FreeManager::ScavengeSliceStats* stats = nullptr);
+    size_t BackgroundScavenge(size_t quantumBytes);
     // Release one fully-idle segment worth of pages while keeping the current
     // committed/owned-segment topology intact. Returns newly released bytes.
     size_t BackgroundShrinkOneSegment();
@@ -123,6 +121,8 @@ public:
     friend class Allocator;
 
 private:
+    MAddress AllocateInternal(
+        size_t size, MSScanClass scanClass, ThreadLocalData* local);
     MAddress AllocateLargeObject(
         size_t size, size_t allocSize, MSScanClass scanClass, ThreadLocalData* local);
     MAddress AllocateRegularObject(

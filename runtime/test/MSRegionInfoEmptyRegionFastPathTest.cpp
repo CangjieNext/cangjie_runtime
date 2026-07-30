@@ -142,7 +142,6 @@ struct RegionFixture {
 
         region.InitForSizeClass(sizeClass, MSScanClass::HAS_REF);
         region.allocPtr = region.regionEnd;
-        region.SetFreeSlotCount(0);
         region.SetAllocMode(MSAllocMode::BITMAP);
         std::fill(allocWords.begin(), allocWords.end(), kAllocBitmapPoison);
         std::fill(markWords.begin(), markWords.end(), 0);
@@ -189,7 +188,6 @@ void TestFullBumpReturnMaterializesAllocatedPlane()
     RegionFixture fixture;
     fixture.region.SetAllocMode(MSAllocMode::BUMP);
     fixture.region.allocPtr = fixture.region.regionEnd;
-    fixture.region.SetFreeSlotCount(0);
     fixture.region.allocSummary =
         (UINT64_C(1) << fixture.region.GetBitmapWordCount()) - 1;
     for (size_t word = 0; word < fixture.region.GetBitmapWordCount(); ++word) {
@@ -204,6 +202,7 @@ void TestFullBumpReturnMaterializesAllocatedPlane()
     ExpectTrue(
         decision.kind == MSCentralReturnKind::FULL,
         "full BUMP Region must route to FULL");
+    ExpectEq(decision.freeSlots, 0, "full BUMP Region free slots");
     ExpectTrue(
         fixture.region.GetAllocMode() == MSAllocMode::BITMAP,
         "full BUMP Region must publish BITMAP mode");
@@ -217,21 +216,88 @@ void TestFullBumpReturnMaterializesAllocatedPlane()
     }
 }
 
+void TestPartialBumpReturnDerivesFreeSlotsAndIgnoresLegacyAbiTombstone()
+{
+    RegionFixture fixture;
+    constexpr size_t kAllocatedSlots = 3;
+    fixture.region.SetAllocMode(MSAllocMode::BUMP);
+    fixture.region.allocPtr =
+        fixture.region.RegionStart() +
+        kAllocatedSlots * fixture.region.GetSlotSize();
+    fixture.region.reserved32 = 0xDEADBEEF;
+
+    auto decision =
+        fixture.region.PrepareForCentralReturn(kTestSizeClass);
+
+    ExpectTrue(
+        decision.kind == MSCentralReturnKind::PARTIAL,
+        "partial BUMP Region must route to PARTIAL");
+    ExpectEq(
+        decision.freeSlots,
+        fixture.region.GetTotalSlotCount() - kAllocatedSlots,
+        "partial BUMP free slots must be derived from allocPtr");
+    ExpectEq64(
+        fixture.region.reserved32, 0xDEADBEEF,
+        "legacy ABI tombstone must not participate in classification");
+    ExpectTrue(
+        fixture.region.GetAllocMode() == MSAllocMode::BITMAP,
+        "partial BUMP Region must publish BITMAP mode");
+}
+
+void TestBitmapReturnRepairsStaleNegativeSummary()
+{
+    RegionFixture fixture;
+    std::fill(fixture.allocWords.begin(), fixture.allocWords.end(), 0);
+    fixture.allocWords[1] = UINT64_C(1) << 7;
+    fixture.region.allocSummary = 0;
+
+    auto decision =
+        fixture.region.PrepareForCentralReturn(kTestSizeClass);
+
+    ExpectTrue(
+        decision.kind == MSCentralReturnKind::PARTIAL,
+        "one bitmap free slot must route to PARTIAL");
+    ExpectEq(
+        decision.freeSlots, 1,
+        "BITMAP return must popcount the allocation plane");
+    ExpectEq64(
+        fixture.region.allocSummary, UINT64_C(1) << 1,
+        "BITMAP return must repair a stale-negative summary");
+}
+
+void TestBitmapReturnRepairsStalePositiveSummary()
+{
+    RegionFixture fixture;
+    std::fill(fixture.allocWords.begin(), fixture.allocWords.end(), 0);
+    fixture.region.allocSummary = ~UINT64_C(0);
+
+    auto decision =
+        fixture.region.PrepareForCentralReturn(kTestSizeClass);
+
+    ExpectTrue(
+        decision.kind == MSCentralReturnKind::FULL,
+        "zero bitmap free slots must route to FULL");
+    ExpectEq(
+        decision.freeSlots, 0,
+        "full BITMAP Region must report zero free slots");
+    ExpectEq64(
+        fixture.region.allocSummary, 0,
+        "BITMAP return must repair a stale-positive summary");
+}
+
 void TestSweepRegionAllDeadSkipsAllocPlaneConstruction()
 {
     RegionFixture fixture;
 
-    size_t freedBytes = fixture.region.SweepRegion();
+    auto decision = fixture.region.SweepRegion();
 
     ExpectEq(
-        freedBytes,
-        static_cast<size_t>(fixture.region.GetTotalSlotCount()) *
-            fixture.region.GetSlotSize(),
-        "empty sweep freed bytes");
-    ExpectEq(
-        fixture.region.GetFreeSlotCount(),
+        decision.freeSlots,
         fixture.region.GetTotalSlotCount(),
         "empty sweep free slots");
+    ExpectTrue(
+        decision.kind == MSCentralReturnKind::EMPTY_CACHE,
+        "empty sweep must route directly to EMPTY_CACHE");
     ExpectTrue(
         fixture.region.GetAllocMode() == MSAllocMode::BITMAP,
         "empty sweep must publish BITMAP mode");
@@ -246,8 +312,10 @@ void TestSweepRegionAllDeadSkipsAllocPlaneConstruction()
 void TestResetToBumpAfterEmptySweepPreservesPlaneState()
 {
     RegionFixture fixture;
-    fixture.region.SetFreeSlotCount(fixture.region.GetTotalSlotCount());
-    fixture.region.allocSummary = 0;
+    auto decision = fixture.region.SweepRegion();
+    ExpectTrue(
+        decision.kind == MSCentralReturnKind::EMPTY_CACHE,
+        "reset-to-bump fixture must first become sweep-empty");
 
     fixture.region.ResetToBump();
 
@@ -300,12 +368,17 @@ void TestSweepRegionDeadRunsCrossWordsAndMaskTrailingBits()
     auto originalMarks = fixture.markWords;
 
     size_t slotSize = SizeClassInfo::ClassToSize(kTrailingSizeClass);
-    size_t freedBytes = fixture.region.SweepRegion();
+    auto decision = fixture.region.SweepRegion();
 
-    ExpectEq(freedBytes, 7 * slotSize, "partial sweep freed bytes");
     ExpectEq(
-        fixture.region.GetFreeSlotCount(), 7,
+        decision.freeSlots, 7,
         "partial sweep free slots");
+    ExpectTrue(
+        decision.kind == MSCentralReturnKind::PARTIAL,
+        "partial sweep must route directly to PARTIAL");
+    ExpectEq(
+        decision.freeSlots * slotSize, 7 * slotSize,
+        "partial sweep freed bytes");
     ExpectEq64(
         fixture.region.allocSummary,
         (UINT64_C(1) << 0) | (UINT64_C(1) << 1) |
@@ -377,6 +450,9 @@ void TestLargeRegionUsesDistinctObjectAndSpanSemantics()
 int main()
 {
     TestFullBumpReturnMaterializesAllocatedPlane();
+    TestPartialBumpReturnDerivesFreeSlotsAndIgnoresLegacyAbiTombstone();
+    TestBitmapReturnRepairsStaleNegativeSummary();
+    TestBitmapReturnRepairsStalePositiveSummary();
     TestSweepRegionAllDeadSkipsAllocPlaneConstruction();
     TestResetToBumpAfterEmptySweepPreservesPlaneState();
     TestSweepRegionDeadRunsCrossWordsAndMaskTrailingBits();

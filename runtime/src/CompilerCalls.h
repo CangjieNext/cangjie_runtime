@@ -22,16 +22,16 @@
 #include "Signal/SignalStack.h"
 #endif
 
-// runtime interfaces provided to compiler for code generation.
-// The compiler should only call MCC_* to access runtime functions.
-// MCC_* calls follows C standard calling convention.
+// Runtime interfaces provided to compiler-generated code. Platform stubs and
+// aliases expose the CJ_MCC_* entry names and forward to these MCC_* C ABI
+// implementations.
 namespace MapleRuntime {
 // create new objects
 extern "C" ObjRef MCC_NewObject(const TypeInfo* classInfo, MSize size);
+extern "C" ObjRef MCC_NewWeakRefObject(const TypeInfo* classInfo, MSize size);
 extern "C" ObjRef MCC_NewPinnedObject(const TypeInfo* classInfo, MSize size, bool isFinalizer);
 extern "C" ObjRef MCC_NewFinalizer(const TypeInfo* classInfo, MSize size);
 extern "C" ObjRef MCC_OnFinalizerCreated(ObjRef ref);
-extern "C" ObjRef MCC_NewPinnedObject(const TypeInfo* classInfo, MSize size, bool isFinalizer);
 extern "C" void MCC_WriteRefField(const ObjectPtr ref, const ObjectPtr obj, RefField<false>* field);
 extern "C" void MCC_WriteStructField(const ObjectPtr obj, MAddress dst, size_t dstLen, MAddress src, size_t srcLen);
 extern "C" void MCC_WriteStaticRef(const ObjectPtr ref, RefField<false>* field);

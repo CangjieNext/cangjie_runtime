@@ -1,8 +1,8 @@
+#include <algorithm>
+#include <array>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
-#include <cstring>
-#include <vector>
 
 #define MRT_USE_MARK_SWEEP 1
 #define MRT_BASE_LOG_H
@@ -33,47 +33,48 @@ const size_t MRT_PAGE_SIZE = 16 * 1024;
 
 #include "src/Heap/MAllocator/MSBitmapArena.h"
 #include "src/Heap/MAllocator/MSSizeClass.h"
+#include "src/Heap/MSGCFastPath.h"
 
 namespace MapleRuntime {
+extern "C" MSGCFastPathState CJ_MRT_MSGCFastPathState = {};
 
 void MSBitmapArena::EnsurePlaneRangeCommitted(MSBitmapPlane, size_t, size_t)
 {
 }
 
-uint64_t* MSBitmapArena::GetAllocPlane(size_t)
+uint64_t* MSBitmapArena::GetAllocPlane(size_t regionIdx)
 {
-    return nullptr;
+    return reinterpret_cast<uint64_t*>(
+        CJ_MRT_MSGCFastPathState.allocPlaneBase +
+        regionIdx * kPlaneStrideBytes);
 }
 
-uint64_t* MSBitmapArena::GetMarkPlane(size_t)
+uint64_t* MSBitmapArena::GetMarkPlane(size_t regionIdx)
 {
-    return nullptr;
+    return reinterpret_cast<uint64_t*>(
+        CJ_MRT_MSGCFastPathState.markPlaneBase +
+        regionIdx * kPlaneStrideBytes);
+}
+
+uint64_t* MSBitmapArena::GetScanPlane(size_t regionIdx)
+{
+    return reinterpret_cast<uint64_t*>(
+        CJ_MRT_MSGCFastPathState.scanPlaneBase +
+        regionIdx * kPlaneStrideBytes);
 }
 } // namespace MapleRuntime
 
 #include "src/Heap/MAllocator/MSRegionInfo.cpp"
 
-namespace MapleRuntime {
-extern "C" MSGCFastPathState CJ_MRT_MSGCFastPathState = {};
-}
-
 namespace {
 
+using MapleRuntime::MS_REGION_SIZE;
+using MapleRuntime::MSAllocMode;
+using MapleRuntime::MSBitmapArena;
 using MapleRuntime::MSCentralReturnDecision;
 using MapleRuntime::MSCentralReturnKind;
 using MapleRuntime::MSRegionInfo;
-using MapleRuntime::MSRegionType;
-using MapleRuntime::MSSweepState;
-using MapleRuntime::MS_REGION_SIZE;
-
-static_assert(static_cast<uint8_t>(MSRegionType::MS_REGION_FREE) == 0, "FREE ABI");
-static_assert(static_cast<uint8_t>(MSRegionType::MS_REGION_BUMP) == 1, "BUMP ABI");
-static_assert(static_cast<uint8_t>(MSRegionType::MS_REGION_BITMAP) == 2, "BITMAP ABI");
-static_assert(static_cast<uint8_t>(MSRegionType::MS_REGION_PARTIAL) == 3, "PARTIAL ABI");
-static_assert(static_cast<uint8_t>(MSRegionType::MS_REGION_FULL) == 4, "FULL ABI");
-static_assert(static_cast<uint8_t>(MSRegionType::MS_REGION_LARGE) == 5, "LARGE ABI");
-static_assert(static_cast<uint8_t>(MSRegionType::MS_REGION_SPAN) == 6, "SPAN ABI");
-static_assert(static_cast<uint8_t>(MSRegionType::MS_REGION_EMPTY_CACHE) == 7, "EMPTY_CACHE ABI");
+using MapleRuntime::MSScanClass;
 
 constexpr uint8_t kTestSizeClass = 1;
 constexpr uint8_t kBumpReturnSizeClass = 6; // 80-byte slots, 409 slots in 7 words.
@@ -86,61 +87,33 @@ void ExpectTrue(bool value, const char* message)
     }
 }
 
-void ExpectEqU8(uint8_t actual, uint8_t expected, const char* message)
+void ExpectEq(size_t actual, size_t expected, const char* message)
 {
     if (actual != expected) {
-        std::fprintf(stderr, "%s: expected=%u actual=%u\n", message, expected, actual);
+        std::fprintf(
+            stderr, "%s: expected=%zu actual=%zu\n",
+            message, expected, actual);
         std::abort();
     }
 }
 
-void ExpectEqSize(size_t actual, size_t expected, const char* message)
+void ExpectEq64(uint64_t actual, uint64_t expected, const char* message)
 {
     if (actual != expected) {
-        std::fprintf(stderr, "%s: expected=%zu actual=%zu\n", message, expected, actual);
-        std::abort();
-    }
-}
-
-void ExpectEqU64(uint64_t actual, uint64_t expected, const char* message)
-{
-    if (actual != expected) {
-        std::fprintf(stderr,
-                     "%s: expected=0x%llx actual=0x%llx\n",
-                     message,
-                     static_cast<unsigned long long>(expected),
-                     static_cast<unsigned long long>(actual));
-        std::abort();
-    }
-}
-
-void ExpectEqKind(MSCentralReturnKind actual, MSCentralReturnKind expected, const char* message)
-{
-    if (actual != expected) {
-        std::fprintf(stderr, "%s: expected=%u actual=%u\n",
-                     message,
-                     static_cast<unsigned>(expected),
-                     static_cast<unsigned>(actual));
-        std::abort();
-    }
-}
-
-void ExpectEqType(MSRegionType actual, MSRegionType expected, const char* message)
-{
-    if (actual != expected) {
-        std::fprintf(stderr, "%s: expected=%u actual=%u\n",
-                     message,
-                     static_cast<unsigned>(expected),
-                     static_cast<unsigned>(actual));
+        std::fprintf(
+            stderr, "%s: expected=0x%llx actual=0x%llx\n",
+            message, static_cast<unsigned long long>(expected),
+            static_cast<unsigned long long>(actual));
         std::abort();
     }
 }
 
 struct RegionFixture {
     void* payload = nullptr;
-    std::vector<uint64_t> allocWords;
-    std::vector<uint64_t> markWords;
-    MSRegionInfo region {};
+    alignas(64) MSRegionInfo region {};
+    alignas(64) std::array<uint64_t, MSBitmapArena::kMaxBitmapWords> allocWords {};
+    alignas(64) std::array<uint64_t, MSBitmapArena::kMaxBitmapWords> markWords {};
+    alignas(64) std::array<uint64_t, MSBitmapArena::kMaxBitmapWords> scanWords {};
 
     explicit RegionFixture(uint8_t sizeClass = kTestSizeClass)
     {
@@ -150,31 +123,19 @@ struct RegionFixture {
             std::abort();
         }
 
-        size_t slotSize = MapleRuntime::SizeClassInfo::ClassToSize(sizeClass);
-        size_t slotCount = MS_REGION_SIZE / slotSize;
-        size_t wordCount = (slotCount + 63) / 64;
-
-        allocWords.assign(wordCount, ~0ULL);
-        size_t trailingBits = slotCount % 64;
-        if (trailingBits != 0) {
-            allocWords.back() = (1ULL << trailingBits) - 1;
-        }
-        markWords.assign(wordCount, 0);
-
-        region.allocPtr = reinterpret_cast<uintptr_t>(payload);
-        region.regionEnd = reinterpret_cast<uintptr_t>(payload) + MS_REGION_SIZE;
-        region.totalSlotCount = static_cast<uint16_t>(slotCount);
-        region.freeSlotCount = static_cast<uint16_t>(slotCount);
-        region.sizeClass = sizeClass;
-        region.sweepState = MSSweepState::UNSWEPT;
-        region.regionType = MSRegionType::MS_REGION_BUMP;
-        region.flags_ = 0;
-        region.sweepGen = 0;
-        region.reserved = 0;
-        region.allocBitmap = allocWords.data();
-        region.markBitmap = markWords.data();
-        region.nextRegionIdx = MSRegionInfo::INVALID_IDX;
-        region.prevRegionIdx = MSRegionInfo::INVALID_IDX;
+        MapleRuntime::MSRegionInfoArray::Init(
+            reinterpret_cast<uintptr_t>(payload), 1, &region);
+        MapleRuntime::CJ_MRT_MSGCFastPathState.heapReservedStart =
+            reinterpret_cast<uintptr_t>(payload);
+        MapleRuntime::CJ_MRT_MSGCFastPathState.heapReservedEnd =
+            reinterpret_cast<uintptr_t>(payload) + MS_REGION_SIZE;
+        MapleRuntime::CJ_MRT_MSGCFastPathState.allocPlaneBase =
+            reinterpret_cast<uintptr_t>(allocWords.data());
+        MapleRuntime::CJ_MRT_MSGCFastPathState.markPlaneBase =
+            reinterpret_cast<uintptr_t>(markWords.data());
+        MapleRuntime::CJ_MRT_MSGCFastPathState.scanPlaneBase =
+            reinterpret_cast<uintptr_t>(scanWords.data());
+        region.InitForSizeClass(sizeClass, MSScanClass::HAS_REF);
     }
 
     ~RegionFixture()
@@ -183,106 +144,110 @@ struct RegionFixture {
     }
 };
 
-void TestPrepareForCentralReturnMaterializesPartiallyUsedBumpBitmap()
+void TestPartiallyUsedBumpMaterializesBitmap()
 {
     RegionFixture fixture(kBumpReturnSizeClass);
     constexpr size_t kAllocatedSlots = 65;
-    size_t slotSize = MapleRuntime::SizeClassInfo::ClassToSize(kBumpReturnSizeClass);
-    uintptr_t regionStart = reinterpret_cast<uintptr_t>(fixture.payload);
+    uintptr_t regionStart = fixture.region.RegionStart();
+    size_t slotSize = fixture.region.GetSlotSize();
 
     for (size_t i = 0; i < kAllocatedSlots; ++i) {
-        ExpectEqSize(fixture.region.AllocBump(), regionStart + i * slotSize, "bump allocation address");
+        ExpectEq(
+            fixture.region.AllocBump(),
+            regionStart + i * slotSize,
+            "bump allocation address");
     }
 
-    MSCentralReturnDecision decision = fixture.region.PrepareForCentralReturn(kBumpReturnSizeClass);
+    MSCentralReturnDecision decision =
+        fixture.region.PrepareForCentralReturn(kBumpReturnSizeClass);
 
-    ExpectEqKind(decision.kind, MSCentralReturnKind::PARTIAL, "partially used bump should route to partial");
-    ExpectEqU64(fixture.allocWords[0], 0, "returned partial must mark the first 64 slots allocated");
-    ExpectEqU64(fixture.allocWords[1], ~1ULL, "returned partial must keep slot 64 allocated");
-    for (size_t wordIdx = 2; wordIdx + 1 < fixture.allocWords.size(); ++wordIdx) {
-        ExpectEqU64(fixture.allocWords[wordIdx], ~0ULL, "remaining whole words must stay free");
-    }
-    ExpectEqU64(fixture.allocWords.back(), (1ULL << 25) - 1, "invalid trailing bits must stay masked");
-    ExpectEqU64(fixture.region.reserved, 0x7E, "summary must include only bitmap words with free slots");
-
-    uintptr_t next = fixture.region.AllocFromBitmapFast();
-    ExpectEqSize(next, regionStart + kAllocatedSlots * slotSize,
-                 "bitmap allocation must continue after the bump-allocated prefix");
+    ExpectTrue(
+        decision.kind == MSCentralReturnKind::PARTIAL,
+        "partially used BUMP must route to PARTIAL");
+    ExpectEq(
+        decision.freeSlots,
+        fixture.region.GetTotalSlotCount() - kAllocatedSlots,
+        "partially used BUMP free slots");
+    ExpectEq64(fixture.allocWords[0], 0, "first 64 slots allocated");
+    ExpectEq64(fixture.allocWords[1], ~UINT64_C(1), "slot 64 allocated");
+    ExpectEq64(
+        fixture.region.allocSummary, UINT64_C(0x7E),
+        "summary contains only words with free slots");
 }
 
-void TestPrepareForCentralReturnNormalizesReusableBumpRegion()
+void TestCallerMismatchUsesRegionClassAndIgnoresTombstone()
 {
     RegionFixture fixture;
-    fixture.region.freeSlotCount = 17;
-    size_t slotSize = MapleRuntime::SizeClassInfo::ClassToSize(kTestSizeClass);
-    fixture.region.allocPtr = reinterpret_cast<uintptr_t>(fixture.payload) +
-        (fixture.region.totalSlotCount - fixture.region.freeSlotCount) * slotSize;
+    fixture.region.AllocBump();
+    fixture.region.reserved32 = 0xDEADBEEF;
 
-    MSCentralReturnDecision decision = fixture.region.PrepareForCentralReturn(/* callerCls */ 2);
+    MSCentralReturnDecision decision =
+        fixture.region.PrepareForCentralReturn(/* callerCls */ 2);
 
-    ExpectEqKind(decision.kind, MSCentralReturnKind::PARTIAL, "reusable bump region should route to partial");
-    ExpectEqType(fixture.region.regionType,
-                 MSRegionType::MS_REGION_PARTIAL,
-                 "reusable bump region should stop returning as BUMP");
-    ExpectEqU8(decision.bucketSizeClass, kTestSizeClass, "return bucket should follow region sizeClass");
-    ExpectTrue(decision.callerClassMismatch, "mismatched caller cls should be reported");
+    ExpectTrue(
+        decision.kind == MSCentralReturnKind::PARTIAL,
+        "reusable BUMP must route to PARTIAL");
+    ExpectEq(
+        decision.bucketSizeClass, kTestSizeClass,
+        "return bucket follows Region sizeClass");
+    ExpectTrue(
+        decision.callerClassMismatch,
+        "mismatched caller class must be reported");
+    ExpectEq64(
+        fixture.region.reserved32, 0xDEADBEEF,
+        "legacy ABI tombstone must be ignored");
 }
 
-void TestPrepareForCentralReturnNormalizesBitmapRegion()
+void TestBitmapReturnCanonicalizesSummary()
 {
     RegionFixture fixture;
-    fixture.region.regionType = MSRegionType::MS_REGION_BITMAP;
-    fixture.region.freeSlotCount = 1;
-    fixture.allocWords[0] = 0x2;
-    fixture.region.reserved = 0x1;
+    fixture.region.SetAllocMode(MSAllocMode::BITMAP);
+    std::fill(fixture.allocWords.begin(), fixture.allocWords.end(), 0);
+    fixture.allocWords[2] = UINT64_C(1) << 9;
+    fixture.region.allocSummary = ~UINT64_C(0);
 
-    MSCentralReturnDecision decision = fixture.region.PrepareForCentralReturn(kTestSizeClass);
+    MSCentralReturnDecision decision =
+        fixture.region.PrepareForCentralReturn(kTestSizeClass);
 
-    ExpectEqKind(decision.kind, MSCentralReturnKind::PARTIAL,
-                 "reusable TLS bitmap region should route to central partial");
-    ExpectEqType(fixture.region.regionType, MSRegionType::MS_REGION_PARTIAL,
-                 "TLS bitmap region should become central PARTIAL");
-    ExpectEqU64(fixture.allocWords[0], 0x2,
-                "TLS bitmap return must preserve the allocation bitmap");
-    ExpectEqU64(fixture.region.reserved, 0x1,
-                "TLS bitmap return must preserve the free-word summary");
+    ExpectTrue(
+        decision.kind == MSCentralReturnKind::PARTIAL,
+        "one free BITMAP slot must route to PARTIAL");
+    ExpectEq(decision.freeSlots, 1, "BITMAP popcount result");
+    ExpectEq64(
+        fixture.region.allocSummary, UINT64_C(1) << 2,
+        "BITMAP summary canonicalization");
 }
 
-void TestPrepareForCentralReturnNormalizesFullRegion()
+void TestFullAndEmptyBumpClassification()
 {
-    RegionFixture fixture;
-    fixture.region.freeSlotCount = 0;
-    fixture.region.allocPtr = fixture.region.regionEnd;
+    RegionFixture full;
+    full.region.allocPtr = full.region.regionEnd;
+    MSCentralReturnDecision fullDecision =
+        full.region.PrepareForCentralReturn(kTestSizeClass);
+    ExpectTrue(
+        fullDecision.kind == MSCentralReturnKind::FULL,
+        "exhausted BUMP must route to FULL");
+    ExpectEq(fullDecision.freeSlots, 0, "full BUMP free slots");
 
-    MSCentralReturnDecision decision = fixture.region.PrepareForCentralReturn(kTestSizeClass);
-
-    ExpectEqKind(decision.kind, MSCentralReturnKind::FULL, "full region should route to full");
-    ExpectEqType(fixture.region.regionType, MSRegionType::MS_REGION_FULL, "full region type");
-    ExpectEqU8(decision.bucketSizeClass, kTestSizeClass, "full region bucket sizeClass");
-    ExpectTrue(!decision.callerClassMismatch, "matching caller cls should not report mismatch");
-}
-
-void TestPrepareForCentralReturnNormalizesEmptyRegion()
-{
-    RegionFixture fixture;
-    fixture.region.freeSlotCount = fixture.region.totalSlotCount;
-
-    MSCentralReturnDecision decision = fixture.region.PrepareForCentralReturn(kTestSizeClass);
-
-    ExpectEqKind(decision.kind, MSCentralReturnKind::EMPTY_CACHE, "empty region should route to empty cache");
-    ExpectEqType(fixture.region.regionType,
-                 MSRegionType::MS_REGION_EMPTY_CACHE,
-                 "empty region should be normalized before central return");
+    RegionFixture empty;
+    MSCentralReturnDecision emptyDecision =
+        empty.region.PrepareForCentralReturn(kTestSizeClass);
+    ExpectTrue(
+        emptyDecision.kind == MSCentralReturnKind::EMPTY_CACHE,
+        "unused BUMP must route to EMPTY_CACHE");
+    ExpectEq(
+        emptyDecision.freeSlots,
+        empty.region.GetTotalSlotCount(),
+        "empty BUMP free slots");
 }
 
 } // namespace
 
 int main()
 {
-    TestPrepareForCentralReturnMaterializesPartiallyUsedBumpBitmap();
-    TestPrepareForCentralReturnNormalizesReusableBumpRegion();
-    TestPrepareForCentralReturnNormalizesBitmapRegion();
-    TestPrepareForCentralReturnNormalizesFullRegion();
-    TestPrepareForCentralReturnNormalizesEmptyRegion();
+    TestPartiallyUsedBumpMaterializesBitmap();
+    TestCallerMismatchUsesRegionClassAndIgnoresTombstone();
+    TestBitmapReturnCanonicalizesSummary();
+    TestFullAndEmptyBumpClassification();
     return 0;
 }

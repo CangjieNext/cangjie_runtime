@@ -16,6 +16,12 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 
+DEFAULT_MSGC_SDK_ROOT = pathlib.Path(
+    "/Users/lipeisheng/code/cangjie/cangjie/"
+    "cangjie_compiler_region_mark/output/msgc"
+)
+
+
 @dataclass(frozen=True)
 class RepoLayout:
     workspace_root: pathlib.Path
@@ -459,7 +465,10 @@ def verify_installed_runtime_contents(config: BuildConfig, host: HostLayout) -> 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Rebuild MSGC runtime and install it into cangjie_compiler/output/msgc",
+        description=(
+            "Rebuild MSGC runtime and install it into "
+            "cangjie_compiler_region_mark/output/msgc"
+        ),
     )
     parser.add_argument(
         "--runtime-root",
@@ -471,7 +480,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--sdk-root",
         type=pathlib.Path,
         default=None,
-        help="target SDK root; defaults to <compiler_root>/output/msgc",
+        help=f"target SDK root; defaults to {DEFAULT_MSGC_SDK_ROOT}",
     )
     parser.add_argument(
         "--build-type",
@@ -507,7 +516,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     script_path = pathlib.Path(__file__)
     repo = resolve_repo_layout(script_path)
     runtime_root = args.runtime_root.resolve() if args.runtime_root else repo.runtime_root
-    sdk_root = args.sdk_root.resolve() if args.sdk_root else (repo.compiler_root / "output" / "msgc")
+    sdk_root = (
+        args.sdk_root.resolve()
+        if args.sdk_root
+        else DEFAULT_MSGC_SDK_ROOT
+    )
     host = detect_host_layout()
     config = BuildConfig(
         runtime_root=runtime_root,

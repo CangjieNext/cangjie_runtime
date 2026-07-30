@@ -44,6 +44,9 @@ public:
     static inline T0* CastNonNull(T1 o);
 
 private:
+    static MObject* NewObjectImpl(TypeInfo* ti, MSize objectSize, AllocType allocType,
+                                  bool registerFinalizer);
+
     MObject() = delete;
     ~MObject() = delete;
     MObject(MObject&&) = delete;

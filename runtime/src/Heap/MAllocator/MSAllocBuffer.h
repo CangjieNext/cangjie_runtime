@@ -14,7 +14,6 @@
 #include "Heap/MAllocator/MSRegionInfo.h"
 #include "Heap/MAllocator/MSScanClass.h"
 #include "Heap/MAllocator/MSSizeClass.h"
-#include "Heap/MCollector/MSMarkLocalStats.h"
 #include "Common/TypeDef.h"
 #include <new>
 #include <vector>
@@ -29,19 +28,19 @@ struct ThreadLocalData;
 // AllocBufferMS: per-thread allocation cache for Mark-Sweep GC
 // ============================================================================
 //
-// Go equivalent: mcache — one per P (Processor), holding one active mspan
-// per size class. Our design: one AllocBufferMS per thread/coroutine Processor,
-// holding one active MSRegionInfo per size class (36 slots).
+// Go equivalent: mcache — one per P (Processor), holding active allocation
+// spans. AllocBufferMS keeps one active MSRegionInfo for every
+// [size class][scan class] pair.
 //
-// Allocation path (Phase 1 — all allocations go through runtime call):
+// Allocation path:
 //   AllocBufferMS::Allocate(size)
 //     → SizeToClass(size)
-//     → FastAlloc(cls): bitmap CTZ on activeRegion
+//     → FastAlloc(cls): BUMP or BITMAP allocation on activeRegion
 //       → hit: return address
 //       → miss: SlowAlloc(cls): refill from CentralRegionPool
 //
-// Phase 2 (future): compiler inlines bitmap CTZ fast-path, only SlowAlloc
-// goes through runtime. See Step1.2 design doc §2.6.
+// LLVM-generated allocation wrappers use the same BUMP/BITMAP protocol and
+// fall back to the runtime helper for refills and unsupported cases.
 //
 class AllocBufferMS {
 public:
@@ -52,10 +51,6 @@ public:
 
     AllocBufferMS();
 
-    // LLVM fast-path stub: offset 0 must be a RegionInfo* (same layout as AllocBuffer::tlRegion).
-    // Initialized to NullRegion() so the compiler-generated fast path reads it,
-    // sees allocPtr >= regionEnd (both 0), and falls through to the slow MCC_* call.
-    // This is necessary because SDK standard libraries may be compiled with fast-path enabled.
     ~AllocBufferMS();
 
     void Init(CentralRegionPool* central);
@@ -121,8 +116,6 @@ public:
     size_t CountActiveRegions() const;
     size_t ReturnAllRegionsToCentral();
 
-    MSMarkAssistStats& GetMarkAssistStats() { return markAssistStats_; }
-
     uint16_t GetCachedHomeShardId() const { return cachedHomeShardId_; }
 
 private:
@@ -138,7 +131,7 @@ private:
     RootOverflowChunk* AcquireRootOverflowChunk();
     void DestroyRootOverflowChunks();
 
-    // Fast path: try bitmap allocation on current active Region
+    // Fast path: try the current Region's BUMP or BITMAP allocation mode.
     MAddress FastAlloc(uint8_t cls, MSScanClass scanClass);
 
     // Slow path: current Region exhausted, refill from CentralRegionPool
@@ -179,10 +172,6 @@ private:
     // Mutator assist debt in fixed-point WorkUnit units.
     // debtScaled / AssistRatioScale = debtWU.
     uint64_t gcAssistDebtScaled_ = 0;
-
-    // Single-owner assist diagnostics. The collector aggregates these after
-    // stopping mutators, so the assist hot path needs no shared atomics.
-    MSMarkAssistStats markAssistStats_;
 
     // Per-P Sweep pacing. Both fields are single-owner and remain outside the
     // compiler-visible fixed ABI prefix.

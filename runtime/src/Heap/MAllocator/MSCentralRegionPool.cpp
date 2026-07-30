@@ -9,7 +9,6 @@
 #include "Heap/MAllocator/MSCentralRegionPool.h"
 
 #include "Heap/MAllocator/MSAllocBuffer.h"
-#include "Heap/MAllocator/MSAllocBuffer.h"
 #include "Heap/MAllocator/MSRegionManager.h"
 #include "Heap/MAllocator/MSRegionSpace.h"
 #include "Common/BaseObject.h"
@@ -118,9 +117,6 @@ void CentralRegionPool::PublishSweepDoneAfterQuiescence()
     CHECK((state & kSweepAdmissionActiveMask) == 0);
     CHECK(!forceFinishSweepRunning_.load(std::memory_order_acquire));
     CHECK(!bgSweepRunning_.load(std::memory_order_acquire));
-    CHECK(activeLazySweepCount_.load(std::memory_order_acquire) == 0);
-    CHECK(activeAssistSweepCount_.load(std::memory_order_acquire) == 0);
-    CHECK(activeHelperSweepCount_.load(std::memory_order_acquire) == 0);
     CHECK(GetTotalUnsweptCount() == 0);
     CHECK(GetTotalUnsweptCountReference() == 0);
 
@@ -671,10 +667,8 @@ void CentralRegionPool::ParallelSweep(uint8_t preferredCls, uint64_t deadlineUs)
     if (!TryEnterSweep()) {
         return;
     }
-    activeHelperSweepCount_.fetch_add(1, std::memory_order_relaxed);
     if (skipHelperSweep_.load(std::memory_order_acquire) ||
         stopSweepRequested_.load(std::memory_order_acquire)) {
-        activeHelperSweepCount_.fetch_sub(1, std::memory_order_release);
         LeaveSweep();
         return;
     }
@@ -697,7 +691,6 @@ void CentralRegionPool::ParallelSweep(uint8_t preferredCls, uint64_t deadlineUs)
     }
 
     RecordHelperSweep(sweptInSlice);
-    activeHelperSweepCount_.fetch_sub(1, std::memory_order_release);
     LeaveSweep();
 }
 
@@ -797,10 +790,8 @@ size_t CentralRegionPool::AssistSweep(size_t targetRegions, uint8_t preferredCls
     if (!TryEnterSweep()) {
         return 0;
     }
-    activeAssistSweepCount_.fetch_add(1, std::memory_order_relaxed);
     if (skipAssistSweep_.load(std::memory_order_acquire) ||
         stopSweepRequested_.load(std::memory_order_acquire)) {
-        activeAssistSweepCount_.fetch_sub(1, std::memory_order_release);
         LeaveSweep();
         return 0;
     }
@@ -821,7 +812,6 @@ size_t CentralRegionPool::AssistSweep(size_t targetRegions, uint8_t preferredCls
             break;
         }
     }
-    activeAssistSweepCount_.fetch_sub(1, std::memory_order_release);
     LeaveSweep();
     return sweptRegions;
 }
@@ -834,18 +824,16 @@ bool CentralRegionPool::SweepOneUnsweptRegionForAssist(
         return false;
     }
 
-    region->SweepRegion();
+    MSCentralReturnDecision decision = region->SweepRegion();
     region->collectEpoch = MSRegionInfo::NO_COLLECT_EPOCH;
-    if (region->IsCompletelyFree()) {
+    if (decision.kind == MSCentralReturnKind::EMPTY_CACHE) {
         PushEmptySweptRegion(region);
         if (emptiedInSlice != nullptr) {
             (*emptiedInSlice)++;
         }
-    } else if (region->HasFreeSpace()) {
-        region->SetAllocMode(MSAllocMode::BITMAP);
+    } else if (decision.kind == MSCentralReturnKind::PARTIAL) {
         bucket.PushPartialSwept(region);
     } else {
-        region->SetAllocMode(MSAllocMode::BITMAP);
         bucket.PushFullSwept(region);
     }
     return true;
@@ -869,22 +857,20 @@ bool CentralRegionPool::SweepUnsweptList(
             break;
         }
 
-        region->SweepRegion();
+        MSCentralReturnDecision decision = region->SweepRegion();
         region->collectEpoch = MSRegionInfo::NO_COLLECT_EPOCH;
         sweptInSlice++;
 
-        if (region->IsCompletelyFree()) {
+        if (decision.kind == MSCentralReturnKind::EMPTY_CACHE) {
             // Completely empty regions leave the class-local supply and
             // become classless empty-cache entries.
             PushEmptySweptRegion(region);
             if (emptiedInSlice != nullptr) {
                 (*emptiedInSlice)++;
             }
-        } else if (region->HasFreeSpace()) {
-            region->SetAllocMode(MSAllocMode::BITMAP);
+        } else if (decision.kind == MSCentralReturnKind::PARTIAL) {
             bucket.PushPartialSwept(region);
         } else {
-            region->SetAllocMode(MSAllocMode::BITMAP);
             bucket.PushFullSwept(region);
         }
 
@@ -936,25 +922,24 @@ void CentralRegionPool::ForceFinishUnsweptList(
             break;
         }
 
-        size_t regionFreedBytes = region->SweepRegion();
+        MSCentralReturnDecision decision = region->SweepRegion();
         region->collectEpoch = MSRegionInfo::NO_COLLECT_EPOCH;
         sweptRegions++;
-        freedBytes += regionFreedBytes;
+        freedBytes += static_cast<size_t>(decision.freeSlots) *
+            region->GetSlotSize();
 
-        if (region->IsCompletelyFree()) {
+        if (decision.kind == MSCentralReturnKind::EMPTY_CACHE) {
             emptiedRegions++;
             PushEmptySweptRegion(region);
             continue;
         }
 
         retainedRegions++;
-        if (region->HasFreeSpace()) {
-            region->SetAllocMode(MSAllocMode::BITMAP);
+        if (decision.kind == MSCentralReturnKind::PARTIAL) {
             bucket.PushPartialSwept(region);
             continue;
         }
 
-        region->SetAllocMode(MSAllocMode::BITMAP);
         bucket.PushFullSwept(region);
     }
 }

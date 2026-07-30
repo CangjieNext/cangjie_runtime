@@ -7,6 +7,7 @@ import io
 import pathlib
 import tempfile
 import unittest
+from unittest import mock
 
 import incremental_rebuild_msgc_sdk as target
 
@@ -45,6 +46,7 @@ class IncrementalStagePlanTests(unittest.TestCase):
             [(stage.component, stage.action) for stage in stages],
             [
                 ("compiler", "build"),
+                ("compiler-release", "build"),
                 ("compiler-llvm", "build"),
                 ("compiler", "install"),
                 ("runtime", "clean"),
@@ -62,6 +64,11 @@ class IncrementalStagePlanTests(unittest.TestCase):
             ("compiler", "clean"),
             [(stage.component, stage.action) for stage in stages],
         )
+        release_stage = next(
+            stage for stage in stages if stage.component == "compiler-release"
+        )
+        self.assertEqual(release_stage.cwd, config.compiler_root / "build" / "build")
+        self.assertEqual(release_stage.command[-2:], ["--target", "cjc-release"])
 
     def test_msgc_mode_is_passed_to_runtime_stdlib_and_stdx(self) -> None:
         config = make_config(pathlib.Path("/tmp/cangjie-incremental-msgc-sdk-test"))
@@ -78,6 +85,59 @@ class IncrementalStagePlanTests(unittest.TestCase):
             "--build-args=--gc-mode=marksweep",
             commands[("stdx", "build")],
         )
+
+
+class CompilerBuildCacheTests(unittest.TestCase):
+    def test_relocated_cache_resets_compiler_build_and_keeps_sdk(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = pathlib.Path(temp_dir)
+            config = make_config(root)
+            cache = config.compiler_root / "build" / "build" / "CMakeCache.txt"
+            cache.parent.mkdir(parents=True)
+            cache.write_text(
+                "CMAKE_CACHEFILE_DIR:INTERNAL=/old/compiler/build/build\n"
+                "CMAKE_HOME_DIRECTORY:INTERNAL=/old/compiler\n"
+            )
+            config.sdk_root.mkdir(parents=True)
+            sdk_marker = config.sdk_root / "keep.txt"
+            sdk_marker.write_text("keep\n")
+
+            target.reset_relocated_compiler_build(config)
+
+            self.assertFalse((config.compiler_root / "build").exists())
+            self.assertEqual(sdk_marker.read_text(), "keep\n")
+
+    def test_cache_for_current_compiler_keeps_incremental_build(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = pathlib.Path(temp_dir)
+            config = make_config(root)
+            build_root = config.compiler_root / "build"
+            cache = build_root / "build" / "CMakeCache.txt"
+            cache.parent.mkdir(parents=True)
+            cache.write_text(
+                f"CMAKE_CACHEFILE_DIR:INTERNAL={cache.parent}\n"
+                f"CMAKE_HOME_DIRECTORY:INTERNAL={config.compiler_root}\n"
+            )
+            marker = build_root / "keep.txt"
+            marker.write_text("keep\n")
+
+            target.reset_relocated_compiler_build(config)
+
+            self.assertEqual(marker.read_text(), "keep\n")
+
+    def test_compiler_release_stage_removes_stale_install_artifact(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = pathlib.Path(temp_dir)
+            config = make_config(root)
+            release_compiler = (
+                config.compiler_root / "build" / "build" / "bin" / "cjc-release"
+            )
+            release_compiler.parent.mkdir(parents=True)
+            release_compiler.write_text("stale\n")
+
+            target.prepare_compiler_release(config)
+
+            self.assertFalse(release_compiler.exists())
 
 
 class IncrementalDryRunTests(unittest.TestCase):
@@ -108,6 +168,40 @@ class IncrementalDryRunTests(unittest.TestCase):
             self.assertLess(text.index("== runtime install =="), text.index("== stdlib clean =="))
             self.assertLess(text.index("== stdlib install =="), text.index("== stdx clean =="))
             self.assertIn("== sync stdx into SDK ==", text)
+
+    def test_runtime_stages_use_validated_darwin_build_tools(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = pathlib.Path(temp_dir)
+            config = make_config(root, dry_run=True)
+            for path in (
+                config.compiler_root,
+                config.runtime_root,
+                config.stdlib_root,
+                config.stdx_root,
+                config.openssl_lib,
+            ):
+                path.mkdir(parents=True, exist_ok=True)
+            runtime_environment = {"PATH": "/llvm16/bin:/usr/bin"}
+
+            with mock.patch.object(
+                target.runtime_output,
+                "build_subprocess_environment",
+                return_value=runtime_environment,
+            ), mock.patch.object(target.sdk_helpers, "run_command") as run_command:
+                target.execute_incremental_build(config, make_host())
+
+            runtime_calls = [
+                call
+                for call in run_command.call_args_list
+                if call.kwargs["cwd"] == config.runtime_root
+            ]
+            self.assertEqual(len(runtime_calls), 3)
+            self.assertTrue(
+                all(
+                    call.kwargs["environment"] is runtime_environment
+                    for call in runtime_calls
+                )
+            )
 
 
 if __name__ == "__main__":

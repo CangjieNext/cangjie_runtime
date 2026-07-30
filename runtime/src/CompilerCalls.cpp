@@ -170,9 +170,23 @@ void RawPtrCheckerTimerEntry(void* arg)
 }
 #endif
 
-// runtime interfaces provided to compiler for code generation.
-// The compiler should only call MCC_* to access runtime functions.
-// MCC_* calls follows C standard calling convention.
+// Runtime interfaces provided to compiler-generated code. CJ_MCC_* platform
+// stubs and aliases forward to these MCC_* C ABI implementations.
+
+namespace {
+template<typename Allocator>
+ArrayRef AllocateArrayOrThrow(const TypeInfo* arrayInfo, MIndex nElems,
+                              const char* failureContext, Allocator allocator)
+{
+    ArrayRef array = allocator();
+    if (array == nullptr) {
+        VLOG(REPORT, "Allocating array %s length %zu failed and throw OutOfMemoryError",
+            arrayInfo->GetName(), nElems);
+        ExceptionManager::CheckAndThrowPendingException(failureContext);
+    }
+    return array;
+}
+} // namespace
 
 extern "C" ObjRef MCC_NewObject(const TypeInfo* klass, MSize size)
 {
@@ -226,62 +240,50 @@ extern "C" ObjRef MCC_OnFinalizerCreated(ObjRef ref)
 }
 extern "C" ArrayRef MCC_NewArray(const TypeInfo* arrayInfo, MIndex nElems)
 {
-    ArrayRef array = ObjectManager::NewArray(static_cast<MIndex>(nElems), arrayInfo);
-    if (array == nullptr) {
-        VLOG(REPORT, "Allocating array %s length %zu failed and throw OutOfMemoryError", arrayInfo->GetName(), nElems);
-        ExceptionManager::CheckAndThrowPendingException("ObjectManager::NewArray return nullptr");
-    }
-    return array;
+    return AllocateArrayOrThrow(arrayInfo, nElems, "ObjectManager::NewArray return nullptr",
+        [&]() { return ObjectManager::NewArray(nElems, arrayInfo); });
 }
 
 extern "C" ArrayRef MCC_NewObjArray(const TypeInfo* arrayInfo, MIndex nElems)
 {
-    ArrayRef array = ObjectManager::NewObjArray(nElems, arrayInfo);
-    if (array == nullptr) {
-        VLOG(REPORT, "Allocating array %s length %zu failed and throw OutOfMemoryError", arrayInfo->GetName(), nElems);
-        ExceptionManager::CheckAndThrowPendingException("ObjectManager::NewObjArray return nullptr");
-    }
-    return array;
+    return AllocateArrayOrThrow(arrayInfo, nElems, "ObjectManager::NewObjArray return nullptr",
+        [&]() { return ObjectManager::NewObjArray(nElems, arrayInfo); });
 }
 
 extern "C" ArrayRef MCC_NewArray8(const TypeInfo* arrayInfo, MIndex nElems)
 {
-    ArrayRef array = ObjectManager::NewKnownWidthArray(nElems, arrayInfo, ObjectManager::ArrayElemBits::ELEM_8B);
-    if (array == nullptr) {
-        VLOG(REPORT, "Allocating array %s length %zu failed and throw OutOfMemoryError", arrayInfo->GetName(), nElems);
-        ExceptionManager::CheckAndThrowPendingException("ObjectManager::NewKnownWidthArray return nullptr");
-    }
-    return array;
+    return AllocateArrayOrThrow(arrayInfo, nElems, "ObjectManager::NewKnownWidthArray(1 byte) return nullptr",
+        [&]() {
+            return ObjectManager::NewKnownWidthArray(
+                nElems, arrayInfo, ObjectManager::ArrayElementWidth::ONE_BYTE);
+        });
 }
 
 extern "C" ArrayRef MCC_NewArray16(const TypeInfo* arrayInfo, MIndex nElems)
 {
-    ArrayRef array = ObjectManager::NewKnownWidthArray(nElems, arrayInfo, ObjectManager::ArrayElemBits::ELEM_16B);
-    if (array == nullptr) {
-        VLOG(REPORT, "Allocating array %s length %zu failed and throw OutOfMemoryError", arrayInfo->GetName(), nElems);
-        ExceptionManager::CheckAndThrowPendingException("ObjectManager::NewKnownWidthArray(16B) return nullptr");
-    }
-    return array;
+    return AllocateArrayOrThrow(arrayInfo, nElems, "ObjectManager::NewKnownWidthArray(2 bytes) return nullptr",
+        [&]() {
+            return ObjectManager::NewKnownWidthArray(
+                nElems, arrayInfo, ObjectManager::ArrayElementWidth::TWO_BYTES);
+        });
 }
 
 extern "C" ArrayRef MCC_NewArray32(const TypeInfo* arrayInfo, MIndex nElems)
 {
-    ArrayRef array = ObjectManager::NewKnownWidthArray(nElems, arrayInfo, ObjectManager::ArrayElemBits::ELEM_32B);
-    if (array == nullptr) {
-        VLOG(REPORT, "Allocating array %s length %zu failed and throw OutOfMemoryError", arrayInfo->GetName(), nElems);
-        ExceptionManager::CheckAndThrowPendingException("ObjectManager::NewKnownWidthArray(32B) return nullptr");
-    }
-    return array;
+    return AllocateArrayOrThrow(arrayInfo, nElems, "ObjectManager::NewKnownWidthArray(4 bytes) return nullptr",
+        [&]() {
+            return ObjectManager::NewKnownWidthArray(
+                nElems, arrayInfo, ObjectManager::ArrayElementWidth::FOUR_BYTES);
+        });
 }
 
 extern "C" ArrayRef MCC_NewArray64(const TypeInfo* arrayInfo, MIndex nElems)
 {
-    ArrayRef array = ObjectManager::NewKnownWidthArray(nElems, arrayInfo, ObjectManager::ArrayElemBits::ELEM_64B);
-    if (array == nullptr) {
-        VLOG(REPORT, "Allocating array %s length %zu failed and throw OutOfMemoryError", arrayInfo->GetName(), nElems);
-        ExceptionManager::CheckAndThrowPendingException("ObjectManager::NewKnownWidthArray(64B) return nullptr");
-    }
-    return array;
+    return AllocateArrayOrThrow(arrayInfo, nElems, "ObjectManager::NewKnownWidthArray(8 bytes) return nullptr",
+        [&]() {
+            return ObjectManager::NewKnownWidthArray(
+                nElems, arrayInfo, ObjectManager::ArrayElementWidth::EIGHT_BYTES);
+        });
 }
 
 extern "C" void MCC_WriteRefField(const ObjectPtr ref, const ObjectPtr obj, RefField<false>* field)
@@ -586,7 +588,7 @@ extern "C" ArrayRef MCC_FillInStackTraceImpl(const TypeInfo* arrayInfo, const Ar
     // #4 cj_entry()
     // In the call stack visible to the user, #0 #1 #4 should be removed.
     ArrayRef array =
-        ObjectManager::NewKnownWidthArray(size, arrayInfo, ObjectManager::ObjectManager::ArrayElemBits::ELEM_64B);
+        ObjectManager::NewKnownWidthArray(size, arrayInfo, ObjectManager::ArrayElementWidth::EIGHT_BYTES);
     if (array == nullptr) {
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
         DLOG(EXCEPTION, "BuildEHFrameInfo");
@@ -618,7 +620,8 @@ extern "C" StackTraceData MCC_DecodeStackTraceImpl(const uint64_t ip, const uint
 #endif
     StackTraceData std;
     std.className = ObjectManager::NewKnownWidthArray(
-        stackTrace.className.Length(), charArray, ObjectManager::ArrayElemBits::ELEM_8B, AllocType::RAW_POINTER_OBJECT);
+        stackTrace.className.Length(), charArray, ObjectManager::ArrayElementWidth::ONE_BYTE,
+        AllocType::RAW_POINTER_OBJECT);
     if (std.className != nullptr) {
         for (MIndex i = 0; i < stackTrace.className.Length(); ++i) {
             std.className->SetPrimitiveElement(i, static_cast<int8_t>(stackTrace.className[i]));
@@ -630,7 +633,8 @@ extern "C" StackTraceData MCC_DecodeStackTraceImpl(const uint64_t ip, const uint
     }
 
     std.fileName = ObjectManager::NewKnownWidthArray(
-        stackTrace.fileName.Length(), charArray, ObjectManager::ArrayElemBits::ELEM_8B, AllocType::RAW_POINTER_OBJECT);
+        stackTrace.fileName.Length(), charArray, ObjectManager::ArrayElementWidth::ONE_BYTE,
+        AllocType::RAW_POINTER_OBJECT);
     if (std.fileName != nullptr) {
         for (MIndex i = 0; i < stackTrace.fileName.Length(); ++i) {
             std.fileName->SetPrimitiveElement(i, static_cast<int8_t>(stackTrace.fileName[i]));
@@ -643,7 +647,8 @@ extern "C" StackTraceData MCC_DecodeStackTraceImpl(const uint64_t ip, const uint
 
     std.methodName =
         ObjectManager::NewKnownWidthArray(stackTrace.methodName.Length(), charArray,
-                                          ObjectManager::ArrayElemBits::ELEM_8B, AllocType::RAW_POINTER_OBJECT);
+                                          ObjectManager::ArrayElementWidth::ONE_BYTE,
+                                          AllocType::RAW_POINTER_OBJECT);
     if (std.methodName != nullptr) {
         for (MIndex i = 0; i < stackTrace.methodName.Length(); ++i) {
             std.methodName->SetPrimitiveElement(i, static_cast<int8_t>(stackTrace.methodName[i]));
@@ -664,7 +669,8 @@ extern "C" StackTraceData MCC_DecodeStackTraceImpl(const uint64_t ip, const uint
 static ArrayRef CreateCharArrayFromCString(const TypeInfo* charArray, CString name)
 {
     ArrayRef array = ObjectManager::NewKnownWidthArray(
-        name.Length(), charArray, ObjectManager::ArrayElemBits::ELEM_8B, AllocType::RAW_POINTER_OBJECT);
+        name.Length(), charArray, ObjectManager::ArrayElementWidth::ONE_BYTE,
+        AllocType::RAW_POINTER_OBJECT);
     if (array == nullptr) {
         ExceptionManager::CheckAndThrowPendingException("CreateCharArrayFromCString: nullptr array");
     }
@@ -971,7 +977,7 @@ extern "C" ObjectPtr MCC_GetSubPackages(PackageInfo* packageInfo, TypeInfo* arra
     // Array<CPointer<Unit>> layout likes { Rarray<CPointer<Unit>>, Int64, Int64 }
     TypeInfo* rawArrayTi = arrayTi->GetFieldType(0); // 0: first field type RawArray<CPointer<Unit>>.ti
     ArrayRef rawArrayObj = ObjectManager::NewKnownWidthArray(subPkgCnt, rawArrayTi,
-        ObjectManager::ArrayElemBits::ELEM_64B, AllocType::RAW_POINTER_OBJECT);
+        ObjectManager::ArrayElementWidth::EIGHT_BYTES, AllocType::RAW_POINTER_OBJECT);
     for (size_t idx = 0; idx < subPkgCnt; ++idx) {
         rawArrayObj->SetPrimitiveElement(idx, reinterpret_cast<int64_t>(subPackages[idx]));
     }
@@ -1758,23 +1764,14 @@ extern "C" void CJ_MCC_UpdateVMT(TypeInfo* ti, TypeInfo* itf, ExtensionData* ext
 
 extern "C" ObjRef MCC_NewGenericObject(const TypeInfo* klass, MSize size)
 {
-    ObjRef obj = ObjectManager::NewObject(klass, size);
-    if (obj == nullptr) {
-        VLOG(REPORT, "Allocation generic object %s (%zu B) failed and throw OutOfMemoryError", klass->GetName(), size);
-        ExceptionManager::CheckAndThrowPendingException("ObjectManager::NewObject return nullptr");
-    }
-    return obj;
+    return MCC_NewObject(klass, size);
 }
 
-extern "C" ArrayRef MCC_NewArrayGeneric(const TypeInfo* arrayInfo, MIndex nElems)
+namespace {
+ArrayRef AllocateGenericArray(const TypeInfo* arrayInfo, MIndex nElems)
 {
-    ArrayRef array = nullptr;
-    if (!arrayInfo->IsArrayType()) {
-        return array;
-    }
     TypeInfo* componentTypeInfo = arrayInfo->GetComponentTypeInfo();
-    I8 type = componentTypeInfo->GetType();
-    switch (type) {
+    switch (componentTypeInfo->GetType()) {
         case TypeKind::TYPE_KIND_CLASS:
         case TypeKind::TYPE_KIND_EXPORTED_REF:
         case TypeKind::TYPE_KIND_FOREIGN_PROXY:
@@ -1782,38 +1779,31 @@ extern "C" ArrayRef MCC_NewArrayGeneric(const TypeInfo* arrayInfo, MIndex nElems
         case TypeKind::TYPE_KIND_INTERFACE:
         case TypeKind::TYPE_KIND_TEMP_ENUM:
         case TypeKind::TYPE_KIND_RAWARRAY:
-        case TypeKind::TYPE_KIND_FUNC: {
-            array = ObjectManager::NewObjArray(nElems, arrayInfo);
-            break;
-        }
+        case TypeKind::TYPE_KIND_FUNC:
+            return ObjectManager::NewObjArray(nElems, arrayInfo);
         case TypeKind::TYPE_KIND_UNIT:
         case TypeKind::TYPE_KIND_NOTHING:
         case TypeKind::TYPE_KIND_VARRAY:
         case TypeKind::TYPE_KIND_TUPLE:
         case TypeKind::TYPE_KIND_STRUCT:
-        case TypeKind::TYPE_KIND_ENUM: {
-            array = ObjectManager::NewArray(nElems, arrayInfo);
-            break;
-        }
+        case TypeKind::TYPE_KIND_ENUM:
+            return ObjectManager::NewArray(nElems, arrayInfo);
         case TypeKind::TYPE_KIND_BOOL:
         case TypeKind::TYPE_KIND_UINT8:
-        case TypeKind::TYPE_KIND_INT8: {
-            array = ObjectManager::NewKnownWidthArray(nElems, arrayInfo, ObjectManager::ArrayElemBits::ELEM_8B);
-            break;
-        }
+        case TypeKind::TYPE_KIND_INT8:
+            return ObjectManager::NewKnownWidthArray(
+                nElems, arrayInfo, ObjectManager::ArrayElementWidth::ONE_BYTE);
         case TypeKind::TYPE_KIND_UINT16:
         case TypeKind::TYPE_KIND_INT16:
-        case TypeKind::TYPE_KIND_FLOAT16: {
-            array = ObjectManager::NewKnownWidthArray(nElems, arrayInfo, ObjectManager::ArrayElemBits::ELEM_16B);
-            break;
-        }
+        case TypeKind::TYPE_KIND_FLOAT16:
+            return ObjectManager::NewKnownWidthArray(
+                nElems, arrayInfo, ObjectManager::ArrayElementWidth::TWO_BYTES);
         case TypeKind::TYPE_KIND_UINT32:
         case TypeKind::TYPE_KIND_INT32:
         case TypeKind::TYPE_KIND_RUNE:
-        case TypeKind::TYPE_KIND_FLOAT32: {
-            array = ObjectManager::NewKnownWidthArray(nElems, arrayInfo, ObjectManager::ArrayElemBits::ELEM_32B);
-            break;
-        }
+        case TypeKind::TYPE_KIND_FLOAT32:
+            return ObjectManager::NewKnownWidthArray(
+                nElems, arrayInfo, ObjectManager::ArrayElementWidth::FOUR_BYTES);
         case TypeKind::TYPE_KIND_INT_NATIVE:
         case TypeKind::TYPE_KIND_UINT_NATIVE:
         case TypeKind::TYPE_KIND_UINT64:
@@ -1821,92 +1811,40 @@ extern "C" ArrayRef MCC_NewArrayGeneric(const TypeInfo* arrayInfo, MIndex nElems
         case TypeKind::TYPE_KIND_FLOAT64:
         case TypeKind::TYPE_KIND_CSTRING:
         case TypeKind::TYPE_KIND_CPOINTER:
-        case TypeKind::TYPE_KIND_CFUNC: {
-            array = ObjectManager::NewKnownWidthArray(nElems, arrayInfo, ObjectManager::ArrayElemBits::ELEM_64B);
-            break;
-        }
+        case TypeKind::TYPE_KIND_CFUNC:
+            return ObjectManager::NewKnownWidthArray(
+                nElems, arrayInfo, ObjectManager::ArrayElementWidth::EIGHT_BYTES);
         default:
-            break;
+            return nullptr;
     }
-    if (array == nullptr) {
-        VLOG(REPORT, "Allocation generic array %s length %zu failed and throw OutOfMemoryError",
-             arrayInfo->GetName(), nElems);
-        ExceptionManager::CheckAndThrowPendingException("NewArrayGeneric return nullptr");
+}
+
+ArrayRef NewGenericArrayOrThrow(const TypeInfo* arrayInfo, MIndex nElems,
+                                const char* failureContext)
+{
+    if (!arrayInfo->IsArrayType()) {
+        return nullptr;
     }
-    return array;
+    return AllocateArrayOrThrow(arrayInfo, nElems, failureContext,
+        [&]() { return AllocateGenericArray(arrayInfo, nElems); });
+}
+} // namespace
+
+extern "C" ArrayRef MCC_NewArrayGeneric(const TypeInfo* arrayInfo, MIndex nElems)
+{
+    return NewGenericArrayOrThrow(arrayInfo, nElems, "NewArrayGeneric return nullptr");
 }
 
 #ifdef MRT_USE_MARK_SWEEP
 extern "C" MRT_EXPORT ArrayRef MCC_NewArrayGenericFast3_MSGC(const TypeInfo* arrayInfo, MIndex nElems,
                                                               MSize totalSize)
 {
+    // LLVM supplies a checked total size for inline allocation. Reaching this
+    // slow body means the target fast path declined; Runtime recomputes the
+    // allocation from TypeInfo and length and therefore does not trust it.
     (void)totalSize;
-    ArrayRef array = nullptr;
-    if (!arrayInfo->IsArrayType()) {
-        return array;
-    }
-    TypeInfo* componentTypeInfo = arrayInfo->GetComponentTypeInfo();
-    I8 type = componentTypeInfo->GetType();
-    switch (type) {
-        case TypeKind::TYPE_KIND_CLASS:
-        case TypeKind::TYPE_KIND_EXPORTED_REF:
-        case TypeKind::TYPE_KIND_FOREIGN_PROXY:
-        case TypeKind::TYPE_KIND_WEAKREF_CLASS:
-        case TypeKind::TYPE_KIND_INTERFACE:
-        case TypeKind::TYPE_KIND_TEMP_ENUM:
-        case TypeKind::TYPE_KIND_RAWARRAY:
-        case TypeKind::TYPE_KIND_FUNC: {
-            array = ObjectManager::NewObjArray(nElems, arrayInfo);
-            break;
-        }
-        case TypeKind::TYPE_KIND_UNIT:
-        case TypeKind::TYPE_KIND_NOTHING:
-        case TypeKind::TYPE_KIND_VARRAY:
-        case TypeKind::TYPE_KIND_TUPLE:
-        case TypeKind::TYPE_KIND_STRUCT:
-        case TypeKind::TYPE_KIND_ENUM: {
-            array = ObjectManager::NewArray(nElems, arrayInfo);
-            break;
-        }
-        case TypeKind::TYPE_KIND_BOOL:
-        case TypeKind::TYPE_KIND_UINT8:
-        case TypeKind::TYPE_KIND_INT8: {
-            array = ObjectManager::NewKnownWidthArray(nElems, arrayInfo, ObjectManager::ArrayElemBits::ELEM_8B);
-            break;
-        }
-        case TypeKind::TYPE_KIND_UINT16:
-        case TypeKind::TYPE_KIND_INT16:
-        case TypeKind::TYPE_KIND_FLOAT16: {
-            array = ObjectManager::NewKnownWidthArray(nElems, arrayInfo, ObjectManager::ArrayElemBits::ELEM_16B);
-            break;
-        }
-        case TypeKind::TYPE_KIND_UINT32:
-        case TypeKind::TYPE_KIND_INT32:
-        case TypeKind::TYPE_KIND_RUNE:
-        case TypeKind::TYPE_KIND_FLOAT32: {
-            array = ObjectManager::NewKnownWidthArray(nElems, arrayInfo, ObjectManager::ArrayElemBits::ELEM_32B);
-            break;
-        }
-        case TypeKind::TYPE_KIND_INT_NATIVE:
-        case TypeKind::TYPE_KIND_UINT_NATIVE:
-        case TypeKind::TYPE_KIND_UINT64:
-        case TypeKind::TYPE_KIND_INT64:
-        case TypeKind::TYPE_KIND_FLOAT64:
-        case TypeKind::TYPE_KIND_CSTRING:
-        case TypeKind::TYPE_KIND_CPOINTER:
-        case TypeKind::TYPE_KIND_CFUNC: {
-            array = ObjectManager::NewKnownWidthArray(nElems, arrayInfo, ObjectManager::ArrayElemBits::ELEM_64B);
-            break;
-        }
-        default:
-            break;
-    }
-    if (array == nullptr) {
-        VLOG(REPORT, "Allocation generic array %s length %zu failed and throw OutOfMemoryError",
-             arrayInfo->GetName(), nElems);
-        ExceptionManager::CheckAndThrowPendingException("NewArrayGenericFast3_MSGC return nullptr");
-    }
-    return array;
+    return NewGenericArrayOrThrow(
+        arrayInfo, nElems, "NewArrayGenericFast3_MSGC return nullptr");
 }
 #endif
 

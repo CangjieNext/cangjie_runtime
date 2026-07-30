@@ -44,8 +44,8 @@ int main() {
                 "central link offset");
   static_assert(offsetof(MSRegionInfo, markTaskNextRegionIdx) == 20,
                 "mark-task link offset");
-  static_assert(offsetof(MSRegionInfo, slotOrLargeMeta) == 24,
-                "slot/large metadata offset");
+  static_assert(offsetof(MSRegionInfo, allocBitmap) == 24,
+                "allocation bitmap pointer offset");
   static_assert(offsetof(MSRegionInfo, collectEpoch) == 32,
                 "collect epoch offset");
   static_assert(offsetof(MSRegionInfo, control) == 36, "control offset");
@@ -53,6 +53,8 @@ int main() {
                 "allocation summary offset");
   static_assert(offsetof(MSRegionInfo, pendingWordSummary) == 48,
                 "pending-word summary offset");
+  static_assert(offsetof(MSRegionInfo, reserved32) == 56,
+                "legacy free-slot-count ABI tombstone offset");
   static_assert(offsetof(MSRegionInfo, allocMode) == 60,
                 "allocation mode offset");
   static_assert(offsetof(MSRegionInfo, sizeClass) == 62,
@@ -88,9 +90,11 @@ int main() {
   alignas(64) uint64_t markPlane[2 * MSBitmapArena::kMaxBitmapWords] {};
   alignas(64) uint64_t scanPlane[2 * MSBitmapArena::kMaxBitmapWords] {};
   PublishMSGCFastPathRegionInfoArray(reinterpret_cast<uintptr_t>(regions));
-  PublishMSGCFastPathPlaneBases(reinterpret_cast<uintptr_t>(allocPlane),
+  PublishMSGCFastPathPlaneBases(0x700000000ULL,
                                reinterpret_cast<uintptr_t>(markPlane),
                                reinterpret_cast<uintptr_t>(scanPlane));
+  regions[0].allocBitmap = allocPlane;
+  regions[1].allocBitmap = allocPlane + MSBitmapArena::kMaxBitmapWords;
   assert(regions[0].GetAllocBitmap() == allocPlane);
   assert(regions[1].GetAllocBitmap() ==
          allocPlane + MSBitmapArena::kMaxBitmapWords);

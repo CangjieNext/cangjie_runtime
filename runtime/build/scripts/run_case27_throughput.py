@@ -57,7 +57,10 @@ def default_case_dir(script_path: pathlib.Path) -> pathlib.Path:
 
 
 def default_sdk_root() -> pathlib.Path:
-    return pathlib.Path("/Users/lipeisheng/code/cangjie/cangjie/cangjie_compiler/output")
+    return pathlib.Path(
+        "/Users/lipeisheng/code/cangjie/cangjie/"
+        "cangjie_compiler_region_mark/output/msgc"
+    )
 
 
 def default_stdx_dir() -> pathlib.Path:
@@ -134,6 +137,7 @@ def build_run_environment(
         "SDK_ROOT": str(pathlib.Path(args.sdk_root).expanduser()),
         "STDX_DIR": str(pathlib.Path(args.stdx_dir).expanduser()),
         "ENVSETUP": str(pathlib.Path(args.envsetup).expanduser()),
+        "CJC_GC_MODE": "marksweep",
         "OUT_DIR": str(out_dir.expanduser()),
         "BENCH_SRC": str(case_dir / "benchmark.cj"),
         "PAYLOAD_DIR": str(case_dir / "payloads"),
@@ -186,6 +190,7 @@ export DYLD_LIBRARY_PATH="$STDX_DIR:${DYLD_LIBRARY_PATH:-}"
 cd "$OUT_DIR"
 rm -f benchmark compile.stdout.txt compile.stderr.txt run.stdout.txt run.stderr.txt gc.log link.txt
 cjc "$BENCH_SRC" \\
+  --gc-mode "$CJC_GC_MODE" \\
   --import-path "$STDX_DIR" \\
   -L "$STDX_DIR" \\
   --link-option "$STDX_DIR/libstdx.net.http.dylib" \\

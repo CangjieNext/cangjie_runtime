@@ -31,7 +31,7 @@ void MSRegionInfo::InitForSizeClass(uint8_t cls, MSScanClass scanClass)
     regionEnd = regionStart + MS_REGION_SIZE;
     SetCentralNextRegionIdx(INVALID_REGION_IDX);
     SetMarkTaskNextRegionIdx(INVALID_REGION_IDX);
-    slotOrLargeMeta = 0;
+    allocBitmap = nullptr;
     collectEpoch = NO_COLLECT_EPOCH;
     control = 0;
     allocSummary = 0;
@@ -52,13 +52,12 @@ void MSRegionInfo::InitForSizeClass(uint8_t cls, MSScanClass scanClass)
     if (scanClass == MSScanClass::HAS_REF) {
         MSBitmapArena::EnsurePlaneRangeCommitted(MSBitmapPlane::SCAN, regionIdx, 1);
     }
-    uint64_t* allocBitmap = MSBitmapArena::GetAllocPlane(regionIdx);
+    allocBitmap = MSBitmapArena::GetAllocPlane(regionIdx);
     uint64_t* markBitmap = MSBitmapArena::GetMarkPlane(regionIdx);
     if (allocBitmap == nullptr || markBitmap == nullptr) {
         return;
     }
 
-    SetFreeSlotCount(GetTotalSlotCount());
     // Initialize: all slots free (allocBitmap all-1s), mark bits cleared
     memset(allocBitmap, 0xFF, bitmapBytes);
     memset(markBitmap, 0, bitmapBytes);
@@ -76,7 +75,7 @@ void MSRegionInfo::InitForLargeObject(
     regionEnd = end;
     SetCentralNextRegionIdx(INVALID_REGION_IDX);
     SetMarkTaskNextRegionIdx(INVALID_REGION_IDX);
-    slotOrLargeMeta = static_cast<uint64_t>(objectBytes);
+    largeObjectBytes = static_cast<uint64_t>(objectBytes);
     collectEpoch = NO_COLLECT_EPOCH;
     control = 0;
     allocSummary = 0;
@@ -110,11 +109,13 @@ void MSRegionInfo::MaterializeBumpAllocationBitmap()
                  allocatedBytes, slotSize);
     size_t allocatedSlots = allocatedBytes / slotSize;
     size_t totalSlotCount = GetTotalSlotCount();
+    uint16_t freeSlots = DeriveBumpFreeSlots();
     CHECK_DETAIL(allocatedSlots <= totalSlotCount &&
-                     allocatedSlots + GetFreeSlotCount() == totalSlotCount,
-                 "MaterializeBumpAllocationBitmap inconsistent slots: allocated=%zu free=%u total=%u",
+                     allocatedSlots + freeSlots == totalSlotCount,
+                 "MaterializeBumpAllocationBitmap inconsistent slots: allocated=%zu "
+                 "derivedFree=%u total=%u",
                  allocatedSlots,
-                 static_cast<unsigned>(GetFreeSlotCount()),
+                 static_cast<unsigned>(freeSlots),
                  static_cast<unsigned>(totalSlotCount));
 
     size_t wordCount = GetBitmapWordCount();
@@ -146,7 +147,8 @@ void MSRegionInfo::MaterializeBumpAllocationBitmap()
 void MSRegionInfo::ReleaseBitmaps()
 {
     // Bitmap storage is indexed by Region and owned by MSBitmapArena. Resetting
-    // a Region never releases or stores per-Region plane pointers.
+    // a Region clears its non-owning alloc-plane pointer but does not release
+    // the arena reservation.
 }
 
 void MSRegionInfo::Reset()
@@ -156,7 +158,7 @@ void MSRegionInfo::Reset()
     regionEnd = 0;
     SetCentralNextRegionIdx(INVALID_REGION_IDX);
     SetMarkTaskNextRegionIdx(INVALID_REGION_IDX);
-    slotOrLargeMeta = 0;
+    allocBitmap = nullptr;
     collectEpoch = NO_COLLECT_EPOCH;
     control = 0;
     allocSummary = 0;
@@ -171,36 +173,15 @@ void MSRegionInfo::Reset()
 void MSRegionInfo::ResetToBump()
 {
     // Reset a completely-free region back to BUMP for fast reuse (O3).
-    // Preserves bitmap memory — avoids munmap/mmap cycle.
-    bool sweptEmpty = GetFreeSlotCount() == GetTotalSlotCount() &&
-                      allocSummary == 0;
+    // The alloc plane is latent in BUMP mode and will be materialized from
+    // allocPtr if this Region later returns non-empty.
     allocPtr = RegionStart();
     SetRegionKind(MSRegionKind::SMALL);
     SetAllocMode(MSAllocMode::BUMP);
-    SetFreeSlotCount(GetTotalSlotCount());
     MSScanClass scanClass = GetScanClass();
     control = 0;
     SetScanClass(scanClass);
-    if (sweptEmpty) {
-        // SweepRegion() already produced a fully-zero payload and a clear mark bitmap.
-        // Bump allocation does not consult the alloc plane/summary, so avoid rebuilding
-        // the swept bitmap state when lazy sweep immediately hands this region back
-        // to the mutator as a fresh BUMP region.
-        allocSummary = 0;
-        return;
-    }
-
-    // Reset allocBitmap to all-1s (all slots free)
-    uint64_t* allocBitmap = GetAllocBitmap();
-    uint64_t* markBitmap = GetMarkBitmap();
-    size_t bitmapWords = GetBitmapWordCount();
-    memset(allocBitmap, 0xFF, bitmapWords * sizeof(uint64_t));
-    allocBitmap[bitmapWords - 1] = GetValidTailMask();
-    // Clear markBitmap for safety
-    memset(markBitmap, 0, bitmapWords * sizeof(uint64_t));
-
-    // Build summary word (O4): all bitmap words have free slots
-    allocSummary = (bitmapWords == 64) ? ~0ULL : ((1ULL << bitmapWords) - 1);
+    allocSummary = 0;
 }
 
 void MSRegionInfo::ResetToEmptyCache()
@@ -210,7 +191,7 @@ void MSRegionInfo::ResetToEmptyCache()
     regionEnd = 0;
     SetCentralNextRegionIdx(INVALID_REGION_IDX);
     SetMarkTaskNextRegionIdx(INVALID_REGION_IDX);
-    slotOrLargeMeta = 0;
+    allocBitmap = nullptr;
     collectEpoch = NO_COLLECT_EPOCH;
     control = 0;
     allocSummary = 0;
@@ -226,7 +207,7 @@ void MSRegionInfo::ResetToEmptyCache()
 // MSRegionInfo — Sweep
 // ============================================================================
 
-size_t MSRegionInfo::SweepRegion()
+MSCentralReturnDecision MSRegionInfo::SweepRegion()
 {
     const size_t totalSlotCount = GetTotalSlotCount();
     const size_t wordCount = GetBitmapWordCount();
@@ -247,10 +228,10 @@ size_t MSRegionInfo::SweepRegion()
     uintptr_t base = RegionStart();
     if (liveCount == 0) {
         memset(reinterpret_cast<void*>(base), 0, MS_REGION_SIZE);
-        SetFreeSlotCount(static_cast<uint16_t>(totalSlotCount));
         SetAllocMode(MSAllocMode::BITMAP);
         allocSummary = 0;
-        return static_cast<size_t>(GetFreeSlotCount()) * slotSize;
+        return BuildCentralReturnDecision(
+            sizeClass, static_cast<uint16_t>(totalSlotCount));
     }
 
     uint64_t summary = 0;
@@ -321,13 +302,13 @@ size_t MSRegionInfo::SweepRegion()
     // markBitmap is cleared by ClearAllMarkBitmaps at next MarkSetup,
     // not here — avoids redundant memset per-region during sweep.
 
-    SetFreeSlotCount(static_cast<uint16_t>(totalSlotCount - liveCount));
     SetAllocMode(MSAllocMode::BITMAP);
 
     // Store summary word (O4): bit[i]=1 if allocBitmap[i] has free slots
     allocSummary = summary;
 
-    return static_cast<size_t>(GetFreeSlotCount()) * slotSize;
+    return BuildCentralReturnDecision(
+        sizeClass, static_cast<uint16_t>(totalSlotCount - liveCount));
 }
 
 // ============================================================================
@@ -423,16 +404,119 @@ uint64_t MSRegionInfo::MarkBitmapWordResolved(size_t wordIdx, uint64_t mask)
 // MSRegionInfo — Queries
 // ============================================================================
 
-bool MSRegionInfo::HasFreeSpace() const
+uint16_t MSRegionInfo::DeriveBumpFreeSlots() const
 {
-    if (GetAllocMode() == MSAllocMode::BITMAP) {
-        return GetFreeSlotCount() > 0;
-    }
-    if (GetAllocMode() != MSAllocMode::BUMP || GetFreeSlotCount() == 0) {
-        return false;
-    }
     size_t slotSize = SizeClassInfo::ClassToSize(sizeClass);
-    return allocPtr + slotSize <= regionEnd;
+    uintptr_t regionStart = RegionStart();
+    CHECK_DETAIL(slotSize != 0 && allocPtr >= regionStart && allocPtr <= regionEnd,
+                 "DeriveBumpFreeSlots invalid bump range: allocPtr=0x%zx "
+                 "region=[0x%zx,0x%zx) slotSize=%zu",
+                 allocPtr, regionStart, regionEnd, slotSize);
+    CHECK_DETAIL((allocPtr - regionStart) % slotSize == 0,
+                 "DeriveBumpFreeSlots unaligned allocPtr: allocPtr=0x%zx "
+                 "regionStart=0x%zx slotSize=%zu",
+                 allocPtr, regionStart, slotSize);
+    size_t freeSlots = (regionEnd - allocPtr) / slotSize;
+    CHECK_DETAIL(freeSlots <= GetTotalSlotCount(),
+                 "DeriveBumpFreeSlots overflow: free=%zu total=%u",
+                 freeSlots, static_cast<unsigned>(GetTotalSlotCount()));
+    return static_cast<uint16_t>(freeSlots);
+}
+
+uint16_t MSRegionInfo::CanonicalizeBitmapFreeSlots()
+{
+    uint64_t* bitmap = GetAllocBitmap();
+    size_t wordCount = GetBitmapWordCount();
+    CHECK_DETAIL(bitmap != nullptr && wordCount > 0 &&
+                     wordCount <= MSBitmapArena::kMaxBitmapWords,
+                 "CanonicalizeBitmapFreeSlots invalid bitmap: bitmap=%p words=%zu",
+                 static_cast<void*>(bitmap), wordCount);
+
+    uint64_t summary = 0;
+    size_t freeSlots = 0;
+    for (size_t wordIdx = 0; wordIdx < wordCount; ++wordIdx) {
+        uint64_t validMask =
+            wordIdx + 1 == wordCount ? GetValidTailMask() : ~UINT64_C(0);
+        uint64_t freeBits = bitmap[wordIdx] & validMask;
+        bitmap[wordIdx] = freeBits;
+        freeSlots += static_cast<size_t>(__builtin_popcountll(freeBits));
+        if (freeBits != 0) {
+            summary |= UINT64_C(1) << wordIdx;
+        }
+    }
+
+    CHECK_DETAIL(freeSlots <= GetTotalSlotCount(),
+                 "CanonicalizeBitmapFreeSlots overflow: free=%zu total=%u",
+                 freeSlots, static_cast<unsigned>(GetTotalSlotCount()));
+    allocSummary = summary;
+    return static_cast<uint16_t>(freeSlots);
+}
+
+uint16_t MSRegionInfo::CountFreeSlots() const
+{
+    if (GetRegionKind() != MSRegionKind::SMALL ||
+        sizeClass >= kNumSizeClasses) {
+        return 0;
+    }
+    if (GetAllocMode() == MSAllocMode::BUMP) {
+        return DeriveBumpFreeSlots();
+    }
+    if (GetAllocMode() != MSAllocMode::BITMAP ||
+        GetAllocBitmap() == nullptr) {
+        return 0;
+    }
+
+    size_t freeSlots = 0;
+    size_t wordCount = GetBitmapWordCount();
+    for (size_t wordIdx = 0; wordIdx < wordCount; ++wordIdx) {
+        uint64_t validMask =
+            wordIdx + 1 == wordCount ? GetValidTailMask() : ~UINT64_C(0);
+        freeSlots += static_cast<size_t>(
+            __builtin_popcountll(GetAllocBitmap()[wordIdx] & validMask));
+    }
+    return static_cast<uint16_t>(freeSlots);
+}
+
+MSCentralReturnDecision MSRegionInfo::BuildCentralReturnDecision(
+    uint8_t callerCls, uint16_t freeSlots) const
+{
+    MSCentralReturnKind kind = MSCentralReturnKind::FULL;
+    if (freeSlots == GetTotalSlotCount()) {
+        kind = MSCentralReturnKind::EMPTY_CACHE;
+    } else if (freeSlots != 0) {
+        kind = MSCentralReturnKind::PARTIAL;
+    }
+    return {
+        kind,
+        sizeClass,
+        callerCls != sizeClass,
+        freeSlots,
+    };
+}
+
+MSCentralReturnDecision MSRegionInfo::PrepareForCentralReturn(uint8_t callerCls)
+{
+    CHECK_DETAIL(GetRegionKind() == MSRegionKind::SMALL,
+                 "PrepareForCentralReturn requires SMALL region, kind=%u",
+                 static_cast<unsigned>(GetRegionKind()));
+
+    uint16_t freeSlots = 0;
+    if (GetAllocMode() == MSAllocMode::BUMP) {
+        freeSlots = DeriveBumpFreeSlots();
+        if (freeSlots != GetTotalSlotCount()) {
+            // Mark treats ALLOC bit 1 as a free slot. Publish an exact bitmap
+            // before a non-empty BUMP Region becomes Central-visible.
+            MaterializeBumpAllocationBitmap();
+        }
+    } else {
+        CHECK_DETAIL(GetAllocMode() == MSAllocMode::BITMAP,
+                     "PrepareForCentralReturn invalid allocMode=%u",
+                     static_cast<unsigned>(GetAllocMode()));
+        // allocSummary is a lookup hint and may be stale in either direction.
+        // The cold return boundary canonicalizes it from the source bitmap.
+        freeSlots = CanonicalizeBitmapFreeSlots();
+    }
+    return BuildCentralReturnDecision(callerCls, freeSlots);
 }
 
 // ============================================================================

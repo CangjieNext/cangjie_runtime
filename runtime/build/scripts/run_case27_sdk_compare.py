@@ -18,8 +18,12 @@ from typing import Sequence
 import run_case27_throughput as throughput
 
 
-DEFAULT_COMPILER_OUTPUT = pathlib.Path(
+DEFAULT_COPYGC_COMPILER_OUTPUT = pathlib.Path(
     "/Users/lipeisheng/code/cangjie/cangjie/cangjie_compiler/output"
+)
+DEFAULT_MSGC_SDK_ROOT = pathlib.Path(
+    "/Users/lipeisheng/code/cangjie/cangjie/"
+    "cangjie_compiler_region_mark/output/msgc"
 )
 DEFAULT_PLATFORM_DIR = "darwin_aarch64_cjnative"
 RUNTIME_PATH_RE = re.compile(r"(/\S*libcangjie-runtime\.dylib)")
@@ -70,11 +74,11 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--copygc-sdk-root",
-        default=str(DEFAULT_COMPILER_OUTPUT / "copygc"),
+        default=str(DEFAULT_COPYGC_COMPILER_OUTPUT / "copygc"),
     )
     parser.add_argument(
         "--msgc-sdk-root",
-        default=str(DEFAULT_COMPILER_OUTPUT / "msgc"),
+        default=str(DEFAULT_MSGC_SDK_ROOT),
     )
     parser.add_argument("--platform-dir", default=DEFAULT_PLATFORM_DIR)
     parser.add_argument("--case-dir", default=str(case_dir))

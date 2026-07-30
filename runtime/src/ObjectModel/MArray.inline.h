@@ -8,7 +8,6 @@
 #ifndef MRT_MARRAY_INLINE_H
 #define MRT_MARRAY_INLINE_H
 
-#include "Inspector/CjAllocData.h"
 // model interface
 #include "ExceptionManager.h"
 #include "Heap/Barrier/Barrier.inline.h"
@@ -85,18 +84,24 @@ inline void MArray::SetPrimitiveElement(MIndex index, T value)
     Heap::GetBarrier().WriteField(this, field, value);
 }
 
-static inline MIndex CalculateArraySize(MIndex nElems, const U32 elemBytes)
+static inline bool TryCalculateArraySize(MIndex nElems, U32 elemBytes, MIndex& arraySize)
 {
     if (elemBytes == 0) {
-        return static_cast<U64>(MArray::GetContentOffset());
+        arraySize = static_cast<MIndex>(MArray::GetContentOffset());
+        return true;
     }
-    U64 maxLength = (MAX_ARRAY_SIZE - MArray::GetContentOffset()) / elemBytes;
-    U64 totalSize = static_cast<U64>(nElems) * elemBytes + static_cast<U64>(MArray::GetContentOffset());
-    if (UNLIKELY(nElems >= maxLength)) {
-        // check overflow
-        return MAX_ARRAY_SIZE;
+    constexpr U64 maxArraySize = static_cast<U64>(MAX_ARRAY_SIZE);
+    const U64 headerSize = static_cast<U64>(MArray::GetContentOffset());
+    const U64 length = static_cast<U64>(nElems);
+    if (UNLIKELY(length > (maxArraySize - headerSize) / elemBytes)) {
+        return false;
     }
-    return static_cast<MIndex>(totalSize);
+    U64 totalSize = headerSize + length * elemBytes;
+    if (UNLIKELY(totalSize >= maxArraySize)) {
+        return false;
+    }
+    arraySize = static_cast<MIndex>(totalSize);
+    return true;
 }
 
 inline MArray* MArray::NewArray(MIndex nElems, TypeInfo& arrayClass, AllocType allocType)
@@ -108,11 +113,11 @@ inline MArray* MArray::NewArray(MIndex nElems, TypeInfo& arrayClass, AllocType a
     } else {
         // component is value type
         auto elem = arrayClass.GetSuperTypeInfo();
-        auto elemBits = sizeof(void*);
+        auto elemBytes = sizeof(void*);
         if (!elem->IsRef()) {
-            elemBits = arrayClass.GetSuperTypeInfo()->GetComponentSize();
+            elemBytes = arrayClass.GetSuperTypeInfo()->GetComponentSize();
         }
-        newArray = NewKnownWidthArray(nElems, arrayClass, elemBits, allocType);
+        newArray = NewKnownWidthArray(nElems, arrayClass, elemBytes, allocType);
     }
     return newArray;
 }
@@ -125,8 +130,9 @@ inline MArray* MArray::NewRefArray(MIndex nElems, TypeInfo& arrayClass, AllocTyp
 inline MArray* MArray::NewKnownWidthArray(MIndex nElems, TypeInfo& arrayClass, const U32 elemBytes, AllocType allocType)
 {
     DCHECK_D(arrayClass.IsArrayType(), "Expect an array type");
-    MIndex arraySize = CalculateArraySize(nElems, elemBytes);
-    if (UNLIKELY(arraySize == MAX_ARRAY_SIZE || arraySize > Heap::GetHeap().GetMaxCapacity())) {
+    MIndex arraySize = 0;
+    if (UNLIKELY(!TryCalculateArraySize(nElems, elemBytes, arraySize) ||
+                 arraySize > Heap::GetHeap().GetMaxCapacity())) {
         ExceptionManager::OutOfMemory();
         return nullptr;
     }
@@ -140,11 +146,6 @@ inline MArray* MArray::NewKnownWidthArray(MIndex nElems, TypeInfo& arrayClass, c
     if (LIKELY(address != NULL_ADDRESS)) {
         MArray* newArray = reinterpret_cast<MArray*>(SetClassInfo(address, &arrayClass));
         newArray->SetLength(nElems);
-#if defined(__OHOS__) && (__OHOS__ == 1)
-        if (CjAllocData::GetCjAllocData()->IsRecording()) {
-            CjAllocData::GetCjAllocData()->RecordAllocNodes(&arrayClass, arraySize);
-        }
-#endif
         return newArray;
     }
     return nullptr;

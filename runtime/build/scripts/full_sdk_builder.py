@@ -21,6 +21,10 @@ import rebuild_sdk_and_stdx as sdk_helpers
 RepoLayout = sdk_helpers.RepoLayout
 HostLayout = sdk_helpers.HostLayout
 
+DEFAULT_MSGC_COMPILER_ROOT = pathlib.Path(
+    "/Users/lipeisheng/code/cangjie/cangjie/cangjie_compiler_region_mark"
+)
+
 
 class GCMode(Enum):
     MSGC = ("msgc", "marksweep", "marksweep")
@@ -443,13 +447,18 @@ def parse_args_for_mode(
     argv: Sequence[str] | None = None,
 ) -> FullBuildConfig:
     layout = sdk_helpers.resolve_repo_layout(pathlib.Path(__file__))
+    default_compiler_root = (
+        DEFAULT_MSGC_COMPILER_ROOT
+        if gc_mode is GCMode.MSGC
+        else layout.compiler_root
+    )
     parser = argparse.ArgumentParser(
         description=(
             f"Fully rebuild the {gc_mode.output_name} SDK without running "
             "post-build validation."
         )
     )
-    parser.add_argument("--compiler-root", default=str(layout.compiler_root))
+    parser.add_argument("--compiler-root", default=str(default_compiler_root))
     parser.add_argument("--runtime-root", default=str(layout.runtime_root))
     parser.add_argument("--stdlib-root", default=str(layout.stdlib_root))
     parser.add_argument("--stdx-root", default=str(layout.stdx_root))

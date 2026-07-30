@@ -400,13 +400,19 @@ def wrap_with_envsetup(cmd: list[str], envsetup: pathlib.Path) -> list[str]:
     return ["bash", "-lc", shell_cmd]
 
 
-def run_command(cmd: list[str], cwd: pathlib.Path, dry_run: bool, envsetup: pathlib.Path | None = None) -> None:
+def run_command(
+    cmd: list[str],
+    cwd: pathlib.Path,
+    dry_run: bool,
+    envsetup: pathlib.Path | None = None,
+    environment: dict[str, str] | None = None,
+) -> None:
     effective_cmd = wrap_with_envsetup(cmd, envsetup) if envsetup else cmd
     env_note = f" envsetup={envsetup}" if envsetup else ""
     print(f"[run] cwd={cwd}{env_note} cmd={' '.join(effective_cmd)}", flush=True)
     if dry_run:
         return
-    subprocess.run(effective_cmd, cwd=cwd, check=True)
+    subprocess.run(effective_cmd, cwd=cwd, check=True, env=environment)
 
 
 def copy_tree(src: pathlib.Path, dst: pathlib.Path, dry_run: bool) -> None:
