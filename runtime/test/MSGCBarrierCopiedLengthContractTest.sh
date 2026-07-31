@@ -4,15 +4,21 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 MARK_BARRIER="$ROOT_DIR/src/Heap/MBarrier/MSMarkBarrier.cpp"
 
-if ! rg -Uq 'size_t copiedLen = \(dstLen < srcLen \? dstLen : srcLen\);[[:space:]]+BarrierMarkContext marker;[[:space:]]+EnqueueStructRefsInRange\(marker, obj, dst, copiedLen\);' \
+if ! rg -Uq 'CHECK_DETAIL\(srcLen <= dstLen,[[:space:][:print:]]+\);[[:space:]]+BarrierMarkContext marker;[[:space:]]+EnqueueStructRefsInRange\(marker, obj, dst, srcLen\);' \
     "$MARK_BARRIER"; then
-    echo 'WriteStruct must cache only the copied destination range' >&2
+    echo 'WriteStruct must reject invalid lengths before scanning exactly srcLen bytes' >&2
     exit 1
 fi
 
-if ! rg -Uq 'size_t copiedLen = \(dstSize < srcSize \? dstSize : srcSize\);[[:space:]]+BarrierMarkContext marker;[[:space:]]+EnqueueRefArrayRange\(marker, dstField, copiedLen\);' \
+if ! rg -Uq 'CHECK_DETAIL\(srcSize <= dstSize,[[:space:][:print:]]+\);[[:space:]]+BarrierMarkContext marker;[[:space:]]+EnqueueRefArrayRange\(marker, dstField, srcSize\);' \
     "$MARK_BARRIER"; then
-    echo 'CopyRefArray must cache only the copied destination range' >&2
+    echo 'CopyRefArray must reject invalid lengths before scanning exactly srcSize bytes' >&2
+    exit 1
+fi
+
+if ! rg -Uq 'EnqueueStaticStructRefs\([[:space:]]*marker, dst, srcLen, gctib\)' \
+    "$MARK_BARRIER"; then
+    echo 'WriteStaticStruct must limit GCTib enumeration to the overwritten range' >&2
     exit 1
 fi
 

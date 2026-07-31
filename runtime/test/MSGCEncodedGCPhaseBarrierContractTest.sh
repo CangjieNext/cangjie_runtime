@@ -9,6 +9,7 @@ FAST_STATE="$ROOT_DIR/src/Heap/MSGCFastPath.h"
 HEAP_HEADER="$ROOT_DIR/src/Heap/Heap.h"
 HEAP_SOURCE="$ROOT_DIR/src/Heap/Heap.cpp"
 MARK_BARRIER="$ROOT_DIR/src/Heap/MBarrier/MSMarkBarrier.cpp"
+COMPILER_CALLS="$ROOT_DIR/src/CompilerCalls.cpp"
 BUFFER_HEADER="$ROOT_DIR/src/Heap/MBarrier/MSBarrierMarkBuffer.h"
 COLLECTOR="$ROOT_DIR/src/Heap/MCollector/MarkSweepCollector.cpp"
 LLVM_ABI="$LLVM_ROOT/llvm/include/llvm/CodeGen/CJMSGCABI.h"
@@ -34,6 +35,18 @@ reject() {
 require "$MARK_BARRIER" \
     'GetThreadLocalData\(\)->encodedGCPhase' \
     'Runtime mark wrapper must judge the current thread encodedGCPhase'
+require "$COMPILER_CALLS" \
+    'MRT_USE_MARK_SWEEP[[:space:]]+MSBarrierOps::AtomicWriteReference' \
+    'MSGC atomic writes must use the TLS phase-aware Runtime operation'
+require "$COMPILER_CALLS" \
+    'MRT_USE_MARK_SWEEP[[:space:]]+return MSBarrierOps::AtomicSwapReference' \
+    'MSGC atomic swaps must use the TLS phase-aware Runtime operation'
+require "$COMPILER_CALLS" \
+    'MRT_USE_MARK_SWEEP[[:space:]]+return MSBarrierOps::CompareAndSwapReference' \
+    'MSGC atomic CAS must use the TLS phase-aware Runtime operation'
+require "$COMPILER_CALLS" \
+    'MRT_USE_MARK_SWEEP[[:space:]]+\(void\)obj;[[:space:]]+return MSLoadRawReference\(\*field, order\);' \
+    'MSGC atomic reads must bypass virtual barrier dispatch'
 reject "$FAST_STATE" \
     'barrierPhase|MSGCBarrierPhase|MARK_WRAPPER_ONLY|MARK_TLS_BATCH_V3|PublishMSGCFastPathBarrierPhase' \
     'MSGCFastPathState must not duplicate the GC phase'
@@ -55,8 +68,29 @@ reject "$LLVM_ABI" \
     'LLVM ABI must not retain duplicate phase or buffer epoch contracts'
 require "$AARCH64_EMITTER" 'emitGetPackedGCPhaseFromCJTLS' \
     'AArch64 MSGC barrier must use the packed encodedGCPhase'
+require "$AARCH64_EMITTER" \
+    'ReclaimSATBNode -[[:space:]]+gc_phase::Idle' \
+    'AArch64 MSGC barrier must range-check the contiguous idle phases'
+require "$AARCH64_EMITTER" \
+    'MSMarkTermination -[[:space:]]+gc_phase::MSMarkSetup' \
+    'AArch64 MSGC barrier must range-check the contiguous mark phases'
 require "$X86_EMITTER" 'getEncodedGCPhaseOffsetInCJTLS' \
     'X86 MSGC barrier must load encodedGCPhase from CJTLS'
+require "$X86_EMITTER" \
+    'ReclaimSATBNode - gc_phase::Idle' \
+    'X86 MSGC barrier must range-check the contiguous idle phases'
+require "$X86_EMITTER" \
+    'MSMarkTermination - gc_phase::MSMarkSetup' \
+    'X86 MSGC barrier must range-check the contiguous mark phases'
+require "$AARCH64_EMITTER" \
+    'emitLabel\(LSetLookup\);[[:space:][:print:]]*LDRWui\).*MSGCBarrierBufferOccupancyOffset' \
+    'AArch64 occupancy must be loaded only after the MRU probe misses'
+require "$X86_EMITTER" \
+    'emitLabel\(LSetLookup\);[[:space:][:print:]]*EmitLoad32\(X86::R10D, X86::R11,[[:space:]]*layout::MSGCBarrierBufferOccupancyOffset\)' \
+    'X86 occupancy must be loaded only after the MRU probe misses'
+require "$X86_EMITTER" \
+    'MCInstBuilder\(X86::INC32m\)' \
+    'X86 fast-add must increment pendingBitCount without reloading it'
 reject "$LOWERING" \
     'enable-msgc-write-barrier-lowering|EnableMSGCWriteBarrierLowering' \
     'MSGC write-barrier lowering must not have a separate option'

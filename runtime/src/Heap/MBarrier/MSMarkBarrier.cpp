@@ -7,43 +7,28 @@
 #ifdef MRT_USE_MARK_SWEEP
 
 #include "MSMarkBarrier.h"
-#include "Heap/Barrier/Barrier.inline.h"
 #include "Heap/Heap.h"
-#include "Heap/MBarrier/MSRefField.inline.h"
 #include "Heap/MAllocator/MSAllocBuffer.h"
 #include "Heap/MAllocator/MSRegionInfo.h"
 #include "Heap/MCollector/MarkSweepCollector.h"
 #include "Mutator/ThreadLocal.h"
-#include "ObjectModel/Field.inline.h"
 #include "ObjectModel/MArray.h"
-#include "ObjectModel/RefField.inline.h"
+#include "ObjectModel/MArray.inline.h"
 #if defined(CANGJIE_TSAN_SUPPORT)
 #include "Sanitizer/SanitizerInterface.h"
 #endif
-#include <cstdlib>
-#include <cstring>
 
 namespace MapleRuntime {
 static inline bool IsMSGCMarkPhase(GCPhase phase)
 {
-    switch (phase) {
-        case GCPhase::GC_PHASE_MS_MARK_SETUP:
-        case GCPhase::GC_PHASE_MS_CONCURRENT_MARK:
-        case GCPhase::GC_PHASE_MS_MARK_TERMINATION:
-            return true;
-        default:
-            return false;
-    }
-}
-
-static inline MarkSweepCollector* ResolveMarkOwner()
-{
-    GCPhase phase = static_cast<GCPhase>(
-        ThreadLocal::GetThreadLocalData()->encodedGCPhase);
-    if (!IsMSGCMarkPhase(phase)) {
-        return nullptr;
-    }
-    return MarkSweepCollector::GetActiveCollector();
+    static_assert(
+        static_cast<uint8_t>(GCPhase::GC_PHASE_MS_CONCURRENT_MARK) ==
+            static_cast<uint8_t>(GCPhase::GC_PHASE_MS_MARK_SETUP) + 1 &&
+        static_cast<uint8_t>(GCPhase::GC_PHASE_MS_MARK_TERMINATION) ==
+            static_cast<uint8_t>(GCPhase::GC_PHASE_MS_CONCURRENT_MARK) + 1,
+        "MSGC mark GCPhase range must remain contiguous");
+    return phase >= GCPhase::GC_PHASE_MS_MARK_SETUP &&
+        phase <= GCPhase::GC_PHASE_MS_MARK_TERMINATION;
 }
 
 static inline MemoryOrder CASFailureOrder(MemoryOrder order)
@@ -59,127 +44,215 @@ static inline MemoryOrder CASFailureOrder(MemoryOrder order)
 
 class BarrierMarkContext {
 public:
-    BarrierMarkContext()
-    {
-        collector_ = ResolveMarkOwner();
-        if (collector_ != nullptr) {
-            allocBuffer_ = AllocBufferMS::GetAllocBufferMS();
-            if (allocBuffer_ != nullptr) {
-                buffer_ = &allocBuffer_->GetBarrierMarkBuffer();
-            }
-        }
-    }
+    BarrierMarkContext() : markActive_(IsMSGCMarkPhase(static_cast<GCPhase>(
+        ThreadLocal::GetThreadLocalData()->encodedGCPhase))) {}
 
     BarrierMarkContext(const BarrierMarkContext&) = delete;
     BarrierMarkContext& operator=(const BarrierMarkContext&) = delete;
 
     bool IsActive() const
     {
-        return collector_ != nullptr;
+        return markActive_;
     }
 
-    void AddOldRef(BaseObject* ref)
+    void AddOldRefActive(BaseObject* ref)
     {
-        // Check the phase/collector gate first. Runtime fallback calls may
-        // still reach this helper during IDLE, where even a heap-range check
-        // is unnecessary.
-        if (UNLIKELY(collector_ == nullptr || ref == nullptr ||
-                     !Heap::IsHeapAddress(ref))) {
+        if (UNLIKELY(ref == nullptr || !Heap::IsHeapAddress(ref))) {
+            return;
+        }
+        EnsureOwner();
+        if (UNLIKELY(collector_ == nullptr)) {
             return;
         }
         if (LIKELY(buffer_ != nullptr)) {
-            collector_->AddManagedRefToBarrierBuffer(ref, *buffer_);
+            collector_->AddManagedRefToBarrierBuffer(
+                ref, *buffer_, currentMarkEpoch_);
         } else {
             collector_->PublishManagedRefForBarrierImmediately(ref);
         }
     }
 
 private:
+    void EnsureOwner()
+    {
+        if (LIKELY(ownerResolved_)) {
+            return;
+        }
+        ownerResolved_ = true;
+        collector_ = MarkSweepCollector::GetActiveCollector();
+        if (UNLIKELY(collector_ == nullptr)) {
+            return;
+        }
+        AllocBufferMS* allocBuffer = AllocBufferMS::GetAllocBufferMS();
+        if (allocBuffer != nullptr) {
+            buffer_ = &allocBuffer->GetBarrierMarkBuffer();
+            currentMarkEpoch_ = __atomic_load_n(
+                &CJ_MRT_MSGCFastPathState.currentMarkEpoch,
+                __ATOMIC_ACQUIRE);
+        }
+    }
+
     MarkSweepCollector* collector_ = nullptr;
-    AllocBufferMS* allocBuffer_ = nullptr;
     MSBarrierMarkBuffer* buffer_ = nullptr;
+    uint32_t currentMarkEpoch_ = MSRegionInfo::NO_COLLECT_EPOCH;
+    bool markActive_ = false;
+    bool ownerResolved_ = false;
 };
+
+class BulkOldRefVisitor {
+public:
+    explicit BulkOldRefVisitor(BarrierMarkContext& marker) : marker_(marker) {}
+
+    void operator()(RefField<>& refField)
+    {
+        BaseObject* oldRef = MSLoadRawReference(refField);
+        if (LIKELY(oldRef == lastOldRef_)) {
+            return;
+        }
+        lastOldRef_ = oldRef;
+        marker_.AddOldRefActive(oldRef);
+    }
+
+private:
+    BarrierMarkContext& marker_;
+    BaseObject* lastOldRef_ = nullptr;
+};
+
+static inline void EnqueueGCTibRefsInRange(
+    BarrierMarkContext& marker, MAddress base, MAddress start, size_t size,
+    const GCTib gctib)
+{
+    BulkOldRefVisitor visitOldRef(marker);
+    gctib.ForEachBitmapWordInRangeFast(
+        base, visitOldRef, start, start + size);
+}
 
 static inline void EnqueueStructRefsInRange(
     BarrierMarkContext& marker, BaseObject* obj, MAddress start, size_t size)
 {
-    if (!marker.IsActive() || obj == nullptr ||
-        obj->GetTypeInfo() == nullptr || size == 0) {
+    if (!marker.IsActive() || obj == nullptr) {
         return;
     }
-    obj->ForEachRefInStruct(
-        [&marker](RefField<false>& refField) {
-            marker.AddOldRef(MSLoadRawReference(refField));
-        },
-        start, start + size);
+    TypeInfo* typeInfo = obj->GetTypeInfo();
+    if (typeInfo == nullptr) {
+        return;
+    }
+    if (LIKELY(!typeInfo->IsRawArray())) {
+        if (!typeInfo->HasRefField()) {
+            return;
+        }
+        EnqueueGCTibRefsInRange(
+            marker, reinterpret_cast<MAddress>(obj) + TYPEINFO_PTR_SIZE,
+            start, size, typeInfo->GetGCTib());
+        return;
+    }
+
+    MArray* array = static_cast<MArray*>(obj);
+    TypeInfo* component = typeInfo->GetComponentTypeInfo();
+    if (UNLIKELY(component == nullptr || !component->IsStructType() ||
+                 !component->HasRefField())) {
+        return;
+    }
+    size_t elementSize = component->GetComponentSize();
+    CHECK_DETAIL(elementSize != 0,
+                 "MSMarkBarrier RawArray has a zero-sized component");
+    MAddress content =
+        reinterpret_cast<MAddress>(array) + MArray::GetContentOffset();
+    MIndex startIndex =
+        static_cast<MIndex>((start - content) / elementSize);
+    MAddress current = content + startIndex * elementSize;
+    MAddress end = start + size;
+    MRT_ASSERT(current + elementSize >= end,
+               "aggregate element is not aligned");
+
+    GCTib gctib = component->GetGCTib();
+    BulkOldRefVisitor visitOldRef(marker);
+    MIndex length = array->GetLength();
+    if (startIndex < length && current < end) {
+        gctib.ForEachBitmapWordFast(current, visitOldRef);
+    }
 }
 
 static inline void EnqueueStructArrayRefsInRange(
     BarrierMarkContext& marker, BaseObject* obj, MAddress start, size_t size)
 {
-    if (!marker.IsActive() || obj == nullptr ||
-        obj->GetTypeInfo() == nullptr || size == 0 ||
-        !obj->HasRefField()) {
+    if (!marker.IsActive() || obj == nullptr) {
         return;
     }
-    if (!obj->IsRawArray()) {
-        EnqueueStructRefsInRange(marker, obj, start, size);
+    TypeInfo* typeInfo = obj->GetTypeInfo();
+    if (typeInfo == nullptr) {
+        return;
+    }
+    if (LIKELY(!typeInfo->IsRawArray())) {
+        if (!typeInfo->HasRefField()) {
+            return;
+        }
+        EnqueueGCTibRefsInRange(
+            marker, reinterpret_cast<MAddress>(obj) + TYPEINFO_PTR_SIZE,
+            start, size, typeInfo->GetGCTib());
         return;
     }
 
-    MArray* array = static_cast<MArray*>(obj);
-    TypeInfo* component = array->GetComponentTypeInfo();
+    TypeInfo* component = typeInfo->GetComponentTypeInfo();
     if (component == nullptr || !component->IsStructType() || !component->HasRefField()) {
         return;
     }
-    array->ForEachRefFieldInRange(
-        [&marker](RefField<false>& refField) {
-            marker.AddOldRef(MSLoadRawReference(refField));
-        },
-        start, start + size);
+    size_t elementSize = component->GetComponentSize();
+    CHECK_DETAIL(elementSize != 0,
+                 "MSMarkBarrier RawArray has a zero-sized component");
+    MRT_ASSERT(size % elementSize == 0,
+               "MSMarkBarrier RawArray copy is not element aligned");
+    GCTib gctib = component->GetGCTib();
+    BulkOldRefVisitor visitOldRef(marker);
+    MAddress current = start;
+    MAddress end = start + size;
+    while (current < end) {
+        gctib.ForEachBitmapWordFast(current, visitOldRef);
+        current += elementSize;
+    }
 }
 
 static inline void EnqueueStaticStructRefs(
-    BarrierMarkContext& marker, MAddress start, const GCTib gctib)
+    BarrierMarkContext& marker, MAddress start, size_t size, const GCTib gctib)
 {
     if (!marker.IsActive()) {
         return;
     }
-    gctib.ForEachBitmapWord(start, [&marker](RefField<>& refField) {
-        marker.AddOldRef(MSLoadRawReference(refField));
-    });
+    EnqueueGCTibRefsInRange(marker, start, start, size, gctib);
 }
 
 static inline void EnqueueRefArrayRange(
     BarrierMarkContext& marker, MAddress start, size_t size)
 {
-    if (!marker.IsActive() || size == 0) {
+    if (!marker.IsActive()) {
         return;
     }
     size_t refCount = size / sizeof(MAddress);
     RefField<false>* refs = reinterpret_cast<RefField<false>*>(start);
+    BulkOldRefVisitor visitOldRef(marker);
     for (size_t i = 0; i < refCount; ++i) {
-        marker.AddOldRef(MSLoadRawReference(refs[i]));
+        visitOldRef(refs[i]);
     }
 }
 
 // ============================================================================
-// Writes: deletion-style barrier — log(old) + store
+// Writes: deletion-style barrier — discover(old) + store
 // ============================================================================
 
 static inline void WriteRefField(RefField<false>& field, BaseObject* ref)
 {
-    BaseObject* oldRef = MSLoadRawReference(field);
-    if (oldRef != ref) {
-        BarrierMarkContext marker;
-        marker.AddOldRef(oldRef);
+    BarrierMarkContext marker;
+    if (LIKELY(marker.IsActive())) {
+        BaseObject* oldRef = MSLoadRawReference(field);
+        if (oldRef != ref) {
+            marker.AddOldRefActive(oldRef);
+        }
     }
     MSStoreRawReference(field, ref);
 }
 
-void MSBarrierOps::WriteReference(BaseObject* obj, RefField<false>& field, BaseObject* ref)
+void MSBarrierOps::WriteReference(RefField<false>& field, BaseObject* ref)
 {
-    (void)obj;
     WriteRefField(field, ref);
 }
 
@@ -190,18 +263,24 @@ void MSBarrierOps::WriteStaticRef(RefField<false>& field, BaseObject* ref)
 
 void MSBarrierOps::WriteStruct(BaseObject* obj, MAddress dst, size_t dstLen, MAddress src, size_t srcLen)
 {
-    // log(old): preserve all existing reference fields in the destination struct
-    size_t copiedLen = (dstLen < srcLen ? dstLen : srcLen);
+    if (srcLen == 0) {
+        return;
+    }
+    CHECK_DETAIL(srcLen <= dstLen,
+                 "MSMarkBarrier WriteStruct source exceeds destination");
+    CHECK_DETAIL(dst != 0 && src != 0,
+                 "MSMarkBarrier WriteStruct received a null address");
+
+    // discover(old): preserve exactly the destination range being overwritten
     BarrierMarkContext marker;
-    EnqueueStructRefsInRange(marker, obj, dst, copiedLen);
+    EnqueueStructRefsInRange(marker, obj, dst, srcLen);
 
     // memcpy (overwrites dst with src)
     CHECK_DETAIL(memcpy_s(reinterpret_cast<void*>(dst), dstLen,
                           reinterpret_cast<void*>(src), srcLen) == EOK,
                  "MSMarkBarrier WriteStruct memcpy_s failed");
 #if defined(CANGJIE_TSAN_SUPPORT)
-    CHECK_EQ(srcLen, dstLen);
-    Sanitizer::TsanWriteMemoryRange(reinterpret_cast<void*>(dst), dstLen);
+    Sanitizer::TsanWriteMemoryRange(reinterpret_cast<void*>(dst), srcLen);
     Sanitizer::TsanReadMemoryRange(reinterpret_cast<void*>(src), srcLen);
 #endif
 }
@@ -209,18 +288,25 @@ void MSBarrierOps::WriteStruct(BaseObject* obj, MAddress dst, size_t dstLen, MAd
 void MSBarrierOps::WriteStaticStruct(MAddress dst, size_t dstLen, MAddress src, size_t srcLen,
                                      const GCTib gctib)
 {
-    // log(old): preserve all existing reference fields via GCTib bitmap
+    if (srcLen == 0) {
+        return;
+    }
+    CHECK_DETAIL(srcLen <= dstLen,
+                 "MSMarkBarrier WriteStaticStruct source exceeds destination");
+    CHECK_DETAIL(dst != 0 && src != 0,
+                 "MSMarkBarrier WriteStaticStruct received a null address");
+
+    // discover(old): restrict GCTib enumeration to the overwritten range
     BarrierMarkContext marker;
-    EnqueueStaticStructRefs(marker, dst, gctib);
+    EnqueueStaticStructRefs(marker, dst, srcLen, gctib);
 
     // memcpy
     CHECK_DETAIL(memcpy_s(reinterpret_cast<void*>(dst), dstLen,
                           reinterpret_cast<void*>(src), srcLen) == EOK,
                  "MSMarkBarrier WriteStaticStruct memcpy_s failed");
 #if defined(CANGJIE_TSAN_SUPPORT)
-    size_t copyLen = (dstLen < srcLen ? dstLen : srcLen);
-    Sanitizer::TsanWriteMemoryRange(reinterpret_cast<void*>(dst), copyLen);
-    Sanitizer::TsanReadMemoryRange(reinterpret_cast<void*>(src), copyLen);
+    Sanitizer::TsanWriteMemoryRange(reinterpret_cast<void*>(dst), srcLen);
+    Sanitizer::TsanReadMemoryRange(reinterpret_cast<void*>(src), srcLen);
 #endif
 }
 
@@ -228,52 +314,64 @@ void MSBarrierOps::WriteStaticStruct(MAddress dst, size_t dstLen, MAddress src, 
 // Array copy: discover overwritten refs before they are replaced
 // ============================================================================
 
-void MSBarrierOps::CopyRefArray(BaseObject* dstObj, MAddress dstField, MIndex dstSize,
-                                BaseObject* srcObj, MAddress srcField, MIndex srcSize)
+void MSBarrierOps::CopyRefArray(MAddress dstField, MIndex dstSize,
+                                MAddress srcField, MIndex srcSize)
 {
-    (void)dstObj;
-    (void)srcObj;
+    if (srcSize == 0) {
+        return;
+    }
+    CHECK_DETAIL(srcSize <= dstSize,
+                 "MSMarkBarrier CopyRefArray source exceeds destination");
+    MRT_ASSERT(dstSize <= SECUREC_MEM_MAX_LEN,
+               "size too big in CJ_MCC_ArrayCopy");
+    CHECK_DETAIL(dstField != 0 && srcField != 0,
+                 "MSMarkBarrier CopyRefArray received a null address");
 
     // discover(old): preserve all existing references in the destination range
-    size_t copiedLen = (dstSize < srcSize ? dstSize : srcSize);
     BarrierMarkContext marker;
-    EnqueueRefArrayRange(marker, dstField, copiedLen);
+    EnqueueRefArrayRange(marker, dstField, srcSize);
 
     // memmove
     CHECK_DETAIL(memmove_s(reinterpret_cast<void*>(dstField), dstSize,
                            reinterpret_cast<void*>(srcField), srcSize) == EOK,
                  "MSMarkBarrier CopyRefArray memmove_s failed");
 #if defined(CANGJIE_TSAN_SUPPORT)
-    size_t copyLen = (dstSize < srcSize ? dstSize : srcSize);
-    Sanitizer::TsanWriteMemoryRange(reinterpret_cast<void*>(dstField), copyLen);
-    Sanitizer::TsanReadMemoryRange(reinterpret_cast<void*>(srcField), copyLen);
+    Sanitizer::TsanWriteMemoryRange(reinterpret_cast<void*>(dstField), srcSize);
+    Sanitizer::TsanReadMemoryRange(reinterpret_cast<void*>(srcField), srcSize);
 #endif
 }
 
 void MSBarrierOps::CopyStructArray(BaseObject* dstObj, MAddress dstField, MIndex dstSize,
-                                   BaseObject* srcObj, MAddress srcField, MIndex srcSize)
+                                   MAddress srcField, MIndex srcSize)
 {
-    (void)srcObj;
-    size_t copiedLen = (dstSize < srcSize ? dstSize : srcSize);
+    if (srcSize == 0) {
+        return;
+    }
+    CHECK_DETAIL(srcSize <= dstSize,
+                 "MSMarkBarrier CopyStructArray source exceeds destination");
+    MRT_ASSERT(dstSize <= SECUREC_MEM_MAX_LEN,
+               "size too big in CJ_MCC_ArrayCopy");
+    CHECK_DETAIL(dstField != 0 && srcField != 0,
+                 "MSMarkBarrier CopyStructArray received a null address");
 
     // discover(old): preserve all existing reference fields in the destination range
     BarrierMarkContext marker;
-    EnqueueStructArrayRefsInRange(marker, dstObj, dstField, copiedLen);
+    EnqueueStructArrayRefsInRange(marker, dstObj, dstField, srcSize);
 
     // memmove
     CHECK_DETAIL(memmove_s(reinterpret_cast<void*>(dstField), dstSize,
                            reinterpret_cast<void*>(srcField), srcSize) == EOK,
                  "MSMarkBarrier CopyStructArray memmove_s failed");
 #if defined(CANGJIE_TSAN_SUPPORT)
-    size_t copyLen = (dstSize < srcSize ? dstSize : srcSize);
-    Sanitizer::TsanWriteMemoryRange(reinterpret_cast<void*>(dstField), copyLen);
-    Sanitizer::TsanReadMemoryRange(reinterpret_cast<void*>(srcField), copyLen);
+    Sanitizer::TsanWriteMemoryRange(reinterpret_cast<void*>(dstField), srcSize);
+    Sanitizer::TsanReadMemoryRange(reinterpret_cast<void*>(srcField), srcSize);
 #endif
 }
 
 void MSMarkBarrier::WriteReference(BaseObject* obj, RefField<false>& field, BaseObject* ref) const
 {
-    MSBarrierOps::WriteReference(obj, field, ref);
+    (void)obj;
+    MSBarrierOps::WriteReference(field, ref);
 }
 
 void MSMarkBarrier::WriteStaticRef(RefField<false>& field, BaseObject* ref) const
@@ -295,31 +393,45 @@ void MSMarkBarrier::WriteStaticStruct(MAddress dst, size_t dstLen, MAddress src,
 void MSMarkBarrier::CopyRefArray(BaseObject* dstObj, MAddress dstField, MIndex dstSize,
                                  BaseObject* srcObj, MAddress srcField, MIndex srcSize) const
 {
-    MSBarrierOps::CopyRefArray(dstObj, dstField, dstSize, srcObj, srcField, srcSize);
+    (void)dstObj;
+    (void)srcObj;
+    MSBarrierOps::CopyRefArray(dstField, dstSize, srcField, srcSize);
 }
 
 void MSMarkBarrier::CopyStructArray(BaseObject* dstObj, MAddress dstField, MIndex dstSize,
                                     BaseObject* srcObj, MAddress srcField, MIndex srcSize) const
 {
-    MSBarrierOps::CopyStructArray(dstObj, dstField, dstSize, srcObj, srcField, srcSize);
+    (void)srcObj;
+    MSBarrierOps::CopyStructArray(dstObj, dstField, dstSize, srcField, srcSize);
 }
 
 // ============================================================================
 // Atomic operations: discover(old)
 // ============================================================================
 
-void MSMarkBarrier::AtomicWriteReference(BaseObject* obj, RefField<true>& field,
-                                         BaseObject* ref, MemoryOrder order) const
+void MSBarrierOps::AtomicWriteReference(
+    RefField<true>& field, BaseObject* ref, MemoryOrder order)
 {
-    (void)obj;
+    BarrierMarkContext marker;
+    if (LIKELY(!marker.IsActive())) {
+        MSStoreRawReference(field, ref, order);
+        return;
+    }
+
     MemoryOrder failOrder = CASFailureOrder(order);
     BaseObject* expected =
         MSLoadRawReference(field, std::memory_order_relaxed);
-    BarrierMarkContext marker;
+    BaseObject* lastShaded = nullptr;
+    bool hasLastShaded = false;
     for (;;) {
         // Capture completes before the CAS can delete this exact edge. The
         // owner-private bitmap mask may remain pending after this wrapper.
-        marker.AddOldRef(expected);
+        if (expected != ref &&
+            (!hasLastShaded || expected != lastShaded)) {
+            marker.AddOldRefActive(expected);
+            lastShaded = expected;
+            hasLastShaded = true;
+        }
         if (MSCompareExchangeRawReference(
                 field, expected, ref, order, failOrder)) {
             return;
@@ -328,17 +440,26 @@ void MSMarkBarrier::AtomicWriteReference(BaseObject* obj, RefField<true>& field,
     }
 }
 
-BaseObject* MSMarkBarrier::AtomicSwapReference(BaseObject* obj, RefField<true>& field,
-                                               BaseObject* newRef, MemoryOrder order) const
+BaseObject* MSBarrierOps::AtomicSwapReference(
+    RefField<true>& field, BaseObject* newRef, MemoryOrder order)
 {
-    (void)obj;
+    BarrierMarkContext marker;
+    if (LIKELY(!marker.IsActive())) {
+        return MSExchangeRawReference(field, newRef, order);
+    }
 
     MemoryOrder failOrder = CASFailureOrder(order);
     BaseObject* expected =
         MSLoadRawReference(field, std::memory_order_relaxed);
-    BarrierMarkContext marker;
+    BaseObject* lastShaded = nullptr;
+    bool hasLastShaded = false;
     for (;;) {
-        marker.AddOldRef(expected);
+        if (expected != newRef &&
+            (!hasLastShaded || expected != lastShaded)) {
+            marker.AddOldRefActive(expected);
+            lastShaded = expected;
+            hasLastShaded = true;
+        }
         if (MSCompareExchangeRawReference(
                 field, expected, newRef, order, failOrder)) {
             return expected;
@@ -347,18 +468,51 @@ BaseObject* MSMarkBarrier::AtomicSwapReference(BaseObject* obj, RefField<true>& 
     }
 }
 
-bool MSMarkBarrier::CompareAndSwapReference(BaseObject* obj, RefField<true>& field,
-                                            BaseObject* oldRef, BaseObject* newRef,
-                                            MemoryOrder succOrder, MemoryOrder failOrder) const
+bool MSBarrierOps::CompareAndSwapReference(
+    RefField<true>& field, BaseObject* oldRef, BaseObject* newRef,
+    MemoryOrder succOrder, MemoryOrder failOrder)
 {
-    (void)obj;
+    if (oldRef == newRef) {
+        return MSCompareExchangeRawReference(
+            field, oldRef, newRef, succOrder, failOrder);
+    }
+    BarrierMarkContext marker;
+    if (LIKELY(!marker.IsActive())) {
+        return MSCompareExchangeRawReference(
+            field, oldRef, newRef, succOrder, failOrder);
+    }
 
     // Conservatively shade the expected edge before the mutation. A failed CAS
     // may perform redundant work, but a successful CAS can never expose an
     // unprotected deletion window.
-    BarrierMarkContext marker;
-    marker.AddOldRef(oldRef);
+    marker.AddOldRefActive(oldRef);
     return MSCompareExchangeRawReference(
+        field, oldRef, newRef, succOrder, failOrder);
+}
+
+void MSMarkBarrier::AtomicWriteReference(
+    BaseObject* obj, RefField<true>& field, BaseObject* ref,
+    MemoryOrder order) const
+{
+    (void)obj;
+    MSBarrierOps::AtomicWriteReference(field, ref, order);
+}
+
+BaseObject* MSMarkBarrier::AtomicSwapReference(
+    BaseObject* obj, RefField<true>& field, BaseObject* newRef,
+    MemoryOrder order) const
+{
+    (void)obj;
+    return MSBarrierOps::AtomicSwapReference(field, newRef, order);
+}
+
+bool MSMarkBarrier::CompareAndSwapReference(
+    BaseObject* obj, RefField<true>& field, BaseObject* oldRef,
+    BaseObject* newRef, MemoryOrder succOrder,
+    MemoryOrder failOrder) const
+{
+    (void)obj;
+    return MSBarrierOps::CompareAndSwapReference(
         field, oldRef, newRef, succOrder, failOrder);
 }
 

@@ -330,10 +330,8 @@ public:
 
     static inline uint8_t EncodeThreadLocalGCPhaseByte(const GCPhase phase)
     {
-        // Fix: directly cast phase to uint8_t so GC_PHASE_IDLE(1) encodes to 1,
-        // matching the LLVM fast-path constant MSGCGCPhaseIdle=1.
-        // GC_PHASE_UNDEF=0 naturally encodes to 0, keeping fast-path disabled
-        // for uninitialized mutators.
+        // Generated code consumes the numeric GCPhase value from this byte.
+        // GC_PHASE_UNDEF=0 keeps fast paths disabled for uninitialized mutators.
         return static_cast<uint8_t>(phase);
     }
 

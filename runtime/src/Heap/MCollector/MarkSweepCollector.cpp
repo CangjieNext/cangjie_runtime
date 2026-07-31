@@ -830,7 +830,8 @@ void MarkSweepCollector::AddRefToMarkBatch(
 }
 
 void MarkSweepCollector::AddManagedRefToBarrierBuffer(
-    BaseObject* ref, MSBarrierMarkBuffer& buffer)
+    BaseObject* ref, MSBarrierMarkBuffer& buffer,
+    uint32_t currentMarkEpoch)
 {
     ResolvedMarkTarget target;
     if (UNLIKELY(!ResolveManagedMarkTarget(ref, target))) {
@@ -856,14 +857,19 @@ void MarkSweepCollector::AddManagedRefToBarrierBuffer(
         return;
     }
 
-    uint32_t currentEpoch = __atomic_load_n(
-        &CJ_MRT_MSGCFastPathState.currentMarkEpoch, __ATOMIC_ACQUIRE);
+    if (UNLIKELY(
+            buffer.pendingBitCount >=
+            kMSBarrierMarkBufferPendingBitFlushThreshold)) {
+        FlushBarrierMarkBuffer(buffer);
+    }
 
     uint32_t regionIdx = static_cast<uint32_t>(
         MSRegionInfoArray::GetRegionIdx(target.info));
     uint64_t wordKey = MakeMSBarrierMarkWordKey(
         regionIdx, static_cast<uint32_t>(target.wordIdx));
-    uint8_t localEntry = FindMSBarrierMarkEntry(buffer, wordKey);
+    MSBarrierMarkLookup localLookup =
+        LookupMSBarrierMarkEntry(buffer, wordKey);
+    uint8_t localEntry = localLookup.existingEntry;
     if (localEntry != kMSBarrierMarkBufferInvalidEntry &&
         (buffer.entries[localEntry].mask & target.bitMask) != 0) {
         buffer.lastEntry = localEntry;
@@ -871,8 +877,8 @@ void MarkSweepCollector::AddManagedRefToBarrierBuffer(
     }
 
     bool inCollectSet =
-        currentEpoch != MSRegionInfo::NO_COLLECT_EPOCH &&
-        target.info->collectEpoch == currentEpoch;
+        currentMarkEpoch != MSRegionInfo::NO_COLLECT_EPOCH &&
+        target.info->collectEpoch == currentMarkEpoch;
     if (!inCollectSet) {
         // OUTSIDE_SET allocation metadata can still be owner-mutated. Do not
         // read its alloc plane; validate publication before caching a new bit.
@@ -890,32 +896,16 @@ void MarkSweepCollector::AddManagedRefToBarrierBuffer(
 #endif
     }
 
-    // Local keys are owner-private and win over a shared-plane probe. Probe
-    // only new keys so repeated writes to one word stay on the TLS cache line.
-    if (localEntry == kMSBarrierMarkBufferInvalidEntry) {
-        uintptr_t markPlaneBase = static_cast<uintptr_t>(__atomic_load_n(
-            &CJ_MRT_MSGCFastPathState.markPlaneBase, __ATOMIC_ACQUIRE));
-        CHECK_DETAIL(
-            markPlaneBase != 0,
-            "[MS-GC] barrier add without a published mark plane");
-        uint64_t* markWord =
-            reinterpret_cast<uint64_t*>(markPlaneBase) + wordKey;
-        if (LIKELY(
-                (__atomic_load_n(markWord, __ATOMIC_RELAXED) &
-                 target.bitMask) != 0)) {
-            return;
-        }
-    }
-
-    MSBarrierMarkAddResult result = TryAddMSBarrierMarkPendingBits(
-        buffer, wordKey, target.bitMask);
+    MSBarrierMarkAddResult result = TryAddMSBarrierMarkSingleBitAtLookup(
+        buffer, wordKey, target.bitMask, localLookup);
     if (LIKELY(result != MSBarrierMarkAddResult::NEEDS_FLUSH)) {
         return;
     }
 
     FlushBarrierMarkBuffer(buffer);
-    result = TryAddMSBarrierMarkPendingBits(
-        buffer, wordKey, target.bitMask);
+    result = TryAddMSBarrierMarkSingleBitAtLookup(
+        buffer, wordKey, target.bitMask,
+        LookupMSBarrierMarkEntry(buffer, wordKey));
     CHECK_DETAIL(
         result != MSBarrierMarkAddResult::NEEDS_FLUSH,
         "[MS-GC] empty barrier mark buffer rejected one bit key=0x%llx",
@@ -952,7 +942,7 @@ void MarkSweepCollector::FlushBarrierMarkBuffer(
         MSRegionInfo* info;
         uint64_t wordMask;
     };
-    PendingRegionPublication pending[kMSBarrierMarkBufferCapacity] {};
+    PendingRegionPublication pending[kMSBarrierMarkBufferCapacity];
     size_t pendingCount = 0;
 
     uint32_t occupied = buffer.occupancy;
@@ -1053,12 +1043,9 @@ void MarkSweepCollector::PrepareBarrierMarkBuffersForNewEpochUnderSTW(
 {
     central.VisitAllocBufferMS([](AllocBufferMS& buffer) {
         MSBarrierMarkBuffer& markBuffer = buffer.GetBarrierMarkBuffer();
-        CHECK_DETAIL(
-            IsMSBarrierMarkBufferEmpty(markBuffer) &&
-            markBuffer.pendingBitCount == 0,
-            "[MS-GC] non-empty barrier buffer crossed into PreEnum "
-            "occupancy=0x%x pendingBits=%u",
-            markBuffer.occupancy, markBuffer.pendingBitCount);
+        // The buffer has no epoch tag. Anything left while the mark barrier is
+        // inactive belongs to the completed cycle and must not be published
+        // into the mark plane that BuildCollectSet installs for the new cycle.
         ResetMSBarrierMarkBuffer(markBuffer);
     });
 }

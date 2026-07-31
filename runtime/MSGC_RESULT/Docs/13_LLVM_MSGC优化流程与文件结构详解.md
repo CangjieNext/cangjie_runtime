@@ -30,7 +30,7 @@ flowchart TD
     G -->|no| W[runtime wrapper]
     E --> W
     W --> R[MSMarkBarrier]
-    R --> B[MarkWordBatch + scheduler]
+    R --> B[TLS barrier buffer + scheduler]
 ```
 
 目标 emitter 的 fast path 必须与 wrapper 等价；不支持的 target、calling convention 或
@@ -84,7 +84,8 @@ runtime publication：
 
 - 非 Mark phase 的 store-only gate；
 - 对已知 ref/static-ref 选择专用 wrapper；
-- struct/array 保留 bulk old-value enumeration；
+- short-GCTib struct/static-struct 可在 target 内枚举 old value，其他 bulk 保留
+  Runtime enumeration；
 - target 支持时 inline heap/phase precheck；
 - 将无法证明安全的情况回退 wrapper。
 
@@ -133,7 +134,7 @@ compiler 不需要自行计算 Mark debt，但其 fast allocation 最终必须�
 - GCMode/module flags；
 - `CJ_MRT_MSGCFastPathState` 中公开字段；
 - 经 `static_assert` 固化的 Region/allocator offsets；
-- barrier phase 的发布语义；
+- `ThreadLocalData::encodedGCPhase` 的发布语义；
 - heap/reference representation。
 
 ### 8.2 已镜像布局、但不由当前写屏障 emitter 修改的内容
@@ -145,11 +146,13 @@ compiler 不需要自行计算 Mark debt，但其 fast allocation 最终必须�
 - `MSTaskLedger`；
 - WU slice 与 helper policy。
 
-`CJMSGCABI.h` 已镜像完整 `MSGCFastPathState` 与 `MSRegionInfo` offset，包括 scan-plane base、
-task-next 和 pending-summary，因此这些字段的**位置**已纳入 compiler/runtime ABI 检查。
-但当前 AArch64/X86 写屏障 emitter 的实际 Mark 路径仍调用 runtime wrapper；它只在 IDLE
-phase 内联 raw store/copy，不直接执行 pending publication或 scheduler admission。Ready
-stack、ledger 与 WU policy仍完全是 runtime行为。
+`CJMSGCABI.h` 已镜像完整 `MSGCFastPathState` 与 `MSRegionInfo` offset，包括 scan-plane
+base、task-next 和 pending-summary，因此这些字段的**位置**已纳入 compiler/runtime ABI
+检查。当前 AArch64/X86 emitter 会在 Mark phase 为 Ref/StaticRef 和 short-GCTib
+Struct/StaticStruct 直接合并 owner-private TLS entry；ArrayCopy、StdGCTib、含引用
+RawArray、LARGE/OUTSIDE_SET 和校验失败路径仍调用 Runtime wrapper。两类 inline 都不直接
+执行 pending publication 或 scheduler admission，Ready stack、ledger 与 WU policy仍完全
+由 Runtime 管理。
 
 ## 9. 三套 bitmap plane
 

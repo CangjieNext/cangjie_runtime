@@ -167,9 +167,10 @@ publish(old)
 store(field, new)
 ```
 
-标量写使用一个栈上 mark batch，并在覆盖旧值前立即 flush。struct/array bulk 写可在同一
-操作内合并多个旧引用，但 `BulkRefMarker` 析构前必须 flush，且 flush 发生在 memcpy/
-memmove 覆盖旧区域之前。
+标量和 struct/array bulk 写都使用 `AllocBufferMS` 中持久的
+`MSBarrierMarkBuffer`。old edge 必须在覆盖前加入该 owner-private buffer或完成立即
+fallback，但 wrapper 返回不是 flush 边界；threshold、4-way 冲突、owner 退出和
+MarkTermination STW 负责统一 flush。
 
 屏障发布的是 bitmap work，而不是把对象地址追加到 TLS 日志。编译器可以进行 phase gate
 和 wrapper lowering，但 Region scan scheduler 的内部状态由 runtime 管理。

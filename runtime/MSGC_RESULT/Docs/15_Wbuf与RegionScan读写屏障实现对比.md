@@ -38,12 +38,12 @@ WB_LLVM = Wbuf LLVM
 | 普通读屏障 | LLVM 直接降成 load/memcpy | LLVM 直接降成 load/memcpy | 实现和成本基本一致 |
 | atomic read | 当前仍调用 Runtime，Runtime raw atomic load | 同左 | 两边都有一个可继续优化的调用空档 |
 | Idle 写屏障 | 支持的 target 内联 phase gate + raw store/copy | 同左 | 基本一致 |
-| Mark 标量写 | 支持的 target 可内联 mark winner + `activeLog_` append | phase 2 下 Ref/StaticRef 的 collect-set Small 可直接合并到 TLS bitmap batch；其他情况回 Runtime | 两边常见标量路径均可避免 Runtime call，但 Region-scan 延迟全局 publication |
+| Mark 标量写 | 支持的 target 可内联 mark winner + `activeLog_` append | Ref/StaticRef 的 collect-set Small 可直接合并到 TLS bitmap batch；其他情况回 Runtime | 两边常见标量路径均可避免 Runtime call，但 Region-scan 延迟全局 publication |
 | Mark bulk 写 | bitmap-word 合并，winner 对象进入 WorkBuf | Runtime 枚举 old ref 并合并进持久 TLS bitmap batch，wrapper 返回不 flush | dense/bulk 与后续标量可继续合并 |
 | Mark 工作表示 | 每个待扫描对象一个 WorkBuf entry | `markBitmap & ~scanBitmap` | Region-scan 不需要普通灰对象队列 |
 | 原子写顺序 | swap/CAS 先 mutation，成功后 enqueue old | old-before-mutation，store/swap 使用 CAS loop | Region-scan 顺序更强，但竞争时更重 |
-| LLVM/Runtime ABI | LLVM 直接依赖 TLS、`activeLog_`、WorkBuf、Region/TypeInfo 布局 | LLVM 依赖 versioned phase、固定 528B buffer、RegionInfo、bitmap plane 与 size-class descriptor | Region-scan 以 V3 signature/phase 显式版本化 ABI |
-| 代码体积 | Mark inline 展开较大 | Ref/StaticRef 展开 coordinate + 4-way cache；Struct/ArrayCopy Mark 仍是 wrapper | Region-scan 第一版控制在标量入口 |
+| LLVM/Runtime ABI | LLVM 直接依赖 TLS、`activeLog_`、WorkBuf、Region/TypeInfo 布局 | LLVM 依赖 `encodedGCPhase`、固定 528B buffer、RegionInfo、bitmap plane 与 size-class descriptor | Region-scan 不再用单独 capability phase/version 开关 |
+| 代码体积 | Mark inline 展开较大 | Ref/StaticRef 展开 coordinate + 4-way cache；Struct/StaticStruct 用函数内 leaf thunk 复用；ArrayCopy Mark 仍是 wrapper | Region-scan 避免为每个 struct ref 复制完整 lookup |
 
 ## 3. 总体编译与调用链
 
@@ -125,18 +125,17 @@ CJ_MCC_WriteStructField(
 
 ## 5. phase 安装
 
-两边的 IDLE/Mark barrier 语义相同，但 Region-scan 用 phase 值表达 LLVM/Runtime ABI
-capability：
+两边的 IDLE/Mark barrier 语义相同，但 phase 来源不同。Wbuf 使用自身 fast-path
+state；Region-scan 的 LLVM 与 Runtime 都读取当前线程 `encodedGCPhase`：
 
-| 状态 | Wbuf `barrierPhase` | Region-scan `barrierPhase` | 写语义 |
-|---|---:|---:|---|
-| IDLE/FINISH/RECLAIM | 0 | 0 | raw store/memcpy/memmove |
-| MarkSetup/ConcurrentMark/MarkTermination | 1 | 2（V3 开启）或 1（诊断回退） | old-only deletion barrier |
-| 未知非零值 | Runtime Mark 路径 | wrapper-only | 保守 Runtime 行为 |
+| Region-scan GCPhase 区间 | 写语义 |
+|---|---|
+| `IDLE..RECLAIM_SATB_NODE` | raw store/memcpy/memmove |
+| `MS_MARK_SETUP..MS_MARK_TERMINATION` | old-only deletion barrier |
+| 其他值 | 保守 Runtime wrapper |
 
-Region-scan 的值 2 表示 `MARK_TLS_BATCH_V3`；只有这个值允许 LLVM 访问
-`AllocBufferMS + 576` 的固定 buffer。`CJ_MS_BARRIER_TLS_BATCH=0` 在启动时固定发布值 1，
-使 Ref/StaticRef 也回 wrapper并立即提交。未知未来 phase 不得按 V3 布局解释。
+两个连续三元素区间各用一次 unsigned range check；Region-scan 不再保留
+`WRAPPER_ONLY/TLS_BATCH_V3/MARK_WRAPPER_ONLY` 或单独的 lowering 开关。
 
 两边共同的 Mark 写语义是：
 
@@ -203,8 +202,8 @@ MSGC 不移动对象，因此两边都没有以下 CopyGC 读侧职责：
 对六类 `*_Fast_MSGC` wrapper，Wbuf 和 Region-scan 的 Idle 逻辑一致：
 
 ```text
-load-acquire barrierPhase
-if phase == 0:
+load encodedGCPhase
+if phase in IDLE..RECLAIM_SATB_NODE:
     Ref / StaticRef       -> raw 64-bit store
     Struct / StaticStruct -> memcpy
     ArrayCopy             -> memmove
@@ -235,7 +234,7 @@ atomic 和未进入六类 wrapper 的 generic/copy 入口，不使用这套 targ
 | 读取旧值 | `old = MSLoadRawReference(field)` | 同左 |
 | 相同值写 | `old == new` 时跳过 enqueue | 同左 |
 | heap gate | null/非 heap 直接跳过 | 同左 |
-| owner | active collector + 当前线程 `AllocBufferMS` | acquire-load versioned `barrierPhase` + active collector + 当前线程 `AllocBufferMS` |
+| owner | active collector + 当前线程 `AllocBufferMS` | `encodedGCPhase` + active collector + 当前线程 `AllocBufferMS` |
 | 标记 | old 对象竞争 mark bit | small old ref 合并进 `MSBarrierMarkBuffer`；flush 时 OR mark word |
 | 去重 | 只有 mark-CAS winner 继续 | TLS mask 先去重；flush 时只有全局 `newBits` 继续 |
 | 无引用对象 | mark 后不进入 WorkBuf | mark 后不发布 scan task；普通情况依赖 Region `ScanClass` |
@@ -317,13 +316,13 @@ candidates = markBitmap[word] & ~scanBitmap[word]
 
 | target / 屏障 | Wbuf Mark | Region-scan Mark |
 |---|---|---|
-| AArch64 ref/static-ref | inline small/large mark、HasRef 判断、activeLog append；异常情况回 wrapper | phase 2 的 collect-set Small 直接写 TLS buffer；其他情况回 wrapper |
-| AArch64 struct/static-struct | 尽量 inline GCTib 枚举和 mark；short descriptor 可 pair commit；校验失败回 wrapper/helper | 全部回 Runtime wrapper |
+| AArch64 ref/static-ref | inline small/large mark、HasRef 判断、activeLog append；异常情况回 wrapper | collect-set Small 直接写 TLS buffer；其他情况回 wrapper |
+| AArch64 struct/static-struct | 尽量 inline GCTib 枚举和 mark；short descriptor 可 pair commit；校验失败回 wrapper/helper | short GCTib inline 枚举并调用 local leaf thunk；StdGCTib/含引用 RawArray/校验失败回 wrapper |
 | AArch64 array-copy ref/struct | Mark 一律回 Runtime bulk barrier | Mark 一律回 Runtime bulk barrier |
-| X86-64 ELF ref/static-ref | inline small `lock btsq`、large mark、HasRef、activeLog append | phase 2 的 collect-set Small 直接写 TLS buffer，owner-private 路径无 `lock` |
-| X86-64 ELF struct/static-struct | inline/leaf helper 枚举，异常情况回 wrapper | 全部回 Runtime wrapper |
-| X86-64 COFF ref/struct | 与 ELF 类似，并按 Win64 ABI 保存/恢复参数 | Ref/StaticRef 与 ELF 同逻辑并保留 Win64 slow-call 参数；Struct 回 wrapper |
-| X86-64 Mach-O Mark | 回 Runtime wrapper | Ref/StaticRef 支持相同 V3 fast-add；其他 Mark wrapper |
+| X86-64 ELF ref/static-ref | inline small `lock btsq`、large mark、HasRef、activeLog append | collect-set Small 直接写 TLS buffer，owner-private 路径无 `lock` |
+| X86-64 ELF struct/static-struct | inline/leaf helper 枚举，异常情况回 wrapper | short GCTib inline/leaf thunk，异常情况回 wrapper |
+| X86-64 COFF ref/struct | 与 ELF 类似，并按 Win64 ABI 保存/恢复参数 | 与 ELF 同逻辑；Struct 只在 Mark 分支保存参数，IDLE 不承担保存/恢复 |
+| X86-64 Mach-O Mark | 回 Runtime wrapper | Ref/StaticRef 与 short-GCTib Struct 支持相同 TLS fast-add；其他 Mark wrapper |
 | X86-64 array-copy Mark | 回 Runtime wrapper | 回 Runtime wrapper |
 | atomic read/write/swap/CAS | 无 MSGC target inline | 无 MSGC target inline |
 | assign/payload/array-generic/copy-struct | 无专用 target inline | 无专用 target inline |
@@ -358,9 +357,9 @@ large mark 使用原子 byte 更新。
 Region-scan 当前 Ref/StaticRef target emitter 实现：
 
 ```text
-phase 0 -> raw store
-phase 1/unknown -> wrapper
-phase 2:
+idle GCPhase range -> raw store
+未知 GCPhase -> wrapper
+mark GCPhase range:
   old null/equal -> store
   精确校验 heap/Small/collect epoch/slot
   用 36-entry divMagic table得到 slot/word/bit
@@ -379,8 +378,8 @@ owner-private fast-add 只有普通 load/store，不执行全局 bitmap atomic�
 - Region/Object ready lane。
 
 这些全局状态都由 Runtime flush 统一维护。Struct/StaticStruct 的 short-GCTib direct
-在设计中属于 P2；当前 Mark 仍回 wrapper。ArrayCopy 与 atomic 同样回 Runtime，但 wrapper
-返回不再强制 flush。
+已经落地，并在循环外缓存 fast-path state/TLS buffer；ArrayCopy 与 atomic 仍回 Runtime，
+wrapper 返回不强制 flush。
 
 ## 10. atomic 写屏障对比
 
@@ -422,9 +421,9 @@ mutation-success 与 old publication 之间的窗口。代价是：
 
 | ABI 项 | Wbuf LLVM write inline | Region-scan LLVM write inline |
 |---|---|---|
-| `CJ_MRT_MSGCFastPathState.barrierPhase` | 使用 | 使用 |
-| heap reserved start/end | Mark inline 使用 | Ref/StaticRef Mark inline 使用 |
-| RegionInfo array base | Mark inline 使用 | Ref/StaticRef Mark inline 使用 |
+| phase 来源 | `CJ_MRT_MSGCFastPathState` 中的 Wbuf gate | 当前线程 `encodedGCPhase` |
+| heap reserved start/end | Mark inline 使用 | Ref/StaticRef/Struct Mark inline 使用 |
+| RegionInfo array base | Mark inline 使用 | Ref/StaticRef/Struct Mark inline 使用 |
 | Region type/slot/bitmap offset | 使用 | 使用 |
 | large marked flag | 使用 | LLVM不直接使用，LARGE回 wrapper |
 | TLS `AllocBufferMS` offset | 使用 | 固定为 88，使用 |
@@ -436,8 +435,8 @@ mutation-success 与 old publication 之间的窗口。代价是：
 | pending summary / scan state / ledger | 不使用 | 不由 LLVM 使用，统一留给 Runtime flush |
 
 Wbuf 的 inline fast path性能更积极，但任何相关 Runtime 布局变化都要求 LLVM、Runtime、
-stdlib/stdx 和应用整体重编。Region-scan 同样形成固定跨仓 ABI，但通过 V3 signature 与
-phase capability 显式版本化；布局不兼容时必须发布新 phase 值并完整重编 SDK。
+stdlib/stdx 和应用整体重编。Region-scan 同样形成固定跨仓 ABI；布局不兼容时必须同步
+更新 Runtime static assertions、`CJMSGCABI.h` 与 target tests，并完整重编 SDK。
 
 ## 13. 性能影响判断
 
@@ -447,7 +446,8 @@ phase capability 显式版本化；布局不兼容时必须发布新 phase 值�
 - Idle 六类 write wrapper：两边都是 phase gate 后 raw store/copy；
 - dense bulk write：Region-scan 的 32-entry word batch、pending-word 合并和单 Region token
   可能减少 object-pointer queue 流量；
-- Struct/ArrayCopy Mark 仍回 wrapper，代码体积没有扩展到全部 bulk callsite。
+- Struct/StaticStruct 通过每个函数一份 local leaf thunk 控制代码体积；ArrayCopy Mark
+  仍回 wrapper。
 
 ### 13.2 Region-scan 更容易劣化的路径
 
@@ -524,5 +524,5 @@ phase capability 显式版本化；布局不兼容时必须发布新 phase 值�
 | worker/root mark batch | `RS_RT/src/Heap/MCollector/MSMarkBatch.h` |
 | pending summary / scan state | `RS_RT/src/Heap/MAllocator/MSRegionInfo.h` |
 | REGION/OBJECT scheduler | `RS_RT/src/Heap/MCollector/MSMarkScheduler.cpp`、`.h` |
-| AArch64 Ref/StaticRef V3 inline | `RS_LLVM/llvm/lib/Target/AArch64/AArch64MSGCEmitter.cpp` |
-| X86 Ref/StaticRef V3 inline | `RS_LLVM/llvm/lib/Target/X86/X86MSGCEmitter.cpp` |
+| AArch64 TLS fast-add inline | `RS_LLVM/llvm/lib/Target/AArch64/AArch64MSGCEmitter.cpp` |
+| X86 TLS fast-add inline | `RS_LLVM/llvm/lib/Target/X86/X86MSGCEmitter.cpp` |

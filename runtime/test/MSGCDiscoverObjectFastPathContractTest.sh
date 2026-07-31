@@ -32,8 +32,9 @@ if [[ -z "$weak_ref_line" || -z "$has_ref_guard_line" ||
     exit 1
 fi
 
-rg -Uq '(?s)ResolveMarkOwner\(.*GetThreadLocalData\(\)->encodedGCPhase' "$BARRIER"
-rg -q 'collector_->AddManagedRefToBarrierBuffer\(ref, \*buffer_\)' "$BARRIER"
+rg -Uq '(?s)BarrierMarkContext\(\).*GetThreadLocalData\(\)->encodedGCPhase' "$BARRIER"
+rg -Uq '(?s)void EnsureOwner\(\).*GetActiveCollector\(\).*GetAllocBufferMS\(\).*currentMarkEpoch' "$BARRIER"
+rg -q 'collector_->AddManagedRefToBarrierBuffer\(ref, \*buffer_, currentMarkEpoch_\)' "$BARRIER"
 rg -q 'collector_->PublishManagedRefForBarrierImmediately\(ref\)' "$BARRIER"
 if rg -q 'AddManagedRefToMarkBatch|FlushBarrierMarkBatch|PublishManagedRefForBarrier\(' \
     "$COLLECTOR" "$BARRIER"; then

@@ -100,7 +100,8 @@ public:
     // Persistent per-owner barrier producer API. Barrier publication is
     // deliberately excluded from cycleCompletedMarkWU_ pacing statistics.
     void AddManagedRefToBarrierBuffer(
-        BaseObject* ref, MSBarrierMarkBuffer& buffer);
+        BaseObject* ref, MSBarrierMarkBuffer& buffer,
+        uint32_t currentMarkEpoch);
     void PublishManagedRefForBarrierImmediately(BaseObject* ref);
     void FlushBarrierMarkBuffer(MSBarrierMarkBuffer& buffer);
     void FlushMarkBatch(MSMarkWordBatch& batch, MSWorkUnitCounter& work);
@@ -216,9 +217,8 @@ private:
     // ── Root staging (populated and fully drained inside EnumRoots) ──
     GreyWorkQueue rootStaging_;
 
-    // Step62 unified Region/Object mark scheduler. Ordinary small grey work is
-    // represented by mark/scan
-    // planes plus Region tasks.
+    // Unified Region/Object mark scheduler. Ordinary small grey work is
+    // represented by mark/scan planes plus Region tasks.
     MSMarkScheduler markScheduler_;
     MSWorkUnitPacer markPacer_;
     std::atomic<uint64_t> cycleCompletedMarkWU_{0};

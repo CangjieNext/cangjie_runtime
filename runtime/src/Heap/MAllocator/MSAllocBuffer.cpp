@@ -185,12 +185,10 @@ void AllocBufferMS::Fini()
     if (collector != nullptr) {
         collector->NotifyAllocBufferExit(*this);
     } else {
-        CHECK_DETAIL(
-            IsMSBarrierMarkBufferEmpty(barrierMarkBuffer_),
-            "[MS-GC] AllocBufferMS finalized with pending barrier work "
-            "outside an active mark epoch: occupancy=0x%x pendingBits=%u",
-            barrierMarkBuffer_.occupancy,
-            barrierMarkBuffer_.pendingBitCount);
+        // Without an active mark epoch, pending entries can only belong to the
+        // completed cycle. They have no epoch tag and cannot be published into
+        // a future mark plane.
+        ResetMSBarrierMarkBuffer(barrierMarkBuffer_);
     }
 
     if (central_ != nullptr) {

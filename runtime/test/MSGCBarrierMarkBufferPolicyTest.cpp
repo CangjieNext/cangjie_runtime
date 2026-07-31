@@ -27,10 +27,33 @@ int main()
     assert(TryAddMSBarrierMarkPendingBits(buffer, firstKey, UINT64_C(1)) ==
            MSBarrierMarkAddResult::ALREADY_PENDING);
     assert(buffer.pendingBitCount == 1);
-    assert(TryAddMSBarrierMarkPendingBits(buffer, firstKey, UINT64_C(2)) ==
+    const MSBarrierMarkLookup firstLookup =
+        LookupMSBarrierMarkEntry(buffer, firstKey);
+    assert(firstLookup.existingEntry != kMSBarrierMarkBufferInvalidEntry);
+    assert(TryAddMSBarrierMarkPendingBitsAtLookup(
+               buffer, firstKey, UINT64_C(2), firstLookup) ==
            MSBarrierMarkAddResult::ADDED);
     assert(buffer.pendingBitCount == 2);
     assert(__builtin_popcount(buffer.occupancy) == 1);
+    const uint64_t secondKey = MakeMSBarrierMarkWordKey(4, 2);
+    const MSBarrierMarkLookup secondLookup =
+        LookupMSBarrierMarkEntry(buffer, secondKey);
+    assert(TryAddMSBarrierMarkSingleBitAtLookup(
+               buffer, secondKey, UINT64_C(4), secondLookup) ==
+           MSBarrierMarkAddResult::ADDED);
+    assert(buffer.pendingBitCount == 3);
+    const MSBarrierMarkLookup secondHit =
+        LookupMSBarrierMarkEntry(buffer, secondKey);
+    assert(TryAddMSBarrierMarkSingleBitAtLookup(
+               buffer, secondKey, UINT64_C(8), secondHit) ==
+           MSBarrierMarkAddResult::ADDED);
+    assert(buffer.pendingBitCount == 4);
+
+    // A valid lastEntry always names an occupied entry until clear/reset
+    // invalidates it, so the MRU lookup does not need to probe occupancy.
+    buffer.occupancy &= ~(UINT32_C(1) << secondHit.existingEntry);
+    assert(LookupMSBarrierMarkEntry(buffer, secondKey).existingEntry ==
+           secondHit.existingEntry);
 
     ResetMSBarrierMarkBuffer(buffer);
     for (uint32_t way = 0; way < 4; ++way) {

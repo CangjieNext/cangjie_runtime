@@ -269,35 +269,40 @@ partialTop_    // root tail / exit / STW handoff，以及 Pool 中的 empty buff
 
 ### 5.1 当前实现
 
-Mark 阶段的 bulk write 需要在覆盖目标内存之前保留旧引用。当前 `MSMarkBarrier.cpp` 中存在三种扫描行为：
+> 2026-07-31 更新：本节早期记录的 `dstLen/dstSize` 过扫描和栈上
+> `BulkRefMarker` 已被后续实现替换。
+
+Mark 阶段的 bulk write 在覆盖目标内存之前保留旧引用。当前 `MSMarkBarrier.cpp`
+先检查 source 长度不超过 destination 容量，再按实际覆盖长度扫描：
 
 | 操作 | 旧引用扫描范围 | 实际覆盖范围 |
 | --- | --- | --- |
-| `WriteStruct()` | `dstLen` | `srcLen` |
-| `CopyRefArray()` | `dstSize` | `srcSize` |
-| `CopyStructArray()` | `min(dstSize, srcSize)` | `srcSize`，且 securec 要求 `srcSize <= dstSize` |
+| `WriteStruct()` | `srcLen` | `srcLen` |
+| `CopyRefArray()` | `srcSize` | `srcSize` |
+| `CopyStructArray()` | `srcSize` | `srcSize` |
 
-`dstLen/dstSize` 在 `memcpy_s/memmove_s` 中是目标缓冲区容量，真正被覆盖的字节数是 `srcLen/srcSize`。因此前两个路径会将目标容量中未被修改的尾部引用也 shade。这不会丢对象，但会：
+`dstLen/dstSize` 只作为 `memcpy_s/memmove_s` 的目标容量。旧实现对未覆盖尾部的
+额外扫描已经删除，TSAN range 也统一使用 `srcLen/srcSize`。
 
-- 扩大 barrier 扫描量。
-- 将原本不需要保留的对象标记为存活，增加本轮 floating garbage。
-- 将更多灰对象写入 P activeLog/globalFull，放大 Mark WorkBuf 竞争。
-
-当 ResolveLogOwner 成功后，每次 bulk 操作都在栈上创建 `BulkRefMarker`。其包含两个 Entry，每个 Entry 都含有 `BaseObject* refs[64]`，总大小约 1KB。即使只复制一两个引用，也要初始化这个结构。它只合并两个 `(MSRegionInfo*, bitmap word)`，引用分散到多个 Region/word 时会频繁 evict 并执行 atomic OR。
+当前 bulk 与 scalar 共用 non-owning `BarrierMarkContext` 和持久
+`MSBarrierMarkBuffer`，不再构造约 1KB 的栈上 `BulkRefMarker`。bulk 构造 context 时
+只判断一次 phase/collector，循环内使用 `AddOldRefActive()`。
 
 ### 5.2 扫描范围优化
 
-`WriteStruct()` 和 `CopyRefArray()` 都应显式计算：
+当前实现不再通过 `min` 掩盖非法参数，而是在扫描旧引用前检查：
 
 ```cpp
-size_t copiedLen = std::min(dstLen, srcLen);
+CHECK_DETAIL(srcLen <= dstLen, ...);
 ```
 
-并只扫描 `[dst, dst + copiedLen)` 中的旧引用。在正常 securec 调用中 `srcLen <= dstLen`，所以 `copiedLen == srcLen`；使用 `min` 是为了与现有 TSAN 记账及 `CopyStructArray()` 写法保持一致。
-
-实施前必须核对所有 `CJ_MCC_ArrayCopyRef`/`CJ_MCC_CopyStructField` 调用者的参数语义，并添加 `dstSize > srcSize` 的回归用例：尾部旧引用仍保持在数组中，但不应因本次 copy 被额外 shade。
+随后只扫描 `[dst, dst + srcLen)`。`CopyRefArray/CopyStructArray` 使用相同的
+`srcSize <= dstSize` 契约；尾部旧引用仍留在目标中，不因本次 copy 被额外 discover。
 
 ### 5.3 小批量与大批量分层
+
+> 历史备选，当前不再采用。持久 `MSBarrierMarkBuffer` 已统一 scalar/bulk，
+> 不再按引用数量构造不同的栈上 marker。
 
 建议把 bulk marker 拆成两条路径：
 
@@ -1311,7 +1316,7 @@ Contract test 只能保证某些语义/代码结构没有被意外删除，不�
 | SmallObj 纯分配，1P/8P/64P | Region notify 采样、empty cache refill、FreeManager shard lock |
 | 高 fan-out/高入度对象图 | `DiscoverObject()` 已 marked 快路径、Mark Worker/Global WorkBuf |
 | 50% live/half-alive | `SweepRegion()` dead run 清零和 Sweep regions/s |
-| 大量 struct/ref-array copy | copied-length barrier、small/large BulkRefMarker |
+| 大量 struct/ref-array copy | 精确覆盖范围、持久 buffer threshold/set-conflict |
 | 16KB 边界和 Large churn | Runtime/LLVM ABI、hot-cache lock、span memset/page fault |
 | 超 scavenge threshold 的波峰分配 | shard lock p99、两阶段页释放、RSS 回落 |
 | case27 HTTP complex JSON 高并发 | Barrier、Mark tail、Mutator throughput、历史 stale-edge 稳定性 |
@@ -1401,7 +1406,7 @@ GC 指标：
 
 | 文件 | 关键符号 | 本 Step 关注点 |
 | --- | --- | --- |
-| `src/Heap/MBarrier/MSMarkBarrier.cpp` | `EnqueueRefFast`、`BulkRefMarker`、`WriteStruct`、`CopyRefArray`、atomic writes | 重复 range check、copied length、bulk 分层 |
+| `src/Heap/MBarrier/MSMarkBarrier.cpp` | `BarrierMarkContext`、`AddOldRefActive`、`WriteStruct`、`CopyRefArray`、atomic writes | 单次 phase gate、精确覆盖范围、TypeInfo/GCTib 复用 |
 | `src/Heap/MCollector/MarkSweepCollector.cpp` | `IsTraceableObjectAddressEx`、`DiscoverObject`、`ResolveSmallRefForBarrier`、`TraceObjectRefFieldsToGCWork` | stale slot 校验、已 marked 快路径 |
 | `src/Heap/MAllocator/MSRegionInfo.h/.cpp` | `MarkObjectInHeapKnown`、`TestAndSetMarkBit`、`MarkBitmapWord` | mark bit test/CAS、small/large 区分 |
 | `src/CompilerCalls.cpp` | `CJ_MCC_ArrayCopyRef`、`CJ_MCC_CopyStructField` | dst/src length ABI 语义 |

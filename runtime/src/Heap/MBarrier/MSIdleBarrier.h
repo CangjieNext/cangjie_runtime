@@ -18,7 +18,7 @@
 
 namespace MapleRuntime {
 
-// MSIdleBarrier — Zero-overhead barrier while MSGC marking is inactive.
+// MSIdleBarrier — direct-access barrier while MSGC marking is inactive.
 //
 // All reads:  direct load (no self-healing needed — MS has no fromSpace/toSpace)
 // All writes: direct store (no shading needed — no concurrent marking active)

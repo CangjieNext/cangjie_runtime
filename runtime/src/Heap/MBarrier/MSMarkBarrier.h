@@ -16,14 +16,21 @@ namespace MapleRuntime {
 class Mutator;
 
 namespace MSBarrierOps {
-void WriteReference(BaseObject* obj, RefField<false>& field, BaseObject* ref);
+void WriteReference(RefField<false>& field, BaseObject* ref);
 void WriteStaticRef(RefField<false>& field, BaseObject* ref);
 void WriteStruct(BaseObject* obj, MAddress dst, size_t dstLen, MAddress src, size_t srcLen);
 void WriteStaticStruct(MAddress dst, size_t dstLen, MAddress src, size_t srcLen, const GCTib gctib);
-void CopyRefArray(BaseObject* dstObj, MAddress dstField, MIndex dstSize,
-                  BaseObject* srcObj, MAddress srcField, MIndex srcSize);
+void CopyRefArray(MAddress dstField, MIndex dstSize,
+                  MAddress srcField, MIndex srcSize);
 void CopyStructArray(BaseObject* dstObj, MAddress dstField, MIndex dstSize,
-                     BaseObject* srcObj, MAddress srcField, MIndex srcSize);
+                     MAddress srcField, MIndex srcSize);
+void AtomicWriteReference(RefField<true>& field, BaseObject* ref,
+                          MemoryOrder order);
+BaseObject* AtomicSwapReference(RefField<true>& field, BaseObject* newRef,
+                                MemoryOrder order);
+bool CompareAndSwapReference(RefField<true>& field, BaseObject* oldRef,
+                             BaseObject* newRef,
+                             MemoryOrder succOrder, MemoryOrder failOrder);
 } // namespace MSBarrierOps
 
 // MSMarkBarrier — deletion-style write barrier for MSGC concurrent marking.

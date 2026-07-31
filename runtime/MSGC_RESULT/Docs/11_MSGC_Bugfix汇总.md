@@ -50,8 +50,10 @@ closure:
 load old → publish and flush old → overwrite destination
 ```
 
-当前标量 barrier 调用 `PublishManagedRefForBarrier()` 并即时 flush 栈上 batch；struct/array
-bulk barrier 用 `BulkRefMarker` 合并旧引用，但在 memcpy/memmove 前析构 flush。
+当前标量和 struct/array bulk barrier 共用 `AllocBufferMS` 中持久的
+`MSBarrierMarkBuffer`。每个 old edge 在 memcpy/memmove 前完成本地 capture；buffer
+由 threshold、4-way 冲突、owner 退出或 MarkTermination STW 统一 flush，而不是在
+wrapper 返回时析构 flush。
 
 仍需回归：
 

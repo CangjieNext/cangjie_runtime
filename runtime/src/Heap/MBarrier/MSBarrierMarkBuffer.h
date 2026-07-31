@@ -33,6 +33,9 @@ struct alignas(8) MSBarrierMarkEntry {
 struct alignas(8) MSBarrierMarkBuffer {
     MSBarrierMarkEntry entries[kMSBarrierMarkBufferCapacity];
     uint32_t occupancy;
+    // Runtime additions count newly pending bits exactly. The compiler inline
+    // path deliberately omits the already-pending probe, so its idempotent
+    // ORs also consume this conservative flush budget.
     uint32_t pendingBitCount;
     uint8_t lastEntry;
     uint8_t reserved[3];
@@ -42,6 +45,11 @@ enum class MSBarrierMarkAddResult : uint8_t {
     ALREADY_PENDING,
     ADDED,
     NEEDS_FLUSH
+};
+
+struct MSBarrierMarkLookup {
+    uint8_t existingEntry;
+    uint8_t emptyEntry;
 };
 
 inline uint64_t MakeMSBarrierMarkWordKey(uint32_t regionIdx, uint32_t wordIdx)
@@ -88,42 +96,60 @@ inline void ResetMSBarrierMarkBuffer(MSBarrierMarkBuffer& buffer)
     buffer.reserved[2] = 0;
 }
 
-inline uint8_t FindMSBarrierMarkEntry(
+inline MSBarrierMarkLookup LookupMSBarrierMarkEntry(
     const MSBarrierMarkBuffer& buffer, uint64_t wordKey)
 {
     uint8_t last = buffer.lastEntry;
+    // The owner publishes lastEntry only after the entry and occupancy bit,
+    // and clear/reset invalidates it together with occupancy. A valid index
+    // can therefore probe the MRU key without reloading occupancy.
     if (last < kMSBarrierMarkBufferCapacity &&
-        (buffer.occupancy & (UINT32_C(1) << last)) != 0 &&
         buffer.entries[last].wordKey == wordKey) {
-        return last;
+        return MSBarrierMarkLookup {
+            last, kMSBarrierMarkBufferInvalidEntry};
     }
 
     uint32_t first =
         GetMSBarrierMarkBufferSet(wordKey) * kMSBarrierMarkBufferWays;
-    uint32_t occupiedWays =
-        (buffer.occupancy >> first) &
-        ((UINT32_C(1) << kMSBarrierMarkBufferWays) - 1);
+    uint32_t allWays = (UINT32_C(1) << kMSBarrierMarkBufferWays) - 1;
+    uint32_t occupiedSet = (buffer.occupancy >> first) & allWays;
+    uint32_t occupiedWays = occupiedSet;
+    if (last >= first && last < first + kMSBarrierMarkBufferWays) {
+        occupiedWays &= ~(UINT32_C(1) << (last - first));
+    }
     while (occupiedWays != 0) {
         uint32_t way =
             static_cast<uint32_t>(__builtin_ctz(occupiedWays));
         uint32_t entryIdx = first + way;
         if (buffer.entries[entryIdx].wordKey == wordKey) {
-            return static_cast<uint8_t>(entryIdx);
+            return MSBarrierMarkLookup {
+                static_cast<uint8_t>(entryIdx),
+                kMSBarrierMarkBufferInvalidEntry};
         }
         occupiedWays &= occupiedWays - 1;
     }
-    return kMSBarrierMarkBufferInvalidEntry;
+    uint8_t emptyEntry = kMSBarrierMarkBufferInvalidEntry;
+    if (occupiedSet != allWays) {
+        uint32_t emptyWay =
+            static_cast<uint32_t>(__builtin_ctz((~occupiedSet) & allWays));
+        emptyEntry = static_cast<uint8_t>(first + emptyWay);
+    }
+    return MSBarrierMarkLookup {
+        kMSBarrierMarkBufferInvalidEntry, emptyEntry};
 }
 
-inline MSBarrierMarkAddResult TryAddMSBarrierMarkPendingBits(
-    MSBarrierMarkBuffer& buffer, uint64_t wordKey, uint64_t bitMask)
+// Add using the result of a lookup already performed by the owner. The buffer
+// must not be mutated between lookup and this call. This keeps lookup and
+// insertion on one set traversal.
+inline MSBarrierMarkAddResult TryAddMSBarrierMarkPendingBitsAtLookup(
+    MSBarrierMarkBuffer& buffer, uint64_t wordKey, uint64_t bitMask,
+    MSBarrierMarkLookup lookup)
 {
-    uint8_t existing = FindMSBarrierMarkEntry(buffer, wordKey);
-    if (existing != kMSBarrierMarkBufferInvalidEntry) {
-        MSBarrierMarkEntry& entry = buffer.entries[existing];
+    if (lookup.existingEntry != kMSBarrierMarkBufferInvalidEntry) {
+        MSBarrierMarkEntry& entry = buffer.entries[lookup.existingEntry];
         uint64_t newBits = bitMask & ~entry.mask;
         if (newBits == 0) {
-            buffer.lastEntry = existing;
+            buffer.lastEntry = lookup.existingEntry;
             return MSBarrierMarkAddResult::ALREADY_PENDING;
         }
         uint32_t addedBits =
@@ -134,7 +160,7 @@ inline MSBarrierMarkAddResult TryAddMSBarrierMarkPendingBits(
         }
         entry.mask |= newBits;
         buffer.pendingBitCount += addedBits;
-        buffer.lastEntry = existing;
+        buffer.lastEntry = lookup.existingEntry;
         return MSBarrierMarkAddResult::ADDED;
     }
 
@@ -148,19 +174,11 @@ inline MSBarrierMarkAddResult TryAddMSBarrierMarkPendingBits(
         return MSBarrierMarkAddResult::NEEDS_FLUSH;
     }
 
-    uint32_t first =
-        GetMSBarrierMarkBufferSet(wordKey) * kMSBarrierMarkBufferWays;
-    uint32_t occupiedWays =
-        (buffer.occupancy >> first) &
-        ((UINT32_C(1) << kMSBarrierMarkBufferWays) - 1);
-    uint32_t allWays = (UINT32_C(1) << kMSBarrierMarkBufferWays) - 1;
-    if (occupiedWays == allWays) {
+    if (lookup.emptyEntry == kMSBarrierMarkBufferInvalidEntry) {
         return MSBarrierMarkAddResult::NEEDS_FLUSH;
     }
 
-    uint32_t emptyWay =
-        static_cast<uint32_t>(__builtin_ctz((~occupiedWays) & allWays));
-    uint32_t entryIdx = first + emptyWay;
+    uint32_t entryIdx = lookup.emptyEntry;
     MSBarrierMarkEntry& entry = buffer.entries[entryIdx];
     entry.wordKey = wordKey;
     entry.mask = bitMask;
@@ -168,6 +186,45 @@ inline MSBarrierMarkAddResult TryAddMSBarrierMarkPendingBits(
     buffer.pendingBitCount += addedBits;
     buffer.lastEntry = static_cast<uint8_t>(entryIdx);
     return MSBarrierMarkAddResult::ADDED;
+}
+
+// Specialized Runtime barrier insertion after the caller has established:
+//   * bitMask contains exactly one bit;
+//   * pendingBitCount is below the flush threshold; and
+//   * an existing entry does not already contain bitMask.
+// Under those preconditions only a four-way set conflict can require a flush.
+inline MSBarrierMarkAddResult TryAddMSBarrierMarkSingleBitAtLookup(
+    MSBarrierMarkBuffer& buffer, uint64_t wordKey, uint64_t bitMask,
+    MSBarrierMarkLookup lookup)
+{
+    if (lookup.existingEntry != kMSBarrierMarkBufferInvalidEntry) {
+        MSBarrierMarkEntry& entry = buffer.entries[lookup.existingEntry];
+        entry.mask |= bitMask;
+        ++buffer.pendingBitCount;
+        buffer.lastEntry = lookup.existingEntry;
+        return MSBarrierMarkAddResult::ADDED;
+    }
+
+    if (lookup.emptyEntry == kMSBarrierMarkBufferInvalidEntry) {
+        return MSBarrierMarkAddResult::NEEDS_FLUSH;
+    }
+
+    uint32_t entryIdx = lookup.emptyEntry;
+    MSBarrierMarkEntry& entry = buffer.entries[entryIdx];
+    entry.wordKey = wordKey;
+    entry.mask = bitMask;
+    buffer.occupancy |= UINT32_C(1) << entryIdx;
+    ++buffer.pendingBitCount;
+    buffer.lastEntry = static_cast<uint8_t>(entryIdx);
+    return MSBarrierMarkAddResult::ADDED;
+}
+
+inline MSBarrierMarkAddResult TryAddMSBarrierMarkPendingBits(
+    MSBarrierMarkBuffer& buffer, uint64_t wordKey, uint64_t bitMask)
+{
+    return TryAddMSBarrierMarkPendingBitsAtLookup(
+        buffer, wordKey, bitMask,
+        LookupMSBarrierMarkEntry(buffer, wordKey));
 }
 
 static_assert(std::is_standard_layout<MSBarrierMarkEntry>::value,

@@ -79,7 +79,7 @@ public:
 #endif
     {
 #ifdef MRT_USE_MARK_SWEEP
-        currentBarrier = &msIdleBarrier;   // MS-GC: start with zero-overhead idle barrier
+        currentBarrier = &msIdleBarrier;   // MS-GC: start with the direct-access idle barrier
 #else
         currentBarrier = &stwBarrier;
 #endif
@@ -164,7 +164,7 @@ private:
     ExportRootTable exportRootsTable;
     Barrier stwBarrier;
 #ifdef MRT_USE_MARK_SWEEP
-    // MS mode: zero-overhead idle barrier + hybrid mark barrier
+    // MS mode: direct-access idle barrier + deletion-style mark barrier
     MSIdleBarrier msIdleBarrier;
     MSMarkBarrier msMarkBarrier;
 #else

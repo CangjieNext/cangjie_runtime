@@ -5,7 +5,16 @@
 本文给出 Region-scan MSGC 写屏障将 old-ref 对应的 bitmap 修改暂存在
 `AllocBufferMS`、达到统一条件后批量提交的完整设计。
 
-本文是设计规格，不表示代码已经实施。
+本文保留最初设计推导，同时记录当前落地状态。
+
+> 2026-07-31 状态勘误：TLS bitmap buffer 已经实施，但原设计中的
+> `barrierPhase`、`MARK_WRAPPER_ONLY`、`MARK_TLS_BATCH_V3`、V3 signature 和
+> `buffer.markEpoch` 已被后续决策删除。当前 Runtime/LLVM 统一读取
+> `ThreadLocalData::encodedGCPhase`，buffer 布局为
+> `entries[32] + occupancy + pendingBitCount + lastEntry`；epoch 只保留全局
+> `currentMarkEpoch`。本文后续出现上述旧字段/开关时只代表历史方案，不是当前 ABI。
+> 当前实现以 `Docs/06_MSGC_Barrier架构与实现详解.md` 和
+> `Step64_MSGC_Struct写屏障_short_GCTib_TLS_fast-add_inline设计.md` 为准。
 
 固定代码范围如下，禁止与 Wbuf 工作区交叉引用：
 
@@ -14,7 +23,7 @@
 - Region-scan LLVM：
   `/Users/lipeisheng/code/cangjie/cangjie/cangjie_compiler_region_mark/third_party/llvm-project`
 
-本文以 2026-07-30 当前源码为基线。当前源码的重要事实是：
+本文最初以 2026-07-30 的实施前源码为基线。当时的重要事实是：
 
 - Small Region 使用 `MSBitmapArena` 的连续 logical-word plane；
 - Runtime barrier 使用栈上 `BarrierMarkContext + MSMarkWordBatch`；
@@ -55,13 +64,14 @@ MarkTermination 完整 drain 协议，因此采用保守作用域模型；本设
 10. buffer 不加入 scheduler task ledger；并发 Mark 允许在 TLS buffer 非空时
     进入 MarkTermination，最终正确性由 owner 退出 flush 和 STW 全量 drain 保证。
 
-## 2. 当前源码基线
+## 2. 实施前源码基线（历史）
 
-本节只描述当前 Region-scan Runtime 与 LLVM 源码，不采用 Wbuf 或历史文档中的旧实现。
+本节只描述方案实施前的 Region-scan Runtime 与 LLVM 源码，不代表 2026-07-31
+之后的当前实现。
 
 ### 2.1 Runtime barrier
 
-当前 `src/Heap/MBarrier/MSMarkBarrier.cpp` 中：
+当时 `src/Heap/MBarrier/MSMarkBarrier.cpp` 中：
 
 ```text
 WriteRefField
@@ -71,7 +81,7 @@ WriteRefField
   -> store newRef
 ```
 
-`BarrierMarkContext` 当前：
+`BarrierMarkContext` 当时：
 
 - 构造时通过 `barrierPhase + activeCollector_` 解析 mark owner；
 - 第一次看到有效 old-ref 时在栈上构造 `MSMarkWordBatch`；
@@ -85,7 +95,7 @@ old-ref，但 `WriteStruct/WriteStaticStruct/CopyRefArray/CopyStructArray` 都�
 
 ### 2.2 Runtime bitmap commit
 
-当前 `src/Heap/MCollector/MarkSweepCollector.cpp` 已经具备可复用的 logical-word
+当时 `src/Heap/MCollector/MarkSweepCollector.cpp` 已经具备可复用的 logical-word
 提交语义：
 
 ```text
@@ -121,7 +131,7 @@ barrier 路径使用 `MSNoopWorkUnitCounter`，因此不会更新
 
 ### 2.4 Mark cycle
 
-当前一次 GC 的主要顺序是：
+当时一次 GC 的主要顺序是：
 
 ```text
 PreEnumRoots
@@ -151,7 +161,7 @@ MarkTermination
 
 ### 2.5 LLVM
 
-当前 `AArch64MSGCEmitter.cpp` 和 `X86MSGCEmitter.cpp` 的写屏障行为是：
+当时 `AArch64MSGCEmitter.cpp` 和 `X86MSGCEmitter.cpp` 的写屏障行为是：
 
 ```text
 load CJ_MRT_MSGCFastPathState.barrierPhase
@@ -202,8 +212,8 @@ atomic OR mark bitmap。
 
 3. **no-cross-epoch**
 
-   非空 buffer 不能跨 `currentMarkEpoch_`。新 epoch 建立时只允许检查空 buffer
-   并重置元数据，禁止把旧 entry 提交到新 bitmap。
+   非空 buffer 不能跨 mark epoch。MarkTermination drain 与下一轮 PreEnum 的
+   empty-buffer 检查保证边界，禁止把旧 entry 提交到新 bitmap。
 
 4. **single owner**
 
@@ -295,7 +305,7 @@ MarkTermination STW 枚举的持久记录。第一层不是 scheduler 可见工�
 
 ### 5.1 Runtime POD
 
-建议新增：
+当前落地布局：
 
 `src/Heap/MBarrier/MSBarrierMarkBuffer.h`
 
@@ -309,11 +319,10 @@ struct alignas(8) MSBarrierMarkBuffer {
     // entries first: with a 64B-aligned AllocBufferMS, each 4-way set is one
     // complete cache line instead of straddling two lines.
     MSBarrierMarkEntry entries[32];     // +0, 512B
-    uint32_t markEpoch;                 // +512
-    uint32_t occupancy;                 // +516, bit i => entries[i] valid
-    uint32_t pendingBitCount;           // +520, unique pending old-ref bits
-    uint8_t lastEntry;                  // +524, 0..31 or 0xff
-    uint8_t reserved[3];                // +525
+    uint32_t occupancy;                 // +512, bit i => entries[i] valid
+    uint32_t pendingBitCount;           // +516, conservative add budget
+    uint8_t lastEntry;                  // +520, 0..31 or 0xff
+    uint8_t reserved[3];                // +521
 };                                      // sizeof = 528
 ```
 
@@ -325,9 +334,8 @@ collector 中，不能把 C++ 实现细节变成 LLVM ABI。
 
 | 字段 | 作用 |
 |---|---|
-| `markEpoch` | 非空 entry 所属的 `currentMarkEpoch` |
 | `occupancy` | 32 个固定 slot 的有效位，是 entry 有效性的唯一真值 |
-| `pendingBitCount` | 上次 flush 后新增的 unique pending bit 数，最大 128 |
+| `pendingBitCount` | 上次 flush 后的 conservative add budget；Runtime 精确计新增 bit，LLVM 重复 OR 也计数，最大 128 |
 | `lastEntry` | 上一次命中的 entry，下次优先探测；`0xff` 表示无 |
 | `entries[i]` | 一个 `wordKey -> pending mask` |
 
@@ -526,15 +534,15 @@ entry 初始化时写入 key/mask 后再一次性 OR occupancy；不要为四个
 header。X86 可用 bit-test/`tzcnt` 类选择，AArch64 可用 nibble mask/`rbit+clz`
 类选择；若这些指令导致目标或 feature 约束复杂，四路固定分支仍是正确基线。
 
-key 命中后先计算：
+Runtime helper 在 key 命中后计算：
 
 ```cpp
 newLocalBit = bitMask & ~entry.mask;
 ```
 
 `newLocalBit == 0` 表示该 old-ref 已经可靠暂存，直接返回，不增加计数，也不访问
-全局 mark plane。这一点对 atomic CAS 重试尤其重要：重复 expected 值不会因为
-重复计数而频繁触发 flush。
+全局 mark plane。LLVM inline 已移除这一步：命中 key 后直接做幂等 OR，并把本次
+fast-add 计入保守 budget；达到阈值后由 wrapper 先 flush。
 
 不允许直接覆盖有效 entry。若选择 victim eviction，覆盖前必须先提交 victim，
 否则 victim.mask 代表的 old edge 会永久丢失。当前栈上 `MSMarkWordBatch` 正是
@@ -553,41 +561,27 @@ hash 公式是 hidden ABI。Runtime 和 LLVM 必须共享相同 set/way/capacity
 8 的对象或 word index 相差 8 的对象形成系统性冲突，可评估加入高位 XOR fold；
 不要只在 Runtime 单边改 hash。指标至少记录每个 set 的 insert/conflict 分布。
 
-### 6.4 本地优先与全局 mark probe
+### 6.4 LLVM owner-private fast-add 与 Runtime 全局过滤
 
-LLVM/Runtime Add 的基础顺序是：
+LLVM inline Add 的基础顺序是：
 
 ```text
 解析 old-ref -> wordKey/bitMask
   -> lastEntry / 目标 set 本地探测
-       -> exact bit 已 pending：直接成功
-       -> key 命中但 bit 新增：可以直接本地合并
-  -> 新 key 在占用 entry 前做全局 mark probe
-       -> 已全局 marked：直接成功，不占 entry
+       -> key 命中：直接幂等 OR，不检查 exact bit
   -> pendingBitCount/冲突检查
   -> merge 或 insert
 ```
 
-不能在每次 Add 一开始就先取全局 mark bitmap。按本地优先排列后，同一 logical
-word 的连续写只访问 owner-private cache；只有新 key 才从已经用于 phase gate 的
-`MSGCFastPathState*` 读取 `markPlaneBase`。若 key 已在本地、只是加入一个新 bit，
-直接 OR 到本地 mask 通常比访问共享 mark plane 更便宜，而且不增加 entry 压力。
+LLVM 不再读取 `markPlaneBase` 或共享 mark word。即使目标 bit 已经全局 marked，
+new key 也允许进入 owner-private buffer，避免在每次新 key fast-add 上引入随机
+共享 bitmap load 和 cache miss。
 
-全局 probe 是 relaxed load，不是 CAS/RMW。第一版对“新 key”保留它，因为当前
-Runtime 注释和实现都表明 shared/cyclic graph 的“已被其他边标记”命中很常见，
-新 key 命中时还能避免占用 entry 和触发冲突。对“已有 key 的新 bit”默认不 probe，
-把它留给批量 `fetch_or` 去重。
-
-该策略不影响正确性，可以按实测切换为以下三档：
-
-| 策略 | 每次 Add 的共享 bitmap load | buffer 压力 | 适用情况 |
-|---|---:|---:|---|
-| 所有本地非 exact bit 都 probe | 较多 | 最低 | 全局已标记命中率极高 |
-| 仅新 key probe（推荐首版） | 中等 | 中等 | 兼顾热路径和 entry 利用率 |
-| 完全不 probe | 最少 | 最高 | mark plane cache miss 很昂贵 |
-
-必须用 `barrierGlobalProbeLoads/barrierGlobalMarkedHits`、本地 key-hit 和冲突率共同
-决定，不能只看 global hit 数；命中率低但每次都访问冷 mark cache line 仍可能劣化。
+Runtime slow path 复用同一轮 4-way lookup，仍用 `newLocalBit` 做精确去重，但
+new key 不再读取共享 mark plane；若 LLVM budget 已饱和，则在精确去重之前先
+flush。全局已标记过滤统一延迟到 Runtime flush：先 relaxed load mark word，再用
+`atomic_fetch_or` 的旧值计算真正的 `newBits`。因此 LLVM 允许的冗余 pending bit
+只增加少量 buffer 压力，不影响全局 winner 和 publication 正确性。
 
 ### 6.5 Pending bit 计数阈值
 
@@ -597,17 +591,20 @@ Runtime 注释和实现都表明 shared/cyclic graph 的“已被其他边标记
 kMSBarrierBufferPendingBitFlushThreshold = 128;
 ```
 
-`pendingBitCount` 只统计第一次进入 buffer 的 unique old-ref bit：
+`pendingBitCount` 当前作为保守的 flush budget：
 
-- 新建 entry：加一；
-- 同 word 合并一个此前不存在的新 bit：加一；
-- exact bit 已在本地 pending：不加；
-- 全局 mark probe 已经命中、null、非 heap：不加；
-- LARGE 立即处理：不加。
+- Runtime helper 仍精确统计第一次进入 buffer 的 unique old-ref bit；
+- LLVM inline 为缩短热路径，不再探测命中 key 的 bit 是否已经 pending；
+- LLVM 每次成功执行幂等 mask OR 都加一，因此混合写入后该值可能大于实际 unique
+  pending bit 数；
+- LLVM 的 null、非 heap 和 LARGE 立即路径不加；Runtime new key 也不读取
+  全局 mark plane。
 
-尝试加入一个 `newLocalBit` 前若 `pendingBitCount >= 128`，Runtime 先 flush
-全部 entry，再加入当前 old-ref。该阈值把每个 owner 在终止前最多暂存的 unique
-old-ref 数限制在 128；重复 barrier/CAS retry 不需要人为推动 publication。
+LLVM 在 budget 已达 128 时回到 wrapper。Runtime 进入
+`AddManagedRefToBarrierBuffer()` 后先 flush 饱和 buffer，再做精确 lookup/去重，
+避免重复写同一 bit 时 buffer 一直保持 128、后续写屏障永久落入 slow path。
+这个阈值限制的是 LLVM 未发布写入的 fast-add 次数上界，不再等同于 unique bit
+数量。
 
 阈值是性能协议而不是 liveness 协议。Runtime 与 LLVM 使用不同阈值不会直接漏标，
 但会造成路径和测试漂移，因此仍应在 `CJMSGCABI.h` 统一定义并由 contract test
@@ -619,7 +616,7 @@ Scalar、Bulk 和 atomic 全部使用以下条件：
 
 | 条件 | 行为 |
 |---|---|
-| 准备加入新 unique bit 且 `pendingBitCount` 已为 128 | 全量 flush，再加入当前 old-ref |
+| LLVM fast-add budget 已为 128 | 回 wrapper；Runtime 先全量 flush，再处理当前 old-ref |
 | 目标 set 的 4 way 冲突 | 全量 flush，重新加入当前 old-ref |
 | `AllocBufferMS::Fini()` | 注销前 flush |
 | MarkTermination STW | 枚举并 flush 全部 registered `AllocBufferMS` |
@@ -663,27 +660,34 @@ entry 内旧 key/mask 可以不清零，因为 occupancy 是有效性真值；De
 class BarrierMarkContext {
 public:
     BarrierMarkContext();
-    void AddOldRef(BaseObject* ref);
+    void AddOldRefActive(BaseObject* ref);
 
 private:
     MarkSweepCollector* collector_;
-    AllocBufferMS* allocBuffer_;
     MSBarrierMarkBuffer* buffer_;
+    uint32_t currentMarkEpoch_;
+    bool markActive_;
+    bool ownerResolved_;
 };
 ```
 
 构造时只做一次：
 
-- acquire 读取 barrier phase；
-- 解析 `activeCollector_`；
-- 读取当前 `ThreadLocalData::msAllocBuffer`；
-- 若存在，取得其中的 `barrierMarkBuffer_`。
+- 读取 TLS `encodedGCPhase` 并保存是否处于连续 Mark phase 范围。
+
+第一个通过 managed heap-range 检查的 old-ref 才触发一次
+`activeCollector_` acquire、`ThreadLocalData::msAllocBuffer` 解析；仅当 owner
+buffer 存在时才 acquire `currentMarkEpoch`。没有 buffer 的 immediate
+publication 路径不读取 epoch。
+
+相邻 old-ref 去重不放在 context 中，避免 scalar 每次承担一个比较和一个指针字段；
+`BulkOldRefVisitor` 在 struct/array 枚举范围内维护局部 `lastOldRef`。
 
 析构函数不 flush，也不检查 buffer 为空。删除栈上 aligned storage、
 `batchInitialized_`、`GetOrCreateBatch()` 和当前 `Flush()` 接口。
 
 Bulk 继续在函数入口构造一个 context，并在 old-ref 枚举循环中重复
-`AddOldRef()`，从而避免 per-ref phase/TLS 查找；枚举完成后直接执行 copy，
+`AddOldRefActive()`，从而避免 per-ref phase/TLS 查找；枚举完成后直接执行 copy，
 不调用 `FlushNow()`。
 
 ### 7.2 Collector API
@@ -692,7 +696,8 @@ Bulk 继续在函数入口构造一个 context，并在 old-ref 枚举循环中�
 
 ```cpp
 void AddManagedRefToBarrierBuffer(
-    BaseObject* ref, MSBarrierMarkBuffer& buffer);
+    BaseObject* ref, MSBarrierMarkBuffer& buffer,
+    uint32_t currentMarkEpoch);
 
 void FlushBarrierMarkBuffer(MSBarrierMarkBuffer& buffer);
 
@@ -705,24 +710,22 @@ void FlushAllBarrierMarkBuffersUnderSTW(CentralRegionPool& central);
 2. LARGE 继续立即 mark/publish；
 3. SMALL 形成 `(wordKey, bitMask)`；
 4. 先做 `lastEntry + set` 本地探测，exact pending bit 直接返回；
-5. 已有 key 的新 bit 直接合并；新 key 在占用 entry 前做 relaxed global mark
-   probe；
-6. 校验/初始化 buffer epoch；
-7. 根据 unique-bit 阈值和 set 冲突决定是否先 flush；
+5. 用 context 传入的 `currentMarkEpoch` 判断 collect-set，不在 per-ref 内重复读取；
+6. 已有 key 的新 bit直接合并；new key 不读取共享 mark plane；
+7. 根据 pending-bit 阈值和 set 冲突决定是否先 flush；
 8. 将 `(wordKey, bitMask)` merge/insert 到 buffer。
 
 `FlushBarrierMarkBuffer()`：
 
 1. 空 buffer 立即返回；
-2. 检查 `buffer.markEpoch == currentMarkEpoch`；
-3. 一次读取 alloc/mark plane base；
-4. 遍历 occupancy；
-5. 从 `wordKey` 恢复 `regionIdx/wordIdx`；
-6. collect-set entry 用 stable alloc word 过滤空闲 slot；
-7. 对每个不同 mark word 做 probe 和 `atomic_fetch_or`；
-8. 将 `newBits` 非零的 HAS_REF word 按 Region 聚合为 `pendingWordsMask`；
-9. 每个 Region 只做一次 pending-summary OR 和一次 `TryPublishRegion()`；
-10. 清空 occupancy/pendingBitCount/lastEntry。
+2. 一次读取 current epoch 与 alloc/mark plane base；
+3. 遍历 occupancy；
+4. 从 `wordKey` 恢复 `regionIdx/wordIdx`；
+5. collect-set entry 用 stable alloc word 和 valid-tail mask 过滤无效 slot；
+6. 对每个不同 mark word 做 probe 和 `atomic_fetch_or`；
+7. 将 `newBits` 非零的 HAS_REF word 按 Region 聚合为 `pendingWordsMask`；
+8. 每个 Region 只做一次 pending-summary OR 和一次 `TryPublishRegion()`；
+9. 清空 occupancy/pendingBitCount/lastEntry。
 
 该路径使用 no-op WorkUnit policy，不访问 `cycleCompletedMarkWU_`。
 
@@ -852,7 +855,7 @@ Ref/StaticRef 的目标语义：
    b. old == new/null/non-heap -> store 或相应快出
    c. 从当前 TLS 读取 msAllocBuffer
    d. 解析 Region/Small slot，形成 wordKey/bitMask
-   e. 先探测本地 buffer，再按需 probe 全局 mark word
+   e. 只探测 owner-private buffer，不读取全局 mark word
    f. 尝试写 MSBarrierMarkBuffer
    g. 成功后 store new-ref
    h. 任一步失败则在 store 前调用原 wrapper
@@ -903,29 +906,25 @@ Small 对象，OUTSIDE_SET 直接回 wrapper，由 Runtime 完成 TypeInfo 校�
 - 这样不需要把对象头/TypeInfo 访问规则再扩成一套 LLVM ABI；
 - collect-set 是并发标记主要对象集合，首版覆盖率通常足够。
 
-exact local pending bit 或 global marked bit 已经是可靠记录，可以在该分支前快出。
-后续若指标证明 OUTSIDE_SET wrapper 占比高，再增加与 Runtime 完全一致的 TypeInfo
-校验 direct path；不能只凭 slot 对齐就缓存任意 OUTSIDE_SET 地址。
+为缩短热路径，当前 LLVM 不检查全局 mark plane，也不检查 exact local pending
+bit，而是执行幂等 OR 并消耗一次 `pendingBitCount` budget。全局已标记 bit 由
+Runtime flush 过滤。后续若指标证明 OUTSIDE_SET wrapper 占比高，再增加与 Runtime
+完全一致的 TypeInfo 校验 direct path；不能只凭 slot 坐标缓存任意 OUTSIDE_SET
+地址。
 
 ### 8.3 Buffer fast add
 
 LLVM fast add 只允许 owner-private 普通 load/store：
 
 ```text
-if occupancy == 0:
-    buffer.markEpoch = currentMarkEpoch
-    buffer.lastEntry = 0xff
-
-epoch = buffer.markEpoch
-wordKey = (regionIdx << 6) | wordIdx
+检查 oldRef 位于托管堆保留范围
+解析 RegionInfo
+检查 Region kind == SMALL
+检查 info.collectEpoch == currentMarkEpoch
+由 Region offset 和冻结的 sizeClass descriptor 直接计算 wordKey/bitMask
 先检查 lastEntry，再检查目标 set 的 four ways
 
-exact-bit-pending:
-    goto overwrite
-
-local key match/new bit:
-    if info.collectEpoch != epoch:
-        goto wrapper
+local key match:
     if pendingBitCount >= 128:
         goto wrapper
     entry.mask |= bitMask
@@ -934,10 +933,6 @@ local key match/new bit:
     goto overwrite
 
 new key:
-    if global mark bit 已置位:
-        goto overwrite
-    if info.collectEpoch != epoch:
-        goto wrapper
     if pendingBitCount >= 128:
         goto wrapper
     if four-way conflict:
@@ -948,11 +943,9 @@ new key:
     goto overwrite
 ```
 
-非空 buffer 不在每次 Add 重读全局 `currentMarkEpoch`，直接使用
-`buffer.markEpoch` 与目标 Region 的 `collectEpoch` 比较。epoch 只会在 STW
-`BuildCollectSet()` 推进，而上一轮 MarkTermination 已要求所有 buffer 为空；
-若该不变式被破坏，Runtime flush/PreEnum 的 fatal consistency check 负责发现，
-不在 LLVM 热路径重复支付全局 epoch load。
+`buffer.markEpoch` 已删除。LLVM 每次 fast-add 读取一次全局
+`currentMarkEpoch`，并只在 slot 计算前与目标 Region 的 `collectEpoch` 比较一次；
+key 命中和新 key 分支不再重复比较。
 
 entry 内容必须在 occupancy bit 之前写完。虽然 owner 运行时没有并发消费者，
 该顺序仍是 MarkTermination STW 读取协议的一部分。
@@ -1077,19 +1070,18 @@ MarkTermination 完成:
   buffer 必须为空
 
 下一轮 PreEnum:
-  assert 为空
-  markEpoch=NO_COLLECT_EPOCH
+  assert 所有 buffer 为空
 
-下一轮第一次 Add:
-  markEpoch=new currentMarkEpoch
+Mark wrapper:
+  从全局 fast-path state 缓存 currentMarkEpoch
 ```
 
-若 `occupancy != 0 && markEpoch != currentMarkEpoch`，说明上一轮终止协议漏 drain。
-Runtime 必须报一致性错误；禁止把 entry flush 到新 plane，也禁止静默清空。
+若下一轮 PreEnum 发现 `occupancy != 0`，说明上一轮终止协议漏 drain。Runtime
+必须报一致性错误；禁止把旧 entry flush 到新 plane，也禁止静默清空。
 
 ### 9.3 collectEpoch
 
-`MSRegionInfo::collectEpoch == buffer.markEpoch` 表示该 Region 属于本轮冻结
+`MSRegionInfo::collectEpoch == currentMarkEpoch` 表示该 Region 属于本轮冻结
 collect-set：
 
 - alloc plane 是稳定的；
@@ -1106,17 +1098,17 @@ collect-set：
 
 新 `MSBarrierMarkBuffer` 不保存 `allocPlaneBase`、`markPlaneBase`：
 
-- LLVM fast path只在可选的“已标记 probe”中读取 mark plane；
+- LLVM fast path 不读取 mark plane；
+- Runtime slow Add 也不读取 mark plane；
 - Runtime 每次全量 flush 只读取一次全局 alloc/mark plane base；
 - 之后按 `base + wordKey * 8` 定址。
 
 plane base 在 heap/bitmap arena 初始化后发布，正常 GC cycle 不改变。arena cleanup
 前必须保证所有 buffer 已空。scan plane 不参与 barrier buffer commit。
 
-不建议把 plane base 再复制进每个 TLS buffer：LLVM 已经为了 phase gate 得到
-`MSGCFastPathState*`，local hit 完全不需要 plane；new-key miss 只多一次 `+40`
-的 mark-base load。Runtime flush 也只需每批加载一次。把三个 pointer 放进每个
-buffer 会扩大 ABI，却不能减少 local-hit 路径。
+不建议把 plane base 再复制进每个 TLS buffer：LLVM fast-add 完全不访问 plane；
+Runtime slow Add 可从全局 state 读取，flush 也只需每批加载一次。把三个 pointer
+放进每个 buffer 会扩大 ABI，却不能缩短 LLVM 热路径。
 
 ### 9.5 Bitmap coordinate 与地址形成优化
 
@@ -1130,24 +1122,31 @@ info         = regionInfoArray + regionIdx * 64
 slotIdx      = (regionOffset * desc.divMagic) >> 32
 wordKey      = (regionIdx << 6) | (slotIdx >> 6)
 bitMask      = 1ULL << (slotIdx & 63)
-markWord     = markPlaneBase + wordKey * 8
 ```
 
-这里不读取 `MSRegionInfo::allocBitmap` 指针，也不执行整数除法；`slotIdx *
-slotSize == regionOffset` 和 `slotIdx < totalSlots` 同时完成对象起始地址校验。
-`regionInfoArray + regionIdx * 64`、`markPlaneBase + wordKey * 8` 都是 shift/add，
-适合 AArch64/X86 emitter。
+Runtime flush 需要访问全局 bitmap 时，再按
+`markPlaneBase + wordKey * 8` 形成 `markWord`。
+
+LLVM direct 在 descriptor 查表前只接受 `regionKind=SMALL` 且
+`collectEpoch == currentMarkEpoch` 的 Region。`BuildCollectSet()` 在发布 epoch
+前已经验证并冻结 sizeClass，因此 direct 路径不再重复检查 Region 起止范围、
+sizeClass 上界、slot 上界或 exact-start；flush 使用冻结 alloc plane 和
+`validTailMask` 过滤尾部无效位置。Runtime 通用解析路径仍保留完整对象校验。
+这里不读取 `MSRegionInfo::allocBitmap` 指针，也不执行整数除法；
+`regionInfoArray + regionIdx * 64` 和 `wordKey` 的形成都是 shift/add，适合
+AArch64/X86 emitter。
 
 可继续做的微优化按优先级如下：
 
-1. `lastEntry` 命中时不读取 mark plane、size-class descriptor 和其他 entry；
+1. LLVM 所有 fast-add 都不读取 mark plane；`lastEntry` 命中时也不读取其他
+   entry；size-class descriptor 已在形成 `wordKey/bitMask` 时读取；
 2. 将 `{regionIdx, wordIdx}` 合成 `wordKey`，只比较一次并直接形成 plane 地址；
 3. mark descriptor 使用 8B 紧凑只读表，避免硬件除法和 36 档分支；
 4. Runtime flush 一次缓存 plane base，并按 Region 合并 publication；
 5. entries-first，并把 `AllocBufferMS` 基址而不是 buffer 类型设为 64B 对齐，
    使每个 4-way set 恰好占一条 cache line，同时保持 buffer 528B；
-6. 若 profile 证明 coordinate 解析而不是 lookup/plane miss 成为热点，再评估增加
-   `lastOldRef` 或 last-Region descriptor cache。它们会扩大固定 ABI，首版不加。
+6. bulk 相邻 `lastOldRef` 已作为栈上 visitor 状态实现，不改变固定 ABI；若 profile
+   证明 scalar coordinate 解析成为热点，再评估 last-Region descriptor cache。
 
 ### 9.6 与旧 MSMarkWordBatch 元数据的关系
 
@@ -1161,8 +1160,10 @@ slotSize == regionOffset` 和 `slotIdx < totalSlots` 同时完成对象起始地
 这些字段仍可供 GC worker/root/resurrection 的短生命周期 batch 使用。新的固定
 TLS `MSBarrierMarkBuffer` 不复用该 C++ 对象布局：
 
-- occupancy 非零即表示 epoch 已初始化；
-- epoch 直接存于 POD header；
+- occupancy 非零只表示存在有效 entry；
+- epoch 不进入 POD header；MarkTermination flush 当前轮尾项，PreEnum 在建立新
+  collect set 前无条件 reset 所有 buffer，避免旧尾项被发布到新 mark plane。
+  add 时需要 collect-set 判断才读取全局 `currentMarkEpoch`；
 - plane base 在 flush 时读取；
 - 不存在析构时“必须为空”的 C++ ABI。
 
@@ -1262,13 +1263,13 @@ drain 完成。
 | 操作 | 当前源码 | TLS Add 热路径 | TLS flush/slow path |
 |---|---|---|---|
 | 普通 Ref/StaticRef 字段写 | 普通 store | 普通 store | 普通 store |
-| Small mark bitmap | 每次 wrapper flush 做 relaxed `fetch_or` | 无 RMW；最多 relaxed probe load | 每个不同 word 一次 relaxed `fetch_or` |
+| Small mark bitmap | 每次 wrapper flush 做 relaxed `fetch_or` | 不读取全局 bitmap，无 RMW | 每个不同 word 一次 relaxed probe + `fetch_or` |
 | pendingWordSummary | 每个 winning word 一次 release `fetch_or` | 无 | 按 Region 合并后一次 release `fetch_or` |
 | Region scan state | `IDLE -> QUEUED` CAS | 无 | 每个需发布 Region 至多一次 CAS |
 | ready stack | tagged-head CAS push | 无 | 只有 publication winner 执行 |
 | LARGE mark flag | control-word relaxed `fetch_or` | LARGE 不进 buffer | 仍立即 `fetch_or`/发布 OBJECT |
-| AtomicWrite/Swap 字段 | CAS retry loop | 第一版仍在 Runtime | 字段 CAS 不能由 bitmap batch 消除 |
-| CompareAndSwap 字段 | 一次 CAS | 第一版仍在 Runtime | 字段 CAS 不能由 bitmap batch 消除 |
+| AtomicWrite/Swap 字段 | TLS Mark 判断后的 CAS retry loop | Runtime；unchanged expected 不重复 shade | 字段 CAS 不能由 bitmap batch 消除 |
+| CompareAndSwap 字段 | TLS Mark 判断后一次 CAS | Runtime | 字段 CAS 不能由 bitmap batch 消除 |
 
 因此“普通 Small AddOldRef 无 CAS”是成立的，但不能表述成“整个写屏障系统无竞争”。
 全局 bitmap commit 和 scheduler publication 天生是多 producer；atomic 字段的
@@ -1286,22 +1287,24 @@ CAS 又是用户可见原子语义，不能为了 GC batch 删除。
 | `WriteStaticStruct` | 按 GCTib 枚举并加入同一 buffer | 否 | constant/short GCTib 才 inline |
 | `CopyRefArray` | 逐个枚举目标覆盖范围 old-ref | 否 | MARK 继续 wrapper |
 | `CopyStructArray` | 按 component TypeInfo 枚举目标范围 | 否 | MARK 继续 wrapper |
-| `AtomicWriteReference` | 每次 CAS 尝试前 capture 当前 expected | 否 | wrapper |
-| `AtomicSwapReference` | 每次 CAS 尝试前 capture 当前 expected | 否 | wrapper |
+| `AtomicWriteReference` | expected 改变时 capture，unchanged retry 不重复 | 否 | wrapper |
+| `AtomicSwapReference` | expected 改变时 capture，unchanged retry 不重复 | 否 | wrapper |
 | `CompareAndSwapReference` | CAS 前保守 capture oldRef | 否 | wrapper |
 | LARGE old-ref | Runtime 立即设置 canonical marked flag | 不触发 Small batch flush | wrapper |
 
 ### 11.1 Scalar
 
 ```text
-load old
-old != new
-  -> AddOldRef(old)
-       -> cache 成功或 Runtime 完成 capture
+context = BarrierMarkContext(encodedGCPhase)
+context active:
+  load old
+  old != new
+    -> AddOldRefActive(old)
+         -> cache 成功或 Runtime 完成 capture
 store new
 ```
 
-`AddOldRef()` 返回表示 capture 已完成，不表示全局 mark bitmap 已更新。
+`AddOldRefActive()` 返回表示 capture 已完成，不表示全局 mark bitmap 已更新。
 
 ### 11.2 Bulk
 
@@ -1310,7 +1313,7 @@ Bulk 保持完整 old-before-copy：
 ```text
 BarrierMarkContext context
 for each old ref in destination:
-    context.AddOldRef(old)
+    context.AddOldRefActive(old)
 memcpy/memmove
 ```
 
@@ -1328,7 +1331,9 @@ Bulk 大范围枚举通常会自然触发 pendingBitCount threshold 或 set 冲�
 ```text
 expected = load
 loop:
-    AddOldRef(expected)
+    if expected != lastShaded:
+        AddOldRefActive(expected)
+        lastShaded = expected
     if CAS(expected, new) succeeds:
         return
     expected = reload
@@ -1338,9 +1343,8 @@ CAS 成功前 old-ref 已经写入 TLS buffer即可满足 deletion barrier。失
 冗余 old-ref在本地 mask 或全局 winner 中去重。memory order 参数和 failure order
 修正规则保持不变。
 
-同一个 expected old-ref 的 CAS 重试命中 exact local bit，不增加
-`pendingBitCount`，也不访问全局 bitmap。只有失败后观察到不同 expected、且它对应
-尚未记录的新 bit，才新增 pending bit；字段自身的 CAS/重试竞争仍然存在。
+同一个 expected 未变化的 CAS 重试不再重复进入 buffer lookup；只有并发写导致
+expected 改变时才再次 capture。字段自身的 CAS/重试竞争仍然存在。
 
 ### 11.4 LARGE
 
@@ -1409,7 +1413,7 @@ ConcurrentMark 判定 NATURAL
 5. pending Region reconciliation 继续到 fixed point。
 
 代价是低于容量/冲突阈值的扫描工作会移动到 STW，而不是 correctness failure。
-128 unique-bit threshold 和 4-way 冲突 flush 用于限制这部分尾部。
+128 fast-add budget 和 4-way 冲突 flush 用于限制这部分尾部。
 
 ### 12.3 Bulk 返回后 tail 仍 pending
 
@@ -1617,18 +1621,19 @@ batch 协议。
 | 用例 | 期望 |
 |---|---|
 | 同 key 加入多个 bit | 一个 entry，mask 合并 |
-| 同一 bit 重复 Add 128 次 | `pendingBitCount == 1`，不触发 threshold flush |
+| Runtime helper 同一 bit 重复 Add 128 次 | `pendingBitCount == 1` |
+| LLVM inline 同一 bit 重复 fast-add 128 次 | budget 达到 128；下一次回 wrapper 并先 flush |
 | 同一 key 加入 64 个不同 bit | `pendingBitCount == 64` |
 | 四个 key 落同 set | 占用 four ways |
 | 第五个不同 key 落同 set | Runtime 全量 flush 后加入当前 key |
 | 32 个 entry | `popcount(occupancy) == 32` |
 | 128 个不同 bit，分布在不超过 32 个 key 且无 set conflict | `pendingBitCount == 128`，buffer 不溢出 |
 | 第 129 个不同 bit | 先 flush 前 128 个 unique bit，再缓存当前 bit |
-| 已全局标记 bit | 不进入 buffer |
+| Runtime helper 遇到已全局标记的新 key | probe 命中，不进入 buffer |
 | 已有 key 的全局 marked 新 bit | 允许本地冗余合并，flush 时成为 loser |
-| 新 key 的全局 marked bit | probe 命中，不占 entry |
+| LLVM inline 遇到已全局 marked 的新 key | 允许进入 buffer，flush 的 relaxed 过滤将其丢弃 |
 | 36 个 size class 的全部首/末 slot | divMagic 得到的 slot/word/bit 与 Runtime 一致 |
-| slot 内部地址、Region 尾部无效 slot | direct path 拒绝并回 wrapper |
+| slot 内部地址、Region 尾部无效 slot | direct 只形成坐标；flush 的 alloc plane/valid-tail mask 过滤无效 bit |
 | 首/末 Region 的 wordKey | `planeBase + wordKey * 8` 与 Runtime plane 地址一致 |
 | collect-set free slot | flush 时被 alloc word 过滤 |
 | OUTSIDE_SET 合法对象 | 不读取 live alloc plane，mark 正确 |
@@ -1650,7 +1655,7 @@ batch 协议。
 - buffer size 528；
 - capacity 32、set 8、way 4；
 - hash multiplier 5；
-- unique pending-bit threshold 128；
+- pending fast-add budget threshold 128（Runtime helper 内部仍精确计 unique bit）；
 - capability signature；
 - phase 值 `IDLE/WRAPPER_ONLY/TLS_BATCH_V3`；
 - mark size-class descriptor 的 8B 布局、36 项内容和 emission 条件；
@@ -1736,7 +1741,7 @@ AArch64 与 X86 均检查：
 
 - barrier Runtime wrapper call 数；
 - owner-private Add 指令数和 L1 miss；
-- global mark probe load 数及命中数；
+- Runtime flush 的 global mark probe load 数及命中数；
 - mark bitmap RMW 数；
 - `bitsPerFlush`；
 - pending word publication 数；
@@ -1762,12 +1767,12 @@ AArch64 与 X86 均检查：
 |---|---|
 | `barrierCandidates` | 通过基本校验的 Small old-ref |
 | `barrierLocalExactHits` | 同一 bit 已在 owner-private mask，直接返回 |
-| `barrierGlobalMarkedHits` | 全局 mark probe 已命中 |
-| `barrierGlobalProbeLoads` | 实际读取全局 mark word 的次数 |
+| `barrierGlobalMarkedHits` | Runtime flush 的全局 mark probe 已命中 |
+| `barrierGlobalProbeLoads` | Runtime flush 实际读取全局 mark word 的次数 |
 | `barrierOutsideSetFallbacks` | 首版因 OUTSIDE_SET 回 wrapper 的次数 |
 | `barrierLocalMerges` | 合并进已有 entry |
 | `barrierNewEntries` | 新占用 entry |
-| `barrierThresholdFlushes` | `pendingBitCount` 达到 unique-bit 阈值触发 |
+| `barrierThresholdFlushes` | `pendingBitCount` budget 达到阈值触发 |
 | `barrierConflictFlushes` | four-way 冲突触发 |
 | `barrierSetInserts[8]` | 各 set 的新 entry 分布 |
 | `barrierSetConflicts[8]` | 各 set 的冲突分布，用于判断是否需要 high-bit fold |
@@ -1778,7 +1783,7 @@ AArch64 与 X86 均检查：
 | `barrierLostBits` | 跨线程/已标记 loser |
 | `barrierPublishedRegions` | Region 聚合后执行 publication 的数量 |
 | `barrierPublishedWords` | 聚合前有 winning bit 的 word 数 |
-| `barrierTerminationMaxBits` | 单 owner 在 termination 留下的最大 unique-bit tail |
+| `barrierTerminationMaxBits` | 单 owner 在 termination 留下的最大 pending-bit tail |
 
 这些指标不计入 `cycleCompletedMarkWU_`。
 
@@ -1794,9 +1799,9 @@ AArch64 与 X86 均检查：
 
 | 风险 | 表现 | 控制 |
 |---|---|---|
-| STW tail 增大 | 低写入线程的 pending 工作集中到 MarkTermination | 128 unique-bit threshold、4-way 冲突 flush、统计 termination tail |
+| STW tail 增大 | 低写入线程的 pending 工作集中到 MarkTermination | 128 fast-add budget、4-way 冲突 flush、统计 termination tail |
 | 低局部性冲突 | 频繁 four-way flush | 统计 conflict；评估 hash/容量 |
-| mark plane probe 劣化 | inline Add 引入随机共享 bitmap load/L1 miss | 本地优先；首版仅新 key probe；按 probe/hit 数据切换策略 |
+| LLVM 不 probe 导致 buffer 压力增加 | 已全局 marked 的新 key 也占用 entry，可能更早 threshold/conflict flush | 统计 conflict、bitsPerFlush 和 flush loser |
 | LLVM code size | instruction cache/寄存器压力 | 分阶段只开 Ref；leaf thunk；失败回 wrapper |
 | ABI 混用 | 越界写 `AllocBufferMS` | versioned phase + signature contract + 全量重编 |
 | aligned-new 平台差异 | `AllocBufferMS` 实例未满足 64B 对齐 | 跨平台构造/销毁测试；不满足时禁止发布 V3 phase |
@@ -1811,15 +1816,15 @@ AArch64 与 X86 均检查：
 
 | 优先级 | 项目 | 原因 |
 |---|---|---|
-| P0 | `wordKey`、移除 `entryCount`、local-first、unique-bit threshold | 同时缩短热路径并简化固定 ABI |
+| P0 | `wordKey`、移除 `entryCount`、local-first、fast-add budget threshold | 同时缩短热路径并简化固定 ABI |
 | P0 | phase byte capability、跨仓 layout contract | 防止新 LLVM 越界访问旧 Runtime |
 | P0 | termination/owner-exit drain 和 epoch fatal check | 正确性前提 |
 | P0 | flush 按 Region 合并 publication | 直接减少 summary RMW 和 scan-state/ready-stack 竞争 |
-| P1 | `lastEntry` 快速命中、仅新 key global probe | 降低 entry 探测和共享 bitmap load |
+| P1 | `lastEntry` 快速命中、LLVM 移除 global probe | 降低 entry 探测和共享 bitmap load |
 | P1 | collect-set Ref/StaticRef LLVM direct，OUTSIDE_SET/其他入口先回 Runtime | 控制第一版 code size 和语义风险 |
-| P1 | probe、按 set 冲突、winning/lost、termination-tail 指标 | 决定 threshold/hash/probe 后续参数 |
+| P1 | Runtime probe、按 set 冲突、winning/lost、termination-tail 指标 | 决定 threshold/hash 后续参数 |
 | P2 | short Struct direct、lookup leaf thunk | 需要先确认 descriptor contract 与机器码预算 |
-| P2 | `lastOldRef`/last-Region cache、扩大容量或 LARGE TLS lane | 都会扩大 ABI/内存，只能由 profile 驱动 |
+| P2 | scalar last-Region cache、扩大容量或 LARGE TLS lane | 会扩大热路径状态或 ABI，只能由 profile 驱动 |
 
 ### 15.5 回退
 
@@ -1897,7 +1902,7 @@ Runtime commit
 ```
 
 Bulk 不再拥有特殊的函数返回 flush 边界；`BarrierMarkContext` 仍保留，但只作为
-collector、`AllocBufferMS` 和 buffer 的非 owning handle。
+collector、缓存 epoch 和惰性 owner buffer 的 non-owning handle。
 
 性能边界必须明确：
 
@@ -1909,7 +1914,7 @@ collector、`AllocBufferMS` 和 buffer 的非 owning handle。
 - LLVM 第一版只让 collect-set Small Ref/StaticRef 直接写 TLS；OUTSIDE_SET、
   ArrayCopy 和 atomic 仍回 Runtime，Struct 仅在 descriptor 可静态证明时扩展，
   但所有入口最终共用同一个持久 buffer；
-- bitmap 获取采用 `wordKey + divMagic descriptor + local-first/new-key probe`，
+- bitmap coordinate 采用 `wordKey + divMagic descriptor + owner-private lookup`，
   不在 TLS buffer 缓存 plane pointer，也不在 hot Add 上做整数除法。
 
 实施完成必须同时满足：
@@ -1933,7 +1938,7 @@ collector、`AllocBufferMS` 和 buffer 的非 owning handle。
 |---|---|---|
 | A | 完成 | layout、policy、跨仓 ABI、生命周期、LLVM direct 与 BarrierMarkContext contract 已建立 |
 | B | 完成 | 528B 固定 POD、`AllocBufferMS + 576`、64B 对齐、V3 signature/phase 已落地 |
-| C | 完成 | Runtime local-first Add、8-set/4-way、128 unique-bit、按 Region 聚合 flush、LARGE 立即路径已落地 |
+| C | 完成 | Runtime local-first Add、8-set/4-way、128 fast-add budget、按 Region 聚合 flush、LARGE 立即路径已落地 |
 | D | 完成 | `BarrierMarkContext` 已改为非 owning handle；scalar/bulk/atomic 均无返回点 flush |
 | E | 完成 | ordinary safepoint 非介入；owner-exit、MarkTermination STW drain 与 PreEnum epoch check 已落地 |
 | F | 完成 | AArch64/X86 Ref/StaticRef phase-2 direct、36-entry mark descriptor table 与 slow fallback 已落地 |

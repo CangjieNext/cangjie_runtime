@@ -287,7 +287,7 @@ extern "C" void MCC_WriteRefField(const ObjectPtr ref, const ObjectPtr obj, RefF
         return;
     }
 #ifdef MRT_USE_MARK_SWEEP
-    MSBarrierOps::WriteReference(obj, *field, ref);
+    MSBarrierOps::WriteReference(*field, ref);
 #else
     Heap::GetBarrier().WriteReference(obj, *field, ref);
 #endif
@@ -295,11 +295,13 @@ extern "C" void MCC_WriteRefField(const ObjectPtr ref, const ObjectPtr obj, RefF
 
 extern "C" void MCC_WriteStructField(ObjectPtr obj, MAddress dst, size_t dstLen, MAddress src, size_t srcLen)
 {
-    if (srcLen == 0) {
-        return;
-    }
-    CHECK_DETAIL((dst != 0u && src != 0u), "MCC_WriteStructField wrong parameter, dst: %p src: %p", dst, src);
     if (UNLIKELY(!Heap::IsHeapAddress(obj))) {
+        if (srcLen == 0) {
+            return;
+        }
+        CHECK_DETAIL((dst != 0u && src != 0u),
+                     "MCC_WriteStructField wrong parameter, dst: %p src: %p",
+                     dst, src);
         CHECK_DETAIL(memcpy_s(reinterpret_cast<void*>(dst), dstLen, reinterpret_cast<void*>(src), srcLen) == EOK,
                      "memcpy_s failed");
         return;
@@ -307,6 +309,12 @@ extern "C" void MCC_WriteStructField(ObjectPtr obj, MAddress dst, size_t dstLen,
 #ifdef MRT_USE_MARK_SWEEP
     MSBarrierOps::WriteStruct(obj, dst, dstLen, src, srcLen);
 #else
+    if (srcLen == 0) {
+        return;
+    }
+    CHECK_DETAIL((dst != 0u && src != 0u),
+                 "MCC_WriteStructField wrong parameter, dst: %p src: %p",
+                 dst, src);
     Heap::GetBarrier().WriteStruct(obj, dst, dstLen, src, srcLen);
 #endif
 }
@@ -322,10 +330,12 @@ extern "C" void MCC_WriteStaticRef(const ObjectPtr ref, RefField<false>* field)
 
 extern "C" void MCC_WriteStaticStruct(MAddress dst, size_t dstLen, MAddress src, size_t srcLen, const GCTib gcTib)
 {
-    CHECK_DETAIL((dst != 0u && src != 0u), "MCC_WriteStaticStruct wrong parameter, dst: %p src: %p", dst, src);
 #ifdef MRT_USE_MARK_SWEEP
     MSBarrierOps::WriteStaticStruct(dst, dstLen, src, srcLen, gcTib);
 #else
+    CHECK_DETAIL((dst != 0u && src != 0u),
+                 "MCC_WriteStaticStruct wrong parameter, dst: %p src: %p",
+                 dst, src);
     Heap::GetBarrier().WriteStaticStruct(dst, dstLen, src, srcLen, gcTib);
 #endif
 }
@@ -355,13 +365,15 @@ extern "C" bool MCC_IsWrapperClassForAutoEnv(const TypeInfo* ti)
 extern "C" void CJ_MCC_ArrayCopyRef(const ObjectPtr dstObj, MAddress dstField, size_t dstSize, const ObjectPtr srcObj,
                                     MAddress srcField, size_t srcSize)
 {
+#ifdef MRT_USE_MARK_SWEEP
+    (void)dstObj;
+    (void)srcObj;
+    MSBarrierOps::CopyRefArray(dstField, dstSize, srcField, srcSize);
+#else
     if (dstSize == 0) {
         return;
     }
     MRT_ASSERT(dstSize <= SECUREC_MEM_MAX_LEN, "size too big in CJ_MCC_ArrayCopy");
-#ifdef MRT_USE_MARK_SWEEP
-    MSBarrierOps::CopyRefArray(dstObj, dstField, dstSize, srcObj, srcField, srcSize);
-#else
     Heap::GetBarrier().CopyRefArray(dstObj, dstField, dstSize, srcObj, srcField, srcSize);
 #endif
 }
@@ -369,37 +381,59 @@ extern "C" void CJ_MCC_ArrayCopyRef(const ObjectPtr dstObj, MAddress dstField, s
 extern "C" void CJ_MCC_ArrayCopyStruct(const ObjectPtr dstObj, MAddress dstField, size_t dstSize,
                                        const ObjectPtr srcObj, MAddress srcField, size_t srcSize)
 {
+#ifdef MRT_USE_MARK_SWEEP
+    (void)srcObj;
+    MSBarrierOps::CopyStructArray(dstObj, dstField, dstSize, srcField, srcSize);
+#else
     if (dstSize == 0) {
         return;
     }
     MRT_ASSERT(dstSize <= SECUREC_MEM_MAX_LEN, "size too big in CJ_MCC_ArrayCopy");
-#ifdef MRT_USE_MARK_SWEEP
-    MSBarrierOps::CopyStructArray(dstObj, dstField, dstSize, srcObj, srcField, srcSize);
-#else
     Heap::GetBarrier().CopyStructArray(dstObj, dstField, dstSize, srcObj, srcField, srcSize);
 #endif
 }
 extern "C" void MCC_AtomicWriteReference(const ObjectPtr ref, const ObjectPtr obj, RefField<true>* field,
                                          MemoryOrder order)
 {
+#ifdef MRT_USE_MARK_SWEEP
+    (void)obj;
+    MSBarrierOps::AtomicWriteReference(*field, ref, order);
+#else
     Heap::GetBarrier().AtomicWriteReference(obj, *field, ref, order);
+#endif
 }
 
 extern "C" ObjectPtr MCC_AtomicReadReference(const ObjectPtr obj, RefField<true>* field, MemoryOrder order)
 {
+#ifdef MRT_USE_MARK_SWEEP
+    (void)obj;
+    return MSLoadRawReference(*field, order);
+#else
     return Heap::GetBarrier().AtomicReadReference(obj, *field, order);
+#endif
 }
 
 extern "C" ObjectPtr MCC_AtomicSwapReference(const ObjectPtr ref, const ObjectPtr obj, RefField<true>* field,
                                              MemoryOrder order)
 {
+#ifdef MRT_USE_MARK_SWEEP
+    (void)obj;
+    return MSBarrierOps::AtomicSwapReference(*field, ref, order);
+#else
     return Heap::GetBarrier().AtomicSwapReference(obj, *field, ref, order);
+#endif
 }
 
 extern "C" bool MCC_AtomicCompareSwapReference(const ObjectPtr oldRef, const ObjectPtr newRef, const ObjectPtr obj,
                                                RefField<true>* field, MemoryOrder succOrder, MemoryOrder failOrder)
 {
+#ifdef MRT_USE_MARK_SWEEP
+    (void)obj;
+    return MSBarrierOps::CompareAndSwapReference(
+        *field, oldRef, newRef, succOrder, failOrder);
+#else
     return Heap::GetBarrier().CompareAndSwapReference(obj, *field, oldRef, newRef, succOrder, failOrder);
+#endif
 }
 
 extern "C" void MCC_InvokeGCImpl(bool sync) { HeapManager::RequestGC(GC_REASON_USER, !sync); }
