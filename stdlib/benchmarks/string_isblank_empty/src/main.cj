@@ -8,9 +8,9 @@
 
 package string_isblank_empty
 
-import std.time.*
 import std.unicode.*
 import std.unittest.*
+import std.unittest.testmacro.*
 
 @Test
 @Configure[warmup: Duration.second * 2, minDuration: Duration.second * 10]
@@ -43,6 +43,17 @@ class StringIsBlankEmptyBenchmark {
         var count: Int64 = 0
         for (str in EMPTY_STRINGS) {
             if (str.isBlank()) {
+                count++
+            }
+        }
+        return count
+    }
+
+    @Bench
+    func checkReferenceEmptyOrBlank(): Int64 {
+        var count: Int64 = 0
+        for (str in EMPTY_STRINGS) {
+            if (str.isEmpty() || str.isBlank()) {
                 count++
             }
         }
