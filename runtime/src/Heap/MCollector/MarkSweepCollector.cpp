@@ -29,6 +29,7 @@
 #include "Heap/MAllocator/MSRegionManager.h"
 #include "Heap/MAllocator/MSRegionSpace.h"
 #include "Heap/MAllocator/MSShardRouting.h"
+#include "Heap/MBarrier/MSMarkBarrier.h"
 #include "Heap/MBarrier/MSRefField.inline.h"
 #include "Heap/MCollector/MSHeapThresholdPolicy.h"
 #include "Concurrency/ConcurrencyModel.h"
@@ -833,14 +834,19 @@ void MarkSweepCollector::AddManagedRefToBarrierBuffer(
     BaseObject* ref, MSBarrierMarkBuffer& buffer,
     uint32_t currentMarkEpoch)
 {
+    RecordMSBarrierRuntimeStat(
+        MSBarrierRuntimeStat::OLD_REF_BUFFER_REQUEST);
     ResolvedMarkTarget target;
     if (UNLIKELY(!ResolveManagedMarkTarget(ref, target))) {
+        RecordMSBarrierRuntimeStat(
+            MSBarrierRuntimeStat::OLD_REF_RESOLVE_REJECTED);
         return;
     }
 
     // LARGE/SPAN retains its canonical mark flag and OBJECT publication. It
     // does not consume a Small-word entry or force existing entries to flush.
     if (target.isLarge) {
+        RecordMSBarrierRuntimeStat(MSBarrierRuntimeStat::OLD_REF_LARGE);
         if (LIKELY(target.IsMarked())) {
             return;
         }
@@ -860,6 +866,8 @@ void MarkSweepCollector::AddManagedRefToBarrierBuffer(
     if (UNLIKELY(
             buffer.pendingBitCount >=
             kMSBarrierMarkBufferPendingBitFlushThreshold)) {
+        RecordMSBarrierRuntimeStat(
+            MSBarrierRuntimeStat::OLD_REF_THRESHOLD_FLUSH);
         FlushBarrierMarkBuffer(buffer);
     }
 
@@ -872,6 +880,8 @@ void MarkSweepCollector::AddManagedRefToBarrierBuffer(
     uint8_t localEntry = localLookup.existingEntry;
     if (localEntry != kMSBarrierMarkBufferInvalidEntry &&
         (buffer.entries[localEntry].mask & target.bitMask) != 0) {
+        RecordMSBarrierRuntimeStat(
+            MSBarrierRuntimeStat::OLD_REF_ALREADY_PENDING);
         buffer.lastEntry = localEntry;
         return;
     }
@@ -899,9 +909,16 @@ void MarkSweepCollector::AddManagedRefToBarrierBuffer(
     MSBarrierMarkAddResult result = TryAddMSBarrierMarkSingleBitAtLookup(
         buffer, wordKey, target.bitMask, localLookup);
     if (LIKELY(result != MSBarrierMarkAddResult::NEEDS_FLUSH)) {
+        RecordMSBarrierRuntimeStat(
+            MSBarrierRuntimeStat::OLD_REF_ADDED_WITHOUT_FLUSH);
+        RecordMSBarrierRuntimeStat(inCollectSet
+            ? MSBarrierRuntimeStat::OLD_REF_ADDED_WITHOUT_FLUSH_COLLECT_SET
+            : MSBarrierRuntimeStat::OLD_REF_ADDED_WITHOUT_FLUSH_OUTSIDE_SET);
         return;
     }
 
+    RecordMSBarrierRuntimeStat(
+        MSBarrierRuntimeStat::OLD_REF_SET_CONFLICT_FLUSH);
     FlushBarrierMarkBuffer(buffer);
     result = TryAddMSBarrierMarkSingleBitAtLookup(
         buffer, wordKey, target.bitMask,

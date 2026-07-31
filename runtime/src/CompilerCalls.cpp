@@ -7,6 +7,11 @@
 
 #include "CompilerCalls.h"
 
+#include <atomic>
+#include <cinttypes>
+#include <cstdio>
+#include <cstdlib>
+
 #include "Base/CString.h"
 #include "Base/Log.h"
 #include "Base/LogFile.h"
@@ -54,6 +59,89 @@
 #endif
 
 namespace MapleRuntime {
+#ifdef MRT_USE_MARK_SWEEP
+namespace {
+enum MSGCRuntimeWriteBarrierCounterKind : uint8_t {
+    MSGC_RUNTIME_WB_REF,
+    MSGC_RUNTIME_WB_STATIC_REF,
+    MSGC_RUNTIME_WB_STRUCT,
+    MSGC_RUNTIME_WB_STATIC_STRUCT,
+    MSGC_RUNTIME_WB_ARRAY_REF,
+    MSGC_RUNTIME_WB_ARRAY_STRUCT,
+    MSGC_RUNTIME_WB_COUNT,
+};
+
+struct alignas(64) MSGCRuntimeWriteBarrierThreadCounters {
+    std::atomic<uint64_t> counts[MSGC_RUNTIME_WB_COUNT] {};
+    MSGCRuntimeWriteBarrierThreadCounters* next { nullptr };
+};
+
+std::atomic<MSGCRuntimeWriteBarrierThreadCounters*> g_msgcRuntimeWriteBarrierCounters { nullptr };
+thread_local MSGCRuntimeWriteBarrierThreadCounters* g_msgcRuntimeWriteBarrierThreadCounters = nullptr;
+
+bool IsMSGCRuntimeWriteBarrierCountEnabled()
+{
+    static const bool enabled = []() {
+        const char* value = std::getenv("CJ_MSGC_BARRIER_COUNT");
+        return value != nullptr && value[0] != '\0' &&
+            !(value[0] == '0' && value[1] == '\0');
+    }();
+    return enabled;
+}
+
+MSGCRuntimeWriteBarrierThreadCounters* RegisterMSGCRuntimeWriteBarrierThreadCounters()
+{
+    auto* counters = new MSGCRuntimeWriteBarrierThreadCounters();
+    auto* head = g_msgcRuntimeWriteBarrierCounters.load(std::memory_order_relaxed);
+    do {
+        counters->next = head;
+    } while (!g_msgcRuntimeWriteBarrierCounters.compare_exchange_weak(
+        head, counters, std::memory_order_release, std::memory_order_relaxed));
+    return counters;
+}
+
+inline void CountMSGCRuntimeWriteBarrier(MSGCRuntimeWriteBarrierCounterKind kind)
+{
+    if (LIKELY(!IsMSGCRuntimeWriteBarrierCountEnabled())) {
+        return;
+    }
+    if (UNLIKELY(g_msgcRuntimeWriteBarrierThreadCounters == nullptr)) {
+        g_msgcRuntimeWriteBarrierThreadCounters = RegisterMSGCRuntimeWriteBarrierThreadCounters();
+    }
+    g_msgcRuntimeWriteBarrierThreadCounters->counts[kind].fetch_add(1, std::memory_order_relaxed);
+}
+
+class MSGCRuntimeWriteBarrierCounterReporter {
+public:
+    ~MSGCRuntimeWriteBarrierCounterReporter()
+    {
+        if (!IsMSGCRuntimeWriteBarrierCountEnabled()) {
+            return;
+        }
+        uint64_t totals[MSGC_RUNTIME_WB_COUNT] {};
+        for (auto* counters = g_msgcRuntimeWriteBarrierCounters.load(std::memory_order_acquire);
+             counters != nullptr; counters = counters->next) {
+            for (uint8_t kind = 0; kind < MSGC_RUNTIME_WB_COUNT; ++kind) {
+                totals[kind] += counters->counts[kind].load(std::memory_order_relaxed);
+            }
+        }
+        const uint64_t total = totals[MSGC_RUNTIME_WB_REF] + totals[MSGC_RUNTIME_WB_STATIC_REF] +
+            totals[MSGC_RUNTIME_WB_STRUCT] + totals[MSGC_RUNTIME_WB_STATIC_STRUCT] +
+            totals[MSGC_RUNTIME_WB_ARRAY_REF] + totals[MSGC_RUNTIME_WB_ARRAY_STRUCT];
+        (void)fprintf(stderr,
+            "[MSGC_WB_RUNTIME_COUNTS] ref=%" PRIu64 " static_ref=%" PRIu64
+            " struct=%" PRIu64 " static_struct=%" PRIu64 " array_ref=%" PRIu64
+            " array_struct=%" PRIu64 " total=%" PRIu64 "\n",
+            totals[MSGC_RUNTIME_WB_REF], totals[MSGC_RUNTIME_WB_STATIC_REF],
+            totals[MSGC_RUNTIME_WB_STRUCT], totals[MSGC_RUNTIME_WB_STATIC_STRUCT],
+            totals[MSGC_RUNTIME_WB_ARRAY_REF], totals[MSGC_RUNTIME_WB_ARRAY_STRUCT], total);
+    }
+};
+
+MSGCRuntimeWriteBarrierCounterReporter g_msgcRuntimeWriteBarrierCounterReporter;
+} // namespace
+#endif
+
 #if defined(CANGJIE_SANITIZER_SUPPORT)
 // These interfaces are used to detect whether the acquireArrayRawData is released in time.
 class PinnedArrayRecorder {
@@ -282,6 +370,9 @@ extern "C" ArrayRef MCC_NewArray64(const TypeInfo* arrayInfo, MIndex nElems)
 
 extern "C" void MCC_WriteRefField(const ObjectPtr ref, const ObjectPtr obj, RefField<false>* field)
 {
+#ifdef MRT_USE_MARK_SWEEP
+    CountMSGCRuntimeWriteBarrier(MSGC_RUNTIME_WB_REF);
+#endif
     if (!Heap::IsHeapAddress(obj)) {
         StoreReferenceForGCMode(*field, ref);
         return;
@@ -295,6 +386,9 @@ extern "C" void MCC_WriteRefField(const ObjectPtr ref, const ObjectPtr obj, RefF
 
 extern "C" void MCC_WriteStructField(ObjectPtr obj, MAddress dst, size_t dstLen, MAddress src, size_t srcLen)
 {
+#ifdef MRT_USE_MARK_SWEEP
+    CountMSGCRuntimeWriteBarrier(MSGC_RUNTIME_WB_STRUCT);
+#endif
     if (UNLIKELY(!Heap::IsHeapAddress(obj))) {
         if (srcLen == 0) {
             return;
@@ -322,6 +416,7 @@ extern "C" void MCC_WriteStructField(ObjectPtr obj, MAddress dst, size_t dstLen,
 extern "C" void MCC_WriteStaticRef(const ObjectPtr ref, RefField<false>* field)
 {
 #ifdef MRT_USE_MARK_SWEEP
+    CountMSGCRuntimeWriteBarrier(MSGC_RUNTIME_WB_STATIC_REF);
     MSBarrierOps::WriteStaticRef(*field, ref);
 #else
     Heap::GetBarrier().WriteStaticRef(*field, ref);
@@ -331,6 +426,7 @@ extern "C" void MCC_WriteStaticRef(const ObjectPtr ref, RefField<false>* field)
 extern "C" void MCC_WriteStaticStruct(MAddress dst, size_t dstLen, MAddress src, size_t srcLen, const GCTib gcTib)
 {
 #ifdef MRT_USE_MARK_SWEEP
+    CountMSGCRuntimeWriteBarrier(MSGC_RUNTIME_WB_STATIC_STRUCT);
     MSBarrierOps::WriteStaticStruct(dst, dstLen, src, srcLen, gcTib);
 #else
     CHECK_DETAIL((dst != 0u && src != 0u),
@@ -366,6 +462,7 @@ extern "C" void CJ_MCC_ArrayCopyRef(const ObjectPtr dstObj, MAddress dstField, s
                                     MAddress srcField, size_t srcSize)
 {
 #ifdef MRT_USE_MARK_SWEEP
+    CountMSGCRuntimeWriteBarrier(MSGC_RUNTIME_WB_ARRAY_REF);
     (void)dstObj;
     (void)srcObj;
     MSBarrierOps::CopyRefArray(dstField, dstSize, srcField, srcSize);
@@ -382,6 +479,7 @@ extern "C" void CJ_MCC_ArrayCopyStruct(const ObjectPtr dstObj, MAddress dstField
                                        const ObjectPtr srcObj, MAddress srcField, size_t srcSize)
 {
 #ifdef MRT_USE_MARK_SWEEP
+    CountMSGCRuntimeWriteBarrier(MSGC_RUNTIME_WB_ARRAY_STRUCT);
     (void)srcObj;
     MSBarrierOps::CopyStructArray(dstObj, dstField, dstSize, srcField, srcSize);
 #else

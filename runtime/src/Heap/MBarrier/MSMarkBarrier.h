@@ -15,6 +15,22 @@ namespace MapleRuntime {
 
 class Mutator;
 
+enum class MSBarrierRuntimeStat : uint8_t {
+    OLD_REF_BUFFER_REQUEST,
+    OLD_REF_RESOLVE_REJECTED,
+    OLD_REF_LARGE,
+    OLD_REF_ALREADY_PENDING,
+    OLD_REF_ADDED_WITHOUT_FLUSH,
+    OLD_REF_ADDED_WITHOUT_FLUSH_COLLECT_SET,
+    OLD_REF_ADDED_WITHOUT_FLUSH_OUTSIDE_SET,
+    OLD_REF_THRESHOLD_FLUSH,
+    OLD_REF_SET_CONFLICT_FLUSH,
+    OLD_REF_IMMEDIATE_PUBLISH,
+    COUNT
+};
+
+void RecordMSBarrierRuntimeStat(MSBarrierRuntimeStat stat);
+
 namespace MSBarrierOps {
 void WriteReference(RefField<false>& field, BaseObject* ref);
 void WriteStaticRef(RefField<false>& field, BaseObject* ref);
