@@ -136,7 +136,7 @@ class HashMapKeys<K, V> <: EquatableCollection<K> where K <: Hashable & Equatabl
  *
  * @since 0.24.2
  */
-class HashMapValues<K, V> <: Collection<V> where K <: Hashable & Equatable<K> {
+public class HashMapValues<K, V> <: Collection<V> where K <: Hashable & Equatable<K> {
     private let map: HashMap<K, V>
 
     @Frozen
@@ -178,8 +178,8 @@ class HashMapValues<K, V> <: Collection<V> where K <: Hashable & Equatable<K> {
      * @since 0.24.2
      */
     @Frozen
-    public func iterator(): Iterator<V> {
-        return map.iterator().map<V> {i: (K, V) => i[1]}
+    public func iterator(): HashMapValuesIterator<K, V> {
+        return HashMapValuesIterator<K, V>(map)
     }
 
     /**
@@ -823,7 +823,7 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
      * @since 0.18.4
      */
     @Frozen
-    public func values(): Collection<V> {
+    public func values(): HashMapValues<K, V> {
         return HashMapValues<K, V>(this)
     }
 
@@ -1303,6 +1303,39 @@ extend<K, V> HashMap<K, V> <: Equatable<HashMap<K, V>> where V <: Equatable<V> {
             }
         }
         return false
+    }
+}
+
+/**
+ * This is a hashmap values iterator used to iterate values directly.
+ *
+ * @since 1.1.3
+ */
+public class HashMapValuesIterator<K, V> <: Iterator<V> where K <: Hashable & Equatable<K> {
+    private var lockVersion: Int64
+    private var index: Int64
+    private let data: HashMap<K, V>
+
+    @Frozen
+    init(map: HashMap<K, V>) {
+        data = map
+        lockVersion = map.version()
+        index = -1
+    }
+
+    @Frozen
+    public func next(): ?V {
+        if (lockVersion != data.version()) {
+            throw ConcurrentModificationException()
+        }
+        let size = data.entries.size
+        do {
+            index++
+        } while (index < size && data.entries[index].hash < 0)
+        if (index >= size) {
+            return None
+        }
+        return Some(data.entries[index].value)
     }
 }
 
