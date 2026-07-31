@@ -160,7 +160,7 @@ public class ClassTypeInfo <: TypeInfo {
     }
 
     /**
-     * Returns true if type info is 'public', false otherwise.
+     * Returns true if type info is 'open', false otherwise.
      */
     public func isOpen(): Bool {
         containsModifier(modifiers, ModifierInfo.Open)
