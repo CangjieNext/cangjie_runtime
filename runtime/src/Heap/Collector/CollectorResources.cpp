@@ -109,6 +109,11 @@ bool CollectorResources::TryAcquireMSGCWorkerPoolForSweep()
     return gcThreadPool != nullptr && msgcWorkerPoolController_.TryAcquireSweep();
 }
 
+bool CollectorResources::TryAcquireMSGCWorkerPoolForPreEnum()
+{
+    return gcThreadPool != nullptr && msgcWorkerPoolController_.TryAcquirePreEnum();
+}
+
 bool CollectorResources::AcquireMSGCWorkerPoolForMark()
 {
     return gcThreadPool != nullptr && msgcWorkerPoolController_.AcquireMark();
@@ -298,13 +303,21 @@ void CollectorResources::StartGCThreads()
     // starts the thread pool.
     if (gcThreadPool == nullptr) {
 #ifdef MRT_USE_MARK_SWEEP
-        gcThreadCount = std::max<int32_t>(1, CangjieRuntime::GetGCParam().gcThreads);
-        int32_t helperThreads = std::max<int32_t>(1, gcThreadCount - 1);
+        size_t totalThreadLimit = CangjieRuntime::GetMSGCThreadCapacity();
+        gcThreadCount = static_cast<int32_t>(std::min(
+            totalThreadLimit,
+            static_cast<size_t>(std::max<int32_t>(1, CangjieRuntime::GetGCParam().gcThreads))));
+        // cjGCThreads directly selects the GCThreadPool instance width.  The
+        // runtime-initialized machine capacity remains its hard upper bound.
+        int32_t helperThreads = std::max<int32_t>(0, gcThreadCount - 1);
+        VLOG(REPORT,
+             "machine GC thread capacity=%zu, GCThreadPool total threads=%d, helper threads=%d",
+             totalThreadLimit, gcThreadCount, helperThreads);
 #else
         int32_t helperThreads = 1;
         gcThreadCount = helperThreads + 1;
-#endif
         VLOG(REPORT, "total gc thread count %d, helper thread count %d", gcThreadCount, helperThreads);
+#endif
         gcThreadPool = new (std::nothrow) GCThreadPool("gc", helperThreads, GCPoolThread::GC_THREAD_PRIORITY);
         CHECK_DETAIL(gcThreadPool != nullptr, "new GCThreadPool failed");
     }
@@ -332,6 +345,17 @@ int32_t CollectorResources::GetGCThreadCount(const bool isConcurrent) const
     // default to 2
     return 2;
 }
+
+#ifdef MRT_USE_MARK_SWEEP
+size_t CollectorResources::GetMSGCThreadPoolHelperLimit() const
+{
+    if (GetThreadPool() == nullptr || gcThreadCount <= 1) {
+        return 0;
+    }
+    return std::min(static_cast<size_t>(gcThreadCount - 1),
+                    static_cast<size_t>(GetThreadPool()->GetMaxThreadNum()));
+}
+#endif
 
 void CollectorResources::RequestHeapDump(GCTask::TaskType gcTask)
 {

@@ -139,7 +139,7 @@ if 'TimeUtil::MicroSeconds() >= deadlineUs' not in sweep_list:
 stop_wait = section(
     central,
     'void CentralRegionPool::StopAndWaitForAllSweep()',
-    'void CentralRegionPool::ClearAllMarkBitmaps()',
+    'void CentralRegionPool::VisitMarkPendingRegionsUnderSTW(',
 )
 final_drain = stop_wait.rfind('ForceFinishAllUnswept();')
 exact_check = stop_wait.find('CHECK(GetTotalUnsweptCountReference() == 0)', final_drain)

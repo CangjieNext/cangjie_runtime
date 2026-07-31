@@ -40,7 +40,7 @@ for begin, end in (
 oom = block(source, "void CentralRegionPool::ForceFinishAllUnsweptForOOM()", "size_t CentralRegionPool::CountTLActiveRegions")
 assert "PublishSweepDoneAfterQuiescence" not in oom, "OOM path must not publish sweep done"
 
-stop = block(source, "void CentralRegionPool::StopAndWaitForAllSweep()", "void CentralRegionPool::ClearAllMarkBitmaps()")
+stop = block(source, "void CentralRegionPool::StopAndWaitForAllSweep()", "void CentralRegionPool::VisitMarkPendingRegionsUnderSTW(")
 assert stop.index("CloseSweepAdmissionAndWait") < stop.index("PublishSweepDoneAfterQuiescence")
 
 reenable = block(source, "void CentralRegionPool::ReenableLazySweep()", "} // namespace MapleRuntime")

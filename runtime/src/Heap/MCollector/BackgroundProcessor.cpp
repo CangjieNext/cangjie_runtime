@@ -416,8 +416,9 @@ size_t BackgroundProcessor::RefreshSweepHelperControl(CentralRegionPool& pool, R
     size_t maxHelpers = 0;
     if (IsParallelSweepEnabled()) {
         const GCParam& gcParam = CangjieRuntime::GetGCParam();
-        size_t gcThreads = static_cast<size_t>(
-            std::max<int32_t>(1, resources.GetGCThreadCount(true)));
+        size_t gcThreads = std::min(
+            static_cast<size_t>(std::max<int32_t>(1, resources.GetGCThreadCount(true))),
+            CangjieRuntime::GetMSGCThreadCapacity());
         maxHelpers = ComputeMSMaxSweepHelpers(gcThreads, gcParam.msParallelSweepMaxHelpers);
     }
     size_t targetHelpers = ComputeMSSweepTargetHelpers(

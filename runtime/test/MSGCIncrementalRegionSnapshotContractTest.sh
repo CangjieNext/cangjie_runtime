@@ -136,7 +136,7 @@ for token in required_publish_order:
     cursor = found + len(token)
 
 stop_start = source.index('void CentralRegionPool::StopAndWaitForAllSweep()')
-stop_end = source.index('void CentralRegionPool::ClearAllMarkBitmaps()', stop_start)
+stop_end = source.index('void CentralRegionPool::VisitMarkPendingRegionsUnderSTW(', stop_start)
 stop = source[stop_start:stop_end]
 first_drain = stop.index('ForceFinishAllUnswept();')
 second_drain = stop.index('ForceFinishAllUnswept();', first_drain + 1)

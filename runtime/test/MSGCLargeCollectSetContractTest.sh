@@ -13,7 +13,7 @@ if rg -q 'largeRegionList_' "$HEADER" "$SOURCE"; then
     exit 1
 fi
 
-build="$(sed -n '/uint32_t CentralRegionPool::BuildCollectSet/,/^}/p' "$SOURCE")"
+build="$(sed -n '/uint32_t CentralRegionPool::PrepareCollectSetForMarkUnderSTW/,/^}/p' "$SOURCE")"
 printf '%s\n' "$build" | rg -q 'largeCollectSet_\.swap\(largeNextSupply_\)'
 printf '%s\n' "$build" | rg -q 'region->collectEpoch = epoch'
 

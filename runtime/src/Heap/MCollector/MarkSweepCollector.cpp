@@ -569,9 +569,6 @@ void MarkSweepCollector::PreEnumRoots()
     cycleAllocatedMarkBytes_.store(0, std::memory_order_relaxed);
     assistWorkPerByteScaled_.store(0, std::memory_order_relaxed);
 
-    // Set activeCollector_ for MSMarkAssist (Mutator assist during concurrent mark).
-    activeCollector_.store(this, std::memory_order_release);
-
     RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(theAllocator);
     CentralRegionPool* centralPool = space.GetCentralPool();
     
@@ -595,10 +592,18 @@ void MarkSweepCollector::PreEnumRoots()
             ScopedStopTheWorld stw("MS PreEnumRoots clear/reclassify/prepare STW");
             markScheduler_.ResetCycle();
             PrepareBarrierMarkBuffersForNewEpochUnderSTW(*centralPool);
-            centralPool->BuildCollectSet();
             uint64_t clearBitmapT0 = TimeUtil::MicroSeconds();
-            centralPool->ClearAllMarkBitmaps();
+            centralPool->PrepareCollectSetForMarkUnderSTW();
             clearBitmapUs = TimeUtil::MicroSeconds() - clearBitmapT0;
+
+            // Keep the old collector gate closed until every prior-epoch
+            // scheduler and barrier-buffer state has been discarded.  In
+            // particular, an AllocBufferMS that exits while sweep is being
+            // stopped must reset a stale buffer instead of flushing it into
+            // the old TaskLedger just before ResetCycle().  Mutators remain
+            // stopped here, so opening the gate after the new epoch is fully
+            // prepared cannot race a barrier publication.
+            activeCollector_.store(this, std::memory_order_release);
         }
         uint64_t stwUs = TimeUtil::MicroSeconds() - stwT0;
         VLOG(REPORT,
@@ -606,6 +611,10 @@ void MarkSweepCollector::PreEnumRoots()
              Pretty(stopSweepUs).Str(),
              Pretty(clearBitmapUs).Str(),
              Pretty(stwUs).Str());
+    } else {
+        // A RegionSpaceMS normally always has its central pool.  Keep the
+        // lifecycle well-defined for early initialization/error paths too.
+        activeCollector_.store(this, std::memory_order_release);
     }
     cycleStats_.preEnumRootsUs = TimeUtil::MicroSeconds() - t0;
     VLOG(REPORT, "[MS-GC] PreEnumRoots: %sus",
@@ -1062,7 +1071,7 @@ void MarkSweepCollector::PrepareBarrierMarkBuffersForNewEpochUnderSTW(
         MSBarrierMarkBuffer& markBuffer = buffer.GetBarrierMarkBuffer();
         // The buffer has no epoch tag. Anything left while the mark barrier is
         // inactive belongs to the completed cycle and must not be published
-        // into the mark plane that BuildCollectSet installs for the new cycle.
+        // into the mark plane that PreEnum prepares for the new cycle.
         ResetMSBarrierMarkBuffer(markBuffer);
     });
 }
@@ -1414,8 +1423,9 @@ void MarkSweepCollector::RunSchedulerMarkLoop()
     VLOG(REPORT,
          "[MS-GC] --- ConcurrentMark (REGION/OBJECT scheduler) ---");
 
-    size_t configuredThreads =
-        std::max<int32_t>(1, CangjieRuntime::GetGCParam().gcThreads);
+    size_t configuredThreads = std::min(
+        static_cast<size_t>(std::max<int32_t>(1, CangjieRuntime::GetGCParam().gcThreads)),
+        CangjieRuntime::GetMSGCThreadCapacity());
     size_t maxHelpers = configuredThreads > 1 ? configuredThreads - 1 : 0;
     GCThreadPool* threadPool = GetThreadPool();
     if (threadPool == nullptr) {
@@ -1884,7 +1894,9 @@ void MarkSweepCollector::PostMarkTermination()
 void MarkSweepCollector::RunOOMEmergencyParallelSweep(CentralRegionPool& centralPool)
 {
     size_t unsweptBefore = centralPool.GetTotalUnsweptCount();
-    size_t configuredThreads = std::max<int32_t>(1, CangjieRuntime::GetGCParam().gcThreads);
+    size_t configuredThreads = std::min(
+        static_cast<size_t>(std::max<int32_t>(1, CangjieRuntime::GetGCParam().gcThreads)),
+        CangjieRuntime::GetMSGCThreadCapacity());
     size_t helperCount = ComputeMSMaxSweepHelpers(
         configuredThreads, CangjieRuntime::GetGCParam().msParallelSweepMaxHelpers);
     GCThreadPool* threadPool = GetThreadPool();

@@ -276,8 +276,9 @@ struct GCParam {
 
     /*
      * Total number of GC threads, including the GC main thread.
-     * MSGC uses at most 2 total threads: one GC main and one helper.
-     * A positive MSGC value is capped at 2 and at the available processor count.
+     * MSGC defaults to 2 total threads: one GC main and one helper.
+     * Zero selects the Runtime's available machine-core capacity. A positive
+     * MSGC value is limited by that same capacity.
      * CopyGC defaults to 2.
      */
     int32_t gcThreads;
@@ -379,7 +380,7 @@ struct GCParam {
 
     /*
      * Maximum GC helper threads borrowed by MSGC parallel Sweep.
-     * 0 selects the automatic cap (min(8, gcThreads - 1)).
+     * 0 selects the automatic cap (gcThreads - 1, bounded by machine cores).
      */
     size_t msParallelSweepMaxHelpers;
 

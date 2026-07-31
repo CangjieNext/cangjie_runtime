@@ -58,7 +58,10 @@ public:
     GCThreadPool* GetThreadPool() const { return gcThreadPool; }
 
 #ifdef MRT_USE_MARK_SWEEP
+    // Helper capacity of the GCThreadPool instance selected by cjGCThreads.
+    size_t GetMSGCThreadPoolHelperLimit() const;
     bool TryAcquireMSGCWorkerPoolForSweep();
+    bool TryAcquireMSGCWorkerPoolForPreEnum();
     bool AcquireMSGCWorkerPoolForMark();
     void ReleaseMSGCWorkerPool(MSGCWorkerPoolOwner owner);
 #endif

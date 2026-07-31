@@ -147,12 +147,13 @@ active `MarkSweepCollector` 与当前 owner 的 `AllocBufferMS`。没有 `AllocB
 | entry | 32 × 16B | 每项为 `wordKey + mask` |
 | set/way | 8 set × 4 way | `(regionIdx ^ wordIdx * 5) & 7` 选择 set |
 | `occupancy` / `pendingBitCount` / `lastEntry` | offset 512 / 516 / 520 | occupied way、pending bit 预算、MRU entry |
-| flush threshold | 128 unique bits | 达到阈值或 set 冲突时先 flush，再重试插入 |
+| flush threshold | 128 pending-add budget | 达到阈值或 set 冲突时先 flush，再重试插入；当前 LLVM 计数是保守值 |
 | `wordKey` | `(regionIdx << 6) | wordIdx` | 连接 Region 与其 64-bit mark word |
 
-Runtime 的插入路径会检查重复 pending bit，因此 `pendingBitCount` 精确统计新增 bit。LLVM inline
-路径为减少查询，允许重复 bit 的幂等 OR 也消耗保守预算；二者在达到阈值/冲突时都退回 wrapper
-flush，保证等价且安全。
+Runtime 插入路径检查重复 pending bit，因此 Runtime 中的 `pendingBitCount` 精确统计新增 bit。
+当前 LLVM inline 路径不做该检查：重复 bit 的 OR 仍然幂等，但会继续增加
+`pendingBitCount`，所以这是一个保守的 pending-add 预算，可能比 entry mask 的真实 unique bit
+数量更早达到阈值。二者在达到阈值或 set 冲突时都退回 wrapper flush。
 
 ### 5.4 flush 与生命周期
 
@@ -580,38 +581,33 @@ stdx 也已随最终 ON SDK 再次完整重编。此后 SDK 又随 outside-set S
 
 ## 10. 当前数据指向的后续优化
 
-### 10.1 第一优先级：恢复 LLVM 已 pending bit 去重
+### 10.1 A/B 完成：LLVM pending bit 去重（当前已移除）
 
-当前 AArch64/X86 inline fast-add 在命中相同 `wordKey` 后，会直接执行幂等 OR，并且无论该 bit
-是否已经存在，都将 `pendingBitCount` 加 1。这样可以少一次 bit test/branch，但
-`pendingBitCount` 不再代表 unique bit，而是“尝试加入次数”的保守预算。
+曾在 AArch64/X86 inline fast-add 的 `KeyFound` 路径加入一次
+`entry.mask & bitMask` test：已 pending 时直接完成当前写入，不执行 OR、不增加
+`pendingBitCount`，只有新增 bit 才检查 threshold 并更新 mask。为判断额外 test/branch 是否值得，
+使用完整重编的 compiler、Runtime、stdlib、stdx 和重新编译的 case27 做了相邻三轮 A/B。
+两侧都开启 Runtime 热路径计数，配置均为 10K、并发 10、10 秒、4GB virtual heap：
 
-这与当前数据高度相关：
+| LLVM pending 去重 | 业务请求 | GC cycle | threshold flush | set-conflict flush | 总 flush | 平均吞吐 |
+|---|---:|---:|---:|---:|---:|---:|
+| 开启 | 319684 | 647 | 480918 | 61096 | 542014 | 10536 req/s |
+| 移除 | 318936 | 648 | 548556 | 66186 | 614742 | 10515 req/s |
 
-- threshold flush 为 766060 次，占 Runtime buffer request 的 85.31%；
-- 旧 ON 的 threshold/set-conflict flush 合计仅 71976 次；
-- Runtime 的 `already_pending=563` 只统计已经进入 Runtime 的请求，完全看不到 LLVM 内部
-  命中同一 pending bit 的次数，因此不能据此认为 inline 重复很少。
+移除去重后，业务请求只变化 -0.23%，但总 flush 增加 13.42%；按业务请求归一化增加
+13.68%，按 GC cycle 归一化增加 13.24%。平均吞吐只变化 -0.20%，远小于三轮间波动，不能判定
+去重带来吞吐收益。它确实降低 flush，但 `KeyFound` 热路径增加的 test/branch 与减少的 slow edge
+在该负载下基本抵消。
 
-建议在 `KeyFound` 路径恢复 `(entry.mask & bitMask) != 0` 检查。已 pending 时只更新必要的
-`lastEntry` 后完成原写入，不增加 `pendingBitCount`；只有新增 bit 才检查 threshold、OR mask
-并递增计数。该路径只增加一次 test 和一个通常容易预测的分支，却可能避免大量无意义 flush、
-Runtime wrapper、全 buffer 遍历和 mark-plane 原子操作。
-
-在修改前后可临时记录每次 threshold flush 时的：
-
-```text
-pendingBitCount
-sum(popcount(entry.mask))
-```
-
-二者差值就是 LLVM 重复 bit 导致的预算膨胀量。确认后应删除该临时统计。
+因此当前实现按本次实验要求移除了 LLVM pending-bit 去重：重复 bit 继续执行幂等 OR 并消耗
+保守的 `pendingBitCount` 预算，Runtime 自身的去重保持不变。此前与更早历史结果比较得到的约
+34% flush 降幅混入了运行时序和其他环境差异；评估该单项优化应以这里的相邻 A/B 为准。
 
 ### 10.2 第二优先级：为 threshold/conflict 提供专用 slow helper
 
 当前 LLVM 已经算出 `buffer + wordKey + bitMask`，但 threshold 或 4-way conflict 时仍回到完整
 wrapper。Runtime 随后重新执行 phase 判断、读取 oldRef、解析 Region/slot，再 flush 和插入
-当前 bit。当前三轮共有 860790 次这类请求，值得避免重复工作。
+当前 bit。本次无去重三轮共有 614742 次这类请求，值得避免重复工作。
 
 可增加内部 leaf slow helper，直接接收已验证的 buffer、`wordKey`、`bitMask` 和冲突原因：
 
@@ -641,7 +637,7 @@ Runtime 已经缓存 collector/buffer/epoch，并去除连续相同 oldRef；后
 
 ### 10.4 第三优先级：处理 4-way conflict
 
-4-way conflict 为 94730 次，占 buffer request 的 10.55%。当前任意一个 set 冲突都会 flush
+本次无去重三轮的 4-way conflict 为 66186 次。当前任意一个 set 冲突都会 flush
 整个 32-entry buffer。建议先按 set 记录冲突分布、flush 时 occupancy 和 unique-bit 数，再选择：
 
 - 改善 `(regionIdx, wordIdx)` 的 hash，降低热点 key 聚集；
@@ -665,6 +661,7 @@ Runtime 已经缓存 collector/buffer/epoch，并去除连续相同 oldRef；后
   优化空间。Atomic load 仍走 Runtime；只有新增调用计数证明其为热点时，才值得在 LLVM 保留
   memory-order 语义地直接 lowering。
 
-综合优先顺序是：**LLVM pending-bit 去重 → threshold/conflict 专用 helper → 小型常量 bulk
-inline/Runtime bulk 合并 → set-conflict 局部化**。在 pending-bit 去重完成前，不应先提高 128
-阈值；否则只会掩盖重复计数，并增加 SATB 旧边在 mutator TLS 中滞留的时间。
+综合优先顺序调整为：**threshold/conflict 专用 helper → 小型常量 bulk inline/Runtime bulk
+合并 → set-conflict 局部化**。LLVM pending-bit 去重可降低约 13% 的 flush，但本次 A/B 没有
+观测到吞吐收益，因此当前不保留。也不建议仅靠提高 128 阈值掩盖重复计数；这会增加 SATB
+旧边在 mutator TLS 中滞留的时间。

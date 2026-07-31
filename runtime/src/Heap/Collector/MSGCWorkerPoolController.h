@@ -16,13 +16,14 @@ namespace MapleRuntime {
 enum class MSGCWorkerPoolOwner : uint8_t {
     IDLE,
     SWEEP,
+    PRE_ENUM,
     MARK,
     STOPPING,
 };
 
 // Serializes complete GCThreadPool task epochs. The controller does not protect
 // individual tasks; an owner remains installed from AddWork/Start through
-// WaitFinish so MARK and SWEEP work can never share one pool cycle.
+// WaitFinish so PRE_ENUM, MARK, and SWEEP work can never share one pool cycle.
 class MSGCWorkerPoolController {
 public:
     bool TryAcquireSweep()
@@ -32,6 +33,16 @@ public:
             return false;
         }
         owner_ = MSGCWorkerPoolOwner::SWEEP;
+        return true;
+    }
+
+    bool TryAcquirePreEnum()
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (stopping_ || owner_ != MSGCWorkerPoolOwner::IDLE) {
+            return false;
+        }
+        owner_ = MSGCWorkerPoolOwner::PRE_ENUM;
         return true;
     }
 

@@ -47,6 +47,8 @@ public:
 #ifdef MRT_USE_MARK_SWEEP
     static void ConfigureMSAllocatorScale(uint32_t processorCount, size_t maxVirtualHeapSizeKB);
     static MSAllocatorScaleConfig GetMSAllocatorScaleConfig() { return msAllocatorScaleConfig; }
+    static size_t GetMSGCThreadCapacity() { return msGCThreadCapacity; }
+    static void SetMSGCThreadCapacity(size_t value) { msGCThreadCapacity = value; }
 #endif
     RuntimeParam GetRuntimeParam() const override { return param; }
     void SetCommandLinesArgs(int argc, const char* argv[])
@@ -86,6 +88,7 @@ private:
     static size_t msMaxVirtualHeapSizeKB;
 #ifdef MRT_USE_MARK_SWEEP
     static MSAllocatorScaleConfig msAllocatorScaleConfig;
+    static size_t msGCThreadCapacity;
 #endif
 };
 } // namespace MapleRuntime

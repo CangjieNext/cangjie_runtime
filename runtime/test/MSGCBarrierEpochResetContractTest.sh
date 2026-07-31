@@ -35,4 +35,21 @@ if rg -q 'finalized with pending barrier work' <<<"$fini_block"; then
     exit 1
 fi
 
+python3 - "$COLLECTOR" <<'PY'
+import pathlib
+import sys
+
+collector = pathlib.Path(sys.argv[1]).read_text()
+start = collector.index("void MarkSweepCollector::PreEnumRoots()")
+end = collector.index("void MarkSweepCollector::EnumRoots()", start)
+pre_enum = collector[start:end]
+
+reset = pre_enum.index("markScheduler_.ResetCycle()")
+activate = pre_enum.index("activeCollector_.store(this")
+assert reset < activate, (
+    "PreEnum must keep activeCollector closed until ResetCycle has discarded "
+    "all prior-epoch scheduler and barrier state"
+)
+PY
+
 echo 'MSGC barrier epoch-reset contract holds'

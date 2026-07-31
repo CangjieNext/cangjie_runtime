@@ -22,6 +22,7 @@
 #include "Collector/CollectorResources.h"
 #include "Heap.h"
 #include "Heap/MCollector/BackgroundProcessor.h"
+#include "Heap/MCollector/MSMarkWorkerPolicy.h"
 #include <array>
 #include <cstdlib>
 #include <cstdio>
@@ -36,7 +37,6 @@ namespace MapleRuntime {
 
 namespace {
 constexpr size_t kSweepDeadlineCheckInterval = 4;
-
 void ClearSmallRegionPayload(uintptr_t regionStart)
 {
     memset(reinterpret_cast<void*>(regionStart), 0, MS_REGION_SIZE);
@@ -504,8 +504,9 @@ size_t CentralRegionPool::ReclaimIdleSegmentCaches(size_t startRegionIdx, size_t
 // GC operations
 // ============================================================================
 
-uint32_t CentralRegionPool::BuildCollectSet()
+uint32_t CentralRegionPool::PrepareCollectSetForMarkUnderSTW()
 {
+    uint64_t prepareStartUs = TimeUtil::MicroSeconds();
     uint32_t previousEpoch = currentMarkEpoch_.load(std::memory_order_relaxed);
     uint32_t epoch = previousEpoch + 1;
     if (UNLIKELY(epoch == MSRegionInfo::NO_COLLECT_EPOCH)) {
@@ -513,20 +514,42 @@ uint32_t CentralRegionPool::BuildCollectSet()
     }
 
     size_t collected = 0;
+    size_t tlSmallCleared = 0;
+    size_t largeBaseCleared = 0;
+    size_t estimatedResetBytes = 0;
+    struct ResetLane {
+        RegionChain* chain;
+        uint8_t cls;
+        uint8_t scan;
+    };
+    std::array<ResetLane, kNumSizeClasses * kMSScanClassCount> resetLanes{};
+    size_t resetLaneCount = 0;
     for (uint8_t cls = 0; cls < kNumSizeClasses; ++cls) {
         for (uint8_t scan = 0; scan < kMSScanClassCount; ++scan) {
             RegionChain& chain = collectSet_[cls][scan];
             CHECK_DETAIL(chain.IsEmpty(),
-                         "[MS-GC] BuildCollectSet: stale collect-set chain cls=%u scan=%u count=%zu",
+                         "[MS-GC] PrepareCollectSetForMark: stale collect-set chain cls=%u scan=%u count=%zu",
                          static_cast<unsigned>(cls), static_cast<unsigned>(scan), chain.count);
             buckets_[cls][scan].StealSweptToCollectSet(chain);
-            chain.ForEach([epoch, cls, scan](MSRegionInfo* region) {
+            if (!chain.IsEmpty()) {
+                resetLanes[resetLaneCount++] = {&chain, cls, scan};
+                size_t bitmapBytes = static_cast<size_t>(SizeClassInfo::ClassToBitmapWords(cls)) *
+                    sizeof(uint64_t);
+                estimatedResetBytes += chain.count * bitmapBytes *
+                    (scan == ToMSScanClassIndex(MSScanClass::HAS_REF) ? 2 : 1);
+            }
+            collected += chain.count;
+        }
+    }
+
+    auto resetSmallLane = [epoch](RegionChain& chain, uint8_t cls, uint8_t scan) {
+        chain.ForEach([epoch, cls, scan](MSRegionInfo* region) {
                 CHECK_DETAIL(
                     region->GetRegionKind() == MSRegionKind::SMALL &&
                     region->GetAllocMode() == MSAllocMode::BITMAP &&
                     region->sizeClass == cls &&
                     ToMSScanClassIndex(region->GetScanClass()) == scan,
-                    "[MS-GC] BuildCollectSet: invalid lane member idx=%zu cls=%u/%u scan=%u/%u "
+                    "[MS-GC] PrepareCollectSetForMark: invalid lane member idx=%zu cls=%u/%u scan=%u/%u "
                     "kind=%u mode=%u",
                     MSRegionInfoArray::GetRegionIdx(region),
                     static_cast<unsigned>(region->sizeClass),
@@ -535,18 +558,70 @@ uint32_t CentralRegionPool::BuildCollectSet()
                     static_cast<unsigned>(scan),
                     static_cast<unsigned>(region->GetRegionKind()),
                     static_cast<unsigned>(region->GetAllocMode()));
+                region->ResetSmallMarkWorkState();
                 region->collectEpoch = epoch;
             });
-            collected += chain.count;
+    };
+
+    CollectorResources& resources = Heap::GetHeap().GetCollectorResources();
+    GCThreadPool* threadPool = resources.GetThreadPool();
+    size_t availableHelpers = threadPool == nullptr ? 0 : std::min(
+        {resetLaneCount, resources.GetMSGCThreadPoolHelperLimit(),
+         static_cast<size_t>(threadPool->GetMaxThreadNum())});
+    size_t helperCount = ComputeMSPreEnumResetHelperTarget(
+        estimatedResetBytes, availableHelpers);
+    bool parallelReset = helperCount != 0;
+    bool preEnumPoolOwned = false;
+    bool parallelResetStarted = false;
+    int32_t oldActiveThreadCount = 0;
+
+    if (parallelReset && resources.TryAcquireMSGCWorkerPoolForPreEnum()) {
+        preEnumPoolOwned = true;
+        std::array<std::unique_ptr<HeapWork>, kNumSizeClasses * kMSScanClassCount> stagedTasks{};
+        bool allocationFailed = false;
+        for (size_t laneIndex = 0; laneIndex < resetLaneCount; ++laneIndex) {
+            const ResetLane lane = resetLanes[laneIndex];
+            std::unique_ptr<HeapWork> task(new (std::nothrow) LambdaWork(
+                [chain = lane.chain, cls = lane.cls, scan = lane.scan, resetSmallLane](size_t) {
+                    resetSmallLane(*chain, cls, scan);
+                }));
+            if (task == nullptr) {
+                allocationFailed = true;
+                break;
+            }
+            stagedTasks[laneIndex] = std::move(task);
+        }
+        if (allocationFailed) {
+            resources.ReleaseMSGCWorkerPool(MSGCWorkerPoolOwner::PRE_ENUM);
+            preEnumPoolOwned = false;
+            parallelReset = false;
+        } else {
+            oldActiveThreadCount = threadPool->GetMaxActiveThreadNum();
+            threadPool->SetMaxActiveThreadNum(static_cast<int32_t>(helperCount));
+            for (size_t laneIndex = 0; laneIndex < resetLaneCount; ++laneIndex) {
+                threadPool->AddWork(stagedTasks[laneIndex].release());
+            }
+            threadPool->Start();
+            parallelResetStarted = true;
+        }
+    } else {
+        parallelReset = false;
+    }
+
+    if (!parallelResetStarted) {
+        for (size_t laneIndex = 0; laneIndex < resetLaneCount; ++laneIndex) {
+            const ResetLane lane = resetLanes[laneIndex];
+            resetSmallLane(*lane.chain, lane.cls, lane.scan);
         }
     }
+
     // Freeze LARGE membership with one O(1) vector swap. Later allocations
     // append only to largeNextSupply_ and are outside this cycle.
     {
         std::lock_guard<std::mutex> lg(largeLock_);
         CHECK_DETAIL(
             largeCollectSet_.empty(),
-            "[MS-GC] BuildCollectSet: stale LARGE collect-set entries=%zu",
+            "[MS-GC] PrepareCollectSetForMark: stale LARGE collect-set entries=%zu",
             largeCollectSet_.size());
         largeCollectSet_.swap(largeNextSupply_);
         for (uint32_t idx : largeCollectSet_) {
@@ -555,18 +630,68 @@ uint32_t CentralRegionPool::BuildCollectSet()
             CHECK_DETAIL(
                 region != nullptr &&
                 region->GetRegionKind() == MSRegionKind::LARGE,
-                "[MS-GC] BuildCollectSet: invalid LARGE primary idx=%u",
+                "[MS-GC] PrepareCollectSetForMark: invalid LARGE primary idx=%u",
                 idx);
+            CHECK_DETAIL(
+                region->GetMarkTaskNextRegionIdx() == MSRegionInfo::INVALID_REGION_IDX,
+                "[MS-GC] LARGE Region still linked to ObjectReady at cycle reset: idx=%zu next=%u",
+                MSRegionInfoArray::GetRegionIdx(region),
+                region->GetMarkTaskNextRegionIdx());
+            region->ClearMarkedFlag();
             region->collectEpoch = epoch;
+            ++largeBaseCleared;
         }
     }
 
+    // ACTIVE Regions are outside this collection boundary. Clear only their
+    // MARK/SCAN task workspace; never materialize or read their live ALLOC
+    // plane. They remain owned by the mutator across this cycle.
+    VisitAllocBufferMS([&tlSmallCleared](AllocBufferMS& buffer) {
+        for (uint8_t cls = 0; cls < kNumSizeClasses; ++cls) {
+            for (uint8_t scan = 0; scan < kMSScanClassCount; ++scan) {
+                MSRegionInfo* region =
+                    buffer.GetActiveRegion(cls, static_cast<MSScanClass>(scan));
+                if (region == nullptr) {
+                    continue;
+                }
+#if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
+                CHECK_DETAIL(
+                    region->GetRegionKind() == MSRegionKind::SMALL &&
+                    (region->GetAllocMode() == MSAllocMode::BUMP ||
+                     region->GetAllocMode() == MSAllocMode::BITMAP),
+                    "[MS-GC] unexpected TLS Region type during mark bitmap clear: "
+                    "idx=%zu cls=%u scan=%u type=%u",
+                    MSRegionInfoArray::GetRegionIdx(region),
+                    static_cast<unsigned>(cls),
+                    static_cast<unsigned>(scan),
+                    static_cast<unsigned>(region->GetRegionType()));
+#endif
+                region->collectEpoch = MSRegionInfo::NO_COLLECT_EPOCH;
+                region->ResetSmallMarkWorkState();
+                ++tlSmallCleared;
+            }
+        }
+    });
+
+    if (parallelResetStarted) {
+        threadPool->WaitFinish();
+        threadPool->SetMaxActiveThreadNum(oldActiveThreadCount);
+    }
+    if (preEnumPoolOwned) {
+        resources.ReleaseMSGCWorkerPool(MSGCWorkerPoolOwner::PRE_ENUM);
+    }
+
+    // Do not expose the new mark epoch until all mark state is reset. Mutators
+    // are stopped here, and barrier buffers were reset before this method.
     currentMarkEpoch_.store(epoch, std::memory_order_release);
     PublishMSGCFastPathMarkEpoch(epoch);
 
     VLOG(REPORT,
-         "[MS-GC] BuildCollectSet: epoch=%u smallRegions=%zu activeOutside=%zu",
-         static_cast<unsigned>(epoch), collected, GetAllAllocBufferActiveRegionCount());
+         "[MS-GC] PrepareCollectSetForMark: epoch=%u collectSetSmall=%zu tlSmall=%zu "
+         "largeBase=%zu resetBytes=%zu resetLanes=%zu helpers=%zu parallelReset=%d elapsed=%sus",
+         static_cast<unsigned>(epoch), collected, tlSmallCleared, largeBaseCleared,
+         estimatedResetBytes, resetLaneCount, helperCount, static_cast<int>(parallelReset),
+         Pretty(TimeUtil::MicroSeconds() - prepareStartUs).Str());
     return epoch;
 }
 
@@ -1483,93 +1608,6 @@ void CentralRegionPool::StopAndWaitForAllSweep()
          "retained=%zuB activeBytes=%zuB emptySwept=%zuB largeCache=%zuB",
          unsweptBefore, unsweptAfter,
          totalRetained, activeBytes, emptySwept, largeCache);
-}
-
-void CentralRegionPool::ClearAllMarkBitmaps()
-{
-    uint64_t clearStartUs = TimeUtil::MicroSeconds();
-    uint32_t markEpoch = currentMarkEpoch_.load(std::memory_order_acquire);
-    size_t collectSetSmallCleared = 0;
-    size_t tlSmallCleared = 0;
-    size_t largeBaseCleared = 0;
-
-    // BuildCollectSet() already removed this cycle's sealed Regions from the
-    // allocation supply. ALLOC remains untouched and authoritative for these
-    // Regions; only per-cycle MARK/SCAN work state is reset.
-    for (uint8_t cls = 0; cls < kNumSizeClasses; ++cls) {
-        for (uint8_t scan = 0; scan < kMSScanClassCount; ++scan) {
-            collectSet_[cls][scan].ForEach(
-                [markEpoch, &collectSetSmallCleared](MSRegionInfo* region) {
-                    (void)markEpoch;
-#if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
-                    CHECK_DETAIL(
-                        region != nullptr &&
-                        region->GetRegionKind() == MSRegionKind::SMALL &&
-                        region->GetAllocMode() == MSAllocMode::BITMAP &&
-                        region->collectEpoch == markEpoch,
-                        "[MS-GC] invalid collect-set Region during mark reset: "
-                        "idx=%zu epoch=%u expected=%u kind=%u mode=%u",
-                        MSRegionInfoArray::GetRegionIdx(region),
-                        static_cast<unsigned>(region->collectEpoch),
-                        static_cast<unsigned>(markEpoch),
-                        static_cast<unsigned>(region->GetRegionKind()),
-                        static_cast<unsigned>(region->GetAllocMode()));
-#endif
-                    region->ResetSmallMarkWorkState();
-                    ++collectSetSmallCleared;
-                });
-        }
-    }
-
-    // ACTIVE Regions are outside this collection boundary. Clear only their
-    // MARK/SCAN task workspace; never materialize or read their live ALLOC
-    // plane. They remain owned by the mutator across this cycle.
-    VisitAllocBufferMS([&tlSmallCleared](AllocBufferMS& buffer) {
-        for (uint8_t cls = 0; cls < kNumSizeClasses; ++cls) {
-            for (uint8_t scan = 0; scan < kMSScanClassCount; ++scan) {
-                MSRegionInfo* region =
-                    buffer.GetActiveRegion(cls, static_cast<MSScanClass>(scan));
-                if (region == nullptr) {
-                    continue;
-                }
-#if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
-                CHECK_DETAIL(
-                    region->GetRegionKind() == MSRegionKind::SMALL &&
-                    (region->GetAllocMode() == MSAllocMode::BUMP ||
-                     region->GetAllocMode() == MSAllocMode::BITMAP),
-                    "[MS-GC] unexpected TLS Region type during mark bitmap clear: "
-                    "idx=%zu cls=%u scan=%u type=%u",
-                    MSRegionInfoArray::GetRegionIdx(region),
-                    static_cast<unsigned>(cls),
-                    static_cast<unsigned>(scan),
-                    static_cast<unsigned>(region->GetRegionType()));
-#endif
-                region->collectEpoch = MSRegionInfo::NO_COLLECT_EPOCH;
-                region->ResetSmallMarkWorkState();
-                ++tlSmallCleared;
-            }
-        }
-    });
-
-    // Only the frozen LARGE collect-set is reset. largeNextSupply_ is empty at
-    // this STW boundary and later allocations are outside this collection.
-    // Secondary SPAN entries never carry independent mark state.
-    VisitLargeCollectSetLocked([&largeBaseCleared](MSRegionInfo* region) {
-        CHECK_DETAIL(
-            region->GetMarkTaskNextRegionIdx() ==
-                MSRegionInfo::INVALID_REGION_IDX,
-            "[MS-GC] LARGE Region still linked to ObjectReady at cycle reset: idx=%zu next=%u",
-            MSRegionInfoArray::GetRegionIdx(region),
-            region->GetMarkTaskNextRegionIdx());
-        region->ClearMarkedFlag();
-        ++largeBaseCleared;
-    });
-
-    VLOG(REPORT,
-         "[MS-GC] ClearAllMarkBitmaps: collectSetSmall=%zu tlSmall=%zu "
-         "largeBase=%zu elapsed=%sus",
-         collectSetSmallCleared, tlSmallCleared, largeBaseCleared,
-         Pretty(TimeUtil::MicroSeconds() - clearStartUs).Str());
 }
 
 void CentralRegionPool::VisitMarkPendingRegionsUnderSTW(

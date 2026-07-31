@@ -33,9 +33,9 @@ struct alignas(8) MSBarrierMarkEntry {
 struct alignas(8) MSBarrierMarkBuffer {
     MSBarrierMarkEntry entries[kMSBarrierMarkBufferCapacity];
     uint32_t occupancy;
-    // Runtime additions count newly pending bits exactly. The compiler inline
-    // path deliberately omits the already-pending probe, so its idempotent
-    // ORs also consume this conservative flush budget.
+    // Runtime additions count newly pending bits exactly. Compiler inline
+    // additions use a conservative pending-add counter, so an idempotent
+    // re-add may still consume the flush budget.
     uint32_t pendingBitCount;
     uint8_t lastEntry;
     uint8_t reserved[3];

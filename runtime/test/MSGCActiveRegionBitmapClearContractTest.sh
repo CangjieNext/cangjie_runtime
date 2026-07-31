@@ -16,10 +16,10 @@ def section(source: str, start_token: str, end_token: str) -> str:
 
 
 source = pathlib.Path(sys.argv[1]).read_text()
-clear = section(
+prepare = section(
     source,
-    "void CentralRegionPool::ClearAllMarkBitmaps()",
-    "void CentralRegionPool::ReenableLazySweep()",
+    "uint32_t CentralRegionPool::PrepareCollectSetForMarkUnderSTW()",
+    "size_t CentralRegionPool::GetCollectSetRegionCount() const",
 )
 
 for forbidden in (
@@ -28,31 +28,32 @@ for forbidden in (
     "VisitAllRegions",
     "VisitLargeRegionsLocked",
 ):
-    if forbidden in clear:
+    if forbidden in prepare:
         raise SystemExit(
-            "ClearAllMarkBitmaps must not scan committed metadata: "
+            "PreEnum collect-set preparation must not scan committed metadata: "
             f"{forbidden}"
         )
 
 for required in (
-    "collectSet_[cls][scan].ForEach",
+    "StealSweptToCollectSet",
+    "chain.ForEach",
     "VisitAllocBufferMS",
-    "VisitLargeCollectSetLocked",
+    "largeCollectSet_.swap(largeNextSupply_)",
     "ResetSmallMarkWorkState",
     "ClearMarkedFlag",
-    "collectSetSmallCleared",
+    "collected",
     "tlSmallCleared",
     "largeBaseCleared",
 ):
-    if required not in clear:
+    if required not in prepare:
         raise SystemExit(
-            "ClearAllMarkBitmaps is missing active traversal step: "
+            "PreEnum collect-set preparation is missing active traversal step: "
             f"{required}"
         )
 
-if "unordered_set" in clear:
+if "unordered_set" in prepare:
     raise SystemExit(
-        "ClearAllMarkBitmaps must not allocate a deduplication set in STW"
+        "PreEnum collect-set preparation must not allocate a deduplication set in STW"
     )
 
 print("MSGC active Region bitmap clear contract holds")

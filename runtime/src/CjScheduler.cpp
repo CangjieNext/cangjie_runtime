@@ -513,7 +513,7 @@ static RuntimeParam InitRuntimeParam()
                     "cjGCThreads",
                     ResolveMSMarkTotalThreads(processorNum, logicalCpuCount, 0),
                     0, EnvBoundKind::OPEN,
-                    processorNum, EnvBoundKind::CLOSED))),
+                    logicalCpuCount, EnvBoundKind::CLOSED))),
 #else
             // CopyGC keeps one GC main thread and one helper thread.
             .gcThreads = 2,

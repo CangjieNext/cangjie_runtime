@@ -580,14 +580,13 @@ public:
     // zero. Keep this entry for explicit diagnostics and invariant checks.
     void ForceFinishAllUnsweptForOOM();
 
-    // Clear mark state for central small Regions, thread-local active Regions,
-    // and tracked large-object bases without scanning committed metadata.
+    // Under PreEnum STW, build the immutable collection boundary and reset all
+    // per-cycle mark work state. Sealed Small Regions are reset while their
+    // swept supply is moved into collectSet_, so they are traversed once.
+    // TLS active Regions stay outside the boundary. The new epoch is published
+    // only after every Small, active, and LARGE Region has been reset.
     // Must be called after StopAndWaitForAllSweep().
-    void ClearAllMarkBitmaps();
-
-    // Build the immutable small-object collection boundary under PreEnum STW.
-    // TLS active Regions stay outside the set. Returns the new non-zero epoch.
-    uint32_t BuildCollectSet();
+    uint32_t PrepareCollectSetForMarkUnderSTW();
 
     // After Mark has reached a fixed point, transfer every collect-set chain to
     // the corresponding unswept supply. No Region is reclassified by its old

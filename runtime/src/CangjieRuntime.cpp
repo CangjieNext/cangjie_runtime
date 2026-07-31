@@ -7,6 +7,8 @@
 
 #include "CangjieRuntime.h"
 
+#include <thread>
+
 #include "Base/Log.h"
 #include "Base/EnvParam.h"
 #include "ExceptionManager.h"
@@ -32,6 +34,8 @@
 #include "Mutator/MutatorManager.h"
 #ifndef MRT_USE_MARK_SWEEP
 #include "Heap/Allocator/RegionSpace.h"
+#else
+#include "Heap/MCollector/MSMarkWorkerPolicy.h"
 #endif
 #ifdef CANGJIE_GWPASAN_SUPPORT
 #include "Sanitizer/SanitizerInterface.h"
@@ -41,6 +45,7 @@ StackGrowConfig CangjieRuntime::stackGrowConfig = StackGrowConfig::UNDEF;
 size_t CangjieRuntime::msMaxVirtualHeapSizeKB = 0;
 #ifdef MRT_USE_MARK_SWEEP
 MSAllocatorScaleConfig CangjieRuntime::msAllocatorScaleConfig {};
+size_t CangjieRuntime::msGCThreadCapacity = 1;
 
 void CangjieRuntime::ConfigureMSAllocatorScale(uint32_t processorCount, size_t maxVirtualHeapSizeKB)
 {
@@ -144,6 +149,14 @@ void CangjieRuntime::CreateAndInit(const RuntimeParam& runtimeParam)
     if (g_initialized.load(std::memory_order_acquire)) {
         return;
     }
+#ifdef MRT_USE_MARK_SWEEP
+    unsigned int hardwareThreads = std::thread::hardware_concurrency();
+    size_t logicalCpuCount = hardwareThreads != 0
+        ? static_cast<size_t>(hardwareThreads)
+        : static_cast<size_t>(runtimeParam.coParam.processorNum);
+    SetMSGCThreadCapacity(ResolveMSGCThreadCapacity(
+        static_cast<size_t>(runtimeParam.coParam.processorNum), logicalCpuCount));
+#endif
     auto cjRuntime = new (std::nothrow) CangjieRuntime(runtimeParam);
     CHECK_DETAIL(cjRuntime != nullptr, "new CangjieRuntime failed");
     Runtime::runtime = cjRuntime;
