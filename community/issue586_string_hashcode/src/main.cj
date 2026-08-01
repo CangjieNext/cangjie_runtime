@@ -6,19 +6,9 @@ import std.random.*
  * Community learning race — Scheme A deliverable for
  * https://atomgit.com/Cangjie/cangjie_runtime/issues/586
  *
- * Reproduces the Issue workload shape and shows that on current SDK,
- * String.hashCode is already in the same ballpark as the Java 17 number
- * reported in the Issue. The historical ~7.5x gap is largely explained by
- * Java caching hash after JMH warmup while Cangjie recomputes every time
- * (@ConstSafe struct String has no mutable hash field).
- *
- * Build & run (from this directory, with cjc on PATH):
+ * Build & run:
  *   cjc -O2 -Woff unused --output issue586_bench src/main.cj
  *   ./issue586_bench
- *
- * Or with cjpm:
- *   cjpm build -V
- *   cjpm run
  */
 
 const DATA_SIZE: Int64 = 256 * 1024
@@ -47,6 +37,22 @@ func hashAll(arr: Array<String>): Int64 {
     return result
 }
 
+func hashCached(cached: Array<Int64>): Int64 {
+    var result: Int64 = 0
+    for (i in 0..cached.size) {
+        result ^= cached[i]
+    }
+    return result
+}
+
+func precomputeHashes(arr: Array<String>): Array<Int64> {
+    var cached = Array<Int64>(arr.size, repeat: 0)
+    for (i in 0..arr.size) {
+        cached[i] = arr[i].hashCode()
+    }
+    return cached
+}
+
 func timed(label: String, rounds: Int64, body: () -> Int64): Float64 {
     var sink: Int64 = 0
     sink ^= body()
@@ -63,22 +69,13 @@ func timed(label: String, rounds: Int64, body: () -> Int64): Float64 {
 main() {
     println("=== Issue #586 workload (DATA_SIZE=${DATA_SIZE}, len ${STR_MIN_SIZE}..${STR_MAX_SIZE}) ===")
     let arr = makeRandomStrings(42)
+    let cached = precomputeHashes(arr)
 
     let coldUs = timed("recompute_hash_all", 30) { =>
         hashAll(arr)
     }
-
-    // Simulate Java-after-warmup: read precomputed hashes
-    var cached = Array<Int64>(DATA_SIZE, repeat: 0)
-    for (i in 0..DATA_SIZE) {
-        cached[i] = arr[i].hashCode()
-    }
     let cachedUs = timed("cached_field_read", 30) { =>
-        var result: Int64 = 0
-        for (i in 0..DATA_SIZE) {
-            result ^= cached[i]
-        }
-        result
+        hashCached(cached)
     }
 
     var sink: Int64 = 0
