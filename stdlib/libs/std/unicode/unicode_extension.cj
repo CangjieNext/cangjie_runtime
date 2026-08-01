@@ -3353,6 +3353,9 @@ extend String <: UnicodeStringExtension {
      * Returns true if this string is empty or contains only whitespace Unicode, otherwise `false`.
      */
     public func isBlank(): Bool {
+        if (this.isEmpty()) {
+            return true
+        }
         for (i in this.runes()) {
             if (!i.isWhiteSpace()) {
                 return false
