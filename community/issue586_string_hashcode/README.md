@@ -1,3 +1,11 @@
+<!--
+  Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
+  This source file is part of the Cangjie project, licensed under Apache-2.0
+  with Runtime Library Exception.
+
+  See https://cangjie-lang.cn/pages/LICENSE for license information.
+-->
+
 # Issue #586 String.hashCode — 方案 A 性能测试用例
 
 社区学习赛高级任务交付物（方案 A：证明当前实现不存在 Issue 所述的多倍缓慢）。
