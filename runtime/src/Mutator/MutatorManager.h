@@ -11,7 +11,6 @@
 #include <bitset>
 #include <condition_variable>
 #include <list>
-#include <memory>
 #include <mutex>
 #include <unordered_set>
 #include <vector>
@@ -29,7 +28,6 @@
 #include "schedule.h"
 
 namespace MapleRuntime {
-class MSEnumRootsWorkerSession;
 const uint64_t WAIT_LOCK_INTERVAL = 5000; // 5us
 const uint64_t WAIT_LOCK_TIMEOUT = 30;    // seconds
 const uint32_t MAX_TIMEOUT_TIMES = 1;
@@ -168,16 +166,9 @@ public:
     void SyncMutexUnlock() noexcept { syncMutex.unlock(); }
 
     void EnsurePhaseTransition(GCPhase phase, std::list<Mutator*> &undoneMutators);
-    void TransitionAllMutatorsToGCPhase(
-        GCPhase phase, MSEnumRootsWorkerSession* workerSession = nullptr);
+    void TransitionAllMutatorsToGCPhase(GCPhase phase);
 
 #ifdef MRT_USE_MARK_SWEEP
-    void EnsureMSMarkSetupPhaseTransition(
-        size_t initialMutatorCount, MSEnumRootsWorkerSession* workerSession);
-    size_t GetLastMSEnumRootsHelperCount() const
-    {
-        return lastMSEnumRootsHelperCount_.load(std::memory_order_acquire);
-    }
     bool HasPendingEnumAssist(GCPhase phase);
     size_t AssistEnumRoots(GCPhase phase, size_t batchSize, Mutator* assistant);
     void FinalizeEnumAssistContext(GCPhase phase);
@@ -272,52 +263,25 @@ private:
     GCPhase lightSyncGCPhase;
 
 #ifdef MRT_USE_MARK_SWEEP
-    enum class EnumTransitionState : uint8_t {
-        PENDING,
-        CLAIMED,
-        DONE,
-    };
-
-    struct EnumTransitionEntry {
-        Mutator* mutator = nullptr;
-        std::atomic<EnumTransitionState> state{EnumTransitionState::PENDING};
-    };
-
-    struct EnumTransitionContext {
+    struct EnumAssistContext {
         std::mutex lock;
+        std::condition_variable drained;
         GCPhase phase = GCPhase::GC_PHASE_UNDEF;
-        std::atomic<bool> active{false};
-        std::atomic<bool> assistEnabled{false};
-        std::atomic<size_t> remaining{0};
-        std::atomic<size_t> claimCursor{0};
-        std::atomic<size_t> inFlight{0};
-        std::unique_ptr<EnumTransitionEntry[]> entries;
-        size_t entryCount = 0;
-        size_t entryCapacity = 0;
-        std::atomic<size_t> selfScanned{0};
+        bool active = false;
+        bool assistEnabled = false;
+        size_t remaining = 0;
+        size_t claimCursor = 0;
+        size_t inFlight = 0;
+        std::vector<Mutator*> candidates;
         std::atomic<size_t> gcMainScanned{0};
-        std::atomic<size_t> gcWorkerScanned{0};
         std::atomic<size_t> mutatorAssistScanned{0};
         std::atomic<uint64_t> readyPolls{0};
-    } enumTransitionContext_;
+    } enumAssistContext_;
 
-    enum class EnumTransitionExecutor : uint8_t {
-        GC_MAIN,
-        GC_WORKER,
-        MUTATOR_ASSIST,
-    };
-
-    void PrepareMSEnumTransitionContext(
-        GCPhase phase, const std::vector<Mutator*>& candidates,
-        bool assistEnabled);
-    size_t ClaimMSEnumTransitionBatch(
-        size_t batchSize, size_t requestedProbeLimit, Mutator* excluded,
-        std::vector<size_t>& claimedEntries);
-    void CompleteMSEnumTransitionBatch(
-        const std::vector<size_t>& claimedEntries,
-        EnumTransitionExecutor executor);
-    void RunMSEnumTransition(EnumTransitionExecutor executor);
-    std::atomic<size_t> lastMSEnumRootsHelperCount_{0};
+    size_t ClaimEnumAssistBatch(
+        GCPhase phase, size_t batchSize, std::vector<Mutator*>& claimed);
+    void FinishEnumAssistBatch(GCPhase phase);
+    void UpdateEnumAssistRemaining(GCPhase phase, size_t remaining);
 #endif
 
 #if defined(_WIN64) || defined (__APPLE__)

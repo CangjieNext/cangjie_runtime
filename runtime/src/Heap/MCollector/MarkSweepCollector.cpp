@@ -782,14 +782,10 @@ void MarkSweepCollector::EnumRoots()
     uint64_t mutatorCountT0 = TimeUtil::MicroSeconds();
     size_t enumMutatorCount = MutatorManager::Instance().GetMutatorCount();
     uint64_t mutatorCountUs = TimeUtil::MicroSeconds() - mutatorCountT0;
-    uint64_t poolSetupT0 = TimeUtil::MicroSeconds();
-    size_t helperTarget = ComputeMSEnumRootsHelperTarget(
-        enumMutatorCount, collectorResources.GetMSGCThreadPoolHelperLimit());
-    (void)enumRootsWorkerSession_.Start(collectorResources, helperTarget);
-    uint64_t poolSetupUs = TimeUtil::MicroSeconds() - poolSetupT0;
+    uint64_t poolSetupUs = 0;
     uint64_t phaseTransitionT0 = TimeUtil::MicroSeconds();
     MutatorManager::Instance().TransitionAllMutatorsToGCPhase(
-        GCPhase::GC_PHASE_MS_MARK_SETUP, &enumRootsWorkerSession_);
+        GCPhase::GC_PHASE_MS_MARK_SETUP);
     uint64_t phaseTransitionUs = TimeUtil::MicroSeconds() - phaseTransitionT0;
 
     // GC thread enumerates global roots + marks root set.
@@ -800,9 +796,7 @@ void MarkSweepCollector::EnumRoots()
     uint64_t rootPublishT0 = TimeUtil::MicroSeconds();
     PublishRootStaging();
     uint64_t rootPublishUs = TimeUtil::MicroSeconds() - rootPublishT0;
-    uint64_t poolFinishT0 = TimeUtil::MicroSeconds();
-    enumRootsWorkerSession_.Finish();
-    uint64_t poolFinishUs = TimeUtil::MicroSeconds() - poolFinishT0;
+    uint64_t poolFinishUs = 0;
 
     cycleStats_.markSetupUs = TimeUtil::MicroSeconds() - phaseStart;
     VLOG(REPORT,
@@ -1401,30 +1395,14 @@ void MarkSweepCollector::PublishRootStaging()
     }
     roots.resize(uniqueRootCount);
 
-    size_t helperCount = enumRootsWorkerSession_.GetHelperCount();
-    const size_t workerCount = helperCount + 1;
-    uint64_t helperStageUs = 0;
-    if (helperCount == 0) {
-        PublishRootRange(roots, 0, uniqueRootCount);
-    } else {
-        enumRootsWorkerSession_.RunStage(
-            [this, &roots, uniqueRootCount, workerCount](size_t laneIndex) {
-                size_t workerIndex = laneIndex + 1;
-                size_t begin = uniqueRootCount * workerIndex / workerCount;
-                size_t end = uniqueRootCount * (workerIndex + 1) / workerCount;
-                PublishRootRange(roots, begin, end);
-            });
-        size_t mainEnd = uniqueRootCount / workerCount;
-        PublishRootRange(roots, 0, mainEnd);
-        helperStageUs = enumRootsWorkerSession_.WaitStage();
-    }
+    PublishRootRange(roots, 0, uniqueRootCount);
 
     VLOG(REPORT,
          "[MS-GC] EnumRoots root-publish: helpers=%zu rawRoots=%zu uniqueRoots=%zu "
          "batchEntries=%zu dedupCapacity=%zu dedupCleared=%zu helperStage=%sus",
-         helperCount, rawRootCount, uniqueRootCount,
+         static_cast<size_t>(0), rawRootCount, uniqueRootCount,
          MSRootMarkWordBatch::kCapacity, rootDedupTable_.Capacity(),
-         rootDedupTable_.LastResetClearedSlotCount(), Pretty(helperStageUs).Str());
+         rootDedupTable_.LastResetClearedSlotCount(), Pretty(0).Str());
     roots.clear();
 }
 

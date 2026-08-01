@@ -15,7 +15,6 @@
 #include "Heap/Collector/TracingCollector.h"
 #include "Heap/MCollector/MSAssistPacing.h"
 #include "Heap/MCollector/MSHeapThresholdPolicy.h"
-#include "Heap/MCollector/MSEnumRootsWorkerSession.h"
 #include "Heap/MCollector/MSMarkBatch.h"
 #include "Heap/MCollector/MSRootDedupTable.h"
 #include "Heap/MCollector/MSMarkScheduler.h"
@@ -224,7 +223,6 @@ private:
     // ── Root staging (populated and fully drained inside EnumRoots) ──
     std::vector<BaseObject*> rootStaging_;
     MSRootDedupTable rootDedupTable_;
-    MSEnumRootsWorkerSession enumRootsWorkerSession_;
 
     // Unified Region/Object mark scheduler. Ordinary small grey work is
     // represented by mark/scan planes plus Region tasks.
