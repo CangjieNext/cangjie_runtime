@@ -1,0 +1,5 @@
+[package]
+  name = "issue586_string_hashcode"
+  version = "1.0.0"
+  output-type = "executable"
+  description = "Community learning race Scheme A: String.hashCode perf verification for Issue #586"
