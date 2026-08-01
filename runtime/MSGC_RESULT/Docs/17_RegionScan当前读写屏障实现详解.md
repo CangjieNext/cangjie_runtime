@@ -134,8 +134,9 @@ struct 和 array copy 先枚举**目的区将被覆盖的旧引用**，然后再
 | `CopyStructArray` | 普通对象 GCTib 或 RawArray component GCTib，遍历被覆盖的元素 |
 
 `BarrierMarkContext` 先过滤 `null` 和非 heap 引用；直到遇到第一个 managed old ref 才延迟解析
-active `MarkSweepCollector` 与当前 owner 的 `AllocBufferMS`。没有 `AllocBufferMS` 时使用
-`PublishManagedRefForBarrierImmediately()`，立即走 mark batch flush，不会丢弃旧边。
+active `MarkSweepCollector` 与当前 owner 的 `AllocBufferMS`。当前线程没有 `AllocBufferMS` 时，
+Runtime 调用已有的 `GetOrCreateAllocBufferMS()` 创建、注册并挂到当前线程 TLS，随后统一走
+`AddManagedRefToBarrierBuffer()`；不存在单独的无 TLS immediate publish 路径。
 
 ### 5.3 TLS bitmap batch ABI
 

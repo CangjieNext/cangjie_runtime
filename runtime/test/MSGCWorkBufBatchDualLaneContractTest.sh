@@ -10,7 +10,7 @@ SCHED_HEADER="$ROOT_DIR/src/Heap/MCollector/MSMarkScheduler.h"
 REGION_HEADER="$ROOT_DIR/src/Heap/MAllocator/MSRegionInfo.h"
 
 rg -q 'activeRegions_\[kNumSizeClasses\]\[kMSScanClassCount\]' "$ALLOC_HEADER"
-rg -q 'static constexpr size_t kSetCount = 8;' "$BATCH_HEADER"
+rg -q 'using MSMarkWordBatch = MSMarkWordBatchStorage<16>;' "$BATCH_HEADER"
 rg -q 'static constexpr size_t kWays = 2;' "$BATCH_HEADER"
 rg -q 'static constexpr size_t kCapacity = kSetCount \* kWays;' "$BATCH_HEADER"
 rg -q 'uint32_t regionIdx' "$BATCH_HEADER"

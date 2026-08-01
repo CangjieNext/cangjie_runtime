@@ -25,11 +25,11 @@ enum class MSBarrierRuntimeStat : uint8_t {
     OLD_REF_ADDED_WITHOUT_FLUSH_OUTSIDE_SET,
     OLD_REF_THRESHOLD_FLUSH,
     OLD_REF_SET_CONFLICT_FLUSH,
-    OLD_REF_IMMEDIATE_PUBLISH,
     COUNT
 };
 
 void RecordMSBarrierRuntimeStat(MSBarrierRuntimeStat stat);
+bool IsMSBarrierRuntimeStatsEnabled();
 
 namespace MSBarrierOps {
 void WriteReference(RefField<false>& field, BaseObject* ref);

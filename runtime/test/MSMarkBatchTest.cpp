@@ -22,7 +22,8 @@ namespace {
 
 using MapleRuntime::MSMarkWordBatch;
 using MapleRuntime::MSMarkWordBatchEntry;
-using MapleRuntime::MSRootMarkWordBatch;
+using MapleRuntime::MSPendingMarkRegionBatch;
+using MapleRuntime::MSRegionInfo;
 
 void Expect(bool condition, const char* message)
 {
@@ -80,12 +81,10 @@ void TestEvictsOneEntryAtCapacity()
            "FlushAll did not flush every resident entry");
 }
 
-void TestBatchCapacitiesMatchOwners()
+void TestSharedBatchCapacity()
 {
-    Expect(MSMarkWordBatch::kCapacity == 128,
-           "default/write-barrier batch must retain 128 bitmap-word entries");
-    Expect(MSRootMarkWordBatch::kCapacity == 128,
-           "GC root batch must retain 128 bitmap-word entries");
+    Expect(MSMarkWordBatch::kCapacity == 32,
+           "all GC-owned batches must retain 32 bitmap-word entries");
 }
 
 void TestCachesOneMarkEpochForBatchLifetime()
@@ -126,14 +125,68 @@ void TestCachesBitmapPlaneBases()
         "batch mark-plane address calculation mismatch");
 }
 
+void TestPendingRegionBatchMergesBitmapWords()
+{
+    MSRegionInfo first {};
+    MSRegionInfo second {};
+    MSPendingMarkRegionBatch<2> pending;
+
+    Expect(pending.TryAdd(&first, 3),
+           "first pending Region must fit");
+    Expect(pending.TryAdd(&first, 9),
+           "another word in the same Region must merge");
+    Expect(pending.TryAdd(&second, 5),
+           "second pending Region must fit");
+    Expect(pending.Size() == 2,
+           "same-Region words must consume one publication entry");
+
+    size_t publications = 0;
+    pending.FlushAll([&](MSRegionInfo* info, uint64_t wordMask) {
+        ++publications;
+        if (info == &first) {
+            Expect(wordMask == ((UINT64_C(1) << 3) | (UINT64_C(1) << 9)),
+                   "first Region lost a pending bitmap word");
+        } else {
+            Expect(info == &second && wordMask == (UINT64_C(1) << 5),
+                   "second Region publication changed");
+        }
+    });
+    Expect(publications == 2 && pending.IsEmpty(),
+           "pending Region FlushAll must publish and clear every Region");
+}
+
+void TestPendingRegionBatchReportsCapacityWithoutMutation()
+{
+    MSRegionInfo first {};
+    MSRegionInfo second {};
+    MSPendingMarkRegionBatch<1> pending;
+
+    Expect(pending.TryAdd(&first, 1), "first pending Region must fit");
+    Expect(!pending.TryAdd(&second, 2),
+           "a distinct Region beyond capacity must request a drain");
+    Expect(pending.Size() == 1,
+           "failed pending insertion must not mutate the batch");
+
+    MSRegionInfo* observed = nullptr;
+    uint64_t observedMask = 0;
+    pending.FlushAll([&](MSRegionInfo* info, uint64_t wordMask) {
+        observed = info;
+        observedMask = wordMask;
+    });
+    Expect(observed == &first && observedMask == (UINT64_C(1) << 1),
+           "capacity failure corrupted the resident publication");
+}
+
 } // namespace
 
 int main()
 {
     TestCoalescesSameBitmapWord();
-    TestBatchCapacitiesMatchOwners();
+    TestSharedBatchCapacity();
     TestEvictsOneEntryAtCapacity();
     TestCachesOneMarkEpochForBatchLifetime();
     TestCachesBitmapPlaneBases();
+    TestPendingRegionBatchMergesBitmapWords();
+    TestPendingRegionBatchReportsCapacityWithoutMutation();
     return 0;
 }

@@ -29,6 +29,7 @@ class CentralRegionPool;
 class AllocBufferMS;
 struct MSBarrierMarkBuffer;
 struct MSRegionInfo;
+struct ResolvedMarkTarget;
 
 // Per-GC-cycle timing and statistics for DFX logging (Step 5).
 // Accumulated during a single GC cycle, logged in LogGCSummary(), then reset.
@@ -105,9 +106,7 @@ public:
         BaseObject* ref, MSBarrierMarkBuffer& buffer,
         uint32_t currentMarkEpoch, uintptr_t allocPlaneBase,
         uintptr_t markPlaneBase);
-    void PublishManagedRefForBarrierImmediately(BaseObject* ref);
     void FlushBarrierMarkBuffer(MSBarrierMarkBuffer& buffer);
-    void FlushMarkBatch(MSMarkWordBatch& batch, MSWorkUnitCounter& work);
     void NotifyAllocBufferExit(AllocBufferMS& allocBuffer);
     void AccountMarkAllocationBytes(size_t bytes)
     {
@@ -167,17 +166,28 @@ private:
     void EnumAndMarkRoots();
     void MergeRootsFromAllocBuffers(std::vector<BaseObject*>& roots);
     bool DiscoverObject(BaseObject* obj, TypeInfo** markedTypeInfo = nullptr);
-    void AddRefToMarkBatch(BaseObject* obj, bool knownManaged,
-                           MSMarkWordBatch& batch, MSWorkUnitCounter& work);
+    enum class MSMarkRefSource : uint8_t {
+        TRUSTED_MANAGED,
+        TRUSTED_MAYBE_MANAGED,
+        DEFENSIVE
+    };
+    template<MSMarkRefSource Source, typename MarkBatch,
+             typename WorkCounter>
+    void AddRefToMarkBatch(BaseObject* obj, MarkBatch& batch,
+                           WorkCounter& work);
+    template<bool Trusted, typename MarkBatch, typename WorkCounter>
+    void AddResolvedRefToMarkBatchImpl(BaseObject* obj,
+                                       const ResolvedMarkTarget& target,
+                                       MarkBatch& batch, WorkCounter& work);
     template<typename MarkBatch, typename WorkCounter>
-    void AddRefToMarkBatchImpl(BaseObject* obj, bool knownManaged,
-                               MarkBatch& batch, WorkCounter& work);
+    MSRegionInfo* FlushMarkWordEntryImpl(const MSMarkWordBatchEntry& entry,
+                                         WorkCounter& work,
+                                         const MarkBatch& batch);
+    template<size_t Capacity>
+    bool PublishPendingMarkRegions(
+        MSPendingMarkRegionBatch<Capacity>& pending);
     template<typename MarkBatch, typename WorkCounter>
-    void FlushMarkWordEntryImpl(const MSMarkWordBatchEntry& entry,
-                                WorkCounter& work,
-                                const MarkBatch& batch);
-    template<typename MarkBatch, typename WorkCounter>
-    void FlushMarkBatchImpl(MarkBatch& batch, WorkCounter& work);
+    void FlushMarkBatch(MarkBatch& batch, WorkCounter& work);
     void FlushAllBarrierMarkBuffersUnderSTW(CentralRegionPool& central);
     void PrepareBarrierMarkBuffersForNewEpochUnderSTW(
         CentralRegionPool& central);

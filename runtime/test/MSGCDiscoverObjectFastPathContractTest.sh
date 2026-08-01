@@ -5,12 +5,12 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 COLLECTOR="$ROOT_DIR/src/Heap/MCollector/MarkSweepCollector.cpp"
 BARRIER="$ROOT_DIR/src/Heap/MBarrier/MSMarkBarrier.cpp"
 
-rg -q 'GetRegionInfoDirect\(addr, regionOffset\)' "$COLLECTOR"
+rg -Uq 'GetRegionInfoDirect\([[:space:]]*addr, regionOffset, regionIdx\)' "$COLLECTOR"
 rg -q 'batch.Add\(regionIdx, target.wordIdx, target.bitMask' "$COLLECTOR"
 rg -q 'batch.GetMarkBitmap\(regionIdx\)' "$COLLECTOR"
 rg -q '__atomic_load_n\(markWord, __ATOMIC_RELAXED\)' "$COLLECTOR"
 rg -q '__atomic_fetch_or\(markWord, mask, __ATOMIC_RELAXED\)' "$COLLECTOR"
-rg -q 'info->PublishPendingMarkWord\(entry.wordIdx\)' "$COLLECTOR"
+rg -q 'info->PublishPendingMarkWords\(wordMask\)' "$COLLECTOR"
 rg -q 'markScheduler_\.TryPublishRegion\(info\)' "$COLLECTOR"
 rg -q 'VisitMarkPendingRegionsUnderSTW' "$COLLECTOR"
 rg -q 'ForEachRefFieldGCKnownType' "$COLLECTOR"
@@ -33,9 +33,13 @@ if [[ -z "$weak_ref_line" || -z "$has_ref_guard_line" ||
 fi
 
 rg -Uq '(?s)BarrierMarkContext\(\).*GetThreadLocalData\(\)->encodedGCPhase' "$BARRIER"
-rg -Uq '(?s)void EnsureOwner\(\).*GetActiveCollector\(\).*GetAllocBufferMS\(\).*currentMarkEpoch' "$BARRIER"
+rg -Uq '(?s)void EnsureOwner\(\).*GetActiveCollector\(\).*GetOrCreateAllocBufferMS\(\).*currentMarkEpoch' "$BARRIER"
 rg -Uq '(?s)collector_->AddManagedRefToBarrierBuffer\(.*ref, \*buffer_, currentMarkEpoch_, allocPlaneBase_,.*markPlaneBase_\)' "$BARRIER"
-rg -q 'collector_->PublishManagedRefForBarrierImmediately\(ref\)' "$BARRIER"
+if rg -q 'PublishManagedRefForBarrierImmediately|OLD_REF_IMMEDIATE_PUBLISH' \
+    "$COLLECTOR" "$BARRIER"; then
+    echo 'separate no-TLS barrier publication path remains' >&2
+    exit 1
+fi
 if rg -q 'AddManagedRefToMarkBatch|FlushBarrierMarkBatch|PublishManagedRefForBarrier\(' \
     "$COLLECTOR" "$BARRIER"; then
     echo 'obsolete stack-local barrier batch API remains' >&2

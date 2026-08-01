@@ -6,8 +6,8 @@ HEADER="$ROOT_DIR/src/Heap/MCollector/MarkSweepCollector.h"
 SOURCE="$ROOT_DIR/src/Heap/MCollector/MarkSweepCollector.cpp"
 
 rg -q 'void PublishRootStaging\(\);' "$HEADER"
-rg -Uq '(?s)void MarkSweepCollector::PublishRootStaging\(\).*rootDedupTable_\.Insert.*Heap::IsHeapAddress\(obj\).*PublishRootRange.*roots\.clear' "$SOURCE"
-rg -Uq '(?s)void MarkSweepCollector::PublishRootRange\(.*MSRootMarkWordBatch batch.*AddRefToMarkBatchImpl\(obj, true, batch, work\).*FlushMarkBatchImpl\(batch, work\)' "$SOURCE"
+rg -Uq '(?s)void MarkSweepCollector::PublishRootStaging\(\).*Heap::IsHeapAddress\(obj\).*rootDedupTable_\.Insert.*PublishRootRange.*roots\.clear' "$SOURCE"
+rg -Uq '(?s)void MarkSweepCollector::PublishRootRange\(.*MSMarkWordBatch batch.*AddRefToMarkBatch<MSMarkRefSource::TRUSTED_MANAGED>\(.*obj, batch, work\).*FlushMarkBatch\(batch, work\)' "$SOURCE"
 if rg -q 'DrainMarkWorkStack|RunConcurrentMarkLoop|TraceObjectRefFieldsToGCWork' \
     "$HEADER" "$SOURCE"; then
     echo 'ordinary object work-stack drain path remains' >&2

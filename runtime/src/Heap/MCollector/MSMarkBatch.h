@@ -34,6 +34,61 @@ struct MSMarkWordBatchEntry {
     }
 };
 
+// Allocation-free staging for Region scheduler publication after MARK words
+// have been updated. Multiple newly won bitmap words in one Region collapse
+// into one pendingWordSummary RMW and one scheduler admission attempt.
+// Storage is intentionally left uninitialized beyond size_: mutator slow paths
+// must not clear the full scratch capacity on every add attempt.
+template<size_t Capacity>
+class MSPendingMarkRegionBatch {
+public:
+    static_assert(Capacity > 0, "pending Region batch must have storage");
+
+    bool TryAdd(MSRegionInfo* info, size_t wordIdx)
+    {
+#if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
+        CHECK_DETAIL(info != nullptr && wordIdx < 64,
+                     "[MS-GC] invalid pending Region publication info=%p word=%zu",
+                     static_cast<void*>(info), wordIdx);
+#endif
+        uint64_t wordMask = UINT64_C(1) << wordIdx;
+        for (size_t i = 0; i < size_; ++i) {
+            if (entries_[i].info == info) {
+                entries_[i].wordMask |= wordMask;
+                return true;
+            }
+        }
+        if (size_ == Capacity) {
+            return false;
+        }
+        entries_[size_].info = info;
+        entries_[size_].wordMask = wordMask;
+        ++size_;
+        return true;
+    }
+
+    template<typename PublishRegion>
+    void FlushAll(PublishRegion&& publishRegion)
+    {
+        for (size_t i = 0; i < size_; ++i) {
+            publishRegion(entries_[i].info, entries_[i].wordMask);
+        }
+        size_ = 0;
+    }
+
+    bool IsEmpty() const { return size_ == 0; }
+    size_t Size() const { return size_; }
+
+private:
+    struct Entry {
+        MSRegionInfo* info;
+        uint64_t wordMask;
+    };
+
+    Entry entries_[Capacity];
+    size_t size_ = 0;
+};
+
 // An allocation-free coalescing cache for mark bitmap updates. The batch
 // deliberately stores only the stable bitmap coordinate. ScanClass,
 // collect-set membership and all plane addresses are derived at flush time.
@@ -208,19 +263,15 @@ private:
     bool bitmapPlaneBasesInitialized_ = false;
 };
 
-// The default batch is used by ordinary GC marking and the no-owner-buffer
-// write-barrier fallback. Root publication keeps a separate owner alias so its
-// geometry can be tuned independently without changing shared add/flush code.
-using MSMarkWordBatch = MSMarkWordBatchStorage<64>;
-using MSRootMarkWordBatch = MSMarkWordBatchStorage<64>;
+// All GC-owned producers use the same 32-entry local storage. The compiler-
+// visible write-barrier POD also has 32 entries, but retains its ABI-specific
+// layout and is exposed to the shared collector logic through a storage view.
+using MSMarkWordBatch = MSMarkWordBatchStorage<16>;
 
 static_assert(sizeof(MSMarkWordBatchEntry) == 16,
               "MarkWordBatch entry must stay compact");
 static_assert((MSMarkWordBatch::kSetCount & (MSMarkWordBatch::kSetCount - 1)) == 0,
               "MarkWordBatch set count must stay a power of two");
-static_assert((MSRootMarkWordBatch::kSetCount &
-               (MSRootMarkWordBatch::kSetCount - 1)) == 0,
-              "RootMarkWordBatch set count must stay a power of two");
 
 } // namespace MapleRuntime
 

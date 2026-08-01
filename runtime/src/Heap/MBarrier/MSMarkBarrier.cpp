@@ -39,7 +39,6 @@ static const char* GetMSBarrierRuntimeStatName(MSBarrierRuntimeStat stat)
         "old_ref_added_without_flush_outside_set",
         "old_ref_threshold_flush",
         "old_ref_set_conflict_flush",
-        "old_ref_immediate_publish",
     };
     static_assert(
         sizeof(names) / sizeof(names[0]) == kMSBarrierRuntimeStatCount,
@@ -61,7 +60,7 @@ static void DumpMSBarrierRuntimeStats()
     std::fprintf(stderr, "[MSGC_BARRIER_STATS] end\n");
 }
 
-static bool IsMSBarrierRuntimeStatsEnabled()
+bool IsMSBarrierRuntimeStatsEnabled()
 {
     static const bool enabled = []() {
         const char* value = std::getenv("CJ_MSGC_BARRIER_COUNT");
@@ -121,22 +120,16 @@ public:
 
     void AddOldRefActive(BaseObject* ref)
     {
-        if (UNLIKELY(ref == nullptr || !Heap::IsHeapAddress(ref))) {
+        if (UNLIKELY(!Heap::IsHeapAddress(ref))) {
             return;
         }
         EnsureOwner();
         if (UNLIKELY(collector_ == nullptr)) {
             return;
         }
-        if (LIKELY(buffer_ != nullptr)) {
-            collector_->AddManagedRefToBarrierBuffer(
-                ref, *buffer_, currentMarkEpoch_, allocPlaneBase_,
-                markPlaneBase_);
-        } else {
-            RecordMSBarrierRuntimeStat(
-                MSBarrierRuntimeStat::OLD_REF_IMMEDIATE_PUBLISH);
-            collector_->PublishManagedRefForBarrierImmediately(ref);
-        }
+        collector_->AddManagedRefToBarrierBuffer(
+            ref, *buffer_, currentMarkEpoch_, allocPlaneBase_,
+            markPlaneBase_);
     }
 
 private:
@@ -150,19 +143,17 @@ private:
         if (UNLIKELY(collector_ == nullptr)) {
             return;
         }
-        AllocBufferMS* allocBuffer = AllocBufferMS::GetAllocBufferMS();
-        if (allocBuffer != nullptr) {
-            buffer_ = &allocBuffer->GetBarrierMarkBuffer();
-            currentMarkEpoch_ = __atomic_load_n(
-                &CJ_MRT_MSGCFastPathState.currentMarkEpoch,
-                __ATOMIC_ACQUIRE);
-            allocPlaneBase_ = static_cast<uintptr_t>(__atomic_load_n(
-                &CJ_MRT_MSGCFastPathState.allocPlaneBase,
-                __ATOMIC_ACQUIRE));
-            markPlaneBase_ = static_cast<uintptr_t>(__atomic_load_n(
-                &CJ_MRT_MSGCFastPathState.markPlaneBase,
-                __ATOMIC_ACQUIRE));
-        }
+        AllocBufferMS* allocBuffer = AllocBufferMS::GetOrCreateAllocBufferMS();
+        buffer_ = &allocBuffer->GetBarrierMarkBuffer();
+        currentMarkEpoch_ = __atomic_load_n(
+            &CJ_MRT_MSGCFastPathState.currentMarkEpoch,
+            __ATOMIC_ACQUIRE);
+        allocPlaneBase_ = static_cast<uintptr_t>(__atomic_load_n(
+            &CJ_MRT_MSGCFastPathState.allocPlaneBase,
+            __ATOMIC_ACQUIRE));
+        markPlaneBase_ = static_cast<uintptr_t>(__atomic_load_n(
+            &CJ_MRT_MSGCFastPathState.markPlaneBase,
+            __ATOMIC_ACQUIRE));
     }
 
     MarkSweepCollector* collector_ = nullptr;

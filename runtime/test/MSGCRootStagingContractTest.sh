@@ -41,17 +41,21 @@ printf '%s\n' "$publish" | rg -q 'Heap::IsHeapAddress\(obj\)'
 dedup_line="$(printf '%s\n' "$publish" | rg -n 'rootDedupTable_\.Insert' | cut -d: -f1)"
 heap_gate_line="$(printf '%s\n' "$publish" | rg -n 'Heap::IsHeapAddress\(obj\)' | cut -d: -f1)"
 resize_line="$(printf '%s\n' "$publish" | rg -n 'roots\.resize\(uniqueRootCount\)' | cut -d: -f1)"
-[[ "$dedup_line" -lt "$heap_gate_line" && "$heap_gate_line" -lt "$resize_line" ]]
+[[ "$heap_gate_line" -lt "$dedup_line" && "$dedup_line" -lt "$resize_line" ]]
 printf '%s\n' "$publish" | rg -q 'PublishRootRange'
 printf '%s\n' "$publish" | rg -q 'roots\.clear'
 
 range="$(sed -n '/void MarkSweepCollector::PublishRootRange/,/^}/p' "$COLLECTOR_SOURCE")"
-printf '%s\n' "$range" | rg -q 'MSRootMarkWordBatch batch'
-printf '%s\n' "$range" | rg -q 'AddRefToMarkBatchImpl\(obj, true, batch, work\)'
-printf '%s\n' "$range" | rg -q 'FlushMarkBatchImpl\(batch, work\)'
+printf '%s\n' "$range" | rg -q 'MSMarkWordBatch batch'
+printf '%s\n' "$range" | rg -Uq 'AddRefToMarkBatch<MSMarkRefSource::TRUSTED_MANAGED>\([[:space:]]*obj, batch, work\)'
+printf '%s\n' "$range" | rg -q 'FlushMarkBatch\(batch, work\)'
 
-immediate_barrier="$(sed -n '/void MarkSweepCollector::PublishManagedRefForBarrierImmediately/,/^}/p' "$COLLECTOR_SOURCE")"
-printf '%s\n' "$immediate_barrier" | rg -q 'AddRefToMarkBatchImpl\(ref, true, batch, noWork\)'
-printf '%s\n' "$immediate_barrier" | rg -q 'FlushMarkBatchImpl\(batch, noWork\)'
+publish="$(sed -n '/void MarkSweepCollector::PublishRootStaging/,/^}/p' "$COLLECTOR_SOURCE")"
+heap_line="$(printf '%s\n' "$publish" | rg -n -m1 'Heap::IsHeapAddress' | cut -d: -f1)"
+dedup_line="$(printf '%s\n' "$publish" | rg -n -m1 'rootDedupTable_\.Insert' | cut -d: -f1)"
+if [[ -z "$heap_line" || -z "$dedup_line" || "$heap_line" -ge "$dedup_line" ]]; then
+    echo 'root staging must reject non-heap values before touching the dedup table' >&2
+    exit 1
+fi
 
 echo 'MSGC bounded root staging contract holds'

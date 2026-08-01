@@ -16,7 +16,7 @@ if printf '%s\n' "$publish" | rg -q 'RunStage|WaitStage|enumRootsWorkerSession_'
 fi
 
 range="$(sed -n '/void MarkSweepCollector::PublishRootRange/,/^}/p' "$COLLECTOR")"
-printf '%s\n' "$range" | rg -q 'MSRootMarkWordBatch batch'
-printf '%s\n' "$range" | rg -q 'FlushMarkBatchImpl\(batch, work\)'
+printf '%s\n' "$range" | rg -q 'MSMarkWordBatch batch'
+printf '%s\n' "$range" | rg -q 'FlushMarkBatch\(batch, work\)'
 
 echo 'MSGC root publish is serial and keeps dedup plus the GC-owned batch'

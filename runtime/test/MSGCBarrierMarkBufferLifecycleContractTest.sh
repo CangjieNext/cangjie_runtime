@@ -92,8 +92,11 @@ require_present "$MARK_BARRIER_SOURCE" \
     'GetThreadLocalData\(\)->encodedGCPhase' \
     'Runtime wrappers must judge the current mutator encoded GC phase'
 require_present "$MARK_BARRIER_SOURCE" \
-    'PublishManagedRefForBarrierImmediately\(ref\)' \
-    'threads without an AllocBufferMS must retain the immediate fallback'
+    'AllocBufferMS::GetOrCreateAllocBufferMS\(\)' \
+    'threads without an AllocBufferMS must create and attach an owner buffer'
+require_absent_tree "$ROOT_DIR/src/Heap" \
+    'PublishManagedRefForBarrierImmediately|OLD_REF_IMMEDIATE_PUBLISH|old_ref_immediate_publish' \
+    'Runtime must not retain a separate no-TLS immediate publication path'
 require_absent_tree "$HEAP_SOURCE" \
     'CJ_MS_BARRIER_TLS_BATCH|msBarrierTLSBatchEnabled|PublishMSGCFastPathBarrierPhase' \
     'Runtime must not retain a second write-barrier phase switch'

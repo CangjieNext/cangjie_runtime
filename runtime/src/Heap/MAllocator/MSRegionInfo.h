@@ -561,12 +561,19 @@ public:
     // in MS_REGION_SIZE indexes relative to heapStartAddress_, so one subtraction
     // yields both the exact metadata entry and the in-Region object offset.
     // Precondition: addr belongs to the MSGC heap reservation.
-    static inline MSRegionInfo* GetRegionInfoDirect(uintptr_t addr, size_t& regionOffset)
+    static inline MSRegionInfo* GetRegionInfoDirect(
+        uintptr_t addr, size_t& regionOffset, size_t& regionIdx)
     {
         size_t heapOffset = static_cast<size_t>(addr - heapStartAddress_);
         regionOffset = heapOffset & (MS_REGION_SIZE - 1);
-        size_t regionIdx = heapOffset >> 15;
+        regionIdx = heapOffset >> 15;
         return &array_[regionIdx];
+    }
+
+    static inline MSRegionInfo* GetRegionInfoDirect(uintptr_t addr, size_t& regionOffset)
+    {
+        size_t regionIdx = 0;
+        return GetRegionInfoDirect(addr, regionOffset, regionIdx);
     }
 
     // Resolve a LARGE base entry from either the base itself or one of its

@@ -78,7 +78,7 @@ require_present "$source_text" 'class BulkOldRefVisitor' \
     'bulk barriers must own adjacent duplicate tracking in their visitor'
 require_present "$source_text" 'void AddOldRefActive\(BaseObject\* ref\)' \
     'bulk barriers must have an active-context add path'
-require_order "$source_text" 'void AddOldRefActive\(BaseObject\* ref\)' 'AllocBufferMS::GetAllocBufferMS\(\)' \
+require_order "$source_text" 'void AddOldRefActive\(BaseObject\* ref\)' 'AllocBufferMS::GetOrCreateAllocBufferMS\(\)' \
     'owner buffer lookup must happen only after an old reference reaches AddOldRefActive'
 require_order "$source_text" 'Heap::IsHeapAddress\(ref\)' 'EnsureOwner\(\)' \
     'collector and epoch resolution must happen only after heap-range validation'
@@ -94,8 +94,10 @@ require_absent "$source_text" 'gctib\.ForEachBitmapWordInRange\(' \
 require_absent "$source_text" 'obj->ForEachRefInStruct|array->ForEachRefFieldInRange' \
     'Runtime MSGC RawArray barriers must not re-resolve metadata through type-erased visitors'
 require_present "$source_text" \
-    'AddManagedRefToBarrierBuffer\([[:space:]]*ref, \*buffer_, currentMarkEpoch_\);' \
+    'AddManagedRefToBarrierBuffer\([[:space:]]*ref, \*buffer_, currentMarkEpoch_, allocPlaneBase_,[[:space:]]*markPlaneBase_\);' \
     'BarrierMarkContext must pass its cached epoch with persistent-buffer additions'
+require_absent "$source_text" 'PublishManagedRefForBarrierImmediately|OLD_REF_IMMEDIATE_PUBLISH' \
+    'BarrierMarkContext must not retain a separate no-TLS immediate publication path'
 require_absent "$source_text" 'EnqueueRefFast|BulkRefMarker' \
     'legacy scalar/bulk marker helpers must be removed after unification'
 require_absent "$collector_text" 'PublishManagedRefForBarrier\(' \
@@ -103,7 +105,7 @@ require_absent "$collector_text" 'PublishManagedRefForBarrier\(' \
 require_present "$collector_text" 'struct MSNoopWorkUnitCounter' \
     'collector must compile barrier marking with a no-op WorkUnit policy'
 require_present "$collector_text" \
-    'void AddManagedRefToBarrierBuffer\([[:space:]]*BaseObject\* ref, MSBarrierMarkBuffer& buffer,[[:space:]]*uint32_t currentMarkEpoch\);' \
+    'void AddManagedRefToBarrierBuffer\([[:space:]]*BaseObject\* ref, MSBarrierMarkBuffer& buffer,[[:space:]]*uint32_t currentMarkEpoch, uintptr_t allocPlaneBase,[[:space:]]*uintptr_t markPlaneBase\);' \
     'collector must expose the persistent barrier buffer add API'
 require_present "$collector_text" \
     'void FlushBarrierMarkBuffer\(MSBarrierMarkBuffer& buffer\);' \
@@ -113,8 +115,8 @@ barrier_flush="$(sed -n '/void MarkSweepCollector::FlushBarrierMarkBuffer/,/^}/p
 barrier_add="$(sed -n '/void MarkSweepCollector::AddManagedRefToBarrierBuffer/,/^}/p' "$COLLECTOR_SOURCE")"
 require_absent "$barrier_flush" 'cycleCompletedMarkWU_|work\.Total' \
     'barrier flush must not accumulate cycleCompletedMarkWU'
-require_absent "$barrier_add" 'markPlaneBase|__atomic_load_n\(markWord' \
-    'TLS add must not probe the shared mark plane'
+require_absent "$barrier_add" 'CJ_MRT_MSGCFastPathState|__atomic_load_n' \
+    'TLS add must use the caller-cached epoch and bitmap planes'
 require_present "$barrier_flush" 'markPlaneBase' \
     'flush must retain shared mark-plane filtering and publication'
 require_absent "$barrier_flush" 'PendingRegionPublication pending\[[^]]+\][[:space:]]*\{\}' \
@@ -175,11 +177,12 @@ require_order "$atomic_swap" 'marker\.AddOldRefActive\(expected\)' 'MSCompareExc
 atomic_cas="$(extract_function 'bool MSBarrierOps::CompareAndSwapReference')"
 require_present "$atomic_cas" 'marker\.AddOldRefActive\(oldRef\)' \
     'atomic CAS must add its expected old reference'
-require_present "$atomic_cas" 'oldRef != newRef' \
+require_present "$atomic_cas" 'oldRef == newRef' \
     'atomic CAS must skip shading when it cannot delete an edge'
 require_absent "$atomic_cas" 'marker\.Flush\(\)' \
     'atomic CAS must share persistent barrier flush conditions'
-require_order "$atomic_cas" 'marker\.AddOldRefActive\(oldRef\)' 'MSCompareExchangeRawReference' \
+require_present "$atomic_cas" \
+    'marker\.AddOldRefActive\(oldRef\);[[:space:][:print:]]*return MSCompareExchangeRawReference' \
     'atomic CAS must capture expected before compare-exchange'
 
 echo 'MSGC BarrierMarkContext contract holds'
