@@ -34,20 +34,23 @@ struct MSMarkWordBatchEntry {
     }
 };
 
-// A small, allocation-free coalescing cache for mark bitmap updates. The
-// batch deliberately stores only the stable bitmap coordinate. ScanClass,
+// An allocation-free coalescing cache for mark bitmap updates. The batch
+// deliberately stores only the stable bitmap coordinate. ScanClass,
 // collect-set membership and all plane addresses are derived at flush time.
-class MSMarkWordBatch {
+// Different owners choose only the cache geometry; add/flush semantics stay
+// in MarkSweepCollector's shared implementation.
+template<size_t SetCount>
+class MSMarkWordBatchStorage {
 public:
-    static constexpr size_t kSetCount = 8;
+    static constexpr size_t kSetCount = SetCount;
     static constexpr size_t kWays = 2;
     static constexpr size_t kCapacity = kSetCount * kWays;
 
-    MSMarkWordBatch() = default;
-    MSMarkWordBatch(const MSMarkWordBatch&) = delete;
-    MSMarkWordBatch& operator=(const MSMarkWordBatch&) = delete;
+    MSMarkWordBatchStorage() = default;
+    MSMarkWordBatchStorage(const MSMarkWordBatchStorage&) = delete;
+    MSMarkWordBatchStorage& operator=(const MSMarkWordBatchStorage&) = delete;
 
-    ~MSMarkWordBatch()
+    ~MSMarkWordBatchStorage()
     {
         CHECK_DETAIL(IsEmpty(),
                      "[MS-GC] destroying non-empty MarkWordBatch entries=%zu",
@@ -55,6 +58,11 @@ public:
     }
 
     bool HasMarkEpoch() const { return markEpochInitialized_; }
+
+    // Owner-specific diagnostics. Runtime barrier adapters override these;
+    // GC-owned batches intentionally keep them as no-ops.
+    void RecordResolveRejected() const {}
+    void RecordLargeRef() const {}
 
     uint32_t GetMarkEpoch() const
     {
@@ -200,10 +208,19 @@ private:
     bool bitmapPlaneBasesInitialized_ = false;
 };
 
+// The default batch is used by ordinary GC marking and the no-owner-buffer
+// write-barrier fallback. Root publication keeps a separate owner alias so its
+// geometry can be tuned independently without changing shared add/flush code.
+using MSMarkWordBatch = MSMarkWordBatchStorage<64>;
+using MSRootMarkWordBatch = MSMarkWordBatchStorage<64>;
+
 static_assert(sizeof(MSMarkWordBatchEntry) == 16,
               "MarkWordBatch entry must stay compact");
 static_assert((MSMarkWordBatch::kSetCount & (MSMarkWordBatch::kSetCount - 1)) == 0,
               "MarkWordBatch set count must stay a power of two");
+static_assert((MSRootMarkWordBatch::kSetCount &
+               (MSRootMarkWordBatch::kSetCount - 1)) == 0,
+              "RootMarkWordBatch set count must stay a power of two");
 
 } // namespace MapleRuntime
 

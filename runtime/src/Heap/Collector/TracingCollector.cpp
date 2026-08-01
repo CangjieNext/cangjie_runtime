@@ -314,6 +314,11 @@ void TracingCollector::DoEnumeration(WorkStack& workStack, WorkStack& foreignRoo
 void TracingCollector::EnumAllCommonRootsSerial(RootSet& rootSet)
 {
     MergeMutatorRoots(rootSet);
+    EnumAllNonMutatorRootsSerial(rootSet);
+}
+
+void TracingCollector::EnumAllNonMutatorRootsSerial(RootSet& rootSet)
+{
     EnumStaticRoots(rootSet);
     EnumConcurrencyModelRoots(rootSet);
     EnumFinalizerProcessorRoots(rootSet);

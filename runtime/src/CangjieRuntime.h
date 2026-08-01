@@ -49,6 +49,7 @@ public:
     static MSAllocatorScaleConfig GetMSAllocatorScaleConfig() { return msAllocatorScaleConfig; }
     static size_t GetMSGCThreadCapacity() { return msGCThreadCapacity; }
     static void SetMSGCThreadCapacity(size_t value) { msGCThreadCapacity = value; }
+    static bool IsMSEnumAssistEnabled() { return msEnumAssistEnabled; }
 #endif
     RuntimeParam GetRuntimeParam() const override { return param; }
     void SetCommandLinesArgs(int argc, const char* argv[])
@@ -89,6 +90,7 @@ private:
 #ifdef MRT_USE_MARK_SWEEP
     static MSAllocatorScaleConfig msAllocatorScaleConfig;
     static size_t msGCThreadCapacity;
+    static bool msEnumAssistEnabled;
 #endif
 };
 } // namespace MapleRuntime

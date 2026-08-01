@@ -114,6 +114,11 @@ bool CollectorResources::TryAcquireMSGCWorkerPoolForPreEnum()
     return gcThreadPool != nullptr && msgcWorkerPoolController_.TryAcquirePreEnum();
 }
 
+bool CollectorResources::AcquireMSGCWorkerPoolForEnumRoots()
+{
+    return gcThreadPool != nullptr && msgcWorkerPoolController_.AcquireEnumRoots();
+}
+
 bool CollectorResources::AcquireMSGCWorkerPoolForMark()
 {
     return gcThreadPool != nullptr && msgcWorkerPoolController_.AcquireMark();

@@ -130,7 +130,8 @@ public:
         }
         if (LIKELY(buffer_ != nullptr)) {
             collector_->AddManagedRefToBarrierBuffer(
-                ref, *buffer_, currentMarkEpoch_);
+                ref, *buffer_, currentMarkEpoch_, allocPlaneBase_,
+                markPlaneBase_);
         } else {
             RecordMSBarrierRuntimeStat(
                 MSBarrierRuntimeStat::OLD_REF_IMMEDIATE_PUBLISH);
@@ -155,12 +156,20 @@ private:
             currentMarkEpoch_ = __atomic_load_n(
                 &CJ_MRT_MSGCFastPathState.currentMarkEpoch,
                 __ATOMIC_ACQUIRE);
+            allocPlaneBase_ = static_cast<uintptr_t>(__atomic_load_n(
+                &CJ_MRT_MSGCFastPathState.allocPlaneBase,
+                __ATOMIC_ACQUIRE));
+            markPlaneBase_ = static_cast<uintptr_t>(__atomic_load_n(
+                &CJ_MRT_MSGCFastPathState.markPlaneBase,
+                __ATOMIC_ACQUIRE));
         }
     }
 
     MarkSweepCollector* collector_ = nullptr;
     MSBarrierMarkBuffer* buffer_ = nullptr;
     uint32_t currentMarkEpoch_ = MSRegionInfo::NO_COLLECT_EPOCH;
+    uintptr_t allocPlaneBase_ = 0;
+    uintptr_t markPlaneBase_ = 0;
     bool markActive_ = false;
     bool ownerResolved_ = false;
 };

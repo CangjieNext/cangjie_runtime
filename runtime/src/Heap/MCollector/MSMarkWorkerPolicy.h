@@ -13,6 +13,7 @@
 namespace MapleRuntime {
 
 constexpr size_t kMSPreEnumResetFirstHelperBytes = 1 * 1024 * 1024;
+constexpr size_t kMSEnumRootsFirstHelperMutators = 1000;
 
 inline size_t ResolveMSGCThreadCapacity(size_t processorCount,
                                         size_t logicalCpuCount)
@@ -50,6 +51,29 @@ inline size_t ComputeMSPreEnumResetHelperTarget(size_t resetBytes,
            nextBoundary <= std::numeric_limits<size_t>::max() / 2) {
         nextBoundary *= 2;
         if (resetBytes < nextBoundary) {
+            break;
+        }
+        ++target;
+    }
+    return target;
+}
+
+// EnumRoots fixes its helper width once from the mutator count captured at
+// phase entry: [1000, 2000) -> 1, [2000, 4000) -> 2,
+// [4000, 8000) -> 3, ... . The width does not track the shrinking pending list.
+inline size_t ComputeMSEnumRootsHelperTarget(size_t initialMutatorCount,
+                                             size_t maxHelpers)
+{
+    if (initialMutatorCount < kMSEnumRootsFirstHelperMutators || maxHelpers == 0) {
+        return 0;
+    }
+
+    size_t target = 1;
+    size_t nextBoundary = kMSEnumRootsFirstHelperMutators;
+    while (target < maxHelpers &&
+           nextBoundary <= std::numeric_limits<size_t>::max() / 2) {
+        nextBoundary *= 2;
+        if (initialMutatorCount < nextBoundary) {
             break;
         }
         ++target;

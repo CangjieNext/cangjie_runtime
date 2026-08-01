@@ -22,6 +22,7 @@ namespace {
 
 using MapleRuntime::MSMarkWordBatch;
 using MapleRuntime::MSMarkWordBatchEntry;
+using MapleRuntime::MSRootMarkWordBatch;
 
 void Expect(bool condition, const char* message)
 {
@@ -68,7 +69,7 @@ void TestEvictsOneEntryAtCapacity()
         batch.Add(static_cast<uint32_t>(i), 0, 1, flush);
     }
     Expect(flushed.empty(), "a non-full batch must not evict");
-    batch.Add(100, 0, 2, flush);
+    batch.Add(static_cast<uint32_t>(MSMarkWordBatch::kCapacity), 0, 2, flush);
     Expect(flushed.size() == 1,
            "full batch must evict exactly one set-local victim");
     Expect(batch.Size() == MSMarkWordBatch::kCapacity,
@@ -77,6 +78,14 @@ void TestEvictsOneEntryAtCapacity()
     batch.FlushAll(flush);
     Expect(flushed.size() == MSMarkWordBatch::kCapacity + 1,
            "FlushAll did not flush every resident entry");
+}
+
+void TestBatchCapacitiesMatchOwners()
+{
+    Expect(MSMarkWordBatch::kCapacity == 128,
+           "default/write-barrier batch must retain 128 bitmap-word entries");
+    Expect(MSRootMarkWordBatch::kCapacity == 128,
+           "GC root batch must retain 128 bitmap-word entries");
 }
 
 void TestCachesOneMarkEpochForBatchLifetime()
@@ -122,6 +131,7 @@ void TestCachesBitmapPlaneBases()
 int main()
 {
     TestCoalescesSameBitmapWord();
+    TestBatchCapacitiesMatchOwners();
     TestEvictsOneEntryAtCapacity();
     TestCachesOneMarkEpochForBatchLifetime();
     TestCachesBitmapPlaneBases();

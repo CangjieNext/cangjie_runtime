@@ -10,11 +10,14 @@
 #ifdef MRT_USE_MARK_SWEEP
 
 #include <atomic>
+#include <vector>
 
 #include "Heap/Collector/TracingCollector.h"
 #include "Heap/MCollector/MSAssistPacing.h"
 #include "Heap/MCollector/MSHeapThresholdPolicy.h"
+#include "Heap/MCollector/MSEnumRootsWorkerSession.h"
 #include "Heap/MCollector/MSMarkBatch.h"
+#include "Heap/MCollector/MSRootDedupTable.h"
 #include "Heap/MCollector/MSMarkScheduler.h"
 #include "Heap/MCollector/MSMarkTerminationPolicy.h"
 #include "Heap/MCollector/MSMarkWorkerControl.h"
@@ -101,7 +104,8 @@ public:
     // deliberately excluded from cycleCompletedMarkWU_ pacing statistics.
     void AddManagedRefToBarrierBuffer(
         BaseObject* ref, MSBarrierMarkBuffer& buffer,
-        uint32_t currentMarkEpoch);
+        uint32_t currentMarkEpoch, uintptr_t allocPlaneBase,
+        uintptr_t markPlaneBase);
     void PublishManagedRefForBarrierImmediately(BaseObject* ref);
     void FlushBarrierMarkBuffer(MSBarrierMarkBuffer& buffer);
     void FlushMarkBatch(MSMarkWordBatch& batch, MSWorkUnitCounter& work);
@@ -161,23 +165,26 @@ private:
     void PostMarkTermination(); // Step 2.4: Non-STW cleanup, stats and Sweep/Scavenge handoff
 
     // ── Step 2.1 internals ──
-    void EnumAndMarkRoots(WorkStack& workStack);
+    void EnumAndMarkRoots();
+    void MergeRootsFromAllocBuffers(std::vector<BaseObject*>& roots);
     bool DiscoverObject(BaseObject* obj, TypeInfo** markedTypeInfo = nullptr);
     void AddRefToMarkBatch(BaseObject* obj, bool knownManaged,
                            MSMarkWordBatch& batch, MSWorkUnitCounter& work);
-    template<typename WorkCounter>
+    template<typename MarkBatch, typename WorkCounter>
     void AddRefToMarkBatchImpl(BaseObject* obj, bool knownManaged,
-                               MSMarkWordBatch& batch, WorkCounter& work);
-    template<typename WorkCounter>
+                               MarkBatch& batch, WorkCounter& work);
+    template<typename MarkBatch, typename WorkCounter>
     void FlushMarkWordEntryImpl(const MSMarkWordBatchEntry& entry,
                                 WorkCounter& work,
-                                const MSMarkWordBatch& batch);
-    template<typename WorkCounter>
-    void FlushMarkBatchImpl(MSMarkWordBatch& batch, WorkCounter& work);
+                                const MarkBatch& batch);
+    template<typename MarkBatch, typename WorkCounter>
+    void FlushMarkBatchImpl(MarkBatch& batch, WorkCounter& work);
     void FlushAllBarrierMarkBuffersUnderSTW(CentralRegionPool& central);
     void PrepareBarrierMarkBuffersForNewEpochUnderSTW(
         CentralRegionPool& central);
     void PublishRootStaging();
+    void PublishRootRange(const std::vector<BaseObject*>& roots,
+                          size_t begin, size_t end);
     void RunSchedulerMarkLoop();
     void RunSchedulerTask(MSTaskLease& lease, MSWorkUnitCounter& work,
                           uint64_t taskBudgetWU);
@@ -215,7 +222,9 @@ private:
     // ============================================================
     //
     // ── Root staging (populated and fully drained inside EnumRoots) ──
-    GreyWorkQueue rootStaging_;
+    std::vector<BaseObject*> rootStaging_;
+    MSRootDedupTable rootDedupTable_;
+    MSEnumRootsWorkerSession enumRootsWorkerSession_;
 
     // Unified Region/Object mark scheduler. Ordinary small grey work is
     // represented by mark/scan planes plus Region tasks.

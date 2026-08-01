@@ -62,6 +62,7 @@ public:
     size_t GetMSGCThreadPoolHelperLimit() const;
     bool TryAcquireMSGCWorkerPoolForSweep();
     bool TryAcquireMSGCWorkerPoolForPreEnum();
+    bool AcquireMSGCWorkerPoolForEnumRoots();
     bool AcquireMSGCWorkerPoolForMark();
     void ReleaseMSGCWorkerPool(MSGCWorkerPoolOwner owner);
 #endif

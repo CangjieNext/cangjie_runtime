@@ -6,6 +6,7 @@
 namespace {
 
 using MapleRuntime::MSMarkWorkerPolicy;
+using MapleRuntime::ComputeMSEnumRootsHelperTarget;
 using MapleRuntime::ComputeMSPreEnumResetHelperTarget;
 using MapleRuntime::ResolveMSGCThreadCapacity;
 using MapleRuntime::ResolveMSMarkTotalThreads;
@@ -78,6 +79,28 @@ void TestPreEnumResetHelperSteps()
              "reset helpers are capped by runtime capacity");
 }
 
+void TestEnumRootsHelperStepsFromInitialMutatorCount()
+{
+    ExpectEq(ComputeMSEnumRootsHelperTarget(0, 7), 0,
+             "empty EnumRoots stays serial");
+    ExpectEq(ComputeMSEnumRootsHelperTarget(999, 7), 0,
+             "sub-1000 initial mutators stay serial");
+    ExpectEq(ComputeMSEnumRootsHelperTarget(1000, 7), 1,
+             "1000 initial mutators start one helper");
+    ExpectEq(ComputeMSEnumRootsHelperTarget(1999, 7), 1,
+             "below 2000 keeps one helper");
+    ExpectEq(ComputeMSEnumRootsHelperTarget(2000, 7), 2,
+             "2000 initial mutators start two helpers");
+    ExpectEq(ComputeMSEnumRootsHelperTarget(3999, 7), 2,
+             "below 4000 keeps two helpers");
+    ExpectEq(ComputeMSEnumRootsHelperTarget(4000, 7), 3,
+             "4000 initial mutators start three helpers");
+    ExpectEq(ComputeMSEnumRootsHelperTarget(7999, 7), 3,
+             "below 8000 keeps three helpers");
+    ExpectEq(ComputeMSEnumRootsHelperTarget(8000, 3), 3,
+             "EnumRoots helpers are capped by GCThreadPool capacity");
+}
+
 } // namespace
 
 int main()
@@ -86,5 +109,6 @@ int main()
     TestHelpersStayActiveUntilCycleQuiesces();
     TestThreadCountResolution();
     TestPreEnumResetHelperSteps();
+    TestEnumRootsHelperStepsFromInitialMutatorCount();
     return 0;
 }

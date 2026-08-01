@@ -28,11 +28,39 @@
 #include "WinModuleManager.h"
 #endif
 #include "CpuProfiler/CpuProfiler.h"
+#include <memory>
+#include <unordered_set>
 #include <vector>
 
 namespace MapleRuntime {
 namespace {
 constexpr uintptr_t kThreadLocalDataAddrMask = 0x00FFFFFFFFFFFFFFULL;
+
+// Stack-allocated objects are rare compared with ordinary managed roots. Keep
+// their cycle-detection storage completely lazy so the common stack scan does
+// not construct tree/deque containers for every Mutator.
+struct StackObjectTraversal {
+    bool TryPush(BaseObject* obj)
+    {
+        if (!visited.insert(obj).second || !obj->IsValidObject() || !obj->HasRefField()) {
+            return false;
+        }
+        pending.push_back(obj);
+        return true;
+    }
+
+    bool Empty() const { return pending.empty(); }
+
+    BaseObject* Pop()
+    {
+        BaseObject* obj = pending.back();
+        pending.pop_back();
+        return obj;
+    }
+
+    std::unordered_set<BaseObject*> visited;
+    std::vector<BaseObject*> pending;
+};
 }
 
 extern "C" uintptr_t MRT_GetThreadLocalData()
@@ -491,18 +519,27 @@ inline void CheckAndPush(BaseObject* obj, std::set<BaseObject*>& rootSet, std::s
 
 inline void Mutator::GcPhaseEnum(GCPhase newPhase)
 {
-    std::set<BaseObject*> rootSet;
-    std::stack<BaseObject*> rootStack;
-    auto checkAndPush = [&rootSet, &rootStack](BaseObject* obj) -> bool {
-        if (rootSet.insert(obj).second && obj->IsValidObject() && obj->HasRefField()) {
-            rootStack.push(obj);
-            return true;
+    (void)newPhase;
+    std::unique_ptr<StackObjectTraversal> stackTraversal;
+    auto checkAndPush = [&stackTraversal](BaseObject* obj) -> bool {
+        if (stackTraversal == nullptr) {
+            stackTraversal.reset(new (std::nothrow) StackObjectTraversal());
+            CHECK_DETAIL(stackTraversal != nullptr,
+                         "failed to allocate stack-object EnumRoots traversal");
         }
-        return false;
+        return stackTraversal->TryPush(obj);
     };
+#ifdef MRT_USE_MARK_SWEEP
+    AllocBufferMS* rootBuffer = AllocBufferMS::GetOrCreateAllocBufferMS();
+    CHECK_DETAIL(rootBuffer != nullptr, "MSGC EnumRoots root buffer is null");
+    auto pushRoot = [rootBuffer](BaseObject* obj) {
+        rootBuffer->PushRoot(obj);
+    };
+#else
     auto pushRoot = [](BaseObject* obj) {
         Allocator::PushRootToBuffer(obj);
     };
+#endif
     RefFieldVisitor refVisitor =
         [&checkAndPush, this, &pushRoot](RefField<>& refFieldAddr) {
         BaseObject* obj = LoadReferenceForGCMode(refFieldAddr);
@@ -515,7 +552,7 @@ inline void Mutator::GcPhaseEnum(GCPhase newPhase)
     };
 
     RootVisitor visitor =
-        [&checkAndPush, this, &refVisitor, &pushRoot, &rootStack](ObjectRef& root) {
+        [&checkAndPush, this, &refVisitor, &pushRoot, &stackTraversal](ObjectRef& root) {
         BaseObject* obj = root.object;
         if (Heap::IsHeapAddress(obj)) {
             pushRoot(obj);
@@ -523,9 +560,8 @@ inline void Mutator::GcPhaseEnum(GCPhase newPhase)
         } else if (IsStackAddr(reinterpret_cast<uintptr_t>(obj))) {
             (void)checkAndPush(obj);
         }
-        while (!rootStack.empty()) {
-            BaseObject* obj = rootStack.top();
-            rootStack.pop();
+        while (stackTraversal != nullptr && !stackTraversal->Empty()) {
+            BaseObject* obj = stackTraversal->Pop();
             obj->ForEachRefField(refVisitor);
         }
     };
@@ -654,9 +690,7 @@ void Mutator::HandleEnumAssist()
         batchSize = 10;
     }
 
-    std::vector<Mutator*> claimed;
-    claimed.reserve(batchSize);
-    if (MutatorManager::Instance().ClaimEnumAssistBatch(phase, batchSize, claimed) == 0) {
+    if (MutatorManager::Instance().AssistEnumRoots(phase, batchSize, this) == 0) {
         if (!MutatorManager::Instance().HasPendingEnumAssist(phase)) {
             ClearSuspensionFlag(SUSPENSION_FOR_GC_ENUM_ASSIST);
             if (!HasAnySuspensionRequest() && !HasObserver()) {
@@ -665,18 +699,6 @@ void Mutator::HandleEnumAssist()
         }
         return;
     }
-
-    for (Mutator* candidate : claimed) {
-        if (candidate == nullptr || candidate == this || !candidate->InSaferegion()) {
-            continue;
-        }
-        (void)candidate->TransitionGCPhase(false);
-    }
-    // Pair with the inFlight bump inside ClaimEnumAssistBatch. Must run on every
-    // path that claimed a batch (the loop above only ever `continue`s, never
-    // returns), so the count stays balanced and FinalizeEnumAssistContext can
-    // observe inFlight reaching 0.
-    MutatorManager::Instance().FinishEnumAssistBatch(phase);
 
     if (!MutatorManager::Instance().HasPendingEnumAssist(phase)) {
         ClearSuspensionFlag(SUSPENSION_FOR_GC_ENUM_ASSIST);
