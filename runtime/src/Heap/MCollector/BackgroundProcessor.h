@@ -45,9 +45,9 @@ public:
     U32 VisitFinalizers(const RootVisitor& visitor) { return finalizerWorkList.VisitFinalizers(visitor); }
     void VisitGCRoots(const RootVisitor& visitor) { finalizerWorkList.VisitGCRoots(visitor); }
     void VisitRawPointers(const RootVisitor& visitor) { finalizerWorkList.VisitRawPointers(visitor); }
-    void EnqueueFinalizables(const std::function<bool(BaseObject*)>& finalizable, U32 countLimit = UINT_MAX)
+    U32 EnqueueFinalizables(const std::function<bool(BaseObject*)>& finalizable, U32 countLimit = UINT_MAX)
     {
-        finalizerWorkList.EnqueueFinalizables(finalizable, countLimit);
+        return finalizerWorkList.EnqueueFinalizables(finalizable, countLimit);
     }
     void RegisterFinalizer(BaseObject* obj) { finalizerWorkList.RegisterFinalizer(obj); }
     void NotifyFinalizerWork() { Notify(); }

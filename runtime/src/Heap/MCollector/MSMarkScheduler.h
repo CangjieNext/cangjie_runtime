@@ -108,6 +108,51 @@ private:
         Pack(MSRegionInfo::INVALID_IDX, 0)};
 };
 
+class alignas(64) MSMarkWorkHintShard {
+public:
+    static void* operator new[](size_t size);
+    static void operator delete[](void* ptr) noexcept;
+
+    void Add(uint64_t words)
+    {
+        if (words == 0) {
+            return;
+        }
+        uint64_t old = words_.fetch_add(words, std::memory_order_relaxed);
+        CHECK_DETAIL(old <= std::numeric_limits<uint64_t>::max() - words,
+                     "[MS-GC] outstanding mark-work hint overflow");
+    }
+
+    void Sub(uint64_t words)
+    {
+        if (words == 0) {
+            return;
+        }
+        uint64_t old = words_.fetch_sub(words, std::memory_order_relaxed);
+        CHECK_DETAIL(old >= words,
+                     "[MS-GC] outstanding mark-work hint underflow old=%llu sub=%llu",
+                     static_cast<unsigned long long>(old),
+                     static_cast<unsigned long long>(words));
+    }
+
+    uint64_t LoadHint() const
+    {
+        return words_.load(std::memory_order_relaxed);
+    }
+
+    void ResetQuiescent()
+    {
+        CHECK_DETAIL(
+            words_.load(std::memory_order_acquire) == 0,
+            "[MS-GC] reset non-empty outstanding mark-work hint=%llu",
+            static_cast<unsigned long long>(
+                words_.load(std::memory_order_relaxed)));
+    }
+
+private:
+    std::atomic<uint64_t> words_{0};
+};
+
 class MSTaskLease {
 public:
     MSTaskLease() = default;
@@ -207,23 +252,27 @@ public:
     bool TryPublishRegion(
         MSRegionInfo* region, size_t preferredRegionShard);
 
-    // Owner-budget replacement. The replacement must be published before the
-    // caller completes its current lease.
-    bool RequeueOwnedRegion(
-        MSRegionInfo* region, size_t preferredRegionShard);
+    // Account requested words before making pendingWordSummary visible. The
+    // post-OR duplicate rollback preserves exact work hints without allowing
+    // an owner to complete newly published work before it was counted.
+    void PublishRegionWords(MSRegionInfo* region, uint64_t wordMask);
+    void CompleteRegionWork(MSRegionInfo* region, uint64_t wordMask);
+    void CompleteObjectWork(MSRegionInfo* largePrimary);
 
     // Caller must already own the LARGE marked winner.
     bool PublishObject(MSRegionInfo* largePrimary);
 
     bool TryClaim(
         const MSMarkWorkerCaps& caps, bool preferObject,
-        size_t preferredRegionShard, MSTaskLease& lease);
+        size_t preferredRegionShard, size_t& regionProbeCursor,
+        MSTaskLease& lease);
 
     bool TryClaimAssist(
         size_t preferredRegionShard, size_t& regionProbeCursor,
         MSTaskLease& lease);
 
     uint64_t OutstandingHint() const { return ledger_.LoadHint(); }
+    uint64_t OutstandingWorkHint() const;
     uint64_t OutstandingForTermination() const
     {
         return ledger_.LoadForTermination();
@@ -233,6 +282,7 @@ public:
     template<typename Handler>
     MSMarkSliceResult RunMarkSlice(
         const MSMarkWorkerCaps& caps, size_t preferredRegionShard,
+        size_t& regionProbeCursor,
         uint64_t wuBudget,
         uint64_t wallBudgetUs, Handler&& handler)
     {
@@ -246,7 +296,8 @@ public:
             }
             MSTaskLease lease;
             if (!TryClaim(
-                    caps, preferObject, preferredRegionShard, lease)) {
+                    caps, preferObject, preferredRegionShard,
+                    regionProbeCursor, lease)) {
                 break;
             }
             preferObject = !preferObject;
@@ -301,18 +352,30 @@ private:
         return regionReadyShards_[ResolveMSMarkReadyPreferredShard(
             preferredRegionShard, regionReadyShardCount_)];
     }
+    MSMarkWorkHintShard& WorkHintShard(const MSRegionInfo* region)
+    {
+        size_t regionIdx = MSRegionInfoArray::GetRegionIdx(region);
+        return workHintShards_[regionIdx % regionReadyShardCount_];
+    }
+    const MSMarkWorkHintShard& WorkHintShard(
+        const MSRegionInfo* region) const
+    {
+        size_t regionIdx = MSRegionInfoArray::GetRegionIdx(region);
+        return workHintShards_[regionIdx % regionReadyShardCount_];
+    }
 
     bool TryClaimFrom(
         MSMarkReadyStack& ready, MSMarkTaskKind kind, MSTaskLease& lease);
     bool TryClaimRegion(
-        size_t preferredRegionShard, MSTaskLease& lease);
+        size_t preferredRegionShard, size_t& regionProbeCursor,
+        MSTaskLease& lease);
     bool TryClaimAssistRegion(
         size_t preferredRegionShard, size_t& regionProbeCursor,
         MSTaskLease& lease);
 
     std::unique_ptr<MSMarkReadyStack[]> regionReadyShards_;
+    std::unique_ptr<MSMarkWorkHintShard[]> workHintShards_;
     size_t regionReadyShardCount_ = 1;
-    std::atomic<size_t> regionProbeCursor_{0};
     MSMarkReadyStack objectReady_;
     MSTaskLedger ledger_;
 };

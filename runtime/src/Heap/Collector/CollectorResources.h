@@ -93,12 +93,12 @@ public:
         finalizerProcessor.VisitGCRoots(visitor);
 #endif
     }
-    void EnqueueFinalizables(const std::function<bool(BaseObject*)>& finalizable, U32 countLimit = UINT_MAX)
+    U32 EnqueueFinalizables(const std::function<bool(BaseObject*)>& finalizable, U32 countLimit = UINT_MAX)
     {
 #ifdef MRT_USE_MARK_SWEEP
-        backgroundProcessor.EnqueueFinalizables(finalizable, countLimit);
+        return backgroundProcessor.EnqueueFinalizables(finalizable, countLimit);
 #else
-        finalizerProcessor.EnqueueFinalizables(finalizable, countLimit);
+        return finalizerProcessor.EnqueueFinalizables(finalizable, countLimit);
 #endif
     }
     void RegisterFinalizer(BaseObject* obj)

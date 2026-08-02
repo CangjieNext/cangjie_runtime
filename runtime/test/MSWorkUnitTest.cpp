@@ -101,52 +101,6 @@ void TestAssistRatio()
         "critical assist ratio mismatch");
 }
 
-void TestDynamicAssistRatioTracksHelperOutstandingLevels()
-{
-    constexpr uint64_t baseRatio = 100;
-    constexpr size_t maxMultiplier = 4;
-    Expect(
-        ComputeMSMarkDynamicAssistRatioQ16(
-            baseRatio, 0, maxMultiplier, MSMarkPressure::NORMAL) == baseRatio,
-        "zero outstanding must preserve the cycle-start assist ratio floor");
-    Expect(
-        ComputeMSMarkDynamicAssistRatioQ16(
-            baseRatio, 8, maxMultiplier, MSMarkPressure::NORMAL) == baseRatio,
-        "first outstanding level must use the base assist ratio");
-    Expect(
-        ComputeMSMarkDynamicAssistRatioQ16(
-            baseRatio, 9, maxMultiplier, MSMarkPressure::NORMAL) == 2 * baseRatio,
-        "second outstanding level must double the assist ratio");
-    Expect(
-        ComputeMSMarkDynamicAssistRatioQ16(
-            baseRatio, 17, maxMultiplier, MSMarkPressure::NORMAL) == 3 * baseRatio,
-        "third outstanding level must triple the assist ratio");
-    Expect(
-        ComputeMSMarkDynamicAssistRatioQ16(
-            baseRatio, 25, maxMultiplier, MSMarkPressure::NORMAL) == 4 * baseRatio,
-        "fourth outstanding level must reach the configured assist cap");
-    Expect(
-        ComputeMSMarkDynamicAssistRatioQ16(
-            baseRatio, 4096, maxMultiplier, MSMarkPressure::NORMAL) == 4 * baseRatio,
-        "large outstanding backlog must remain capped");
-    Expect(
-        ComputeMSMarkDynamicAssistRatioQ16(
-            baseRatio, 9, maxMultiplier, MSMarkPressure::NORMAL) == 2 * baseRatio,
-        "falling outstanding must reduce the ratio by the same level policy");
-    Expect(
-        ComputeMSMarkDynamicAssistRatioQ16(
-            baseRatio, 0, maxMultiplier, MSMarkPressure::NORMAL) == baseRatio,
-        "falling outstanding must not reduce the ratio below its cycle-start floor");
-    Expect(
-        ComputeMSMarkDynamicAssistRatioQ16(
-            0, 4096, maxMultiplier, MSMarkPressure::NORMAL) == 0,
-        "disabled assist must remain disabled under backlog pressure");
-    Expect(
-        ComputeMSMarkDynamicAssistRatioQ16(
-            baseRatio, 1, maxMultiplier, MSMarkPressure::CRITICAL) == 4 * baseRatio,
-        "critical pressure must select the maximum assist multiplier");
-}
-
 void TestMarkTelemetryShareAndRate()
 {
     Expect(
@@ -163,20 +117,116 @@ void TestMarkTelemetryShareAndRate()
         "zero active time must report zero rate");
 }
 
-void TestHelperTargetDoesNotDoubleCountReadyTasks()
+void TestHelperTargetTracksActualWork()
 {
     Expect(
-        ComputeMSMarkHelperTarget(4096, 3, MSMarkPressure::NORMAL) == 3,
+        ComputeMSMarkHelperTarget(4096, 4096, 3, MSMarkPressure::NORMAL) == 3,
         "normal mark must scale helpers from outstanding ledger work");
     Expect(
-        ComputeMSMarkHelperTarget(4096, 3, MSMarkPressure::HIGH) == 3,
+        ComputeMSMarkHelperTarget(4096, 4096, 3, MSMarkPressure::HIGH) == 3,
         "high pressure must not reduce an already wider helper target");
     Expect(
-        ComputeMSMarkHelperTarget(4096, 3, MSMarkPressure::CRITICAL) == 3,
+        ComputeMSMarkHelperTarget(4096, 4096, 3, MSMarkPressure::CRITICAL) == 3,
         "critical pressure must activate all available helpers");
     Expect(
-        ComputeMSMarkHelperTarget(1, 3, MSMarkPressure::CRITICAL) == 1,
+        ComputeMSMarkHelperTarget(1, 64, 3, MSMarkPressure::CRITICAL) == 1,
         "helper target must not exceed outstanding tasks");
+
+    Expect(
+        ComputeMSMarkHelperTarget(16, 128, 7, MSMarkPressure::NORMAL) == 0,
+        "GC main must absorb the first 128 pending bitmap words");
+    Expect(
+        ComputeMSMarkHelperTarget(16, 129, 7, MSMarkPressure::NORMAL) == 1,
+        "the second 128-word share must activate one helper");
+    Expect(
+        ComputeMSMarkHelperTarget(16, 256, 7, MSMarkPressure::NORMAL) == 1,
+        "a full two-participant share must not activate a third participant");
+    Expect(
+        ComputeMSMarkHelperTarget(16, 257, 7, MSMarkPressure::NORMAL) == 2,
+        "work beyond two participant shares must activate a second helper");
+    Expect(
+        ComputeMSMarkHelperTarget(16, 1024, 7, MSMarkPressure::NORMAL) == 7,
+        "eight participant shares must activate all seven helpers");
+    Expect(
+        ComputeMSMarkHelperTarget(2, 1024, 7, MSMarkPressure::NORMAL) == 1,
+        "ready task parallelism must reserve one task for GC main");
+    Expect(
+        ComputeMSMarkHelperTarget(16, 1, 7, MSMarkPressure::NORMAL) == 0,
+        "a nonempty sub-share backlog must stay on GC main");
+    Expect(
+        ComputeMSMarkHelperTarget(16, 0, 7, MSMarkPressure::NORMAL) == 0,
+        "zero remaining scan work must park all helpers");
+}
+
+void TestMarkControllerAppliesHelperHysteresis()
+{
+    Expect(MS_MARK_CONTROL_SLICES_PER_UPDATE == 4,
+           "mark control must sample once per four GC-main slices");
+    MSMarkControllerState controller(
+        16, 128, 7, 4, MSMarkPressure::NORMAL);
+    Expect(controller.HelperTarget() == 0,
+           "small initial backlog must stay on GC main");
+    Expect(controller.AssistMultiplier() == 1,
+           "normal mark must start at the base Assist ratio");
+
+    controller.Observe(16, 1024);
+    Expect(controller.HelperTarget() == 0,
+           "one high-work observation must not wake helpers");
+    controller.Observe(16, 1024);
+    Expect(controller.HelperTarget() == 1,
+           "two high-work observations must add only one helper");
+
+    MSMarkControllerState draining(
+        16, 1024, 7, 4, MSMarkPressure::NORMAL);
+    Expect(draining.HelperTarget() == 7,
+           "large initial backlog must use the amount-based helper target");
+    draining.Observe(16, 0);
+    draining.Observe(16, 0);
+    Expect(draining.HelperTarget() == 7,
+           "two falling observations must stay inside helper down hysteresis");
+    draining.Observe(16, 0);
+    Expect(draining.HelperTarget() == 6,
+           "three falling observations must remove only one helper");
+}
+
+void TestMarkControllerCascadesAssistAfterStableHelpers()
+{
+    MSMarkControllerState controller(
+        32, 4096, 7, 4, MSMarkPressure::NORMAL);
+    Expect(controller.HelperTarget() == 7,
+           "large initial backlog must activate available helpers");
+    Expect(controller.AssistMultiplier() == 1,
+           "task count must not saturate Assist at mark start");
+
+    controller.Observe(32, 4096);
+    Expect(controller.AssistMultiplier() == 1,
+           "one non-draining window must not increase Assist");
+    controller.Observe(32, 4096);
+    Expect(controller.AssistMultiplier() == 2,
+           "two non-draining windows after stable helpers must add one Assist level");
+    controller.Observe(32, 4096);
+    Expect(controller.AssistMultiplier() == 2,
+           "Assist must not increase on every control window");
+    controller.Observe(32, 4096);
+    Expect(controller.AssistMultiplier() == 3,
+           "persistent backlog must raise Assist one level at a time");
+
+    controller.Observe(32, 0);
+    Expect(controller.AssistMultiplier() == 3,
+           "one draining window must stay inside Assist down hysteresis");
+    controller.Observe(32, 0);
+    Expect(controller.AssistMultiplier() == 2,
+           "two draining windows must reduce Assist by one level");
+}
+
+void TestCriticalMarkControllerBypassesHysteresis()
+{
+    MSMarkControllerState controller(
+        7, 1, 7, 4, MSMarkPressure::CRITICAL);
+    Expect(controller.HelperTarget() == 7,
+           "critical mark must activate every claimable helper");
+    Expect(controller.AssistMultiplier() == 4,
+           "critical mark must immediately use the Assist cap");
 }
 
 } // namespace
@@ -188,8 +238,10 @@ int main()
     TestAssistCreditPaysFutureDebtAndPreservesFraction();
     TestFullCycleEwma();
     TestAssistRatio();
-    TestDynamicAssistRatioTracksHelperOutstandingLevels();
     TestMarkTelemetryShareAndRate();
-    TestHelperTargetDoesNotDoubleCountReadyTasks();
+    TestHelperTargetTracksActualWork();
+    TestMarkControllerAppliesHelperHysteresis();
+    TestMarkControllerCascadesAssistAfterStableHelpers();
+    TestCriticalMarkControllerBypassesHysteresis();
     return 0;
 }

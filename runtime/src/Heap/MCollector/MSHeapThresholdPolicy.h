@@ -97,16 +97,10 @@ inline size_t CeilDivideMSHeapThreshold(size_t value, size_t divisor)
     return value / divisor + static_cast<size_t>(value % divisor != 0);
 }
 
-inline size_t ComputeMSHeapThresholdFloor(size_t liveBytes,
-                                         size_t absoluteFloorBytes,
-                                         size_t minimumRunwayBytes,
+inline size_t ComputeMSHeapThresholdFloor(size_t absoluteFloorBytes,
                                          size_t maxThresholdBytes)
 {
-    size_t runwayFloor =
-        SaturatingAddMSBytes(liveBytes, minimumRunwayBytes);
-    return std::min(
-        std::max(absoluteFloorBytes, runwayFloor),
-        maxThresholdBytes);
+    return std::min(absoluteFloorBytes, maxThresholdBytes);
 }
 
 inline bool IsMSFloatingLiveInflated(size_t markStartInUseBytes,

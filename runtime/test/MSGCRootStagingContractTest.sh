@@ -47,8 +47,8 @@ printf '%s\n' "$publish" | rg -q 'roots\.clear'
 
 range="$(sed -n '/void MarkSweepCollector::PublishRootRange/,/^}/p' "$COLLECTOR_SOURCE")"
 printf '%s\n' "$range" | rg -q 'MSMarkWordBatch batch'
-printf '%s\n' "$range" | rg -Uq 'AddRefToMarkBatch<MSMarkRefSource::TRUSTED_MANAGED>\([[:space:]]*obj, batch, work\)'
-printf '%s\n' "$range" | rg -q 'FlushMarkBatch\(batch, work\)'
+printf '%s\n' "$range" | rg -Uq 'AddRefToMarkBatch<MSMarkRefSource::TRUSTED_MANAGED>\([[:space:]]*obj, batch, work, publication\)'
+printf '%s\n' "$range" | rg -q 'FlushMarkBatch\(batch, work, publication\)'
 
 publish="$(sed -n '/void MarkSweepCollector::PublishRootStaging/,/^}/p' "$COLLECTOR_SOURCE")"
 heap_line="$(printf '%s\n' "$publish" | rg -n -m1 'Heap::IsHeapAddress' | cut -d: -f1)"

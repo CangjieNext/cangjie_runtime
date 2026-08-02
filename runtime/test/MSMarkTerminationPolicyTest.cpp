@@ -12,6 +12,7 @@ namespace {
 
 using MapleRuntime::MSMarkPressurePolicy;
 using MapleRuntime::MSMarkTerminationReason;
+using MapleRuntime::ComputeMSMarkTerminationDrainHelpers;
 using MapleRuntime::GetMSMarkTerminationReasonName;
 using MapleRuntime::ScaleMSAssistRatioForPressure;
 
@@ -135,6 +136,30 @@ void TestTerminationReasonNamesExposeEverySTWBranch()
     }
 }
 
+void TestTerminationDrainStartsOnlyForLargeResidual()
+{
+    ExpectEqual(ComputeMSMarkTerminationDrainHelpers(63, 255, 8), 0,
+                "small residual stays serial");
+    ExpectEqual(ComputeMSMarkTerminationDrainHelpers(64, 0, 8), 1,
+                "64 residual tasks enable one helper");
+    ExpectEqual(ComputeMSMarkTerminationDrainHelpers(0, 256, 8), 1,
+                "256 residual bitmap words enable one helper");
+}
+
+void TestTerminationDrainHelperLadderDoublesAndClamps()
+{
+    ExpectEqual(ComputeMSMarkTerminationDrainHelpers(127, 511, 8), 1,
+                "first termination helper band");
+    ExpectEqual(ComputeMSMarkTerminationDrainHelpers(128, 0, 8), 2,
+                "128 residual tasks enable two helpers");
+    ExpectEqual(ComputeMSMarkTerminationDrainHelpers(0, 1024, 8), 3,
+                "1024 residual bitmap words enable three helpers");
+    ExpectEqual(ComputeMSMarkTerminationDrainHelpers(4096, 0, 2), 2,
+                "termination helpers respect configured maximum");
+    ExpectEqual(ComputeMSMarkTerminationDrainHelpers(4096, 4096, 0), 0,
+                "no available helper keeps termination serial");
+}
+
 } // namespace
 
 int main()
@@ -146,5 +171,7 @@ int main()
     TestOOMStartsAtMaximumPressure();
     TestAssistPressureScalingPreservesDisableAndSaturates();
     TestTerminationReasonNamesExposeEverySTWBranch();
+    TestTerminationDrainStartsOnlyForLargeResidual();
+    TestTerminationDrainHelperLadderDoublesAndClamps();
     return 0;
 }

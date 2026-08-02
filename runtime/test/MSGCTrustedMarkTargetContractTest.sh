@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 COLLECTOR="$ROOT_DIR/src/Heap/MCollector/MarkSweepCollector.cpp"
+BARRIER="$ROOT_DIR/src/Heap/MBarrier/MSMarkBarrier.cpp"
 
 source_text="$(<"$COLLECTOR")"
 
@@ -29,9 +30,9 @@ require_present 'ResolveTrustedMarkTarget\(' \
     'trusted write-barrier/root references need a dedicated resolver'
 require_present 'ResolveDefensiveMarkTarget\(' \
     'raw child references must retain a defensive resolver'
-require_present 'AddRefToMarkBatch<MSMarkRefSource::TRUSTED_MANAGED>\([[:space:]]*ref, batch, noWork\)' \
+require_present 'AddRefToMarkBatch<MSMarkRefSource::TRUSTED_MANAGED>\([[:space:]]*ref, batch, noWork, publication\)' \
     'Runtime write barriers must use trusted ref-to-bitmap resolution'
-require_present 'AddRefToMarkBatch<MSMarkRefSource::TRUSTED_MANAGED>\([[:space:]]*obj, batch, work\)' \
+require_present 'AddRefToMarkBatch<MSMarkRefSource::TRUSTED_MANAGED>\([[:space:]]*obj, batch, work, publication\)' \
     'EnumRoots publication must use trusted ref-to-bitmap resolution'
 
 trusted_resolver="$(sed -n '/static inline bool ResolveTrustedMarkTarget/,/^}/p' "$COLLECTOR")"
@@ -48,9 +49,9 @@ require_present 'GetRegionInfoDirect\([[:space:]]*addr, regionOffset, regionIdx\
     'ref resolution must retain the directly computed Region index'
 require_present 'centralPool != nullptr' \
     'active mark epoch requires a CentralRegionPool invariant check'
-require_present 'PublishPendingMarkWords\(wordMask\)' \
+require_present 'PublishRegionWords\(info, wordMask\)' \
     'bitmap flush must publish coalesced word masks per Region'
-require_present 'PublishPendingMarkRegions\(pending\)' \
+require_present 'PublishPendingMarkRegions\(publication\.pending\)' \
     'mark batch flush must drain pending Region publications'
 
 flush_word="$(sed -n '/MSRegionInfo\* MarkSweepCollector::FlushMarkWordEntryImpl/,/^}/p' "$COLLECTOR")"
@@ -59,9 +60,12 @@ require_absent "$flush_word" 'markEpoch != MSRegionInfo::NO_COLLECT_EPOCH' \
 require_absent "$flush_word" 'PublishPendingMarkWord\(' \
     'each bitmap word must not publish the scheduler summary independently'
 
-adapter_add="$(sed -n '/void Add(uint32_t regionIdx/,/^    }/p' "$COLLECTOR")"
-require_present 'if \(UNLIKELY\(IsMSBarrierRuntimeStatsEnabled\(\)\)\)' \
-    'collect-set diagnostic lookup must be gated by the stats enable flag'
+record_stats="$(sed -n '/void RecordMSBarrierRuntimeStat/,/^}/p' "$BARRIER")"
+if ! rg -q 'if \(UNLIKELY\(IsMSBarrierRuntimeStatsEnabled\(\)\)\)' \
+    <<<"$record_stats"; then
+    echo 'barrier diagnostics must be gated by the stats enable flag' >&2
+    exit 1
+fi
 
 pre_enum="$(sed -n '/void MarkSweepCollector::PreEnumRoots/,/^}/p' "$COLLECTOR")"
 require_absent "$pre_enum" 'else \{[[:space:]]*// A RegionSpaceMS normally always has its central pool' \

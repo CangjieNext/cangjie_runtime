@@ -16,22 +16,10 @@
 namespace MapleRuntime {
 
 struct MSMarkWordBatchEntry {
-    uint32_t regionIdx = MSRegionInfo::INVALID_REGION_IDX;
-    uint8_t wordIdx = 0;
-    uint8_t reserved[3] = {};
-    uint64_t mask = 0;
-
-    bool IsEmpty() const
-    {
-        return regionIdx == MSRegionInfo::INVALID_REGION_IDX;
-    }
-
-    void Reset()
-    {
-        regionIdx = MSRegionInfo::INVALID_REGION_IDX;
-        wordIdx = 0;
-        mask = 0;
-    }
+    uint32_t regionIdx;
+    uint8_t wordIdx;
+    uint8_t reserved[3];
+    uint64_t mask;
 };
 
 // Allocation-free staging for Region scheduler publication after MARK words
@@ -89,6 +77,11 @@ private:
     size_t size_ = 0;
 };
 
+struct MSMarkPublicationContext {
+    MSPendingMarkRegionBatch<8> pending;
+    bool readyPublished = false;
+};
+
 // An allocation-free coalescing cache for mark bitmap updates. The batch
 // deliberately stores only the stable bitmap coordinate. ScanClass,
 // collect-set membership and all plane addresses are derived at flush time.
@@ -100,6 +93,8 @@ public:
     static constexpr size_t kSetCount = SetCount;
     static constexpr size_t kWays = 2;
     static constexpr size_t kCapacity = kSetCount * kWays;
+    static_assert(kCapacity <= 32,
+                  "MarkWordBatch occupancy mask supports at most 32 entries");
 
     MSMarkWordBatchStorage() = default;
     MSMarkWordBatchStorage(const MSMarkWordBatchStorage&) = delete;
@@ -110,6 +105,10 @@ public:
         CHECK_DETAIL(IsEmpty(),
                      "[MS-GC] destroying non-empty MarkWordBatch entries=%zu",
                      size_);
+        CHECK_DETAIL(
+            publication_.pending.IsEmpty() &&
+            !publication_.readyPublished,
+            "[MS-GC] destroying MarkWordBatch with pending publication");
     }
 
     bool HasMarkEpoch() const { return markEpochInitialized_; }
@@ -188,51 +187,63 @@ public:
         size_t firstEmpty = kCapacity;
         for (size_t way = 0; way < kWays; ++way) {
             size_t i = first + way;
+            if (!IsOccupied(i)) {
+                if (firstEmpty == kCapacity) {
+                    firstEmpty = i;
+                }
+                continue;
+            }
             MSMarkWordBatchEntry& entry = entries_[i];
             if (entry.regionIdx == regionIdx && entry.wordIdx == wordIdx) {
                 entry.mask |= mask;
                 return;
             }
-            if (firstEmpty == kCapacity && entry.IsEmpty()) {
-                firstEmpty = i;
-            }
         }
 
         if (firstEmpty != kCapacity) {
             Fill(entries_[firstEmpty], regionIdx, wordIdx, mask);
+            occupiedMask_ |= EntryBit(firstEmpty);
             ++size_;
             return;
         }
 
-        size_t victimIdx = first + nextVictimWay_[set];
+        size_t victimWay =
+            static_cast<size_t>((nextVictimWayMask_ >> set) & 1U);
+        size_t victimIdx = first + victimWay;
         MSMarkWordBatchEntry& victim = entries_[victimIdx];
         flushEntry(victim);
         Fill(victim, regionIdx, wordIdx, mask);
-        nextVictimWay_[set] =
-            static_cast<uint8_t>((nextVictimWay_[set] + 1) % kWays);
+        nextVictimWayMask_ ^= UINT32_C(1) << set;
     }
 
     template<typename FlushEntry>
     void FlushAll(FlushEntry&& flushEntry)
     {
-        for (size_t i = 0; i < kCapacity; ++i) {
-            MSMarkWordBatchEntry& entry = entries_[i];
-            if (entry.IsEmpty()) {
-                continue;
-            }
-            flushEntry(entry);
-            entry.Reset();
+        uint32_t occupied = occupiedMask_;
+        while (occupied != 0) {
+            size_t i = static_cast<size_t>(__builtin_ctz(occupied));
+            occupied &= occupied - 1;
+            flushEntry(entries_[i]);
         }
+        occupiedMask_ = 0;
         size_ = 0;
-        for (size_t i = 0; i < kSetCount; ++i) {
-            nextVictimWay_[i] = 0;
-        }
     }
 
     bool IsEmpty() const { return size_ == 0; }
     size_t Size() const { return size_; }
+    MSMarkPublicationContext& Publication() { return publication_; }
 
 private:
+    static constexpr uint32_t EntryBit(size_t index)
+    {
+        return UINT32_C(1) << index;
+    }
+
+    bool IsOccupied(size_t index) const
+    {
+        return (occupiedMask_ & EntryBit(index)) != 0;
+    }
+
     static size_t HashSet(uint32_t regionIdx, size_t wordIdx)
     {
         // Both Region indices and bitmap-word indices are often sequential.
@@ -253,13 +264,15 @@ private:
     }
 
     MSMarkWordBatchEntry entries_[kCapacity];
+    uint32_t occupiedMask_ = 0;
     size_t size_ = 0;
-    uint8_t nextVictimWay_[kSetCount] = {};
+    uint32_t nextVictimWayMask_ = 0;
     uint32_t markEpoch_ = MSRegionInfo::NO_COLLECT_EPOCH;
     uintptr_t allocPlaneBase_ = 0;
     uintptr_t markPlaneBase_ = 0;
     bool markEpochInitialized_ = false;
     bool bitmapPlaneBasesInitialized_ = false;
+    MSMarkPublicationContext publication_;
 };
 
 // All GC-owned producers use the same 32-entry local storage. The compiler-

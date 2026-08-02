@@ -27,7 +27,13 @@ constexpr uint64_t MS_WU_ASSIST_WALL_BUDGET_US = 100;
 constexpr uint64_t MS_WU_MIN_SLICE_BUDGET = 64;
 constexpr uint64_t MS_WU_UNLIMITED_BUDGET =
     std::numeric_limits<uint64_t>::max();
-constexpr uint64_t MS_MARK_OUTSTANDING_TASKS_PER_LEVEL = 8;
+constexpr uint64_t MS_MARK_WORK_WORDS_PER_PARTICIPANT = 128;
+constexpr size_t MS_MARK_CONTROL_SLICES_PER_UPDATE = 4;
+constexpr uint8_t MS_MARK_HELPER_UP_WINDOWS = 2;
+constexpr uint8_t MS_MARK_HELPER_DOWN_WINDOWS = 3;
+constexpr uint8_t MS_MARK_ASSIST_UP_WINDOWS = 2;
+constexpr uint8_t MS_MARK_ASSIST_DOWN_WINDOWS = 2;
+constexpr uint64_t MS_MARK_MIN_TREND_DEADBAND_WORDS = 32;
 
 inline uint64_t SaturatingMSWUAdd(uint64_t lhs, uint64_t rhs)
 {
@@ -163,61 +169,187 @@ inline uint64_t ComputeMSMarkRunwayUs(uint64_t heapRunwayBytes,
         : heapRunwayBytes / allocatedBytesPerUs;
 }
 
-inline size_t ComputeMSMarkOutstandingLevel(uint64_t outstanding)
-{
-    if (outstanding == 0) {
-        return 0;
-    }
-    uint64_t level = 1 +
-        (outstanding - 1) / MS_MARK_OUTSTANDING_TASKS_PER_LEVEL;
-    return static_cast<size_t>(std::min<uint64_t>(
-        level, std::numeric_limits<size_t>::max()));
-}
-
 inline size_t ComputeMSMarkHelperTarget(
-    uint64_t outstanding, size_t maxHelpers, MSMarkPressure pressure)
+    uint64_t outstandingTasks, uint64_t outstandingWorkWords,
+    size_t maxHelpers, MSMarkPressure pressure)
 {
-    if (outstanding == 0 || maxHelpers == 0) {
+    if (outstandingTasks == 0 || outstandingWorkWords == 0 ||
+        maxHelpers == 0) {
         return 0;
     }
-    // Outstanding already includes queued and leased tasks. Scale from that
-    // single ledger value so ready-stack hints cannot double count backlog.
-    size_t target = std::min(
-        ComputeMSMarkOutstandingLevel(outstanding), maxHelpers);
-    target = std::max<size_t>(1, target);
+    // GC main owns the first work share. Pending bitmap words (plus one unit
+    // per Object task) estimate the remaining scan work; task count only caps
+    // how many participants can claim independent work.
+    uint64_t participants = 1 +
+        (outstandingWorkWords - 1) /
+            MS_MARK_WORK_WORDS_PER_PARTICIPANT;
+    uint64_t helperWorkTarget = participants > 1 ? participants - 1 : 0;
+    size_t target = static_cast<size_t>(std::min<uint64_t>(
+        helperWorkTarget, static_cast<uint64_t>(maxHelpers)));
     if (pressure == MSMarkPressure::HIGH) {
         target = std::max(target, (maxHelpers + 1) / 2);
     } else if (pressure == MSMarkPressure::CRITICAL) {
         target = maxHelpers;
     }
-    size_t outstandingLimit = static_cast<size_t>(
-        std::min<uint64_t>(outstanding, std::numeric_limits<size_t>::max()));
+    uint64_t taskHelpers = pressure == MSMarkPressure::NORMAL
+        ? outstandingTasks - 1
+        : outstandingTasks;
+    size_t outstandingLimit = static_cast<size_t>(std::min<uint64_t>(
+        taskHelpers, std::numeric_limits<size_t>::max()));
     return std::min(target, std::min(maxHelpers, outstandingLimit));
 }
 
-inline size_t ComputeMSMarkAssistMultiplier(
-    uint64_t outstanding, size_t maxMultiplier, MSMarkPressure pressure)
+inline uint64_t UpdateMSMarkWorkWordsEwma(
+    uint64_t previous, uint64_t sample)
 {
-    maxMultiplier = std::max<size_t>(1, maxMultiplier);
-    size_t multiplier = std::max<size_t>(
-        1, std::min(ComputeMSMarkOutstandingLevel(outstanding), maxMultiplier));
-    if (pressure == MSMarkPressure::HIGH) {
-        multiplier = std::max(multiplier, (maxMultiplier + 1) / 2);
-    } else if (pressure == MSMarkPressure::CRITICAL) {
-        multiplier = maxMultiplier;
+    if (sample >= previous) {
+        return previous + (sample - previous) / 4;
     }
-    return std::min(multiplier, maxMultiplier);
+    return previous - (previous - sample) / 4;
 }
 
-inline uint64_t ComputeMSMarkDynamicAssistRatioQ16(
-    uint64_t baseRatio, uint64_t outstanding, size_t maxMultiplier,
-    MSMarkPressure pressure)
+inline size_t ComputeMSMarkInitialAssistMultiplier(
+    size_t maxMultiplier, MSMarkPressure pressure)
 {
-    return SaturatingMSWUMul(
-        baseRatio,
-        ComputeMSMarkAssistMultiplier(
-            outstanding, maxMultiplier, pressure));
+    maxMultiplier = std::max<size_t>(1, maxMultiplier);
+    if (pressure == MSMarkPressure::CRITICAL) {
+        return maxMultiplier;
+    }
+    return pressure == MSMarkPressure::HIGH
+        ? (maxMultiplier + 1) / 2
+        : 1;
 }
+
+class MSMarkControllerState {
+public:
+    MSMarkControllerState(
+        uint64_t outstandingTasks, uint64_t outstandingWorkWords,
+        size_t maxHelpers, size_t maxAssistMultiplier,
+        MSMarkPressure pressure)
+        : maxHelpers_(maxHelpers),
+          maxAssistMultiplier_(std::max<size_t>(1, maxAssistMultiplier)),
+          pressure_(pressure),
+          filteredWorkWords_(outstandingWorkWords),
+          helperTarget_(ComputeMSMarkHelperTarget(
+              outstandingTasks, outstandingWorkWords,
+              maxHelpers, pressure)),
+          minAssistMultiplier_(ComputeMSMarkInitialAssistMultiplier(
+              maxAssistMultiplier_, pressure)),
+          assistMultiplier_(minAssistMultiplier_)
+    {
+    }
+
+    void Observe(uint64_t outstandingTasks, uint64_t outstandingWorkWords)
+    {
+        uint64_t previousFilteredWorkWords = filteredWorkWords_;
+        filteredWorkWords_ = UpdateMSMarkWorkWordsEwma(
+            filteredWorkWords_, outstandingWorkWords);
+
+        size_t desiredHelpers = ComputeMSMarkHelperTarget(
+            outstandingTasks, filteredWorkWords_,
+            maxHelpers_, pressure_);
+        UpdateHelpers(desiredHelpers);
+        UpdateAssist(previousFilteredWorkWords);
+    }
+
+    size_t HelperTarget() const
+    {
+        return helperTarget_;
+    }
+
+    size_t AssistMultiplier() const
+    {
+        return assistMultiplier_;
+    }
+
+    uint64_t FilteredWorkWords() const
+    {
+        return filteredWorkWords_;
+    }
+
+private:
+    void UpdateHelpers(size_t desiredHelpers)
+    {
+        if (desiredHelpers > helperTarget_) {
+            helperDownWindows_ = 0;
+            helperStableWindows_ = 0;
+            if (++helperUpWindows_ >= MS_MARK_HELPER_UP_WINDOWS) {
+                ++helperTarget_;
+                helperUpWindows_ = 0;
+            }
+            return;
+        }
+        if (desiredHelpers < helperTarget_) {
+            helperUpWindows_ = 0;
+            helperStableWindows_ = 0;
+            if (++helperDownWindows_ >= MS_MARK_HELPER_DOWN_WINDOWS) {
+                --helperTarget_;
+                helperDownWindows_ = 0;
+            }
+            return;
+        }
+        helperUpWindows_ = 0;
+        helperDownWindows_ = 0;
+        if (helperStableWindows_ != std::numeric_limits<uint8_t>::max()) {
+            ++helperStableWindows_;
+        }
+    }
+
+    void UpdateAssist(uint64_t previousFilteredWorkWords)
+    {
+        if (pressure_ == MSMarkPressure::CRITICAL) {
+            assistMultiplier_ = maxAssistMultiplier_;
+            return;
+        }
+
+        uint64_t deadband = std::max(
+            MS_MARK_MIN_TREND_DEADBAND_WORDS,
+            previousFilteredWorkWords / 8);
+        bool draining = previousFilteredWorkWords > filteredWorkWords_ &&
+            previousFilteredWorkWords - filteredWorkWords_ > deadband;
+        uint64_t participantCount = static_cast<uint64_t>(helperTarget_) + 1;
+        uint64_t lowWater = SaturatingMSWUMul(
+            participantCount, MS_MARK_WORK_WORDS_PER_PARTICIPANT);
+        uint64_t highWater = SaturatingMSWUMul(lowWater, 2);
+
+        bool canRaise = assistMultiplier_ < maxAssistMultiplier_ &&
+            helperStableWindows_ != 0 &&
+            filteredWorkWords_ >= highWater && !draining;
+        if (canRaise) {
+            assistDownWindows_ = 0;
+            if (++assistUpWindows_ >= MS_MARK_ASSIST_UP_WINDOWS) {
+                ++assistMultiplier_;
+                assistUpWindows_ = 0;
+            }
+            return;
+        }
+
+        assistUpWindows_ = 0;
+        bool shouldLower = assistMultiplier_ > minAssistMultiplier_ &&
+            (draining || filteredWorkWords_ <= lowWater);
+        if (shouldLower) {
+            if (++assistDownWindows_ >= MS_MARK_ASSIST_DOWN_WINDOWS) {
+                --assistMultiplier_;
+                assistDownWindows_ = 0;
+            }
+        } else {
+            assistDownWindows_ = 0;
+        }
+    }
+
+    size_t maxHelpers_ = 0;
+    size_t maxAssistMultiplier_ = 1;
+    MSMarkPressure pressure_ = MSMarkPressure::NORMAL;
+    uint64_t filteredWorkWords_ = 0;
+    size_t helperTarget_ = 0;
+    size_t minAssistMultiplier_ = 1;
+    size_t assistMultiplier_ = 1;
+    uint8_t helperUpWindows_ = 0;
+    uint8_t helperDownWindows_ = 0;
+    uint8_t helperStableWindows_ = 0;
+    uint8_t assistUpWindows_ = 0;
+    uint8_t assistDownWindows_ = 0;
+};
 
 inline uint64_t ComputeMSMarkShareBasisPoints(
     uint64_t participantWU, uint64_t totalWU)

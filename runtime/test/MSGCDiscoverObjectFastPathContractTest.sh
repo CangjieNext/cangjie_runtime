@@ -10,8 +10,8 @@ rg -q 'batch.Add\(regionIdx, target.wordIdx, target.bitMask' "$COLLECTOR"
 rg -q 'batch.GetMarkBitmap\(regionIdx\)' "$COLLECTOR"
 rg -q '__atomic_load_n\(markWord, __ATOMIC_RELAXED\)' "$COLLECTOR"
 rg -q '__atomic_fetch_or\(markWord, mask, __ATOMIC_RELAXED\)' "$COLLECTOR"
-rg -q 'info->PublishPendingMarkWords\(wordMask\)' "$COLLECTOR"
-rg -q 'markScheduler_\.TryPublishRegion\(info\)' "$COLLECTOR"
+rg -q 'markScheduler_\.PublishRegionWords\(info, wordMask\)' "$COLLECTOR"
+rg -q 'markScheduler_\.TryPublishRegion' "$COLLECTOR"
 rg -q 'VisitMarkPendingRegionsUnderSTW' "$COLLECTOR"
 rg -q 'ForEachRefFieldGCKnownType' "$COLLECTOR"
 rg -q 'scanBitmap\[wordIdx\] = scanWord' "$COLLECTOR"
@@ -19,7 +19,7 @@ rg -q 'markScheduler_\.PublishObject\(target.info\)' "$COLLECTOR"
 
 region_task="$(sed -n '/void MarkSweepCollector::RunRegionTask/,/^}/p' "$COLLECTOR")"
 weak_ref_line="$(printf '%s\n' "$region_task" |
-    rg -n 'obj->IsWeakRef\(\)' | head -1 | cut -d: -f1)"
+    rg -n 'typeInfo->IsWeakRefType\(\)' | head -1 | cut -d: -f1)"
 has_ref_guard_line="$(printf '%s\n' "$region_task" |
     rg -n 'typeInfo->HasRefField\(\)' | head -1 | cut -d: -f1 || true)"
 known_type_scan_line="$(printf '%s\n' "$region_task" |

@@ -11,16 +11,17 @@ rg -q 'enum class MSMarkRefSource' "$COLLECTOR_HEADER"
 
 buffered_add="$(sed -n '/void MarkSweepCollector::AddManagedRefToBarrierBuffer/,/^}/p' "$SOURCE")"
 printf '%s\n' "$buffered_add" | rg -q 'MSBarrierMarkBatchStorageView batch'
-printf '%s\n' "$buffered_add" | rg -Uq 'AddRefToMarkBatch<MSMarkRefSource::TRUSTED_MANAGED>\([[:space:]]*ref, batch, noWork\)'
+printf '%s\n' "$buffered_add" | rg -q 'MSMarkPublicationContext publication'
+printf '%s\n' "$buffered_add" | rg -Uq 'AddRefToMarkBatch<MSMarkRefSource::TRUSTED_MANAGED>\([[:space:]]*ref, batch, noWork, publication\)'
 
 buffered_flush="$(sed -n '/void MarkSweepCollector::FlushBarrierMarkBuffer/,/^}/p' "$SOURCE")"
 printf '%s\n' "$buffered_flush" | rg -q 'MSBarrierMarkBatchStorageView batch'
-printf '%s\n' "$buffered_flush" | rg -q 'FlushMarkBatch\(batch, noWork\)'
+printf '%s\n' "$buffered_flush" | rg -q 'FlushMarkBatch\(batch, noWork, publication\)'
 
 publish="$(sed -n '/void MarkSweepCollector::PublishRootRange/,/^}/p' "$SOURCE")"
 printf '%s\n' "$publish" | rg -q 'MSMarkWordBatch batch'
-printf '%s\n' "$publish" | rg -Uq 'AddRefToMarkBatch<MSMarkRefSource::TRUSTED_MANAGED>\([[:space:]]*obj, batch, work\)'
-printf '%s\n' "$publish" | rg -q 'FlushMarkBatch\(batch, work\)'
+printf '%s\n' "$publish" | rg -Uq 'AddRefToMarkBatch<MSMarkRefSource::TRUSTED_MANAGED>\([[:space:]]*obj, batch, work, publication\)'
+printf '%s\n' "$publish" | rg -q 'FlushMarkBatch\(batch, work, publication\)'
 
 rg -q 'using MSMarkWordBatch = MSMarkWordBatchStorage<16>;' "$BATCH_HEADER"
 if rg -q 'MSRootMarkWordBatch' "$BATCH_HEADER" "$SOURCE"; then

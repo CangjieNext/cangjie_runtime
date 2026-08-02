@@ -41,8 +41,11 @@ printf '%s\n' "$helper_loop" | rg -q 'markWorkerCompletedWU_\[workerId\] = helpe
 # Mutator assist retains a finite outer WU slice, but an already claimed Region
 # uses the same whole-task execution contract as GC main/helper.
 printf '%s\n' "$assist_loop" | rg -q 'budgetWU'
-printf '%s\n' "$assist_loop" | rg -q 'MSMarkWorkerCaps::Assist'
-printf '%s\n' "$assist_loop" | rg -Uq 'RunSchedulerTask\([[:space:]]*lease, work, MS_WU_UNLIMITED_BUDGET\)'
-printf '%s\n' "$region_task" | rg -q 'work\.Total\(\) >= taskBudgetWU'
+printf '%s\n' "$assist_loop" | rg -q 'RunMarkAssistSlice'
+printf '%s\n' "$assist_loop" | rg -Uq 'RunSchedulerTask\([[:space:]]*lease, work\)'
+if printf '%s\n' "$region_task" | rg -q 'taskBudgetWU|budgetExpired|RequeueOwnedRegion'; then
+    echo 'whole-Region execution still carries a dead finite-WU replacement path' >&2
+    exit 1
+fi
 
 echo 'GC main/helper use the shared 100us time-only slice policy'

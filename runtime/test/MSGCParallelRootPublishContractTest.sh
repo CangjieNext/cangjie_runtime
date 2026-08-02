@@ -17,6 +17,6 @@ fi
 
 range="$(sed -n '/void MarkSweepCollector::PublishRootRange/,/^}/p' "$COLLECTOR")"
 printf '%s\n' "$range" | rg -q 'MSMarkWordBatch batch'
-printf '%s\n' "$range" | rg -q 'FlushMarkBatch\(batch, work\)'
+printf '%s\n' "$range" | rg -q 'FlushMarkBatch\(batch, work, publication\)'
 
 echo 'MSGC root publish is serial and keeps dedup plus the GC-owned batch'

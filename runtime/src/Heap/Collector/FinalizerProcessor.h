@@ -37,9 +37,9 @@ public:
     void Fini();
     void WaitStop();
 
-    void EnqueueFinalizables(const std::function<bool(BaseObject*)>& finalizable, U32 countLimit = UINT_MAX)
+    U32 EnqueueFinalizables(const std::function<bool(BaseObject*)>& finalizable, U32 countLimit = UINT_MAX)
     {
-        finalizerWorkList.EnqueueFinalizables(finalizable, countLimit);
+        return finalizerWorkList.EnqueueFinalizables(finalizable, countLimit);
     }
     void RegisterFinalizer(BaseObject* obj) { finalizerWorkList.RegisterFinalizer(obj); }
     bool IsRunning() const { return running; }

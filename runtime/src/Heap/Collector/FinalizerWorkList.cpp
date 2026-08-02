@@ -50,14 +50,16 @@ void FinalizerWorkList::VisitRawPointers(const RootVisitor& visitor)
     }
 }
 
-void FinalizerWorkList::EnqueueFinalizables(const std::function<bool(BaseObject*)>& finalizable, U32 countLimit)
+U32 FinalizerWorkList::EnqueueFinalizables(const std::function<bool(BaseObject*)>& finalizable, U32 countLimit)
 {
+    U32 snapshotCount = 0;
     std::lock_guard<std::mutex> l(listLock);
     auto it = finalizers.begin();
     while (it != finalizers.end() && countLimit != 0) {
         RefField<> tmpField(reinterpret_cast<MAddress>(*it));
         BaseObject* obj = LoadReferenceForGCMode(tmpField);
         --countLimit;
+        ++snapshotCount;
         if (finalizable(obj)) {
             finalizables.push_back(reinterpret_cast<BaseObject*>(tmpField.GetFieldValue()));
             it = finalizers.erase(it);
@@ -69,6 +71,7 @@ void FinalizerWorkList::EnqueueFinalizables(const std::function<bool(BaseObject*
     if (!finalizables.empty()) {
         hasFinalizableJob.store(true, std::memory_order_relaxed);
     }
+    return snapshotCount;
 }
 
 void FinalizerWorkList::ProcessFinalizableList(const std::function<bool()>& shouldKeepRunning)

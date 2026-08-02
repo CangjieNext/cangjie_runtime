@@ -81,6 +81,23 @@ void TestEvictsOneEntryAtCapacity()
            "FlushAll did not flush every resident entry");
 }
 
+void TestSparseBatchReuseVisitsOnlyCurrentResidents()
+{
+    MSMarkWordBatch batch;
+    batch.Add(3, 1, 1, [](const MSMarkWordBatchEntry&) {});
+    batch.FlushAll([](const MSMarkWordBatchEntry&) {});
+
+    batch.Add(9, 2, 4, [](const MSMarkWordBatchEntry&) {});
+    size_t visits = 0;
+    batch.FlushAll([&](const MSMarkWordBatchEntry& entry) {
+        ++visits;
+        Expect(entry.regionIdx == 9 && entry.wordIdx == 2 && entry.mask == 4,
+               "sparse batch reuse exposed a stale entry");
+    });
+    Expect(visits == 1 && batch.IsEmpty(),
+           "sparse FlushAll must visit only current residents");
+}
+
 void TestSharedBatchCapacity()
 {
     Expect(MSMarkWordBatch::kCapacity == 32,
@@ -184,6 +201,7 @@ int main()
     TestCoalescesSameBitmapWord();
     TestSharedBatchCapacity();
     TestEvictsOneEntryAtCapacity();
+    TestSparseBatchReuseVisitsOnlyCurrentResidents();
     TestCachesOneMarkEpochForBatchLifetime();
     TestCachesBitmapPlaneBases();
     TestPendingRegionBatchMergesBitmapWords();

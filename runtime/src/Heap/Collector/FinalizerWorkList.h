@@ -36,7 +36,7 @@ public:
     void VisitGCRoots(const RootVisitor& visitor);
     void VisitRawPointers(const RootVisitor& visitor);
 
-    void EnqueueFinalizables(const std::function<bool(BaseObject*)>& finalizable, U32 countLimit = UINT_MAX);
+    U32 EnqueueFinalizables(const std::function<bool(BaseObject*)>& finalizable, U32 countLimit = UINT_MAX);
     void RegisterFinalizer(BaseObject* obj);
     void ProcessFinalizables(const std::function<bool()>& shouldKeepRunning);
     bool HasFinalizableJob() const { return hasFinalizableJob.load(std::memory_order_relaxed); }

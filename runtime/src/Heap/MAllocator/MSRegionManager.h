@@ -219,8 +219,6 @@ private:
     // Unified released-span entry for MSGC heap management.
     FreeManager freeManager_;
 
-    std::atomic<uint64_t> lastHeuRequestNs_{0};
-    std::atomic<bool> markPressureProbeInProgress_ {false};
     std::atomic<bool> scavengePressureProbeInProgress_ {false};
 };
 

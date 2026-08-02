@@ -47,6 +47,32 @@ void MSMarkReadyStack::operator delete[](void* ptr) noexcept
 #endif
 }
 
+void* MSMarkWorkHintShard::operator new[](size_t size)
+{
+    void* storage = nullptr;
+#ifdef _WIN32
+    storage = _aligned_malloc(size, alignof(MSMarkWorkHintShard));
+#else
+    int result = posix_memalign(
+        &storage, alignof(MSMarkWorkHintShard), size);
+    CHECK_DETAIL(result == 0,
+                 "[MS-GC] aligned Mark work-hint allocation failed: %d",
+                 result);
+#endif
+    CHECK_DETAIL(storage != nullptr,
+                 "[MS-GC] aligned Mark work-hint allocation returned null");
+    return storage;
+}
+
+void MSMarkWorkHintShard::operator delete[](void* ptr) noexcept
+{
+#ifdef _WIN32
+    _aligned_free(ptr);
+#else
+    std::free(ptr);
+#endif
+}
+
 bool MSMarkReadyStack::Push(MSRegionInfo* region)
 {
     CHECK_DETAIL(region != nullptr, "[MS-GC] ready push with null Region");
@@ -110,7 +136,8 @@ void MSMarkReadyStack::ResetQuiescent()
 }
 
 MSMarkScheduler::MSMarkScheduler()
-    : regionReadyShards_(new MSMarkReadyStack[1])
+    : regionReadyShards_(new MSMarkReadyStack[1]),
+      workHintShards_(new MSMarkWorkHintShard[1])
 {
 }
 
@@ -125,9 +152,11 @@ void MSMarkScheduler::ConfigureRegionShards(size_t shardCount)
     }
     std::unique_ptr<MSMarkReadyStack[]> replacement(
         new MSMarkReadyStack[shardCount]);
+    std::unique_ptr<MSMarkWorkHintShard[]> workHintReplacement(
+        new MSMarkWorkHintShard[shardCount]);
     regionReadyShards_ = std::move(replacement);
+    workHintShards_ = std::move(workHintReplacement);
     regionReadyShardCount_ = shardCount;
-    regionProbeCursor_.store(0, std::memory_order_relaxed);
 }
 
 void MSMarkScheduler::ResetCycle()
@@ -135,9 +164,51 @@ void MSMarkScheduler::ResetCycle()
     ledger_.ResetQuiescent();
     for (size_t i = 0; i < regionReadyShardCount_; ++i) {
         regionReadyShards_[i].ResetQuiescent();
+        workHintShards_[i].ResetQuiescent();
     }
-    regionProbeCursor_.store(0, std::memory_order_relaxed);
     objectReady_.ResetQuiescent();
+}
+
+void MSMarkScheduler::PublishRegionWords(
+    MSRegionInfo* region, uint64_t wordMask)
+{
+    CHECK_DETAIL(region != nullptr,
+                 "[MS-GC] pending Region work publication with null Region");
+    uint64_t requestedWords = static_cast<uint64_t>(
+        __builtin_popcountll(wordMask));
+    MSMarkWorkHintShard& shard = WorkHintShard(region);
+    shard.Add(requestedWords);
+    uint64_t newWords = region->PublishPendingMarkWords(wordMask);
+    shard.Sub(requestedWords - static_cast<uint64_t>(
+        __builtin_popcountll(newWords)));
+}
+
+void MSMarkScheduler::CompleteRegionWork(
+    MSRegionInfo* region, uint64_t wordMask)
+{
+    CHECK_DETAIL(region != nullptr,
+                 "[MS-GC] completing pending Region work with null Region");
+    WorkHintShard(region).Sub(static_cast<uint64_t>(
+        __builtin_popcountll(wordMask)));
+}
+
+void MSMarkScheduler::CompleteObjectWork(MSRegionInfo* largePrimary)
+{
+    CHECK_DETAIL(largePrimary != nullptr,
+                 "[MS-GC] completing Object work with null Region");
+    WorkHintShard(largePrimary).Sub(1);
+}
+
+uint64_t MSMarkScheduler::OutstandingWorkHint() const
+{
+    uint64_t total = 0;
+    for (size_t i = 0; i < regionReadyShardCount_; ++i) {
+        uint64_t shardWords = workHintShards_[i].LoadHint();
+        total = shardWords > std::numeric_limits<uint64_t>::max() - total
+            ? std::numeric_limits<uint64_t>::max()
+            : total + shardWords;
+    }
+    return total;
 }
 
 bool MSMarkScheduler::TryPublishRegion(
@@ -181,25 +252,6 @@ bool MSMarkScheduler::TryPublishRegion(
     }
 }
 
-bool MSMarkScheduler::RequeueOwnedRegion(
-    MSRegionInfo* region, size_t preferredRegionShard)
-{
-    CHECK_DETAIL(
-        region != nullptr &&
-        region->GetRegionKind() == MSRegionKind::SMALL &&
-        region->GetScanClass() == MSScanClass::HAS_REF &&
-        region->GetScanState() == MSScanState::OWNED,
-        "[MS-GC] requeue requires owned HAS_REF small Region");
-    CHECK_DETAIL(
-        region->LoadPendingMarkWordsAcquire() != 0,
-        "[MS-GC] requeue without pending words idx=%zu",
-        MSRegionInfoArray::GetRegionIdx(region));
-
-    ledger_.AddProvisional();
-    region->StoreScanStateRelaxed(MSScanState::QUEUED);
-    return RegionReadyShard(preferredRegionShard).Push(region);
-}
-
 bool MSMarkScheduler::PublishObject(MSRegionInfo* largePrimary)
 {
     CHECK_DETAIL(
@@ -208,6 +260,7 @@ bool MSMarkScheduler::PublishObject(MSRegionInfo* largePrimary)
         largePrimary->GetScanClass() == MSScanClass::HAS_REF &&
         largePrimary->IsMarked(),
                  "[MS-GC] invalid Object task publication");
+    WorkHintShard(largePrimary).Add(1);
     ledger_.AddProvisional();
     return objectReady_.Push(largePrimary);
 }
@@ -233,10 +286,10 @@ bool MSMarkScheduler::TryClaimFrom(
 }
 
 bool MSMarkScheduler::TryClaimRegion(
-    size_t preferredRegionShard, MSTaskLease& lease)
+    size_t preferredRegionShard, size_t& regionProbeCursor,
+    MSTaskLease& lease)
 {
-    size_t rotationStart = regionProbeCursor_.fetch_add(
-        1, std::memory_order_relaxed);
+    size_t rotationStart = regionProbeCursor++;
     bool fullFallback = ledger_.LoadHint() != 0;
     return TryMSMarkReadyShardProbe(
         regionReadyShardCount_, preferredRegionShard, rotationStart,
@@ -261,7 +314,8 @@ bool MSMarkScheduler::TryClaimAssistRegion(
 
 bool MSMarkScheduler::TryClaim(
     const MSMarkWorkerCaps& caps, bool preferObject,
-    size_t preferredRegionShard, MSTaskLease& lease)
+    size_t preferredRegionShard, size_t& regionProbeCursor,
+    MSTaskLease& lease)
 {
     CHECK_DETAIL(!lease.IsActive(),
                  "[MS-GC] TryClaim target already holds active lease");
@@ -269,7 +323,8 @@ bool MSMarkScheduler::TryClaim(
         TryClaimFrom(objectReady_, MSMarkTaskKind::OBJECT, lease)) {
         return true;
     }
-    if (caps.region && TryClaimRegion(preferredRegionShard, lease)) {
+    if (caps.region && TryClaimRegion(
+            preferredRegionShard, regionProbeCursor, lease)) {
         return true;
     }
     return !preferObject && caps.object &&

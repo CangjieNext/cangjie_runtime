@@ -268,7 +268,7 @@ struct alignas(64) MSRegionInfo {
             &control, &old, desired, true,
             __ATOMIC_RELAXED, __ATOMIC_RELAXED));
     }
-    void PublishPendingMarkWord(size_t wordIdx)
+    uint64_t PublishPendingMarkWord(size_t wordIdx)
     {
         CHECK_DETAIL(wordIdx < 64,
                      "[MS-GC] pending mark word index overflow: %zu", wordIdx);
@@ -279,19 +279,22 @@ struct alignas(64) MSRegionInfo {
         // post-release republish and MarkTermination performs a final STW
         // reconciliation, so no per-publication state-word DIRTY handshake is
         // needed on this hot path.
-        __atomic_fetch_or(
-            &pendingWordSummary, UINT64_C(1) << wordIdx, __ATOMIC_RELEASE);
+        uint64_t wordMask = UINT64_C(1) << wordIdx;
+        uint64_t old = __atomic_fetch_or(
+            &pendingWordSummary, wordMask, __ATOMIC_RELEASE);
+        return wordMask & ~old;
     }
-    void PublishPendingMarkWords(uint64_t wordMask)
+    uint64_t PublishPendingMarkWords(uint64_t wordMask)
     {
         if (wordMask == 0) {
-            return;
+            return 0;
         }
         // A barrier-buffer flush may win several mark words in one Region.
         // Publish them with one release RMW before the single Region enqueue
         // attempt, preserving the existing summary-first protocol.
-        __atomic_fetch_or(
+        uint64_t old = __atomic_fetch_or(
             &pendingWordSummary, wordMask, __ATOMIC_RELEASE);
+        return wordMask & ~old;
     }
     uint64_t TakePendingMarkWords()
     {

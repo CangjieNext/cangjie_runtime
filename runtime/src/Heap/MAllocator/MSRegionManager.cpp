@@ -15,7 +15,6 @@
 #include "Base/CString.h"
 #include "Base/Log.h"
 #include "Base/LogFile.h"
-#include "Base/TimeUtils.h"
 #include "AllocUtil.h"
 #include "Heap/MAllocator/MSBitmapArena.h"
 #include "Heap/MAllocator/MSCentralRegionPool.h"
@@ -249,14 +248,6 @@ void MSRegionManager::OnCommittedHeapExtended(uintptr_t newCommittedEnd)
 // O4: small-object HEU trigger checkpoint
 // ============================================================================
 
-namespace {
-uint64_t GetHeuRequestCooldownNs()
-{
-    return CangjieRuntime::GetGCParam().gcInterval;
-}
-
-}
-
 void MSRegionManager::MaybeNotifySweep(const CentralRegionPool* centralPool, uint8_t cls)
 {
     if (Heap::GetHeap().IsGcStarted()) {
@@ -341,12 +332,6 @@ void MSRegionManager::MaybeNotifyMark()
         return;
     }
 
-    uint64_t nowNs = TimeUtil::NanoSeconds();
-    uint64_t lastHeuRequestNs = lastHeuRequestNs_.load(std::memory_order_relaxed);
-    if (lastHeuRequestNs != 0 && nowNs - lastHeuRequestNs < GetHeuRequestCooldownNs()) {
-        return;
-    }
-
     Collector& collector = Heap::GetHeap().GetCollector();
     const GCStats& gcStats = collector.GetGCStats();
     RegionSpaceMS& space = static_cast<RegionSpaceMS&>(Heap::GetHeap().GetAllocator());
@@ -361,21 +346,9 @@ void MSRegionManager::MaybeNotifyMark()
     size_t sweptBytes = space.GetSweptHeapBytes();
     size_t threshold = gcStats.GetThreshold();
 
-    // Trigger purely on time (cooldown above) + threshold.
+    // The first aggregate threshold crossing is sufficient. Pending/running
+    // HEU requests are coalesced by the async GC task state.
     if (sweptBytes < threshold) {
-        return;
-    }
-    bool expectedProbe = false;
-    if (!markPressureProbeInProgress_.compare_exchange_strong(
-            expectedProbe, true, std::memory_order_acquire, std::memory_order_relaxed)) {
-        return;
-    }
-    // The fast aggregate may briefly lead the underlying lists while a Region
-    // changes ownership. A HEU request is expensive, so confirm the crossing
-    // with the original per-class reference scan.
-    sweptBytes = space.GetSweptHeapBytesReference();
-    if (sweptBytes < threshold) {
-        markPressureProbeInProgress_.store(false, std::memory_order_release);
         return;
     }
 
@@ -395,15 +368,7 @@ void MSRegionManager::MaybeNotifyMark()
              sweptBytes, threshold, static_cast<int>(pressureMode));
     }
 
-    if (!lastHeuRequestNs_.compare_exchange_strong(lastHeuRequestNs, nowNs,
-                                                   std::memory_order_relaxed,
-                                                   std::memory_order_relaxed)) {
-        markPressureProbeInProgress_.store(false, std::memory_order_release);
-        return;
-    }
-
     collector.RequestGC(GC_REASON_HEU, true);
-    markPressureProbeInProgress_.store(false, std::memory_order_release);
     VLOG(REPORT,
          "[MS-GC] HEU trigger (take-regions): swept-region bytes=%zuB heapThreshold=%zuB"
          " reason=GC_REASON_HEU",

@@ -16,7 +16,11 @@ rg -q 'class alignas\(64\) MSMarkReadyStack' "$HEADER"
 rg -q 'ConfigureRegionShards' "$HEADER"
 rg -q 'std::unique_ptr<MSMarkReadyStack\[\]> regionReadyShards_' "$HEADER"
 rg -q 'preferredRegionShard' "$HEADER" "$SOURCE"
-rg -q 'std::atomic<size_t> regionProbeCursor_' "$HEADER"
+rg -q 'size_t& regionProbeCursor' "$HEADER" "$SOURCE"
+if rg -q 'std::atomic<size_t> regionProbeCursor_' "$HEADER"; then
+    echo 'GC workers still share one Region probe cursor' >&2
+    exit 1
+fi
 rg -q 'TryMSMarkReadyShardProbe' "$SOURCE"
 rg -q 'TryMSMarkReadyAssistShardProbe' "$SOURCE"
 rg -q 'kMSMarkReadyAssistRemoteProbes = 2' "$ROOT_DIR/src/Heap/MCollector/MSMarkReadyShardPolicy.h"
@@ -57,14 +61,8 @@ if rg -q 'count_|CountHint' "$HEADER" "$SOURCE"; then
     exit 1
 fi
 
-requeue="$(sed -n '/bool MSMarkScheduler::RequeueOwnedRegion/,/^}/p' "$SOURCE")"
-provisional="$(printf '%s\n' "$requeue" | rg -n 'ledger_\.AddProvisional' | cut -d: -f1)"
-queued="$(printf '%s\n' "$requeue" | rg -n 'StoreScanStateRelaxed' | cut -d: -f1)"
-push="$(printf '%s\n' "$requeue" |
-    rg -n 'return RegionReadyShard\(preferredRegionShard\)\.Push' |
-    cut -d: -f1)"
-if [[ "$provisional" -ge "$queued" || "$queued" -ge "$push" ]]; then
-    echo 'Region replacement is not admitted before the old lease can complete' >&2
+if rg -q 'RequeueOwnedRegion' "$HEADER" "$SOURCE"; then
+    echo 'dead finite-budget Region replacement path remains' >&2
     exit 1
 fi
 
@@ -77,18 +75,19 @@ post_release_pending_line="$(printf '%s\n' "$region_task" |
     rg -n 'LoadPendingMarkWordsAcquire' | tail -1 | cut -d: -f1)"
 post_release_publish_line="$(printf '%s\n' "$region_task" |
     rg -n 'markScheduler_\.TryPublishRegion' | tail -1 | cut -d: -f1)"
-requeue_line="$(printf '%s\n' "$region_task" | rg -n 'RequeueOwnedRegion' | cut -d: -f1)"
-budget_complete_line="$(printf '%s\n' "$region_task" | rg -n 'lease\.Complete' | head -1 | cut -d: -f1)"
 normal_complete_line="$(printf '%s\n' "$region_task" | rg -n 'lease\.Complete' | tail -1 | cut -d: -f1)"
 if [[ -z "$idle_release_line" || -z "$post_release_pending_line" ||
       "$take_pending_line" -ge "$idle_release_line" ||
       "$idle_release_line" -ge "$post_release_pending_line" ||
       "$post_release_pending_line" -ge "$post_release_publish_line" ||
-      "$post_release_publish_line" -ge "$normal_complete_line" ||
-      "$requeue_line" -ge "$budget_complete_line" ]]; then
+      "$post_release_publish_line" -ge "$normal_complete_line" ]]; then
     echo 'Region owner must republish residual pending work before lease completion' >&2
     exit 1
 fi
+
+rg -q 'OutstandingWorkHint' "$HEADER" "$SOURCE"
+rg -q 'PublishRegionWords' "$HEADER" "$SOURCE"
+rg -q 'CompleteRegionWork' "$HEADER" "$SOURCE"
 
 if rg -q 'CONTROL_MARK_DIRTY|ClearMarkDirtyForOwner|TryReleaseScanOwnerIfClean' \
     "$ROOT_DIR/src/Heap/MAllocator/MSRegionInfo.h" "$COLLECTOR" "$SOURCE"; then

@@ -45,7 +45,8 @@ struct MSGCCycleStats {
     uint64_t markLoopUs = 0;
     uint64_t markQuiesceUs = 0;
     uint64_t markPoolReleaseUs = 0;
-    uint64_t markTerminationUs = 0;   // MarkTermination wall time: STW drain, WB flush, deferred queue drain, idle transition.
+    uint64_t markSchedulerUs = 0;
+    uint64_t markTerminationUs = 0;   // Full MarkTermination wall time, including STW acquire, IDLE transition and resume.
     uint64_t postMarkUs = 0;          // PostMarkTermination wall time: post-mark cleanup, stats and Sweep/Scavenge handoff.
     uint64_t postGcHookUs = 0;        // PostGarbageCollection hook wall time after UpdateGCStats completes.
 
@@ -64,6 +65,7 @@ struct MSGCCycleStats {
     uint64_t markAssistNoTaskCalls = 0;
     size_t markMaxHelpers = 0;
     size_t markInitialHelpers = 0;
+    size_t markQuiesceResidualTasks = 0;
 
     // ── True live bytes (computed from markBitmaps after marking) ──
     size_t trueLiveBytes = 0;            // ComputeMarkedStats() result, used by UpdateGCStats and GC-end logs.
@@ -170,7 +172,10 @@ public:
     void ProcessFinalizers() override;
     void MergeRootsFromAllocBuffers(WorkStack& workStack) override;
 
-    bool ShouldIgnoreRequest(GCRequest& request) override { return request.ShouldBeIgnored(); }
+    bool ShouldIgnoreRequest(GCRequest& request) override
+    {
+        return request.reason != GC_REASON_HEU && request.ShouldBeIgnored();
+    }
     void UpdateGCStats() override;
 private:
     // ── MS GC phases ──
@@ -193,11 +198,13 @@ private:
     template<MSMarkRefSource Source, typename MarkBatch,
              typename WorkCounter>
     void AddRefToMarkBatch(BaseObject* obj, MarkBatch& batch,
-                           WorkCounter& work);
+                           WorkCounter& work,
+                           MSMarkPublicationContext& publication);
     template<bool Trusted, typename MarkBatch, typename WorkCounter>
     void AddResolvedRefToMarkBatchImpl(BaseObject* obj,
                                        const ResolvedMarkTarget& target,
-                                       MarkBatch& batch, WorkCounter& work);
+                                       MarkBatch& batch, WorkCounter& work,
+                                       MSMarkPublicationContext& publication);
     template<typename MarkBatch, typename WorkCounter>
     MSRegionInfo* FlushMarkWordEntryImpl(const MSMarkWordBatchEntry& entry,
                                          WorkCounter& work,
@@ -205,9 +212,17 @@ private:
     template<size_t Capacity>
     bool PublishPendingMarkRegions(
         MSPendingMarkRegionBatch<Capacity>& pending);
+    void StageMarkPublication(MSRegionInfo* info, size_t wordIdx,
+                              MSMarkPublicationContext& publication);
+    void FlushMarkPublication(MSMarkPublicationContext& publication,
+                              bool notifyReadyWorkers);
     template<typename MarkBatch, typename WorkCounter>
-    void FlushMarkBatch(MarkBatch& batch, WorkCounter& work);
-    void FlushAllBarrierMarkBuffersUnderSTW(CentralRegionPool& central);
+    void FlushMarkBatch(MarkBatch& batch, WorkCounter& work,
+                        MSMarkPublicationContext& publication);
+    void InitializeGCMarkBatch(MSMarkWordBatch& batch) const;
+    void FlushAllBarrierMarkBuffersUnderSTW(
+        CentralRegionPool& central, size_t& visitedBuffers,
+        size_t& nonEmptyBuffers, size_t& bufferedEntries);
     void PrepareBarrierMarkBuffersForNewEpochUnderSTW(
         CentralRegionPool& central);
     void FoldGCMarkAssistTelemetry(AllocBufferMS& allocBuffer);
@@ -218,10 +233,9 @@ private:
     void RunSchedulerMarkLoop(uint64_t baseAssistRatio,
                               size_t maxAssistMultiplier,
                               MSMarkPressure pressure);
-    void RunSchedulerTask(MSTaskLease& lease, MSWorkUnitCounter& work,
-                          uint64_t taskBudgetWU);
-    void RunRegionTask(MSTaskLease& lease, MSWorkUnitCounter& work,
-                       uint64_t taskBudgetWU);
+    void FinalizeConcurrentMarkAccounting();
+    void RunSchedulerTask(MSTaskLease& lease, MSWorkUnitCounter& work);
+    void RunRegionTask(MSTaskLease& lease, MSWorkUnitCounter& work);
     void RunObjectTask(MSTaskLease& lease, MSWorkUnitCounter& work);
     uint64_t DrainSchedulerUnderSTW();
     void VerifyMarkSchedulerQuiescence(const char* closureName);
@@ -241,8 +255,30 @@ private:
     size_t QuiesceMarkWorkers();
 
     // ── Step 2.3 internals ──
+    struct MSTerminationDrainLaneStats {
+        uint64_t workUnits = 0;
+        uint64_t activeUs = 0;
+        size_t completedTasks = 0;
+        size_t waits = 0;
+    };
+    struct MSTerminationDrainStats {
+        uint64_t workUnits = 0;
+        uint64_t totalUs = 0;
+        uint64_t setupUs = 0;
+        uint64_t mainLaneUs = 0;
+        uint64_t joinUs = 0;
+        uint64_t startWorkWords = 0;
+        size_t startTasks = 0;
+        size_t helperCount = 0;
+        bool parallel = false;
+        MSTerminationDrainLaneStats main;
+        MSTerminationDrainLaneStats helpers;
+    };
+    void RunTerminationDrainLaneUnderSTW(
+        size_t participant, MSTerminationDrainLaneStats& stats);
+    MSTerminationDrainStats DrainOrdinarySchedulerUnderSTW();
     void PrepareFinalizersForResurrection();
-    void ClearWeakRefsAfterMark();
+    void ClearWeakRefsAfterMark(size_t& cleared, size_t& preserved);
 
     // ── Step 2.4 internals ──
     void PrepareCycleRef();
@@ -262,6 +298,9 @@ private:
     // represented by mark/scan planes plus Region tasks.
     MSMarkScheduler markScheduler_;
     size_t markReadyProcessorCount_ = 1;
+    uint32_t markBatchEpoch_ = MSRegionInfo::NO_COLLECT_EPOCH;
+    uintptr_t markBatchAllocPlaneBase_ = 0;
+    uintptr_t markBatchMarkPlaneBase_ = 0;
     MSWorkUnitPacer markPacer_;
     std::atomic<uint64_t> cycleCompletedMarkWU_{0};
     std::atomic<uint64_t> cycleAllocatedMarkBytes_{0};
@@ -272,6 +311,7 @@ private:
     std::vector<uint64_t> markWorkerCompletedWU_;
     std::vector<uint64_t> markWorkerActiveUs_;
     std::vector<uint64_t> markWorkerSlices_;
+    bool markPoolOwnedForCycle_ = false;
     MSMarkWorkerControl markWorkerControl_{&markWorkEpoch_};
     std::atomic<uint64_t> assistWorkPerByteScaled_{0};
     std::atomic<uint64_t> markAssistCompletedWU_{0};
