@@ -21,10 +21,13 @@ constexpr uint64_t MS_WU_SCAN_WORD_COST = 1;
 constexpr uint64_t MS_WU_INITIAL_DENSITY_Q16 = MS_WU_Q16_ONE / 64;
 constexpr uint64_t MS_WU_INITIAL_THROUGHPUT_Q16 = 32 * MS_WU_Q16_ONE;
 constexpr uint64_t MS_WU_ASSIST_THRESHOLD = 512;
-constexpr uint64_t MS_WU_MAIN_WALL_BUDGET_US = 1000;
-constexpr uint64_t MS_WU_HELPER_WALL_BUDGET_US = 500;
+constexpr uint64_t MS_WU_MAIN_WALL_BUDGET_US = 100;
+constexpr uint64_t MS_WU_HELPER_WALL_BUDGET_US = 100;
 constexpr uint64_t MS_WU_ASSIST_WALL_BUDGET_US = 50;
 constexpr uint64_t MS_WU_MIN_SLICE_BUDGET = 64;
+constexpr uint64_t MS_WU_UNLIMITED_BUDGET =
+    std::numeric_limits<uint64_t>::max();
+constexpr uint64_t MS_MARK_OUTSTANDING_TASKS_PER_LEVEL = 8;
 
 inline uint64_t SaturatingMSWUAdd(uint64_t lhs, uint64_t rhs)
 {
@@ -73,23 +76,21 @@ inline uint64_t UpdateMSWUEwmaOneEighth(uint64_t previous, uint64_t sample)
 }
 
 struct MSWorkUnitCounter {
-    uint64_t resolvedRefs = 0;
-    uint64_t markWordRMW = 0;
-    uint64_t scanWords = 0;
+    uint64_t totalWU = 0;
 
     void AddResolvedRefs(uint64_t count = 1)
     {
-        resolvedRefs += count;
+        totalWU += count * MS_WU_RESOLVED_REF_COST;
     }
 
     void AddMarkWordRMW(uint64_t count = 1)
     {
-        markWordRMW += count;
+        totalWU += count * MS_WU_MARK_WORD_RMW_COST;
     }
 
     void AddScanWords(uint64_t count = 1)
     {
-        scanWords += count;
+        totalWU += count * MS_WU_SCAN_WORD_COST;
     }
 
     uint64_t Total() const
@@ -98,16 +99,12 @@ struct MSWorkUnitCounter {
         // objects to approach uint64_t overflow on the supported 64-bit heap,
         // so keep the per-reference path branch-free. Cross-task aggregation
         // still uses the saturating helpers above.
-        return resolvedRefs * MS_WU_RESOLVED_REF_COST +
-            markWordRMW * MS_WU_MARK_WORD_RMW_COST +
-            scanWords * MS_WU_SCAN_WORD_COST;
+        return totalWU;
     }
 
     void Reset()
     {
-        resolvedRefs = 0;
-        markWordRMW = 0;
-        scanWords = 0;
+        totalWU = 0;
     }
 };
 
@@ -136,6 +133,17 @@ inline uint64_t ComputeMSMarkRunwayUs(uint64_t heapRunwayBytes,
         : heapRunwayBytes / allocatedBytesPerUs;
 }
 
+inline size_t ComputeMSMarkOutstandingLevel(uint64_t outstanding)
+{
+    if (outstanding == 0) {
+        return 0;
+    }
+    uint64_t level = 1 +
+        (outstanding - 1) / MS_MARK_OUTSTANDING_TASKS_PER_LEVEL;
+    return static_cast<size_t>(std::min<uint64_t>(
+        level, std::numeric_limits<size_t>::max()));
+}
+
 inline size_t ComputeMSMarkHelperTarget(
     uint64_t outstanding, size_t maxHelpers, MSMarkPressure pressure)
 {
@@ -144,8 +152,8 @@ inline size_t ComputeMSMarkHelperTarget(
     }
     // Outstanding already includes queued and leased tasks. Scale from that
     // single ledger value so ready-stack hints cannot double count backlog.
-    size_t target = static_cast<size_t>(
-        std::min<uint64_t>((outstanding + 7) / 8, maxHelpers));
+    size_t target = std::min(
+        ComputeMSMarkOutstandingLevel(outstanding), maxHelpers);
     target = std::max<size_t>(1, target);
     if (pressure == MSMarkPressure::HIGH) {
         target = std::max(target, (maxHelpers + 1) / 2);
@@ -155,6 +163,30 @@ inline size_t ComputeMSMarkHelperTarget(
     size_t outstandingLimit = static_cast<size_t>(
         std::min<uint64_t>(outstanding, std::numeric_limits<size_t>::max()));
     return std::min(target, std::min(maxHelpers, outstandingLimit));
+}
+
+inline size_t ComputeMSMarkAssistMultiplier(
+    uint64_t outstanding, size_t maxMultiplier, MSMarkPressure pressure)
+{
+    maxMultiplier = std::max<size_t>(1, maxMultiplier);
+    size_t multiplier = std::max<size_t>(
+        1, std::min(ComputeMSMarkOutstandingLevel(outstanding), maxMultiplier));
+    if (pressure == MSMarkPressure::HIGH) {
+        multiplier = std::max(multiplier, (maxMultiplier + 1) / 2);
+    } else if (pressure == MSMarkPressure::CRITICAL) {
+        multiplier = maxMultiplier;
+    }
+    return std::min(multiplier, maxMultiplier);
+}
+
+inline uint64_t ComputeMSMarkDynamicAssistRatioQ16(
+    uint64_t baseRatio, uint64_t outstanding, size_t maxMultiplier,
+    MSMarkPressure pressure)
+{
+    return SaturatingMSWUMul(
+        baseRatio,
+        ComputeMSMarkAssistMultiplier(
+            outstanding, maxMultiplier, pressure));
 }
 
 inline uint64_t ComputeMSMarkSliceBudget(

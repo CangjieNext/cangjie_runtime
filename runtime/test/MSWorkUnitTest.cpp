@@ -9,6 +9,9 @@ namespace {
 
 using namespace MapleRuntime;
 
+static_assert(sizeof(MSWorkUnitCounter) == sizeof(uint64_t),
+              "WorkUnit counter must use one weighted total");
+
 void Expect(bool condition, const char* message)
 {
     if (!condition) {
@@ -24,6 +27,8 @@ void TestFixedIntegerCost()
     work.AddMarkWordRMW(2);
     work.AddScanWords(3);
     Expect(work.Total() == 24, "WorkUnit fixed cost changed");
+    work.Reset();
+    Expect(work.Total() == 0, "WorkUnit reset did not clear weighted total");
 }
 
 void TestFullCycleEwma()
@@ -58,6 +63,52 @@ void TestAssistRatio()
         "critical assist ratio mismatch");
 }
 
+void TestDynamicAssistRatioTracksHelperOutstandingLevels()
+{
+    constexpr uint64_t baseRatio = 100;
+    constexpr size_t maxMultiplier = 4;
+    Expect(
+        ComputeMSMarkDynamicAssistRatioQ16(
+            baseRatio, 0, maxMultiplier, MSMarkPressure::NORMAL) == baseRatio,
+        "zero outstanding must preserve the cycle-start assist ratio floor");
+    Expect(
+        ComputeMSMarkDynamicAssistRatioQ16(
+            baseRatio, 8, maxMultiplier, MSMarkPressure::NORMAL) == baseRatio,
+        "first outstanding level must use the base assist ratio");
+    Expect(
+        ComputeMSMarkDynamicAssistRatioQ16(
+            baseRatio, 9, maxMultiplier, MSMarkPressure::NORMAL) == 2 * baseRatio,
+        "second outstanding level must double the assist ratio");
+    Expect(
+        ComputeMSMarkDynamicAssistRatioQ16(
+            baseRatio, 17, maxMultiplier, MSMarkPressure::NORMAL) == 3 * baseRatio,
+        "third outstanding level must triple the assist ratio");
+    Expect(
+        ComputeMSMarkDynamicAssistRatioQ16(
+            baseRatio, 25, maxMultiplier, MSMarkPressure::NORMAL) == 4 * baseRatio,
+        "fourth outstanding level must reach the configured assist cap");
+    Expect(
+        ComputeMSMarkDynamicAssistRatioQ16(
+            baseRatio, 4096, maxMultiplier, MSMarkPressure::NORMAL) == 4 * baseRatio,
+        "large outstanding backlog must remain capped");
+    Expect(
+        ComputeMSMarkDynamicAssistRatioQ16(
+            baseRatio, 9, maxMultiplier, MSMarkPressure::NORMAL) == 2 * baseRatio,
+        "falling outstanding must reduce the ratio by the same level policy");
+    Expect(
+        ComputeMSMarkDynamicAssistRatioQ16(
+            baseRatio, 0, maxMultiplier, MSMarkPressure::NORMAL) == baseRatio,
+        "falling outstanding must not reduce the ratio below its cycle-start floor");
+    Expect(
+        ComputeMSMarkDynamicAssistRatioQ16(
+            0, 4096, maxMultiplier, MSMarkPressure::NORMAL) == 0,
+        "disabled assist must remain disabled under backlog pressure");
+    Expect(
+        ComputeMSMarkDynamicAssistRatioQ16(
+            baseRatio, 1, maxMultiplier, MSMarkPressure::CRITICAL) == 4 * baseRatio,
+        "critical pressure must select the maximum assist multiplier");
+}
+
 void TestHelperTargetDoesNotDoubleCountReadyTasks()
 {
     Expect(
@@ -81,6 +132,7 @@ int main()
     TestFixedIntegerCost();
     TestFullCycleEwma();
     TestAssistRatio();
+    TestDynamicAssistRatioTracksHelperOutstandingLevels();
     TestHelperTargetDoesNotDoubleCountReadyTasks();
     return 0;
 }

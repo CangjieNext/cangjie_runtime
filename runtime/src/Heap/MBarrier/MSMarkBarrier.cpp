@@ -30,13 +30,7 @@ static std::atomic<uint64_t>
 static const char* GetMSBarrierRuntimeStatName(MSBarrierRuntimeStat stat)
 {
     static constexpr const char* names[] = {
-        "old_ref_buffer_request",
         "old_ref_resolve_rejected",
-        "old_ref_large",
-        "old_ref_already_pending",
-        "old_ref_added_without_flush",
-        "old_ref_added_without_flush_collect_set",
-        "old_ref_added_without_flush_outside_set",
         "old_ref_threshold_flush",
         "old_ref_set_conflict_flush",
     };

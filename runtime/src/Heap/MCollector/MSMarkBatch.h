@@ -117,7 +117,6 @@ public:
     // Owner-specific diagnostics. Runtime barrier adapters override these;
     // GC-owned batches intentionally keep them as no-ops.
     void RecordResolveRejected() const {}
-    void RecordLargeRef() const {}
 
     uint32_t GetMarkEpoch() const
     {

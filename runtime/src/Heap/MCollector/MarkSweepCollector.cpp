@@ -18,6 +18,7 @@
 #include "Base/EnvParam.h"
 #include "Base/Log.h"
 #include "Base/LogFile.h"
+#include "Base/SysCall.h"
 #include "Common/BaseObject.h"
 #include "CangjieRuntime.h"
 #include "Common/GCRefFieldScan.inline.h"
@@ -38,8 +39,10 @@
 #include "Heap/Collector/ForwardDataManager.h"
 #include "Heap/Heap.h"
 #include "Mutator/MutatorManager.h"
+#include "Mutator/ThreadLocal.h"
 #include "ObjectModel/RefField.inline.h"
 #include "TypeInfoManager.h"
+#include "schedule.h"
 
 #ifndef _WIN32
 #include <unistd.h>  // usleep
@@ -49,6 +52,10 @@ namespace MapleRuntime {
 
 namespace {
 constexpr uint64_t kMSMarkProgressWaitUs = 50;
+constexpr size_t kMSInvalidMarkReadyParticipant =
+    std::numeric_limits<size_t>::max();
+thread_local size_t g_msMarkReadyParticipant =
+    kMSInvalidMarkReadyParticipant;
 
 struct MSNoopWorkUnitCounter {
     void AddResolvedRefs(uint64_t = 1)
@@ -575,11 +582,6 @@ public:
             MSBarrierRuntimeStat::OLD_REF_RESOLVE_REJECTED);
     }
 
-    void RecordLargeRef() const
-    {
-        RecordMSBarrierRuntimeStat(MSBarrierRuntimeStat::OLD_REF_LARGE);
-    }
-
     template<typename FlushEntry>
     void Add(uint32_t regionIdx, size_t wordIdx, uint64_t mask,
              FlushEntry&& flushEntry)
@@ -599,8 +601,6 @@ public:
         uint8_t existing = lookup.existingEntry;
         if (existing != kMSBarrierMarkBufferInvalidEntry &&
             (buffer_.entries[existing].mask & mask) == mask) {
-            RecordMSBarrierRuntimeStat(
-                MSBarrierRuntimeStat::OLD_REF_ALREADY_PENDING);
             buffer_.lastEntry = existing;
             return;
         }
@@ -621,16 +621,6 @@ public:
                 static_cast<unsigned long long>(wordKey));
         }
 
-        RecordMSBarrierRuntimeStat(
-            MSBarrierRuntimeStat::OLD_REF_ADDED_WITHOUT_FLUSH);
-        if (UNLIKELY(IsMSBarrierRuntimeStatsEnabled())) {
-            MSRegionInfo* info =
-                MSRegionInfoArray::GetRegionInfoByIdx(regionIdx);
-            bool inCollectSet = info->collectEpoch == markEpoch_;
-            RecordMSBarrierRuntimeStat(inCollectSet
-                ? MSBarrierRuntimeStat::OLD_REF_ADDED_WITHOUT_FLUSH_COLLECT_SET
-                : MSBarrierRuntimeStat::OLD_REF_ADDED_WITHOUT_FLUSH_OUTSIDE_SET);
-        }
     }
 
     template<typename FlushEntry>
@@ -673,6 +663,21 @@ void MarkSweepCollector::Init()
 {
     LOG(RTLOG_REPORT, "[MS-GC] MarkSweepCollector::Init()");
     TracingCollector::Init();
+    markReadyProcessorCount_ = Runtime::CurrentRef() != nullptr
+        ? static_cast<size_t>(
+            Runtime::Current().GetConcurrencyModel().GetProcessorNum())
+        : 1;
+    size_t totalGCMarkThreads = std::min(
+        static_cast<size_t>(std::max<int32_t>(
+            1, CangjieRuntime::GetGCParam().gcThreads)),
+        CangjieRuntime::GetMSGCThreadCapacity());
+    size_t markReadyShardCount = ComputeMSMarkReadyShardCount(
+        markReadyProcessorCount_, totalGCMarkThreads);
+    markScheduler_.ConfigureRegionShards(markReadyShardCount);
+    VLOG(REPORT,
+         "[MS-GC] Mark ready shards: P=%zu gcThreads=%zu shards=%zu",
+         markReadyProcessorCount_, totalGCMarkThreads,
+         markScheduler_.RegionShardCount());
     g_gcRequests[GC_REASON_HEU].SetMinInterval(CangjieRuntime::GetGCParam().gcInterval);
 }
 
@@ -770,6 +775,10 @@ void MarkSweepCollector::PreEnumRoots()
     cycleCompletedMarkWU_.store(0, std::memory_order_relaxed);
     cycleAllocatedMarkBytes_.store(0, std::memory_order_relaxed);
     assistWorkPerByteScaled_.store(0, std::memory_order_relaxed);
+    // GC main follows the P participants in the stable affinity namespace.
+    // The hint remains valid through root publication, concurrent Mark and
+    // both MarkTermination closure drains on this GC thread.
+    g_msMarkReadyParticipant = markReadyProcessorCount_;
 
     RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(theAllocator);
     CentralRegionPool* centralPool = space.GetCentralPool();
@@ -919,7 +928,6 @@ void MarkSweepCollector::AddResolvedRefToMarkBatchImpl(
     // LARGE/SPAN has one canonical mark flag and one OBJECT task. It is not
     // mixed into the small-object word batch.
     if (target.isLarge) {
-        batch.RecordLargeRef();
         if (LIKELY(target.IsMarked())) {
             return;
         }
@@ -1077,10 +1085,12 @@ bool MarkSweepCollector::PublishPendingMarkRegions(
     MSPendingMarkRegionBatch<Capacity>& pending)
 {
     bool schedulerPublished = false;
-    pending.FlushAll([this, &schedulerPublished](
+    size_t preferredRegionShard = GetCurrentMarkReadyShard();
+    pending.FlushAll([this, &schedulerPublished, preferredRegionShard](
         MSRegionInfo* info, uint64_t wordMask) {
         info->PublishPendingMarkWords(wordMask);
-        schedulerPublished |= markScheduler_.TryPublishRegion(info);
+        schedulerPublished |= markScheduler_.TryPublishRegion(
+            info, preferredRegionShard);
     });
     return schedulerPublished;
 }
@@ -1121,8 +1131,6 @@ void MarkSweepCollector::AddManagedRefToBarrierBuffer(
     uint32_t currentMarkEpoch, uintptr_t allocPlaneBase,
     uintptr_t markPlaneBase)
 {
-    RecordMSBarrierRuntimeStat(
-        MSBarrierRuntimeStat::OLD_REF_BUFFER_REQUEST);
     MSBarrierMarkBatchStorageView batch(
         buffer, currentMarkEpoch, allocPlaneBase, markPlaneBase);
     MSNoopWorkUnitCounter noWork;
@@ -1283,7 +1291,8 @@ void MarkSweepCollector::RunRegionTask(
             info->LoadPendingMarkWordsAcquire() != 0,
             "[MS-GC] expired Region owner without pending work idx=%u",
             lease.GetRegionIdx());
-        if (markScheduler_.RequeueOwnedRegion(info)) {
+        if (markScheduler_.RequeueOwnedRegion(
+                info, GetCurrentMarkReadyShard())) {
             markWorkEpoch_.Notify();
         }
         lease.Complete(batch.IsEmpty());
@@ -1303,7 +1312,8 @@ void MarkSweepCollector::RunRegionTask(
     // arrives after this load observes IDLE and publishes for itself; the
     // MarkTermination reconciliation is the final STW safety net.
     if (info->LoadPendingMarkWordsAcquire() != 0 &&
-        markScheduler_.TryPublishRegion(info)) {
+        markScheduler_.TryPublishRegion(
+            info, GetCurrentMarkReadyShard())) {
         markWorkEpoch_.Notify();
     }
     lease.Complete(batch.IsEmpty());
@@ -1356,13 +1366,28 @@ void MarkSweepCollector::RunSchedulerTask(
     }
 }
 
+size_t MarkSweepCollector::GetCurrentMarkReadyShard() const
+{
+    size_t participant = g_msMarkReadyParticipant;
+    if (participant == kMSInvalidMarkReadyParticipant) {
+        if (ThreadLocal::IsCJProcessor()) {
+            participant = static_cast<size_t>(ProcessorId());
+        } else {
+            participant = static_cast<size_t>(GetTid());
+        }
+    }
+    return ResolveMSMarkReadyPreferredShard(
+        participant, markScheduler_.RegionShardCount());
+}
+
 uint64_t MarkSweepCollector::DrainSchedulerUnderSTW()
 {
     uint64_t completedWU = 0;
     while (markScheduler_.OutstandingForTermination() != 0) {
         MSTaskLease lease;
         bool claimed = markScheduler_.TryClaim(
-            MSMarkWorkerCaps::GCWorker(), true, lease);
+            MSMarkWorkerCaps::GCWorker(), true,
+            GetCurrentMarkReadyShard(), lease);
         CHECK_DETAIL(
             claimed,
             "[MS-GC] TaskLedger nonzero without ready work under STW: "
@@ -1544,23 +1569,41 @@ void MarkSweepCollector::ConcurrentMark()
     TransitionToGCPhase(GCPhase::GC_PHASE_MS_CONCURRENT_MARK, true);
     markWorkerControl_.Start(0);
 
-    bool disableAssist = ReadBoolParameter("CJ_MS_DISABLE_ASSIST", true);
-    uint64_t assistRatio = ApplyMSAssistDisableOverride(
+    bool disableAssist = ReadBoolParameter("CJ_MS_DISABLE_ASSIST", false);
+    uint64_t baseAssistRatio = ApplyMSAssistDisableOverride(
         ComputeMSAssistRatioQ16(
             markPacer_.GetWorkDensityQ16(), MSMarkPressure::NORMAL,
-            markScheduler_.OutstandingHint()),
+            1),
         disableAssist);
+    size_t maxAssistMultiplier = std::max<size_t>(
+        1, CangjieRuntime::GetGCParam().msAssistMaxMultiplier);
+    MSMarkPressure pressure =
+        gcReason == GC_REASON_OOM
+        ? MSMarkPressure::CRITICAL
+        : MSMarkPressure::NORMAL;
+    uint64_t outstanding = markScheduler_.OutstandingHint();
+    size_t assistMultiplier = ComputeMSMarkAssistMultiplier(
+        outstanding, maxAssistMultiplier, pressure);
+    uint64_t assistRatio = ComputeMSMarkDynamicAssistRatioQ16(
+        baseAssistRatio, outstanding, maxAssistMultiplier, pressure);
     assistWorkPerByteScaled_.store(assistRatio, std::memory_order_release);
     VLOG(REPORT,
-         "[MS-GC] Assist pacing: disabled=%d effectiveRatio=%llu",
+         "[MS-GC] Assist pacing: disabled=%d baseRatio=%llu "
+         "effectiveRatio=%llu multiplier=%zu outstanding=%llu",
          static_cast<int>(disableAssist),
-         static_cast<unsigned long long>(assistRatio));
+         static_cast<unsigned long long>(baseAssistRatio),
+         static_cast<unsigned long long>(assistRatio),
+         assistMultiplier,
+         static_cast<unsigned long long>(outstanding));
 
-    RunSchedulerMarkLoop();
+    RunSchedulerMarkLoop(
+        baseAssistRatio, maxAssistMultiplier, pressure);
     assistWorkPerByteScaled_.store(0, std::memory_order_release);
 }
 
-void MarkSweepCollector::RunSchedulerMarkLoop()
+void MarkSweepCollector::RunSchedulerMarkLoop(
+    uint64_t baseAssistRatio, size_t maxAssistMultiplier,
+    MSMarkPressure pressure)
 {
     uint64_t t0 = TimeUtil::MicroSeconds();
     VLOG(REPORT,
@@ -1586,10 +1629,6 @@ void MarkSweepCollector::RunSchedulerMarkLoop()
         }
     }
 
-    MSMarkPressure pressure =
-        gcReason == GC_REASON_OOM
-        ? MSMarkPressure::CRITICAL
-        : MSMarkPressure::NORMAL;
     size_t activeHelpers = ComputeMSMarkHelperTarget(
         markScheduler_.OutstandingHint(),
         maxHelpers, pressure);
@@ -1599,19 +1638,21 @@ void MarkSweepCollector::RunSchedulerMarkLoop()
     uint64_t markBudgetUs = markBudgetNs == 0
         ? 0
         : std::max<uint64_t>(1, markBudgetNs / 1000);
-    uint64_t mainBudgetWU = ComputeMSMarkSliceBudget(
-        markPacer_.GetThroughputQ16(), MS_WU_MAIN_WALL_BUDGET_US);
+    size_t preferredRegionShard = GetCurrentMarkReadyShard();
+    uint64_t mainCompletedWU = 0;
     for (;;) {
         uint64_t observedProgressEpoch = markWorkEpoch_.Load();
         MSMarkSliceResult slice = markScheduler_.RunMarkSlice(
-            MSMarkWorkerCaps::GCWorker(), mainBudgetWU,
+            MSMarkWorkerCaps::GCWorker(), preferredRegionShard,
+            MS_WU_UNLIMITED_BUDGET,
             MS_WU_MAIN_WALL_BUDGET_US,
-            [this, mainBudgetWU](
+            [this](
                 MSTaskLease& lease, MSWorkUnitCounter& work) {
-                RunSchedulerTask(lease, work, mainBudgetWU);
+                RunSchedulerTask(
+                    lease, work, MS_WU_UNLIMITED_BUDGET);
             });
-        cycleCompletedMarkWU_.fetch_add(
-            slice.completedWU, std::memory_order_relaxed);
+        mainCompletedWU = SaturatingMSWUAdd(
+            mainCompletedWU, slice.completedWU);
 
         uint64_t outstanding = markScheduler_.OutstandingHint();
         MSMarkWorkerControl::Snapshot control =
@@ -1633,6 +1674,17 @@ void MarkSweepCollector::RunSchedulerMarkLoop()
             markWorkerControl_.SetTargetHelpers(targetHelpers);
         }
 
+        uint64_t targetAssistRatio =
+            ComputeMSMarkDynamicAssistRatioQ16(
+                baseAssistRatio, outstanding,
+                maxAssistMultiplier, pressure);
+        uint64_t currentAssistRatio =
+            assistWorkPerByteScaled_.load(std::memory_order_relaxed);
+        if (targetAssistRatio != currentAssistRatio) {
+            assistWorkPerByteScaled_.store(
+                targetAssistRatio, std::memory_order_release);
+        }
+
         if (markBudgetUs != 0 &&
             TimeUtil::MicroSeconds() - t0 >= markBudgetUs) {
             cycleStats_.markTerminationReason =
@@ -1646,6 +1698,10 @@ void MarkSweepCollector::RunSchedulerMarkLoop()
                 observedProgressEpoch,
                 std::chrono::microseconds(kMSMarkProgressWaitUs));
         }
+    }
+    if (mainCompletedWU != 0) {
+        cycleCompletedMarkWU_.fetch_add(
+            mainCompletedWU, std::memory_order_relaxed);
     }
 
     cycleStats_.concurrentMarkUs = TimeUtil::MicroSeconds() - t0;
@@ -1667,6 +1723,7 @@ void MarkSweepCollector::RunSchedulerMarkLoop()
 void MarkSweepCollector::StartMarkWorkers(size_t maxHelpers, size_t initialHelpers)
 {
     markWorkerCount_ = maxHelpers;
+    markWorkerCompletedWU_.assign(maxHelpers, 0);
     markWorkerControl_.SetTargetHelpers(initialHelpers);
     if (maxHelpers == 0) {
         return;
@@ -1685,6 +1742,9 @@ void MarkSweepCollector::StartMarkWorkers(size_t maxHelpers, size_t initialHelpe
 
 void MarkSweepCollector::RunMarkWorker(size_t workerId)
 {
+    g_msMarkReadyParticipant = markReadyProcessorCount_ + 1 + workerId;
+    size_t preferredRegionShard = GetCurrentMarkReadyShard();
+    uint64_t helperCompletedWU = 0;
     while (markWorkerControl_.WaitUntilEligible(workerId)) {
         if (!markWorkerControl_.TryEnterWorker(workerId)) {
             continue;
@@ -1693,21 +1753,20 @@ void MarkSweepCollector::RunMarkWorker(size_t workerId)
         uint64_t observedProgressEpoch = markWorkEpoch_.Load();
         while (markWorkerControl_.CanContinueWorker(workerId)) {
             observedProgressEpoch = markWorkEpoch_.Load();
-            uint64_t sliceBudget = ComputeMSMarkSliceBudget(
-                markPacer_.GetThroughputQ16(),
-                MS_WU_HELPER_WALL_BUDGET_US);
             MSMarkSliceResult slice = markScheduler_.RunMarkSlice(
-                MSMarkWorkerCaps::GCWorker(), sliceBudget,
+                MSMarkWorkerCaps::GCWorker(), preferredRegionShard,
+                MS_WU_UNLIMITED_BUDGET,
                 MS_WU_HELPER_WALL_BUDGET_US,
-                [this, sliceBudget](
+                [this](
                     MSTaskLease& lease, MSWorkUnitCounter& work) {
-                    RunSchedulerTask(lease, work, sliceBudget);
+                    RunSchedulerTask(
+                        lease, work, MS_WU_UNLIMITED_BUDGET);
                 });
             if (slice.completedTasks == 0) {
                 break;
             }
-            cycleCompletedMarkWU_.fetch_add(
-                slice.completedWU, std::memory_order_relaxed);
+            helperCompletedWU = SaturatingMSWUAdd(
+                helperCompletedWU, slice.completedWU);
         }
 
         markWorkerControl_.ExitWorker();
@@ -1716,6 +1775,12 @@ void MarkSweepCollector::RunMarkWorker(size_t workerId)
                 observedProgressEpoch, std::chrono::microseconds(kMSMarkProgressWaitUs));
         }
     }
+    CHECK_DETAIL(
+        workerId < markWorkerCompletedWU_.size(),
+        "[MS-GC] Mark helper WU slot overflow worker=%zu slots=%zu",
+        workerId, markWorkerCompletedWU_.size());
+    markWorkerCompletedWU_[workerId] = helperCompletedWU;
+    g_msMarkReadyParticipant = kMSInvalidMarkReadyParticipant;
 }
 
 size_t MarkSweepCollector::QuiesceMarkWorkers()
@@ -1729,6 +1794,15 @@ size_t MarkSweepCollector::QuiesceMarkWorkers()
     markWorkerControl_.Stop();
     if (markWorkerCount_ != 0) {
         GetThreadPool()->WaitFinish();
+    }
+    uint64_t helperCompletedWU = 0;
+    for (uint64_t& workerWU : markWorkerCompletedWU_) {
+        helperCompletedWU = SaturatingMSWUAdd(helperCompletedWU, workerWU);
+        workerWU = 0;
+    }
+    if (helperCompletedWU != 0) {
+        cycleCompletedMarkWU_.fetch_add(
+            helperCompletedWU, std::memory_order_relaxed);
     }
     return residualTasks;
 }
@@ -1750,7 +1824,7 @@ size_t MarkSweepCollector::MSMarkAssist(AllocBufferMS&, size_t debtWU)
     uint64_t budgetWU = std::max<uint64_t>(
         MS_WU_MIN_SLICE_BUDGET, debtWU);
     MSMarkSliceResult slice = markScheduler_.RunMarkSlice(
-        MSMarkWorkerCaps::Assist(), budgetWU,
+        MSMarkWorkerCaps::Assist(), GetCurrentMarkReadyShard(), budgetWU,
         MS_WU_ASSIST_WALL_BUDGET_US,
         [this, budgetWU](
             MSTaskLease& lease, MSWorkUnitCounter& work) {
@@ -1833,7 +1907,8 @@ void MarkSweepCollector::MarkTermination()
                         MSRegionInfoArray::GetRegionIdx(region),
                         static_cast<unsigned>(region->GetScanState()));
                     ++passReconciled;
-                    if (markScheduler_.TryPublishRegion(region)) {
+                    if (markScheduler_.TryPublishRegion(
+                            region, GetCurrentMarkReadyShard())) {
                         markWorkEpoch_.Notify();
                     }
                 });

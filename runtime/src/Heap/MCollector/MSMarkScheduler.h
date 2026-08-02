@@ -8,13 +8,16 @@
 #ifdef MRT_USE_MARK_SWEEP
 
 #include <atomic>
+#include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <memory>
 #include <utility>
 
 #include "Base/Log.h"
 #include "Base/TimeUtils.h"
 #include "Heap/MAllocator/MSRegionInfo.h"
+#include "Heap/MCollector/MSMarkReadyShardPolicy.h"
 #include "Heap/MCollector/MSWorkUnit.h"
 
 namespace MapleRuntime {
@@ -74,8 +77,11 @@ private:
     std::atomic<uint64_t> outstandingTotal_{0};
 };
 
-class MSMarkReadyStack {
+class alignas(64) MSMarkReadyStack {
 public:
+    static void* operator new[](size_t size);
+    static void operator delete[](void* ptr) noexcept;
+
     // True means this push changed the lane from empty to non-empty.
     bool Push(MSRegionInfo* region);
     MSRegionInfo* Pop();
@@ -182,6 +188,13 @@ struct MSMarkSliceResult {
 
 class MSMarkScheduler {
 public:
+    MSMarkScheduler();
+
+    // Runtime-initialization-only configuration. The scheduler and both ready
+    // lanes must be quiescent while storage is replaced.
+    void ConfigureRegionShards(size_t shardCount);
+    size_t RegionShardCount() const { return regionReadyShardCount_; }
+
     void ResetCycle();
 
     // Caller publishes pending bits before this call. Only an IDLE winner with
@@ -191,31 +204,32 @@ public:
     // residual release race. A delayed producer whose bit was already consumed
     // retracts its empty admission.
     // True means the ready lane changed from empty to non-empty.
-    bool TryPublishRegion(MSRegionInfo* region);
+    bool TryPublishRegion(
+        MSRegionInfo* region, size_t preferredRegionShard);
 
     // Owner-budget replacement. The replacement must be published before the
     // caller completes its current lease.
-    bool RequeueOwnedRegion(MSRegionInfo* region);
+    bool RequeueOwnedRegion(
+        MSRegionInfo* region, size_t preferredRegionShard);
 
     // Caller must already own the LARGE marked winner.
     bool PublishObject(MSRegionInfo* largePrimary);
 
     bool TryClaim(
-        const MSMarkWorkerCaps& caps, bool preferObject, MSTaskLease& lease);
+        const MSMarkWorkerCaps& caps, bool preferObject,
+        size_t preferredRegionShard, MSTaskLease& lease);
 
     uint64_t OutstandingHint() const { return ledger_.LoadHint(); }
     uint64_t OutstandingForTermination() const
     {
         return ledger_.LoadForTermination();
     }
-    bool ReadyEmptyForTermination() const
-    {
-        return regionReady_.IsEmpty() && objectReady_.IsEmpty();
-    }
+    bool ReadyEmptyForTermination() const;
 
     template<typename Handler>
     MSMarkSliceResult RunMarkSlice(
-        const MSMarkWorkerCaps& caps, uint64_t wuBudget,
+        const MSMarkWorkerCaps& caps, size_t preferredRegionShard,
+        uint64_t wuBudget,
         uint64_t wallBudgetUs, Handler&& handler)
     {
         MSMarkSliceResult result;
@@ -227,7 +241,8 @@ public:
                 break;
             }
             MSTaskLease lease;
-            if (!TryClaim(caps, preferObject, lease)) {
+            if (!TryClaim(
+                    caps, preferObject, preferredRegionShard, lease)) {
                 break;
             }
             preferObject = !preferObject;
@@ -243,10 +258,26 @@ public:
     }
 
 private:
+    MSMarkReadyStack& RegionReadyShard(size_t preferredRegionShard)
+    {
+        return regionReadyShards_[ResolveMSMarkReadyPreferredShard(
+            preferredRegionShard, regionReadyShardCount_)];
+    }
+    const MSMarkReadyStack& RegionReadyShard(
+        size_t preferredRegionShard) const
+    {
+        return regionReadyShards_[ResolveMSMarkReadyPreferredShard(
+            preferredRegionShard, regionReadyShardCount_)];
+    }
+
     bool TryClaimFrom(
         MSMarkReadyStack& ready, MSMarkTaskKind kind, MSTaskLease& lease);
+    bool TryClaimRegion(
+        size_t preferredRegionShard, MSTaskLease& lease);
 
-    MSMarkReadyStack regionReady_;
+    std::unique_ptr<MSMarkReadyStack[]> regionReadyShards_;
+    size_t regionReadyShardCount_ = 1;
+    std::atomic<size_t> regionProbeCursor_{0};
     MSMarkReadyStack objectReady_;
     MSTaskLedger ledger_;
 };

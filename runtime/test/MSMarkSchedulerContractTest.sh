@@ -12,6 +12,13 @@ rg -q 'static MSMarkWorkerCaps Assist\(\) \{ return \{true, false\}; \}' "$HEADE
 rg -q 'OutstandingForTermination' "$HEADER"
 rg -q 'ReadyEmptyForTermination' "$HEADER"
 rg -q 'bool Push\(MSRegionInfo\* region\)' "$HEADER"
+rg -q 'class alignas\(64\) MSMarkReadyStack' "$HEADER"
+rg -q 'ConfigureRegionShards' "$HEADER"
+rg -q 'std::unique_ptr<MSMarkReadyStack\[\]> regionReadyShards_' "$HEADER"
+rg -q 'preferredRegionShard' "$HEADER" "$SOURCE"
+rg -q 'regionProbeCursor_\.fetch_add' "$SOURCE"
+rg -q 'TryMSMarkReadyShardProbe' "$SOURCE"
+rg -q 'ledger_\.LoadHint\(\) != 0' "$SOURCE"
 
 publish="$(sed -n '/bool MSMarkScheduler::TryPublishRegion/,/^}/p' "$SOURCE")"
 idle_fast_reject="$(printf '%s\n' "$publish" |
@@ -29,7 +36,7 @@ second_pending_check="$(printf '%s\n' "$pending_checks" | tail -1)"
 rollback_cas="$(printf '%s\n' "$publish" |
     rg -n 'CasScanState\(MSScanState::QUEUED, MSScanState::IDLE\)' |
     cut -d: -f1)"
-push="$(printf '%s\n' "$publish" | rg -n 'regionReady_\.Push' | cut -d: -f1)"
+push="$(printf '%s\n' "$publish" | rg -n 'RegionReadyShard\(preferredRegionShard\)\.Push' | cut -d: -f1)"
 if [[ -z "$idle_fast_reject" ||
       "$(printf '%s\n' "$pending_checks" | wc -l | tr -d ' ')" -ne 2 ||
       "$idle_fast_reject" -ge "$provisional" ||
@@ -50,7 +57,9 @@ fi
 requeue="$(sed -n '/bool MSMarkScheduler::RequeueOwnedRegion/,/^}/p' "$SOURCE")"
 provisional="$(printf '%s\n' "$requeue" | rg -n 'ledger_\.AddProvisional' | cut -d: -f1)"
 queued="$(printf '%s\n' "$requeue" | rg -n 'StoreScanStateRelaxed' | cut -d: -f1)"
-push="$(printf '%s\n' "$requeue" | rg -n 'return regionReady_\.Push' | cut -d: -f1)"
+push="$(printf '%s\n' "$requeue" |
+    rg -n 'return RegionReadyShard\(preferredRegionShard\)\.Push' |
+    cut -d: -f1)"
 if [[ "$provisional" -ge "$queued" || "$queued" -ge "$push" ]]; then
     echo 'Region replacement is not admitted before the old lease can complete' >&2
     exit 1
@@ -62,12 +71,12 @@ take_pending_line="$(printf '%s\n' "$region_task" |
 idle_release_line="$(printf '%s\n' "$region_task" |
     rg -n 'CasScanState\(MSScanState::OWNED, MSScanState::IDLE\)' | cut -d: -f1)"
 post_release_pending_line="$(printf '%s\n' "$region_task" |
-    rg -n 'LoadPendingMarkWordsAcquire' | head -1 | cut -d: -f1)"
+    rg -n 'LoadPendingMarkWordsAcquire' | tail -1 | cut -d: -f1)"
 post_release_publish_line="$(printf '%s\n' "$region_task" |
-    rg -n 'markScheduler_\.TryPublishRegion\(info\)' | tail -1 | cut -d: -f1)"
+    rg -n 'markScheduler_\.TryPublishRegion' | tail -1 | cut -d: -f1)"
 requeue_line="$(printf '%s\n' "$region_task" | rg -n 'RequeueOwnedRegion' | cut -d: -f1)"
-normal_complete_line="$(printf '%s\n' "$region_task" | rg -n 'lease\.Complete' | head -1 | cut -d: -f1)"
-budget_complete_line="$(printf '%s\n' "$region_task" | rg -n 'lease\.Complete' | tail -1 | cut -d: -f1)"
+budget_complete_line="$(printf '%s\n' "$region_task" | rg -n 'lease\.Complete' | head -1 | cut -d: -f1)"
+normal_complete_line="$(printf '%s\n' "$region_task" | rg -n 'lease\.Complete' | tail -1 | cut -d: -f1)"
 if [[ -z "$idle_release_line" || -z "$post_release_pending_line" ||
       "$take_pending_line" -ge "$idle_release_line" ||
       "$idle_release_line" -ge "$post_release_pending_line" ||
@@ -89,7 +98,7 @@ drain_line="$(printf '%s\n' "$termination" | rg -n 'DrainSchedulerUnderSTW' | he
 reconcile_line="$(printf '%s\n' "$termination" |
     rg -n 'VisitMarkPendingRegionsUnderSTW' | cut -d: -f1)"
 republish_line="$(printf '%s\n' "$termination" |
-    rg -n 'markScheduler_\.TryPublishRegion\(region\)' | cut -d: -f1)"
+    rg -n 'markScheduler_\.TryPublishRegion' | cut -d: -f1)"
 if [[ -z "$drain_line" || -z "$reconcile_line" || -z "$republish_line" ||
       "$drain_line" -ge "$reconcile_line" ||
       "$reconcile_line" -ge "$republish_line" ]]; then

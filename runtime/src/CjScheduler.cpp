@@ -523,7 +523,7 @@ static RuntimeParam InitRuntimeParam()
 #ifdef MRT_USE_MARK_SWEEP
             .msBackgroundSweepMaxTime = ReadTimeParameter("cjGCBGSweepMaxTime", 2 * MILLI_SECOND_TO_NANO_SECOND,
                                                           0, EnvBoundKind::OPEN, true),
-            .msMarkTimeBudget = ReadTimeParameter("cjMSMarkTimeBudget", 100 * MILLI_SECOND_TO_NANO_SECOND,
+            .msMarkTimeBudget = ReadTimeParameter("cjMSMarkTimeBudget", 10 * SECOND_TO_NANO_SECOND,
                                                   0, EnvBoundKind::OPEN, true),
             .msAssistBaseRatioPercent = ReadCountParameter(
                 "cjMSAssistBaseRatioPercent", kMSAssistBaseRatioPercentDefault, 0,

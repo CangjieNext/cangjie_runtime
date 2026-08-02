@@ -194,7 +194,9 @@ private:
     void PublishRootStaging();
     void PublishRootRange(const std::vector<BaseObject*>& roots,
                           size_t begin, size_t end);
-    void RunSchedulerMarkLoop();
+    void RunSchedulerMarkLoop(uint64_t baseAssistRatio,
+                              size_t maxAssistMultiplier,
+                              MSMarkPressure pressure);
     void RunSchedulerTask(MSTaskLease& lease, MSWorkUnitCounter& work,
                           uint64_t taskBudgetWU);
     void RunRegionTask(MSTaskLease& lease, MSWorkUnitCounter& work,
@@ -202,6 +204,7 @@ private:
     void RunObjectTask(MSTaskLease& lease, MSWorkUnitCounter& work);
     uint64_t DrainSchedulerUnderSTW();
     void VerifyMarkSchedulerQuiescence(const char* closureName);
+    size_t GetCurrentMarkReadyShard() const;
     // Bitmap-only discovery. MSGC derives cycle object counts from a post-mark
     // bitmap walk instead of updating a hot global counter.
     // Diagnostic: after marking completes (in PostMarkTermination, before sweep
@@ -237,6 +240,7 @@ private:
     // Unified Region/Object mark scheduler. Ordinary small grey work is
     // represented by mark/scan planes plus Region tasks.
     MSMarkScheduler markScheduler_;
+    size_t markReadyProcessorCount_ = 1;
     MSWorkUnitPacer markPacer_;
     std::atomic<uint64_t> cycleCompletedMarkWU_{0};
     std::atomic<uint64_t> cycleAllocatedMarkBytes_{0};
@@ -244,6 +248,7 @@ private:
     // Scheduler progress epoch and helper control.
     WorkEpoch markWorkEpoch_;
     size_t markWorkerCount_ = 0;
+    std::vector<uint64_t> markWorkerCompletedWU_;
     MSMarkWorkerControl markWorkerControl_{&markWorkEpoch_};
     std::atomic<uint64_t> assistWorkPerByteScaled_{0};
     std::atomic<size_t> prevCycleMarkedObjects_{0};

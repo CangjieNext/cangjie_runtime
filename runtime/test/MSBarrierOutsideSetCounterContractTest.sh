@@ -6,25 +6,38 @@ header="$runtime_root/src/Heap/MBarrier/MSMarkBarrier.h"
 stats_source="$runtime_root/src/Heap/MBarrier/MSMarkBarrier.cpp"
 collector_source="$runtime_root/src/Heap/MCollector/MarkSweepCollector.cpp"
 
-required_tokens=(
-    "OLD_REF_ADDED_WITHOUT_FLUSH_COLLECT_SET"
-    "OLD_REF_ADDED_WITHOUT_FLUSH_OUTSIDE_SET"
-    "old_ref_added_without_flush_collect_set"
-    "old_ref_added_without_flush_outside_set"
+retained_tokens=(
+    "OLD_REF_RESOLVE_REJECTED"
+    "OLD_REF_THRESHOLD_FLUSH"
+    "OLD_REF_SET_CONFLICT_FLUSH"
+    "old_ref_resolve_rejected"
+    "old_ref_threshold_flush"
+    "old_ref_set_conflict_flush"
 )
 
-for token in "${required_tokens[@]}"; do
+for token in "${retained_tokens[@]}"; do
     if ! rg -Fq "$token" "$header" "$stats_source" "$collector_source"; then
-        echo "missing outside-set barrier counter token: $token" >&2
+        echo "missing rare-event barrier counter token: $token" >&2
         exit 1
     fi
 done
 
-if ! rg -Uq \
-    'OLD_REF_ADDED_WITHOUT_FLUSH_COLLECT_SET[[:space:]]*:[[:space:]]*MSBarrierRuntimeStat::OLD_REF_ADDED_WITHOUT_FLUSH_OUTSIDE_SET' \
-    "$collector_source"; then
-    echo "successful buffer add is not split by inCollectSet" >&2
-    exit 1
-fi
+removed_tokens=(
+    "OLD_REF_BUFFER_REQUEST"
+    "OLD_REF_LARGE"
+    "OLD_REF_ALREADY_PENDING"
+    "OLD_REF_ADDED_WITHOUT_FLUSH"
+    "old_ref_buffer_request"
+    "old_ref_large"
+    "old_ref_already_pending"
+    "old_ref_added_without_flush"
+)
 
-echo "MSGC outside-set barrier counter contract passed"
+for token in "${removed_tokens[@]}"; do
+    if rg -Fq "$token" "$header" "$stats_source" "$collector_source"; then
+        echo "normal-path barrier counter remains: $token" >&2
+        exit 1
+    fi
+done
+
+echo "MSGC rare-event-only barrier counter contract passed"

@@ -653,11 +653,11 @@ Mark Assist：
 当前代码通过：
 
 ```text
-ReadBoolParameter("CJ_MS_DISABLE_ASSIST", true)
+ReadBoolParameter("CJ_MS_DISABLE_ASSIST", false)
 ```
 
-使 Mark Assist 默认关闭。也就是说 Scheduler 保留完整 Assist 能力，但默认运行配置下
-`assistWorkPerByteScaled_` 为 0，分配线程不会实际领取 REGION task。
+使 Mark Assist 默认启用。只有显式设置 `CJ_MS_DISABLE_ASSIST=1` 时，
+`assistWorkPerByteScaled_` 才会被强制为 0，分配线程不再领取 REGION task。
 
 ### 11.5 ConcurrentMark 的自然收敛检查
 
@@ -672,7 +672,7 @@ objectReady empty
 ```
 
 满足后仍要 `QuiesceMarkWorkers()`。如果达到 `cjMSMarkTimeBudget`，也先 quiesce，
-再进入 STW。`cjMSMarkTimeBudget` 当前默认值为 100 ms。
+再进入 STW。`cjMSMarkTimeBudget` 当前默认值为 10 s。
 
 ### 11.6 为什么自然收敛还不是最终闭包
 

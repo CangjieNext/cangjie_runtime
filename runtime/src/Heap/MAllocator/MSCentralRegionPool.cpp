@@ -726,7 +726,7 @@ void CentralRegionPool::PublishCollectSetForSweep()
     RegionSpaceMS& space = static_cast<RegionSpaceMS&>(Heap::GetHeap().GetAllocator());
     size_t runwayRegions = ComputeRunwayRegions(
         space.GetHeapThresholdBytes(), space.GetSweptHeapBytes(), MS_REGION_SIZE);
-    bool disableAssist = ReadBoolParameter("CJ_MS_DISABLE_ASSIST", true);
+    bool disableAssist = ReadBoolParameter("CJ_MS_DISABLE_ASSIST", false);
     uint64_t sweepAssistRatio = disableAssist
         ? 0
         : ComputeMSSweepAssistRatioScaled(totalUnswept, runwayRegions);

@@ -7,6 +7,11 @@
 #include "Heap/MCollector/MSMarkScheduler.h"
 
 #include <atomic>
+#include <cstdlib>
+
+#ifdef _WIN32
+#include <malloc.h>
+#endif
 
 namespace MapleRuntime {
 
@@ -15,6 +20,32 @@ static_assert(ATOMIC_INT_LOCK_FREE == 2,
 static_assert(ATOMIC_LLONG_LOCK_FREE == 2,
               "MSGC requires always-lock-free 64-bit atomics");
 static_assert(sizeof(uintptr_t) == 8, "MSGC Step62 supports only 64-bit targets");
+
+void* MSMarkReadyStack::operator new[](size_t size)
+{
+    void* storage = nullptr;
+#ifdef _WIN32
+    storage = _aligned_malloc(size, alignof(MSMarkReadyStack));
+#else
+    int result = posix_memalign(
+        &storage, alignof(MSMarkReadyStack), size);
+    CHECK_DETAIL(result == 0,
+                 "[MS-GC] aligned Region ready shard allocation failed: %d",
+                 result);
+#endif
+    CHECK_DETAIL(storage != nullptr,
+                 "[MS-GC] aligned Region ready shard allocation returned null");
+    return storage;
+}
+
+void MSMarkReadyStack::operator delete[](void* ptr) noexcept
+{
+#ifdef _WIN32
+    _aligned_free(ptr);
+#else
+    std::free(ptr);
+#endif
+}
 
 bool MSMarkReadyStack::Push(MSRegionInfo* region)
 {
@@ -78,14 +109,39 @@ void MSMarkReadyStack::ResetQuiescent()
         std::memory_order_relaxed);
 }
 
+MSMarkScheduler::MSMarkScheduler()
+    : regionReadyShards_(new MSMarkReadyStack[1])
+{
+}
+
+void MSMarkScheduler::ConfigureRegionShards(size_t shardCount)
+{
+    shardCount = std::max<size_t>(1, shardCount);
+    CHECK_DETAIL(
+        ledger_.LoadForTermination() == 0 && ReadyEmptyForTermination(),
+        "[MS-GC] configure Region ready shards while scheduler is active");
+    if (shardCount == regionReadyShardCount_) {
+        return;
+    }
+    std::unique_ptr<MSMarkReadyStack[]> replacement(
+        new MSMarkReadyStack[shardCount]);
+    regionReadyShards_ = std::move(replacement);
+    regionReadyShardCount_ = shardCount;
+    regionProbeCursor_.store(0, std::memory_order_relaxed);
+}
+
 void MSMarkScheduler::ResetCycle()
 {
     ledger_.ResetQuiescent();
-    regionReady_.ResetQuiescent();
+    for (size_t i = 0; i < regionReadyShardCount_; ++i) {
+        regionReadyShards_[i].ResetQuiescent();
+    }
+    regionProbeCursor_.store(0, std::memory_order_relaxed);
     objectReady_.ResetQuiescent();
 }
 
-bool MSMarkScheduler::TryPublishRegion(MSRegionInfo* region)
+bool MSMarkScheduler::TryPublishRegion(
+    MSRegionInfo* region, size_t preferredRegionShard)
 {
     CHECK_DETAIL(
         region != nullptr &&
@@ -107,7 +163,7 @@ bool MSMarkScheduler::TryPublishRegion(MSRegionInfo* region)
             return false;
         }
         if (region->LoadPendingMarkWordsAcquire() != 0) {
-            return regionReady_.Push(region);
+            return RegionReadyShard(preferredRegionShard).Push(region);
         }
 
         // A delayed producer can still win IDLE -> QUEUED after another owner
@@ -125,7 +181,8 @@ bool MSMarkScheduler::TryPublishRegion(MSRegionInfo* region)
     }
 }
 
-bool MSMarkScheduler::RequeueOwnedRegion(MSRegionInfo* region)
+bool MSMarkScheduler::RequeueOwnedRegion(
+    MSRegionInfo* region, size_t preferredRegionShard)
 {
     CHECK_DETAIL(
         region != nullptr &&
@@ -140,7 +197,7 @@ bool MSMarkScheduler::RequeueOwnedRegion(MSRegionInfo* region)
 
     ledger_.AddProvisional();
     region->StoreScanStateRelaxed(MSScanState::QUEUED);
-    return regionReady_.Push(region);
+    return RegionReadyShard(preferredRegionShard).Push(region);
 }
 
 bool MSMarkScheduler::PublishObject(MSRegionInfo* largePrimary)
@@ -175,8 +232,24 @@ bool MSMarkScheduler::TryClaimFrom(
     return true;
 }
 
+bool MSMarkScheduler::TryClaimRegion(
+    size_t preferredRegionShard, MSTaskLease& lease)
+{
+    size_t rotationStart = regionProbeCursor_.fetch_add(
+        1, std::memory_order_relaxed);
+    bool fullFallback = ledger_.LoadHint() != 0;
+    return TryMSMarkReadyShardProbe(
+        regionReadyShardCount_, preferredRegionShard, rotationStart,
+        fullFallback,
+        [this, &lease](size_t shard) {
+            return TryClaimFrom(
+                regionReadyShards_[shard], MSMarkTaskKind::REGION, lease);
+        });
+}
+
 bool MSMarkScheduler::TryClaim(
-    const MSMarkWorkerCaps& caps, bool preferObject, MSTaskLease& lease)
+    const MSMarkWorkerCaps& caps, bool preferObject,
+    size_t preferredRegionShard, MSTaskLease& lease)
 {
     CHECK_DETAIL(!lease.IsActive(),
                  "[MS-GC] TryClaim target already holds active lease");
@@ -184,12 +257,24 @@ bool MSMarkScheduler::TryClaim(
         TryClaimFrom(objectReady_, MSMarkTaskKind::OBJECT, lease)) {
         return true;
     }
-    if (caps.region &&
-        TryClaimFrom(regionReady_, MSMarkTaskKind::REGION, lease)) {
+    if (caps.region && TryClaimRegion(preferredRegionShard, lease)) {
         return true;
     }
     return !preferObject && caps.object &&
         TryClaimFrom(objectReady_, MSMarkTaskKind::OBJECT, lease);
+}
+
+bool MSMarkScheduler::ReadyEmptyForTermination() const
+{
+    if (!objectReady_.IsEmpty()) {
+        return false;
+    }
+    for (size_t i = 0; i < regionReadyShardCount_; ++i) {
+        if (!regionReadyShards_[i].IsEmpty()) {
+            return false;
+        }
+    }
+    return true;
 }
 
 } // namespace MapleRuntime
