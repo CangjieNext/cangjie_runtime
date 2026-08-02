@@ -193,15 +193,15 @@ public class LinkedList<T> <: Collection<T> {
 
     @Frozen
     public func addLast(element: T): LinkedListNode<T> {
-        if (let Some(node) <- _tail) {
-            _tail = node.insertAfter(element)
-        } else {
-            _tail = LinkedListNode<T>(element, None, None, this)
-            _head = _tail
+        var node = LinkedListNode<T>(element, _tail, None, this)
+        match (_tail) {
+            case Some(t) => t._next = node
+            case None => _head = node
         }
+        _tail = node
         _size++
         _version++
-        return _tail.getOrThrow()
+        return node
     }
 
     public func toArray(): Array<T> {
@@ -596,13 +596,33 @@ public class LinkedList<T> <: Collection<T> {
     }
 
     public func removeFirst(): ?T {
-        if (let Some(v) <- _head) {
-            _version++
-            _size--
-            return v.remove()
+        match (_head) {
+            case Some(h) =>
+                _version++
+                _size--
+                let item = h.value
+                match (h._next) {
+                    case Some(n) => n._prev = None; _head = n
+                    case None => _head = None; _tail = None
+                }
+                h._list = None
+                return item
+            case None => return None
         }
+    }
 
-        return None
+    public func dropFirst(): Unit {
+        match (_head) {
+            case Some(h) =>
+                _version++
+                _size--
+                match (h._next) {
+                    case Some(n) => n._prev = None; _head = n
+                    case None => _head = None; _tail = None
+                }
+                h._list = None
+            case None => ()
+        }
     }
 
     public func removeLast(): ?T {
