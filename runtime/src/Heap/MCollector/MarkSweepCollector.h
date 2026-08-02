@@ -37,7 +37,14 @@ struct MSGCCycleStats {
     // ── Timing (microseconds) ──
     uint64_t preEnumRootsUs = 0;      // PreEnumRoots wall time: stop sweep, clear bitmaps, reclassify unswept.
     uint64_t markSetupUs = 0;         // EnumRoots wall time: handshake + EnumAndMarkRoots root discovery.
-    uint64_t concurrentMarkUs = 0;    // Unified scheduler wall time.
+    uint64_t concurrentMarkUs = 0;    // Full ConcurrentMark phase wall time.
+    uint64_t markPhaseTransitionUs = 0;
+    uint64_t markPacingSetupUs = 0;
+    uint64_t markPoolAcquireUs = 0;
+    uint64_t markWorkerStartUs = 0;
+    uint64_t markLoopUs = 0;
+    uint64_t markQuiesceUs = 0;
+    uint64_t markPoolReleaseUs = 0;
     uint64_t markTerminationUs = 0;   // MarkTermination wall time: STW drain, WB flush, deferred queue drain, idle transition.
     uint64_t postMarkUs = 0;          // PostMarkTermination wall time: post-mark cleanup, stats and Sweep/Scavenge handoff.
     uint64_t postGcHookUs = 0;        // PostGarbageCollection hook wall time after UpdateGCStats completes.
@@ -45,6 +52,18 @@ struct MSGCCycleStats {
     // ── Counting ──
     size_t rootsCount = 0;                // rootStaging_.size() after root enumeration.
     MSMarkTerminationReason markTerminationReason = MSMarkTerminationReason::NATURAL;
+    uint64_t markMainWU = 0;
+    uint64_t markMainActiveUs = 0;
+    uint64_t markMainSlices = 0;
+    uint64_t markHelperWU = 0;
+    uint64_t markHelperActiveUs = 0;
+    uint64_t markHelperSlices = 0;
+    uint64_t markAssistWU = 0;
+    uint64_t markAssistActiveUs = 0;
+    uint64_t markAssistCalls = 0;
+    uint64_t markAssistNoTaskCalls = 0;
+    size_t markMaxHelpers = 0;
+    size_t markInitialHelpers = 0;
 
     // ── True live bytes (computed from markBitmaps after marking) ──
     size_t trueLiveBytes = 0;            // ComputeMarkedStats() result, used by UpdateGCStats and GC-end logs.
@@ -191,6 +210,8 @@ private:
     void FlushAllBarrierMarkBuffersUnderSTW(CentralRegionPool& central);
     void PrepareBarrierMarkBuffersForNewEpochUnderSTW(
         CentralRegionPool& central);
+    void FoldGCMarkAssistTelemetry(AllocBufferMS& allocBuffer);
+    void FoldActiveGCMarkAssistTelemetry();
     void PublishRootStaging();
     void PublishRootRange(const std::vector<BaseObject*>& roots,
                           size_t begin, size_t end);
@@ -249,8 +270,14 @@ private:
     WorkEpoch markWorkEpoch_;
     size_t markWorkerCount_ = 0;
     std::vector<uint64_t> markWorkerCompletedWU_;
+    std::vector<uint64_t> markWorkerActiveUs_;
+    std::vector<uint64_t> markWorkerSlices_;
     MSMarkWorkerControl markWorkerControl_{&markWorkEpoch_};
     std::atomic<uint64_t> assistWorkPerByteScaled_{0};
+    std::atomic<uint64_t> markAssistCompletedWU_{0};
+    std::atomic<uint64_t> markAssistActiveUs_{0};
+    std::atomic<uint64_t> markAssistCalls_{0};
+    std::atomic<uint64_t> markAssistNoTaskCalls_{0};
     std::atomic<size_t> prevCycleMarkedObjects_{0};
 
     // ── Assist control ──

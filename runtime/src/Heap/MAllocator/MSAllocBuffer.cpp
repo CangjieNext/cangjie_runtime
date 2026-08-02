@@ -156,6 +156,7 @@ AllocBufferMS::AllocBufferMS()
 void AllocBufferMS::Init(CentralRegionPool* central)
 {
     ResetMSBarrierMarkBuffer(barrierMarkBuffer_);
+    ResetGCMarkAssistCycleState();
     central_ = central;
     cachedHomeShardId_ = (central_ != nullptr)
         ? central_->ResolveHomeShardId()
@@ -189,6 +190,7 @@ void AllocBufferMS::Fini()
         // completed cycle. They have no epoch tag and cannot be published into
         // a future mark plane.
         ResetMSBarrierMarkBuffer(barrierMarkBuffer_);
+        ResetGCMarkAssistCycleState();
     }
 
     if (central_ != nullptr) {
@@ -498,12 +500,14 @@ void AllocBufferMS::AccumulatePacingDebt(size_t size)
     MarkSweepCollector* collector = MarkSweepCollector::GetActiveCollector();
     if (collector == nullptr) {
         gcAssistDebtScaled_ = 0;
+        gcAssistCreditWU_ = 0;
         return;
     }
     collector->AccountMarkAllocationBytes(size);
     uint64_t ratioScaled = collector->GetAssistWorkPerByteScaled();
     if (ratioScaled == 0) {
         gcAssistDebtScaled_ = 0;  // Marking not active — clear stale debt
+        gcAssistCreditWU_ = 0;
         return;
     }
     uint64_t deltaDebt = SaturatingMSWUMul(
@@ -511,11 +515,14 @@ void AllocBufferMS::AccumulatePacingDebt(size_t size)
     gcAssistDebtScaled_ = SaturatingMSWUAdd(
         gcAssistDebtScaled_, deltaDebt);
     const uint64_t ratioScale = MarkSweepCollector::GetAssistRatioScale();
+    ConsumeMSMarkAssistCredit(
+        gcAssistDebtScaled_, gcAssistCreditWU_, ratioScale);
     size_t debtWU = static_cast<size_t>(gcAssistDebtScaled_ / ratioScale);
     if (UNLIKELY(debtWU >= MS_WU_ASSIST_THRESHOLD)) {
-        size_t paidWU = collector->MSMarkAssist(*this, debtWU);
-        size_t accounted = std::min(paidWU, debtWU);
-        gcAssistDebtScaled_ -= static_cast<uint64_t>(accounted) * ratioScale;
+        size_t completedWU = collector->MSMarkAssist(*this, debtWU);
+        AccountMSMarkAssistWork(
+            gcAssistDebtScaled_, gcAssistCreditWU_,
+            static_cast<uint64_t>(completedWU), ratioScale);
     }
 }
 

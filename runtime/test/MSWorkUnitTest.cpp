@@ -31,6 +31,44 @@ void TestFixedIntegerCost()
     Expect(work.Total() == 0, "WorkUnit reset did not clear weighted total");
 }
 
+void TestAssistSlicePolicyStartsAtTwoKForOneHundredMicroseconds()
+{
+    Expect(MS_WU_ASSIST_THRESHOLD == 2048,
+           "Assist debt trigger must start at 2K WU");
+    Expect(MS_WU_ASSIST_WALL_BUDGET_US == 100,
+           "Assist wall budget must be 100us");
+    Expect(ComputeMSMarkAssistSliceBudget(1) == 2048,
+           "small Assist debt must receive a 2K WU slice");
+    Expect(ComputeMSMarkAssistSliceBudget(4096) == 4096,
+           "large Assist debt must preserve the requested WU slice");
+}
+
+void TestAssistCreditPaysFutureDebtAndPreservesFraction()
+{
+    constexpr uint64_t scale = 16;
+    uint64_t debtScaled = 4096 * scale + 7;
+    uint64_t creditWU = 1024;
+    ConsumeMSMarkAssistCredit(debtScaled, creditWU, scale);
+    Expect(debtScaled == 3072 * scale + 7,
+           "Assist credit must preserve fractional scaled debt");
+    Expect(creditWU == 0,
+           "consumed Assist credit must not be reused");
+
+    debtScaled = 2048 * scale + 5;
+    creditWU = 0;
+    AccountMSMarkAssistWork(debtScaled, creditWU, 5000, scale);
+    Expect(debtScaled == 5,
+           "completed Assist work must pay only whole debt WU");
+    Expect(creditWU == 2952,
+           "whole-Region overshoot must become future Assist credit");
+
+    debtScaled = 0;
+    creditWU = std::numeric_limits<uint64_t>::max() - 1;
+    AccountMSMarkAssistWork(debtScaled, creditWU, 4, scale);
+    Expect(creditWU == std::numeric_limits<uint64_t>::max(),
+           "Assist credit accumulation must saturate");
+}
+
 void TestFullCycleEwma()
 {
     MSWorkUnitPacer pacer;
@@ -109,6 +147,22 @@ void TestDynamicAssistRatioTracksHelperOutstandingLevels()
         "critical pressure must select the maximum assist multiplier");
 }
 
+void TestMarkTelemetryShareAndRate()
+{
+    Expect(
+        ComputeMSMarkShareBasisPoints(250, 1000) == 2500,
+        "mark work share must use basis points");
+    Expect(
+        ComputeMSMarkShareBasisPoints(1, 0) == 0,
+        "empty mark work must report zero share");
+    Expect(
+        ComputeMSMarkRateQ16(1000, 40) == 25 * MS_WU_Q16_ONE,
+        "mark rate must report WorkUnits per microsecond");
+    Expect(
+        ComputeMSMarkRateQ16(1000, 0) == 0,
+        "zero active time must report zero rate");
+}
+
 void TestHelperTargetDoesNotDoubleCountReadyTasks()
 {
     Expect(
@@ -130,9 +184,12 @@ void TestHelperTargetDoesNotDoubleCountReadyTasks()
 int main()
 {
     TestFixedIntegerCost();
+    TestAssistSlicePolicyStartsAtTwoKForOneHundredMicroseconds();
+    TestAssistCreditPaysFutureDebtAndPreservesFraction();
     TestFullCycleEwma();
     TestAssistRatio();
     TestDynamicAssistRatioTracksHelperOutstandingLevels();
+    TestMarkTelemetryShareAndRate();
     TestHelperTargetDoesNotDoubleCountReadyTasks();
     return 0;
 }

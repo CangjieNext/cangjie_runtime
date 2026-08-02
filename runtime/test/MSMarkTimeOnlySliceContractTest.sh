@@ -7,6 +7,8 @@ WORK_UNIT="$ROOT_DIR/src/Heap/MCollector/MSWorkUnit.h"
 
 rg -q 'MS_WU_MAIN_WALL_BUDGET_US = 100' "$WORK_UNIT"
 rg -q 'MS_WU_HELPER_WALL_BUDGET_US = 100' "$WORK_UNIT"
+rg -q 'MS_WU_ASSIST_THRESHOLD = 2048' "$WORK_UNIT"
+rg -q 'MS_WU_ASSIST_WALL_BUDGET_US = 100' "$WORK_UNIT"
 rg -q 'MS_WU_UNLIMITED_BUDGET' "$WORK_UNIT"
 
 main_loop="$(sed -n '/void MarkSweepCollector::RunSchedulerMarkLoop/,/void MarkSweepCollector::StartMarkWorkers/p' "$COLLECTOR")"
@@ -25,19 +27,22 @@ fi
 printf '%s\n' "$main_loop" | rg -q 'MS_WU_UNLIMITED_BUDGET'
 printf '%s\n' "$helper_loop" | rg -q 'MS_WU_UNLIMITED_BUDGET'
 printf '%s\n' "$main_loop" | rg -q 'mainCompletedWU = SaturatingMSWUAdd'
-if [[ "$(printf '%s\n' "$main_loop" | rg -c 'cycleCompletedMarkWU_\.fetch_add')" -ne 1 ]]; then
-    echo 'GC main must merge locally accumulated WU only once per Mark loop' >&2
+if [[ "$(printf '%s\n' "$main_loop" | rg -c 'cycleCompletedMarkWU_\.fetch_add')" -ne 2 ]]; then
+    echo 'GC main and folded Assist WU must each merge only once per Mark loop' >&2
     exit 1
 fi
+printf '%s\n' "$main_loop" | rg -Uq '(?s)cycleStats_\.markAssistWU.*cycleCompletedMarkWU_\.fetch_add'
 if printf '%s\n' "$helper_loop" | rg -q 'cycleCompletedMarkWU_\.fetch_add'; then
     echo 'GC helper still updates the shared WU counter per slice' >&2
     exit 1
 fi
-printf '%s\n' "$helper_loop" | rg -q 'markWorkerCompletedWU_\[workerId\] = helperCompletedWU'
+printf '%s\n' "$helper_loop" | rg -q 'markWorkerCompletedWU_\[workerId\] = helperWU'
 
-# Mutator assist still pays bounded WU debt, and Region scanning retains its
-# bitmap-word boundary check for that caller.
+# Mutator assist retains a finite outer WU slice, but an already claimed Region
+# uses the same whole-task execution contract as GC main/helper.
 printf '%s\n' "$assist_loop" | rg -q 'budgetWU'
+printf '%s\n' "$assist_loop" | rg -q 'MSMarkWorkerCaps::Assist'
+printf '%s\n' "$assist_loop" | rg -Uq 'RunSchedulerTask\([[:space:]]*lease, work, MS_WU_UNLIMITED_BUDGET\)'
 printf '%s\n' "$region_task" | rg -q 'work\.Total\(\) >= taskBudgetWU'
 
 echo 'GC main/helper use the shared 100us time-only slice policy'

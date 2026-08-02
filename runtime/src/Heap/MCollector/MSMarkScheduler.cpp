@@ -247,6 +247,18 @@ bool MSMarkScheduler::TryClaimRegion(
         });
 }
 
+bool MSMarkScheduler::TryClaimAssistRegion(
+    size_t preferredRegionShard, size_t& regionProbeCursor,
+    MSTaskLease& lease)
+{
+    return TryMSMarkReadyAssistShardProbe(
+        regionReadyShardCount_, preferredRegionShard, regionProbeCursor,
+        [this, &lease](size_t shard) {
+            return TryClaimFrom(
+                regionReadyShards_[shard], MSMarkTaskKind::REGION, lease);
+        });
+}
+
 bool MSMarkScheduler::TryClaim(
     const MSMarkWorkerCaps& caps, bool preferObject,
     size_t preferredRegionShard, MSTaskLease& lease)
@@ -262,6 +274,16 @@ bool MSMarkScheduler::TryClaim(
     }
     return !preferObject && caps.object &&
         TryClaimFrom(objectReady_, MSMarkTaskKind::OBJECT, lease);
+}
+
+bool MSMarkScheduler::TryClaimAssist(
+    size_t preferredRegionShard, size_t& regionProbeCursor,
+    MSTaskLease& lease)
+{
+    CHECK_DETAIL(!lease.IsActive(),
+                 "[MS-GC] TryClaimAssist target already holds active lease");
+    return TryClaimAssistRegion(
+        preferredRegionShard, regionProbeCursor, lease);
 }
 
 bool MSMarkScheduler::ReadyEmptyForTermination() const

@@ -20,10 +20,10 @@ constexpr uint64_t MS_WU_MARK_WORD_RMW_COST = 8;
 constexpr uint64_t MS_WU_SCAN_WORD_COST = 1;
 constexpr uint64_t MS_WU_INITIAL_DENSITY_Q16 = MS_WU_Q16_ONE / 64;
 constexpr uint64_t MS_WU_INITIAL_THROUGHPUT_Q16 = 32 * MS_WU_Q16_ONE;
-constexpr uint64_t MS_WU_ASSIST_THRESHOLD = 512;
+constexpr uint64_t MS_WU_ASSIST_THRESHOLD = 2048;
 constexpr uint64_t MS_WU_MAIN_WALL_BUDGET_US = 100;
 constexpr uint64_t MS_WU_HELPER_WALL_BUDGET_US = 100;
-constexpr uint64_t MS_WU_ASSIST_WALL_BUDGET_US = 50;
+constexpr uint64_t MS_WU_ASSIST_WALL_BUDGET_US = 100;
 constexpr uint64_t MS_WU_MIN_SLICE_BUDGET = 64;
 constexpr uint64_t MS_WU_UNLIMITED_BUDGET =
     std::numeric_limits<uint64_t>::max();
@@ -44,6 +44,36 @@ inline uint64_t SaturatingMSWUMul(uint64_t lhs, uint64_t rhs)
     return lhs > std::numeric_limits<uint64_t>::max() / rhs
         ? std::numeric_limits<uint64_t>::max()
         : lhs * rhs;
+}
+
+inline uint64_t ComputeMSMarkAssistSliceBudget(uint64_t debtWU)
+{
+    return std::max<uint64_t>(MS_WU_ASSIST_THRESHOLD, debtWU);
+}
+
+inline void ConsumeMSMarkAssistCredit(
+    uint64_t& debtScaled, uint64_t& creditWU, uint64_t ratioScale)
+{
+    if (ratioScale == 0 || creditWU == 0) {
+        return;
+    }
+    uint64_t wholeDebtWU = debtScaled / ratioScale;
+    uint64_t consumedWU = std::min(wholeDebtWU, creditWU);
+    debtScaled -= consumedWU * ratioScale;
+    creditWU -= consumedWU;
+}
+
+inline void AccountMSMarkAssistWork(
+    uint64_t& debtScaled, uint64_t& creditWU,
+    uint64_t completedWU, uint64_t ratioScale)
+{
+    if (completedWU == 0) {
+        return;
+    }
+    uint64_t wholeDebtWU = ratioScale == 0 ? 0 : debtScaled / ratioScale;
+    uint64_t paidWU = std::min(wholeDebtWU, completedWU);
+    debtScaled -= paidWU * ratioScale;
+    creditWU = SaturatingMSWUAdd(creditWU, completedWU - paidWU);
 }
 
 inline uint64_t MSWUQ16Divide(uint64_t numerator, uint64_t denominator)
@@ -187,6 +217,23 @@ inline uint64_t ComputeMSMarkDynamicAssistRatioQ16(
         baseRatio,
         ComputeMSMarkAssistMultiplier(
             outstanding, maxMultiplier, pressure));
+}
+
+inline uint64_t ComputeMSMarkShareBasisPoints(
+    uint64_t participantWU, uint64_t totalWU)
+{
+    if (totalWU == 0) {
+        return 0;
+    }
+    __uint128_t scaled =
+        static_cast<__uint128_t>(participantWU) * 10000;
+    return static_cast<uint64_t>(scaled / totalWU);
+}
+
+inline uint64_t ComputeMSMarkRateQ16(uint64_t completedWU,
+                                     uint64_t activeUs)
+{
+    return activeUs == 0 ? 0 : MSWUQ16Divide(completedWU, activeUs);
 }
 
 inline uint64_t ComputeMSMarkSliceBudget(

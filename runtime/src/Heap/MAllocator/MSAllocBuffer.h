@@ -15,7 +15,9 @@
 #include "Heap/MAllocator/MSScanClass.h"
 #include "Heap/MAllocator/MSSizeClass.h"
 #include "Heap/MBarrier/MSBarrierMarkBuffer.h"
+#include "Heap/MCollector/MSWorkUnit.h"
 #include "Common/TypeDef.h"
+#include <atomic>
 #include <new>
 #include <vector>
 
@@ -135,6 +137,57 @@ public:
         return barrierMarkBuffer_;
     }
 
+    size_t& GetGCMarkAssistProbeCursor()
+    {
+        return gcAssistProbeCursor_;
+    }
+
+    void RecordGCMarkAssistSlice(
+        uint64_t completedWU, uint64_t activeUs, size_t completedTasks)
+    {
+        if (completedTasks == 0) {
+            ++gcAssistNoTaskCalls_;
+            return;
+        }
+        gcAssistCompletedWU_ = SaturatingMSWUAdd(
+            gcAssistCompletedWU_, completedWU);
+        gcAssistActiveUs_ = SaturatingMSWUAdd(
+            gcAssistActiveUs_, activeUs);
+        ++gcAssistProductiveCalls_;
+    }
+
+    void DrainGCMarkAssistTelemetry(
+        uint64_t& completedWU, uint64_t& activeUs,
+        uint64_t& productiveCalls, uint64_t& noTaskCalls)
+    {
+        while (gcAssistTelemetryDrainLock_.test_and_set(
+                   std::memory_order_acquire)) {
+        }
+        completedWU = gcAssistCompletedWU_;
+        activeUs = gcAssistActiveUs_;
+        productiveCalls = gcAssistProductiveCalls_;
+        noTaskCalls = gcAssistNoTaskCalls_;
+        gcAssistCompletedWU_ = 0;
+        gcAssistActiveUs_ = 0;
+        gcAssistProductiveCalls_ = 0;
+        gcAssistNoTaskCalls_ = 0;
+        gcAssistTelemetryDrainLock_.clear(std::memory_order_release);
+    }
+
+    void ResetGCMarkAssistCycleState()
+    {
+        gcAssistDebtScaled_ = 0;
+        gcAssistCreditWU_ = 0;
+        gcAssistProbeCursor_ = 0;
+        uint64_t ignoredCompletedWU;
+        uint64_t ignoredActiveUs;
+        uint64_t ignoredProductiveCalls;
+        uint64_t ignoredNoTaskCalls;
+        DrainGCMarkAssistTelemetry(
+            ignoredCompletedWU, ignoredActiveUs,
+            ignoredProductiveCalls, ignoredNoTaskCalls);
+    }
+
 private:
     static constexpr size_t kRootStagingReserve = 256;
     static constexpr size_t kRootOverflowChunkCapacity = 128;
@@ -193,6 +246,16 @@ private:
     // Mutator assist debt in fixed-point WorkUnit units.
     // debtScaled / AssistRatioScale = debtWU.
     uint64_t gcAssistDebtScaled_ = 0;
+    uint64_t gcAssistCreditWU_ = 0;
+    size_t gcAssistProbeCursor_ = 0;
+
+    // Single-owner telemetry. The collector folds these values only after
+    // Assist admission quiesces or while this buffer is exiting.
+    uint64_t gcAssistCompletedWU_ = 0;
+    uint64_t gcAssistActiveUs_ = 0;
+    uint64_t gcAssistProductiveCalls_ = 0;
+    uint64_t gcAssistNoTaskCalls_ = 0;
+    std::atomic_flag gcAssistTelemetryDrainLock_ = ATOMIC_FLAG_INIT;
 
     // Per-P Sweep pacing. Both fields are single-owner and remain outside the
     // compiler-visible fixed ABI prefix.

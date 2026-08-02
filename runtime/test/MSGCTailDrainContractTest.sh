@@ -15,15 +15,22 @@ fi
 
 rg -q 'size_t QuiesceMarkWorkers\(\)' "$HEADER"
 rg -Uq '(?s)markWorkerControl_\.BeginQuiesce\(\);.*WaitForNoInFlight\(\);.*markWorkerControl_\.Stop\(\);' "$SOURCE"
-rg -Uq '(?s)outstanding == 0.*ReadyEmptyForTermination\(\).*QuiesceMarkWorkers\(\);.*break;' "$SOURCE"
+rg -q 'markWorkEpoch_\.WaitForChange' "$SOURCE"
+rg -Uq '(?s)outstanding == 0.*workersInFlight == 0.*assistsInFlight == 0.*ReadyEmptyForTermination\(\).*QuiesceMarkWorkers\(\);.*break;' "$SOURCE"
 rg -q '\[mark-stw-entry\] branch=%s gcReason=%s outstanding=%llu' "$SOURCE"
 rg -Uq '(?s)while \(markScheduler_\.OutstandingForTermination\(\) != 0\).*TryClaim\(.*MSMarkWorkerCaps::GCWorker\(\)' "$SOURCE"
 rg -q 'static MSMarkWorkerCaps Assist\(\) \{ return \{true, false\}; \}' "$SCHED"
 rg -q 'replacement must be published before' "$SCHED"
+
+if rg -n 'DRAINING_VERIFY|BeginDrain\(|WaitForNoAssists\(|PublicationEpoch\(|stableEmptyEpoch|kMSMarkDrainStableUs' \
+    "$SOURCE" "$CONTROL" "$SCHED"; then
+    echo 'CurrentMark still contains draining-verify cutoff optimization' >&2
+    exit 1
+fi
 
 if rg -q 'PromotePutToGet|AcquireOneBuffer|AcquireOneFullBuffer|PublishPartialOutput' "$SOURCE"; then
     echo 'tail drain still contains WorkBuf-specific logic' >&2
     exit 1
 fi
 
-echo 'MSGC scheduler fixed-point tail contract holds'
+echo 'MSGC immediate quiesce tail contract holds'

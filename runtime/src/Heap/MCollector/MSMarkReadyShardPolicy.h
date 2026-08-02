@@ -15,6 +15,7 @@
 namespace MapleRuntime {
 
 constexpr size_t kMSMarkReadyLimitedRemoteProbes = 4;
+constexpr size_t kMSMarkReadyAssistRemoteProbes = 2;
 
 // P threads publish mutator work, while the GC main and every configured Mark
 // helper publish child work.  Half as many ready shards retain useful sharing
@@ -41,12 +42,10 @@ inline size_t ResolveMSMarkReadyPreferredShard(
     return shardCount == 0 ? 0 : participantId % shardCount;
 }
 
-// Probe the caller's home shard first, then a bounded number of remote shards
-// starting at the shared rotation cursor.  When the task ledger says work is
-// still outstanding, a complete fallback scan prevents sharding from hiding a
-// ready token beyond the bounded common path.  The fallback may revisit the
-// bounded set; this keeps the common path allocation-free for arbitrary shard
-// counts and only affects the already-exceptional full-scan path.
+// GC main and helpers retain the complete scheduler lookup. The common path
+// starts at the shared rotation cursor; a non-zero ledger enables a complete
+// fallback so GC-owned workers do not sleep while ready work is merely hidden
+// in another shard.
 template<typename TryShard>
 bool TryMSMarkReadyShardProbe(
     size_t shardCount, size_t preferredShard, size_t rotationStart,
@@ -88,6 +87,46 @@ bool TryMSMarkReadyShardProbe(
         if (shard == preferredShard) {
             continue;
         }
+        if (tryShard(shard)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// Assist avoids the shared rotation cursor and full fallback scan. It probes
+// its home shard and at most two remote shards from owner-local state. A later
+// Assist call resumes at the following shard, so misses remain cheap without
+// permanently hiding work.
+template<typename TryShard>
+bool TryMSMarkReadyAssistShardProbe(
+    size_t shardCount, size_t preferredShard, size_t& localCursor,
+    TryShard&& tryShard)
+{
+    if (shardCount == 0) {
+        return false;
+    }
+
+    preferredShard %= shardCount;
+    if (tryShard(preferredShard)) {
+        return true;
+    }
+    if (shardCount == 1) {
+        return false;
+    }
+
+    size_t remoteStart = localCursor % shardCount;
+    size_t remoteLimit = std::min(
+        kMSMarkReadyAssistRemoteProbes, shardCount - 1);
+    size_t remoteProbes = 0;
+    for (size_t offset = 0;
+         offset < shardCount && remoteProbes < remoteLimit; ++offset) {
+        size_t shard = (remoteStart + offset) % shardCount;
+        if (shard == preferredShard) {
+            continue;
+        }
+        ++remoteProbes;
+        localCursor = (shard + 1) % shardCount;
         if (tryShard(shard)) {
             return true;
         }
