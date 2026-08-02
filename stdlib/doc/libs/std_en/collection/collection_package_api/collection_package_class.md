@@ -8998,6 +8998,51 @@ public func clear(): Unit
 
 Function: Removes all elements from the linked list.
 
+### func dropFirst()
+
+```cangjie
+public func dropFirst(): Unit
+```
+
+Function: Removes the first element of the linked list. When the value of the removed element is not needed, this function can be used instead of [removeFirst](./collection_package_class.md#func-removefirst) to avoid unnecessary `Option` boxing allocation.
+
+Example:
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let list = LinkedList<String>()
+
+    // Drop the first element from an empty linked list (no effect)
+    list.dropFirst()
+    println("Linked list size after dropping from empty: ${list.size}")
+
+    // Add some elements
+    list.addLast("First")
+    list.addLast("Second")
+    list.addLast("Third")
+    list.addLast("Fourth")
+
+    println("Linked list before removal: ${list}")
+
+    // Drop the first element
+    list.dropFirst()
+
+    println("Linked list after one removal: ${list}")
+    return 0
+}
+```
+
+Execution Result:
+
+```text
+Linked list size after dropping from empty: 0
+Linked list before removal: [First, Second, Third, Fourth]
+Linked list after one removal: [Second, Third, Fourth]
+```
+
 ### func filter((T) -> Bool)
 ```cangjie
 public func filter(predicate: (T) -> Bool): LinkedList<T>

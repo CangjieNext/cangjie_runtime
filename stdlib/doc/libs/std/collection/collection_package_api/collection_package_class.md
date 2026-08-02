@@ -9339,6 +9339,51 @@ main() {
 清除后是否为空: true
 ```
 
+### func dropFirst()
+
+```cangjie
+public func dropFirst(): Unit
+```
+
+功能：移除链表的第一个元素。当不需要获取被移除元素的值时，可使用此函数替代 [removeFirst](./collection_package_class.md#func-removefirst)，以避免不必要的 `Option` 装箱分配。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let list = LinkedList<String>()
+
+    // 从空链表丢弃第一个元素（无效果）
+    list.dropFirst()
+    println("空链表丢弃后大小: ${list.size}")
+
+    // 添加一些元素
+    list.addLast("第一个")
+    list.addLast("第二个")
+    list.addLast("第三个")
+    list.addLast("第四个")
+
+    println("丢弃前的链表: ${list}")
+
+    // 丢弃第一个元素
+    list.dropFirst()
+
+    println("丢弃一次后的链表: ${list}")
+    return 0
+}
+```
+
+运行结果：
+
+```text
+空链表丢弃后大小: 0
+丢弃前的链表: [第一个, 第二个, 第三个, 第四个]
+丢弃一次后的链表: [第二个, 第三个, 第四个]
+```
+
 <!--Del-->
 ### func filter((T) -> Bool)
 
