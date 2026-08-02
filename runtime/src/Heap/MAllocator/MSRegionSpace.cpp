@@ -197,9 +197,7 @@ size_t RegionSpaceMS::GetCentralCacheBytes() const
     if (msCentralPool_ == nullptr) {
         return 0;
     }
-    size_t emptySwept = msCentralPool_->GetEmptySweptRegionCount() * MS_REGION_SIZE;
-    size_t largeCache = msCentralPool_->GetLargeHotCacheBytes();
-    return emptySwept + largeCache;
+    return msCentralPool_->GetEmptySweptRegionCount() * MS_REGION_SIZE;
 }
 
 size_t RegionSpaceMS::GetHeapRetainedBytes() const
@@ -209,9 +207,8 @@ size_t RegionSpaceMS::GetHeapRetainedBytes() const
     }
     size_t active = msCentralPool_->GetActiveMSRegionCount() * MS_REGION_SIZE;
     size_t empty = msCentralPool_->GetEmptySweptRegionCount() * MS_REGION_SIZE;
-    size_t largeCache = msCentralPool_->GetLargeHotCacheBytes();
     size_t hotFree = msRegionManager_->GetHotFreeBytes();
-    return active + empty + largeCache + hotFree;
+    return active + empty + hotFree;
 }
 
 size_t RegionSpaceMS::GetHeapRetainedBytesReference() const
@@ -221,9 +218,8 @@ size_t RegionSpaceMS::GetHeapRetainedBytesReference() const
     }
     size_t active = GetHeapInUseBytes();
     size_t empty = msCentralPool_->GetEmptySweptRegionCount() * MS_REGION_SIZE;
-    size_t largeCache = msCentralPool_->GetLargeHotCacheBytes();
     size_t hotFree = msRegionManager_->GetHotFreeBytesReference();
-    return active + empty + largeCache + hotFree;
+    return active + empty + hotFree;
 }
 
 size_t RegionSpaceMS::GetHeapThresholdBytes() const
@@ -273,22 +269,6 @@ size_t RegionSpaceMS::FlushEmptySweptToHotFree(size_t maxRegions)
     return msCentralPool_->ReclaimEmptyRegion(maxRegions);
 }
 
-size_t RegionSpaceMS::FlushAllLargeHotCache()
-{
-    if (msCentralPool_ == nullptr) {
-        return 0;
-    }
-    return msCentralPool_->ReclaimLargeHotCache(std::numeric_limits<size_t>::max());
-}
-
-size_t RegionSpaceMS::FlushLargeHotCacheUpToBytes(size_t maxBytes)
-{
-    if (msCentralPool_ == nullptr || maxBytes == 0) {
-        return 0;
-    }
-    return msCentralPool_->ReclaimLargeHotCache(maxBytes);
-}
-
 size_t RegionSpaceMS::FlushCentralCacheToThreshold(size_t thresholdBytes)
 {
     if (msCentralPool_ == nullptr) {
@@ -301,28 +281,10 @@ size_t RegionSpaceMS::FlushCentralCacheToThreshold(size_t thresholdBytes)
     }
 
     size_t bytesToFlush = cacheBytes - thresholdBytes;
-    size_t flushedBytes = 0;
-
-    size_t largeCacheBytes = msCentralPool_->GetLargeHotCacheBytes();
-    if (bytesToFlush != 0 && largeCacheBytes != 0) {
-        size_t flushedLarge = (largeCacheBytes <= bytesToFlush)
-            ? FlushAllLargeHotCache()
-            : FlushLargeHotCacheUpToBytes(bytesToFlush);
-        flushedBytes += flushedLarge;
-        bytesToFlush = (bytesToFlush > flushedLarge) ? (bytesToFlush - flushedLarge) : 0;
+    if (cacheBytes <= bytesToFlush) {
+        return FlushAllEmptySweptToHotFree();
     }
-
-    if (bytesToFlush != 0) {
-        size_t emptySweptBytes = msCentralPool_->GetEmptySweptRegionCount() * MS_REGION_SIZE;
-        if (emptySweptBytes != 0) {
-            size_t flushedEmpty = (emptySweptBytes <= bytesToFlush)
-                ? FlushAllEmptySweptToHotFree()
-                : FlushEmptySweptToHotFree((bytesToFlush + MS_REGION_SIZE - 1) / MS_REGION_SIZE);
-            flushedBytes += flushedEmpty;
-        }
-    }
-
-    return flushedBytes;
+    return FlushEmptySweptToHotFree((bytesToFlush + MS_REGION_SIZE - 1) / MS_REGION_SIZE);
 }
 
 size_t RegionSpaceMS::BackgroundScavenge(size_t quantumBytes)
@@ -359,7 +321,6 @@ size_t RegionSpaceMS::GetScavengeReleaseTargetBytes() const
     size_t inUseBytes = GetHeapInUseBytes();
     size_t reclaimableBytes =
         msCentralPool_->GetEmptySweptRegionCount() * MS_REGION_SIZE +
-        msCentralPool_->GetLargeHotCacheBytes() +
         msRegionManager_->GetHotFreeBytesReference();
     size_t effectiveTarget = std::max(scavengeThreshold, inUseBytes);
     size_t retainedBytes = inUseBytes + reclaimableBytes;
@@ -401,23 +362,6 @@ MAddress RegionSpaceMS::TryAllocateLargeObjectOnce(
     size_t unitCount = (allocSize + MRT_PAGE_SIZE - 1) / MRT_PAGE_SIZE;
     size_t regionBytes = ((unitCount * MRT_PAGE_SIZE) + MS_REGION_SIZE - 1)
                          / MS_REGION_SIZE * MS_REGION_SIZE;
-
-    // Hot cache fast path: reuse a recently-freed large region whose physical
-    // pages are still resident — avoids fresh TakeRegions work and eliminates
-    // page-fault cycles for the common churn pattern.
-    uintptr_t hotCacheStart = 0;
-    if (msCentralPool_ != nullptr &&
-        msCentralPool_->TryTakeLargeHotCache(regionBytes, hotCacheStart)) {
-        MAddress addr = static_cast<MAddress>(hotCacheStart);
-        // Zero-fill the region so the mutator sees a clean object.
-        ::memset(reinterpret_cast<void*>(hotCacheStart), 0, regionBytes);
-        RegisterLargeObjectMS(addr, objectBytes, regionBytes, scanClass);
-        if (msBuffer != nullptr) {
-            msBuffer->AccumulatePacingDebt(allocSize);
-            msBuffer->AccumulateSweepDebt(regionBytes / MS_REGION_SIZE, kNumSizeClasses);
-        }
-        return addr;
-    }
 
     uintptr_t regionStart = 0;
     uint16_t homeShardId = (msBuffer != nullptr)

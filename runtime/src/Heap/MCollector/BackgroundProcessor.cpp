@@ -613,7 +613,7 @@ bool BackgroundProcessor::HasPendingSweepWork()
 bool BackgroundProcessor::BackgroundScavengeLoop()
 {
     RegionSpaceMS& space = static_cast<RegionSpaceMS&>(Heap::GetHeap().GetAllocator());
-    CentralRegionPool* pool = space.GetCentralPool();            // for large hot cache ops
+    CentralRegionPool* pool = space.GetCentralPool();
     size_t targetBytes = space.GetScavengeReleaseTargetBytes();
     if (targetBytes == 0) {
         shouldScavengeHeap_.store(false, std::memory_order_release);
@@ -623,8 +623,7 @@ bool BackgroundProcessor::BackgroundScavengeLoop()
     size_t sliceTargetBytes = targetBytes;
     size_t hotFreeBefore = space.GetHotFreeBytesReference();
     size_t emptySweptBefore = (pool != nullptr) ? pool->GetEmptySweptRegionCount() * MS_REGION_SIZE : 0;
-    size_t largeCacheBefore = (pool != nullptr) ? pool->GetLargeHotCacheBytes() : 0;
-    if (hotFreeBefore == 0 && emptySweptBefore == 0 && largeCacheBefore == 0) {
+    if (hotFreeBefore == 0 && emptySweptBefore == 0) {
         if (pool != nullptr && pool->GetTotalUnsweptCount() > 0) {
             NotifyToSweep(kNoPreferredSweepClass);
             return true;
@@ -633,24 +632,12 @@ bool BackgroundProcessor::BackgroundScavengeLoop()
         return false;
     }
 
-    // On-demand flush to make pages visible to BackgroundScavenge (Step B).
-    // Priority: drain the large hot cache FIRST; only touch emptySwept if the large
-    // cache alone cannot cover the remaining gap. For each source: if its cached size
-    // is <= the gap, flush all of it; otherwise flush only the gap amount.
+    // On-demand flush to make empty-swept pages visible to BackgroundScavenge
+    // (Step B). Dead large spans are already in FreeManager hot-free supply.
     {
         size_t hotFreeForGap = space.GetHotFreeBytesReference();
         size_t gap = (targetBytes > hotFreeForGap) ? (targetBytes - hotFreeForGap) : 0;
 
-        // Priority 1: large hot cache.
-        if (gap > 0 && pool != nullptr) {
-            size_t largeBytes = pool->GetLargeHotCacheBytes();
-            size_t flushed = (largeBytes <= gap)
-                ? space.FlushAllLargeHotCache()             // flush all
-                : space.FlushLargeHotCacheUpToBytes(gap);   // flush only the gap
-            gap = (gap > flushed) ? (gap - flushed) : 0;
-        }
-
-        // Priority 2: emptySwept cache, only if the large cache was insufficient.
         if (gap > 0 && space.HasEmptySweptRegions()) {
             size_t emptyBytes = (pool != nullptr) ? pool->GetEmptySweptRegionCount() * MS_REGION_SIZE : 0;
             if (emptyBytes <= gap) {
@@ -666,9 +653,7 @@ bool BackgroundProcessor::BackgroundScavengeLoop()
     // Snapshot emptySwept AFTER Step A so that any regions flushed into hotFree are
     // already reflected in hotFreeAfterFlush and not double-counted.
     size_t emptySweptAfterFlush = (pool != nullptr) ? pool->GetEmptySweptRegionCount() * MS_REGION_SIZE : 0;
-    // Snapshot large cache residual after Step A2 (any flushed bytes are now in releasedTree).
-    size_t largeResidualBytes = (pool != nullptr) ? pool->GetLargeHotCacheBytes() : 0;
-    if (hotFreeAfterFlush == 0 && emptySweptAfterFlush == 0 && largeResidualBytes == 0) {
+    if (hotFreeAfterFlush == 0 && emptySweptAfterFlush == 0) {
         if (pool != nullptr && pool->GetTotalUnsweptCount() > 0) {
             NotifyToSweep(kNoPreferredSweepClass);
             return true;

@@ -21,8 +21,28 @@ def block(text, begin, end):
 assert "std::atomic<uint64_t> sweepAdmission_" in header, (
     "CentralRegionPool must use one atomic admission word"
 )
+assert "std::mutex sweepQuiescenceMtx_" in header, (
+    "Sweep admission closure needs a dedicated quiescence mutex"
+)
+assert "std::condition_variable sweepQuiescenceCV_" in header, (
+    "Sweep admission closure needs a dedicated quiescence condition variable"
+)
 for symbol in ("TryEnterSweep", "LeaveSweep", "CloseSweepAdmissionAndWait", "OpenSweepAdmission"):
     assert symbol in header and symbol in source, f"missing sweep admission API: {symbol}"
+
+leave = block(source, "void CentralRegionPool::LeaveSweep()", "void CentralRegionPool::CloseSweepAdmissionAndWait()")
+assert "kSweepAdmissionClosed" in leave and "kSweepAdmissionActiveMask" in leave
+assert "sweepQuiescenceMtx_" in leave and "sweepQuiescenceCV_.notify_one()" in leave, (
+    "the last admitted Sweep worker must notify closed-admission quiescence"
+)
+
+close = block(source, "void CentralRegionPool::CloseSweepAdmissionAndWait()", "void CentralRegionPool::OpenSweepAdmission()")
+assert "SWEEP_QUIESCENCE_SPIN_US = 20" in source
+assert "SweepQuiescenceSpinPause()" in close
+assert "sweepQuiescenceMtx_" in close and "sweepQuiescenceCV_.wait(" in close
+assert "std::this_thread::yield()" not in close and "sched_yield()" not in close, (
+    "Sweep quiescence must not yield the GC main thread to the OS scheduler"
+)
 
 assert "PublishSweepDoneAfterQuiescence" in header
 assert "PublishSweepDoneAfterQuiescence" in source

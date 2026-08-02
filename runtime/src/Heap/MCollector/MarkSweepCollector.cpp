@@ -725,6 +725,7 @@ void MarkSweepCollector::RunGarbageCollection(uint64_t gcIndex, GCReason reason)
     DumpGCStateSnapshot("preGCMark");
     DoGarbageCollection();
     UpdateGCStats();
+    Heap::GetHeap().GetCollectorResources().GetBackgroundProcessor().NotifyToScavenge();
     PostGarbageCollection(gcIndex);
 
     gcStats.gcEndTime = TimeUtil::NanoSeconds();
@@ -1695,10 +1696,11 @@ void MarkSweepCollector::EnumAndMarkRoots()
 {
     // Root enumeration only stages raw candidates. One GC-owned MarkWordBatch
     // below performs the white->grey transition and task publication.
-    MutatorManager& mutatorManager = MutatorManager::Instance();
-    mutatorManager.MutatorManagementWLock();
+    // TransitionAllMutatorsToGCPhase() has already completed every existing
+    // mutator's root scan. The AllocBufferMS registry lock protects buffer
+    // lifetime while roots are merged, so reacquiring the mutator-management
+    // write lock here only introduces reader/writer contention.
     MergeRootsFromAllocBuffers(rootStaging_);
-    mutatorManager.MutatorManagementWUnlock();
 
     WorkStack globalRoots = NewWorkStack();
     EnumAllNonMutatorRootsSerial(globalRoots);
@@ -2295,13 +2297,15 @@ void MarkSweepCollector::MarkTermination()
     MSWorkUnitCounter resurrectionPublishWork;
     ClosureStats ordinaryClosure;
     ClosureStats resurrectionClosure;
+    STWAcquireStats stwAcquireStats;
 
     {
         // Do not perform telemetry folding, worker-pool release or REPORT logging
         // between one-way quiesce and this stop-the-world handoff.
         ScopedStopTheWorld stw(
             "MS MarkTermination", true,
-            GCPhase::GC_PHASE_MS_MARK_TERMINATION);
+            GCPhase::GC_PHASE_MS_MARK_TERMINATION,
+            &stwAcquireStats);
         uint64_t stwBodyStartUs = TimeUtil::MicroSeconds();
         stages.stwAcquireUs = stwBodyStartUs - stwStartUs;
 
@@ -2463,6 +2467,13 @@ void MarkSweepCollector::MarkTermination()
     uint64_t phaseEndUs = TimeUtil::MicroSeconds();
     stages.stwResumeUs = phaseEndUs - beforeStwResumeUs;
     cycleStats_.markTerminationUs = phaseEndUs - phaseStartUs;
+    uint64_t stwAcquireAccountedUs = stwAcquireStats.syncMutexWaitUs +
+        stwAcquireStats.mutatorLockWaitUs + stwAcquireStats.mutatorCountUs +
+        stwAcquireStats.suspensionBroadcastUs + stwAcquireStats.unstoppedSnapshotUs +
+        stwAcquireStats.safepointWaitUs + stwAcquireStats.phaseTransitionUs;
+    uint64_t stwAcquireOtherUs = stages.stwAcquireUs > stwAcquireAccountedUs
+        ? stages.stwAcquireUs - stwAcquireAccountedUs
+        : 0;
 
     uint64_t accountedUs = stages.stwAcquireUs +
         stages.barrierFlushUs + ordinaryClosure.drainUs +
@@ -2525,6 +2536,23 @@ void MarkSweepCollector::MarkTermination()
     VLOG(REPORT,
          "[MS-GC] ProcessWeakRefs(STW): cleared=%zu preserved=%zu",
          weakRefsCleared, weakRefsPreserved);
+    VLOG(REPORT,
+         "[MS-GC] MarkTermination stwAcquire: total=%sus "
+         "syncMutexWait=%sus mutatorLockWait=%sus mutatorCount=%sus "
+         "suspensionBroadcast=%sus unstoppedSnapshot=%sus "
+         "safepointWait=%sus phaseTransition=%sus stwAcquireOther=%sus "
+         "mutators=%zu initialUnstopped=%zu",
+         Pretty(stages.stwAcquireUs).Str(),
+         Pretty(stwAcquireStats.syncMutexWaitUs).Str(),
+         Pretty(stwAcquireStats.mutatorLockWaitUs).Str(),
+         Pretty(stwAcquireStats.mutatorCountUs).Str(),
+         Pretty(stwAcquireStats.suspensionBroadcastUs).Str(),
+         Pretty(stwAcquireStats.unstoppedSnapshotUs).Str(),
+         Pretty(stwAcquireStats.safepointWaitUs).Str(),
+         Pretty(stwAcquireStats.phaseTransitionUs).Str(),
+         Pretty(stwAcquireOtherUs).Str(),
+         stwAcquireStats.mutatorCount,
+         stwAcquireStats.initialUnstoppedMutators);
     VLOG(REPORT,
          "[MS-GC] MarkTermination stages: total=%sus stwAcquire=%sus "
          "barrierFlush=%sus ordinaryDrain=%sus ordinaryReconcile=%sus "
@@ -2643,7 +2671,7 @@ void MarkSweepCollector::PostMarkTermination()
 
         // Partition the frozen LARGE collect-set only after statistics have
         // consumed it. Survivors are appended to largeNextSupply_; dead spans
-        // are reset before publication to the large hot cache.
+        // are reset and returned directly to FreeManager.
         CollectLargeGarbage();
 
         // The immutable Mark boundary becomes Sweep work only after the final
@@ -2656,10 +2684,9 @@ void MarkSweepCollector::PostMarkTermination()
         }
         if (sweepPlan.flushAllCaches) {
             size_t flushedEmptyBytes = space.FlushAllEmptySweptToHotFree();
-            size_t flushedLargeBytes = space.FlushAllLargeHotCache();
             VLOG(REPORT,
-                 "[MS-GC] OOM cache flush: empty=%zuB large=%zuB hotFree=%zuB",
-                 flushedEmptyBytes, flushedLargeBytes, space.GetHotFreeBytesReference());
+                 "[MS-GC] OOM cache flush: empty=%zuB hotFree=%zuB",
+                 flushedEmptyBytes, space.GetHotFreeBytesReference());
             centralPool->ReenableLazySweep();
         }
     }
@@ -2668,8 +2695,6 @@ void MarkSweepCollector::PostMarkTermination()
     if (sweepPlan.notifyBackgroundSweep) {
         backgroundProcessor.NotifyToSweep(kNoPreferredSweepClass);
     }
-    backgroundProcessor.NotifyToScavenge();
-
     cycleStats_.postMarkUs = TimeUtil::MicroSeconds() - phaseStart;
     VLOG(REPORT, "[MS-GC] PostMark total: %sus",
          Pretty(cycleStats_.postMarkUs).Str());
@@ -3006,11 +3031,8 @@ void MarkSweepCollector::LogGCEntry(uint64_t gcIndex, GCReason reason)
     size_t emptyCount = (centralPool != nullptr) ? centralPool->GetEmptySweptRegionCount() : 0;
     size_t hotFreeBytes = (msRegionManager != nullptr) ? msRegionManager->GetHotFreeBytes() : 0;
     size_t hotFreeCount = hotFreeBytes / MS_REGION_SIZE;
-    size_t largeCacheBytes = (centralPool != nullptr)
-        ? centralPool->GetLargeHotCacheRegionCount() * MS_REGION_SIZE : 0;
-    size_t largeCacheCount = largeCacheBytes / MS_REGION_SIZE;
-    VLOG(REPORT, "[MS-GC] unswept: %zu regions, emptyCache: %zu regions, hotFree: %zu regions, largeCache: %zu regions (%zu KB)",
-        unsweptCount, emptyCount, hotFreeCount, largeCacheCount, largeCacheBytes / 1024);
+    VLOG(REPORT, "[MS-GC] unswept: %zu regions, emptyCache: %zu regions, hotFree: %zu regions",
+        unsweptCount, emptyCount, hotFreeCount);
 }
 
 // Block ⑤: Region Statistics (CentralRegionPool 4-list view)
@@ -3044,14 +3066,11 @@ void MarkSweepCollector::DumpRegionStatsMS()
         size_t emptyRegionCount = (cpForAccounting != nullptr)
             ? cpForAccounting->GetEmptySweptRegionCount() : 0;
         size_t hotFreeRegionCount = msRegionManager->GetHotFreeBytes() / MS_REGION_SIZE;
-        size_t largeCacheRegionCount = (cpForAccounting != nullptr)
-            ? cpForAccounting->GetLargeHotCacheRegionCount() : 0;
         VLOG(REPORT,
-             "[MS-GC]   region-accounting: active=%zu regions, empty=%zu regions, hotFree=%zu regions, largeCache=%zu regions",
+             "[MS-GC]   region-accounting: active=%zu regions, empty=%zu regions, hotFree=%zu regions",
              cycleStats_.activeRegionCount,
              emptyRegionCount,
-             hotFreeRegionCount,
-             largeCacheRegionCount);
+             hotFreeRegionCount);
     }
 
     // CentralRegionPool 4-list breakdown
@@ -3200,14 +3219,13 @@ void MarkSweepCollector::UpdateGCStats()
         std::numeric_limits<size_t>::max() / MS_REGION_SIZE
         ? std::numeric_limits<size_t>::max()
         : coldReuseRegions * MS_REGION_SIZE;
+    double scavengeGrowth = CangjieRuntime::GetGCParam().scavengeGrowth;
     MSScavengeThresholdDecision scavengeDecision = EvaluateMSScavengeThreshold(
-        scavengeThresholdState_,
-        cycleStats_.markStartInUseBytes,
-        cycleStats_.markEndInUseBytes,
-        coldReuseBytes,
+        inUseBytes,
+        oldThreshold,
+        newThreshold,
         maxHeapBytes,
-        oldScavengeThreshold,
-        kMSShardSegmentBytes);
+        scavengeGrowth);
     size_t newScavengeThreshold = scavengeDecision.thresholdBytes;
     gcStats.SetThreshold(newThreshold);
     gcStats.SetScavengeThreshold(newScavengeThreshold);
@@ -3238,11 +3256,10 @@ void MarkSweepCollector::UpdateGCStats()
          "riseLimit=%zuB fallLimit=%zuB riseLimited=%d fallLimited=%d "
          "transitionLimited=%d transitionBypassed=%d "
          "previousInUse=%zuB inUse=%zuB maxHeap=%zuB "
-         "scavengeRecentPeakInUse=%zuB scavengeRecentBurst=%zuB "
          "scavengeColdReuseRegions=%zu scavengeColdReuse=%zuB "
-         "scavengeResidentReserve=%zuB scavengeCandidate=%zuB "
-         "scavengeSegment=%zuB scavengeNoColdReuseCycles=%zu "
-         "scavengeDecreased=%d scavengeThresholdChangeLimited=%d",
+         "scavengeRetainMultiplier=%.2f scavengeScaledInUse=%zuB "
+         "scavengeHeadroom=%zuB scavengeCandidate=%zuB "
+         "scavengeSelectedTarget=%zuB",
          oldThreshold, newThreshold, oldScavengeThreshold, newScavengeThreshold,
          oldLastTrueLiveBytes, oldLastStableLiveBytes, liveBytes, baseBytes,
          cycleStats_.markStartInUseBytes, cycleStats_.markEndInUseBytes,
@@ -3261,13 +3278,10 @@ void MarkSweepCollector::UpdateGCStats()
          static_cast<int>(thresholdDecision.transitionLimited),
          static_cast<int>(thresholdDecision.transitionBypassed),
          previousInUseBytes, inUseBytes, maxHeapBytes,
-         scavengeDecision.recentPeakInUseBytes, scavengeDecision.recentBurstBytes,
-         coldReuseRegions, scavengeDecision.coldReuseBytes,
-         scavengeDecision.residentReserveBytes, scavengeDecision.candidateBytes,
-         kMSShardSegmentBytes,
-         scavengeDecision.noColdReuseCycles,
-         static_cast<int>(scavengeDecision.decreased),
-         static_cast<int>(scavengeDecision.thresholdChangeLimited));
+         coldReuseRegions, coldReuseBytes,
+         scavengeGrowth, scavengeDecision.scaledHeapInUseBytes,
+         scavengeDecision.retainedHeadroomBytes, scavengeDecision.candidateBytes,
+         scavengeDecision.selectedTargetBytes);
 
     VLOG(REPORT,
          "[MS-GC] live bytes %zu, inUseRegionBytes %zu, update gc threshold %zu -> %zu",

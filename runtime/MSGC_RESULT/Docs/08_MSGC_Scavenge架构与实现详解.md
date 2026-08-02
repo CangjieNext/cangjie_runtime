@@ -33,8 +33,8 @@
 1. `Sweep`、`Reclaim`、`Scavenge` 不是同一个动作。Sweep 根据 mark bitmap 清理对象槽位并生成可分配 Region；Reclaim 把这些 Region 交给 `FreeManager`；Scavenge 只处理已经空闲但仍保留在运行时逻辑堆中的 Region，向操作系统请求丢弃/撤销物理页；Shrink 则是更高层的容量收缩策略。
 2. 当前 `FreeManager` 不是历史版本中的全局有序树，而是“按 owner shard 管理 Segment、每个 Segment 使用分层位图和 64-Region 摘要”的页堆。每个 Segment 只有一个固定 owner，其他 shard 可以借用，但不会改变 owner。
 3. FreeManager 中的 Region 有两个独立 bit：`allocBits` 表示逻辑上是否已分配，`scavengedBits` 表示该空闲页是否已经执行过 Scavenge。合法状态只有 `10`（已分配）、`00`（hot-free）和 `01`（scavenged/cold-free）；`11` 是禁止发布的中间/错误状态。
-4. Scavenge 的策略口径是 `retained > scavengeThreshold`。`retained` 由中央缓存、空闲 swept 缓存、大对象 hot cache 和 FreeManager 的 hot-free 近似组成；已经标记为 scavenged 的 cold-free 不计入 retained。
-5. 通知是“置位 + 条件变量唤醒”的合并事件，不是一个任务队列。分配成功后的 `TakeRegions`、`PostMarkTermination` 的 Sweep 发布，以及 `gc-helper` 的 2 秒周期检查都可能置位 Scavenge；真正执行前后台循环会再次检查阈值。
+4. Scavenge 的策略口径是 `retained > scavengeThreshold`。`retained` 由 active Region、empty-swept 缓存和 FreeManager 的 hot-free 组成；已经标记为 scavenged 的 cold-free 不计入 retained。大对象 hot cache 已删除，死亡 Large span 直接返回 FreeManager。
+5. 通知是“置位 + 条件变量唤醒”的合并事件，不是一个任务队列。分配成功后的 `TakeRegions`、GC 完成 `UpdateGCStats` 之后，以及 `gc-helper` 的 2 秒周期检查都可能置位 Scavenge；真正执行前后台循环会再次检查阈值。
 6. Scavenge 没有独立线程。`gc-helper` 按“终结器 → 并行/普通 Sweep → Scavenge → 可选 Shrink”的顺序执行。单次只处理一个受预算限制的切片；有后续工作时立即继续，但经过约 4 轮或 12 ms 会让出 CPU。
 7. 当前 Scavenge 只改变页的物理驻留状态和 FreeManager 位图，不改变逻辑 committed heap 的尾端。`FreeManager::ShrinkHeap()` 虽然保留了真正缩短 committed tail 的接口，但当前主线没有调用它；后台 Shrink 走的是“释放一个完整空闲 Segment 的物理页”路径，也不拆除视图。
 
@@ -121,14 +121,14 @@ Scavenge 的对象关系可以按“统计口径、调度入口、页堆执行�
 2. `FreeManager::TryTakeRegions` 在本地 owner shard、借用队列或其他 donor shard 中找空闲 Region；如果命中 `scavengedBits`，先清 bit，必要时调用 `ReuseUnits`。
 3. `TakeRegions` 成功后调用 `MaybeNotifyScavenge`。通知函数只在 GC 尚未开始、开关开启、阈值非零且 retained 超阈值时置位事件。
 4. `gc-helper` 被唤醒后先完成本轮更高优先级的 Sweep，再进入 `BackgroundScavengeLoop`。Scavenge 重新读取 retained 和阈值，避免使用过期通知数据。
-5. Scavenge 先将仍在 central/empty/large cache 中的空间转移成 FreeManager hot-free，再按照本轮预算调用 FreeManager 扫描并执行 `ReleaseUnits`。
+5. Scavenge 先将 empty-swept 缓存转移成 FreeManager hot-free，再按照本轮预算调用 FreeManager 扫描并执行 `ReleaseUnits`。Large span 在 Sweep 时已经直接进入 hot-free。
 6. FreeManager 发布 `scavengedBits` 后，`GetHeapRetainedBytes` 中的 hot-free 减少，cold-free 增加但不计入 retained。若仍超阈值，helper 立即进行下一切片；若已达目标，再按配置通知 Shrink。
 
-`MarkSweepCollector::PostMarkTermination` 会在 large eager reclaim 和 mark 统计完成后直接调用 `NotifyToSweep` 和 `NotifyToScavenge`。因此 Scavenge 不只依赖某一次分配触发：GC 周期和 2 秒周期检查都能修复“此前没有分配事件”的场景。通知不是把具体 Region 放入队列，所有候选页都在后台执行时根据当前位图重新计算。
+`MarkSweepCollector::RunGarbageCollection` 在 `UpdateGCStats` 已发布新阈值后调用 `NotifyToScavenge`；Sweep 仍在 Post-Mark 发布。因此 Scavenge 不只依赖某一次分配触发：GC 周期和 2 秒周期检查都能修复“此前没有分配事件”的场景。通知不是把具体 Region 放入队列，所有候选页都在后台执行时根据当前位图重新计算。
 
 ### 3.1 两种“缓存中的空闲”
 
-中央缓存里的 empty Region 尚未属于 FreeManager；大对象 hot cache 也仍由 `MSRegionManager` 持有。`BackgroundScavengeLoop` 的 Step A 调用 `FlushCentralCacheToThreshold` 相关逻辑，将这些缓存项 materialize 到 FreeManager，再让 Step B 执行真正的页释放。因此“`retained` 高但 FreeManager 的 hot-free 为零”并不矛盾，后台循环需要先完成这一层转移。
+中央缓存里的 empty Region 尚未属于 FreeManager。`BackgroundScavengeLoop` 的 Step A 将它们 materialize 到 FreeManager，再让 Step B 执行真正的页释放。大对象不再有独立 cache：`SweepLargeRegions` 重置元数据后直接调用 `ReclaimRegionLarge`。
 
 ### 3.2 逻辑堆、页表和操作系统页
 
@@ -260,7 +260,6 @@ allocBits & scavengedBits = 0
 ```text
 retained = activeCentralRegions * 32 KiB
          + emptySweptCount * 32 KiB
-         + largeHotCacheBytes
          + FreeManager.hotFreeBytes
 ```
 
@@ -268,7 +267,6 @@ retained = activeCentralRegions * 32 KiB
 
 - `activeCentralRegions` 来自 central pool 的 partial/full swept、unswept bucket 以及仍存活的大对象 span；
 - `emptySweptCount` 包含 global/local empty cache；
-- `largeHotCacheBytes` 是尚未 materialize 到 FreeManager 的大对象空闲缓存；
 - `FreeManager.hotFreeBytes` 是 `free - scavenged`，已经 cold-free 的 Region 不再计入 retained。
 
 该口径没有把 runtime 元数据、bitmap、线程本地分配缓冲区的全部细节、栈和其他 native 内存纳入；active Region 的计数与多个 relaxed atomic 快照也不是一个严格线性化时刻。因此 retained 是 GC 策略水位，而不是 RSS 的替代品。
@@ -277,13 +275,15 @@ retained = activeCentralRegions * 32 KiB
 
 MSGC 先根据真实存活量和 `cjHeapGrowth` 计算 `heapThreshold`，同时施加最小值、上限、增长速率和安全边界。默认 `cjHeapGrowth=1.0`，所以在没有 floor/cap 影响时 heap threshold 大致是 live 的两倍。
 
-Scavenge 使用独立的增长系数：
+Scavenge 使用与 Go scavenger 相似的无历史目标：
 
 ```text
-scavengeThreshold = SaturatingMul(heapThreshold, cjScavengeGrowth)
+goalRatio = newHeapThreshold / oldHeapThreshold   // 首轮取 1
+scaledInUse = heapInUse * goalRatio
+scavengeThreshold = min(maxHeap, scaledInUse * cjScavengeGrowth)
 ```
 
-默认 `cjScavengeGrowth` 取 `cjHeapGrowth`，因此默认情况下两者乘数为 1，Scavenge 目标通常等于 heap threshold。配置值为 0 或整数溢出时，代码会走禁用/饱和保护路径，不能通过普通乘法推断结果。
+默认 `cjScavengeGrowth=1.10`，且下限为 `1.0`。该值表示保留空间乘数，不再是 heap threshold 的直接倍数；候选值最终受最大堆容量上限约束。
 
 `HasPendingScavengeWork()` 的核心判断是：开关允许、阈值非零，并且
 
@@ -320,11 +320,11 @@ Scavenge 的触发、阈值判断、后台 burst 和停止条件见下图；它�
 
 这个入口的意义是：分配路径刚刚消费或观察到页堆状态变化时，及时把超过水位的 retained 交给 helper。它不是“每次分配通知”，因为通知本身是合并的，而且阈值检查会过滤绝大多数调用。
 
-### 7.2 Post-Mark 的 Sweep 发布
+### 7.2 GC 完成后的通知
 
-`MarkSweepCollector::PostMarkTermination()` 在 large eager reclaim 和 mark 统计后无条件调用 `NotifyToSweep()` 和 `NotifyToScavenge()`。`NotifyToScavenge` 只负责置位并唤醒，后台真正执行时仍会调用 `HasPendingScavengeWork`。这样即使随后 Sweep 把大量 empty/large cache 变成可回收空间，也不会要求 GC 主线程同步执行 OS 页释放。
+`PostMarkTermination()` 发布 Sweep；完整 GC 流程在 `UpdateGCStats()` 写入本轮新 `scavengeThreshold` 后，再调用 `NotifyToScavenge()`。`NotifyToScavenge` 只负责置位并唤醒，后台真正执行时仍会调用 `HasPendingScavengeWork`。这样避免 helper 在旧阈值上提前做决策。
 
-当前主线的 GC 周期通知点就在 `PostMarkTermination`；此外仍有 `TakeRegions` 和 helper 周期检查两个独立入口。历史 Implementation 文档中的更早触发点不能直接套用。
+当前主线的 GC 周期 Scavenge 通知点在 `RunGarbageCollection` 尾部；此外仍有 `TakeRegions` 和 helper 周期检查两个独立入口。
 
 ### 7.3 2 秒周期兜底
 
@@ -352,7 +352,7 @@ if (!scavengeRequested.exchange(true, acq_rel)) {
 
 ### 7.5 哪些情况不会立即通知
 
-`retained <= threshold`、GC 已开始、阈值为 0、Scavenge 开关关闭或没有 pool 时，`MaybeNotifyScavenge` 都不会发送事件。Scavenge 也不是因为 committed heap 变大就必然触发；只有 retained 口径超过阈值才是策略条件。一次通知到达时如果 hot-free 为零，后台还会先检查 empty/large cache 和 unswept backlog，而不是盲目扫描位图。
+`retained <= threshold`、GC 已开始、阈值为 0、Scavenge 开关关闭或没有 pool 时，`MaybeNotifyScavenge` 都不会发送事件。Scavenge 也不是因为 committed heap 变大就必然触发；只有 retained 口径超过阈值才是策略条件。一次通知到达时如果 hot-free 为零，后台还会先检查 empty cache 和 unswept backlog，而不是盲目扫描位图。
 
 ## 8. `gc-helper` 如何等待、唤醒和调度
 
@@ -408,11 +408,11 @@ targetBytes = max(retained - scavengeThreshold, 0)
 sliceTargetBytes = targetBytes
 ```
 
-保存 slice 目标后再取一次 hot-free、empty cache 和 large hot cache 快照。目标是“当前这一刻至少降低 targetBytes 的 retained”，不是固定释放某个 Segment 数量。
+保存 slice 目标后再取一次 hot-free 和 empty cache 快照。目标是“当前这一刻至少降低 targetBytes 的 retained”，不是固定释放某个 Segment 数量。
 
 ### 9.2 Step A：把缓存 materialize 成 hot-free
 
-如果 `hotFree + emptySwept + largeHotCache` 都为零，说明当前没有可向 FreeManager 转移的供给：
+如果 `hotFree + emptySwept` 都为零，说明当前没有可释放的供给：
 
 - 仍有 unswept backlog 时，调用 `NotifyToSweep` 并返回 `true`，保持 Scavenge flag，让下一轮在 Sweep 产出后重试；
 - 没有 unswept 时，清 Scavenge flag 并返回 `false`。
@@ -423,10 +423,7 @@ sliceTargetBytes = targetBytes
 gap = max(targetBytes - hotFreeBytes, 0)
 ```
 
-然后按“large cache 优先、empty cache 次之”的顺序物化：
-
-1. large hot cache：如果总字节数不超过 gap，则全部 flush；否则按 gap 限额从最大 bucket 开始排空。大对象缓存按完整 entry 粒度移动，实际结果可能略大于 gap。
-2. empty swept cache：如果剩余 gap 足够容纳全部 empty Region，则全部 flush；否则按 `ceil(gap / RegionSize)` 计算 Region 数再转移。
+然后只物化 empty swept cache：如果 gap 足够容纳全部 empty Region，则全部 flush；否则按 `ceil(gap / RegionSize)` 计算 Region 数再转移。死亡 Large span 已在 Sweep 时返回 FreeManager，此处无需二次物化。
 
 这一阶段把仍由中央缓存持有的 resident free 空间交给 FreeManager。它通常不会改变 retained 的总口径，只改变 retained 各组成项的分布：cache 下降，hot-free 上升。当前实现会努力填满本次计算的 gap，并非历史设计中的“一次只 flush 一半”。
 
@@ -434,7 +431,7 @@ gap = max(targetBytes - hotFreeBytes, 0)
 
 缓存 flush 可能与其他分配/回收线程并发，且 entry 粒度会导致 overshoot，因此必须重新读取 retained 和各类供给。如果 retained 已经不超过阈值，直接结束；如果三类供给都为零，则重复 9.2 的 unswept/stop 分支。不能使用 Step 0 的旧 `hotFreeBytes` 直接计算下一步预算。
 
-需要注意当前函数体的一个边界：Step A 后即使 large/empty cache 仍有 residual，只要 `hotFreeAfterFlush` 为 0，Step B 的 `availableToRelease` 就是 0，函数会直接清 Scavenge flag 并返回 `false`。这不是“已经释放了 residual cache”，而是当前实现只把 hot-free 作为 Step B 的 OS 释放供给；后续 Sweep/分配事件或 2 秒周期检查会再次触发 materialize。
+需要注意：Step B 只把 hot-free 作为 OS 释放供给。Step A 按 Region 粒度物化 empty cache，可能比 gap 多转移不超过一个 Region，因此 Step A 后必须重新取 hot-free/empty 快照。
 
 ### 9.4 Step B：按轮次计算本次 OS 释放预算
 
@@ -660,7 +657,7 @@ FreeManager 不在位图中保存“系统调用成功/失败”的第二个状�
 开启后，helper 的后续阶段进入 `BackgroundShrinkLoop`，调用 `RegionSpaceMS::BackgroundShrinkOneSegment()`，再由 `MSRegionManager::ShrinkOneIdleSegment()` 寻找完全空闲的 Segment：
 
 1. 扫描 committed Segment，跳过仍有 partial/full、TLS active、borrowed 或其他 in-use Region 的 Segment；
-2. 将目标 Segment 相关的 empty/local/large cache 排空到 FreeManager；
+2. 将目标 Segment 相关的 empty/local cache 排空到 FreeManager；
 3. 在 owner shard 锁内确认整个 Segment 的 Region 都为空闲；
 4. 调用 `FreeManager::ReleaseCompletelyFreeSegment`，释放 hot 部分并把其标成 scavenged；
 5. 保留 Segment view、owner 关系和 committed 逻辑边界。
@@ -698,7 +695,7 @@ FreeManager 不在位图中保存“系统调用成功/失败”的第二个状�
 | --- | --- | --- |
 | `cjMSBackgroundScavenge` | 是否允许 helper 执行后台 Scavenge | 默认开启；关闭时通知会被清除 |
 | `cjMSScavengeRounds` | 单次目标 gap 的分片因子 | 默认 8，必须大于 0 |
-| `cjScavengeGrowth` | `heapThreshold` 到 `scavengeThreshold` 的乘数 | 默认跟随 `cjHeapGrowth`，要求为正 |
+| `cjScavengeGrowth` | 经 heap-goal ratio 缩放后的 retained 乘数 | MSGC 默认 `1.10`，要求 `>= 1.0` |
 | `cjHeapGrowth` | 计算 heap threshold 的增长系数 | MSGC 默认约 1.0 |
 | `cjMSBackgroundShrink` | Scavenge 达标后是否进行 Segment 级后台 Shrink | 默认关闭 |
 | helper poll/backoff | 周期检查约 2000 ms，主动退避约 1 ms，burst 约 4 轮/12 ms | 代码常量 |
@@ -710,7 +707,7 @@ FreeManager 不在位图中保存“系统调用成功/失败”的第二个状�
 开启 `MRT_REPORT` 或对应 GC 报告后，建议按以下顺序观察：
 
 1. `[MS-GC] heapThreshold ... scavengeThreshold`：确认阈值是否非零、是否被 floor/cap 影响；
-2. `region-accounting`：看 active、empty、hotFree、largeCache 的构成；
+2. `region-accounting`：看 active、empty、hotFree 的构成；
 3. 每 shard 的 `seg,total,used,free(hot,cold)`：确认 hot/cold 是否在变化；
 4. `scavenge done` 或 `scavenge done (goal met)`：确认 helper 是否完成 slice/目标；
 5. `shrink segment` / `shrink done`：确认是否真的走了可选 Segment Shrink；
@@ -722,7 +719,7 @@ FreeManager 不在位图中保存“系统调用成功/失败”的第二个状�
 
 检查 `cjMSBackgroundScavenge` 是否关闭、GC 是否正处于 started 状态、阈值是否为 0；然后等待 2 秒周期检查。若周期检查也不置位，再检查 `HasPendingScavengeWork` 使用的 RegionSpace 是否正确。
 
-**empty/large cache 很大，hot-free 很小**
+**empty cache 很大，hot-free 很小**
 
 这是 Step A 尚未 materialize 或 flush 被并发分配/锁竞争延后的表现。重点看 background loop 的 cache flush 日志，而不是直接判断 FreeManager 没有页。
 
@@ -749,24 +746,21 @@ FreeManager 不在位图中保存“系统调用成功/失败”的第二个状�
 ```text
 active central regions  = 160 MiB
 empty swept cache       = 64 MiB
-large hot cache         = 48 MiB
-FreeManager hot-free    = 64 MiB
+FreeManager hot-free    = 112 MiB
 FreeManager cold-free   = 128 MiB
 ```
 
 则：
 
 ```text
-retained = 160 + 64 + 48 + 64 = 336 MiB
+retained = 160 + 64 + 112 = 336 MiB
 ```
 
 设 `scavengeThreshold = 256 MiB`，本次目标为 `80 MiB`；cold-free 不计入 retained。
 
 ### 16.1 Step A：缓存物化
 
-Step A 先看 hot-free 已有 64 MiB，距离目标还差 16 MiB。large cache 优先，所以从 48 MiB large cache 中 flush 16 MiB 左右的完整 entry；如果 entry 粒度导致实际 flush 20 MiB，hot-free 变为约 84 MiB，cache 组成同步下降，retained 仍约为 336 MiB。
-
-如果 large cache 的最小 entry 已超过剩余 gap，代码可能继续 flush 一个完整 entry；这就是“物化预算可能 overshoot”，并不表示 Scavenge 已释放同样多的 OS 页。
+Step A 先看 hot-free 已有 112 MiB，足以覆盖本次 80 MiB 目标，因此不需要物化 empty cache。如果 hot-free 只有 64 MiB，则会从 empty cache 再转移 16 MiB（按 32 KiB Region 向上取整）。
 
 ### 16.2 Step B：按 rounds 释放
 
@@ -802,8 +796,8 @@ scavengedBits   1 → 0
 | `CartesianTree`、`releasedTree` 管理全局空闲区间 | owner shard + Segment 位图 + chunk summary | 不能按树节点或全局有序区间解释当前扫描；应看 `OwnedSegmentView` |
 | `MaybeNotifyReclaim`、`BackgroundReclaimLoop`、同步 InlineReclaim | 主线是 `MaybeNotifyScavenge`、`BackgroundScavengeLoop`；Reclaim 由 RegionManager 分组后直接更新 FreeManager | “Reclaim 通知”不是当前 Scavenge 事件名 |
 | watermark/half flush/hysteresis/wake guard | 当前以 `retained > scavengeThreshold` 为 level 条件；Step A 尽量填满 gap；未见独立 hysteresis guard | 不要假设达到阈值后保留一半缓存或有唤醒最小间隔 |
-| PostMarkTermination 直接通知 Scavenge | 当前 Post-Mark 尾部通知，另有 TakeRegions 和 2 秒周期兜底 | 按实际调用链定位通知入口 |
-| 32 MB 大对象 cache 上限、固定 region 数限制 | 当前 large hot cache 为按大小的 map，`TryPut` 主要拒绝非法输入；下次大对象 Sweep 会 flush 旧 cache | large cache 的精确容量不要从旧常量推导 |
+| PostMarkTermination 直接通知 Scavenge | 当前在 `UpdateGCStats` 之后通知，另有 TakeRegions 和 2 秒周期兜底 | 按新阈值已发布后的实际调用链定位 |
+| 32 MB 大对象 cache 上限、固定 region 数限制 | 大对象 hot cache 已删除；死亡 span 直接返回 FreeManager，分配统一走 `TakeRegionForLarge` | 不再存在 Large cache 容量或 flush 策略 |
 | `CJ_MS_BG_SCAVENGE`、`CJ_MS_PIN_HOT_FREE` | 当前主线配置名是 `cjMSBackgroundScavenge` 等；未发现 pin gate 主线 | 调试环境变量必须对照 `RuntimeConfig` 和解析代码 |
 | Scavenge 后必然 tail shrink | 当前默认只做 Scavenge；Background Shrink 可选且保留 Segment view；`ShrinkHeap` 无主线调用 | committed bytes 不变不代表 Scavenge 未工作 |
 

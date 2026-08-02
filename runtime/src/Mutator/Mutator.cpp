@@ -173,10 +173,35 @@ void Mutator::SetManagedContext(bool isManagedContext)
     inManagedContext.store(isManagedContext, std::memory_order_release);
 }
 
+void Mutator::PreparedToPark(void* pc, void* fa)
+{
+    SetSafepointStatePtr(nullptr);
+    if (UNLIKELY((uwContext.GetUnwindContextStatus() == UnwindContextStatus::RISKY) || InSaferegion())) {
+        return;
+    }
+#if defined(__linux__) || defined(hongmeng) || defined(__APPLE__)
+    if (LIKELY(uwContext.GetUnwindContextStatus() != UnwindContextStatus::RISKY)) {
+        uwContext.frameInfo.mFrame.SetIP(reinterpret_cast<const uint32_t*>(pc));
+        uwContext.frameInfo.mFrame.SetFA(reinterpret_cast<FrameAddress*>(fa));
+    }
+#elif defined(_WIN64)
+    if (LIKELY(uwContext.GetUnwindContextStatus() != UnwindContextStatus::RISKY)) {
+        Uptr rip = reinterpret_cast<Uptr>(pc);
+        Uptr rsp = reinterpret_cast<Uptr>(fa);
+        Runtime& runtime = Runtime::Current();
+        WinModuleManager& winModuleManager = runtime.GetWinModuleManager();
+        FrameInfo curFrame = GetCurFrameInfo(winModuleManager, rip, rsp);
+        UnwindContextStatus ucs = uwContext.GetUnwindContextStatus();
+        uwContext.frameInfo = GetCallerFrameInfo(winModuleManager, curFrame.mFrame, ucs);
+    }
+#endif // platform
+    DoEnterSaferegion();
+}
+
 void Mutator::HandleSuspensionRequest()
 {
     for (;;) {
-        SetInSaferegion(SAFE_REGION_TRUE);
+        DoEnterSaferegion();
         if (HasSuspensionRequest(SUSPENSION_FOR_GC_PHASE)) {
             TransitionGCPhase(true);
 #ifdef MRT_USE_MARK_SWEEP

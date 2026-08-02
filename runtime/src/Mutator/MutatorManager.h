@@ -47,6 +47,21 @@ extern "C" void HandleSafepointForArm(ThreadLocalData* tlData);
 
 using MutatorVisitor = std::function<void(Mutator&)>;
 
+// Optional wall-clock breakdown for the acquisition half of a stop-the-world
+// handshake. All fields are diagnostic only and do not participate in the
+// synchronization protocol.
+struct STWAcquireStats {
+    uint64_t syncMutexWaitUs = 0;
+    uint64_t mutatorLockWaitUs = 0;
+    uint64_t mutatorCountUs = 0;
+    uint64_t suspensionBroadcastUs = 0;
+    uint64_t unstoppedSnapshotUs = 0;
+    uint64_t safepointWaitUs = 0;
+    uint64_t phaseTransitionUs = 0;
+    size_t mutatorCount = 0;
+    size_t initialUnstoppedMutators = 0;
+};
+
 class MutatorManager {
 public:
     MutatorManager() {}
@@ -111,11 +126,11 @@ public:
     void VisitAllMutators(MutatorVisitor func);
 
     // Some functions about stw
-    void StopTheWorld(bool syncGCPhase, GCPhase phase);
+    void StopTheWorld(bool syncGCPhase, GCPhase phase, STWAcquireStats* stats = nullptr);
     void StartTheWorld() noexcept;
     void StartLightSync(bool syncGCPhase, GCPhase phase);
     void StopLightSync() noexcept;
-    void WaitUntilAllMutatorStopped();
+    void WaitUntilAllMutatorStopped(STWAcquireStats* stats = nullptr);
     void DumpMutators(uint32_t timeoutTimes);
     void DemandSuspensionForSync()
     {
@@ -160,6 +175,9 @@ public:
     bool WorldStopped() const { return worldStopped.load(std::memory_order_acquire); }
 
     bool SyncTriggered() const { return syncTriggered.load(); }
+
+    void NotifyMutatorEnteredSaferegion();
+    void NotifyPhaseTransitionProgress();
 
     void SyncMutexLock() { syncMutex.lock(); }
 
@@ -259,6 +277,15 @@ private:
     std::recursive_mutex syncMutex;
     std::atomic<bool> syncTriggered = { false };
     std::atomic<bool> worldStopped = { false };
+    // Mutators wait on mutatorSuspensionCV for STW to end.  The GC waits on
+    // this independent condition for running mutators to enter saferegion.
+    std::mutex mutatorArrivalMtx;
+    std::condition_variable mutatorArrivalCV;
+    // Phase handshakes have a different predicate from STW: either a Mutator
+    // finishes its transition, or it enters saferegion and becomes eligible
+    // for GC-side transition. Keep their arrival event independent from STW.
+    std::mutex phaseTransitionArrivalMtx;
+    std::condition_variable phaseTransitionArrivalCV;
     std::list<Mutator*> undoneLightSyncMutators;
     GCPhase lightSyncGCPhase;
 
@@ -302,10 +329,10 @@ private:
 class ScopedStopTheWorld {
 public:
     __attribute__((always_inline)) explicit ScopedStopTheWorld(const char* gcReason, bool syncGCPhase = false,
-        GCPhase phase = GC_PHASE_IDLE) : reason(gcReason)
+        GCPhase phase = GC_PHASE_IDLE, STWAcquireStats* stats = nullptr) : reason(gcReason)
     {
         startTime = TimeUtil::NanoSeconds();
-        MutatorManager::Instance().StopTheWorld(syncGCPhase, phase);
+        MutatorManager::Instance().StopTheWorld(syncGCPhase, phase, stats);
     }
 
     __attribute__((always_inline)) ~ScopedStopTheWorld()

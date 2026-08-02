@@ -31,12 +31,21 @@
 #include <memory>
 #include <vector>
 
-#include <thread>
-
 namespace MapleRuntime {
 
 namespace {
 constexpr size_t kSweepDeadlineCheckInterval = 4;
+constexpr uint64_t SWEEP_QUIESCENCE_SPIN_US = 20;
+
+inline void SweepQuiescenceSpinPause()
+{
+#if defined(__aarch64__) || defined(__arm__)
+    __asm__ __volatile__("yield");
+#elif defined(__x86_64__)
+    __asm__ __volatile__("pause");
+#endif
+}
+
 void ClearSmallRegionPayload(uintptr_t regionStart)
 {
     memset(reinterpret_cast<void*>(regionStart), 0, MS_REGION_SIZE);
@@ -86,6 +95,11 @@ void CentralRegionPool::LeaveSweep()
         if (sweepAdmission_.compare_exchange_weak(oldState, newState,
                                                   std::memory_order_acq_rel,
                                                   std::memory_order_acquire)) {
+            if ((newState & kSweepAdmissionClosed) != 0 &&
+                (newState & kSweepAdmissionActiveMask) == 0) {
+                std::lock_guard<std::mutex> lock(sweepQuiescenceMtx_);
+                sweepQuiescenceCV_.notify_one();
+            }
             return;
         }
     }
@@ -97,10 +111,28 @@ void CentralRegionPool::CloseSweepAdmissionAndWait()
     // worker either increments the active count before this operation and is
     // waited for, or observes the closed bit and cannot enter SweepRegion.
     sweepAdmission_.fetch_or(kSweepAdmissionClosed, std::memory_order_acq_rel);
-    while ((sweepAdmission_.load(std::memory_order_acquire) &
-            kSweepAdmissionActiveMask) != 0) {
-        std::this_thread::yield();
+
+    auto sweepQuiescent = [this]() {
+        return (sweepAdmission_.load(std::memory_order_acquire) &
+                kSweepAdmissionActiveMask) == 0;
+    };
+    if (sweepQuiescent()) {
+        return;
     }
+
+    uint64_t spinDeadlineNs = TimeUtil::NanoSeconds() + SWEEP_QUIESCENCE_SPIN_US * 1000;
+    do {
+        SweepQuiescenceSpinPause();
+        if (sweepQuiescent()) {
+            return;
+        }
+    } while (TimeUtil::NanoSeconds() < spinDeadlineNs);
+
+    // Recheck while holding the same mutex used by the zero-count notifier.
+    // This closes the predicate-to-wait window without changing the packed
+    // admission word's role as the protocol's linearization point.
+    std::unique_lock<std::mutex> quiescenceLock(sweepQuiescenceMtx_);
+    sweepQuiescenceCV_.wait(quiescenceLock, sweepQuiescent);
 }
 
 void CentralRegionPool::OpenSweepAdmission()
@@ -398,19 +430,6 @@ bool CentralRegionPool::HasIdleSegmentCachedRegions(size_t startRegionIdx, size_
         }
     }
 
-    uintptr_t rangeStart = MSRegionInfoArray::GetRegionAddress(startRegionIdx);
-    uintptr_t rangeEnd = MSRegionInfoArray::GetRegionAddress(endRegionIdx);
-    std::lock_guard<std::mutex> lg(const_cast<std::mutex&>(largeHotCacheLock_));
-    for (const auto& cacheEntry : largeHotCache_) {
-        const auto& bucket = cacheEntry.second;
-        for (const LargeHotEntry& entry : bucket) {
-            uintptr_t entryStart = entry.regionStart;
-            uintptr_t entryEnd = entry.regionStart + entry.regionBytes;
-            if (entryStart < rangeEnd && rangeStart < entryEnd) {
-                return true;
-            }
-        }
-    }
     return false;
 }
 
@@ -458,43 +477,6 @@ size_t CentralRegionPool::ReclaimIdleSegmentCaches(size_t startRegionIdx, size_t
             promotedBytes += MS_REGION_SIZE;
         }
         msRegionManager_->ReclaimReleasedRegionsToHotFreeBatch(spans);
-    }
-
-    uintptr_t rangeStart = MSRegionInfoArray::GetRegionAddress(startRegionIdx);
-    uintptr_t rangeEnd = MSRegionInfoArray::GetRegionAddress(endRegionIdx);
-    std::vector<LargeHotEntry> reclaimedLargeEntries;
-    size_t reclaimedLargeRegions = 0;
-    size_t reclaimedLargeBytes = 0;
-    {
-        std::lock_guard<std::mutex> lg(largeHotCacheLock_);
-        for (auto it = largeHotCache_.begin(); it != largeHotCache_.end();) {
-            auto& bucket = it->second;
-            for (auto entryIt = bucket.begin(); entryIt != bucket.end();) {
-                uintptr_t entryStart = entryIt->regionStart;
-                uintptr_t entryEnd = entryIt->regionStart + entryIt->regionBytes;
-                if (entryStart < rangeEnd && rangeStart < entryEnd) {
-                    reclaimedLargeBytes += entryIt->regionBytes;
-                    reclaimedLargeRegions += it->first;
-                    reclaimedLargeEntries.push_back(*entryIt);
-                    entryIt = bucket.erase(entryIt);
-                } else {
-                    ++entryIt;
-                }
-            }
-            if (bucket.empty()) {
-                it = largeHotCache_.erase(it);
-            } else {
-                ++it;
-            }
-        }
-    }
-    if (reclaimedLargeBytes != 0) {
-        largeHotCacheRegionCount_.fetch_sub(reclaimedLargeRegions, std::memory_order_release);
-        largeHotCacheBytes_.fetch_sub(reclaimedLargeBytes, std::memory_order_release);
-        for (const LargeHotEntry& entry : reclaimedLargeEntries) {
-            msRegionManager_->ReclaimRegionLarge(entry.regionStart, entry.regionBytes);
-            promotedBytes += entry.regionBytes;
-        }
     }
 
     return promotedBytes;
@@ -1118,8 +1100,8 @@ void CentralRegionPool::ForceFinishAllUnsweptForOOM()
     forceHighSweepPressure_.store(false, std::memory_order_release);
     sweepPressureMode_.store(static_cast<int>(SweepPressureMode::LOW), std::memory_order_release);
     VLOG(REPORT,
-         "[MS-GC] OOM force sweep: unswept=%zu->0 emptyCacheRegions=%zu largeCacheRegions=%zu",
-         unsweptBefore, GetEmptySweptRegionCount(), GetLargeHotCacheRegionCount());
+         "[MS-GC] OOM force sweep: unswept=%zu->0 emptyCacheRegions=%zu",
+         unsweptBefore, GetEmptySweptRegionCount());
 }
 
 size_t CentralRegionPool::CountTLActiveRegions() const
@@ -1200,11 +1182,6 @@ size_t CentralRegionPool::GetEmptySweptRegionCount() const
     return emptySweptCount_.load(std::memory_order_acquire);
 }
 
-size_t CentralRegionPool::GetLargeHotCacheRegionCount() const
-{
-    return largeHotCacheRegionCount_.load(std::memory_order_acquire);
-}
-
 CentralRegionPool::BucketPressure CentralRegionPool::GetBucketPressure(uint8_t cls) const
 {
     BucketPressure total;
@@ -1242,9 +1219,6 @@ void CentralRegionPool::DumpPoolStats() const
     VLOG(REPORT, "[MS-GC]     emptySwept(global+local): %zu regions", emptySweptTotal);
     VLOG(REPORT, "[MS-GC]     total small: %zu regions", totalSmall);
     VLOG(REPORT, "[MS-GC]     large regions: %zu", GetLargeRegionCount());
-    size_t largeCacheRegions = GetLargeHotCacheRegionCount();
-    VLOG(REPORT, "[MS-GC]     largeHotCache: %zu regions (%zu KB)",
-         largeCacheRegions, (largeCacheRegions * MS_REGION_SIZE) / 1024);
 }
 
 // ============================================================================
@@ -1292,100 +1266,8 @@ void CentralRegionPool::CollectDeadLargeRegions(
     largeCollectSet_.clear();
 }
 
-// ============================================================================
-// Large object hot cache
-// ============================================================================
-
-bool CentralRegionPool::TryPutLargeHotCache(uintptr_t regionStart, size_t regionBytes)
-{
-    size_t regionCount = regionBytes / MS_REGION_SIZE;
-    if (regionCount == 0) {
-        return false;
-    }
-    std::lock_guard<std::mutex> lg(largeHotCacheLock_);
-    largeHotCache_[regionCount].push_back({regionStart, regionBytes});
-    largeHotCacheRegionCount_.fetch_add(regionCount, std::memory_order_release);
-    largeHotCacheBytes_.fetch_add(regionBytes, std::memory_order_release);
-    return true;
-}
-
-bool CentralRegionPool::TryTakeLargeHotCache(size_t regionBytes, uintptr_t& regionStart)
-{
-    size_t regionCount = regionBytes / MS_REGION_SIZE;
-    if (regionCount == 0) {
-        return false;
-    }
-    std::lock_guard<std::mutex> lg(largeHotCacheLock_);
-    auto it = largeHotCache_.find(regionCount);
-    if (it == largeHotCache_.end() || it->second.empty()) {
-        return false;
-    }
-    auto& bucket = it->second;
-    regionStart = bucket.back().regionStart;
-    bucket.pop_back();
-    if (bucket.empty()) {
-        largeHotCache_.erase(it);
-    }
-    largeHotCacheRegionCount_.fetch_sub(regionCount, std::memory_order_release);
-    largeHotCacheBytes_.fetch_sub(regionBytes, std::memory_order_release);
-    return true;
-}
-
-size_t CentralRegionPool::ReclaimLargeHotCache(size_t maxBytes)
-{
-    if (maxBytes == 0) {
-        return 0;
-    }
-    std::vector<LargeHotEntry> toReclaim;
-    size_t flushed = 0;
-    size_t reclaimedRegions = 0;
-    {
-        std::lock_guard<std::mutex> lg(largeHotCacheLock_);
-        // Reclaim largest objects first: higher RSS impact, lower reuse probability.
-        for (auto it = largeHotCache_.rbegin(); it != largeHotCache_.rend() && flushed < maxBytes; ++it) {
-            size_t key = it->first;
-            if (flushed >= maxBytes) {
-                break;
-            }
-            auto& bucket = it->second;
-            while (!bucket.empty() && flushed < maxBytes) {
-                LargeHotEntry entry = bucket.back();
-                bucket.pop_back();
-                toReclaim.push_back(entry);
-                flushed += entry.regionBytes;
-                reclaimedRegions += key;
-            }
-        }
-
-        for (auto it = largeHotCache_.begin(); it != largeHotCache_.end();) {
-            if (it->second.empty()) {
-                it = largeHotCache_.erase(it);
-            } else {
-                ++it;
-            }
-        }
-    }
-    if (flushed != 0) {
-        largeHotCacheRegionCount_.fetch_sub(reclaimedRegions, std::memory_order_release);
-        largeHotCacheBytes_.fetch_sub(flushed, std::memory_order_release);
-    }
-    std::vector<FreeManager::RegionSpan> spans;
-    spans.reserve(toReclaim.size());
-    for (auto& entry : toReclaim) {
-        auto regionIdx = static_cast<FreeManager::RegionIndex>(
-            (entry.regionStart - msRegionManager_->GetHeapStart()) / MS_REGION_SIZE);
-        auto regionCount = static_cast<FreeManager::RegionCount>(entry.regionBytes / MS_REGION_SIZE);
-        spans.push_back({ regionIdx, regionCount });
-    }
-    msRegionManager_->ReclaimReleasedRegionsToHotFreeBatch(spans);
-    return flushed;
-}
-
 void CentralRegionPool::SweepLargeRegions()
 {
-    // Flush unconsumed hot-cache entries from the previous GC cycle first.
-    (void)ReclaimLargeHotCache(std::numeric_limits<size_t>::max());
-
     // Two-pass to avoid holding largeLock_ during ReclaimRegion.
     std::vector<MSRegionInfo*> deadRegions;
 
@@ -1407,14 +1289,9 @@ void CentralRegionPool::SweepLargeRegions()
             spanInfo->Reset();
         }
 
-        // Reset base MSRegionInfo — leaves regionType=MS_REGION_FREE which
-        // RegisterLargeObjectMS accepts when this entry is reused from hot cache.
+        // Reset base MSRegionInfo before publishing the whole span as free.
         msInfo->Reset();
-
-        // Try to keep physical pages hot for fast reuse; fall back to normal reclaim.
-        if (!TryPutLargeHotCache(regionStart, regionBytes)) {
-            msRegionManager_->ReclaimRegionLarge(regionStart, regionBytes);
-        }
+        msRegionManager_->ReclaimRegionLarge(regionStart, regionBytes);
     }
 }
 
@@ -1602,12 +1479,11 @@ void CentralRegionPool::StopAndWaitForAllSweep()
     size_t unsweptAfter = GetTotalUnsweptCount();
     size_t activeBytes = GetActiveMSRegionCount() * MS_REGION_SIZE;
     size_t emptySwept = GetEmptySweptRegionCount() * MS_REGION_SIZE;
-    size_t largeCache = GetLargeHotCacheRegionCount() * MS_REGION_SIZE;
-    size_t totalRetained = activeBytes + emptySwept + largeCache;
+    size_t totalRetained = activeBytes + emptySwept;
     VLOG(REPORT, "[MS-GC] StopAndWaitForAllSweep: forceSwept=%zu->%zu unswept regions, "
-         "retained=%zuB activeBytes=%zuB emptySwept=%zuB largeCache=%zuB",
+         "retained=%zuB activeBytes=%zuB emptySwept=%zuB",
          unsweptBefore, unsweptAfter,
-         totalRetained, activeBytes, emptySwept, largeCache);
+         totalRetained, activeBytes, emptySwept);
 }
 
 void CentralRegionPool::VisitMarkPendingRegionsUnderSTW(

@@ -11,12 +11,11 @@
 
 #include <atomic>
 #include <array>
+#include <condition_variable>
 #include <mutex>
 #include <cstdint>
 #include <vector>
-#include <map>
 #include <algorithm>
-#include <thread>
 #include <functional>
 #include <utility>
 
@@ -506,7 +505,6 @@ public:
     size_t GetSweptMSRegionCountReference() const;
     size_t GetActiveMSRegionCountReference() const;
     size_t GetEmptySweptRegionCount() const;
-    size_t GetLargeHotCacheRegionCount() const;
     size_t GetLargeObjectBytes() const
     {
         return largeLiveObjectBytes_.load(std::memory_order_acquire);
@@ -544,26 +542,6 @@ public:
     // Eager sweep: reclaim unmarked large regions, return freed bytes.
     // Called after MarkTerminate / in PostMarkTermination.
     void SweepLargeRegions();
-
-    // Large object hot cache: cache a freshly-freed large region so its
-    // physical pages remain resident for fast reuse on the next allocation.
-    // Returns false only when regionBytes is invalid.
-    bool TryPutLargeHotCache(uintptr_t regionStart, size_t regionBytes);
-
-    // Pop a cached entry matching regionBytes from the hot cache.
-    // Returns true and sets regionStart if found; false if miss.
-    bool TryTakeLargeHotCache(size_t regionBytes, uintptr_t& regionStart);
-
-    // Reclaim large-hot-cache entries back to MSRegionManager (releasedTree),
-    // largest entries first, up to maxBytes (SIZE_MAX = drain all).
-    // This is the single low-level release primitive for the large hot cache;
-    // flush policy lives in RegionSpaceMS. Returns reclaimed bytes.
-    size_t ReclaimLargeHotCache(size_t maxBytes);
-
-    size_t GetLargeHotCacheBytes() const
-    {
-        return largeHotCacheBytes_.load(std::memory_order_acquire);
-    }
 
     // ===== Pre-STW bitmap clearing (MarkSetup fast path) =====
 
@@ -830,6 +808,10 @@ private:
     // lazy/assist/helper/background sweep operations. This avoids a late
     // counter increment after StopAndWaitForAllSweep has observed quiescence.
     std::atomic<uint64_t> sweepAdmission_{0};
+    // GC main waits here only after closing Sweep admission. The last admitted
+    // worker notifies when the packed active count reaches zero.
+    std::mutex sweepQuiescenceMtx_;
+    std::condition_variable sweepQuiescenceCV_;
     std::atomic<bool> stopSweepRequested_{false};
     std::atomic<bool> skipLazySweep_{false};          // Disable lazy sweep in GetRegion P2/P3
     std::atomic<bool> skipAssistSweep_{false};        // Disable mutator assist sweep before STW
@@ -885,21 +867,6 @@ private:
             visitor(MSRegionInfoArray::GetRegionInfoByIdx(idx));
         }
     }
-
-    // Large object hot cache: recently-freed large regions whose physical pages
-    // are still resident. Allows reuse without page-fault overhead on next alloc.
-    // Bucketed by regionCount (key = regionBytes / MS_REGION_SIZE) for O(1)
-    // size-matched lookup. No size or total-bytes cap: the scavenger is responsible
-    // for draining the cache when RSS exceeds the threshold.
-    // Flushed at the start of each SweepLargeRegions call.
-    struct LargeHotEntry {
-        uintptr_t regionStart;
-        size_t    regionBytes;
-    };
-    std::mutex largeHotCacheLock_;
-    std::map<size_t, std::vector<LargeHotEntry>> largeHotCache_; // key = regionCount
-    std::atomic<size_t> largeHotCacheRegionCount_{0};
-    std::atomic<size_t> largeHotCacheBytes_{0};
 
     // Global cache of classless empty regions. All mutators refill directly from
     // this queue; no per-P spare EmptyRegion cache is retained.

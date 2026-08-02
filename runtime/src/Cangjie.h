@@ -284,8 +284,9 @@ struct GCParam {
     int32_t gcThreads;
 
     /*
-     * Multiplier used to derive the scavenge threshold from the heap threshold.
-     * Default to heapGrowth. Must be > 0.
+     * Retained-heap multiplier used by MSGC after adjusting post-GC heap-in-use
+     * by the current/previous heap-goal ratio. MSGC defaults to 1.10 and requires
+     * a value >= 1.0. CopyGC keeps its existing configuration semantics.
      */
     double scavengeGrowth;
 

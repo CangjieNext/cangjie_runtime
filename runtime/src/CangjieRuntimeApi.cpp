@@ -309,8 +309,13 @@ RTErrorCode InitCJRuntime(const struct RuntimeParam* param)
             // CopyGC keeps its existing two-thread default and API override behavior.
             .gcThreads = param->gcParam.gcThreads == 0 ? 2 : param->gcParam.gcThreads,
 #endif
+#ifdef MRT_USE_MARK_SWEEP
+            .scavengeGrowth = param->gcParam.scavengeGrowth < 1.0 ?
+                1.10 : param->gcParam.scavengeGrowth,
+#else
             .scavengeGrowth = param->gcParam.scavengeGrowth < ERRORESTIMATE ?
                 resolvedHeapGrowth : param->gcParam.scavengeGrowth,
+#endif
 #ifdef MRT_USE_MARK_SWEEP
             .msBackgroundSweepMaxTime = param->gcParam.msBackgroundSweepMaxTime == 0 ?
                 2 * MapleRuntime::MILLI_SECOND_TO_NANO_SECOND : param->gcParam.msBackgroundSweepMaxTime,

@@ -7,6 +7,7 @@
 
 #include "MutatorManager.h"
 
+#include <chrono>
 #include <thread>
 #include "Base/TimeUtils.h"
 #include "Common/Runtime.h"
@@ -20,6 +21,19 @@
 #include "schedule.h"
 #include "CpuProfiler/CpuProfiler.h"
 namespace MapleRuntime {
+namespace {
+constexpr uint64_t STW_MUTATOR_ARRIVAL_SPIN_US = 20;
+constexpr uint64_t GC_PHASE_TRANSITION_ARRIVAL_SPIN_US = 20;
+
+inline void MutatorArrivalSpinPause()
+{
+#if defined(__aarch64__) || defined(__arm__)
+    __asm__ __volatile__("yield");
+#elif defined(__x86_64__)
+    __asm__ __volatile__("pause");
+#endif
+}
+} // namespace
 
 extern "C" uintptr_t MRT_GetSafepointProtectedPage()
 {
@@ -261,8 +275,26 @@ void MutatorManager::VisitAllMutators(MutatorVisitor func)
 #endif
 }
 
-void MutatorManager::StopTheWorld(bool syncGCPhase, GCPhase phase)
+void MutatorManager::NotifyMutatorEnteredSaferegion()
 {
+    std::lock_guard<std::mutex> lock(mutatorArrivalMtx);
+    mutatorArrivalCV.notify_one();
+}
+
+void MutatorManager::NotifyPhaseTransitionProgress()
+{
+    // Pair with EnsurePhaseTransition's mutex-protected predicate recheck.
+    // The state/saferegion publication happens before taking this mutex, so a
+    // waiter either observes the new predicate or receives this notification.
+    std::lock_guard<std::mutex> lock(phaseTransitionArrivalMtx);
+    phaseTransitionArrivalCV.notify_one();
+}
+
+void MutatorManager::StopTheWorld(bool syncGCPhase, GCPhase phase, STWAcquireStats* stats)
+{
+    if (stats != nullptr) {
+        *stats = {};
+    }
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
     bool saferegionEntered = false;
     // Ensure an active mutator entered saferegion before STW (aka. stop all other mutators).
@@ -275,10 +307,18 @@ void MutatorManager::StopTheWorld(bool syncGCPhase, GCPhase phase)
 #endif
     // Block if another thread is holding the syncMutex.
     // Prevent multi-thread doing STW concurrently.
+    uint64_t stageStartUs = stats != nullptr ? TimeUtil::MicroSeconds() : 0;
     syncMutex.lock();
+    if (stats != nullptr) {
+        stats->syncMutexWaitUs = TimeUtil::MicroSeconds() - stageStartUs;
+    }
     syncTriggered.store(true);
 
+    stageStartUs = stats != nullptr ? TimeUtil::MicroSeconds() : 0;
     AcquireMutatorManagementWLock();
+    if (stats != nullptr) {
+        stats->mutatorLockWaitUs = TimeUtil::MicroSeconds() - stageStartUs;
+    }
 
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
     // If current mutator saferegion state changed,
@@ -286,20 +326,41 @@ void MutatorManager::StopTheWorld(bool syncGCPhase, GCPhase phase)
     saferegionStateChanged = saferegionEntered;
 #endif
 
+    stageStartUs = stats != nullptr ? TimeUtil::MicroSeconds() : 0;
     size_t mutatorCount = GetMutatorCount();
+    if (stats != nullptr) {
+        stats->mutatorCountUs = TimeUtil::MicroSeconds() - stageStartUs;
+        stats->mutatorCount = mutatorCount;
+    }
     if (UNLIKELY(mutatorCount == 0)) {
         worldStopped.store(true, std::memory_order_release);
-        if (syncGCPhase) { TransitionAllMutatorsToGCPhase(phase); }
+        if (syncGCPhase) {
+            stageStartUs = stats != nullptr ? TimeUtil::MicroSeconds() : 0;
+            TransitionAllMutatorsToGCPhase(phase);
+            if (stats != nullptr) {
+                stats->phaseTransitionUs = TimeUtil::MicroSeconds() - stageStartUs;
+            }
+        }
         return;
     }
     // set mutatorCount as countOfMutatorsToStop.
     SetSuspensionMutatorCount(static_cast<uint32_t>(mutatorCount));
+    stageStartUs = stats != nullptr ? TimeUtil::MicroSeconds() : 0;
     DemandSuspensionForSync();
-    WaitUntilAllMutatorStopped();
+    if (stats != nullptr) {
+        stats->suspensionBroadcastUs = TimeUtil::MicroSeconds() - stageStartUs;
+    }
+    WaitUntilAllMutatorStopped(stats);
 
     // the world is stopped.
     worldStopped.store(true, std::memory_order_release);
-    if (syncGCPhase) { TransitionAllMutatorsToGCPhase(phase); }
+    if (syncGCPhase) {
+        stageStartUs = stats != nullptr ? TimeUtil::MicroSeconds() : 0;
+        TransitionAllMutatorsToGCPhase(phase);
+        if (stats != nullptr) {
+            stats->phaseTransitionUs = TimeUtil::MicroSeconds() - stageStartUs;
+        }
+    }
 }
 
 void MutatorManager::StartTheWorld() noexcept
@@ -421,9 +482,9 @@ void MutatorManager::StopLightSync() noexcept
 #endif
 }
 
-void MutatorManager::WaitUntilAllMutatorStopped()
+void MutatorManager::WaitUntilAllMutatorStopped(STWAcquireStats* stats)
 {
-    uint64_t beginTime = TimeUtil::MilliSeconds();
+    uint64_t snapshotStartUs = stats != nullptr ? TimeUtil::MicroSeconds() : 0;
     std::list<Mutator*> unstoppedMutators;
     auto func = [&unstoppedMutators](Mutator& mutator) {
         if ((!mutator.InSaferegion())) {
@@ -433,36 +494,68 @@ void MutatorManager::WaitUntilAllMutatorStopped()
     VisitAllMutators(func);
 
     size_t remainMutatorsSize = unstoppedMutators.size();
+    if (stats != nullptr) {
+        stats->unstoppedSnapshotUs = TimeUtil::MicroSeconds() - snapshotStartUs;
+        stats->initialUnstoppedMutators = remainMutatorsSize;
+    }
     if (remainMutatorsSize == 0) {
         return;
     }
 
     // Synchronize operation to ensure that all mutators complete phase transition
     // Use unstoppedMutators to avoid traversing the entire mutatorList
-    int timeoutTimes = 0;
-    while (true) {
+    uint64_t waitStartUs = stats != nullptr ? TimeUtil::MicroSeconds() : 0;
+    auto removeStoppedMutators = [&unstoppedMutators]() {
         for (auto it = unstoppedMutators.begin(); it != unstoppedMutators.end();) {
             Mutator* mutator = *it;
             if (mutator->InSaferegion()) {
-                // current it(mutator) is finished by GC
                 it = unstoppedMutators.erase(it);
             } else {
-                ++it; // skip current round & check it next round
+                ++it;
             }
         }
+    };
+    auto finishWait = [stats, waitStartUs]() {
+        if (stats != nullptr) {
+            stats->safepointWaitUs = TimeUtil::MicroSeconds() - waitStartUs;
+        }
+    };
 
-        if (unstoppedMutators.size() == 0) {
+    // Most safepoint handshakes finish within a few microseconds.  Keep the GC
+    // runnable for a bounded interval, but use only processor hints here: an OS
+    // sched_yield can delay this latency-critical thread for a full timeslice.
+    uint64_t spinDeadlineNs = TimeUtil::NanoSeconds() + STW_MUTATOR_ARRIVAL_SPIN_US * 1000;
+    do {
+        removeStoppedMutators();
+        if (unstoppedMutators.empty()) {
+            finishWait();
+            return;
+        }
+        MutatorArrivalSpinPause();
+    } while (TimeUtil::NanoSeconds() < spinDeadlineNs);
+
+    const uint64_t timeoutMs =
+        ((remainMutatorsSize / STW_TIMEOUTS_THREADS_BASE_COUNT) * STW_TIMEOUTS_BASE_MS) + STW_TIMEOUTS_BASE_MS;
+    auto timeoutDeadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeoutMs);
+    int timeoutTimes = 0;
+    std::unique_lock<std::mutex> arrivalLock(mutatorArrivalMtx);
+    while (true) {
+        // Recheck while holding mutatorArrivalMtx. A mutator publishes its safe
+        // state before acquiring this mutex to notify, so it cannot race through
+        // the predicate-to-wait transition and lose the wakeup.
+        removeStoppedMutators();
+        if (unstoppedMutators.empty()) {
+            finishWait();
             return;
         }
 
-        if (UNLIKELY(TimeUtil::MilliSeconds() - beginTime >
-            (((remainMutatorsSize / STW_TIMEOUTS_THREADS_BASE_COUNT) * STW_TIMEOUTS_BASE_MS) + STW_TIMEOUTS_BASE_MS))) {
+        if (mutatorArrivalCV.wait_until(arrivalLock, timeoutDeadline) == std::cv_status::timeout) {
             timeoutTimes++;
-            beginTime = TimeUtil::MilliSeconds();
+            arrivalLock.unlock();
             DumpMutators(timeoutTimes);
+            arrivalLock.lock();
+            timeoutDeadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeoutMs);
         }
-
-        (void)sched_yield();
     }
 }
 
@@ -475,7 +568,7 @@ void MutatorManager::EnsurePhaseTransition(GCPhase phase, std::list<Mutator*> &u
     // 1. ignore mutators which have completed transition
     // 2. gc compete phase transition with mutators which are in saferegion
     // 3. fill mutators which are running state in undoneMutators
-    while (undoneMutators.size() > 0) {
+    auto processTransitions = [&]() {
         for (auto it = undoneMutators.begin(); it != undoneMutators.end();) {
             Mutator* mutator = *it;
             if (mutator->GetMutatorPhase() == phase && mutator->FinishedTransition()) {
@@ -501,6 +594,45 @@ void MutatorManager::EnsurePhaseTransition(GCPhase phase, std::list<Mutator*> &u
                 1, std::memory_order_relaxed);
         }
 #endif
+    };
+
+    // Preserve the low-latency path for Mutators that are already at a
+    // safepoint, but do not let the GC thread busy-scan a delayed Mutator for
+    // an unbounded time.
+    uint64_t spinDeadlineNs = TimeUtil::NanoSeconds() +
+        GC_PHASE_TRANSITION_ARRIVAL_SPIN_US * 1000;
+    do {
+        processTransitions();
+        if (undoneMutators.empty()) {
+            return;
+        }
+        MutatorArrivalSpinPause();
+    } while (TimeUtil::NanoSeconds() < spinDeadlineNs);
+
+    for (;;) {
+        processTransitions();
+        if (undoneMutators.empty()) {
+            return;
+        }
+
+        std::unique_lock<std::mutex> arrivalLock(phaseTransitionArrivalMtx);
+        bool transitionReady = false;
+        for (auto it = undoneMutators.begin(); it != undoneMutators.end();) {
+            Mutator* mutator = *it;
+            if (mutator->GetMutatorPhase() == phase && mutator->FinishedTransition()) {
+                it = undoneMutators.erase(it);
+                continue;
+            }
+            transitionReady = transitionReady || mutator->InSaferegion();
+            ++it;
+        }
+        if (undoneMutators.empty()) {
+            return;
+        }
+        if (transitionReady) {
+            continue;
+        }
+        phaseTransitionArrivalCV.wait(arrivalLock);
     }
 }
 

@@ -2405,10 +2405,16 @@ bool FreeManager::ReleaseUnits(UnitIndex idx, UnitCount num) const
     }
     return true;
 #elif defined(__APPLE__)
-    MemorySet(addr, size, 0, size);
+    // Replacing the range with a fresh anonymous mapping already guarantees
+    // zero-filled pages. Pre-zeroing writes every byte immediately before the
+    // old mapping is discarded, doubling release traffic without changing the
+    // observable contents of a reused Region.
     void* ret = mmap(reinterpret_cast<void*>(addr), size, PROT_READ | PROT_WRITE,
                      MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
     if (ret == MAP_FAILED || ret != reinterpret_cast<void*>(addr)) {
+        // Preserve the old failure-path behavior: metadata publication will be
+        // rolled back, but a Region returned to the hot pool is still cleared.
+        MemorySet(addr, size, 0, size);
         LOG(RTLOG_ERROR,
             "[MS-GC] FreeManager::ReleaseUnits mmap fixed failed: addr=%p size=%zu errno=%d",
             reinterpret_cast<void*>(addr), size, errno);

@@ -15,6 +15,13 @@ inline void Mutator::DoEnterSaferegion()
 {
     // set current mutator in saferegion.
     SetInSaferegion(SAFE_REGION_TRUE);
+    MutatorManager& manager = MutatorManager::Instance();
+    if (UNLIKELY(manager.SyncTriggered())) {
+        manager.NotifyMutatorEnteredSaferegion();
+    }
+    if (UNLIKELY(HasSuspensionRequest(SUSPENSION_FOR_GC_PHASE))) {
+        manager.NotifyPhaseTransitionProgress();
+    }
 }
 
 inline bool Mutator::EnterSaferegion(bool updateUnwindContext) noexcept
@@ -74,6 +81,7 @@ __attribute__((always_inline)) inline bool Mutator::TransitionGCPhase(bool bySel
         if (transitionState.compare_exchange_weak(state, IN_TRANSITION)) {
             TransitionToGCPhaseExclusive(Heap::GetHeap().GetGCPhase(), bySelf);
             transitionState.store(FINISH_TRANSITION, std::memory_order_release);
+            MutatorManager::Instance().NotifyPhaseTransitionProgress();
             return true;
         }
     } while (true);

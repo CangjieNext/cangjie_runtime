@@ -328,7 +328,6 @@ private:
     // ── DFX: Per-cycle stats ──
     MSGCCycleStats cycleStats_;
     MSHeapThresholdState heapThresholdState_;
-    MSScavengeThresholdState scavengeThresholdState_;
     size_t previousReusedScavengedRegionCount_ = 0;
     uint64_t gcCycle_ = 0;  // Monotonic GC cycle counter
 

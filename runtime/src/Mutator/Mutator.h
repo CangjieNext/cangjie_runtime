@@ -476,30 +476,7 @@ public:
         SetSafepointActive(false);
     }
 
-    void PreparedToPark(void* pc, void* fa)
-    {
-        SetSafepointStatePtr(nullptr);
-        if (UNLIKELY((uwContext.GetUnwindContextStatus() == UnwindContextStatus::RISKY) || InSaferegion())) {
-            return;
-        }
-#if defined(__linux__) || defined(hongmeng) || defined(__APPLE__)
-        if (LIKELY(uwContext.GetUnwindContextStatus() != UnwindContextStatus::RISKY)) {
-            uwContext.frameInfo.mFrame.SetIP(reinterpret_cast<const uint32_t*>(pc));
-            uwContext.frameInfo.mFrame.SetFA(reinterpret_cast<FrameAddress*>(fa));
-        }
-#elif defined(_WIN64)
-        if (LIKELY(uwContext.GetUnwindContextStatus() != UnwindContextStatus::RISKY)) {
-            Uptr rip = reinterpret_cast<Uptr>(pc);
-            Uptr rsp = reinterpret_cast<Uptr>(fa);
-            Runtime& runtime = Runtime::Current();
-            WinModuleManager& winModuleManager = runtime.GetWinModuleManager();
-            FrameInfo curFrame = GetCurFrameInfo(winModuleManager, rip, rsp);
-            UnwindContextStatus ucs = uwContext.GetUnwindContextStatus();
-            uwContext.frameInfo = GetCallerFrameInfo(winModuleManager, curFrame.mFrame, ucs);
-        }
-#endif // platform
-        SetInSaferegion(SaferegionState::SAFE_REGION_TRUE);
-    }
+    void PreparedToPark(void* pc, void* fa);
 
     // This interface is used for initiating the mutator who is created by foreign thread.
     // This interface must be called by the foreign thread after the tl data is initialized.

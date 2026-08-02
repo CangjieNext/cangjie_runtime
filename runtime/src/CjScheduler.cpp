@@ -518,8 +518,13 @@ static RuntimeParam InitRuntimeParam()
             // CopyGC keeps one GC main thread and one helper thread.
             .gcThreads = 2,
 #endif
+#ifdef MRT_USE_MARK_SWEEP
+            .scavengeGrowth = ReadDoubleParameter("cjScavengeGrowth", 1.10, 1.0, EnvBoundKind::CLOSED,
+                                                  std::numeric_limits<double>::max(), EnvBoundKind::CLOSED),
+#else
             .scavengeGrowth = ReadDoubleParameter("cjScavengeGrowth", heapGrowth, 0.0, EnvBoundKind::OPEN,
                                                   std::numeric_limits<double>::max(), EnvBoundKind::CLOSED),
+#endif
 #ifdef MRT_USE_MARK_SWEEP
             .msBackgroundSweepMaxTime = ReadTimeParameter("cjGCBGSweepMaxTime", 2 * MILLI_SECOND_TO_NANO_SECOND,
                                                           0, EnvBoundKind::OPEN, true),

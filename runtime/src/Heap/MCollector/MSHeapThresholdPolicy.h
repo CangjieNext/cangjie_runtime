@@ -15,9 +15,6 @@ namespace MapleRuntime {
 constexpr size_t kMSHeapThresholdHistoryLength = 8;
 constexpr size_t kMSHeapThresholdDeadbandDivisor = 10;
 constexpr size_t kMSHeapThresholdTransitionDivisor = 8;
-constexpr size_t kMSScavengeHistoryLength = 64;
-constexpr size_t kMSScavengeLowCyclesBeforeDecrease = 32;
-constexpr size_t kMSScavengeDecreaseDivisor = 64;
 
 struct MSHeapThresholdDecision {
     size_t rawTarget = 0;
@@ -50,26 +47,15 @@ struct MSHeapThresholdState {
     size_t nextHistoryIndex = 0;
 };
 
-struct MSScavengeThresholdState {
-    std::array<size_t, kMSScavengeHistoryLength> inUseHistory {};
-    std::array<size_t, kMSScavengeHistoryLength> burstHistory {};
-    size_t historySize = 0;
-    size_t nextHistoryIndex = 0;
-    size_t residentReserveBytes = 0;
-    size_t noColdReuseCycles = 0;
-};
-
 struct MSScavengeThresholdDecision {
-    size_t currentBurstBytes = 0;
-    size_t recentPeakInUseBytes = 0;
-    size_t recentBurstBytes = 0;
-    size_t coldReuseBytes = 0;
-    size_t residentReserveBytes = 0;
+    size_t heapInUseBytes = 0;
+    size_t oldHeapGoalBytes = 0;
+    size_t newHeapGoalBytes = 0;
+    size_t scaledHeapInUseBytes = 0;
+    size_t retainedHeadroomBytes = 0;
     size_t candidateBytes = 0;
+    size_t selectedTargetBytes = 0;
     size_t thresholdBytes = 0;
-    size_t noColdReuseCycles = 0;
-    bool decreased = false;
-    bool thresholdChangeLimited = false;
 };
 
 inline size_t SaturatingAddMSBytes(size_t lhs, size_t rhs)
@@ -226,80 +212,39 @@ inline MSHeapThresholdDecision EvaluateMSHeapThreshold(size_t oldThreshold, size
 }
 
 inline MSScavengeThresholdDecision EvaluateMSScavengeThreshold(
-    MSScavengeThresholdState& state,
-    size_t markStartInUseBytes,
-    size_t markEndInUseBytes,
-    size_t coldReuseBytes,
+    size_t heapInUseBytes,
+    size_t oldHeapGoalBytes,
+    size_t newHeapGoalBytes,
     size_t maxHeapBytes,
-    size_t oldThresholdBytes,
-    size_t segmentBytes)
+    double retainMultiplier)
 {
     MSScavengeThresholdDecision decision;
-    decision.currentBurstBytes = markEndInUseBytes > markStartInUseBytes
-        ? markEndInUseBytes - markStartInUseBytes
+    decision.heapInUseBytes = heapInUseBytes;
+    decision.oldHeapGoalBytes = oldHeapGoalBytes;
+    decision.newHeapGoalBytes = newHeapGoalBytes;
+
+    long double heapGoalRatio = 1.0L;
+    if (oldHeapGoalBytes != 0 && newHeapGoalBytes != 0) {
+        heapGoalRatio = static_cast<long double>(newHeapGoalBytes) /
+            static_cast<long double>(oldHeapGoalBytes);
+    }
+    decision.scaledHeapInUseBytes =
+        ScaleMSHeapThreshold(heapInUseBytes, heapGoalRatio);
+
+    long double boundedRetainMultiplier = std::max(
+        static_cast<long double>(retainMultiplier), 1.0L);
+    decision.candidateBytes = ScaleMSHeapThreshold(
+        decision.scaledHeapInUseBytes, boundedRetainMultiplier);
+    decision.retainedHeadroomBytes =
+        decision.candidateBytes >= decision.scaledHeapInUseBytes
+        ? decision.candidateBytes - decision.scaledHeapInUseBytes
         : 0;
-
-    state.inUseHistory[state.nextHistoryIndex] = markEndInUseBytes;
-    state.burstHistory[state.nextHistoryIndex] = decision.currentBurstBytes;
-    state.nextHistoryIndex = (state.nextHistoryIndex + 1) % kMSScavengeHistoryLength;
-    state.historySize = std::min(state.historySize + 1, kMSScavengeHistoryLength);
-
-    for (size_t i = 0; i < state.historySize; ++i) {
-        decision.recentPeakInUseBytes =
-            std::max(decision.recentPeakInUseBytes, state.inUseHistory[i]);
-        decision.recentBurstBytes = std::max(decision.recentBurstBytes, state.burstHistory[i]);
-    }
-
-    state.residentReserveBytes =
-        std::max(state.residentReserveBytes, decision.recentBurstBytes);
-    decision.coldReuseBytes = coldReuseBytes;
-    if (coldReuseBytes != 0) {
-        state.residentReserveBytes =
-            SaturatingAddMSBytes(state.residentReserveBytes, coldReuseBytes);
-        if (maxHeapBytes != 0) {
-            state.residentReserveBytes =
-                std::min(state.residentReserveBytes, maxHeapBytes);
-        }
-        state.noColdReuseCycles = 0;
-    } else {
-        state.noColdReuseCycles = std::min(
-            state.noColdReuseCycles + 1, kMSScavengeLowCyclesBeforeDecrease);
-        if (state.noColdReuseCycles >= kMSScavengeLowCyclesBeforeDecrease &&
-            state.residentReserveBytes > decision.recentBurstBytes) {
-            size_t gapBytes =
-                state.residentReserveBytes - decision.recentBurstBytes;
-            size_t decreaseBytes =
-                gapBytes / kMSScavengeDecreaseDivisor +
-                static_cast<size_t>(gapBytes % kMSScavengeDecreaseDivisor != 0);
-            state.residentReserveBytes -= decreaseBytes;
-            decision.decreased = true;
-        }
-    }
-
-    decision.residentReserveBytes = state.residentReserveBytes;
-    decision.noColdReuseCycles = state.noColdReuseCycles;
-    decision.candidateBytes =
-        SaturatingAddMSBytes(decision.recentPeakInUseBytes, decision.residentReserveBytes);
-    if (maxHeapBytes != 0) {
-        decision.candidateBytes = std::min(decision.candidateBytes, maxHeapBytes);
-    }
-    decision.thresholdBytes = decision.candidateBytes;
-    if (oldThresholdBytes != 0 && segmentBytes != 0) {
-        if (decision.candidateBytes > oldThresholdBytes) {
-            size_t riseLimit = SaturatingAddMSBytes(oldThresholdBytes, segmentBytes);
-            if (decision.candidateBytes > riseLimit) {
-                decision.thresholdBytes = riseLimit;
-                decision.thresholdChangeLimited = true;
-            }
-        } else if (decision.candidateBytes < oldThresholdBytes) {
-            size_t decreaseLimit =
-                oldThresholdBytes > segmentBytes ? oldThresholdBytes - segmentBytes : 0;
-            if (decision.candidateBytes < decreaseLimit) {
-                decision.thresholdBytes = decreaseLimit;
-                decision.thresholdChangeLimited = true;
-            }
-        }
-    }
+    // Keep enough hot free memory for mutators to reach the next scheduled GC.
+    // A lower target releases pages that the allocator must fault back in before
+    // newHeapGoalBytes, producing release/reuse oscillation under steady load.
+    decision.selectedTargetBytes = std::max(
+        decision.candidateBytes, newHeapGoalBytes);
+    decision.thresholdBytes = decision.selectedTargetBytes;
     if (maxHeapBytes != 0) {
         decision.thresholdBytes = std::min(decision.thresholdBytes, maxHeapBytes);
     }

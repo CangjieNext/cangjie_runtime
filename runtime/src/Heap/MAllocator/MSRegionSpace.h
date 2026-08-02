@@ -68,14 +68,14 @@ public:
     CentralRegionPool* GetCentralPool() const { return msCentralPool_; }
     MSRegionManager* GetMSRegionManager() const { return msRegionManager_; }
     // Scavenge-related queries (used by BackgroundScavengeLoop).
-    // heapInUse = committed - FreeManager free - emptySwept - largeHotCache.
+    // heapInUse = committed - FreeManager free - emptySwept.
     // This includes TLS-owned small Regions and is intentionally a slow-path snapshot.
-    // heapRetained = active + emptySwept + largeHotCache + hotFree
+    // heapRetained = active + emptySwept + hotFree.
     size_t GetHeapInUseBytes() const;
     // Swept-retained heap bytes = GetSweptMSRegionCount() * MS_REGION_SIZE.
     size_t GetSweptHeapBytes() const;
     size_t GetSweptHeapBytesReference() const;
-    // Central-pool cache bytes = emptySwept + largeHotCache.
+    // Central-pool cache bytes = emptySwept.
     size_t GetCentralCacheBytes() const;
     size_t GetHeapRetainedBytes() const;
     size_t GetHeapRetainedBytesReference() const;
@@ -85,17 +85,13 @@ public:
     size_t GetHotFreeBytesReference() const;
     bool HasEmptySweptRegions() const;
     // On-demand flush of the empty-swept cache → FreeManager hot-free supply.
-    // All flush policy for both caches is centralized here; the actual release
-    // is delegated to msCentralPool_->Reclaim* primitives.
+    // Flush policy is centralized here; the actual transfer is delegated to
+    // msCentralPool_->ReclaimEmptyRegion().
     size_t FlushAllEmptySweptToHotFree();
     // Flush up to maxRegions empty-swept regions into FreeManager hot-free supply.
     size_t FlushEmptySweptToHotFree(size_t maxRegions);
-    // On-demand flush of the large-hot-cache → FreeManager (releasedTree).
-    size_t FlushAllLargeHotCache();
-    // Flush up to maxBytes (largest entries first) of the large hot cache.
-    size_t FlushLargeHotCacheUpToBytes(size_t maxBytes);
-    // Batch-flush central-pool caches into hot-free / releasedTree until the
-    // remaining cache footprint is <= thresholdBytes. Large cache is drained first.
+    // Batch-flush the empty-swept cache into hot-free until the remaining cache
+    // footprint is <= thresholdBytes.
     size_t FlushCentralCacheToThreshold(size_t thresholdBytes);
     // Step B: release up to quantumBytes of hot-free regions to OS. Returns bytes released.
     size_t BackgroundScavenge(size_t quantumBytes);

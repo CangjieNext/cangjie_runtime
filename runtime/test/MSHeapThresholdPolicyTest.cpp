@@ -210,144 +210,86 @@ void TestThresholdFloorUsesOnlyAbsoluteFloor()
         "the absolute floor must remain capped by the maximum heap");
 }
 
-void TestScavengeThresholdKeepsRecentBurstAsResidentReserve()
+void TestScavengeThresholdTracksStableHeapInUse()
 {
-    constexpr size_t gib = 1024ULL * 1024ULL * 1024ULL;
-    constexpr size_t segment = 64ULL * 1024ULL * 1024ULL;
-    MapleRuntime::MSScavengeThresholdState state;
     MapleRuntime::MSScavengeThresholdDecision decision =
-        MapleRuntime::EvaluateMSScavengeThreshold(
-            state, 2 * gib, 14 * gib, 0, 16 * gib, 0, segment);
+        MapleRuntime::EvaluateMSScavengeThreshold(1000, 2000, 2000, 10000, 1.10);
 
-    ExpectEqual(decision.recentPeakInUseBytes, 14 * gib,
-                "recent peak must include the current mark-end in-use sample");
-    ExpectEqual(decision.recentBurstBytes, 12 * gib,
-                "recent burst must use positive in-use growth during mark");
-    ExpectEqual(decision.residentReserveBytes, 12 * gib,
-                "recent burst must establish the resident reserve floor");
-    ExpectEqual(decision.candidateBytes, 16 * gib,
-                "recent peak plus resident reserve must saturate at the maximum heap");
-    ExpectEqual(decision.thresholdBytes, 16 * gib,
-                "a higher scavenge threshold must take effect immediately");
+    ExpectEqual(decision.scaledHeapInUseBytes, 1000,
+                "a stable heap goal must preserve the post-GC in-use baseline");
+    ExpectEqual(decision.retainedHeadroomBytes, 100,
+                "the default Go-style multiplier must retain ten percent headroom");
+    ExpectEqual(decision.candidateBytes, 1100,
+                "the Go-style candidate must be post-GC in-use plus bounded headroom");
+    ExpectEqual(decision.thresholdBytes, 2000,
+                "the retained target must preserve runway to the next GC goal");
 }
 
-void TestColdReuseRaisesResidentReserveImmediately()
+void TestScavengeThresholdRetainsRunwayToNextGC()
 {
-    constexpr size_t segment = 100;
-    MapleRuntime::MSScavengeThresholdState state;
-    MapleRuntime::MSScavengeThresholdDecision initial =
-        MapleRuntime::EvaluateMSScavengeThreshold(state, 200, 200, 0, 1000, 0, segment);
-    ExpectEqual(initial.residentReserveBytes, 0,
-                "a stable first sample must not invent resident reserve");
+    MapleRuntime::MSScavengeThresholdDecision decision =
+        MapleRuntime::EvaluateMSScavengeThreshold(1000, 2000, 2000, 10000, 1.10);
 
-    MapleRuntime::MSScavengeThresholdDecision reused =
-        MapleRuntime::EvaluateMSScavengeThreshold(state, 200, 200, 75, 1000, 200, segment);
-    ExpectEqual(reused.coldReuseBytes, 75,
-                "decision must expose this GC cycle's cold reuse");
-    ExpectEqual(reused.residentReserveBytes, 75,
-                "cold reuse must immediately add equivalent resident reserve");
-    ExpectEqual(reused.thresholdBytes, 275,
-                "threshold must be recent peak plus resident reserve");
+    ExpectEqual(decision.thresholdBytes, 2000,
+                "the retained target must not fall below the next GC heap goal");
 }
 
-void TestResidentReserveDecaysOnlyAfterThirtyTwoQuietCycles()
+void TestScavengeThresholdTracksHeapGoalRatio()
 {
-    constexpr size_t segment = 100;
-    MapleRuntime::MSScavengeThresholdState state;
-    (void)MapleRuntime::EvaluateMSScavengeThreshold(state, 200, 200, 64, 1000, 0, segment);
+    MapleRuntime::MSScavengeThresholdDecision growing =
+        MapleRuntime::EvaluateMSScavengeThreshold(1000, 2000, 4000, 10000, 1.10);
+    ExpectEqual(growing.scaledHeapInUseBytes, 2000,
+                "a doubled heap goal must double the page-level in-use estimate");
+    ExpectEqual(growing.candidateBytes, 2200,
+                "headroom must be applied after the heap-goal ratio");
+    ExpectEqual(growing.thresholdBytes, 4000,
+                "a growing heap must retain runway to its next GC goal");
 
-    for (size_t i = 1; i < 32; ++i) {
-        MapleRuntime::MSScavengeThresholdDecision quiet =
-            MapleRuntime::EvaluateMSScavengeThreshold(state, 200, 200, 0, 1000, 264, segment);
-        ExpectEqual(quiet.residentReserveBytes, 64,
-                    "resident reserve must remain stable before thirty-two quiet cycles");
-        ExpectFalse(quiet.decreased, "early quiet cycles must not decrease reserve");
-    }
-
-    MapleRuntime::MSScavengeThresholdDecision decay =
-        MapleRuntime::EvaluateMSScavengeThreshold(state, 200, 200, 0, 1000, 264, segment);
-    ExpectEqual(decay.residentReserveBytes, 63,
-                "reserve must decay by ceil((reserve-floor)/64)");
-    ExpectTrue(decay.decreased, "the thirty-second quiet cycle must report reserve decay");
+    MapleRuntime::MSScavengeThresholdDecision shrinking =
+        MapleRuntime::EvaluateMSScavengeThreshold(1000, 4000, 2000, 10000, 1.10);
+    ExpectEqual(shrinking.scaledHeapInUseBytes, 500,
+                "a halved heap goal must halve the page-level in-use estimate");
+    ExpectEqual(shrinking.candidateBytes, 550,
+                "a shrinking goal must take effect without a per-cycle segment limiter");
+    ExpectEqual(shrinking.thresholdBytes, 2000,
+                "a shrinking heap must retain runway to its smaller next GC goal");
 }
 
-void TestScavengePeakRemainsInSixtyFourCycleHistory()
+void TestScavengeThresholdBootstrapsWithUnitGoalRatio()
 {
-    constexpr size_t segment = 100;
-    MapleRuntime::MSScavengeThresholdState state;
-    (void)MapleRuntime::EvaluateMSScavengeThreshold(state, 900, 900, 0, 10000, 0, segment);
+    MapleRuntime::MSScavengeThresholdDecision decision =
+        MapleRuntime::EvaluateMSScavengeThreshold(1000, 0, 4000, 10000, 1.10);
+    ExpectEqual(decision.scaledHeapInUseBytes, 1000,
+                "the first GC must use a unit heap-goal ratio");
+    ExpectEqual(decision.thresholdBytes, 4000,
+                "bootstrap must retain runway to the first published heap goal");
+}
 
-    for (size_t i = 1; i < 64; ++i) {
+void TestScavengeThresholdClampsMultiplierAndHeapCap()
+{
+    MapleRuntime::MSScavengeThresholdDecision noShrinkHeadroom =
+        MapleRuntime::EvaluateMSScavengeThreshold(1000, 2000, 2000, 10000, 0.50);
+    ExpectEqual(noShrinkHeadroom.candidateBytes, 1000,
+                "a multiplier below one must not target less than the scaled in-use estimate");
+    ExpectEqual(noShrinkHeadroom.thresholdBytes, 2000,
+                "the next GC goal must remain the retained-target floor");
+
+    MapleRuntime::MSScavengeThresholdDecision capped =
+        MapleRuntime::EvaluateMSScavengeThreshold(900, 1000, 2000, 1000, 1.10);
+    ExpectEqual(capped.candidateBytes, 1980,
+                "the uncapped candidate must remain visible for diagnostics");
+    ExpectEqual(capped.thresholdBytes, 1000,
+                "the retained target must respect the maximum heap cap");
+}
+
+void TestScavengeThresholdIsStatelessAcrossReuseCycles()
+{
+    for (size_t cycle = 0; cycle < 128; ++cycle) {
         MapleRuntime::MSScavengeThresholdDecision decision =
-            MapleRuntime::EvaluateMSScavengeThreshold(state, 600, 600, 0, 10000, 900, segment);
-        ExpectEqual(decision.recentPeakInUseBytes, 900,
-                    "the high in-use sample must remain protected for sixty-four cycles");
+            MapleRuntime::EvaluateMSScavengeThreshold(1000, 2000, 2000, 10000, 1.10);
+        ExpectEqual(decision.thresholdBytes, 2000,
+                    "repeated page reuse must not accumulate permanent resident reserve");
     }
-
-    MapleRuntime::MSScavengeThresholdDecision expired =
-        MapleRuntime::EvaluateMSScavengeThreshold(state, 600, 600, 0, 10000, 900, segment);
-    ExpectEqual(expired.recentPeakInUseBytes, 600,
-                "the high sample must expire after sixty-four newer samples");
-}
-
-void TestScavengeThresholdRiseIsLimitedToOneSegment()
-{
-    constexpr size_t mib = 1024ULL * 1024ULL;
-    MapleRuntime::MSScavengeThresholdState state;
-    MapleRuntime::MSScavengeThresholdDecision decision =
-        MapleRuntime::EvaluateMSScavengeThreshold(
-            state, 256 * mib, 512 * mib, 0, 2ULL * 1024 * mib, 256 * mib, 64 * mib);
-
-    ExpectEqual(decision.candidateBytes, 768 * mib,
-                "candidate must retain the recent peak and burst reserve");
-    ExpectEqual(decision.thresholdBytes, 320 * mib,
-                "a large rise must advance by only one segment");
-    ExpectTrue(decision.thresholdChangeLimited,
-               "a segment-limited rise must be reported");
-}
-
-void TestScavengeThresholdDecreaseIsLimitedToOneSegment()
-{
-    constexpr size_t mib = 1024ULL * 1024ULL;
-    MapleRuntime::MSScavengeThresholdState state;
-    MapleRuntime::MSScavengeThresholdDecision decision =
-        MapleRuntime::EvaluateMSScavengeThreshold(
-            state, 128 * mib, 128 * mib, 0, 2ULL * 1024 * mib, 512 * mib, 64 * mib);
-
-    ExpectEqual(decision.candidateBytes, 128 * mib,
-                "quiet candidate must reflect current history");
-    ExpectEqual(decision.thresholdBytes, 448 * mib,
-                "a large decrease must retreat by only one segment");
-    ExpectTrue(decision.thresholdChangeLimited,
-               "a segment-limited decrease must be reported");
-}
-
-void TestScavengeThresholdReachesCandidateWithinOneSegment()
-{
-    constexpr size_t mib = 1024ULL * 1024ULL;
-    MapleRuntime::MSScavengeThresholdState state;
-    MapleRuntime::MSScavengeThresholdDecision decision =
-        MapleRuntime::EvaluateMSScavengeThreshold(
-            state, 280 * mib, 280 * mib, 0, 2ULL * 1024 * mib, 256 * mib, 64 * mib);
-
-    ExpectEqual(decision.thresholdBytes, 280 * mib,
-                "a candidate within one segment must take effect");
-    ExpectFalse(decision.thresholdChangeLimited,
-                "an in-range candidate must not report rate limiting");
-}
-
-void TestScavengeThresholdBootstrapsWithoutSegmentLimit()
-{
-    constexpr size_t mib = 1024ULL * 1024ULL;
-    MapleRuntime::MSScavengeThresholdState state;
-    MapleRuntime::MSScavengeThresholdDecision decision =
-        MapleRuntime::EvaluateMSScavengeThreshold(
-            state, 512 * mib, 512 * mib, 0, 2ULL * 1024 * mib, 0, 64 * mib);
-
-    ExpectEqual(decision.thresholdBytes, 512 * mib,
-                "zero sentinel must bootstrap directly to the first candidate");
-    ExpectFalse(decision.thresholdChangeLimited,
-                "initialization must not report rate limiting");
 }
 
 } // namespace
@@ -365,13 +307,11 @@ int main()
     TestThresholdBootstrapBypassesSmoothing();
     TestThresholdFloorAndCapRemainHardBounds();
     TestThresholdFloorUsesOnlyAbsoluteFloor();
-    TestScavengeThresholdKeepsRecentBurstAsResidentReserve();
-    TestColdReuseRaisesResidentReserveImmediately();
-    TestResidentReserveDecaysOnlyAfterThirtyTwoQuietCycles();
-    TestScavengePeakRemainsInSixtyFourCycleHistory();
-    TestScavengeThresholdRiseIsLimitedToOneSegment();
-    TestScavengeThresholdDecreaseIsLimitedToOneSegment();
-    TestScavengeThresholdReachesCandidateWithinOneSegment();
-    TestScavengeThresholdBootstrapsWithoutSegmentLimit();
+    TestScavengeThresholdTracksStableHeapInUse();
+    TestScavengeThresholdRetainsRunwayToNextGC();
+    TestScavengeThresholdTracksHeapGoalRatio();
+    TestScavengeThresholdBootstrapsWithUnitGoalRatio();
+    TestScavengeThresholdClampsMultiplierAndHeapCap();
+    TestScavengeThresholdIsStatelessAcrossReuseCycles();
     return 0;
 }

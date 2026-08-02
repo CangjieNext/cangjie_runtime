@@ -46,9 +46,15 @@ std::atomic<bool> gFixedMmapEntered { false };
 std::atomic<bool> gAllowFixedMmap { false };
 std::mutex* gObservedShardMutex = nullptr;
 bool gShardLockWasAvailableDuringRelease = false;
+std::atomic<size_t> gMemorySetCalls { 0 };
 
 void* TestMmap(void* addr, size_t length, int prot, int flags, int fd, off_t offset)
 {
+    if ((flags & MAP_FIXED) != 0 && gObservedShardMutex != nullptr &&
+        gObservedShardMutex->try_lock()) {
+        gShardLockWasAvailableDuringRelease = true;
+        gObservedShardMutex->unlock();
+    }
     if (gForceReleaseFailure && (flags & MAP_FIXED) != 0) {
         errno = ENOMEM;
         return MAP_FAILED;
@@ -66,10 +72,7 @@ void* TestMmap(void* addr, size_t length, int prot, int flags, int fd, off_t off
 namespace MapleRuntime {
 void MemorySet(uintptr_t dest, size_t, int c, size_t count)
 {
-    if (gObservedShardMutex != nullptr && gObservedShardMutex->try_lock()) {
-        gShardLockWasAvailableDuringRelease = true;
-        gObservedShardMutex->unlock();
-    }
+    gMemorySetCalls.fetch_add(1, std::memory_order_relaxed);
     std::memset(reinterpret_cast<void*>(dest), c, count);
 }
 }
@@ -341,7 +344,7 @@ void TestHotWordSummaryFixedSeedStateMachine()
                     manager.MarkScavengingLocked(shard, regionIdx, 1);
                     manager.CompleteScavengingLocked(shard, regionIdx, 1, (next() & 1ULL) != 0);
                 }
-            } else if (!allocated && scavenged) {
+            } else if (!allocated) {
                 bool reusedScavenged = false;
                 manager.MarkAllocatedLocked(shard, regionIdx, 1, reusedScavenged);
             } else {
@@ -584,6 +587,38 @@ void TestScavengeReleasesOutsideShardLock()
     FreeHeap(heap, kHeapBytes);
 }
 
+void TestAppleReleaseRemapsZeroPagesWithoutPreZero()
+{
+    constexpr size_t kPageSize = 16 * 1024;
+    constexpr size_t kRegionSize = 256 * 1024;
+    constexpr uint32_t kUnitsPerRegion = kRegionSize / kPageSize;
+    constexpr uint32_t kRegionCount = 1;
+
+    void* heap = AllocateHeap(kRegionSize);
+    std::memset(heap, 0xa5, kRegionSize);
+    FreeManager manager;
+    manager.Initialize(kPageSize, kUnitsPerRegion, kRegionCount, kRegionCount,
+                       reinterpret_cast<uintptr_t>(heap),
+                       reinterpret_cast<uintptr_t>(heap) + kRegionSize,
+                       reinterpret_cast<uintptr_t>(heap) + kRegionSize,
+                       kRegionSize, 1);
+
+    gMemorySetCalls.store(0, std::memory_order_relaxed);
+    ExpectEq(manager.ScavengeFreeRegionsUpTo(kRegionSize), kRegionSize,
+             "fresh anonymous mapping should release one Region");
+    ExpectEq(gMemorySetCalls.load(std::memory_order_relaxed), 0,
+             "MAP_FIXED anonymous remap must not pre-zero pages in user space");
+
+    const auto* bytes = static_cast<const unsigned char*>(heap);
+    for (size_t i = 0; i < kRegionSize; ++i) {
+        if (bytes[i] != 0) {
+            std::fprintf(stderr, "released anonymous page must read back as zero: offset=%zu\n", i);
+            std::abort();
+        }
+    }
+    FreeHeap(heap, kRegionSize);
+}
+
 void TestScavengeFailureRollsBackToHotFree()
 {
     constexpr size_t kPageSize = 16 * 1024;
@@ -767,6 +802,7 @@ int main()
     TestColdReuseCounterTracksClearedScavengedBitsOnce();
     TestScavengeSkipsBusyShardWithTryLock();
     TestScavengeReleasesOutsideShardLock();
+    TestAppleReleaseRemapsZeroPagesWithoutPreZero();
     TestScavengeFailureRollsBackToHotFree();
     TestWholeSegmentReleaseUsesTwoPhasePublication();
     TestShrinkKeepsTopologyWhenReleaseFails();
