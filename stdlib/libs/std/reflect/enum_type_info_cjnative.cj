@@ -15,7 +15,7 @@ import std.collection.*
  * This class exposes constructors, construction, and deconstruction helpers for enums.
  */
 @When[env != "ohos"]
-public class EnumTypeInfo <: TypeInfo {
+public open class EnumTypeInfo <: TypeInfo {
     var _constructors: Option<Collection<EnumConstructorInfo>> = None
     var _constructorsByTypeInfo: Option<HashMap<UIntNative, EnumConstructorInfo>> = None
 

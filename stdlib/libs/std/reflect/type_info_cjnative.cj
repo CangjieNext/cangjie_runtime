@@ -366,7 +366,11 @@ sealed abstract class TypeInfo <: Equatable<TypeInfo> & Hashable & ToString {
         } else if (isFunction(typeInfoPointer)) {
             FunctionTypeInfo(typeInfoPointer)
         } else if (isEnum(typeInfoPointer)) {
-            EnumTypeInfo(typeInfoPointer)
+            if (isOptionQualifiedName(qualifiedName)) {
+                OptionTypeInfo(typeInfoPointer)
+            } else {
+                EnumTypeInfo(typeInfoPointer)
+            }
         } else if (isClass(typeInfoPointer)) {
             ClassTypeInfo(typeInfoPointer)
         } else if (isStruct(typeInfoPointer)) {
@@ -376,6 +380,12 @@ sealed abstract class TypeInfo <: Equatable<TypeInfo> & Hashable & ToString {
         } else {
             throw ReflectException("Type \"${qualifiedName}\" is not supported.")
         }
+    }
+
+    private static func isOptionQualifiedName(qualifiedName: String): Bool {
+        let name = qualifiedName.replace(" ", "")
+        name == "Option" || name.startsWith("Option<") ||
+            name == "std.core.Option" || name.startsWith("std.core.Option<")
     }
 
     @When[env == "ohos"]
