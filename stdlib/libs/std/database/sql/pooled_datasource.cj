@@ -166,7 +166,7 @@ public class PooledDatasource <: Datasource {
             case None => if (isclosed.load()) {
                 throw SqlException("Connection pool is closed.")
             } else {
-                throw SqlException("Can not acquire connection.")
+                throw SqlException("Cannot acquire connection.")
             }
         }
     }

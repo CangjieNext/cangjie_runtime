@@ -59,7 +59,7 @@ enum SocketMode <: Equal<SocketMode> {
 extend Duration {
     func throwIfNegative(what: String): Duration {
         if (this < Duration.Zero) {
-            throw IllegalArgumentException("${what} duration cannot be negative.")
+            throw IllegalArgumentException("Invalid argument '${what}': duration cannot be negative.")
         }
         if (this > MAX_TIMEOUT_DURATION) {
             return MAX_TIMEOUT_DURATION

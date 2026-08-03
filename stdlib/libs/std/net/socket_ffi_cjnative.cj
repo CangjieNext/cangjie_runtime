@@ -71,7 +71,7 @@ func getAddress(handle: Int64, getAddressFunc: (Int64, CPointer<SockAddr>) -> In
     if (res < 0) {
         let errno: Int32 = unsafe { CJ_SockErrnoGet() }
         unsafe { addr.free() }
-        throw SocketException("Failed to obtain the ${msg} address: ${sockError(errno)}.")
+        throw SocketException("Failed to obtain the '${msg}' address: '${sockError(errno)}'.")
     }
     return addr
 }
@@ -171,13 +171,13 @@ func socketProcessErrno(label: ErrnoLabel): Nothing {
 
     // There is no EWOULDBLOCK/ ETIMEDOUT / EAGAIN in runtime, the socket is in NONBLOCK mode.
     if (errno == ERRNO_SOCK_TIMEOUT) {
-        throw SocketTimeoutException("Failed to ${label}: ${label} timeout.")
+        throw SocketTimeoutException("Failed to '${label}': ${label} timeout.")
     }
 
     if (errno == ERRNO_SOCK_CLOSED) {
         SocketException.throwClosedException()
     }
-    throw SocketException("Failed to ${label} ${errno}: ${sockError(errno)}.")
+    throw SocketException("Failed to '${label}': ${errno}: '${sockError(errno)}'.")
 }
 
 func sockError(errno: Int32): String {
