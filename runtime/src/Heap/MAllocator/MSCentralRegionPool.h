@@ -493,6 +493,8 @@ public:
     size_t GetTotalUnsweptCountReference() const;
     size_t GetTotalUnsweptBytes() const;
     size_t GetLargeRegionCount() const;
+    size_t GetSmallSweptRegionCount() const;
+    size_t GetLargeNextSupplySpanCount() const;
     size_t CountTLActiveRegions() const;
     size_t GetAllocBufferCount() const;
     size_t GetAllAllocBufferActiveRegionCount() const;

@@ -1023,6 +1023,29 @@ size_t CentralRegionPool::GetLargeRegionCount() const
     return largeCollectSet_.size() + largeNextSupply_.size();
 }
 
+size_t CentralRegionPool::GetSmallSweptRegionCount() const
+{
+    return centralSmallSweptRegions_.load(std::memory_order_acquire);
+}
+
+size_t CentralRegionPool::GetLargeNextSupplySpanCount() const
+{
+    size_t spanCount = 0;
+    std::lock_guard<std::mutex> lg(const_cast<std::mutex&>(largeLock_));
+    for (uint32_t idx : largeNextSupply_) {
+        MSRegionInfo* region = MSRegionInfoArray::GetRegionInfoByIdx(idx);
+        CHECK_DETAIL(
+            region != nullptr && region->GetRegionKind() == MSRegionKind::LARGE,
+            "[MS-GC] GetLargeNextSupplySpanCount: invalid LARGE primary idx=%u",
+            idx);
+        size_t regionSpanCount = region->LargeSpanCount();
+        spanCount = regionSpanCount > std::numeric_limits<size_t>::max() - spanCount
+            ? std::numeric_limits<size_t>::max()
+            : spanCount + regionSpanCount;
+    }
+    return spanCount;
+}
+
 void CentralRegionPool::ForceFinishUnsweptList(
     SizeClassBucket& bucket, size_t& sweptRegions, size_t& emptiedRegions,
     size_t& retainedRegions, size_t& freedBytes)

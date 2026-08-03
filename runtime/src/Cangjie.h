@@ -284,15 +284,15 @@ struct GCParam {
     int32_t gcThreads;
 
     /*
-     * Retained-heap multiplier applied to post-GC heap-in-use. MSGC defaults
-     * to 1.10 and requires a value >= 1.0. CopyGC keeps its existing
+     * Retained-heap multiplier applied to the MSGC Scavenge base. MSGC defaults
+     * to 1.20 and requires a value >= 1.0. CopyGC keeps its existing
      * configuration semantics.
      */
     double scavengeGrowth;
 
     /*
-     * Independent multiplier applied to the next MSGC heap goal when deriving
-     * the physical retained target. Defaults to 2.0 and must be >= 1.0.
+     * Legacy configuration slot retained for RuntimeParam ABI compatibility.
+     * MSGC derives its physical retained target directly from scavengeGrowth.
      */
     double scavengeHeapGoalMultiplier;
 

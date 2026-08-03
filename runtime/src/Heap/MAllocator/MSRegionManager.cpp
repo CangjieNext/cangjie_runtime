@@ -327,11 +327,10 @@ void MSRegionManager::MaybeNotifyMark()
     // trigger tracks the post-sweep live heap.
     size_t sweptBytes = space.GetSweptHeapBytes();
     size_t threshold = gcStats.GetThreshold();
-    size_t runwayBytes = gcStats.GetMarkRunway();
 
     // The first aggregate threshold crossing is sufficient. Pending/running
     // HEU requests are coalesced by the async GC task state.
-    if (!ShouldTriggerMSMark(sweptBytes, runwayBytes, threshold)) {
+    if (!ShouldTriggerMSMark(sweptBytes, threshold)) {
         return;
     }
 
@@ -353,10 +352,9 @@ void MSRegionManager::MaybeNotifyMark()
 
     collector.RequestGC(GC_REASON_HEU, true);
     VLOG(REPORT,
-         "[MS-GC] HEU trigger (take-regions): swept-region bytes=%zuB heapRunway=%zuB heapThreshold=%zuB"
+         "[MS-GC] HEU trigger (take-regions): swept-region bytes=%zuB heapThreshold=%zuB"
          " reason=GC_REASON_HEU",
          sweptBytes,
-         runwayBytes,
          threshold);
 }
 

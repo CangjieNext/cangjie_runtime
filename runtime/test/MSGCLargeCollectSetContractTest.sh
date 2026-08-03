@@ -8,6 +8,7 @@ COLLECTOR="$ROOT_DIR/src/Heap/MCollector/MarkSweepCollector.cpp"
 
 rg -q 'std::vector<uint32_t> largeNextSupply_' "$HEADER"
 rg -q 'std::vector<uint32_t> largeCollectSet_' "$HEADER"
+rg -q 'size_t GetLargeNextSupplySpanCount\(\) const;' "$HEADER"
 if rg -q 'largeRegionList_' "$HEADER" "$SOURCE"; then
     echo 'single mutable LARGE membership list remains' >&2
     exit 1
@@ -43,10 +44,12 @@ fi
 
 postmark="$(sed -n '/void MarkSweepCollector::PostMarkTermination/,/^}/p' "$COLLECTOR")"
 stats_line="$(printf '%s\n' "$postmark" | rg -n 'centralPool->ComputeMarkedStats' | head -1 | cut -d: -f1)"
-large_line="$(printf '%s\n' "$postmark" | rg -n 'CollectLargeGarbage' | cut -d: -f1)"
+outside_large_line="$(printf '%s\n' "$postmark" | rg -n 'centralPool->GetLargeNextSupplySpanCount' | head -1 | cut -d: -f1)"
+large_line="$(printf '%s\n' "$postmark" | rg -n '^ *CollectLargeGarbage\(\);' | head -1 | cut -d: -f1)"
 publish_line="$(printf '%s\n' "$postmark" | rg -n 'PublishCollectSetForSweep' | cut -d: -f1)"
 threshold_line="$(printf '%s\n' "$postmark" | rg -n '^ *UpdateGCStats\(\);' | head -1 | cut -d: -f1)"
-if [[ "$stats_line" -ge "$large_line" || "$large_line" -ge "$threshold_line" ||
+if [[ "$stats_line" -ge "$outside_large_line" || "$outside_large_line" -ge "$large_line" ||
+      "$large_line" -ge "$threshold_line" ||
       "$threshold_line" -ge "$publish_line" ]]; then
     echo 'PostMark must update the threshold after stats and before Sweep publication' >&2
     exit 1

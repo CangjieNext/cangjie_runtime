@@ -519,11 +519,9 @@ static RuntimeParam InitRuntimeParam()
             .gcThreads = 2,
 #endif
 #ifdef MRT_USE_MARK_SWEEP
-            .scavengeGrowth = ReadDoubleParameter("cjScavengeGrowth", 1.10, 1.0, EnvBoundKind::CLOSED,
+            .scavengeGrowth = ReadDoubleParameter("cjScavengeGrowth", 1.20, 1.0, EnvBoundKind::CLOSED,
                                                   std::numeric_limits<double>::max(), EnvBoundKind::CLOSED),
-            .scavengeHeapGoalMultiplier = ReadDoubleParameter(
-                "cjScavengeHeapGoalMultiplier", 2.0, 1.0, EnvBoundKind::CLOSED,
-                std::numeric_limits<double>::max(), EnvBoundKind::CLOSED),
+            .scavengeHeapGoalMultiplier = 1.0,
 #else
             .scavengeGrowth = ReadDoubleParameter("cjScavengeGrowth", heapGrowth, 0.0, EnvBoundKind::OPEN,
                                                   std::numeric_limits<double>::max(), EnvBoundKind::CLOSED),

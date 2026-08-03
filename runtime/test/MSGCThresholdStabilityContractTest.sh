@@ -17,8 +17,16 @@ require_pattern() {
 
 collector_text="$(tr '\n' ' ' < "$COLLECTOR_SOURCE")"
 
-require_pattern "$COLLECTOR_SOURCE" 'size_t baseBytes = liveBytes;' \
-    "the next MSGC heap goal must use the latest completed trueLive sample"
+require_pattern "$COLLECTOR_SOURCE" 'size_t baseBytes = cycleStats_\.thresholdBaseBytes;' \
+    "the next MSGC heap goal must use the completed outside-set-aware base"
+require_pattern "$COLLECTOR_SOURCE" 'cycleStats_\.tlsReservationBytes = thresholdBase\.tlsReservationBytes;' \
+    "the GC base must include the fixed P-local TLS reservation"
+require_pattern "$COLLECTOR_SOURCE" \
+    'cycleStats_\.outsideCentralSmallBytes = thresholdBase\.outsideCentralSmallBytes;' \
+    "the GC base must include central outside-set Small Regions"
+require_pattern "$COLLECTOR_SOURCE" \
+    'cycleStats_\.outsideLargeBytes = thresholdBase\.outsideLargeBytes;' \
+    "the GC base must include post-freeze LARGE spans"
 require_pattern "$COLLECTOR_SOURCE" \
     'bool exceptionalBypass = gcStats\.reason == GC_REASON_OOM;' \
     "UpdateGCStats must recognize OOM as an exceptional threshold cycle"
@@ -41,9 +49,9 @@ if ! printf '%s\n' "$collector_text" |
 fi
 
 for field in \
-    'markRunway=%zuB' \
-    'markRunwayEstimate=%zuB' \
-    'minThreshold=%zuB' \
+    'tlsReserve=%zuB' \
+    'outsideSmall=%zuB' \
+    'outsideLarge=%zuB' \
     'deadbandLower=%zuB' \
     'deadbandUpper=%zuB' \
     'deadbandHeld=%d' \
@@ -54,5 +62,16 @@ for field in \
     require_pattern "$COLLECTOR_SOURCE" "$field" \
         "heapThreshold REPORT must expose $field"
 done
+
+if rg -q 'ComputeMSMarkRunway|SetMarkRunway|markRunway=' "$COLLECTOR_SOURCE"; then
+    echo "UpdateGCStats must not retain Mark runway calculation or publication" >&2
+    exit 1
+fi
+
+if ! printf '%s\n' "$collector_text" |
+    rg -q 'EvaluateMSScavengeThreshold\([^;]*cycleStats_\.outsideCentralSmallBytes,[[:space:]]*cycleStats_\.outsideLargeBytes'; then
+    echo "Scavenge threshold must add central Small and outside Large bytes without TLS" >&2
+    exit 1
+fi
 
 echo "MSGC threshold stability collector contract: PASS"

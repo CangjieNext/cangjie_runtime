@@ -2677,6 +2677,22 @@ void MarkSweepCollector::PostMarkTermination()
         VLOG(REPORT, "[MS-GC] Mark bitmap: objects=%zu liveBytes=%zuB",
              markedStats.objectCount, markedStats.liveBytes);
 
+        // Compute the next-cycle allocation base while LARGE next-supply still
+        // contains only objects allocated after the frozen PreEnum boundary.
+        // CollectLargeGarbage() appends frozen LARGE survivors to that vector,
+        // so the outside LARGE span snapshot must precede it.
+        MSGCThresholdBaseDecision thresholdBase = ComputeMSGCThresholdBase(
+            markedStats.liveBytes,
+            markReadyProcessorCount_,
+            kNumSizeClasses * kMSScanClassCount,
+            MS_REGION_SIZE,
+            centralPool->GetSmallSweptRegionCount(),
+            centralPool->GetLargeNextSupplySpanCount());
+        cycleStats_.thresholdBaseBytes = thresholdBase.gcBaseBytes;
+        cycleStats_.tlsReservationBytes = thresholdBase.tlsReservationBytes;
+        cycleStats_.outsideCentralSmallBytes = thresholdBase.outsideCentralSmallBytes;
+        cycleStats_.outsideLargeBytes = thresholdBase.outsideLargeBytes;
+
         // Partition the frozen LARGE collect-set only after statistics have
         // consumed it. Survivors are appended to largeNextSupply_; dead spans
         // are reset and returned directly to FreeManager.
@@ -3168,10 +3184,9 @@ void MarkSweepCollector::UpdateGCStats()
     size_t oldScavengeThreshold = gcStats.GetScavengeThreshold();
     size_t oldLastTrueLiveBytes = gcStats.lastTrueLiveBytes;
     size_t previousInUseBytes = gcStats.lastRegionBytes;
-    // Use mark-bit based live bytes (ComputeMarkedStats, computed in
-    // PostMarkTermination). New allocations are not counted merely because
-    // they were allocated. This completed cycle's bitmap live becomes the
-    // previous-live base used to pace the next allocation interval.
+    // ComputeMarkedStats supplies exact live bytes for the frozen collect-set.
+    // PostMarkTermination has already combined that value with the fixed TLS
+    // reservation and Region-capacity snapshots for both outside-set supplies.
     size_t liveBytes = cycleStats_.trueLiveBytes;
     size_t inUseBytes = space.GetHeapInUseBytes();
     size_t maxHeapBytes = space.GetMaxCapacity();
@@ -3182,17 +3197,28 @@ void MarkSweepCollector::UpdateGCStats()
         : 0;
     bool exceptionalBypass = gcStats.reason == GC_REASON_OOM;
     cycleStats_.floatingLiveInflated = false;
-    cycleStats_.thresholdBaseBytes = liveBytes;
     gcStats.lastStableLiveBytes = liveBytes;
     gcStats.lastTrueLiveBytes = liveBytes;
     gcStats.lastRegionBytes = inUseBytes;
     gcStats.baselineAllocatedBytes = inUseBytes;
 
-    // The raw MSGC target is previous trueLive * (1 + heapGrowth). Established
-    // normal cycles use an inclusive 10% deadband and symmetric 12.5%
-    // transition limits. Bootstrap and OOM cycles establish their clamped
-    // target directly.
-    size_t baseBytes = liveBytes;
+    // The raw MSGC target is the outside-set-aware base * (1 + heapGrowth).
+    // Established normal cycles use an inclusive 10% deadband and symmetric
+    // 12.5% transition limits. Bootstrap and OOM cycles establish their
+    // clamped target directly.
+    size_t baseBytes = cycleStats_.thresholdBaseBytes;
+    if (baseBytes == 0) {
+        MSGCThresholdBaseDecision thresholdBase = ComputeMSGCThresholdBase(
+            liveBytes,
+            markReadyProcessorCount_,
+            kNumSizeClasses * kMSScanClassCount,
+            MS_REGION_SIZE,
+            0,
+            0);
+        baseBytes = thresholdBase.gcBaseBytes;
+        cycleStats_.thresholdBaseBytes = thresholdBase.gcBaseBytes;
+        cycleStats_.tlsReservationBytes = thresholdBase.tlsReservationBytes;
+    }
 
     double heapGrowth = CangjieRuntime::GetHeapParam().heapGrowth;
     size_t gcThresholdCap = maxHeapBytes != 0
@@ -3209,44 +3235,20 @@ void MarkSweepCollector::UpdateGCStats()
             oldThreshold, baseBytes, heapGrowth, minThreshold, gcThresholdCap,
             bypassTransition);
     size_t newThreshold = thresholdDecision.threshold;
-    MSRegionManager* msRegionManager = space.GetMSRegionManager();
-    size_t reusedScavengedRegionCount = msRegionManager != nullptr
-        ? msRegionManager->GetReusedScavengedRegionCount()
-        : previousReusedScavengedRegionCount_;
-    size_t coldReuseRegions =
-        reusedScavengedRegionCount >= previousReusedScavengedRegionCount_
-        ? reusedScavengedRegionCount - previousReusedScavengedRegionCount_
-        : reusedScavengedRegionCount;
-    previousReusedScavengedRegionCount_ = reusedScavengedRegionCount;
-    size_t coldReuseBytes = coldReuseRegions >
-        std::numeric_limits<size_t>::max() / MS_REGION_SIZE
-        ? std::numeric_limits<size_t>::max()
-        : coldReuseRegions * MS_REGION_SIZE;
     double scavengeGrowth = CangjieRuntime::GetGCParam().scavengeGrowth;
-    double scavengeHeapGoalMultiplier =
-        CangjieRuntime::GetGCParam().scavengeHeapGoalMultiplier;
-    if (scavengeThresholdState_.thresholdBytes == 0 &&
-        oldScavengeThreshold != 0) {
-        scavengeThresholdState_.thresholdBytes = oldScavengeThreshold;
-    }
     MSScavengeThresholdDecision scavengeDecision = EvaluateMSScavengeThreshold(
-        scavengeThresholdState_,
-        inUseBytes,
         newThreshold,
+        cycleStats_.outsideCentralSmallBytes,
+        cycleStats_.outsideLargeBytes,
         maxHeapBytes,
-        scavengeGrowth,
-        scavengeHeapGoalMultiplier,
-        coldReuseBytes);
+        scavengeGrowth);
     size_t newScavengeThreshold = scavengeDecision.thresholdBytes;
     uint64_t completedWU =
         cycleCompletedMarkWU_.load(std::memory_order_relaxed);
     uint64_t allocatedMarkBytes =
         cycleAllocatedMarkBytes_.load(std::memory_order_relaxed);
-    MSMarkRunwayDecision runwayDecision = ComputeMSMarkRunway(
-        allocatedMarkBytes, liveBytes, newThreshold);
-    // Publish the auxiliary goals before the release-store of heapThreshold.
-    // Region acquisition reads heapThreshold first, then these atomics.
-    gcStats.SetMarkRunway(runwayDecision.runwayBytes);
+    // Publish the physical retained target before the release-store of the GC
+    // trigger threshold. Region acquisition reads the GC threshold first.
     gcStats.SetScavengeThreshold(newScavengeThreshold);
     gcStats.SetThreshold(newThreshold);
     gcStats.lastSurvivingRegionBytes = liveBytes;
@@ -3261,51 +3263,38 @@ void MarkSweepCollector::UpdateGCStats()
          static_cast<unsigned long long>(markPacer_.GetWorkDensityQ16()),
          static_cast<unsigned long long>(markPacer_.GetThroughputQ16()));
     VLOG(REPORT,
-         "[MS-GC] heapThreshold: oldThreshold=%zuB newThreshold=%zuB "
-         "oldScavengeThreshold=%zuB newScavengeThreshold=%zuB "
-         "prevLive=%zuB trueLive=%zuB base=%zuB "
-         "markStartInUse=%zuB markEndInUse=%zuB inUseBurst=%zuB "
-         "markRunway=%zuB markRunwayEstimate=%zuB markRunwayMin=%zuB "
-         "markRunwayMax=%zuB markGoalGap=%zuB exceptionalBypass=%d "
-         "growth=%.2f minThreshold=%zuB "
-         "rawTarget=%zuB deadbandLower=%zuB deadbandUpper=%zuB deadbandHeld=%d "
-         "riseLimit=%zuB fallLimit=%zuB riseLimited=%d fallLimited=%d "
-         "transitionLimited=%d transitionBypassed=%d "
-         "previousInUse=%zuB inUse=%zuB maxHeap=%zuB "
-         "scavengeColdReuseRegions=%zu scavengeColdReuse=%zuB "
-         "scavengeRetainMultiplier=%.2f scavengeHeapGoalMultiplier=%.2f "
-         "scavengeScaledHeapGoal=%zuB scavengeScaledInUse=%zuB "
-         "scavengeHeadroom=%zuB scavengeCandidate=%zuB "
-         "scavengeSelectedTarget=%zuB scavengeColdReserve=%zuB "
-         "scavengeLowerWindows=%zu scavengeFallHeld=%d "
-         "scavengeFallLimited=%d",
-         oldThreshold, newThreshold, oldScavengeThreshold, newScavengeThreshold,
-         oldLastTrueLiveBytes, liveBytes, baseBytes,
-         cycleStats_.markStartInUseBytes, cycleStats_.markEndInUseBytes,
-         cycleStats_.inUseBurstBytes,
-         runwayDecision.runwayBytes, runwayDecision.estimatedRunwayBytes,
-         runwayDecision.minimumRunwayBytes, runwayDecision.maximumRunwayBytes,
-         runwayDecision.heapGoalGapBytes, static_cast<int>(exceptionalBypass),
-         1.0 + heapGrowth, minThreshold,
+         "[MS-GC] heapThreshold: old=%zuB new=%zuB prevLive=%zuB trueLive=%zuB "
+         "tlsReserve=%zuB outsideSmall=%zuB outsideLarge=%zuB base=%zuB "
+         "growth=%.2f minThreshold=%zuB maxHeap=%zuB",
+         oldThreshold, newThreshold, oldLastTrueLiveBytes, liveBytes,
+         cycleStats_.tlsReservationBytes,
+         cycleStats_.outsideCentralSmallBytes,
+         cycleStats_.outsideLargeBytes,
+         baseBytes, 1.0 + heapGrowth, minThreshold, maxHeapBytes);
+    VLOG(REPORT,
+         "[MS-GC] heapThreshold stability: rawTarget=%zuB deadbandLower=%zuB "
+         "deadbandUpper=%zuB deadbandHeld=%d fallLimit=%zuB riseLimit=%zuB "
+         "riseLimited=%d fallLimited=%d transitionLimited=%d transitionBypassed=%d "
+         "exceptionalBypass=%d previousInUse=%zuB inUse=%zuB markStart=%zuB markEnd=%zuB burst=%zuB",
          thresholdDecision.rawTarget,
          thresholdDecision.deadbandLower, thresholdDecision.deadbandUpper,
          static_cast<int>(thresholdDecision.deadbandHeld),
-         thresholdDecision.riseLimit, thresholdDecision.fallLimit,
+         thresholdDecision.fallLimit, thresholdDecision.riseLimit,
          static_cast<int>(thresholdDecision.riseLimited),
          static_cast<int>(thresholdDecision.fallLimited),
          static_cast<int>(thresholdDecision.transitionLimited),
          static_cast<int>(thresholdDecision.transitionBypassed),
-         previousInUseBytes, inUseBytes, maxHeapBytes,
-         coldReuseRegions, coldReuseBytes,
-         scavengeGrowth, scavengeHeapGoalMultiplier,
-         scavengeDecision.scaledHeapGoalBytes,
-         scavengeDecision.scaledHeapInUseBytes,
-         scavengeDecision.retainedHeadroomBytes, scavengeDecision.candidateBytes,
-         scavengeDecision.selectedTargetBytes,
-         scavengeDecision.coldReuseReserveBytes,
-         scavengeDecision.lowerTargetWindows,
-         static_cast<int>(scavengeDecision.fallHeld),
-         static_cast<int>(scavengeDecision.fallLimited));
+         static_cast<int>(exceptionalBypass), previousInUseBytes, inUseBytes,
+         cycleStats_.markStartInUseBytes, cycleStats_.markEndInUseBytes,
+         cycleStats_.inUseBurstBytes);
+    VLOG(REPORT,
+         "[MS-GC] scavengeThreshold: old=%zuB new=%zuB gcGoal=%zuB "
+         "outsideSmall=%zuB outsideLarge=%zuB base=%zuB growth=%.2f",
+         oldScavengeThreshold, newScavengeThreshold,
+         scavengeDecision.gcGoalBytes,
+         scavengeDecision.outsideCentralSmallBytes,
+         scavengeDecision.outsideLargeBytes,
+         scavengeDecision.baseBytes, scavengeGrowth);
 
     VLOG(REPORT,
          "[MS-GC] live bytes %zu, inUseRegionBytes %zu, update gc threshold %zu -> %zu",

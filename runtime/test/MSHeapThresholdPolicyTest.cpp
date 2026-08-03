@@ -210,195 +210,70 @@ void TestThresholdFloorUsesOnlyAbsoluteFloor()
         "the absolute floor must remain capped by the maximum heap");
 }
 
-void TestMarkRunwayUsesPreviousCompletedMarkAllocation()
+void TestGCThresholdBaseIncludesTLSAndOutsideSetRegions()
 {
-    constexpr size_t mib = 1024ULL * 1024ULL;
-    MapleRuntime::MSMarkRunwayDecision decision =
-        MapleRuntime::ComputeMSMarkRunway(200 * mib, 100 * mib, 1000 * mib);
+    MapleRuntime::MSGCThresholdBaseDecision decision =
+        MapleRuntime::ComputeMSGCThresholdBase(
+            100, 2, 72, 32, 3, 5);
 
-    ExpectEqual(decision.heapGoalGapBytes, 900 * mib,
-                "runway gap must span previous trueLive to the heap goal");
-    ExpectEqual(decision.estimatedRunwayBytes, 200 * mib,
-                "runway estimate must use bytes allocated during the completed Mark");
-    ExpectEqual(decision.runwayBytes, 200 * mib,
-                "an estimate inside Go-style bounds must be preserved");
+    ExpectEqual(decision.tlsReservationBytes, 4608,
+                "TLS reservation must use P times 72 lanes times Region size");
+    ExpectEqual(decision.outsideCentralSmallBytes, 96,
+                "outside Small bytes must use the central swept Region count");
+    ExpectEqual(decision.outsideLargeBytes, 160,
+                "outside Large bytes must use the new Large span count");
+    ExpectEqual(decision.gcBaseBytes, 4964,
+                "GC base must add marked live, TLS reservation and both outside-set supplies");
 }
 
-void TestMarkRunwayUsesGoStyleTriggerBounds()
+void TestGCThresholdBaseSaturates()
 {
-    constexpr size_t mib = 1024ULL * 1024ULL;
-    MapleRuntime::MSMarkRunwayDecision low =
-        MapleRuntime::ComputeMSMarkRunway(0, 100 * mib, 1000 * mib);
-    ExpectEqual(low.runwayBytes, 4 * mib,
-                "an empty estimate must retain Go's minimum large-heap runway");
+    constexpr size_t maximum = static_cast<size_t>(-1);
+    MapleRuntime::MSGCThresholdBaseDecision decision =
+        MapleRuntime::ComputeMSGCThresholdBase(
+            maximum - 1, 2, 72, maximum, 3, 5);
 
-    MapleRuntime::MSMarkRunwayDecision high =
-        MapleRuntime::ComputeMSMarkRunway(900 * mib, 100 * mib, 1000 * mib);
-    ExpectEqual(high.runwayBytes, 270 * mib,
-                "runway must not trigger earlier than seventy percent through the live-to-goal gap");
+    ExpectEqual(decision.tlsReservationBytes, maximum,
+                "TLS reservation multiplication must saturate");
+    ExpectEqual(decision.gcBaseBytes, maximum,
+                "GC base addition must saturate");
 }
 
-void TestMarkTriggerAddsRunwayWithoutOverflow()
+void TestMarkTriggerUsesSweptBytesWithoutRunway()
 {
-    ExpectFalse(MapleRuntime::ShouldTriggerMSMark(699, 300, 1000),
-                "swept bytes below goal minus runway must not trigger Mark");
-    ExpectTrue(MapleRuntime::ShouldTriggerMSMark(700, 300, 1000),
-               "swept bytes plus runway at the goal must trigger Mark");
-    ExpectTrue(MapleRuntime::ShouldTriggerMSMark(static_cast<size_t>(-2), 8, static_cast<size_t>(-1)),
-               "trigger arithmetic must remain correct near size_t overflow");
+    ExpectFalse(MapleRuntime::ShouldTriggerMSMark(999, 1000),
+                "swept bytes below the GC threshold must not trigger Mark");
+    ExpectTrue(MapleRuntime::ShouldTriggerMSMark(1000, 1000),
+               "swept bytes equal to the GC threshold must trigger Mark");
+    ExpectTrue(MapleRuntime::ShouldTriggerMSMark(1001, 1000),
+               "swept bytes above the GC threshold must trigger Mark");
 }
 
-void TestScavengeThresholdTracksStableHeapInUse()
+void TestScavengeThresholdAddsOnlyCentralOutsideSetBytes()
 {
-    MapleRuntime::MSScavengeThresholdState state;
     MapleRuntime::MSScavengeThresholdDecision decision =
         MapleRuntime::EvaluateMSScavengeThreshold(
-            state, 1000, 2000, 10000, 1.10, 1.0, 0);
+            2000, 300, 500, 10000, 1.20);
 
-    ExpectEqual(decision.scaledHeapInUseBytes, 1000,
-                "a stable heap goal must preserve the post-GC in-use baseline");
-    ExpectEqual(decision.retainedHeadroomBytes, 100,
-                "the default Go-style multiplier must retain ten percent headroom");
-    ExpectEqual(decision.candidateBytes, 1100,
-                "the Go-style candidate must be post-GC in-use plus bounded headroom");
-    ExpectEqual(decision.thresholdBytes, 2000,
-                "the retained target must preserve runway to the next GC goal");
+    ExpectEqual(decision.baseBytes, 2800,
+                "Scavenge base must add GC goal, central Small and outside Large bytes");
+    ExpectEqual(decision.thresholdBytes, 3360,
+                "Scavenge growth must scale the complete Scavenge base");
 }
 
-void TestScavengeThresholdRetainsRunwayToNextGC()
+void TestScavengeThresholdClampsGrowthAndHeapCap()
 {
-    MapleRuntime::MSScavengeThresholdState state;
-    MapleRuntime::MSScavengeThresholdDecision decision =
+    MapleRuntime::MSScavengeThresholdDecision boundedGrowth =
         MapleRuntime::EvaluateMSScavengeThreshold(
-            state, 1000, 2000, 10000, 1.10, 1.0, 0);
+            2000, 300, 500, 10000, 0.50);
+    ExpectEqual(boundedGrowth.thresholdBytes, 2800,
+                "Scavenge growth below one must not shrink the base");
 
-    ExpectEqual(decision.thresholdBytes, 2000,
-                "the retained target must not fall below the next GC heap goal");
-}
-
-void TestScavengeThresholdScalesNextHeapGoalIndependently()
-{
-    MapleRuntime::MSScavengeThresholdState state;
-    MapleRuntime::MSScavengeThresholdDecision decision =
-        MapleRuntime::EvaluateMSScavengeThreshold(
-            state, 1000, 2000, 10000, 1.10, 2.0, 0);
-
-    ExpectEqual(decision.candidateBytes, 1100,
-                "heap-goal scaling must not change the in-use candidate");
-    ExpectEqual(decision.scaledHeapGoalBytes, 4000,
-                "the next heap goal must use its independent multiplier");
-    ExpectEqual(decision.thresholdBytes, 4000,
-                "the retained target must preserve twice the next heap goal");
-}
-
-void TestScavengeThresholdDoesNotAmplifyHeapGoalRatio()
-{
-    MapleRuntime::MSScavengeThresholdState growingState;
-    MapleRuntime::MSScavengeThresholdDecision growing =
-        MapleRuntime::EvaluateMSScavengeThreshold(
-            growingState, 1000, 4000, 10000, 1.10, 1.0, 0);
-    ExpectEqual(growing.scaledHeapInUseBytes, 1000,
-                "a changing heap goal must not amplify physical in-use bytes");
-    ExpectEqual(growing.candidateBytes, 1100,
-                "headroom must be applied to observed in-use bytes only");
-    ExpectEqual(growing.thresholdBytes, 4000,
-                "a growing heap must retain runway to its next GC goal");
-
-    MapleRuntime::MSScavengeThresholdState shrinkingState;
-    MapleRuntime::MSScavengeThresholdDecision shrinking =
-        MapleRuntime::EvaluateMSScavengeThreshold(
-            shrinkingState, 1000, 2000, 10000, 1.10, 1.0, 0);
-    ExpectEqual(shrinking.scaledHeapInUseBytes, 1000,
-                "a shrinking heap goal must preserve observed physical in-use bytes");
-    ExpectEqual(shrinking.candidateBytes, 1100,
-                "a shrinking goal must not scale the in-use estimate down");
-    ExpectEqual(shrinking.thresholdBytes, 2000,
-                "a shrinking heap must retain runway to its smaller next GC goal");
-}
-
-void TestScavengeThresholdBootstrapsWithUnitGoalRatio()
-{
-    MapleRuntime::MSScavengeThresholdState state;
-    MapleRuntime::MSScavengeThresholdDecision decision =
-        MapleRuntime::EvaluateMSScavengeThreshold(
-            state, 1000, 4000, 10000, 1.10, 1.0, 0);
-    ExpectEqual(decision.scaledHeapInUseBytes, 1000,
-                "the first GC must use a unit heap-goal ratio");
-    ExpectEqual(decision.thresholdBytes, 4000,
-                "bootstrap must retain runway to the first published heap goal");
-}
-
-void TestScavengeThresholdClampsMultiplierAndHeapCap()
-{
-    MapleRuntime::MSScavengeThresholdState noShrinkState;
-    MapleRuntime::MSScavengeThresholdDecision noShrinkHeadroom =
-        MapleRuntime::EvaluateMSScavengeThreshold(
-            noShrinkState, 1000, 2000, 10000, 0.50, 1.0, 0);
-    ExpectEqual(noShrinkHeadroom.candidateBytes, 1000,
-                "a multiplier below one must not target less than the scaled in-use estimate");
-    ExpectEqual(noShrinkHeadroom.thresholdBytes, 2000,
-                "the next GC goal must remain the retained-target floor");
-
-    MapleRuntime::MSScavengeThresholdState cappedState;
     MapleRuntime::MSScavengeThresholdDecision capped =
         MapleRuntime::EvaluateMSScavengeThreshold(
-            cappedState, 900, 2000, 1000, 1.10, 1.0, 0);
-    ExpectEqual(capped.candidateBytes, 990,
-                "the uncapped candidate must remain visible for diagnostics");
-    ExpectEqual(capped.thresholdBytes, 1000,
-                "the retained target must respect the maximum heap cap");
-}
-
-void TestScavengeThresholdRisesImmediatelyAndFallsSlowly()
-{
-    MapleRuntime::MSScavengeThresholdState state;
-    MapleRuntime::MSScavengeThresholdDecision initial =
-        MapleRuntime::EvaluateMSScavengeThreshold(
-            state, 1000, 2000, 10000, 1.10, 1.0, 0);
-    ExpectEqual(initial.thresholdBytes, 2000,
-                "initial retained target must publish directly");
-
-    MapleRuntime::MSScavengeThresholdDecision rise =
-        MapleRuntime::EvaluateMSScavengeThreshold(
-            state, 1000, 4000, 10000, 1.10, 1.0, 0);
-    ExpectEqual(rise.thresholdBytes, 4000,
-                "a larger retained target must take effect immediately");
-
-    for (size_t window = 1;
-         window < MapleRuntime::kMSScavengeFallWindows; ++window) {
-        MapleRuntime::MSScavengeThresholdDecision held =
-            MapleRuntime::EvaluateMSScavengeThreshold(
-                state, 1000, 2000, 10000, 1.10, 1.0, 0);
-        ExpectEqual(held.thresholdBytes, 4000,
-                    "a short-lived lower target must not trigger physical release");
-    }
-    MapleRuntime::MSScavengeThresholdDecision fall =
-        MapleRuntime::EvaluateMSScavengeThreshold(
-            state, 1000, 2000, 10000, 1.10, 1.0, 0);
-    ExpectEqual(fall.thresholdBytes, 3750,
-                "an accepted fall must be limited to one sixteenth");
-}
-
-void TestScavengeColdReuseAddsDecayingReserve()
-{
-    MapleRuntime::MSScavengeThresholdState state;
-    (void)MapleRuntime::EvaluateMSScavengeThreshold(
-        state, 1000, 2000, 10000, 1.10, 1.0, 0);
-    MapleRuntime::MSScavengeThresholdDecision reuse =
-        MapleRuntime::EvaluateMSScavengeThreshold(
-            state, 1000, 2000, 10000, 1.10, 1.0, 300);
-    ExpectEqual(reuse.coldReuseReserveBytes, 600,
-                "cold reuse must retain twice the refaulted bytes");
-    ExpectEqual(reuse.thresholdBytes, 2600,
-                "cold reuse reserve must raise the retained target immediately");
-
-    MapleRuntime::MSScavengeThresholdDecision decay =
-        MapleRuntime::EvaluateMSScavengeThreshold(
-            state, 1000, 2000, 10000, 1.10, 1.0, 0);
-    ExpectEqual(decay.coldReuseReserveBytes, 525,
-                "an idle cycle must decay one eighth of the reserve");
-    ExpectEqual(decay.thresholdBytes, 2600,
-                "reserve decay must still obey delayed physical-target falls");
+            2000, 300, 500, 3000, 1.20);
+    ExpectEqual(capped.thresholdBytes, 3000,
+                "Scavenge threshold must respect the maximum heap cap");
 }
 
 } // namespace
@@ -416,16 +291,10 @@ int main()
     TestThresholdBootstrapBypassesSmoothing();
     TestThresholdFloorAndCapRemainHardBounds();
     TestThresholdFloorUsesOnlyAbsoluteFloor();
-    TestMarkRunwayUsesPreviousCompletedMarkAllocation();
-    TestMarkRunwayUsesGoStyleTriggerBounds();
-    TestMarkTriggerAddsRunwayWithoutOverflow();
-    TestScavengeThresholdTracksStableHeapInUse();
-    TestScavengeThresholdRetainsRunwayToNextGC();
-    TestScavengeThresholdScalesNextHeapGoalIndependently();
-    TestScavengeThresholdDoesNotAmplifyHeapGoalRatio();
-    TestScavengeThresholdBootstrapsWithUnitGoalRatio();
-    TestScavengeThresholdClampsMultiplierAndHeapCap();
-    TestScavengeThresholdRisesImmediatelyAndFallsSlowly();
-    TestScavengeColdReuseAddsDecayingReserve();
+    TestGCThresholdBaseIncludesTLSAndOutsideSetRegions();
+    TestGCThresholdBaseSaturates();
+    TestMarkTriggerUsesSweptBytesWithoutRunway();
+    TestScavengeThresholdAddsOnlyCentralOutsideSetBytes();
+    TestScavengeThresholdClampsGrowthAndHeapCap();
     return 0;
 }

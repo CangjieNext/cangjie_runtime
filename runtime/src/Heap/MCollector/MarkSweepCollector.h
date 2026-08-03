@@ -75,6 +75,9 @@ struct MSGCCycleStats {
     size_t markEndInUseBytes = 0;
     size_t inUseBurstBytes = 0;
     size_t thresholdBaseBytes = 0;
+    size_t tlsReservationBytes = 0;
+    size_t outsideCentralSmallBytes = 0;
+    size_t outsideLargeBytes = 0;
     bool floatingLiveInflated = false;
 
     // ── Region accounting snapshot ──
@@ -326,8 +329,6 @@ private:
 
     // ── DFX: Per-cycle stats ──
     MSGCCycleStats cycleStats_;
-    MSScavengeThresholdState scavengeThresholdState_;
-    size_t previousReusedScavengedRegionCount_ = 0;
     uint64_t gcCycle_ = 0;  // Monotonic GC cycle counter
 
     // ── DFX: Logging methods (Step 5) ──

@@ -311,9 +311,8 @@ RTErrorCode InitCJRuntime(const struct RuntimeParam* param)
 #endif
 #ifdef MRT_USE_MARK_SWEEP
             .scavengeGrowth = param->gcParam.scavengeGrowth < 1.0 ?
-                1.10 : param->gcParam.scavengeGrowth,
-            .scavengeHeapGoalMultiplier = param->gcParam.scavengeHeapGoalMultiplier < 1.0 ?
-                2.0 : param->gcParam.scavengeHeapGoalMultiplier,
+                1.20 : param->gcParam.scavengeGrowth,
+            .scavengeHeapGoalMultiplier = 1.0,
 #else
             .scavengeGrowth = param->gcParam.scavengeGrowth < ERRORESTIMATE ?
                 resolvedHeapGrowth : param->gcParam.scavengeGrowth,
