@@ -33,6 +33,9 @@ foreign {
     func CJ_CONSOLE_Readline(): CPointer<StructureString>
 
     @FastNative
+    func CJ_CONSOLE_ReadBytes(buffer: CPointer<Byte>, maxLen: UIntNative): Int64
+
+    @FastNative
     func CJ_CONSOLE_ClearstdInerr(): Unit
 
     @FastNative
@@ -54,6 +57,9 @@ foreign {
 
     @FastNative
     func CJ_OS_GetStdHandle(fd: IntNative): IntNative
+
+    @FastNative
+    func CJ_CONSOLE_IsStdinCharDevice(): Bool
 
     @FastNative
     func CJ_OS_CloseFile(fd: IntNative): Int64 // -1: failed, (>= 0): success
