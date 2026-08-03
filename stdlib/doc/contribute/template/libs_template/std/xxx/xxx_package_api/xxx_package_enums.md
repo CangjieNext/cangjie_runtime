@@ -13,13 +13,10 @@
 
 ## enum enum1
 
-【必写】（定义声明，每个枚举的声明代码中应包含所有对外的构造器，并按字母序展示）
+【必写】（定义声明）
 
 ```cangjie
-public enum enum1 {
-    | Format1
-    | Format2
-}
+public enum enum1
 ```
 
 【必写】功能：表示xxx枚举类型，支持 `Format1` 和 `Format2` 两种格式。
@@ -49,10 +46,7 @@ Format2
 【必写】（定义声明）
 
 ```cangjie
-public enum enum2 {
-    | xx
-    | xxx
-}
+public enum enum2
 ```
 
 功能：表示xxx枚举类型，支持 `Format1` 和 `Format2` 两种格式。(*一句话概述API功能*)
