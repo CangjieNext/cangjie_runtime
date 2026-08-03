@@ -118,6 +118,38 @@ void TestStoppingRejectsNewOwners()
     }
 }
 
+void TestPostMarkStatsWaitsForSweepHandoff()
+{
+    MSGCWorkerPoolController controller;
+    if (!controller.TryAcquireSweep()) {
+        std::abort();
+    }
+
+    std::atomic<bool> acquired{false};
+    std::thread waiter([&] {
+        if (controller.AcquirePostMarkStats()) {
+            acquired.store(true, std::memory_order_release);
+            if (!controller.Release(MSGCWorkerPoolOwner::POST_MARK_STATS)) {
+                std::abort();
+            }
+        }
+    });
+    for (size_t i = 0; i < 100; ++i) {
+        std::this_thread::yield();
+    }
+    if (acquired.load(std::memory_order_acquire)) {
+        std::abort();
+    }
+    if (!controller.Release(MSGCWorkerPoolOwner::SWEEP)) {
+        std::abort();
+    }
+    waiter.join();
+    if (!acquired.load(std::memory_order_acquire) ||
+        controller.GetOwner() != MSGCWorkerPoolOwner::IDLE) {
+        std::abort();
+    }
+}
+
 } // namespace
 
 int main()
@@ -125,6 +157,7 @@ int main()
     TestSweepIsNonBlockingAndExclusive();
     TestMarkWaitsForSweepHandoff();
     TestEnumRootsWaitsForSweepHandoff();
+    TestPostMarkStatsWaitsForSweepHandoff();
     TestStoppingRejectsNewOwners();
     return 0;
 }

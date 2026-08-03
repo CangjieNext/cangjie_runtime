@@ -207,6 +207,20 @@ void MSRegionInfo::ResetToEmptyCache()
 // MSRegionInfo — Sweep
 // ============================================================================
 
+static bool HasAnyValidMarkBits(
+    const uint64_t* markBitmap, size_t wordCount, uint64_t validTailMask)
+{
+    if (wordCount == 0) {
+        return false;
+    }
+    for (size_t i = 0; i + 1 < wordCount; ++i) {
+        if (markBitmap[i] != 0) {
+            return true;
+        }
+    }
+    return (markBitmap[wordCount - 1] & validTailMask) != 0;
+}
+
 MSCentralReturnDecision MSRegionInfo::SweepRegion()
 {
     const size_t totalSlotCount = GetTotalSlotCount();
@@ -215,18 +229,9 @@ MSCentralReturnDecision MSRegionInfo::SweepRegion()
     uint64_t* markBitmap = GetMarkBitmap();
     CHECK_DETAIL(wordCount <= MSBitmapArena::kMaxBitmapWords,
                  "[MS-GC] SweepRegion wordCount overflow: wordCount=%zu", wordCount);
-    size_t trailingBits = totalSlotCount % 64;
-    size_t liveCount = 0;
-    for (size_t i = 0; i < wordCount; i++) {
-        uint64_t validMask = (i + 1 == wordCount && trailingBits != 0) ?
-            ((1ULL << trailingBits) - 1) : ~0ULL;
-        uint64_t validMarkBits = markBitmap[i] & validMask;
-        liveCount += static_cast<size_t>(__builtin_popcountll(validMarkBits));
-    }
-
     size_t slotSize = SizeClassInfo::ClassToSize(sizeClass);
     uintptr_t base = RegionStart();
-    if (liveCount == 0) {
+    if (!HasAnyValidMarkBits(markBitmap, wordCount, GetValidTailMask())) {
         memset(reinterpret_cast<void*>(base), 0, MS_REGION_SIZE);
         SetAllocMode(MSAllocMode::BITMAP);
         allocSummary = 0;
@@ -234,6 +239,8 @@ MSCentralReturnDecision MSRegionInfo::SweepRegion()
             sizeClass, static_cast<uint16_t>(totalSlotCount));
     }
 
+    size_t trailingBits = totalSlotCount % 64;
+    size_t liveCount = 0;
     uint64_t summary = 0;
     size_t runStartSlot = totalSlotCount;
     auto clearDeadRun = [base, slotSize](size_t startSlot, size_t endSlot) {
@@ -249,6 +256,7 @@ MSCentralReturnDecision MSRegionInfo::SweepRegion()
         size_t validBitCount = (i + 1 == wordCount && trailingBits != 0) ? trailingBits : 64;
         uint64_t validMask = validBitCount == 64 ? ~0ULL : ((1ULL << validBitCount) - 1);
         uint64_t validMarkBits = markBitmap[i] & validMask;
+        liveCount += static_cast<size_t>(__builtin_popcountll(validMarkBits));
         uint64_t freeBits = ~validMarkBits & validMask;
         allocBitmap[i] = freeBits;
         if (freeBits != 0) {

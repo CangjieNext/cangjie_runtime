@@ -521,9 +521,13 @@ static RuntimeParam InitRuntimeParam()
 #ifdef MRT_USE_MARK_SWEEP
             .scavengeGrowth = ReadDoubleParameter("cjScavengeGrowth", 1.10, 1.0, EnvBoundKind::CLOSED,
                                                   std::numeric_limits<double>::max(), EnvBoundKind::CLOSED),
+            .scavengeHeapGoalMultiplier = ReadDoubleParameter(
+                "cjScavengeHeapGoalMultiplier", 2.0, 1.0, EnvBoundKind::CLOSED,
+                std::numeric_limits<double>::max(), EnvBoundKind::CLOSED),
 #else
             .scavengeGrowth = ReadDoubleParameter("cjScavengeGrowth", heapGrowth, 0.0, EnvBoundKind::OPEN,
                                                   std::numeric_limits<double>::max(), EnvBoundKind::CLOSED),
+            .scavengeHeapGoalMultiplier = 1.0,
 #endif
 #ifdef MRT_USE_MARK_SWEEP
             .msBackgroundSweepMaxTime = ReadTimeParameter("cjGCBGSweepMaxTime", 2 * MILLI_SECOND_TO_NANO_SECOND,

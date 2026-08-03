@@ -33,6 +33,7 @@ namespace MapleRuntime {
 class MSRegionManager;
 class AllocBufferMS;
 class BaseObject;
+class GCThreadPool;
 
 // GC-private small-Region chain. Only the GC main thread mutates head/tail/count
 // while the world is stopped or after Mark has quiesced. Nodes reuse
@@ -496,7 +497,6 @@ public:
     size_t GetAllocBufferCount() const;
     size_t GetAllAllocBufferActiveRegionCount() const;
     BucketPressure GetBucketPressure(uint8_t cls) const;
-    void MaybeNotifySweep(uint8_t cls) const;
     // Swept-retained region count: partialSwept + fullSwept buckets + large region spans.
     // Excludes unswept regions; used by MaybeNotifyMark to gate the next GC on the
     // post-sweep live footprint rather than the transient active-region total.
@@ -523,10 +523,13 @@ public:
         return currentMarkEpoch_.load(std::memory_order_acquire);
     }
 
-    // Compute marked object count and true live bytes in one bitmap walk.
-    // Must be called after marking/large eager reclaim complete and before
-    // PostMarkTermination publishes small-Region Sweep work.
-    MSMarkedStats ComputeMarkedStats() const;
+    // Compute marked object count and true live bytes from the frozen boundary.
+    // The caller owns the POST_MARK_STATS pool epoch when helperCount != 0.
+    // Must run after marking completes and before Large partition / Small Sweep
+    // publication mutate the collect-set.
+    MSMarkedStats ComputeMarkedStats(GCThreadPool* threadPool,
+                                     size_t helperCount) const;
+    size_t GetCollectSetBitmapBytes() const;
 
     // Diagnostic: visit every currently-marked object (small/medium + large)
     // by walking markBitmaps. Must be called in the same window as
@@ -546,10 +549,10 @@ public:
     // ===== Pre-STW bitmap clearing (MarkSetup fast path) =====
 
     // Cooperatively drain the old unswept backlog while all Sweep sources are
-    // still open, then close background/lazy/assist/helper admission and wait
+    // still open, then close background/assist/helper admission and wait
     // for their in-flight work to quiesce. A final serial drain closes anything
     // left during the handoff; only then may sweepDone be published. The gates
-    // remain closed through Mark and must be reopened by ReenableLazySweep().
+    // remain closed through Mark and must be reopened by ReenableSweepAdmission().
     // Must finish before clearing markBitmaps to avoid racing SweepRegion reads.
     void StopAndWaitForAllSweep();
 
@@ -573,8 +576,8 @@ public:
 
     size_t GetCollectSetRegionCount() const;
 
-    // Re-enable lazy/assist sweep after MarkSetup bitmap clearing is complete.
-    void ReenableLazySweep();
+    // Re-enable ordinary background/assist/helper Sweep after MarkSetup.
+    void ReenableSweepAdmission();
 
 private:
     class SizeClassBucket {
@@ -785,12 +788,6 @@ private:
             sweepCredit_.Add(sweptRegions);
         }
     }
-    void RecordLazySweep(size_t sweptRegions)
-    {
-        if (sweptRegions != 0) {
-            sweepCredit_.Add(sweptRegions);
-        }
-    }
     void RecordHelperSweep(size_t sweptRegions)
     {
         if (sweptRegions != 0) {
@@ -805,7 +802,7 @@ private:
     std::atomic<bool> bgSweepRunning_{false};
     // One atomic word linearizes sweep admission with the active-worker count.
     // The high bit closes admission; the remaining bits count all admitted
-    // lazy/assist/helper/background sweep operations. This avoids a late
+    // assist/helper/background sweep operations. This avoids a late
     // counter increment after StopAndWaitForAllSweep has observed quiescence.
     std::atomic<uint64_t> sweepAdmission_{0};
     // GC main waits here only after closing Sweep admission. The last admitted
@@ -813,7 +810,6 @@ private:
     std::mutex sweepQuiescenceMtx_;
     std::condition_variable sweepQuiescenceCV_;
     std::atomic<bool> stopSweepRequested_{false};
-    std::atomic<bool> skipLazySweep_{false};          // Disable lazy sweep in GetRegion P2/P3
     std::atomic<bool> skipAssistSweep_{false};        // Disable mutator assist sweep before STW
     std::atomic<bool> skipHelperSweep_{false};        // Disable GC-helper pool sweep before STW
     std::atomic<bool> forceFinishSweepRunning_{false}; // GC main owns ForceFinishAllUnswept

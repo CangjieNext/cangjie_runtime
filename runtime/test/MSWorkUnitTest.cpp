@@ -173,28 +173,49 @@ void TestMarkControllerAppliesHelperHysteresis()
     Expect(controller.HelperTarget() == 0,
            "one high-work observation must not wake helpers");
     controller.Observe(16, 1024);
+    controller.Observe(16, 1024);
+    Expect(controller.HelperTarget() == 0,
+           "three high-work observations must remain inside up hysteresis");
+    controller.Observe(16, 1024);
     Expect(controller.HelperTarget() == 1,
-           "two high-work observations must add only one helper");
+           "four sustained high-work observations must add only one helper");
 
     MSMarkControllerState draining(
         16, 1024, 7, 4, MSMarkPressure::NORMAL);
-    Expect(draining.HelperTarget() == 7,
-           "large initial backlog must use the amount-based helper target");
+    Expect(draining.HelperTarget() == 2,
+           "normal mark must soft-start at two helpers");
+    for (size_t window = 0; window < 6; ++window) {
+        draining.Observe(16, 0);
+        Expect(draining.HelperTarget() == 2,
+               "filtered draining work must not park helpers abruptly");
+    }
     draining.Observe(16, 0);
-    draining.Observe(16, 0);
-    Expect(draining.HelperTarget() == 7,
-           "two falling observations must stay inside helper down hysteresis");
-    draining.Observe(16, 0);
-    Expect(draining.HelperTarget() == 6,
-           "three falling observations must remove only one helper");
+    Expect(draining.HelperTarget() == 1,
+           "sustained draining must remove only one helper");
+}
+
+void TestNormalMarkSoftStartsAndRampsOnSustainedBacklog()
+{
+    MSMarkControllerState controller(
+        64, 4096, 7, 4, MSMarkPressure::NORMAL);
+    Expect(controller.HelperTarget() == 2,
+           "large normal backlog must not activate all helpers at mark start");
+    for (size_t window = 0; window < 3; ++window) {
+        controller.Observe(64, 4096);
+        Expect(controller.HelperTarget() == 2,
+               "helper growth must require four sustained backlog windows");
+    }
+    controller.Observe(64, 4096);
+    Expect(controller.HelperTarget() == 3,
+           "sustained backlog must grow helper width one step at a time");
 }
 
 void TestMarkControllerCascadesAssistAfterStableHelpers()
 {
     MSMarkControllerState controller(
-        32, 4096, 7, 4, MSMarkPressure::NORMAL);
-    Expect(controller.HelperTarget() == 7,
-           "large initial backlog must activate available helpers");
+        32, 4096, 2, 4, MSMarkPressure::NORMAL);
+    Expect(controller.HelperTarget() == 2,
+           "assist cascade test must start with its available helpers active");
     Expect(controller.AssistMultiplier() == 1,
            "task count must not saturate Assist at mark start");
 
@@ -241,6 +262,7 @@ int main()
     TestMarkTelemetryShareAndRate();
     TestHelperTargetTracksActualWork();
     TestMarkControllerAppliesHelperHysteresis();
+    TestNormalMarkSoftStartsAndRampsOnSustainedBacklog();
     TestMarkControllerCascadesAssistAfterStableHelpers();
     TestCriticalMarkControllerBypassesHysteresis();
     return 0;

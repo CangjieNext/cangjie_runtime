@@ -19,6 +19,7 @@
 #include "Heap/MAllocator/MSBitmapArena.h"
 #include "Heap/MAllocator/MSCentralRegionPool.h"
 #include "Heap/MAllocator/MSRegionSpace.h"
+#include "Heap/MCollector/MSHeapThresholdPolicy.h"
 #include "Concurrency/ConcurrencyModel.h"
 #include "CangjieRuntime.h"
 #include "Base/SysCall.h"
@@ -244,25 +245,6 @@ void MSRegionManager::OnCommittedHeapExtended(uintptr_t newCommittedEnd)
     Heap::OnHeapExtended(newCommittedEnd);
 }
 
-// ============================================================================
-// O4: small-object HEU trigger checkpoint
-// ============================================================================
-
-void MSRegionManager::MaybeNotifySweep(const CentralRegionPool* centralPool, uint8_t cls)
-{
-    if (Heap::GetHeap().IsGcStarted()) {
-        return;
-    }
-
-    if (centralPool == nullptr) {
-        return;
-    }
-    BackgroundProcessor& backgroundProcessor = Heap::GetHeap().GetCollectorResources().GetBackgroundProcessor();
-    // Always notify background sweep once mutators start probing unswept supply.
-    // The helper side decides whether more slices are still worthwhile.
-    backgroundProcessor.NotifyToSweep(cls);
-}
-
 size_t MSRegionManager::GetHotFreeBytes() const
 {
     return freeManager_.GetHotFreeBytes();
@@ -345,10 +327,11 @@ void MSRegionManager::MaybeNotifyMark()
     // trigger tracks the post-sweep live heap.
     size_t sweptBytes = space.GetSweptHeapBytes();
     size_t threshold = gcStats.GetThreshold();
+    size_t runwayBytes = gcStats.GetMarkRunway();
 
     // The first aggregate threshold crossing is sufficient. Pending/running
     // HEU requests are coalesced by the async GC task state.
-    if (sweptBytes < threshold) {
+    if (!ShouldTriggerMSMark(sweptBytes, runwayBytes, threshold)) {
         return;
     }
 
@@ -370,9 +353,10 @@ void MSRegionManager::MaybeNotifyMark()
 
     collector.RequestGC(GC_REASON_HEU, true);
     VLOG(REPORT,
-         "[MS-GC] HEU trigger (take-regions): swept-region bytes=%zuB heapThreshold=%zuB"
+         "[MS-GC] HEU trigger (take-regions): swept-region bytes=%zuB heapRunway=%zuB heapThreshold=%zuB"
          " reason=GC_REASON_HEU",
          sweptBytes,
+         runwayBytes,
          threshold);
 }
 
@@ -511,7 +495,7 @@ size_t MSRegionManager::ScavengeFreeRegions(bool releaseAll)
 
 size_t MSRegionManager::ScavengeFreeRegionsUpTo(size_t maxBytes)
 {
-    return freeManager_.ScavengeFreeRegionsUpTo(maxBytes);
+    return freeManager_.ScavengeAgedRegionsUpTo(maxBytes);
 }
 
 // ============================================================================

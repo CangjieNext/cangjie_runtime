@@ -47,7 +47,7 @@ struct MSGCCycleStats {
     uint64_t markPoolReleaseUs = 0;
     uint64_t markSchedulerUs = 0;
     uint64_t markTerminationUs = 0;   // Full MarkTermination wall time, including STW acquire, IDLE transition and resume.
-    uint64_t postMarkUs = 0;          // PostMarkTermination wall time: post-mark cleanup, stats and Sweep/Scavenge handoff.
+    uint64_t postMarkUs = 0;          // PostMarkTermination wall time: stats, threshold update and Sweep handoff.
     uint64_t postGcHookUs = 0;        // PostGarbageCollection hook wall time after UpdateGCStats completes.
 
     // ── Counting ──
@@ -169,7 +169,6 @@ public:
     void EnumAndTagRawRoot(ObjectRef& root, RootSet& rootSet) const override;
     void TraceObjectRefFields(BaseObject* obj, WorkStack& workStack) override;
     BaseObject* GetAndTryTagObj(BaseObject* obj, RefField<>& field) override;
-    void ProcessFinalizers() override;
     void MergeRootsFromAllocBuffers(WorkStack& workStack) override;
 
     bool ShouldIgnoreRequest(GCRequest& request) override
@@ -184,7 +183,7 @@ private:
     void EnumRoots();            // Step 2.1b: Handshake + root enumeration
     void ConcurrentMark();      // Step 2.2: Concurrent marking (GC thread + assist)
     void MarkTermination();     // Step 2.3: STW finalization of marking
-    void PostMarkTermination(); // Step 2.4: Non-STW cleanup, stats and Sweep/Scavenge handoff
+    void PostMarkTermination(); // Step 2.4: Non-STW statistics, threshold update and Sweep handoff
 
     // ── Step 2.1 internals ──
     void EnumAndMarkRoots();
@@ -327,7 +326,7 @@ private:
 
     // ── DFX: Per-cycle stats ──
     MSGCCycleStats cycleStats_;
-    MSHeapThresholdState heapThresholdState_;
+    MSScavengeThresholdState scavengeThresholdState_;
     size_t previousReusedScavengedRegionCount_ = 0;
     uint64_t gcCycle_ = 0;  // Monotonic GC cycle counter
 

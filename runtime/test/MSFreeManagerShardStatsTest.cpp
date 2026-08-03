@@ -694,6 +694,74 @@ void TestWholeSegmentReleaseUsesTwoPhasePublication()
     FreeHeap(heap, kHeapBytes);
 }
 
+void TestBackgroundScavengeHasNoEpochReleaseCap()
+{
+    constexpr size_t kPageSize = 16 * 1024;
+    constexpr size_t kRegionSize = 256 * 1024;
+    constexpr uint32_t kUnitsPerRegion = kRegionSize / kPageSize;
+    constexpr size_t kSegmentSize = 16ULL * 1024 * 1024;
+    constexpr uint32_t kRegionsPerSegment = kSegmentSize / kRegionSize;
+    constexpr size_t kHeapBytes = kSegmentSize * 4;
+
+    void* heap = AllocateHeap(kHeapBytes);
+    FreeManager manager;
+    manager.Initialize(kPageSize, kUnitsPerRegion, kRegionsPerSegment * 4,
+                       kRegionsPerSegment * 4,
+                       reinterpret_cast<uintptr_t>(heap),
+                       reinterpret_cast<uintptr_t>(heap) + kHeapBytes,
+                       reinterpret_cast<uintptr_t>(heap) + kHeapBytes,
+                       kSegmentSize, 1);
+
+    ExpectTake(manager, kRegionsPerSegment * 4, 0, 0,
+               "test setup should allocate all Segments");
+    for (uint32_t idx = 0; idx < kRegionsPerSegment * 4; idx += 2) {
+        manager.ReclaimRegionsReleased(idx, 1);
+    }
+
+    ExpectEq(manager.ScavengeAgedRegionsUpTo(kSegmentSize), 0,
+             "newly freed Regions must age through one GC epoch before release");
+    manager.AdvanceScavengeEpoch(2);
+    ExpectEq(manager.ScavengeAgedRegionsUpTo(kSegmentSize - kRegionSize),
+             kSegmentSize - kRegionSize,
+             "a sub-Segment budget must release available aged Regions");
+    ExpectEq(manager.ScavengeAgedRegionsUpTo(kSegmentSize), kSegmentSize,
+             "the next slice must release more aged Regions in the same epoch");
+    ExpectEq(manager.ScavengeAgedRegionsUpTo(kRegionSize), kRegionSize,
+             "the final aged Region must remain releasable in the same epoch");
+
+    FreeHeap(heap, kHeapBytes);
+}
+
+void TestBackgroundScavengeReleasesSubSegmentAgedSupply()
+{
+    constexpr size_t kPageSize = 16 * 1024;
+    constexpr size_t kRegionSize = 256 * 1024;
+    constexpr uint32_t kUnitsPerRegion = kRegionSize / kPageSize;
+    constexpr size_t kSegmentSize = 16ULL * 1024 * 1024;
+    constexpr uint32_t kRegionsPerSegment = kSegmentSize / kRegionSize;
+
+    void* heap = AllocateHeap(kSegmentSize);
+    FreeManager manager;
+    manager.Initialize(kPageSize, kUnitsPerRegion, kRegionsPerSegment,
+                       kRegionsPerSegment,
+                       reinterpret_cast<uintptr_t>(heap),
+                       reinterpret_cast<uintptr_t>(heap) + kSegmentSize,
+                       reinterpret_cast<uintptr_t>(heap) + kSegmentSize,
+                       kSegmentSize, 1);
+
+    ExpectTake(manager, kRegionsPerSegment, 0, 0,
+               "test setup should allocate the whole Segment");
+    manager.ReclaimRegionsReleased(0, 1);
+    ExpectEq(manager.ScavengeAgedRegionsUpTo(kRegionSize), 0,
+             "current-epoch hot-free Region must not be released");
+
+    manager.AdvanceScavengeEpoch(2);
+    ExpectEq(manager.ScavengeAgedRegionsUpTo(kRegionSize), kRegionSize,
+             "one aged Region must be releasable below the Segment-sized floor");
+
+    FreeHeap(heap, kSegmentSize);
+}
+
 void TestShrinkKeepsTopologyWhenReleaseFails()
 {
     constexpr size_t kPageSize = 16 * 1024;
@@ -805,6 +873,8 @@ int main()
     TestAppleReleaseRemapsZeroPagesWithoutPreZero();
     TestScavengeFailureRollsBackToHotFree();
     TestWholeSegmentReleaseUsesTwoPhasePublication();
+    TestBackgroundScavengeHasNoEpochReleaseCap();
+    TestBackgroundScavengeReleasesSubSegmentAgedSupply();
     TestShrinkKeepsTopologyWhenReleaseFails();
     TestClaimedRegionCannotBeAllocatedDuringRelease();
     return 0;

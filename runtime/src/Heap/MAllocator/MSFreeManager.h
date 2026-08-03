@@ -13,6 +13,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <deque>
+#include <limits>
 #include <memory>
 #include <mutex>
 #include <vector>
@@ -112,6 +113,10 @@ public:
     // Like ScavengeFreeRegions, but caps the work at maxBytes.
     // Returns actual bytes released (madvise'd).
     size_t ScavengeFreeRegionsUpTo(size_t maxBytes);
+    // Background policy: release hot-free Regions that crossed an epoch
+    // boundary, up to maxBytes. Eligible Regions need not be contiguous.
+    size_t ScavengeAgedRegionsUpTo(size_t maxBytes);
+    void AdvanceScavengeEpoch(uint32_t epoch);
 
     uintptr_t GetCommittedEnd() const { return committedEnd_; }
     uintptr_t GetMaxHeapEnd() const { return maxHeapEnd_; }
@@ -125,6 +130,7 @@ public:
     size_t GetMaxVirtualRegionCount() const { return maxVirtualRegionCount_; }
     uint16_t ResolveOwnerShardId(RegionIndex idx) const;
     size_t GetSegmentRegionCount() const { return segmentRegionCount_; }
+    size_t GetSegmentSizeBytes() const { return segmentSize_; }
     size_t GetCommittedSegmentCount() const
     {
         return segmentRegionCount_ == 0 ? 0 : (committedRegionCount_ + segmentRegionCount_ - 1) / segmentRegionCount_;
@@ -155,6 +161,7 @@ private:
         std::vector<uint64_t> allocBits_;
         std::vector<uint64_t> scavengedBits_;
         std::vector<uint64_t> scavengingBits_;
+        std::vector<uint32_t> freeEpochs_;
         std::vector<ChunkSummary> chunkSummaries_;
     };
 
@@ -209,6 +216,9 @@ private:
         return (regionCount + kChunkBits - 1) / kChunkBits;
     }
 
+    static constexpr uint32_t kNoFreeEpoch =
+        std::numeric_limits<uint32_t>::max();
+
     static uint64_t ValidRegionMaskForWord(size_t wordIdx, size_t committedLocal);
     static uint64_t HotFreeMaskForWord(const OwnedSegmentView& view,
                                        size_t wordIdx,
@@ -234,14 +244,31 @@ private:
     RegionIndex FindNextFreeRegionLocked(RegionIndex start) const;
     RegionIndex FindNextOwnedFreeRegionLocked(const FreeManagerShard& shard, RegionIndex start) const;
     RegionIndex FindFirstFreeRegionInViewLocked(const OwnedSegmentView& view, RegionIndex start) const;
+    RegionIndex FindFirstHotFreeRegionInViewLocked(const OwnedSegmentView& view, RegionIndex start) const;
     bool PreciseFitFromLocked(RegionIndex start, RegionCount num) const;
     bool TryTakeBorrowedRegionLocked(FreeManagerShard& shard, RegionIndex& idx);
     bool FindFreeRunInRangeLocked(RegionIndex start, RegionIndex end, RegionCount num, RegionIndex& idx) const;
     bool FindFreeRunLocked(RegionIndex cursor, RegionCount num, RegionIndex& idx) const;
     bool FindOwnedFreeRunLocked(const FreeManagerShard& shard, RegionIndex cursor, RegionCount num, RegionIndex& idx) const;
+    bool FindOwnedHotFreeRunLocked(const FreeManagerShard& shard, RegionIndex cursor,
+                                   RegionCount num, RegionIndex& idx) const;
+    bool IsHotFreeRunInOwnedViewsLocked(const FreeManagerShard& shard, RegionIndex start,
+                                        RegionCount num) const;
+    bool FindPreferredOwnedFreeRunLocked(const FreeManagerShard& shard,
+                                         RegionCount num,
+                                         RegionIndex& idx,
+                                         bool& fromTakeSide) const;
+    bool FindOwnedRunLocked(const FreeManagerShard& shard,
+                            RegionCount num,
+                            RegionIndex& idx,
+                            bool& fromTakeSide,
+                            bool hotOnly) const;
     static RegionCount CountContiguousFreeInViewLocked(const OwnedSegmentView& view,
                                                        RegionIndex start,
                                                        RegionCount maxCount);
+    static RegionCount CountContiguousHotFreeInViewLocked(const OwnedSegmentView& view,
+                                                          RegionIndex start,
+                                                          RegionCount maxCount);
     // Opt1: word-level fit check within a view (no per-region view lookup)
     static bool PreciseFitInViewFromLocked(const OwnedSegmentView& view, size_t localStart, size_t num);
     // Opt2 helpers: word-level ctz scan within a view
@@ -270,6 +297,9 @@ private:
     void ReclaimRegionsReleasedImpl(const RegionSpan* spans, size_t count);
     void ApplyGroupedOwnerReclaim(std::vector<std::vector<RegionSpan>>& groupedSpans);
     size_t ScavengeFreeRegionsByRegionBudget(size_t regionBudget);
+    bool TryTakeLocalHotRegionsLocked(FreeManagerShard& shard,
+                                      RegionCount num,
+                                      RegionIndex& idx);
     bool TryTakeLocalRegionsLocked(FreeManagerShard& shard, RegionCount num, RegionIndex& idx, bool& reusedScavenged);
     bool TryTakeOneRegionFastLocked(FreeManagerShard& shard, RegionIndex& idx, bool& reusedScavenged);
     bool TryTakeOneRegionFromOwnedViewsLocked(FreeManagerShard& shard,
@@ -289,8 +319,12 @@ private:
     bool TryStealContiguousRegionRunLocked(uint16_t receiverShardId,
                                            RegionCount num,
                                            RegionIndex& idx,
-                                           RegionSpan& reusedSpan);
-    bool TryStealSingleRegionBatchLocked(uint16_t receiverShardId, RegionIndex& idx, RegionSpan& reusedSpan);
+                                           RegionSpan& reusedSpan,
+                                           bool hotOnly);
+    bool TryStealSingleRegionBatchLocked(uint16_t receiverShardId,
+                                         RegionIndex& idx,
+                                         RegionSpan& reusedSpan,
+                                         bool hotOnly);
     bool FindNextNonEmptyDonorShard(uint16_t receiverShardId,
                                     uint32_t searchStart,
                                     uint16_t& donorShardId) const;
@@ -318,6 +352,13 @@ private:
     RegionIndex AddrToRegionIdx(uintptr_t addr) const;
     uintptr_t RegionIdxToAddr(RegionIndex regionIdx) const;
     uint32_t ComputeMaxFreeRunInViewLocked(const OwnedSegmentView& view) const;
+    uint64_t AgedHotFreeMaskForWord(const OwnedSegmentView& view,
+                                    size_t wordIdx, size_t committedLocal,
+                                    uint32_t currentEpoch) const;
+    size_t ClaimAgedScavengeSpansLocked(FreeManagerShard& shard,
+                                       size_t regionBudget,
+                                       uint32_t currentEpoch,
+                                       std::vector<PendingScavengeSpan>& spans);
 
     mutable std::mutex pageHeapMutex_;
     mutable std::mutex growMutex_;
@@ -337,6 +378,7 @@ private:
     std::atomic<size_t> totalHotFreeRegions_ {0};
     std::atomic<size_t> reusedScavengedRegionCount_ {0};
     std::atomic<uint64_t> availabilityGeneration_ {0};
+    std::atomic<uint32_t> scavengeEpoch_ {1};
     std::vector<uint16_t> segmentOwnerShard_;
     uint16_t nextScavengeShard_ = 0;
 };

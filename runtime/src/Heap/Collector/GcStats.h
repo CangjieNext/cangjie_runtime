@@ -31,6 +31,8 @@ public:
     void SetThreshold(size_t val) { heapThreshold.store(val, std::memory_order_release); }
     size_t GetScavengeThreshold() const { return scavengeThreshold.load(std::memory_order_acquire); }
     void SetScavengeThreshold(size_t val) { scavengeThreshold.store(val, std::memory_order_release); }
+    size_t GetMarkRunway() const { return markRunway.load(std::memory_order_acquire); }
+    void SetMarkRunway(size_t val) { markRunway.store(val, std::memory_order_release); }
     // Snapshots persisted at GC end for pacing / HEU trigger calculations.
     size_t baselineAllocatedBytes = 0;  // in-use Region bytes snapshot at GC end
     size_t lastTrueLiveBytes = 0;       // trueLiveBytes from last GC marking
@@ -79,6 +81,7 @@ public:
 private:
     std::atomic<size_t> heapThreshold{0};
     std::atomic<size_t> scavengeThreshold{0};
+    std::atomic<size_t> markRunway{0};
 };
 extern size_t g_gcCount;
 extern uint64_t g_gcTotalTimeUs;

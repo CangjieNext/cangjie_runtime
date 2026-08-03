@@ -206,6 +206,91 @@ void TestMarkAllocatedOneLockedUpdatesSingleSegmentLocally()
     std::free(heap);
 }
 
+void TestAllocationPrefersHotFreeBeforeScavengedFree()
+{
+    constexpr size_t kPageSize = 16 * 1024;
+    constexpr size_t kRegionSize = 256 * 1024;
+    constexpr uint32_t kUnitsPerRegion = kRegionSize / kPageSize;
+    constexpr uint32_t kInitialRegions = 8;
+    constexpr size_t kHeapBytes = static_cast<size_t>(kInitialRegions) * kRegionSize;
+
+    void* heap = std::malloc(kHeapBytes);
+    if (heap == nullptr) {
+        std::fprintf(stderr, "malloc failed\n");
+        std::abort();
+    }
+
+    FreeManager manager;
+    manager.Initialize(
+        kPageSize, kUnitsPerRegion, kInitialRegions, kInitialRegions,
+        reinterpret_cast<uintptr_t>(heap),
+        reinterpret_cast<uintptr_t>(heap) + kHeapBytes,
+        reinterpret_cast<uintptr_t>(heap) + kHeapBytes,
+        kHeapBytes, 1);
+
+    {
+        auto& shard = manager.shards_[0];
+        std::lock_guard<std::mutex> lock(shard.shardMutex_);
+        manager.MarkScavengingLocked(shard, 0, 1);
+        manager.CompleteScavengingLocked(shard, 0, 1, true);
+    }
+
+    ExpectTake(manager, 0, 1,
+               "allocator must skip a lower-address scavenged Region while hot-free exists");
+    for (uint32_t expected = 2; expected < kInitialRegions; ++expected) {
+        ExpectTake(manager, 0, expected,
+                   "allocator must exhaust hot-free supply before cold reuse");
+    }
+    ExpectTake(manager, 0, 0,
+               "allocator may reuse a scavenged Region after hot-free supply is exhausted");
+    ExpectEq(manager.GetReusedScavengedRegionCount(), 1,
+             "only the final cold fallback should count as scavenged reuse");
+
+    std::free(heap);
+}
+
+void TestAllocationPrefersRemoteHotBeforeLocalScavenged()
+{
+    constexpr size_t kPageSize = 16 * 1024;
+    constexpr size_t kRegionSize = 256 * 1024;
+    constexpr uint32_t kUnitsPerRegion = kRegionSize / kPageSize;
+    constexpr uint32_t kRegionsPerSegment = 4;
+    constexpr uint32_t kInitialRegions = kRegionsPerSegment * 2;
+    constexpr size_t kHeapBytes = static_cast<size_t>(kInitialRegions) * kRegionSize;
+
+    void* heap = std::malloc(kHeapBytes);
+    if (heap == nullptr) {
+        std::fprintf(stderr, "malloc failed\n");
+        std::abort();
+    }
+
+    FreeManager manager;
+    manager.Initialize(
+        kPageSize, kUnitsPerRegion, kInitialRegions, kInitialRegions,
+        reinterpret_cast<uintptr_t>(heap),
+        reinterpret_cast<uintptr_t>(heap) + kHeapBytes,
+        reinterpret_cast<uintptr_t>(heap) + kHeapBytes,
+        kRegionsPerSegment * kRegionSize, 2);
+
+    for (uint32_t expected = 0; expected < kRegionsPerSegment; ++expected) {
+        ExpectTake(manager, 0, expected, "home shard setup allocation");
+    }
+    manager.ReclaimRegionsReleased(0, 1);
+    {
+        auto& shard = manager.shards_[0];
+        std::lock_guard<std::mutex> lock(shard.shardMutex_);
+        manager.MarkScavengingLocked(shard, 0, 1);
+        manager.CompleteScavengingLocked(shard, 0, 1, true);
+    }
+
+    ExpectTake(manager, 0, kRegionsPerSegment,
+               "remote hot-free must win before home-shard scavenged-free");
+    ExpectEq(manager.GetReusedScavengedRegionCount(), 0,
+             "global hot supply must avoid cold reuse");
+
+    std::free(heap);
+}
+
 } // namespace
 
 int main()
@@ -213,5 +298,7 @@ int main()
     TestSingleRegionFastPathSeedsLocalHint();
     TestFastHintDoesNotPreemptReclaimSideOrdering();
     TestMarkAllocatedOneLockedUpdatesSingleSegmentLocally();
+    TestAllocationPrefersHotFreeBeforeScavengedFree();
+    TestAllocationPrefersRemoteHotBeforeLocalScavenged();
     return 0;
 }

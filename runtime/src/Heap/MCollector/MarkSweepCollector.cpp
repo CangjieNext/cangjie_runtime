@@ -724,7 +724,6 @@ void MarkSweepCollector::RunGarbageCollection(uint64_t gcIndex, GCReason reason)
     PreGarbageCollection(/* isConcurrent */ true);
     DumpGCStateSnapshot("preGCMark");
     DoGarbageCollection();
-    UpdateGCStats();
     Heap::GetHeap().GetCollectorResources().GetBackgroundProcessor().NotifyToScavenge();
     PostGarbageCollection(gcIndex);
 
@@ -754,7 +753,7 @@ void MarkSweepCollector::DoGarbageCollection()
 
 // ============================================================================
 // Step 2.1a: PreEnumRoots  (GC thread only)
-//   Stop all sweeps, wait for in-flight bg/lazy sweep to quiesce, clear
+//   Stop all sweeps, wait for in-flight background/assist/helper work to quiesce, clear
 //   markBitmaps, then briefly stop the world for reclassify + generation flip
 //   that freezes this cycle's sweep snapshot.
 //
@@ -2042,10 +2041,9 @@ void MarkSweepCollector::FinalizeConcurrentMarkAccounting()
 
     VLOG(REPORT,
          "[MS-GC] ConcurrentMark scheduler: time=%sus termination=%s "
-         "outstanding=%zu quiesceResidual=%zu",
+         "quiesceResidual=%zu",
          Pretty(cycleStats_.markSchedulerUs).Str(),
          GetMSMarkTerminationReasonName(cycleStats_.markTerminationReason),
-         cycleStats_.markQuiesceResidualTasks,
          cycleStats_.markQuiesceResidualTasks);
     VLOG(REPORT,
          "[MS-GC] ConcurrentMark stages: total=%sus phaseTransition=%sus "
@@ -2457,7 +2455,7 @@ void MarkSweepCollector::MarkTermination()
             BuildMSPostMarkSweepPlan(gcReason == GC_REASON_OOM);
         if (centralPool != nullptr &&
             sweepPlan.reenableAtMarkTermination) {
-            centralPool->ReenableLazySweep();
+            centralPool->ReenableSweepAdmission();
         }
         stages.sweepPlanUs = TimeUtil::MicroSeconds() - stageStartUs;
         beforeStwResumeUs = TimeUtil::MicroSeconds();
@@ -2598,8 +2596,7 @@ void MarkSweepCollector::PrepareFinalizersForResurrection()
         }
         return !IsMarkedObject(obj);
     };
-    snapshotFinalizerNum =
-        collectorResources.EnqueueFinalizables(finalizable);
+    (void)collectorResources.EnqueueFinalizables(finalizable);
 }
 
 
@@ -2644,26 +2641,37 @@ void MarkSweepCollector::PostMarkTermination()
     // Phase transition and WB clear already done in MarkTermination (inside STW).
     // No need to transition again or clear WB buffers here.
 
-    // 1. Finalizer reachability and resurrection were completed under STW.
-    // PostMark only wakes the worker for the already-published finalizable set.
-    {
-        uint64_t t0 = TimeUtil::MicroSeconds();
-        ProcessFinalizers();
-        uint64_t finalizerUs = TimeUtil::MicroSeconds() - t0;
-        VLOG(REPORT, "[MS-GC] Finalizers: snapshot=%u objects, notify=%sus",
-             snapshotFinalizerNum, Pretty(finalizerUs).Str());
-    }
+    // Finalizer reachability, resurrection and publication completed under
+    // STW. CollectorResources::NotifyGCFinished wakes the background processor
+    // after its GC-active gate opens; notifying it here would only wake it too
+    // early and then require the same notification again.
 
-    // 4. Publish the stable mark statistics and hand small-Region sweep over
-    // to the background processor. MarkTermination has already restored IDLE
-    // and installed the idle barrier before Mutators resumed, so this does not
-    // change barrier semantics; it only makes the completed mark result visible
-    // to HEU accounting and the asynchronous Sweep/Scavenge workers.
+    // Publish stable mark statistics and hand Small Region work to background
+    // Sweep. MarkTermination already restored IDLE and installed the idle
+    // barrier before mutators resumed, so this does not change barrier
+    // semantics.
     RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(theAllocator);
     CentralRegionPool* centralPool = space.GetCentralPool();
     MSPostMarkSweepPlan sweepPlan = BuildMSPostMarkSweepPlan(gcReason == GC_REASON_OOM);
     if (centralPool != nullptr) {
-        MSMarkedStats markedStats = centralPool->ComputeMarkedStats();
+        GCThreadPool* threadPool = GetThreadPool();
+        size_t availableHelpers = threadPool == nullptr ? 0 : std::min(
+            collectorResources.GetMSGCThreadPoolHelperLimit(),
+            static_cast<size_t>(threadPool->GetMaxThreadNum()));
+        size_t statsHelperCount = ComputeMSPostMarkStatsHelperTarget(
+            centralPool->GetCollectSetBitmapBytes(), availableHelpers);
+        bool statsPoolOwned = statsHelperCount != 0 &&
+            collectorResources.AcquireMSGCWorkerPoolForPostMarkStats();
+        if (!statsPoolOwned) {
+            statsHelperCount = 0;
+        }
+
+        MSMarkedStats markedStats = centralPool->ComputeMarkedStats(
+            threadPool, statsHelperCount);
+        if (statsPoolOwned) {
+            collectorResources.ReleaseMSGCWorkerPool(
+                MSGCWorkerPoolOwner::POST_MARK_STATS);
+        }
         cycleStats_.trueLiveBytes = markedStats.liveBytes;
         prevCycleMarkedObjects_.store(markedStats.objectCount, std::memory_order_relaxed);
         VLOG(REPORT, "[MS-GC] Mark bitmap: objects=%zu liveBytes=%zuB",
@@ -2673,6 +2681,11 @@ void MarkSweepCollector::PostMarkTermination()
         // consumed it. Survivors are appended to largeNextSupply_; dead spans
         // are reset and returned directly to FreeManager.
         CollectLargeGarbage();
+
+        // Sweep Assist derives its runway from Heap::GetHeapThresholdBytes().
+        // Install this cycle's live-based threshold before publishing the new
+        // Sweep epoch so its initial assist ratio never observes the old goal.
+        UpdateGCStats();
 
         // The immutable Mark boundary becomes Sweep work only after the final
         // bitmap/stats consumers have finished. Regions returned or allocated
@@ -2687,8 +2700,12 @@ void MarkSweepCollector::PostMarkTermination()
             VLOG(REPORT,
                  "[MS-GC] OOM cache flush: empty=%zuB hotFree=%zuB",
                  flushedEmptyBytes, space.GetHotFreeBytesReference());
-            centralPool->ReenableLazySweep();
+            centralPool->ReenableSweepAdmission();
         }
+    } else {
+        // Preserve collector accounting even if the allocator has no central
+        // pool (initialization/teardown defensive path).
+        UpdateGCStats();
     }
 
     BackgroundProcessor& backgroundProcessor = Heap::GetHeap().GetCollectorResources().GetBackgroundProcessor();
@@ -2766,11 +2783,6 @@ void MarkSweepCollector::RunOOMEmergencyParallelSweep(CentralRegionPool& central
     VLOG(REPORT,
          "[MS-GC] OOM parallel sweep once: helpers=%zu allocationFallback=%d unswept=%zu->%zu",
          helperCount, static_cast<int>(allocationFailed), unsweptBefore, unsweptAfter);
-}
-
-void MarkSweepCollector::ProcessFinalizers()
-{
-    collectorResources.NotifyFinalizerWork();
 }
 
 void MarkSweepCollector::PrepareCycleRef()
@@ -3155,13 +3167,11 @@ void MarkSweepCollector::UpdateGCStats()
     size_t oldThreshold = gcStats.GetThreshold();
     size_t oldScavengeThreshold = gcStats.GetScavengeThreshold();
     size_t oldLastTrueLiveBytes = gcStats.lastTrueLiveBytes;
-    size_t oldLastStableLiveBytes = gcStats.lastStableLiveBytes;
     size_t previousInUseBytes = gcStats.lastRegionBytes;
     // Use mark-bit based live bytes (ComputeMarkedStats, computed in
     // PostMarkTermination). New allocations are not counted merely because
-    // they were allocated, but a long SATB window can retain objects that
-    // became unreachable during marking. Classify that floating-live shape
-    // before allowing this sample to update the stable threshold baseline.
+    // they were allocated. This completed cycle's bitmap live becomes the
+    // previous-live base used to pace the next allocation interval.
     size_t liveBytes = cycleStats_.trueLiveBytes;
     size_t inUseBytes = space.GetHeapInUseBytes();
     size_t maxHeapBytes = space.GetMaxCapacity();
@@ -3171,25 +3181,18 @@ void MarkSweepCollector::UpdateGCStats()
         ? inUseBytes - cycleStats_.markStartInUseBytes
         : 0;
     bool exceptionalBypass = gcStats.reason == GC_REASON_OOM;
-    MSStableLiveDecision stableDecision = EvaluateMSStableLive(
-        heapThresholdState_,
-        oldLastStableLiveBytes,
-        cycleStats_.markStartInUseBytes,
-        cycleStats_.markEndInUseBytes,
-        liveBytes,
-        exceptionalBypass);
-    cycleStats_.floatingLiveInflated = stableDecision.floatingLiveInflated;
-    cycleStats_.thresholdBaseBytes = stableDecision.thresholdBase;
-    gcStats.lastStableLiveBytes = stableDecision.nextStableLive;
+    cycleStats_.floatingLiveInflated = false;
+    cycleStats_.thresholdBaseBytes = liveBytes;
+    gcStats.lastStableLiveBytes = liveBytes;
     gcStats.lastTrueLiveBytes = liveBytes;
     gcStats.lastRegionBytes = inUseBytes;
     gcStats.baselineAllocatedBytes = inUseBytes;
 
-    // The raw MSGC target is medianStableLive * (1 + heapGrowth). Established
-    // normal history uses an inclusive 10% deadband and symmetric 12.5%
+    // The raw MSGC target is previous trueLive * (1 + heapGrowth). Established
+    // normal cycles use an inclusive 10% deadband and symmetric 12.5%
     // transition limits. Bootstrap and OOM cycles establish their clamped
     // target directly.
-    size_t baseBytes = stableDecision.thresholdBase;
+    size_t baseBytes = liveBytes;
 
     double heapGrowth = CangjieRuntime::GetHeapParam().heapGrowth;
     size_t gcThresholdCap = maxHeapBytes != 0
@@ -3200,7 +3203,7 @@ void MarkSweepCollector::UpdateGCStats()
     size_t minThreshold = ComputeMSHeapThresholdFloor(
         absoluteMinThreshold, gcThresholdCap);
     bool bypassTransition =
-        exceptionalBypass || !stableDecision.hadAcceptedHistory;
+        exceptionalBypass || oldLastTrueLiveBytes == 0;
     MSHeapThresholdDecision thresholdDecision =
         EvaluateMSHeapThreshold(
             oldThreshold, baseBytes, heapGrowth, minThreshold, gcThresholdCap,
@@ -3220,20 +3223,33 @@ void MarkSweepCollector::UpdateGCStats()
         ? std::numeric_limits<size_t>::max()
         : coldReuseRegions * MS_REGION_SIZE;
     double scavengeGrowth = CangjieRuntime::GetGCParam().scavengeGrowth;
+    double scavengeHeapGoalMultiplier =
+        CangjieRuntime::GetGCParam().scavengeHeapGoalMultiplier;
+    if (scavengeThresholdState_.thresholdBytes == 0 &&
+        oldScavengeThreshold != 0) {
+        scavengeThresholdState_.thresholdBytes = oldScavengeThreshold;
+    }
     MSScavengeThresholdDecision scavengeDecision = EvaluateMSScavengeThreshold(
+        scavengeThresholdState_,
         inUseBytes,
-        oldThreshold,
         newThreshold,
         maxHeapBytes,
-        scavengeGrowth);
+        scavengeGrowth,
+        scavengeHeapGoalMultiplier,
+        coldReuseBytes);
     size_t newScavengeThreshold = scavengeDecision.thresholdBytes;
-    gcStats.SetThreshold(newThreshold);
-    gcStats.SetScavengeThreshold(newScavengeThreshold);
-    gcStats.lastSurvivingRegionBytes = liveBytes;
     uint64_t completedWU =
         cycleCompletedMarkWU_.load(std::memory_order_relaxed);
     uint64_t allocatedMarkBytes =
         cycleAllocatedMarkBytes_.load(std::memory_order_relaxed);
+    MSMarkRunwayDecision runwayDecision = ComputeMSMarkRunway(
+        allocatedMarkBytes, liveBytes, newThreshold);
+    // Publish the auxiliary goals before the release-store of heapThreshold.
+    // Region acquisition reads heapThreshold first, then these atomics.
+    gcStats.SetMarkRunway(runwayDecision.runwayBytes);
+    gcStats.SetScavengeThreshold(newScavengeThreshold);
+    gcStats.SetThreshold(newThreshold);
+    gcStats.lastSurvivingRegionBytes = liveBytes;
     markPacer_.UpdateFullCycle(
         completedWU, allocatedMarkBytes, cycleStats_.concurrentMarkUs);
     VLOG(REPORT,
@@ -3247,27 +3263,29 @@ void MarkSweepCollector::UpdateGCStats()
     VLOG(REPORT,
          "[MS-GC] heapThreshold: oldThreshold=%zuB newThreshold=%zuB "
          "oldScavengeThreshold=%zuB newScavengeThreshold=%zuB "
-         "prevLive=%zuB prevStableLive=%zuB trueLive=%zuB base=%zuB "
+         "prevLive=%zuB trueLive=%zuB base=%zuB "
          "markStartInUse=%zuB markEndInUse=%zuB inUseBurst=%zuB "
-         "floatingLiveInflated=%d acceptedSample=%d historySize=%zu "
-         "medianStableLive=%zuB exceptionalBypass=%d "
+         "markRunway=%zuB markRunwayEstimate=%zuB markRunwayMin=%zuB "
+         "markRunwayMax=%zuB markGoalGap=%zuB exceptionalBypass=%d "
          "growth=%.2f minThreshold=%zuB "
          "rawTarget=%zuB deadbandLower=%zuB deadbandUpper=%zuB deadbandHeld=%d "
          "riseLimit=%zuB fallLimit=%zuB riseLimited=%d fallLimited=%d "
          "transitionLimited=%d transitionBypassed=%d "
          "previousInUse=%zuB inUse=%zuB maxHeap=%zuB "
          "scavengeColdReuseRegions=%zu scavengeColdReuse=%zuB "
-         "scavengeRetainMultiplier=%.2f scavengeScaledInUse=%zuB "
+         "scavengeRetainMultiplier=%.2f scavengeHeapGoalMultiplier=%.2f "
+         "scavengeScaledHeapGoal=%zuB scavengeScaledInUse=%zuB "
          "scavengeHeadroom=%zuB scavengeCandidate=%zuB "
-         "scavengeSelectedTarget=%zuB",
+         "scavengeSelectedTarget=%zuB scavengeColdReserve=%zuB "
+         "scavengeLowerWindows=%zu scavengeFallHeld=%d "
+         "scavengeFallLimited=%d",
          oldThreshold, newThreshold, oldScavengeThreshold, newScavengeThreshold,
-         oldLastTrueLiveBytes, oldLastStableLiveBytes, liveBytes, baseBytes,
+         oldLastTrueLiveBytes, liveBytes, baseBytes,
          cycleStats_.markStartInUseBytes, cycleStats_.markEndInUseBytes,
          cycleStats_.inUseBurstBytes,
-         static_cast<int>(cycleStats_.floatingLiveInflated),
-         static_cast<int>(stableDecision.acceptedSample),
-         stableDecision.historySize, stableDecision.medianStableLive,
-         static_cast<int>(stableDecision.exceptionalBypass),
+         runwayDecision.runwayBytes, runwayDecision.estimatedRunwayBytes,
+         runwayDecision.minimumRunwayBytes, runwayDecision.maximumRunwayBytes,
+         runwayDecision.heapGoalGapBytes, static_cast<int>(exceptionalBypass),
          1.0 + heapGrowth, minThreshold,
          thresholdDecision.rawTarget,
          thresholdDecision.deadbandLower, thresholdDecision.deadbandUpper,
@@ -3279,9 +3297,15 @@ void MarkSweepCollector::UpdateGCStats()
          static_cast<int>(thresholdDecision.transitionBypassed),
          previousInUseBytes, inUseBytes, maxHeapBytes,
          coldReuseRegions, coldReuseBytes,
-         scavengeGrowth, scavengeDecision.scaledHeapInUseBytes,
+         scavengeGrowth, scavengeHeapGoalMultiplier,
+         scavengeDecision.scaledHeapGoalBytes,
+         scavengeDecision.scaledHeapInUseBytes,
          scavengeDecision.retainedHeadroomBytes, scavengeDecision.candidateBytes,
-         scavengeDecision.selectedTargetBytes);
+         scavengeDecision.selectedTargetBytes,
+         scavengeDecision.coldReuseReserveBytes,
+         scavengeDecision.lowerTargetWindows,
+         static_cast<int>(scavengeDecision.fallHeld),
+         static_cast<int>(scavengeDecision.fallLimited));
 
     VLOG(REPORT,
          "[MS-GC] live bytes %zu, inUseRegionBytes %zu, update gc threshold %zu -> %zu",

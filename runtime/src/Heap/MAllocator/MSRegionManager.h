@@ -110,6 +110,8 @@ public:
     // Scavenge up to maxBytes of hot-free regions (pages returned to OS).
     // Used by BackgroundScavengeLoop for per-quantum budget control.
     size_t ScavengeFreeRegionsUpTo(size_t maxBytes);
+    void AdvanceScavengeEpoch(uint32_t epoch) { freeManager_.AdvanceScavengeEpoch(epoch); }
+    size_t GetSegmentSizeBytes() const { return freeManager_.GetSegmentSizeBytes(); }
 
     // Shrink the committed heap after background reclaim/scavenge has exposed trailing hot-free space.
     // The actual trailing-tail reclaim and committed-end update are managed by FreeManager.
@@ -164,10 +166,6 @@ public:
 
     // Unified layer-1 HEU trigger entry. MSGC now only keeps the TAKE_REGIONS path.
     void MaybeNotifyMark();
-
-    // Layer-2 trigger: notify gc-helper to sweep only when the target size
-    // class has both low ready supply and unswept backlog.
-    void MaybeNotifySweep(const CentralRegionPool* centralPool, uint8_t cls);
 
     // Layer-4 trigger: notify gc-helper to scavenge heap when retained exceeds
     // threshold and enough releasable supply is available.

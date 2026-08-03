@@ -92,6 +92,8 @@ FreeManager::OwnedSegmentView FreeManager::BuildOwnedSegmentView(size_t segmentI
     view.allocBits_.assign(view.bitmapWordCount_, 0);
     view.scavengedBits_.assign(view.bitmapWordCount_, 0);
     view.scavengingBits_.assign(view.bitmapWordCount_, 0);
+    view.freeEpochs_.assign(
+        regionCount, scavengeEpoch_.load(std::memory_order_relaxed));
     view.chunkSummaries_.assign(view.summaryChunkCount_, {});
     view.maxFreeRun_ = regionCount;  // freshly grown: entirely free
     RefreshHotWordsInRangeLocked(view, 0, regionCount, regionCount);
@@ -259,6 +261,7 @@ void FreeManager::Initialize(size_t unitSize, size_t unitsPerRegion, RegionCount
     totalHotFreeRegions_.store(0, std::memory_order_relaxed);
     reusedScavengedRegionCount_.store(0, std::memory_order_relaxed);
     availabilityGeneration_.store(0, std::memory_order_relaxed);
+    scavengeEpoch_.store(1, std::memory_order_relaxed);
     shards_.clear();
     for (uint32_t shardIdx = 0; shardIdx < shardCount_; ++shardIdx) {
         shards_.emplace_back();
@@ -322,13 +325,26 @@ FreeManager::TryTakeResult FreeManager::TryTakeRegions(RegionCount num, uint16_t
         if (num == 1 && TryTakeBorrowedRegionLocked(shardState, idx)) {
             return TryTakeResult::SUCCESS;
         }
-        found = TryTakeLocalRegionsLocked(shardState, num, idx, reusedScavenged);
+        found = TryTakeLocalHotRegionsLocked(shardState, num, idx);
     }
 
     if (!found && num == 1) {
-        found = TryStealSingleRegionBatchLocked(homeShardId, idx, reusedSpan);
+        found = TryStealSingleRegionBatchLocked(homeShardId, idx, reusedSpan, true);
     } else if (!found && num > 1) {
-        found = TryStealContiguousRegionRunLocked(homeShardId, num, idx, reusedSpan);
+        found = TryStealContiguousRegionRunLocked(homeShardId, num, idx, reusedSpan, true);
+    }
+
+    // Only after every shard has been probed for hot-free supply may this
+    // allocation reuse pages previously returned to the OS.
+    if (!found) {
+        FreeManagerShard& shardState = GetShard(homeShardId);
+        std::lock_guard<std::mutex> shardLock(shardState.shardMutex_);
+        found = TryTakeLocalRegionsLocked(shardState, num, idx, reusedScavenged);
+    }
+    if (!found && num == 1) {
+        found = TryStealSingleRegionBatchLocked(homeShardId, idx, reusedSpan, false);
+    } else if (!found && num > 1) {
+        found = TryStealContiguousRegionRunLocked(homeShardId, num, idx, reusedSpan, false);
     }
 
     if (!found) {
@@ -344,6 +360,42 @@ FreeManager::TryTakeResult FreeManager::TryTakeRegions(RegionCount num, uint16_t
     return TryTakeResult::SUCCESS;
 }
 
+bool FreeManager::TryTakeLocalHotRegionsLocked(FreeManagerShard& shard,
+                                                RegionCount num,
+                                                RegionIndex& idx)
+{
+    bool fromTakeSide = false;
+    if (!FindOwnedRunLocked(shard, num, idx, fromTakeSide, true)) {
+        return false;
+    }
+
+    bool reusedScavenged = false;
+    MarkAllocatedLocked(shard, idx, num, reusedScavenged);
+    CHECK_DETAIL(!reusedScavenged,
+                 "[MS-GC] hot-only Region selection reused scavenged pages");
+    if (fromTakeSide && idx == shard.takeCursor_) {
+        shard.takeCursor_ = FindNextOwnedFreeRegionLocked(shard, idx + num);
+    }
+    if (!fromTakeSide && idx == shard.reclaimCursor_) {
+        shard.reclaimCursor_ = FindNextOwnedFreeRegionLocked(shard, idx + num);
+    }
+    if (num == 1) {
+        OwnedSegmentView* view = FindOwnedSegmentViewByRegionLocked(shard, idx);
+        CHECK_DETAIL(view != nullptr,
+                     "[MS-GC] hot single Region view missing: region=%u", idx);
+        shard.fastTakeHintValid_ = true;
+        for (size_t viewIdx = 0; viewIdx < shard.ownedViews_.size(); ++viewIdx) {
+            if (&shard.ownedViews_[viewIdx] == view) {
+                shard.fastTakeViewIdx_ = viewIdx;
+                break;
+            }
+        }
+        shard.fastTakeWordOffset_ =
+            static_cast<size_t>(idx - view->regionStart_) / kChunkBits;
+    }
+    return true;
+}
+
 bool FreeManager::TryTakeLocalRegionsLocked(FreeManagerShard& shard,
                                             RegionCount num,
                                             RegionIndex& idx,
@@ -353,14 +405,11 @@ bool FreeManager::TryTakeLocalRegionsLocked(FreeManagerShard& shard,
         return true;
     }
 
-    bool fromTakeSide = FindOwnedFreeRunLocked(shard, shard.takeCursor_, num, idx);
-    bool fromReclaimSide = false;
-    if (!fromTakeSide && shard.reclaimCursor_ < shard.takeCursor_) {
-        fromReclaimSide = FindOwnedFreeRunLocked(shard, shard.reclaimCursor_, num, idx);
-    }
-    if (!fromTakeSide && !fromReclaimSide) {
+    bool fromTakeSide = false;
+    if (!FindPreferredOwnedFreeRunLocked(shard, num, idx, fromTakeSide)) {
         return false;
     }
+    bool fromReclaimSide = !fromTakeSide;
 
     MarkAllocatedLocked(shard, idx, num, reusedScavenged);
     if (fromTakeSide && idx == shard.takeCursor_) {
@@ -993,6 +1042,125 @@ size_t FreeManager::ScavengeFreeRegionsUpTo(size_t maxBytes)
     return ScavengeFreeRegionsByRegionBudget(regionBudget) * regionSize;
 }
 
+uint64_t FreeManager::AgedHotFreeMaskForWord(
+    const OwnedSegmentView& view, size_t wordIdx, size_t committedLocal,
+    uint32_t currentEpoch) const
+{
+    size_t wordBase = wordIdx * kChunkBits;
+    uint64_t hot = HotFreeMaskForWord(view, wordIdx, committedLocal);
+    uint64_t eligible = 0;
+    while (hot != 0) {
+        size_t bit = static_cast<size_t>(__builtin_ctzll(hot));
+        size_t localIdx = wordBase + bit;
+        uint32_t freeEpoch = view.freeEpochs_[localIdx];
+        if (freeEpoch != kNoFreeEpoch && freeEpoch != currentEpoch) {
+            eligible |= 1ULL << bit;
+        }
+        hot &= hot - 1;
+    }
+    return eligible;
+}
+
+void FreeManager::AdvanceScavengeEpoch(uint32_t epoch)
+{
+    // Per-Region freeEpoch is authoritative. Publishing the new epoch is
+    // sufficient; Scavenge validates each candidate again under its shard lock.
+    scavengeEpoch_.store(epoch, std::memory_order_release);
+}
+
+size_t FreeManager::ClaimAgedScavengeSpansLocked(
+    FreeManagerShard& shard, size_t regionBudget, uint32_t currentEpoch,
+    std::vector<PendingScavengeSpan>& spans)
+{
+    size_t claimed = 0;
+    for (OwnedSegmentView& view : shard.ownedViews_) {
+        size_t committedLocal = view.regionStart_ < committedRegionCount_
+            ? static_cast<size_t>(std::min(
+                  view.regionEnd_, static_cast<RegionIndex>(committedRegionCount_)) -
+              view.regionStart_)
+            : 0;
+        for (size_t wordIdx = 0;
+             wordIdx < view.bitmapWordCount_ && claimed < regionBudget;
+             ++wordIdx) {
+            uint64_t aged = AgedHotFreeMaskForWord(
+                view, wordIdx, committedLocal, currentEpoch);
+            size_t remaining = regionBudget - claimed;
+            uint64_t claimMask = 0;
+            while (aged != 0 &&
+                   static_cast<size_t>(__builtin_popcountll(claimMask)) < remaining) {
+                size_t bit = static_cast<size_t>(__builtin_ctzll(aged));
+                claimMask |= 1ULL << bit;
+                aged &= aged - 1;
+            }
+            claimed += ClaimScavengeWordMaskLocked(
+                shard, view, wordIdx, claimMask, spans);
+        }
+        if (claimed >= regionBudget) {
+            break;
+        }
+    }
+    return claimed;
+}
+
+size_t FreeManager::ScavengeAgedRegionsUpTo(size_t maxBytes)
+{
+    if (maxBytes == 0 || committedRegionCount_ == 0) {
+        return 0;
+    }
+
+    size_t regionSize = GetRegionSizeBytes();
+    size_t regionBudget = maxBytes / regionSize;
+    if (regionBudget == 0) {
+        return 0;
+    }
+    uint32_t currentEpoch = scavengeEpoch_.load(std::memory_order_acquire);
+    uint16_t startShardId = nextScavengeShard_;
+    std::vector<std::vector<PendingScavengeSpan>> staged(shardCount_);
+    size_t claimedRegions = 0;
+    for (uint32_t scannedShardCount = 0;
+         scannedShardCount < shardCount_ && claimedRegions < regionBudget;
+         ++scannedShardCount) {
+        uint16_t ownerShardId = static_cast<uint16_t>(
+            (startShardId + scannedShardCount) % shardCount_);
+        FreeManagerShard& shard = GetShard(ownerShardId);
+        std::unique_lock<std::mutex> shardLock(
+            shard.shardMutex_, std::try_to_lock);
+        if (!shardLock.owns_lock()) {
+            continue;
+        }
+        claimedRegions += ClaimAgedScavengeSpansLocked(
+            shard, regionBudget - claimedRegions, currentEpoch,
+            staged[ownerShardId]);
+    }
+
+    if (claimedRegions == 0) {
+        nextScavengeShard_ = static_cast<uint16_t>(
+            (static_cast<uint32_t>(startShardId) + 1) % shardCount_);
+        return 0;
+    }
+
+    size_t releasedRegions = 0;
+    for (uint16_t shardId = 0; shardId < shardCount_; ++shardId) {
+        for (PendingScavengeSpan& span : staged[shardId]) {
+            span.released = ReleaseUnits(
+                RegionToUnitIdx(span.idx), RegionCountToUnitCount(span.num));
+            if (span.released) {
+                releasedRegions += span.num;
+            }
+        }
+        if (!staged[shardId].empty()) {
+            FreeManagerShard& shard = GetShard(shardId);
+            std::lock_guard<std::mutex> shardLock(shard.shardMutex_);
+            for (const PendingScavengeSpan& span : staged[shardId]) {
+                CompleteScavengingLocked(shard, span.idx, span.num, span.released);
+            }
+        }
+    }
+    nextScavengeShard_ = static_cast<uint16_t>(
+        (static_cast<uint32_t>(startShardId) + 1) % shardCount_);
+    return releasedRegions * regionSize;
+}
+
 bool FreeManager::IsRegionFreeLocked(RegionIndex idx) const
 {
     if (idx >= committedRegionCount_) {
@@ -1119,6 +1287,38 @@ FreeManager::RegionIndex FreeManager::FindFirstFreeRegionInViewLocked(const Owne
         RegionIndex candidate = static_cast<RegionIndex>(view.regionStart_ + wordRegionStart + bitIdx);
         if (candidate < viewEnd) {
             return candidate;
+        }
+    }
+    return static_cast<RegionIndex>(committedRegionCount_);
+}
+
+FreeManager::RegionIndex FreeManager::FindFirstHotFreeRegionInViewLocked(
+    const OwnedSegmentView& view, RegionIndex start) const
+{
+    RegionIndex viewEnd = std::min(
+        view.regionEnd_, static_cast<RegionIndex>(committedRegionCount_));
+    RegionIndex cursor = std::max(start, view.regionStart_);
+    if (cursor >= viewEnd) {
+        return static_cast<RegionIndex>(committedRegionCount_);
+    }
+
+    size_t committedLocal = static_cast<size_t>(viewEnd - view.regionStart_);
+    size_t localStart = static_cast<size_t>(cursor - view.regionStart_);
+    for (size_t wordIdx = localStart / kChunkBits;
+         wordIdx < view.bitmapWordCount_; ++wordIdx) {
+        uint64_t hotMask = HotFreeMaskForWord(view, wordIdx, committedLocal);
+        size_t wordBase = wordIdx * kChunkBits;
+        if (localStart > wordBase) {
+            size_t skipBits = localStart - wordBase;
+            if (skipBits >= kChunkBits) {
+                continue;
+            }
+            hotMask &= ~((1ULL << skipBits) - 1);
+        }
+        if (hotMask != 0) {
+            return static_cast<RegionIndex>(
+                view.regionStart_ + wordBase +
+                static_cast<size_t>(__builtin_ctzll(hotMask)));
         }
     }
     return static_cast<RegionIndex>(committedRegionCount_);
@@ -1295,49 +1495,32 @@ bool FreeManager::TryTakeOneRegionFastLocked(FreeManagerShard& shard, RegionInde
     if (shard.ownedViews_.empty()) {
         return false;
     }
-
-    if (shard.fastTakeHintValid_ && shard.fastTakeViewIdx_ < shard.ownedViews_.size()) {
-        const OwnedSegmentView& hintedView = shard.ownedViews_[shard.fastTakeViewIdx_];
-        RegionIndex hintedStart = hintedView.regionStart_ +
-            static_cast<RegionIndex>(shard.fastTakeWordOffset_ * kChunkBits);
-        hintedStart = std::max(hintedStart, std::max(hintedView.regionStart_, shard.takeCursor_));
-        if (TryTakeOneRegionFromOwnedViewsLocked(shard, shard.fastTakeViewIdx_, hintedStart, idx, reusedScavenged)) {
-            return true;
-        }
+    bool fromTakeSide = false;
+    if (!FindPreferredOwnedFreeRunLocked(shard, 1, idx, fromTakeSide)) {
         shard.fastTakeHintValid_ = false;
+        return false;
     }
 
-    size_t startViewIdx = 0;
-    RegionIndex takeStart = shard.takeCursor_;
+    OwnedSegmentView* view = FindOwnedSegmentViewByRegionLocked(shard, idx);
+    CHECK_DETAIL(view != nullptr, "[MS-GC] preferred single Region view missing: region=%u", idx);
+    MarkAllocatedOneLocked(
+        shard, *view, static_cast<size_t>(idx - view->regionStart_), reusedScavenged);
+    if (fromTakeSide && idx == shard.takeCursor_) {
+        shard.takeCursor_ = FindNextOwnedFreeRegionLocked(shard, idx + 1);
+    }
+    if (!fromTakeSide && idx == shard.reclaimCursor_) {
+        shard.reclaimCursor_ = FindNextOwnedFreeRegionLocked(shard, idx + 1);
+    }
+
+    shard.fastTakeHintValid_ = true;
     for (size_t viewIdx = 0; viewIdx < shard.ownedViews_.size(); ++viewIdx) {
-        const OwnedSegmentView& view = shard.ownedViews_[viewIdx];
-        if (takeStart < view.regionEnd_) {
-            startViewIdx = viewIdx;
-            takeStart = std::max(takeStart, view.regionStart_);
+        if (&shard.ownedViews_[viewIdx] == view) {
+            shard.fastTakeViewIdx_ = viewIdx;
             break;
         }
     }
-    if (TryTakeOneRegionFromOwnedViewsLocked(shard, startViewIdx, takeStart, idx, reusedScavenged)) {
-        return true;
-    }
-
-    if (shard.reclaimCursor_ < shard.takeCursor_) {
-        size_t reclaimViewIdx = 0;
-        RegionIndex reclaimStart = shard.reclaimCursor_;
-        for (size_t viewIdx = 0; viewIdx < shard.ownedViews_.size(); ++viewIdx) {
-            const OwnedSegmentView& view = shard.ownedViews_[viewIdx];
-            if (reclaimStart < view.regionEnd_) {
-                reclaimViewIdx = viewIdx;
-                reclaimStart = std::max(reclaimStart, view.regionStart_);
-                break;
-            }
-        }
-        if (TryTakeOneRegionFromOwnedViewsLocked(
-                shard, reclaimViewIdx, reclaimStart, idx, reusedScavenged)) {
-            return true;
-        }
-    }
-    return false;
+    shard.fastTakeWordOffset_ = static_cast<size_t>(idx - view->regionStart_) / kChunkBits;
+    return true;
 }
 
 void FreeManager::MarkAllocatedOneLocked(FreeManagerShard& shard,
@@ -1354,6 +1537,7 @@ void FreeManager::MarkAllocatedOneLocked(FreeManagerShard& shard,
                  "[MS-GC] MarkAllocatedOneLocked: region already allocated, segment=%zu localIdx=%zu",
                  view.segmentIdx_,
                  localIdx);
+    view.freeEpochs_[localIdx] = kNoFreeEpoch;
     reusedScavenged = wasScavenged;
     if (wasScavenged) {
         --shard.scavengedRegionCount_;
@@ -1478,6 +1662,116 @@ bool FreeManager::FindOwnedFreeRunLocked(const FreeManagerShard& shard,
     return false;
 }
 
+bool FreeManager::IsHotFreeRunInOwnedViewsLocked(const FreeManagerShard& shard,
+                                                  RegionIndex start,
+                                                  RegionCount num) const
+{
+    if (num == 0 || static_cast<size_t>(start) + num > committedRegionCount_) {
+        return false;
+    }
+    RegionIndex cursor = start;
+    RegionCount remaining = num;
+    while (remaining != 0) {
+        const OwnedSegmentView* view = FindOwnedSegmentViewByRegionLocked(shard, cursor);
+        if (view == nullptr) {
+            return false;
+        }
+        RegionCount chunk = std::min<RegionCount>(
+            remaining, static_cast<RegionCount>(view->regionEnd_ - cursor));
+        size_t localStart = static_cast<size_t>(cursor - view->regionStart_);
+        for (size_t localIdx = localStart; localIdx < localStart + chunk; ++localIdx) {
+            if (TestBit(view->allocBits_.data(), localIdx) ||
+                TestBit(view->scavengedBits_.data(), localIdx) ||
+                TestBit(view->scavengingBits_.data(), localIdx)) {
+                return false;
+            }
+        }
+        cursor = static_cast<RegionIndex>(cursor + chunk);
+        remaining = static_cast<RegionCount>(remaining - chunk);
+    }
+    return true;
+}
+
+bool FreeManager::FindOwnedHotFreeRunLocked(const FreeManagerShard& shard,
+                                             RegionIndex cursor,
+                                             RegionCount num,
+                                             RegionIndex& idx) const
+{
+    if (num == 0 || shard.ownedViews_.empty() || shard.freeRegionCount_ < num) {
+        return false;
+    }
+    const auto& views = shard.ownedViews_;
+    auto it = std::lower_bound(views.begin(), views.end(), cursor,
+        [](const OwnedSegmentView& view, RegionIndex value) {
+            return view.regionEnd_ <= value;
+        });
+    for (; it != views.end(); ++it) {
+        RegionIndex probe = std::max(cursor, it->regionStart_);
+        RegionIndex viewEnd = std::min(
+            it->regionEnd_, static_cast<RegionIndex>(committedRegionCount_));
+        while (probe < viewEnd) {
+            RegionIndex candidate = FindFirstHotFreeRegionInViewLocked(*it, probe);
+            if (candidate >= viewEnd) {
+                break;
+            }
+            if (static_cast<size_t>(candidate) + num <= committedRegionCount_ &&
+                IsHotFreeRunInOwnedViewsLocked(shard, candidate, num)) {
+                idx = candidate;
+                return true;
+            }
+            probe = static_cast<RegionIndex>(candidate + 1);
+        }
+    }
+    return false;
+}
+
+bool FreeManager::FindPreferredOwnedFreeRunLocked(const FreeManagerShard& shard,
+                                                   RegionCount num,
+                                                   RegionIndex& idx,
+                                                   bool& fromTakeSide) const
+{
+    if (FindOwnedHotFreeRunLocked(shard, shard.takeCursor_, num, idx)) {
+        fromTakeSide = true;
+        return true;
+    }
+    if (shard.reclaimCursor_ < shard.takeCursor_ &&
+        FindOwnedHotFreeRunLocked(shard, shard.reclaimCursor_, num, idx)) {
+        fromTakeSide = false;
+        return true;
+    }
+    if (FindOwnedFreeRunLocked(shard, shard.takeCursor_, num, idx)) {
+        fromTakeSide = true;
+        return true;
+    }
+    if (shard.reclaimCursor_ < shard.takeCursor_ &&
+        FindOwnedFreeRunLocked(shard, shard.reclaimCursor_, num, idx)) {
+        fromTakeSide = false;
+        return true;
+    }
+    return false;
+}
+
+bool FreeManager::FindOwnedRunLocked(const FreeManagerShard& shard,
+                                     RegionCount num,
+                                     RegionIndex& idx,
+                                     bool& fromTakeSide,
+                                     bool hotOnly) const
+{
+    if (!hotOnly) {
+        return FindPreferredOwnedFreeRunLocked(shard, num, idx, fromTakeSide);
+    }
+    if (FindOwnedHotFreeRunLocked(shard, shard.takeCursor_, num, idx)) {
+        fromTakeSide = true;
+        return true;
+    }
+    if (shard.reclaimCursor_ < shard.takeCursor_ &&
+        FindOwnedHotFreeRunLocked(shard, shard.reclaimCursor_, num, idx)) {
+        fromTakeSide = false;
+        return true;
+    }
+    return false;
+}
+
 FreeManager::RegionCount FreeManager::CountContiguousFreeInViewLocked(const OwnedSegmentView& view,
                                                                        RegionIndex start,
                                                                        RegionCount maxCount)
@@ -1512,6 +1806,26 @@ FreeManager::RegionCount FreeManager::CountContiguousFreeInViewLocked(const Owne
         }
     }
     return count;
+}
+
+FreeManager::RegionCount FreeManager::CountContiguousHotFreeInViewLocked(
+    const OwnedSegmentView& view, RegionIndex start, RegionCount maxCount)
+{
+    if (maxCount == 0 || start < view.regionStart_ || start >= view.regionEnd_) {
+        return 0;
+    }
+    size_t localIdx = static_cast<size_t>(start - view.regionStart_);
+    size_t localEnd = std::min(
+        static_cast<size_t>(view.regionEnd_ - view.regionStart_),
+        localIdx + static_cast<size_t>(maxCount));
+    size_t begin = localIdx;
+    while (localIdx < localEnd &&
+           !TestBit(view.allocBits_.data(), localIdx) &&
+           !TestBit(view.scavengedBits_.data(), localIdx) &&
+           !TestBit(view.scavengingBits_.data(), localIdx)) {
+        ++localIdx;
+    }
+    return static_cast<RegionCount>(localIdx - begin);
 }
 
 size_t FreeManager::ClaimScavengeWordMaskLocked(FreeManagerShard& shard,
@@ -1815,7 +2129,8 @@ void FreeManager::ApplyGroupedOwnerReclaim(std::vector<std::vector<RegionSpan>>&
 
 bool FreeManager::TryStealSingleRegionBatchLocked(uint16_t receiverShardId,
                                                   RegionIndex& idx,
-                                                  RegionSpan& reusedSpan)
+                                                  RegionSpan& reusedSpan,
+                                                  bool hotOnly)
 {
     if (receiverShardId >= shardCount_ || shardCount_ <= 1) {
         return false;
@@ -1848,44 +2163,27 @@ bool FreeManager::TryStealSingleRegionBatchLocked(uint16_t receiverShardId,
             FreeManagerShard& donorShard = GetShard(donorShardId);
             std::lock_guard<std::mutex> donorLock(donorShard.shardMutex_);
 
-            // Use fastTakeHint to guide first-region search after the availability
-            // bitmap has selected a shard that currently advertises free Regions.
             bool fromTakeSide = false;
-            bool fromReclaimSide = false;
-            RegionIndex candidate = static_cast<RegionIndex>(committedRegionCount_);
-
-            if (donorShard.fastTakeHintValid_ &&
-                donorShard.fastTakeViewIdx_ < donorShard.ownedViews_.size()) {
-                const OwnedSegmentView& hintView = donorShard.ownedViews_[donorShard.fastTakeViewIdx_];
-                RegionIndex hintPos = hintView.regionStart_ +
-                    static_cast<RegionIndex>(donorShard.fastTakeWordOffset_ * kChunkBits);
-                RegionIndex hintedStart = std::max(donorShard.takeCursor_, hintPos);
-                candidate = FindFirstFreeRegionInViewLocked(hintView, hintedStart);
-            }
-            if (candidate >= committedRegionCount_) {
-                candidate = FindNextOwnedFreeRegionLocked(donorShard, donorShard.takeCursor_);
-            }
-            if (candidate < committedRegionCount_) {
-                fromTakeSide = true;
-                donorIdx = candidate;
-            } else if (donorShard.reclaimCursor_ < donorShard.takeCursor_) {
-                candidate = FindNextOwnedFreeRegionLocked(donorShard, donorShard.reclaimCursor_);
-                if (candidate < committedRegionCount_) {
-                    fromReclaimSide = true;
-                    donorIdx = candidate;
-                }
-            }
-
-            if (!fromTakeSide && !fromReclaimSide) {
+            if (!FindOwnedRunLocked(
+                    donorShard, 1, donorIdx, fromTakeSide, hotOnly)) {
                 continue;
             }
+            bool fromReclaimSide = !fromTakeSide;
 
             // Bitmap-based contiguous count via ctzll (O(1) for the steal batch).
             OwnedSegmentView* view = FindOwnedSegmentViewByRegionLocked(donorShard, donorIdx);
             if (view == nullptr) {
                 continue;
             }
-            batchCount = CountContiguousFreeInViewLocked(*view, donorIdx, kSingleRegionStealBatch);
+            batchCount = CountContiguousHotFreeInViewLocked(
+                *view, donorIdx, kSingleRegionStealBatch);
+            if (batchCount == 0 && !hotOnly) {
+                // Do not reserve a batch of scavenged Regions. Cold fallback
+                // takes exactly the requested Region so later allocations can
+                // re-check global hot supply before faulting pages back in.
+                batchCount = CountContiguousFreeInViewLocked(
+                    *view, donorIdx, 1);
+            }
             if (batchCount == 0) {
                 continue;
             }
@@ -1924,7 +2222,8 @@ bool FreeManager::TryStealSingleRegionBatchLocked(uint16_t receiverShardId,
 bool FreeManager::TryStealContiguousRegionRunLocked(uint16_t receiverShardId,
                                                     RegionCount num,
                                                     RegionIndex& idx,
-                                                    RegionSpan& reusedSpan)
+                                                    RegionSpan& reusedSpan,
+                                                    bool hotOnly)
 {
     if (receiverShardId >= shardCount_ || shardCount_ <= 1 || num == 0) {
         return false;
@@ -1957,9 +2256,10 @@ bool FreeManager::TryStealContiguousRegionRunLocked(uint16_t receiverShardId,
             const FreeManagerShard& donorShard = GetShard(donorShardId);
             std::lock_guard<std::mutex> donorLock(donorShard.shardMutex_);
             RegionIndex candidateIdx = 0;
-            if (!FindOwnedFreeRunLocked(donorShard, donorShard.takeCursor_, num, candidateIdx) &&
-                !(donorShard.reclaimCursor_ < donorShard.takeCursor_ &&
-                  FindOwnedFreeRunLocked(donorShard, donorShard.reclaimCursor_, num, candidateIdx))) {
+            bool candidateFromTakeSide = false;
+            if (!FindOwnedRunLocked(
+                    donorShard, num, candidateIdx, candidateFromTakeSide,
+                    hotOnly)) {
                 continue;
             }
             const OwnedSegmentView* view = FindOwnedSegmentViewByRegionLocked(donorShard, candidateIdx);
@@ -1988,14 +2288,11 @@ bool FreeManager::TryStealContiguousRegionRunLocked(uint16_t receiverShardId,
     bool fromReclaimSide = false;
     {
         std::lock_guard<std::mutex> donorLock(donorShard.shardMutex_);
-        if (FindOwnedFreeRunLocked(donorShard, donorShard.takeCursor_, num, donorIdx)) {
-            fromTakeSide = true;
-        } else if (donorShard.reclaimCursor_ < donorShard.takeCursor_ &&
-                   FindOwnedFreeRunLocked(donorShard, donorShard.reclaimCursor_, num, donorIdx)) {
-            fromReclaimSide = true;
-        } else {
+        if (!FindOwnedRunLocked(
+                donorShard, num, donorIdx, fromTakeSide, hotOnly)) {
             return false;
         }
+        fromReclaimSide = !fromTakeSide;
 
         MarkAllocatedLocked(donorShard, donorIdx, num, reusedScavenged);
         if (fromTakeSide && donorIdx == donorShard.takeCursor_) {
@@ -2071,6 +2368,7 @@ void FreeManager::MarkAllocatedLocked(FreeManagerShard& shard,
                          localIdx);
             SetBit(view->allocBits_.data(), localIdx);
             ClearBit(view->scavengedBits_.data(), localIdx);
+            view->freeEpochs_[localIdx] = kNoFreeEpoch;
         }
         if (scavengedCount != 0) {
             reusedScavengedRegionCount_.fetch_add(scavengedCount, std::memory_order_relaxed);
@@ -2087,6 +2385,7 @@ void FreeManager::MarkAllocatedLocked(FreeManagerShard& shard,
 
 void FreeManager::MarkFreeLocked(FreeManagerShard& shard, RegionIndex idx, RegionCount num)
 {
+    uint32_t currentEpoch = scavengeEpoch_.load(std::memory_order_relaxed);
     RegionIndex cursor = idx;
     RegionCount remaining = num;
     while (remaining != 0 && cursor < committedRegionCount_) {
@@ -2124,6 +2423,9 @@ void FreeManager::MarkFreeLocked(FreeManagerShard& shard, RegionIndex idx, Regio
 
             view->allocBits_[wi] = oldAlloc & ~mask;
             view->scavengedBits_[wi] = oldScav & ~mask;
+        }
+        for (size_t localIdx = localStart; localIdx < localEnd; ++localIdx) {
+            view->freeEpochs_[localIdx] = currentEpoch;
         }
         UpdateChunkSummaryRangeLocked(*view, localStart, chunk);  // also refreshes view.maxFreeRun_
         size_t committedLocal = static_cast<size_t>(
@@ -2212,6 +2514,9 @@ void FreeManager::CompleteScavengingLocked(FreeManagerShard& shard,
         shard.freeRegionCount_ += chunk;
         if (released) {
             shard.scavengedRegionCount_ += chunk;
+            for (size_t localIdx = localStart; localIdx < localEnd; ++localIdx) {
+                view->freeEpochs_[localIdx] = kNoFreeEpoch;
+            }
         }
         view->maxFreeRun_ = ComputeMaxFreeRunInViewLocked(*view);
         size_t committedLocal = static_cast<size_t>(
@@ -2243,6 +2548,7 @@ void FreeManager::MarkUnavailableLocked(FreeManagerShard& shard, RegionIndex idx
         for (size_t localIdx = localStart; localIdx < localStart + chunk; ++localIdx) {
             SetBit(view->allocBits_.data(), localIdx);
             ClearBit(view->scavengedBits_.data(), localIdx);
+            view->freeEpochs_[localIdx] = kNoFreeEpoch;
         }
         UpdateChunkSummaryRangeLocked(*view, localStart, chunk);  // also refreshes view.maxFreeRun_
         size_t committedLocal = static_cast<size_t>(

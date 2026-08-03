@@ -162,13 +162,6 @@ void CentralRegionPool::PublishSweepDoneAfterQuiescence()
     sweepPressureMode_.store(static_cast<int>(SweepPressureMode::LOW), std::memory_order_release);
 }
 
-void CentralRegionPool::MaybeNotifySweep(uint8_t cls) const
-{
-    if (msRegionManager_ != nullptr) {
-        msRegionManager_->MaybeNotifySweep(this, cls);
-    }
-}
-
 std::array<uint8_t, kNumSizeClasses> CentralRegionPool::BuildBackgroundSweepClassOrder(uint8_t preferredCls) const
 {
     std::array<MSSweepClassPressure, kNumSizeClasses> pressure {};
@@ -714,7 +707,12 @@ void CentralRegionPool::PublishCollectSetForSweep()
         : ComputeMSSweepAssistRatioScaled(totalUnswept, runwayRegions);
     sweepRegionsPerAllocScaled_.store(
         sweepAssistRatio, std::memory_order_relaxed);
-    sweepCycleId_.fetch_add(1, std::memory_order_release);
+    uint32_t newSweepCycleId =
+        sweepCycleId_.fetch_add(1, std::memory_order_acq_rel) + 1;
+    MSRegionManager* regionManager = space.GetMSRegionManager();
+    if (regionManager != nullptr) {
+        regionManager->AdvanceScavengeEpoch(newSweepCycleId);
+    }
     sweepDone_.store(totalUnswept == 0, std::memory_order_release);
 
     VLOG(REPORT,
@@ -814,7 +812,6 @@ void CentralRegionPool::ParallelSweepOnceForOOM(uint8_t preferredCls)
     // deliberately keeps them closed while the GC main thread and all configured
     // Sweep helpers claim disjoint Regions from the same unswept head.
     CHECK(stopSweepRequested_.load(std::memory_order_acquire));
-    CHECK(skipLazySweep_.load(std::memory_order_acquire));
     CHECK(skipAssistSweep_.load(std::memory_order_acquire));
     CHECK(skipHelperSweep_.load(std::memory_order_acquire));
 
@@ -1084,7 +1081,6 @@ void CentralRegionPool::ForceFinishAllUnsweptForOOM()
     // did not reopen them in MarkTermination. Therefore GC main is the only
     // thread that can claim a Region from this cycle's unswept lists here.
     CHECK(stopSweepRequested_.load(std::memory_order_acquire));
-    CHECK(skipLazySweep_.load(std::memory_order_acquire));
     CHECK(skipAssistSweep_.load(std::memory_order_acquire));
     CHECK(skipHelperSweep_.load(std::memory_order_acquire));
 
@@ -1314,49 +1310,196 @@ void CentralRegionPool::RemoveAllocBufferMS(AllocBufferMS* buffer)
 }
 
 // ============================================================================
-// ComputeMarkedStats: walk markBitmaps once for object count and live bytes
+// ComputeMarkedStats: walk frozen collect-set markBitmaps once
 // ============================================================================
-// Called after marking and large eager reclaim complete, before
-// PostMarkTermination publishes small-Region Sweep work.  At this point
-// markBitmaps are stable and no small-Region sweep has started.
-//
-MSMarkedStats CentralRegionPool::ComputeMarkedStats() const
+size_t CentralRegionPool::GetCollectSetBitmapBytes() const
 {
+    size_t bitmapBytes = 0;
+    for (uint8_t cls = 0; cls < kNumSizeClasses; ++cls) {
+        size_t bytesPerRegion =
+            static_cast<size_t>(SizeClassInfo::ClassToBitmapWords(cls)) *
+            sizeof(uint64_t);
+        for (uint8_t scan = 0; scan < kMSScanClassCount; ++scan) {
+            bitmapBytes += collectSet_[cls][scan].count * bytesPerRegion;
+        }
+    }
+    return bitmapBytes;
+}
+
+MSMarkedStats CentralRegionPool::ComputeMarkedStats(
+    GCThreadPool* threadPool, size_t helperCount) const
+{
+    constexpr size_t kMSPostMarkStatsRegionsPerChunk = 256;
     MSMarkedStats stats;
 
-    // 1. Walk only the immutable small collect-set. OUTSIDE_SET central/TLS
-    // Regions survive this cycle but are not part of its live-mark result.
-    for (uint8_t cls = 0; cls < kNumSizeClasses; cls++) {
-        size_t slotSize = SizeClassInfo::ClassToSize(cls);
+    auto countRegion = [](MSRegionInfo* region, uint8_t cls, uint8_t scan,
+                          MSMarkedStats& target) {
+        const size_t slotSize = SizeClassInfo::ClassToSize(cls);
+        const size_t wordCount = SizeClassInfo::ClassToBitmapWords(cls);
+#if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
+        CHECK_DETAIL(
+            region->GetRegionKind() == MSRegionKind::SMALL &&
+            region->GetAllocMode() == MSAllocMode::BITMAP &&
+            region->sizeClass == cls &&
+            ToMSScanClassIndex(region->GetScanClass()) == scan,
+            "[MS-GC] ComputeMarkedStats: invalid collect-set lane member "
+            "idx=%zu cls=%u/%u scan=%u/%u kind=%u mode=%u",
+            MSRegionInfoArray::GetRegionIdx(region),
+            static_cast<unsigned>(region->sizeClass),
+            static_cast<unsigned>(cls),
+            static_cast<unsigned>(
+                ToMSScanClassIndex(region->GetScanClass())),
+            static_cast<unsigned>(scan),
+            static_cast<unsigned>(region->GetRegionKind()),
+            static_cast<unsigned>(region->GetAllocMode()));
+#endif
+        const uint64_t* markBitmap = region->GetMarkBitmap();
+        size_t marked = 0;
+        for (size_t word = 0; word < wordCount; ++word) {
+            marked += __builtin_popcountll(markBitmap[word]);
+        }
+        target.AddSlots(marked, slotSize);
+    };
 
-        auto countRegion = [slotSize, &stats](MSRegionInfo* region) {
-            if (region->GetRegionKind() != MSRegionKind::SMALL ||
-                region->GetTotalSlotCount() == 0) {
-                return;
-            }
-            uint64_t* markBitmap = region->GetMarkBitmap();
-            size_t wordCount = region->GetBitmapWordCount();
-            size_t marked = 0;
-            for (size_t i = 0; i < wordCount; i++) {
-                marked += __builtin_popcountll(markBitmap[i]);
-            }
-            stats.AddSlots(marked, slotSize);
-        };
+    helperCount = threadPool == nullptr ? 0 : std::min(
+        {helperCount, kMSPostMarkStatsMaxHelpers,
+         static_cast<size_t>(threadPool->GetMaxThreadNum())});
 
-        for (uint8_t scan = 0; scan < kMSScanClassCount; ++scan) {
-            collectSet_[cls][scan].ForEach(countRegion);
+    struct StatsChunk {
+        MSRegionInfo* head;
+        size_t count;
+        uint8_t cls;
+        uint8_t scan;
+    };
+    std::vector<StatsChunk> chunks;
+    if (helperCount != 0) {
+        size_t regionCount = GetCollectSetRegionCount();
+        chunks.reserve(
+            regionCount / kMSPostMarkStatsRegionsPerChunk +
+            kNumSizeClasses * kMSScanClassCount);
+        for (uint8_t cls = 0; cls < kNumSizeClasses; ++cls) {
+            for (uint8_t scan = 0; scan < kMSScanClassCount; ++scan) {
+                const RegionChain& chain = collectSet_[cls][scan];
+                int32_t idx = chain.headIdx;
+                while (idx != MSRegionInfo::INVALID_IDX) {
+                    MSRegionInfo* head =
+                        MSRegionInfoArray::GetRegionInfoByIdx(idx);
+                    size_t count = 0;
+                    while (idx != MSRegionInfo::INVALID_IDX &&
+                           count < kMSPostMarkStatsRegionsPerChunk) {
+                        MSRegionInfo* region =
+                            MSRegionInfoArray::GetRegionInfoByIdx(idx);
+                        idx = static_cast<int32_t>(
+                            region->GetCentralNextRegionIdx());
+                        ++count;
+                    }
+                    chunks.push_back({head, count, cls, scan});
+                }
+            }
+        }
+        helperCount = chunks.empty() ? 0 : std::min(
+            helperCount, chunks.size() - 1);
+    }
+
+    if (helperCount == 0 && chunks.empty()) {
+        for (uint8_t cls = 0; cls < kNumSizeClasses; ++cls) {
+            for (uint8_t scan = 0; scan < kMSScanClassCount; ++scan) {
+                collectSet_[cls][scan].ForEach(
+                    [cls, scan, &stats, &countRegion](MSRegionInfo* region) {
+                        countRegion(region, cls, scan, stats);
+                    });
+            }
         }
     }
 
-    // 2. Walk only the immutable LARGE collect-set, before its live/dead
-    // partition moves survivors back to largeNextSupply_.
-    {
-        VisitLargeCollectSetLocked([&stats](MSRegionInfo* region) {
-            if (region->IsMarked()) {
-                stats.AddLargeObject(region->LargeSpanBytes());
+    auto countChunk = [&countRegion](const StatsChunk& chunk,
+                                     MSMarkedStats& target) {
+        MSRegionInfo* region = chunk.head;
+        for (size_t index = 0; index < chunk.count; ++index) {
+            CHECK_DETAIL(region != nullptr,
+                         "[MS-GC] truncated marked-stats chunk");
+            int32_t nextIdx = static_cast<int32_t>(
+                region->GetCentralNextRegionIdx());
+            MSRegionInfo* next = nextIdx == MSRegionInfo::INVALID_IDX
+                ? nullptr
+                : MSRegionInfoArray::GetRegionInfoByIdx(nextIdx);
+            countRegion(region, chunk.cls, chunk.scan, target);
+            region = next;
+        }
+    };
+
+    bool allocationFallback = false;
+    int32_t oldActiveThreadCount = 0;
+    std::array<MSMarkedStats, kMSPostMarkStatsMaxHelpers + 1>
+        participantStats{};
+    std::atomic<size_t> nextChunk{0};
+    auto claimChunks = [&chunks, &nextChunk, &countChunk](
+                           MSMarkedStats& target) {
+        for (;;) {
+            size_t chunkIndex =
+                nextChunk.fetch_add(1, std::memory_order_relaxed);
+            if (chunkIndex >= chunks.size()) {
+                return;
             }
-        });
+            countChunk(chunks[chunkIndex], target);
+        }
+    };
+    std::array<std::unique_ptr<HeapWork>, kMSPostMarkStatsMaxHelpers>
+        stagedTasks{};
+    for (size_t helper = 0; helper < helperCount; ++helper) {
+        stagedTasks[helper].reset(new (std::nothrow) LambdaWork(
+            [&claimChunks, &participantStats, helper](size_t) {
+                claimChunks(participantStats[helper]);
+            }));
+        if (stagedTasks[helper] == nullptr) {
+            allocationFallback = true;
+            helperCount = 0;
+            stagedTasks = {};
+            break;
+        }
     }
+
+    if (helperCount != 0) {
+        oldActiveThreadCount = threadPool->GetMaxActiveThreadNum();
+        threadPool->SetMaxActiveThreadNum(
+            static_cast<int32_t>(helperCount));
+        for (size_t helper = 0; helper < helperCount; ++helper) {
+            threadPool->AddWork(stagedTasks[helper].release());
+        }
+        threadPool->Start();
+    }
+
+    // GC main participates directly instead of waiting for the pool. Chunking
+    // prevents one dominant size-class lane from serializing the whole scan.
+    if (!chunks.empty()) {
+        claimChunks(participantStats[kMSPostMarkStatsMaxHelpers]);
+    }
+    if (helperCount != 0) {
+        threadPool->WaitFinish();
+        threadPool->SetMaxActiveThreadNum(oldActiveThreadCount);
+    }
+
+    if (!chunks.empty()) {
+        for (const MSMarkedStats& participant : participantStats) {
+            stats.objectCount += participant.objectCount;
+            stats.liveBytes += participant.liveBytes;
+        }
+    }
+
+    // LARGE membership is typically small and protected by one mutex; keep it
+    // serial after the bandwidth-heavy Small bitmap lanes have joined.
+    VisitLargeCollectSetLocked([&stats](MSRegionInfo* region) {
+        if (region->IsMarked()) {
+            stats.AddLargeObject(region->LargeSpanBytes());
+        }
+    });
+
+    VLOG(REPORT,
+         "[MS-GC] ComputeMarkedStats: bitmapBytes=%zu helpers=%zu "
+         "parallel=%d allocationFallback=%d",
+         GetCollectSetBitmapBytes(), helperCount,
+         static_cast<int>(helperCount != 0),
+         static_cast<int>(allocationFallback));
 
     return stats;
 }
@@ -1449,7 +1592,7 @@ void CentralRegionPool::StopAndWaitForAllSweep()
 
     // 1. Join the still-open Sweep epoch as another claimant. Every Sweep
     // source uses ClaimUnsweptHeadForSweep(), so the GC thread can drain
-    // different Regions concurrently with background/lazy/assist/helper work.
+    // different Regions concurrently with background/assist/helper work.
     // This pass deliberately does not publish sweepDone_: claimed Regions may
     // still be inside SweepRegion on another thread.
     ForceFinishAllUnswept();
@@ -1458,7 +1601,6 @@ void CentralRegionPool::StopAndWaitForAllSweep()
     // unified admission word makes closing and active-count accounting one
     // atomic protocol; these flags remain as lane-specific fast exits.
     stopSweepRequested_.store(true, std::memory_order_release);
-    skipLazySweep_.store(true, std::memory_order_release);
     skipAssistSweep_.store(true, std::memory_order_release);
     skipHelperSweep_.store(true, std::memory_order_release);
 
@@ -1506,9 +1648,8 @@ void CentralRegionPool::VisitMarkPendingRegionsUnderSTW(
     });
 }
 
-void CentralRegionPool::ReenableLazySweep()
+void CentralRegionPool::ReenableSweepAdmission()
 {
-    skipLazySweep_.store(false, std::memory_order_release);
     skipAssistSweep_.store(false, std::memory_order_release);
     skipHelperSweep_.store(false, std::memory_order_release);
     stopSweepRequested_.store(false, std::memory_order_release);

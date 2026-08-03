@@ -124,6 +124,12 @@ bool CollectorResources::AcquireMSGCWorkerPoolForMark()
     return gcThreadPool != nullptr && msgcWorkerPoolController_.AcquireMark();
 }
 
+bool CollectorResources::AcquireMSGCWorkerPoolForPostMarkStats()
+{
+    return gcThreadPool != nullptr &&
+        msgcWorkerPoolController_.AcquirePostMarkStats();
+}
+
 void CollectorResources::ReleaseMSGCWorkerPool(MSGCWorkerPoolOwner owner)
 {
     bool released = msgcWorkerPoolController_.Release(owner);
@@ -268,9 +274,9 @@ void CollectorResources::NotifyGCFinished(uint64_t gcIndex)
     std::unique_lock<std::mutex> lock(gcFinishedCondMutex);
     isGcStarted.store(false, std::memory_order_release);
 #ifdef MRT_USE_MARK_SWEEP
-    // PostMark publishes Finalizer work while GC is still active. Re-wake the
-    // shared background processor after reopening Finalizer admission so the
-    // notification cannot be lost behind the GC-active gate.
+    // MarkTermination may publish newly resurrected Finalizer work while GC is
+    // active. Wake the shared background processor only after reopening its
+    // GC-active admission gate.
     backgroundProcessor.NotifyFinalizerWork();
 #endif
     if (gcIndex != GCTask::ASYNC_TASK_INDEX) { // sync gc, need set taskIndex

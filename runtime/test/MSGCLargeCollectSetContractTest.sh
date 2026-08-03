@@ -28,6 +28,13 @@ printf '%s\n' "$partition" | rg -q 'largeCollectSet_\.clear\(\)'
 stats="$(sed -n '/MSMarkedStats CentralRegionPool::ComputeMarkedStats/,/^}/p' "$SOURCE")"
 printf '%s\n' "$stats" | rg -q 'collectSet_\[cls\]\[scan\]\.ForEach'
 printf '%s\n' "$stats" | rg -q 'VisitLargeCollectSetLocked'
+printf '%s\n' "$stats" | rg -q 'ClassToBitmapWords'
+printf '%s\n' "$stats" | rg -q 'kMSPostMarkStatsRegionsPerChunk'
+printf '%s\n' "$stats" | rg -q 'nextChunk\.fetch_add'
+if printf '%s\n' "$stats" | rg -q 'GetTotalSlotCount\(\)|GetBitmapWordCount\(\)'; then
+    echo 'ComputeMarkedStats still queries per-Region Small bitmap metadata' >&2
+    exit 1
+fi
 if printf '%s\n' "$stats" |
    rg -q 'VisitAllocBufferMS|VisitPartialSweptUnsafe|VisitNonPartialUnsafe|VisitLargeRegionsLocked'; then
     echo 'ComputeMarkedStats escapes the frozen collect-set' >&2
@@ -35,11 +42,13 @@ if printf '%s\n' "$stats" |
 fi
 
 postmark="$(sed -n '/void MarkSweepCollector::PostMarkTermination/,/^}/p' "$COLLECTOR")"
-stats_line="$(printf '%s\n' "$postmark" | rg -n 'ComputeMarkedStats' | cut -d: -f1)"
+stats_line="$(printf '%s\n' "$postmark" | rg -n 'centralPool->ComputeMarkedStats' | head -1 | cut -d: -f1)"
 large_line="$(printf '%s\n' "$postmark" | rg -n 'CollectLargeGarbage' | cut -d: -f1)"
 publish_line="$(printf '%s\n' "$postmark" | rg -n 'PublishCollectSetForSweep' | cut -d: -f1)"
-if [[ "$stats_line" -ge "$large_line" || "$large_line" -ge "$publish_line" ]]; then
-    echo 'PostMark must consume stats before partitioning the frozen boundary' >&2
+threshold_line="$(printf '%s\n' "$postmark" | rg -n '^ *UpdateGCStats\(\);' | head -1 | cut -d: -f1)"
+if [[ "$stats_line" -ge "$large_line" || "$large_line" -ge "$threshold_line" ||
+      "$threshold_line" -ge "$publish_line" ]]; then
+    echo 'PostMark must update the threshold after stats and before Sweep publication' >&2
     exit 1
 fi
 

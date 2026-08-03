@@ -15,6 +15,12 @@ namespace MapleRuntime {
 constexpr size_t kMSHeapThresholdHistoryLength = 8;
 constexpr size_t kMSHeapThresholdDeadbandDivisor = 10;
 constexpr size_t kMSHeapThresholdTransitionDivisor = 8;
+constexpr size_t kMSScavengeFallWindows = 8;
+constexpr size_t kMSScavengeFallDivisor = 16;
+constexpr size_t kMSScavengeColdReuseReserveMultiplier = 2;
+constexpr size_t kMSScavengeColdReuseReserveDecayDivisor = 8;
+constexpr size_t kMSMarkMinimumRunwayBytes = 4ULL * 1024ULL * 1024ULL;
+constexpr long double kMSMarkMaximumRunwayRatio = 0.30L;
 
 struct MSHeapThresholdDecision {
     size_t rawTarget = 0;
@@ -51,11 +57,30 @@ struct MSScavengeThresholdDecision {
     size_t heapInUseBytes = 0;
     size_t oldHeapGoalBytes = 0;
     size_t newHeapGoalBytes = 0;
+    size_t scaledHeapGoalBytes = 0;
     size_t scaledHeapInUseBytes = 0;
     size_t retainedHeadroomBytes = 0;
     size_t candidateBytes = 0;
     size_t selectedTargetBytes = 0;
     size_t thresholdBytes = 0;
+    size_t coldReuseReserveBytes = 0;
+    size_t lowerTargetWindows = 0;
+    bool fallHeld = false;
+    bool fallLimited = false;
+};
+
+struct MSScavengeThresholdState {
+    size_t thresholdBytes = 0;
+    size_t coldReuseReserveBytes = 0;
+    size_t lowerTargetWindows = 0;
+};
+
+struct MSMarkRunwayDecision {
+    size_t heapGoalGapBytes = 0;
+    size_t estimatedRunwayBytes = 0;
+    size_t minimumRunwayBytes = 0;
+    size_t maximumRunwayBytes = 0;
+    size_t runwayBytes = 0;
 };
 
 inline size_t SaturatingAddMSBytes(size_t lhs, size_t rhs)
@@ -87,6 +112,38 @@ inline size_t ComputeMSHeapThresholdFloor(size_t absoluteFloorBytes,
                                          size_t maxThresholdBytes)
 {
     return std::min(absoluteFloorBytes, maxThresholdBytes);
+}
+
+inline MSMarkRunwayDecision ComputeMSMarkRunway(
+    size_t completedMarkAllocatedBytes,
+    size_t previousTrueLiveBytes,
+    size_t heapGoalBytes)
+{
+    MSMarkRunwayDecision decision;
+    decision.estimatedRunwayBytes = completedMarkAllocatedBytes;
+    if (heapGoalBytes <= previousTrueLiveBytes) {
+        return decision;
+    }
+
+    decision.heapGoalGapBytes = heapGoalBytes - previousTrueLiveBytes;
+    decision.minimumRunwayBytes = std::min(
+        decision.heapGoalGapBytes, kMSMarkMinimumRunwayBytes);
+    decision.maximumRunwayBytes = std::max(
+        decision.minimumRunwayBytes,
+        ScaleMSHeapThreshold(
+            decision.heapGoalGapBytes, kMSMarkMaximumRunwayRatio));
+    decision.runwayBytes = std::max(
+        decision.minimumRunwayBytes,
+        std::min(decision.estimatedRunwayBytes,
+                 decision.maximumRunwayBytes));
+    return decision;
+}
+
+inline bool ShouldTriggerMSMark(
+    size_t sweptBytes, size_t runwayBytes, size_t heapGoalBytes)
+{
+    return sweptBytes >= heapGoalBytes ||
+        runwayBytes >= heapGoalBytes - sweptBytes;
 }
 
 inline bool IsMSFloatingLiveInflated(size_t markStartInUseBytes,
@@ -212,24 +269,23 @@ inline MSHeapThresholdDecision EvaluateMSHeapThreshold(size_t oldThreshold, size
 }
 
 inline MSScavengeThresholdDecision EvaluateMSScavengeThreshold(
+    MSScavengeThresholdState& state,
     size_t heapInUseBytes,
-    size_t oldHeapGoalBytes,
     size_t newHeapGoalBytes,
     size_t maxHeapBytes,
-    double retainMultiplier)
+    double retainMultiplier,
+    double heapGoalMultiplier,
+    size_t coldReuseBytes)
 {
     MSScavengeThresholdDecision decision;
     decision.heapInUseBytes = heapInUseBytes;
-    decision.oldHeapGoalBytes = oldHeapGoalBytes;
     decision.newHeapGoalBytes = newHeapGoalBytes;
+    decision.scaledHeapInUseBytes = heapInUseBytes;
 
-    long double heapGoalRatio = 1.0L;
-    if (oldHeapGoalBytes != 0 && newHeapGoalBytes != 0) {
-        heapGoalRatio = static_cast<long double>(newHeapGoalBytes) /
-            static_cast<long double>(oldHeapGoalBytes);
-    }
-    decision.scaledHeapInUseBytes =
-        ScaleMSHeapThreshold(heapInUseBytes, heapGoalRatio);
+    long double boundedHeapGoalMultiplier = std::max(
+        static_cast<long double>(heapGoalMultiplier), 1.0L);
+    decision.scaledHeapGoalBytes = ScaleMSHeapThreshold(
+        newHeapGoalBytes, boundedHeapGoalMultiplier);
 
     long double boundedRetainMultiplier = std::max(
         static_cast<long double>(retainMultiplier), 1.0L);
@@ -242,12 +298,56 @@ inline MSScavengeThresholdDecision EvaluateMSScavengeThreshold(
     // Keep enough hot free memory for mutators to reach the next scheduled GC.
     // A lower target releases pages that the allocator must fault back in before
     // newHeapGoalBytes, producing release/reuse oscillation under steady load.
-    decision.selectedTargetBytes = std::max(
-        decision.candidateBytes, newHeapGoalBytes);
-    decision.thresholdBytes = decision.selectedTargetBytes;
-    if (maxHeapBytes != 0) {
-        decision.thresholdBytes = std::min(decision.thresholdBytes, maxHeapBytes);
+    size_t reuseReserveSample = coldReuseBytes >
+        std::numeric_limits<size_t>::max() / kMSScavengeColdReuseReserveMultiplier
+        ? std::numeric_limits<size_t>::max()
+        : coldReuseBytes * kMSScavengeColdReuseReserveMultiplier;
+    if (coldReuseBytes != 0) {
+        state.coldReuseReserveBytes = std::max(
+            state.coldReuseReserveBytes, reuseReserveSample);
+    } else if (state.coldReuseReserveBytes != 0) {
+        state.coldReuseReserveBytes -= CeilDivideMSHeapThreshold(
+            state.coldReuseReserveBytes,
+            kMSScavengeColdReuseReserveDecayDivisor);
     }
+    if (maxHeapBytes != 0) {
+        state.coldReuseReserveBytes = std::min(
+            state.coldReuseReserveBytes, maxHeapBytes);
+    }
+    decision.coldReuseReserveBytes = state.coldReuseReserveBytes;
+
+    size_t baseTarget = std::max(
+        decision.candidateBytes, decision.scaledHeapGoalBytes);
+    decision.selectedTargetBytes = SaturatingAddMSBytes(
+        baseTarget, state.coldReuseReserveBytes);
+    size_t desiredThreshold = decision.selectedTargetBytes;
+    if (maxHeapBytes != 0) {
+        desiredThreshold = std::min(desiredThreshold, maxHeapBytes);
+    }
+
+    size_t previousThreshold = state.thresholdBytes;
+    if (maxHeapBytes != 0) {
+        previousThreshold = std::min(previousThreshold, maxHeapBytes);
+    }
+    if (previousThreshold == 0 || desiredThreshold >= previousThreshold) {
+        decision.thresholdBytes = desiredThreshold;
+        state.lowerTargetWindows = 0;
+    } else {
+        ++state.lowerTargetWindows;
+        if (state.lowerTargetWindows < kMSScavengeFallWindows) {
+            decision.thresholdBytes = previousThreshold;
+            decision.fallHeld = true;
+        } else {
+            size_t maxFall = CeilDivideMSHeapThreshold(
+                previousThreshold, kMSScavengeFallDivisor);
+            size_t fallLimit = previousThreshold - maxFall;
+            decision.thresholdBytes = std::max(desiredThreshold, fallLimit);
+            decision.fallLimited = decision.thresholdBytes > desiredThreshold;
+            state.lowerTargetWindows = 0;
+        }
+    }
+    state.thresholdBytes = decision.thresholdBytes;
+    decision.lowerTargetWindows = state.lowerTargetWindows;
     return decision;
 }
 

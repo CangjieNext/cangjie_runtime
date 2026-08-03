@@ -14,6 +14,7 @@
 #include "Heap/Heap.h"
 #include "Heap/MAllocator/MSCentralRegionPool.h"
 #include "Heap/MAllocator/MSParallelSweepPolicy.h"
+#include "Heap/MAllocator/MSRegionManager.h"
 #include "Heap/MAllocator/MSRegionSpace.h"
 #include "Mutator/Mutator.inline.h"
 #include "Mutator/MutatorManager.h"
@@ -64,11 +65,6 @@ bool IsBackgroundScavengeEnabled()
 bool IsBackgroundShrinkEnabled()
 {
     return CangjieRuntime::GetGCParam().msBackgroundShrink != 0;
-}
-
-size_t GetBackgroundScavengeRounds()
-{
-    return CangjieRuntime::GetGCParam().msScavengeRounds;
 }
 
 }
@@ -613,76 +609,25 @@ bool BackgroundProcessor::HasPendingSweepWork()
 bool BackgroundProcessor::BackgroundScavengeLoop()
 {
     RegionSpaceMS& space = static_cast<RegionSpaceMS&>(Heap::GetHeap().GetAllocator());
-    CentralRegionPool* pool = space.GetCentralPool();
     size_t targetBytes = space.GetScavengeReleaseTargetBytes();
     if (targetBytes == 0) {
         shouldScavengeHeap_.store(false, std::memory_order_release);
         return false;
     }
 
-    size_t sliceTargetBytes = targetBytes;
-    size_t hotFreeBefore = space.GetHotFreeBytesReference();
-    size_t emptySweptBefore = (pool != nullptr) ? pool->GetEmptySweptRegionCount() * MS_REGION_SIZE : 0;
-    if (hotFreeBefore == 0 && emptySweptBefore == 0) {
-        if (pool != nullptr && pool->GetTotalUnsweptCount() > 0) {
-            NotifyToSweep(kNoPreferredSweepClass);
-            return true;
-        }
-        shouldScavengeHeap_.store(false, std::memory_order_release);
-        return false;
-    }
-
-    // On-demand flush to make empty-swept pages visible to BackgroundScavenge
-    // (Step B). Dead large spans are already in FreeManager hot-free supply.
-    {
-        size_t hotFreeForGap = space.GetHotFreeBytesReference();
-        size_t gap = (targetBytes > hotFreeForGap) ? (targetBytes - hotFreeForGap) : 0;
-
-        if (gap > 0 && space.HasEmptySweptRegions()) {
-            size_t emptyBytes = (pool != nullptr) ? pool->GetEmptySweptRegionCount() * MS_REGION_SIZE : 0;
-            if (emptyBytes <= gap) {
-                (void)space.FlushAllEmptySweptToHotFree();      // flush all
-            } else {
-                size_t gapRegions = (gap + MS_REGION_SIZE - 1) / MS_REGION_SIZE;
-                (void)space.FlushEmptySweptToHotFree(gapRegions); // flush only the gap
-            }
-        }
-    }
-
-    size_t hotFreeAfterFlush = space.GetHotFreeBytesReference();
-    // Snapshot emptySwept AFTER Step A so that any regions flushed into hotFree are
-    // already reflected in hotFreeAfterFlush and not double-counted.
-    size_t emptySweptAfterFlush = (pool != nullptr) ? pool->GetEmptySweptRegionCount() * MS_REGION_SIZE : 0;
-    if (hotFreeAfterFlush == 0 && emptySweptAfterFlush == 0) {
-        if (pool != nullptr && pool->GetTotalUnsweptCount() > 0) {
-            NotifyToSweep(kNoPreferredSweepClass);
-            return true;
-        }
-        shouldScavengeHeap_.store(false, std::memory_order_release);
-        return false;
-    }
-
-    // Step B: release at most one round of the target. With no mark-window reserve,
-    // everything currently available in hotFree is eligible for release.
-    size_t scavengeRounds = GetBackgroundScavengeRounds();
-    size_t roundTarget = std::max(
-        (sliceTargetBytes + scavengeRounds - 1) / scavengeRounds,
-        static_cast<size_t>(MS_REGION_SIZE));
-    {
-        size_t availableToRelease = hotFreeAfterFlush;
-        if (availableToRelease == 0) {
-            shouldScavengeHeap_.store(false, std::memory_order_release);
-            return false;
-        }
-        size_t quantum = std::min(roundTarget, availableToRelease);
-        size_t releasedBytes = space.BackgroundScavenge(quantum);
-        VLOG(REPORT,
-             "[MS-GC] ScavengeSlice: requestedBytes=%zu releasedBytes=%zu",
-             quantum, releasedBytes);
-    }
+    // Keep each background slice bounded to one Segment. FreeManager performs
+    // the authoritative per-Region epoch check while claiming candidates.
+    size_t segmentBytes = space.GetMSRegionManager()->GetSegmentSizeBytes();
+    size_t quantum = std::min(targetBytes, segmentBytes);
+    size_t releasedBytes = space.BackgroundScavenge(quantum);
+    VLOG(REPORT,
+         "[MS-GC] ScavengeSlice: requestedBytes=%zu releasedBytes=%zu",
+         quantum, releasedBytes);
 
     // Check whether we still have work.
-    bool hasMore = space.HasPendingScavengeWork();
+    // Stop this wake burst when no aged candidate could be claimed. A later
+    // Sweep publication or periodic check will retry after more Regions age.
+    bool hasMore = releasedBytes != 0 && space.HasPendingScavengeWork();
     if (!hasMore) {
         shouldScavengeHeap_.store(false, std::memory_order_release);
     }

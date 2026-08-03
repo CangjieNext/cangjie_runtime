@@ -321,13 +321,14 @@ size_t RegionSpaceMS::GetScavengeReleaseTargetBytes() const
     size_t inUseBytes = GetHeapInUseBytes();
     size_t reclaimableBytes =
         msCentralPool_->GetEmptySweptRegionCount() * MS_REGION_SIZE +
-        msRegionManager_->GetHotFreeBytesReference();
+        msRegionManager_->GetHotFreeBytes();
     size_t effectiveTarget = std::max(scavengeThreshold, inUseBytes);
     size_t retainedBytes = inUseBytes + reclaimableBytes;
     size_t releaseGap = retainedBytes > effectiveTarget
         ? retainedBytes - effectiveTarget
         : 0;
-    return std::min(releaseGap, reclaimableBytes);
+    size_t releasableBytes = std::min(releaseGap, reclaimableBytes);
+    return releasableBytes;
 }
 
 bool RegionSpaceMS::HasPendingShrinkWork() const

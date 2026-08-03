@@ -124,6 +124,10 @@ void TestOwnedSegmentsCarryIndependentMetadataBlocks()
     ExpectTrue(shard0Seg.scavengedBits_[0] == 0, "fresh segment scavenged bitmap should start clear");
     ExpectTrue(shard0Seg.scavengingBits_[0] == 0, "fresh segment scavenging bitmap should start clear");
     ExpectTrue(shard0Seg.chunkSummaries_[0].max != 0, "fresh segment summary should record free run");
+    ExpectEq(shard0Seg.freeEpochs_.size(), kRegionsPerSegment,
+             "each Region must carry its own Scavenge free epoch");
+    ExpectEq(shard0Seg.freeEpochs_[0], 1,
+             "fresh hot-free Regions must start aging in the initial Scavenge epoch");
 
     std::free(heap);
 }

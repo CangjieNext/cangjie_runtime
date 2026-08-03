@@ -7,6 +7,7 @@ namespace {
 
 using MapleRuntime::MSMarkWorkerPolicy;
 using MapleRuntime::ComputeMSEnumRootsHelperTarget;
+using MapleRuntime::ComputeMSPostMarkStatsHelperTarget;
 using MapleRuntime::ComputeMSPreEnumResetHelperTarget;
 using MapleRuntime::ResolveMSGCThreadCapacity;
 using MapleRuntime::ResolveMSMarkTotalThreads;
@@ -101,6 +102,23 @@ void TestEnumRootsHelperStepsFromInitialMutatorCount()
              "EnumRoots helpers are capped by GCThreadPool capacity");
 }
 
+void TestPostMarkStatsHelpersAreReservedForLargeBitmapSets()
+{
+    constexpr size_t kMiB = 1024 * 1024;
+    ExpectEq(ComputeMSPostMarkStatsHelperTarget(2 * kMiB - 1, 7), 0,
+             "small bitmap statistics stay serial");
+    ExpectEq(ComputeMSPostMarkStatsHelperTarget(2 * kMiB, 7), 1,
+             "2MiB bitmap statistics start one helper");
+    ExpectEq(ComputeMSPostMarkStatsHelperTarget(4 * kMiB, 7), 2,
+             "4MiB bitmap statistics start two helpers");
+    ExpectEq(ComputeMSPostMarkStatsHelperTarget(64 * kMiB, 7), 2,
+             "bitmap statistics cap helpers to protect mutator bandwidth");
+    ExpectEq(ComputeMSPostMarkStatsHelperTarget(64 * kMiB, 1), 1,
+             "bitmap statistics respect pool capacity");
+    ExpectEq(ComputeMSPostMarkStatsHelperTarget(64 * kMiB, 0), 0,
+             "bitmap statistics stay serial without helpers");
+}
+
 } // namespace
 
 int main()
@@ -110,5 +128,6 @@ int main()
     TestThreadCountResolution();
     TestPreEnumResetHelperSteps();
     TestEnumRootsHelperStepsFromInitialMutatorCount();
+    TestPostMarkStatsHelpersAreReservedForLargeBitmapSets();
     return 0;
 }

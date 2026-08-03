@@ -64,6 +64,7 @@ public:
     bool TryAcquireMSGCWorkerPoolForPreEnum();
     bool AcquireMSGCWorkerPoolForEnumRoots();
     bool AcquireMSGCWorkerPoolForMark();
+    bool AcquireMSGCWorkerPoolForPostMarkStats();
     void ReleaseMSGCWorkerPool(MSGCWorkerPoolOwner owner);
 #endif
 

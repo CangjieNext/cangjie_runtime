@@ -284,11 +284,17 @@ struct GCParam {
     int32_t gcThreads;
 
     /*
-     * Retained-heap multiplier used by MSGC after adjusting post-GC heap-in-use
-     * by the current/previous heap-goal ratio. MSGC defaults to 1.10 and requires
-     * a value >= 1.0. CopyGC keeps its existing configuration semantics.
+     * Retained-heap multiplier applied to post-GC heap-in-use. MSGC defaults
+     * to 1.10 and requires a value >= 1.0. CopyGC keeps its existing
+     * configuration semantics.
      */
     double scavengeGrowth;
+
+    /*
+     * Independent multiplier applied to the next MSGC heap goal when deriving
+     * the physical retained target. Defaults to 2.0 and must be >= 1.0.
+     */
+    double scavengeHeapGoalMultiplier;
 
     /*
      * Background sweep slice time budget for MSGC.

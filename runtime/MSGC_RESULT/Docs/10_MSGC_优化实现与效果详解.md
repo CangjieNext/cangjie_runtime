@@ -160,14 +160,15 @@ scan bitmap 只表示“本轮是否完成引用扫描”，不决定对象是�
 
 Sweep 继续通过：
 
-- background sweep；
-- lazy sweep；
+- background coordinator sweep；
+- GCThreadPool parallel helper sweep；
 - mutator sweep assist；
-- parallel sweep；
-- GC 前 force-finish；
+- OOM GC main/helper emergency sweep；
+- 下一轮 GC 前 force-finish；
 
 管理回收进度。Scavenge 再把已逻辑空闲的 Region/页转化为更低物理驻留，不能与 Sweep
-混为一谈。
+混为一谈。当前代码没有 allocation-miss Lazy Sweep；Small Region 的上述执行者最终都调用
+同一个 `MSRegionInfo::SweepRegion()`，Large Region 则由 PostMark 的 eager sweep 单独处理。
 
 ## 8. 效果口径
 

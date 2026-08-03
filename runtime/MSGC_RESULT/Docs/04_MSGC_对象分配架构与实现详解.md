@@ -62,9 +62,13 @@ active Region 耗尽后：
 
 1. 归还 central；
 2. 按同一 size/scan class refill；
-3. 优先使用已 swept 可用 Region/empty cache；
-4. 必要时 lazy sweep unswept Region；
-5. 再取 fresh Region。
+3. 优先使用已 swept 的 partial Region；
+4. 再使用 classless empty cache；
+5. 最后取 fresh Region。
+
+当前分配 refill 不会直接从 unswept 队列领取 Region，也不存在 allocation-miss Lazy Sweep。
+Mutator Sweep Assist 是在成功取得新 Region/span 后按分配债务触发，用于长期 Sweep pacing，
+不参与当前这次 refill。
 
 具体供给顺序以
 [`MSCentralRegionPool.cpp`](../../src/Heap/MAllocator/MSCentralRegionPool.cpp)

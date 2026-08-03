@@ -356,8 +356,7 @@ MAddress AllocBufferMS::SlowAlloc(uint8_t cls, MSScanClass scanClass)
     AccumulateSweepDebt(1, cls);
 
     // Avoid doing another synchronous central-pool acquisition here: on case1 this
-    // can turn one SlowAlloc miss into two central refills, and the second refill
-    // may also fall into lazy sweep on the mutator thread.
+    // can turn one SlowAlloc miss into two central refills.
 
     return static_cast<MAddress>(addr);
 }

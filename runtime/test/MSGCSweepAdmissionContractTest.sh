@@ -63,7 +63,7 @@ assert "PublishSweepDoneAfterQuiescence" not in oom, "OOM path must not publish 
 stop = block(source, "void CentralRegionPool::StopAndWaitForAllSweep()", "void CentralRegionPool::VisitMarkPendingRegionsUnderSTW(")
 assert stop.index("CloseSweepAdmissionAndWait") < stop.index("PublishSweepDoneAfterQuiescence")
 
-reenable = block(source, "void CentralRegionPool::ReenableLazySweep()", "} // namespace MapleRuntime")
+reenable = block(source, "void CentralRegionPool::ReenableSweepAdmission()", "} // namespace MapleRuntime")
 assert "OpenSweepAdmission" in reenable
 
 print("MSGCSweepAdmissionContractTest: PASS")

@@ -129,12 +129,12 @@ for signature in [
 
 termination = extract_function(source, "void MarkSweepCollector::MarkTermination()")
 ordered = [
-    'ordinaryTerminationWU = drainMarkClosureToFixedPoint("ordinary");',
+    "drainOrdinaryClosureToFixedPoint(ordinaryClosure);",
     "PrepareFinalizersForResurrection();",
     "VisitFinalizerRoots(",
-    "FlushMarkBatch(\n        resurrectionBatch, resurrectionPublishWork,\n        resurrectionPublication);",
-    'drainMarkClosureToFixedPoint("resurrection");',
-    "ClearWeakRefsAfterMark();",
+    "FlushMarkBatch(",
+    "resurrectionClosure.workUnits = DrainSchedulerUnderSTW();",
+    "ClearWeakRefsAfterMark(weakRefsCleared, weakRefsPreserved);",
     "VerifyMarkCompleteness();",
     "TransitionToGCPhase(GCPhase::GC_PHASE_IDLE, false);",
 ]
@@ -146,14 +146,13 @@ for token in ordered:
     cursor = found + len(token)
 
 prepare_finalizers = extract_function(source, "void MarkSweepCollector::PrepareFinalizersForResurrection()")
-snapshot = prepare_finalizers.find("snapshotFinalizerNum = collectorResources.VisitFinalizers")
 enqueue = prepare_finalizers.find("collectorResources.EnqueueFinalizables")
-if snapshot < 0 or enqueue < snapshot:
+if enqueue < 0:
     raise SystemExit("Finalizers must be snapshotted and classified while their original mark state is intact")
 if "return !IsMarkedObject(obj);" not in prepare_finalizers:
     raise SystemExit("only unreachable registered Finalizers may enter the resurrection set")
 
-clear_weak = extract_function(source, "void MarkSweepCollector::ClearWeakRefsAfterMark()")
+clear_weak = extract_function(source, "void MarkSweepCollector::ClearWeakRefsAfterMark(")
 for token in [
     "WeakRefBuffer::Instance().DrainWeakRefs",
     "IsMarkedObject(referent)",
@@ -166,11 +165,10 @@ post_mark = extract_function(source, "void MarkSweepCollector::PostMarkTerminati
 if "ClearWeakRefBuffer" in post_mark or "ClearWeakRefsAfterMark" in post_mark:
     raise SystemExit("WeakRef cleanup must finish under STW, not in PostMarkTermination")
 
-process_finalizers = extract_function(source, "void MarkSweepCollector::ProcessFinalizers()")
-if "EnqueueFinalizables" in process_finalizers:
-    raise SystemExit("PostMark Finalizer processing must not reclassify already-resurrected objects")
-if "collectorResources.NotifyFinalizerWork();" not in process_finalizers:
-    raise SystemExit("PostMark Finalizer processing must notify the Finalizer worker")
+if "void MarkSweepCollector::ProcessFinalizers()" in source:
+    raise SystemExit("MSGC must not retain a redundant PostMark Finalizer notification hook")
+if "backgroundProcessor.NotifyFinalizerWork();" not in resources_source:
+    raise SystemExit("NotifyGCFinished must wake Finalizer work after reopening GC admission")
 PY
 
 echo 'MSGC post-mark semantic closure contract holds'

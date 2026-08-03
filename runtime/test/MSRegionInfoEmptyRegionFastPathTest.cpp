@@ -183,6 +183,36 @@ void ExpectAllocBitmapPoisoned(
     }
 }
 
+void TestAnyValidMarkBitProbeMasksTailAndStopsAtLiveWord()
+{
+    std::array<uint64_t, 3> words {};
+    constexpr uint64_t kTailMask = UINT64_C(0x1FF);
+
+    ExpectTrue(
+        !MapleRuntime::HasAnyValidMarkBits(
+            words.data(), words.size(), kTailMask),
+        "an empty mark bitmap must not report a live slot");
+
+    words[2] = UINT64_C(1) << 63;
+    ExpectTrue(
+        !MapleRuntime::HasAnyValidMarkBits(
+            words.data(), words.size(), kTailMask),
+        "invalid trailing bits must not report a live slot");
+
+    words[2] = UINT64_C(1) << 8;
+    ExpectTrue(
+        MapleRuntime::HasAnyValidMarkBits(
+            words.data(), words.size(), kTailMask),
+        "a valid bit in the trailing word must report a live slot");
+
+    words[2] = 0;
+    words[0] = UINT64_C(1) << 41;
+    ExpectTrue(
+        MapleRuntime::HasAnyValidMarkBits(
+            words.data(), words.size(), kTailMask),
+        "a live bit in an earlier word must report a live slot");
+}
+
 void TestFullBumpReturnMaterializesAllocatedPlane()
 {
     RegionFixture fixture;
@@ -449,6 +479,7 @@ void TestLargeRegionUsesDistinctObjectAndSpanSemantics()
 
 int main()
 {
+    TestAnyValidMarkBitProbeMasksTailAndStopsAtLiveWord();
     TestFullBumpReturnMaterializesAllocatedPlane();
     TestPartialBumpReturnDerivesFreeSlotsAndIgnoresLegacyAbiTombstone();
     TestBitmapReturnRepairsStaleNegativeSummary();

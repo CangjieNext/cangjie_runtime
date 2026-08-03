@@ -36,8 +36,11 @@ sweep_list = section(
 
 if 'markWords[' in sweep_region:
     raise SystemExit('SweepRegion must read stable markBitmap directly without a stack copy')
-if sweep_region.count('markBitmap[i]') < 2:
-    raise SystemExit('SweepRegion must use two direct markBitmap passes')
+if 'HasAnyValidMarkBits' not in sweep_region:
+    raise SystemExit('SweepRegion must use an early-exit valid-mark probe before rebuilding the allocation plane')
+probe_prefix = sweep_region.split('if (!HasAnyValidMarkBits', 1)[0]
+if '__builtin_popcountll' in probe_prefix:
+    raise SystemExit('the empty-Region probe must not popcount every mark word')
 if 'validMarkBits' not in sweep_region or 'validMask' not in sweep_region:
     raise SystemExit('SweepRegion must mask invalid trailing mark bits before popcount and inversion')
 if 'runStartSlot' not in sweep_region:

@@ -53,7 +53,7 @@ if ! rg -Uq 'void CentralRegionPool::StopAndWaitForAllSweep\(\)[[:space:][:print
     exit 1
 fi
 
-if ! rg -Uq 'void CentralRegionPool::ReenableLazySweep\(\)[[:space:][:print:]]*skipHelperSweep_' \
+if ! rg -Uq 'void CentralRegionPool::ReenableSweepAdmission\(\)[[:space:][:print:]]*skipHelperSweep_' \
     "$CENTRAL_SOURCE"; then
     echo "helper Sweep must be re-enabled only with the existing post-mark Sweep gates" >&2
     exit 1

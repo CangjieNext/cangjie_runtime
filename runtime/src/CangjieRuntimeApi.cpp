@@ -312,9 +312,12 @@ RTErrorCode InitCJRuntime(const struct RuntimeParam* param)
 #ifdef MRT_USE_MARK_SWEEP
             .scavengeGrowth = param->gcParam.scavengeGrowth < 1.0 ?
                 1.10 : param->gcParam.scavengeGrowth,
+            .scavengeHeapGoalMultiplier = param->gcParam.scavengeHeapGoalMultiplier < 1.0 ?
+                2.0 : param->gcParam.scavengeHeapGoalMultiplier,
 #else
             .scavengeGrowth = param->gcParam.scavengeGrowth < ERRORESTIMATE ?
                 resolvedHeapGrowth : param->gcParam.scavengeGrowth,
+            .scavengeHeapGoalMultiplier = 1.0,
 #endif
 #ifdef MRT_USE_MARK_SWEEP
             .msBackgroundSweepMaxTime = param->gcParam.msBackgroundSweepMaxTime == 0 ?

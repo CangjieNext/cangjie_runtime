@@ -29,8 +29,9 @@ constexpr uint64_t MS_WU_UNLIMITED_BUDGET =
     std::numeric_limits<uint64_t>::max();
 constexpr uint64_t MS_MARK_WORK_WORDS_PER_PARTICIPANT = 128;
 constexpr size_t MS_MARK_CONTROL_SLICES_PER_UPDATE = 4;
-constexpr uint8_t MS_MARK_HELPER_UP_WINDOWS = 2;
+constexpr uint8_t MS_MARK_HELPER_UP_WINDOWS = 4;
 constexpr uint8_t MS_MARK_HELPER_DOWN_WINDOWS = 3;
+constexpr size_t MS_MARK_NORMAL_INITIAL_HELPERS = 2;
 constexpr uint8_t MS_MARK_ASSIST_UP_WINDOWS = 2;
 constexpr uint8_t MS_MARK_ASSIST_DOWN_WINDOWS = 2;
 constexpr uint64_t MS_MARK_MIN_TREND_DEADBAND_WORDS = 32;
@@ -220,6 +221,20 @@ inline size_t ComputeMSMarkInitialAssistMultiplier(
         : 1;
 }
 
+inline size_t ComputeMSMarkInitialHelperTarget(
+    size_t desiredHelpers, size_t maxHelpers, MSMarkPressure pressure)
+{
+    desiredHelpers = std::min(desiredHelpers, maxHelpers);
+    if (pressure == MSMarkPressure::CRITICAL) {
+        return desiredHelpers;
+    }
+    size_t initialCap = pressure == MSMarkPressure::HIGH
+        ? std::max<size_t>(MS_MARK_NORMAL_INITIAL_HELPERS,
+                           (maxHelpers + 1) / 2)
+        : MS_MARK_NORMAL_INITIAL_HELPERS;
+    return std::min(desiredHelpers, initialCap);
+}
+
 class MSMarkControllerState {
 public:
     MSMarkControllerState(
@@ -230,8 +245,10 @@ public:
           maxAssistMultiplier_(std::max<size_t>(1, maxAssistMultiplier)),
           pressure_(pressure),
           filteredWorkWords_(outstandingWorkWords),
-          helperTarget_(ComputeMSMarkHelperTarget(
-              outstandingTasks, outstandingWorkWords,
+          helperTarget_(ComputeMSMarkInitialHelperTarget(
+              ComputeMSMarkHelperTarget(
+                  outstandingTasks, outstandingWorkWords,
+                  maxHelpers, pressure),
               maxHelpers, pressure)),
           minAssistMultiplier_(ComputeMSMarkInitialAssistMultiplier(
               maxAssistMultiplier_, pressure)),
