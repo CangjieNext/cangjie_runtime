@@ -213,9 +213,10 @@ public:
     static bool ShouldEnqueue(const BaseObject* obj)
     {
         RegionInfo* regionInfo = RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(obj));
-        if (regionInfo->IsTraceRegion()) {
-            return false;
-        }
+        // Do not skip objects in trace regions: they may be referenced by roots
+        // (e.g. static fields) that have already been scanned. Since root scanning
+        // does not re-run during mark, SATB is the only way for the collector to
+        // learn about such overwritten references.
         size_t offset = regionInfo->GetAddressOffset(reinterpret_cast<MAddress>(obj));
         if (regionInfo->IsMarkedObject(offset)) {
             return false;
