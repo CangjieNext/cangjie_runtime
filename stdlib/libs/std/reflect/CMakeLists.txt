@@ -16,6 +16,7 @@ if(CANGJIE_CODEGEN_CJNATIVE_BACKEND)
         interface_type_info_cjnative.cj
         intrinsic_cjnative.cj
         modifier_info.cj
+        option_type_info_cjnative.cj
         package_info_cjnative.cj
         parameter_info_cjnative.cj
         primitive_type_info_cjnative.cj

@@ -120,6 +120,9 @@ extern "C" MRT_EXPORT U32 CJ_MCC_GetMethodModifier(MethodInfo* methodInfo)
 extern "C" MRT_EXPORT U32 CJ_MCC_MethodEntryPointIsNull(MethodInfo* methodInfo)
     __attribute__((alias("MCC_MethodEntryPointIsNull")));
 
+extern "C" MRT_EXPORT void* CJ_MCC_GetMethodAnnotations(MethodInfo* methodInfo, TypeInfo* arrayTi)
+    __attribute__((alias("MCC_GetMethodAnnotations")));
+
 extern "C" MRT_EXPORT U32 CJ_MCC_GetNumOfActualParameters(MethodInfo* methodInfo)
     __attribute__((alias("MCC_GetNumOfActualParameters")));
 
@@ -136,27 +139,36 @@ extern "C" MRT_EXPORT GenericTypeInfo* CJ_MCC_CheckMethodActualArgs(MethodInfo* 
     void* genericArgs, void* args) __attribute__((alias("MCC_CheckMethodActualArgs")));
 
 // for reflect, field
-extern "C" MRT_EXPORT const char* CJ_MCC_GetInstanceFieldName(InstanceFieldInfo* fieldInfo)
+extern "C" MRT_EXPORT const char* CJ_MCC_GetInstanceFieldName(InstanceFieldInfo* fieldInfo, TypeInfo* declaringTypeInfo)
     __attribute__((alias("MCC_GetInstanceFieldName")));
 extern "C" MRT_EXPORT const char* CJ_MCC_GetStaticFieldName(StaticFieldInfo* fieldInfo)
     __attribute__((alias("MCC_GetStaticFieldName")));
 
-extern "C" MRT_EXPORT TypeInfo* CJ_MCC_GetInstanceFieldType(InstanceFieldInfo* fieldInfo)
+extern "C" MRT_EXPORT TypeInfo* CJ_MCC_GetInstanceFieldType(InstanceFieldInfo* fieldInfo, TypeInfo* declaringTypeInfo)
     __attribute__((alias("MCC_GetInstanceFieldType")));
 
-extern "C" MRT_EXPORT TypeInfo* CJ_MCC_GetStaticFieldType(InstanceFieldInfo* fieldInfo)
+extern "C" MRT_EXPORT TypeInfo* CJ_MCC_GetStaticFieldType(StaticFieldInfo* fieldInfo)
     __attribute__((alias("MCC_GetStaticFieldType")));
 
 extern "C" MRT_EXPORT U32 CJ_MCC_GetInstanceFieldModifier(InstanceFieldInfo* fieldInfo)
     __attribute__((alias("MCC_GetInstanceFieldModifier")));
 
-extern "C" MRT_EXPORT U32 CJ_MCC_GetStaticFieldModifier(InstanceFieldInfo* fieldInfo)
+extern "C" MRT_EXPORT U32 CJ_MCC_GetStaticFieldModifier(StaticFieldInfo* fieldInfo)
     __attribute__((alias("MCC_GetStaticFieldModifier")));
 
-extern "C" MRT_EXPORT void CJ_MCC_SetInstanceFieldValue(InstanceFieldInfo* fieldInfo, ObjRef obj, ObjRef newValue)
+extern "C" MRT_EXPORT void* CJ_MCC_GetInstanceFieldValue(InstanceFieldInfo* fieldInfo, TypeInfo* declaringTypeInfo,
+    ObjRef obj) __attribute__((alias("MCC_GetInstanceFieldValue")));
+extern "C" MRT_EXPORT void CJ_MCC_SetInstanceFieldValue(InstanceFieldInfo* fieldInfo, TypeInfo* declaringTypeInfo,
+    ObjRef obj, ObjRef newValue)
     __attribute__((alias("MCC_SetInstanceFieldValue")));
-extern "C" MRT_EXPORT void CJ_MCC_SetStaticFieldValue(InstanceFieldInfo* fieldInfo, ObjRef value)
+extern "C" MRT_EXPORT void* CJ_MCC_GetStaticFieldValue(StaticFieldInfo* fieldInfo)
+    __attribute__((alias("MCC_GetStaticFieldValue")));
+extern "C" MRT_EXPORT void CJ_MCC_SetStaticFieldValue(StaticFieldInfo* fieldInfo, ObjRef value)
     __attribute__((alias("MCC_SetStaticFieldValue")));
+extern "C" MRT_EXPORT void* CJ_MCC_GetInstanceFieldAnnotations(InstanceFieldInfo* fieldInfo, TypeInfo* arrayTi)
+    __attribute__((alias("MCC_GetInstanceFieldAnnotations")));
+extern "C" MRT_EXPORT void* CJ_MCC_GetStaticFieldAnnotations(StaticFieldInfo* fieldInfo, TypeInfo* arrayTi)
+    __attribute__((alias("MCC_GetStaticFieldAnnotations")));
 
 // reflect, class/struct
 // for find
@@ -200,6 +212,10 @@ extern "C" MRT_EXPORT U32 CJ_MCC_GetNumOfFieldTypes(TypeInfo* ti)
     __attribute__((alias("MCC_GetNumOfFieldTypes")));
 extern "C" MRT_EXPORT TypeInfo** CJ_MCC_GetFieldTypes(TypeInfo* ti)
     __attribute__((alias("MCC_GetFieldTypes")));
+extern "C" MRT_EXPORT ObjRef CJ_MCC_NewAndInitEnumTupleObject(TypeInfo* ti, void* args)
+    __attribute__((alias("MCC_NewAndInitEnumTupleObject")));
+extern "C" MRT_EXPORT ObjRef CJ_MCC_GetAssociatedValues(ObjRef obj, TypeInfo* arrayTi)
+    __attribute__((alias("MCC_GetAssociatedValues")));
 
 extern "C" MRT_EXPORT U32 CJ_MCC_GetQualifiedNameLength(TypeInfo* ti)
     __attribute__((alias("MCC_GetQualifiedNameLength")));
@@ -245,4 +261,18 @@ extern "C" MRT_EXPORT U32 CJ_MCC_GetParameterIndex(ParameterInfoRef parameterInf
     __attribute__((alias("MCC_GetParameterIndex")));
 extern "C" MRT_EXPORT TypeInfo* CJ_MCC_GetParameterType(ParameterInfoRef parameterInfo)
     __attribute__((alias("MCC_GetParameterType")));
+extern "C" MRT_EXPORT void* CJ_MCC_GetParameterAnnotations(ParameterInfoRef parameterInfo, TypeInfo* arrayTi)
+    __attribute__((alias("MCC_GetParameterAnnotations")));
+
+extern "C" MRT_EXPORT void* CJ_MCC_GetTypeInfoAnnotations(TypeInfo* cls, TypeInfo* arrayTi)
+    __attribute__((alias("MCC_GetTypeInfoAnnotations")));
+
+extern "C" MRT_EXPORT void* CJ_MCC_ApplyCJInstanceMethod(MethodInfo* methodInfo, ObjRef obj, void* args)
+    __attribute__((alias("MCC_ApplyCJInstanceMethod")));
+extern "C" MRT_EXPORT void* CJ_MCC_ApplyCJStaticMethod(MethodInfo* methodInfo, void* args, TypeInfo* thisTi)
+    __attribute__((alias("MCC_ApplyCJStaticMethod")));
+extern "C" MRT_EXPORT void* CJ_MCC_ApplyCJGenericInstanceMethod(MethodInfo* methodInfo, ObjRef obj, void* genericArgs,
+    void* args) __attribute__((alias("MCC_ApplyCJGenericInstanceMethod")));
+extern "C" MRT_EXPORT void* CJ_MCC_ApplyCJGenericStaticMethod(MethodInfo* methodInfo, void* genericArgs, void* args,
+    TypeInfo* thisTi) __attribute__((alias("MCC_ApplyCJGenericStaticMethod")));
 #endif
