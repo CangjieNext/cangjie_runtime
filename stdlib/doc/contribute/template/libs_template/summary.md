@@ -10,6 +10,7 @@
         - [结构体](./std/xxx/xxx_package_api/xxx_package_structs.md)
         - [宏](./std/xxx/xxx_package_api/xxx_package_macros.md)
         - [异常类](./std/xxx/xxx_package_api/xxx_package_exceptions.md)
+        - [扩展](./std/xxx/xxx_package_api/xxx_package_extends.md)
         - [示例教程]()
             - [xx](./std/xxx/xxx_samples/sample1.md)
     - ...
