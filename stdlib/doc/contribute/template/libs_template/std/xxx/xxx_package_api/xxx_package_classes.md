@@ -3,11 +3,12 @@
 > **说明：**
 >
 > 1. 类(class)按 **字母顺序** 展示。
-> 2. 对于class内的子API，按 **成员变量(static let/let/var)、属性(static prop/prop)、主构造函数、const构造函数(const init)、构造函数(init)、函数(static func/func)、操作符函数(operator func)、扩展(extend)** 的类型顺序展示。
+> 2. 对于class内的子API，按 **成员变量(static let/let/var)、属性(static prop/prop)、const构造函数(const init)、构造函数(init)、函数(static func/func)、操作符函数(operator func)、扩展(extend)** 的类型顺序展示。
 > 3. class的各子类型内部，子API按 **字母顺序** 排列。
-> 4. 若子类中重写了父类的函数，需要在文档中体现该function。
-> 5. public open/abstract class 的 protected 子成员需给出文档。
-> 6. 在文档中提到其他的API都需要使用超链接的方式链过去，例：
+> 4. 对于源码中的主构造函数，按照仓颉语法糖解糖后普通构造方式呈现（注意若主构造中有公开变量，需当作单独子API在文档中呈现）。
+> 5. 若子类中重写了父类的函数，需要在文档中体现该function。
+> 6. public open/abstract class 的 protected 子成员需给出文档。
+> 7. 在文档中提到其他的API都需要使用超链接的方式链过去，例：
 >
 >    ```text
 >    [ArrayList](./xx/xxx.md#class-arraylist)
@@ -15,16 +16,10 @@
 
 ## class Class1
 
-【必写】（定义声明，每个类的声明代码中应包含 public filed（const/let/var 常量变量）、构造函数）
+【必写】（定义声明）
 
 ```cangjie
-public class Class1 {
-    public static let aaa: xxx
-    public let aaa: xxx
-    public Class1(let param1: dtype1, public let param2: dtype2)
-    public const init(param: dtype)
-    public init()
-}
+public class Class1
 ```
 
 【必写】功能：提供xxx功能。(*一句话概述API功能*)
@@ -38,6 +33,10 @@ public class Class1 {
 > 不支持平台：Windows
 
 【可选】说明/注意事项，参考 [说明注意格式要求](../../../../overview.md#说明注意警告可选)。
+
+【涉及必写】扩展：
+
+- [extend Class1](./xxx_package_extends.md#extend-class1可带泛型如-extendt-at)
 
 【必写】示例，参考 [示例代码规范及格式要求](../../../../overview.md#示例必写)。
 
@@ -65,10 +64,6 @@ public static let aab: dtype
 
 同上
 
-### Class1(dtype1, dtype2)（主构造函数）
-
-...
-
 ### const init(dtype)
 
 参考 [函数模板](./xxx_package_funcs.md)
@@ -91,42 +86,10 @@ public static let aab: dtype
 
 同上
 
-### extend\<T> Class1\<T> where T <: Comparable （直接对Class1进行的扩展）
-
-【必写】（定义声明）
-
-```cangjie
-...
-```
-
-【必写】功能：xxx。
-
-#### func func1()
-
-...
-
-#### ... （给出所有的子API文档，包括成员变量、函数等；顺序和格式与对应API文档一样，包含声明、功能、参数、返回等）
-
-### extend Class1<T> <: B where T <: Comparable （为Class1扩展接口B，且Class1在本包定义）
-
-【必写】（定义声明）
-
-```cangjie
-...
-```
-
-【必写】功能：xxx。
-
-【涉及必写】父类型：
-
-- [B](link)
-
-#### func aa()
-
-...
-
-#### ... （给出所有实现的子API文档，有默认实现时也要加上，包含比Class1更多的子API）
-
 ## class class2
 
-模板同 Class1
+【必写】扩展：
+
+- [extend Class2 <: Interface1 & Interface2](./xxx_package_extends.md#extend-class2--interface1--interface2)
+
+模板其他内容同 Class1
