@@ -47,7 +47,7 @@ public class ParameterInfo <: Equatable<ParameterInfo> & Hashable & ToString {
                 case None =>
                     let pointer = getParameterName(_info)
                     if (pointer.isNull()) {
-                        throw InfoNotFoundException("Get parameter name failed!")
+                        throw InfoNotFoundException("Failed to get parameter name.")
                     }
                     let parameterName = CString(pointer).toString()
                     _name = parameterName
