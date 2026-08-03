@@ -19,7 +19,7 @@ libs // 库文档
   └── summary_xxx.md // 文档目录，所有文档需在该文件中“注册”才会最终呈现在构建包中
 ```
 
-需重点关注 API 文档的**正确性、完备性、易用性、API 源码和文档一致性**，具体要求详见下述 [API 文档常见模块写作要点](#api文档常见模块写作要点)。
+需重点关注 API 文档的**正确性、完备性、易用性、API 源码和文档一致性**，具体要求详见下述 [API 文档常见字段写作要点](#api文档常见字段写作要点)。
 
 ## 库概述模板
 
@@ -29,7 +29,7 @@ libs // 库文档
 
 详见[xxx](./libs_template/std/xxx/xxx_package_overview.md)。
 
-## API文档常见模块写作要点
+## API文档常见字段写作要点
 
 ### 标题（必写）
 
@@ -100,7 +100,9 @@ API 声明范围详见各类型 API 模板。
 
 ### 父类型（涉及必写）
 
-若 API 声明中存在 <: ，则其后面的类型为父类型。
+若 API 声明（扩展除外）中存在 <: ，则其后面的类型为父类型。
+
+注意一种特殊情况：若类型A声明中的父类型B对外不可见，则寻找整条继承链上与A最近的公开父类型，体现在文档（声明、父类型字段）中。如果没有公开父类型，则文档中不体现。
 
 **示例1（单个父类型）：**
 
@@ -132,6 +134,14 @@ abstract sealed class ConfigurationKey <: Equatable<ConfigurationKey> & Hashable
 
 - [Equatable](link)\<[ConfigurationKey](link)>
 - [Hashable](link)
+
+### 扩展/被扩展类型/扩展接口（涉及必写）
+
+对于扩展（extend）API，需要通过 `扩展`、`被扩展类型`、`扩展接口`这些字段来体现其关联关系。
+
+- `扩展`字段：写在被扩展类型的文档中，参考[Class1](./libs_template/std/xxx/xxx_package_api/xxx_package_classes.md#class-class1)。
+- `被扩展类型`字段：写在扩展定义文档中，包括直接扩展和接口扩展文档，参考[extends.md](./libs_template/std/xxx/xxx_package_api/xxx_package_extends.md)
+- `扩展接口`字段：写在扩展定义文档中，仅在接口扩展文档中涉及，参考[extends.md](./libs_template/std/xxx/xxx_package_api/xxx_package_extends.md#extend-class2--interface1--interface2)
 
 ### 参数（涉及必写）
 
@@ -207,7 +217,7 @@ import xxx
 - 正例无 warning/error 信息，反例必须出现期望信息：示例代码在 API 所支持的后端上执行不能有报错。
 - 参考其他：复用或参考其他的示例，需要在 API 描述或 Note 中指出。
 
-#### 示例看护标签说明
+示例看护标签说明：
 
 为了检查资料中示例代码的可用性和正确性，所有 cangjie 代码块上方要求加上**形如\<!-- xxx -->的示例看护标签**，示例如下：
 
@@ -266,48 +276,6 @@ cangjie code
     cangjie code
     ```
 
-### 扩展 (extend) API 的写法
-
-- **情况1：直接扩展类型 A，扩展内容写在类型 A 中**
-
-  ```text
-  ## class A
-  ### extend classA<T> where T <: Comparable
-  #### func toString()     // 和成员函数文档格式一样
-  #### func print()
-  #### operator func <(dtype)
-  #### operator func >(dtype)
-  #### ...
-  ```
-
-  详见[class 扩展示例1](./libs_template/std/xxx/xxx_package_api/xxx_package_classes.md#extendt-class1t-where-t--comparable-直接对class1进行的扩展)。
-
-- **情况2：为类型 A 扩展接口 B，A 在本包定义**
-
-  ```text
-  ## class A
-  ### extend classA<T> <: B where T <: Comparable  
-  #### func aa()
-  #### func bb()
-  #### func cc()        // 有默认实现时也要加上
-  #### func dd()        // 有可能有比接口更多的方法
-  #### ...
-  ```
-
-  详见[class 扩展示例2](./libs_template/std/xxx/xxx_package_api/xxx_package_classes.md#extend-class1--b-where-t--comparable-为class1扩展接口b且class1在本包定义)。
-  ...
-- **情况3：为类型 A 扩展接口 B，B 在本包 A 不在**
-
-  ```text
-  ## interface B
-  ### func b()
-  ### extend A <: B
-  #### func b()
-  #### func c()
-  ```
-
-  详见[interface 扩展示例](./libs_template/std/xxx/xxx_package_api/xxx_package_interfaces.md#extend-bigintegert--interface1)。
-
 ## 其他格式
 
 1. 一篇 markdown 文档内的标题层级不宜过多，如果需要写作超出模板标题层级之外的自定义内容，请适当地使用无序列表：
@@ -348,7 +316,8 @@ cangjie code
    表格中内容想换行请使用 \<br> 隔开
 4. 注意文中专有名词的正确书写。
 5. 文中避免使用 html 写法，尽量使用 markdown 自带语法写作（表格中的\<br>和标题中的\<sup>除外）
-6. 常用特殊字符标记：
+6. 对于文档中所有的仓颉代码块（包括 API 声明、示例等）需满足代码规范。
+7. 常用特殊字符标记：
 
    - 星号： 写法为： \*text\* 是强调 (斜体)，效果为：*text*
    - 双星号： 写法为：\*\*text\*\* 重点强调 (加粗)，效果为：**text**

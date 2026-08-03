@@ -17,14 +17,14 @@
 【必写】（定义声明，每个接口的声明代码中应包含所有属性和函数）
 
 ```cangjie
-public interface Interface1 {
-    prop property1: dtype
-    func function1()
-    operator func ==(Ordering)
-}
+public interface Interface1
 ```
 
 【必写】功能，参考 [功能模块写作规范](../../../../overview.md#功能必写)。
+
+【必写】扩展：
+
+- [extend Class2 <: Interface1 & Interface2](./xxx_package_extends.md#extend-class2--interface1--interface2)
 
 【必写】示例，参考 [示例代码规范及格式要求](../../../../overview.md#示例必写)。
 
@@ -39,46 +39,6 @@ public interface Interface1 {
 ### operator func ==(Ordering)
 
 参考 [函数内容模板](./xxx_package_funcs.md)
-
-### extend BigInteger\<T> <: Interface1
-
-【必写】（定义声明）
-
-```cangjie
-...
-```
-
-【必写】功能：xxx。
-
-【涉及必写】父类型：
-
-- [Interface1](#interface-interface1)
-
-#### func a()
-
-...
-
-#### xxx
-
-### extend Time <: Interface1
-
-【必写】（定义声明）
-
-```cangjie
-...
-```
-
-【必写】功能：xxx。
-
-【涉及必写】父类型：
-
-- [Interface1](#interface-interface1)
-
-#### func b()
-
-...
-
-#### ... （参考 库文档写作指导及注意事项 libs/api_docs_guide.md）
 
 ## interface Interface2
 
