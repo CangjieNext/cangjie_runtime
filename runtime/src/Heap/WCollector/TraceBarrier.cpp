@@ -126,8 +126,22 @@ void TraceBarrier::WriteReference(BaseObject* obj, RefField<false>& field, BaseO
 
 void TraceBarrier::WriteStaticRef(RefField<false>& field, BaseObject* ref) const
 {
-    std::atomic_thread_fence(std::memory_order_seq_cst);
+    Mutator* mutator = Mutator::GetMutator();
     RefField<> newField = theCollector.GetAndTryTagRefField(ref);
+    // Record both old and new referents in SATB buffer before writing.
+    // The old referent is needed by standard SATB semantics.
+    // The new referent is recorded so that if another worker overwrites
+    // it before GC processes the buffer, the new referent is not lost.
+    if (mutator != nullptr) {
+        BaseObject* oldRef = field.GetTargetObject();
+        if (oldRef != nullptr) {
+            mutator->RememberObjectInSatbBuffer(oldRef);
+        }
+        if (ref != nullptr) {
+            mutator->RememberObjectInSatbBuffer(ref);
+        }
+    }
+    std::atomic_thread_fence(std::memory_order_seq_cst);
     field.SetFieldValue(newField.GetFieldValue());
 }
 
