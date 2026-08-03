@@ -126,9 +126,25 @@ void TraceBarrier::WriteReference(BaseObject* obj, RefField<false>& field, BaseO
 
 void TraceBarrier::WriteStaticRef(RefField<false>& field, BaseObject* ref) const
 {
-    std::atomic_thread_fence(std::memory_order_seq_cst);
+    Mutator* mutator = Mutator::GetMutator();
     RefField<> newField = theCollector.GetAndTryTagRefField(ref);
-    field.SetFieldValue(newField.GetFieldValue());
+
+    // A static field can have multiple concurrent writers. The SATB pre-write
+    // barrier must remember the value replaced by the successful update, not
+    // a value sampled before another writer changes the field.
+    for (;;) {
+        RefField<> oldField(field);
+        BaseObject* oldRef = oldField.GetTargetObject();
+        if (mutator != nullptr && oldRef != nullptr) {
+            mutator->RememberObjectInSatbBuffer(oldRef);
+        }
+
+        std::atomic_thread_fence(std::memory_order_seq_cst);
+        if (field.CompareExchange(oldField.GetFieldValue(), newField.GetFieldValue(), std::memory_order_seq_cst,
+                                  std::memory_order_relaxed)) {
+            return;
+        }
+    }
 }
 
 void TraceBarrier::WriteStruct(BaseObject* obj, MAddress dst, size_t dstLen, MAddress src, size_t srcLen) const
@@ -170,6 +186,15 @@ void TraceBarrier::WriteStruct(BaseObject* obj, MAddress dst, size_t dstLen, MAd
 
 void TraceBarrier::WriteStaticStruct(MAddress dst, size_t dstLen, MAddress src, size_t srcLen, const GCTib gctib) const
 {
+    // SATB pre-write barrier: remember the old referents in dst before they get overwritten
+    // by memcpy_s below. Without this, an object reachable only through a static struct field
+    // that is overwritten during concurrent mark will be silently lost and later collected.
+    Mutator* mutator = Mutator::GetMutator();
+    if (mutator != nullptr) {
+        gctib.ForEachBitmapWord(dst, [=](RefField<>& dstField) {
+            mutator->RememberObjectInSatbBuffer(ReadReference(nullptr, dstField));
+        });
+    }
     std::atomic_thread_fence(std::memory_order_seq_cst);
     CHECK(memcpy_s(reinterpret_cast<void*>(dst), dstLen, reinterpret_cast<void*>(src), srcLen) == EOK);
 
