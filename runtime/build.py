@@ -52,12 +52,18 @@ def do_build(args):
     host_os_name = platform.system().lower()
 
     # Adjust CMAKE_INSTALL_PREFIX based on target_args
+    # Android API 23 is the baseline (no version suffix); 26/31 carry the suffix; ARM keeps 23.
     if target_platform == "ohos":
         install_prefix = os.path.join(prefix_path, f"linux_ohos_{mode}")
     elif target_platform == "android23":
-        install_prefix = os.path.join(prefix_path, f"linux_android23_{mode}")
+        if target_args == "android23-arm":
+            # ARM keeps the 23 suffix
+            install_prefix = os.path.join(prefix_path, f"linux_android23_{mode}")
+        else:
+            # aarch64/x86_64 baseline
+            install_prefix = os.path.join(prefix_path, f"linux_android_{mode}")
     elif target_platform == "android26":
-        install_prefix = os.path.join(prefix_path, f"linux_android_{mode}")
+        install_prefix = os.path.join(prefix_path, f"linux_android26_{mode}")
     elif target_platform == "android31" or target_platform == "android":
         install_prefix = os.path.join(prefix_path, f"linux_android31_{mode}")
     elif target_platform == "ios-simulator":
