@@ -106,7 +106,8 @@ public class ConsoleReader <: InputStream {
     }
 
     /*
-     * write Array<Byte> from stdIn to arr and return the length
+     * Read stdin bytes into arr and return the actual byte count.
+     * The returned count may be smaller than arr.size.
      */
     public func read(arr: Array<Byte>): Int64 {
         let arraySize = arr.size
@@ -153,15 +154,16 @@ public class ConsoleReader <: InputStream {
     }
 
     private func directRead(arr: Array<Byte>): Int64 {
-        unsafe {
+        let readSize = unsafe {
             let data: CPointerHandle<Byte> = acquireArrayRawData(arr)
-            let readSize = CJ_CONSOLE_ReadBytes(data.pointer, UIntNative(arr.size))
+            let result = CJ_CONSOLE_ReadBytes(data.pointer, UIntNative(arr.size))
             releaseArrayRawData(data)
-            return if (readSize < 0) {
-                0
-            } else {
-                readSize
-            }
+            result
+        }
+        return if (readSize < 0) {
+            0
+        } else {
+            readSize
         }
     }
 
