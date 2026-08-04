@@ -57,53 +57,12 @@ public:
             LOG(RTLOG_FATAL, "ExclusiveScopeEHFrameInfo: null stub FA");
         }
 
-        Uptr stubFaAddr = reinterpret_cast<Uptr>(stubFa);
         FrameAddress* callerFa = stubFa->callerFrameAddress;
         if (UNLIKELY(callerFa == nullptr)) {
             LOG(RTLOG_FATAL, "ExclusiveScopeEHFrameInfo: null caller FA for stub FA %p", stubFa);
         }
 
-#if defined(__x86_64__) || defined(__aarch64__) || defined(__arm__)
-        // Spill order / layout matches RegRoot::RecordStubCalleeSaved in:
-        //   StackMapX86.h / StackMapAarch64.h / StackMapArm.h
-#if defined(__x86_64__)
-#ifdef _WIN64
-        static constexpr RegisterId calleeSavedRegisters[] = { R15, R14, R13, R12, RDI, RSI, RBX };
-#else
-        static constexpr RegisterId calleeSavedRegisters[] = { R15, R14, R13, R12, RBX };
-#endif
-#elif defined(__aarch64__)
-        static constexpr RegisterId calleeSavedRegisters[] = { X19, X20, X21, X22, X23, X24, X25, X26, X27, X28 };
-#elif defined(__arm__)
-        static constexpr RegisterId calleeSavedRegisters[] = { R4, R5, R6, R7, R8, R9, R10 };
-#endif
-        Uptr slotAddr = stubFaAddr + CALLEE_SAVED_OFFSET;
-        for (auto reg : calleeSavedRegisters) {
-            context.SetValueByIdx(CalleeSavedContextIdx(reg), *reinterpret_cast<ArchUInt*>(slotAddr));
-            slotAddr += CALLEE_SAVED_SLOT_STRIDE;
-        }
-
-#if defined(__x86_64__)
-        // Match stub epilogue after `pop %rbp; ret`: FP = exclusiveScope FA, SP =
-        // just above the stub's return-address slot (caller SP after the call).
-        context.rbp = reinterpret_cast<uint64_t>(callerFa);
-        context.rsp = stubFaAddr + POST_RETURN_SP_DELTA;
-#elif defined(__aarch64__)
-        // Match stub epilogue after `ldp x29,x30,[sp],#frame`: FP/LR = caller's
-        // FA and return address; SP = stub FA + frame size (post-deallocate).
-        context.x29 = reinterpret_cast<uint64_t>(callerFa);
-        context.x30 = reinterpret_cast<uint64_t>(stubFa->returnAddress);
-        context.sp = stubFaAddr + POST_RETURN_SP_DELTA;
-#elif defined(__arm__)
-        // Match stub epilogue after restoring fp/lr and `add sp,#ExclusiveScopeFrameSize`:
-        // FP/LR = caller's FA and return address; SP = stub FA + frame size.
-        context.r11 = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(callerFa));
-        context.lr = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(stubFa->returnAddress));
-        context.sp = static_cast<uint32_t>(stubFaAddr + POST_RETURN_SP_DELTA);
-#endif
-#else
-        LOG(RTLOG_FATAL, "ExclusiveScopeEHFrameInfo: unsupported architecture");
-#endif
+        RestoreArch(context, stubFa, callerFa);
     }
 
     const uint32_t* GetIP() const override { return mFrame.GetIP(); }
@@ -139,6 +98,66 @@ private:
     static constexpr Sptr CALLEE_SAVED_SLOT_STRIDE = sizeof(ArchUInt);
     // ExclusiveScopeFrameSize in ExclusiveScope.S (post-deallocate SP = FA + frame).
     static constexpr Uptr POST_RETURN_SP_DELTA = 0x30;
+#endif
+
+    template <size_t N>
+    static void RestoreStubCalleeSaved(CalleeSavedRegisterContext& context, Uptr stubFaAddr,
+                                       const RegisterId (&regs)[N])
+    {
+        Uptr slotAddr = stubFaAddr + CALLEE_SAVED_OFFSET;
+        for (auto reg : regs) {
+            context.SetValueByIdx(CalleeSavedContextIdx(reg), *reinterpret_cast<ArchUInt*>(slotAddr));
+            slotAddr += CALLEE_SAVED_SLOT_STRIDE;
+        }
+    }
+
+#if defined(__x86_64__)
+    static void RestoreArch(CalleeSavedRegisterContext& context, FrameAddress* stubFa, FrameAddress* callerFa)
+    {
+        Uptr stubFaAddr = reinterpret_cast<Uptr>(stubFa);
+        // Spill order / layout matches RegRoot::RecordStubCalleeSaved in StackMapX86.h.
+#ifdef _WIN64
+        static constexpr RegisterId calleeSavedRegisters[] = { R15, R14, R13, R12, RDI, RSI, RBX };
+#else
+        static constexpr RegisterId calleeSavedRegisters[] = { R15, R14, R13, R12, RBX };
+#endif
+        RestoreStubCalleeSaved(context, stubFaAddr, calleeSavedRegisters);
+        // Match stub epilogue after `pop %rbp; ret`: FP = exclusiveScope FA, SP =
+        // just above the stub's return-address slot (caller SP after the call).
+        context.rbp = reinterpret_cast<uint64_t>(callerFa);
+        context.rsp = stubFaAddr + POST_RETURN_SP_DELTA;
+    }
+#elif defined(__aarch64__)
+    static void RestoreArch(CalleeSavedRegisterContext& context, FrameAddress* stubFa, FrameAddress* callerFa)
+    {
+        Uptr stubFaAddr = reinterpret_cast<Uptr>(stubFa);
+        // Spill order / layout matches RegRoot::RecordStubCalleeSaved in StackMapAarch64.h.
+        static constexpr RegisterId calleeSavedRegisters[] = { X19, X20, X21, X22, X23, X24, X25, X26, X27, X28 };
+        RestoreStubCalleeSaved(context, stubFaAddr, calleeSavedRegisters);
+        // Match stub epilogue after `ldp x29,x30,[sp],#frame`: FP/LR = caller's
+        // FA and return address; SP = stub FA + frame size (post-deallocate).
+        context.x29 = reinterpret_cast<uint64_t>(callerFa);
+        context.x30 = reinterpret_cast<uint64_t>(stubFa->returnAddress);
+        context.sp = stubFaAddr + POST_RETURN_SP_DELTA;
+    }
+#elif defined(__arm__)
+    static void RestoreArch(CalleeSavedRegisterContext& context, FrameAddress* stubFa, FrameAddress* callerFa)
+    {
+        Uptr stubFaAddr = reinterpret_cast<Uptr>(stubFa);
+        // Spill order / layout matches RegRoot::RecordStubCalleeSaved in StackMapArm.h.
+        static constexpr RegisterId calleeSavedRegisters[] = { R4, R5, R6, R7, R8, R9, R10 };
+        RestoreStubCalleeSaved(context, stubFaAddr, calleeSavedRegisters);
+        // Match stub epilogue after restoring fp/lr and `add sp,#ExclusiveScopeFrameSize`:
+        // FP/LR = caller's FA and return address; SP = stub FA + frame size.
+        context.r11 = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(callerFa));
+        context.lr = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(stubFa->returnAddress));
+        context.sp = static_cast<uint32_t>(stubFaAddr + POST_RETURN_SP_DELTA);
+    }
+#else
+    static void RestoreArch(CalleeSavedRegisterContext&, FrameAddress*, FrameAddress*)
+    {
+        LOG(RTLOG_FATAL, "ExclusiveScopeEHFrameInfo: unsupported architecture");
+    }
 #endif
 
     // Map RegisterId → CalleeSavedRegisterContext index (Register::ResolveCalleeSaved order).
