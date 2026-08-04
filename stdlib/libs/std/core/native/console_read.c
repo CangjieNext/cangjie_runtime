@@ -32,33 +32,33 @@ typedef struct StructureString {
 
 // Line-oriented and byte-array reads share this cache so neither path can
 // bypass bytes prefetched by the other one.
-static char stdinBuffer[INITIAL_BUFFER_SIZE];
-static size_t stdinBufferStart = 0;
-static size_t stdinBufferEnd = 0;
+static char g_stdinBuffer[INITIAL_BUFFER_SIZE];
+static size_t g_stdinBufferStart = 0;
+static size_t g_stdinBufferEnd = 0;
 
 #ifdef WIN32
-static SRWLOCK stdinLock = SRWLOCK_INIT;
+static SRWLOCK g_stdinLock = SRWLOCK_INIT;
 
 static void LockStdin(void)
 {
-    AcquireSRWLockExclusive(&stdinLock);
+    AcquireSRWLockExclusive(&g_stdinLock);
 }
 
 static void UnlockStdin(void)
 {
-    ReleaseSRWLockExclusive(&stdinLock);
+    ReleaseSRWLockExclusive(&g_stdinLock);
 }
 #else
-static pthread_mutex_t stdinLock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t g_stdinLock = PTHREAD_MUTEX_INITIALIZER;
 
 static void LockStdin(void)
 {
-    (void)pthread_mutex_lock(&stdinLock);
+    (void)pthread_mutex_lock(&g_stdinLock);
 }
 
 static void UnlockStdin(void)
 {
-    (void)pthread_mutex_unlock(&stdinLock);
+    (void)pthread_mutex_unlock(&g_stdinLock);
 }
 #endif
 
@@ -91,16 +91,16 @@ static int64_t ReadStdinBytes(char* buffer, size_t maxLen)
 
 static int ReadStdinByte(void)
 {
-    if (stdinBufferStart == stdinBufferEnd) {
-        int64_t readSize = ReadStdinBytes(stdinBuffer, sizeof(stdinBuffer));
+    if (g_stdinBufferStart == g_stdinBufferEnd) {
+        int64_t readSize = ReadStdinBytes(g_stdinBuffer, sizeof(g_stdinBuffer));
         if (readSize <= 0) {
             return EOF;
         }
-        stdinBufferStart = 0;
-        stdinBufferEnd = (size_t)readSize;
+        g_stdinBufferStart = 0;
+        g_stdinBufferEnd = (size_t)readSize;
     }
 
-    return (unsigned char)stdinBuffer[stdinBufferStart++];
+    return (unsigned char)g_stdinBuffer[g_stdinBufferStart++];
 }
 
 /**
@@ -183,17 +183,17 @@ extern int64_t CJ_CONSOLE_ReadBytes(char* buffer, size_t maxLen)
     LockStdin();
     // Return cached bytes immediately instead of waiting for the caller's
     // destination buffer to be filled.
-    size_t cachedSize = stdinBufferEnd - stdinBufferStart;
+    size_t cachedSize = g_stdinBufferEnd - g_stdinBufferStart;
     if (cachedSize > 0) {
         size_t readSize = cachedSize < maxLen ? cachedSize : maxLen;
-        if (memcpy_s(buffer, maxLen, stdinBuffer + stdinBufferStart, readSize) != EOK) {
+        if (memcpy_s(buffer, maxLen, g_stdinBuffer + g_stdinBufferStart, readSize) != EOK) {
             UnlockStdin();
             return -1;
         }
-        stdinBufferStart += readSize;
-        if (stdinBufferStart == stdinBufferEnd) {
-            stdinBufferStart = 0;
-            stdinBufferEnd = 0;
+        g_stdinBufferStart += readSize;
+        if (g_stdinBufferStart == g_stdinBufferEnd) {
+            g_stdinBufferStart = 0;
+            g_stdinBufferEnd = 0;
         }
         UnlockStdin();
         return (int64_t)readSize;

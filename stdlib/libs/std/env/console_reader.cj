@@ -153,15 +153,16 @@ public class ConsoleReader <: InputStream {
     }
 
     private func directRead(arr: Array<Byte>): Int64 {
-        unsafe {
+        let readSize = unsafe {
             let data: CPointerHandle<Byte> = acquireArrayRawData(arr)
-            let readSize = CJ_CONSOLE_ReadBytes(data.pointer, UIntNative(arr.size))
+            let result = CJ_CONSOLE_ReadBytes(data.pointer, UIntNative(arr.size))
             releaseArrayRawData(data)
-            return if (readSize < 0) {
-                0
-            } else {
-                readSize
-            }
+            result
+        }
+        return if (readSize < 0) {
+            0
+        } else {
+            readSize
         }
     }
 

@@ -32,7 +32,6 @@ foreign {
 
     func CJ_CONSOLE_Readline(): CPointer<StructureString>
 
-    @FastNative
     func CJ_CONSOLE_ReadBytes(buffer: CPointer<Byte>, maxLen: UIntNative): Int64
 
     @FastNative
