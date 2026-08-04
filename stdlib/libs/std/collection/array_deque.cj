@@ -160,7 +160,7 @@ public class ArrayDeque<T> <: Deque<T> {
         }
 
         if (_head < _tail) {
-            _data.copyTo(newArr, 0, _head, _tail - _head)
+            _data.copyTo(newArr, _head, 0, _tail - _head)
         } else if (newSize != 0) {
             let count = _data.size - _head
             _data.copyTo(newArr, _head, 0, count)
