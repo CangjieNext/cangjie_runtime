@@ -162,6 +162,10 @@ void TypeInfo::TryInitMTable()
 
 MTableDesc::MTableDesc(ArchUInt bitmap_)
 {
+    // Lower the load factor so rehash happens earlier: more buckets and
+    // shorter collision chains, reducing sensitivity to the dynamically
+    // assigned (load-order) UUID values.
+    mTable.max_load_factor(0.7f);
     mTableBitmap.tag = bitmap_;
 }
 
