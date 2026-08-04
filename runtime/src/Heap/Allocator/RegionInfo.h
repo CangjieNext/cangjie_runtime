@@ -82,6 +82,7 @@ public:
         ROUTED,
         COMPACTED,
         FORWARDED,
+        PROMPTED,
     };
 
     static const size_t UNIT_SIZE; // same as system page size
@@ -212,6 +213,64 @@ public:
         } while (true);
 
         return nullptr;
+    }
+
+    AgeBitmap* GetAgeBitmap()
+    {
+        LiveInfo* liveInfo = GetLiveInfo();
+        if (liveInfo == nullptr) {
+            return nullptr;
+        }
+        AgeBitmap* bitmap = __atomic_load_n(&liveInfo->ageBitmap, std::memory_order_acquire);
+        if (reinterpret_cast<MAddress>(bitmap) == LiveInfo::TEMPORARY_PTR) {
+            return nullptr;
+        }
+        return bitmap;
+    }
+
+    AgeBitmap* GetOrAllocAgeBitmap()
+    {
+        LiveInfo* liveInfo = GetOrAllocLiveInfo();
+        do {
+            AgeBitmap* bitmap = __atomic_load_n(&liveInfo->ageBitmap, std::memory_order_acquire);
+            if (UNLIKELY(reinterpret_cast<uintptr_t>(bitmap) == LiveInfo::TEMPORARY_PTR)) {
+                continue;
+            }
+            if (LIKELY(bitmap != nullptr)) {
+                return bitmap;
+            }
+            AgeBitmap* newValue = reinterpret_cast<AgeBitmap*>(LiveInfo::TEMPORARY_PTR);
+            if (__atomic_compare_exchange_n(&liveInfo->ageBitmap, &bitmap, newValue, false,
+                                            std::memory_order_seq_cst, std::memory_order_relaxed)) {
+                AgeBitmap* allocated =
+                    ForwardDataManager::GetForwardDataManager().AllocateAgeBitmap(GetRegionSize());
+                __atomic_store_n(&liveInfo->ageBitmap, allocated, std::memory_order_release);
+                return allocated;
+            }
+        } while (true);
+        return nullptr;
+    }
+
+    uint8_t GetObjectAge(const BaseObject* obj)
+    {
+        AgeBitmap* bitmap = GetAgeBitmap();
+        if (bitmap == nullptr) {
+            return 0;
+        }
+        size_t offset = GetAddressOffset(reinterpret_cast<MAddress>(obj));
+        return bitmap->GetAge(offset);
+    }
+
+    uint8_t IncObjectAge(const BaseObject* obj)
+    {
+        size_t offset = GetAddressOffset(reinterpret_cast<MAddress>(obj));
+        return GetOrAllocAgeBitmap()->IncAge(offset);
+    }
+
+    void SetObjectAge(const BaseObject* obj, uint8_t age)
+    {
+        size_t offset = GetAddressOffset(reinterpret_cast<MAddress>(obj));
+        GetOrAllocAgeBitmap()->SetAge(offset, age);
     }
 
     RegionBitmap* GetResurrectBitmap()
@@ -516,6 +575,11 @@ public:
         return reinterpret_cast<RegionInfo*>(unit);
     }
 
+    static RegionInfo* GetRegionInfoAt(BaseObject* obj)
+    {
+        return GetRegionInfoAt(reinterpret_cast<uintptr_t>(obj));
+    }
+
     static bool InGhostFromRegion(BaseObject* obj)
     {
         UnitInfo* unit = RegionInfo::UnitInfo::GetUnitInfoAt(reinterpret_cast<uintptr_t>(obj));
@@ -532,6 +596,11 @@ public:
             return unit->GetMetadata().ownerRegion0;
         }
         return reinterpret_cast<RegionInfo*>(unit);
+    }
+
+    static RegionInfo* GetGhostFromRegionAt(BaseObject* obj)
+    {
+        return GetGhostFromRegionAt(reinterpret_cast<uintptr_t>(obj));
     }
 
     static void InitFreeRegion(size_t unitIdx, size_t nUnit)
@@ -656,16 +725,18 @@ public:
         return reinterpret_cast<BaseObject*>(toAddr);
     }
 
-    void SetForwardingTable(ForwardingTable* table)
+    void SetForwardingTable(ObjectForwardingTable* table)
     {
         metadata.routeInfo.SetForwardingTable(table);
     }
 
-    ForwardingTable* GetForwardingTable() const { return metadata.routeInfo.GetForwardingTable(); }
+    ObjectForwardingTable* GetForwardingTable() const { return metadata.routeInfo.GetForwardingTable(); }
 
     void SetFreeSlotList(RegionFreeSlotList* list) { metadata.routeInfo.SetFreeSlotList(list); }
 
     RegionFreeSlotList* GetFreeSlotList() const { return metadata.routeInfo.GetFreeSlotList(); }
+
+    void SweepRegion();
 
     void PrepareForwardableRegion()
     {
@@ -679,6 +750,8 @@ public:
         metadata.routeInfo.SetRouteInfo(0);
         if (GetLiveByteCount() > 0) {
             SetInGhostRegion(1);
+            SetPromptedFlag0(IsPrompted() ? 1 : 0);
+            SetOldRegionFlag0(IsOldRegion() ? 1 : 0);
         }
 
         metadata.nextRegionIdx0 = metadata.nextRegionIdx;
@@ -710,6 +783,8 @@ public:
             for (size_t i = 0; i < nUnit; i++) {
                 array[i].SetInGhostRegion(0);
             }
+            SetPromptedFlag0(0);
+            SetOldRegionFlag0(0);
         }
     }
 
@@ -722,9 +797,15 @@ public:
         size_t nUnit = GetGhostRegionUnitCount();
         UnitInfo* unit = reinterpret_cast<UnitInfo*>(this);
         UnitInfo::UnitInfoArray array = UnitInfo::UnitInfoArray(unit, nUnit);
+        SetPromptedFlag0(0);
+        SetOldRegionFlag0(0);
         for (size_t i = 0; i < nUnit; i++) {
             array[i].SetInGhostRegion(0);
         }
+        if (metadata.routeInfo.kind == RouteInfo::RouteKind::FORWARDING_TABLE) {
+            delete metadata.routeInfo.forwardingTable;
+        }
+        metadata.routeInfo.SetRouteInfo(0);
     }
 
     bool IsGhostFromRegion() const { return metadata.inGhostFromRegion == 1; }
@@ -806,6 +887,26 @@ public:
     {
         metadata.regionStateBitField.SetAtomicValue(RegionStateBitPos::RESURRECTED_REGION_FLAG, 1, flag);
     }
+    void SetPromptedFlag(uint8_t flag)
+    {
+        metadata.unitRoleBitField.SetAtomicValue(PROMPTED_FLAG_POS, 1, flag);
+    }
+    bool IsPrompted() const { return metadata.isPrompted == 1; }
+    void SetPromptedFlag0(uint8_t flag)
+    {
+        metadata.unitRoleBitField.SetAtomicValue(PROMPTED0_FLAG_POS, 1, flag);
+    }
+    bool IsPrompted0() const { return metadata.isPrompted0 == 1; }
+    void SetOldRegionFlag(uint8_t flag)
+    {
+        metadata.unitRoleBitField.SetAtomicValue(OLD_FLAG_POS, 1, flag);
+    }
+    bool IsOldRegion() const { return metadata.isOld == 1; }
+    void SetOldRegionFlag0(uint8_t flag)
+    {
+        metadata.unitRoleBitField.SetAtomicValue(OLD0_FLAG_POS, 1, flag);
+    }
+    bool IsOld0() const { return metadata.isOld0 == 1; }
 
     RegionType GetRegionType() const { return static_cast<RegionType>(metadata.regionType); }
     UnitRole GetUnitRole() const { return static_cast<UnitRole>(metadata.unitRole); }
@@ -953,7 +1054,8 @@ public:
     bool IsUnmovableFromRegion() const
     {
         return static_cast<RegionType>(metadata.regionType) == RegionType::UNMOVABLE_FROM_REGION ||
-            static_cast<RegionType>(metadata.regionType) == RegionType::RAW_POINTER_PINNED_REGION;
+            static_cast<RegionType>(metadata.regionType) == RegionType::RAW_POINTER_PINNED_REGION ||
+            static_cast<RegionType>(metadata.regionType) == RegionType::SWEEP_REGION;
     }
 
     bool IsToRegion() const { return static_cast<RegionType>(metadata.regionType) == RegionType::TO_REGION; }
@@ -1010,6 +1112,11 @@ private:
         RESURRECTED_REGION_FLAG
     };
 
+    static constexpr int32_t PROMPTED_FLAG_POS = 2 * BIT_LENGTH;
+    static constexpr int32_t PROMPTED0_FLAG_POS = 2 * BIT_LENGTH + 1;
+    static constexpr int32_t OLD_FLAG_POS = 2 * BIT_LENGTH + 2;
+    static constexpr int32_t OLD0_FLAG_POS = 2 * BIT_LENGTH + 3;
+
     struct UnitMetadata {
         struct { // basic data for RegionInfo
             // for fast allocation, always at the start.
@@ -1043,10 +1150,14 @@ private:
         // change the value, we must use specific interface implenmented by BitField.
         union {
             struct {
-                uint8_t unitRole : BIT_LENGTH;
-                uint8_t unitRole0 : BIT_LENGTH; // unit class before forwarded and reclaimed.
+                uint16_t unitRole : BIT_LENGTH;
+                uint16_t unitRole0 : BIT_LENGTH; // unit class before forwarded and reclaimed.
+                uint16_t isPrompted : 1;
+                uint16_t isPrompted0 : 1;
+                uint16_t isOld : 1;
+                uint16_t isOld0 : 1;
             };
-            BitField<uint8_t> unitRoleBitField;
+            BitField<uint16_t> unitRoleBitField;
         };
 
         // the writing operation in C++ Bit-Field feature is not atomic, if we wants to
@@ -1201,6 +1312,11 @@ private:
 
     void InitRegionInfo(size_t nUnit, UnitRole uClass)
     {
+        if (metadata.routeInfo.kind == RouteInfo::RouteKind::FREE_SLOT_LIST) {
+            delete metadata.routeInfo.freeSlotList;
+            metadata.routeInfo.SetRouteInfo(0);
+        }
+
         metadata.allocPtr = GetRegionStart();
         metadata.regionEnd = metadata.allocPtr + nUnit * RegionInfo::UNIT_SIZE;
         metadata.prevRegionIdx = NULLPTR_IDX;

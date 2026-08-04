@@ -56,7 +56,7 @@ enum LogType {
 #if defined(CANGJIE_SANITIZER_SUPPORT) || defined(CANGJIE_GWPASAN_SUPPORT)
     SANITIZER,
 #endif
-
+    PROMPT,
     LOG_TYPE_NUMBER
 };
 
@@ -156,6 +156,9 @@ enum LogType {
 #ifndef DEFAULT_MRT_LOG_SANITIZER
 #define DEFAULT_MRT_LOG_SANITIZER 0
 #endif // DEFAULT_MRT_LOG_SANITIZER
+#ifndef DEFAULT_MRT_LOG_PROMPT
+#define DEFAULT_MRT_LOG_PROMPT 0
+#endif // DEFAULT_MRT_LOG_PROMPT
 #endif
 
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)

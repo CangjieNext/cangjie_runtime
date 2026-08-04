@@ -10,31 +10,33 @@
 namespace MapleRuntime {
 void CollectorProxy::Init()
 {
-    wCollector.Init();
+    youngCollector.Init();
 
     if (currentCollector == nullptr) {
-        currentCollector = &wCollector;
+        currentCollector = &youngCollector;
     }
 }
 
 void CollectorProxy::Fini()
 {
-    wCollector.Fini();
+    youngCollector.Fini();
 }
 
 void CollectorProxy::RunGarbageCollection(uint64_t gcIndex, GCReason reason)
 {
     switch (reason) {
         case GC_REASON_HEU:
+            currentCollector = &youngCollector;
+            break;
         case GC_REASON_BACKUP:
-            currentCollector = &wCollector;
+            currentCollector = &mixedCollector;
             break;
         case GC_REASON_OOM:
         case GC_REASON_FORCE:
-            currentCollector = &wCollector;
+            currentCollector = &mixedCollector;
             break;
         default:
-            currentCollector = &wCollector;
+            currentCollector = &youngCollector;
             break;
     }
     currentCollector->SetGcStarted(true);

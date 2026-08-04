@@ -654,18 +654,19 @@ inline void Mutator::GCPhasePreForward(GCPhase newPhase)
 
 inline void Mutator::HandleGCPhase(GCPhase newPhase)
 {
-    if (newPhase == GCPhase::GC_PHASE_FINISH || newPhase == GCPhase::GC_PHASE_FORWARD) {
+    if (newPhase == GCPhase::GC_PHASE_FINISH || newPhase == GCPhase::GC_PHASE_FORWARD ||
+        newPhase == GCPhase::GC_PHASE_GENERATION_FORWARD) {
         std::lock_guard<std::mutex> lg(mutatorLock);
         if (satbNode != nullptr) {
             satbNode->Clear();
         }
-    } else if (newPhase == GCPhase::GC_PHASE_ENUM) {
+    } else if (newPhase == GCPhase::GC_PHASE_ENUM || newPhase == GCPhase::GC_PHASE_GENERATION_ENUM) {
         auto& localFins = GetLocalFinalizers();
         if (!localFins.empty()) {
             Heap::GetHeap().GetFinalizerProcessor().RegisterFinalizers(localFins);
         }
         GcPhaseEnum(newPhase);
-    } else if (newPhase == GCPhase::GC_PHASE_PREFORWARD) {
+    } else if (newPhase == GCPhase::GC_PHASE_PREFORWARD || newPhase == GCPhase::GC_PHASE_GENERATION_PREFORWARD) {
         GCPhasePreForward(newPhase);
     } else if (newPhase == GCPhase::GC_PHASE_CLEAR_SATB_BUFFER || newPhase == GCPhase::GC_PHASE_RECLAIM_SATB_NODE) {
         std::lock_guard<std::mutex> lg(mutatorLock);
@@ -673,7 +674,7 @@ inline void Mutator::HandleGCPhase(GCPhase newPhase)
             SatbBuffer::Instance().RetireNode(satbNode);
             satbNode = nullptr;
         }
-    } else if (newPhase == GCPhase::GC_PHASE_IDLE) {
+    } else if (newPhase == GCPhase::GC_PHASE_IDLE || newPhase == GCPhase::GC_PHASE_GENERATION_IDLE) {
         HandleGCPhaseIDLE();
     }
 }

@@ -358,9 +358,11 @@ protected:
 
     inline void SetGCReason(const GCReason reason) { gcReason = reason; }
 
+public:
     GCThreadPool* GetThreadPool() const { return collectorResources.GetThreadPool(); }
+protected:
     // enum all common roots.
-    void EnumAllCommonRoots(GCThreadPool* threadPool, RootSet& rootSet);
+    virtual void EnumAllCommonRoots(GCThreadPool* threadPool, RootSet& rootSet);
     // enum roots referenced by foreign languages.
     void EnumAllExportRoots(RootSet& foreignRootsSet);
     // let finalizerProcessor process finalizers, and mark resurrected if in light sync gc

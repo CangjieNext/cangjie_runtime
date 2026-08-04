@@ -10,7 +10,7 @@
 #include "Base/Log.h"
 #include "Base/MemUtils.h"
 #include "Base/SysCall.h"
-#include "Heap/Allocator/ForwardingTable.h"
+#include "Heap/GenerationalGC/ObjectForwardTable.h"
 #include "Heap/Allocator/RegionFreeSlotList.h"
 #include "Heap/Heap.h"
 #if defined(__linux__) || defined(hongmeng) || defined(__APPLE__)
@@ -177,12 +177,76 @@ struct RegionBitmap {
         return (preLiveBits + liveBits) * kMarkedBytesPerBit;
     }
 };
+struct AgeBitmap {
+    static constexpr size_t kSlotBytes = 8;
+    static constexpr size_t kAgeBits = 4;
+    static constexpr size_t kSlotsPerWord = kBitsPerWord / kAgeBits;
+    static constexpr uint8_t kMaxAge = static_cast<uint8_t>((1u << kAgeBits) - 1);
+
+    std::atomic<uint64_t> ageWords[0];
+
+    static size_t GetAgeBitmapSize(size_t regionSize)
+    {
+        size_t slotCnt = regionSize / kSlotBytes;
+        size_t wordCnt = (slotCnt + kSlotsPerWord - 1) / kSlotsPerWord;
+        return sizeof(AgeBitmap) + wordCnt * sizeof(uint64_t);
+    }
+
+    static size_t WordCount(size_t regionSize)
+    {
+        size_t slotCnt = regionSize / kSlotBytes;
+        return (slotCnt + kSlotsPerWord - 1) / kSlotsPerWord;
+    }
+
+    static size_t WordIdx(size_t offset) { return (offset / kSlotBytes) / kSlotsPerWord; }
+    static size_t Shift(size_t offset) { return ((offset / kSlotBytes) % kSlotsPerWord) * kAgeBits; }
+
+    uint8_t GetAge(size_t offset) const
+    {
+        return static_cast<uint8_t>((ageWords[WordIdx(offset)].load(std::memory_order_acquire) >> Shift(offset)) &
+                                    kMaxAge);
+    }
+
+    void SetAge(size_t offset, uint8_t age)
+    {
+        size_t w = WordIdx(offset);
+        size_t s = Shift(offset);
+        uint64_t mask = static_cast<uint64_t>(kMaxAge) << s;
+        uint64_t oldVal;
+        uint64_t newVal;
+        do {
+            oldVal = ageWords[w].load(std::memory_order_acquire);
+            newVal = (oldVal & ~mask) | (static_cast<uint64_t>(age & kMaxAge) << s);
+        } while (!ageWords[w].compare_exchange_weak(oldVal, newVal, std::memory_order_acq_rel,
+                                                    std::memory_order_acquire));
+    }
+
+    uint8_t IncAge(size_t offset)
+    {
+        size_t w = WordIdx(offset);
+        size_t s = Shift(offset);
+        uint64_t mask = static_cast<uint64_t>(kMaxAge) << s;
+        uint64_t oldVal;
+        uint64_t newVal;
+        do {
+            oldVal = ageWords[w].load(std::memory_order_acquire);
+            uint8_t cur = static_cast<uint8_t>((oldVal >> s) & kMaxAge);
+            uint8_t next = (cur >= kMaxAge) ? kMaxAge : static_cast<uint8_t>(cur + 1);
+            newVal = (oldVal & ~mask) | (static_cast<uint64_t>(next) << s);
+        } while (!ageWords[w].compare_exchange_weak(oldVal, newVal, std::memory_order_acq_rel,
+                                                    std::memory_order_acquire));
+        return static_cast<uint8_t>((oldVal >> s) & kMaxAge);
+    }
+};
+
 struct LiveInfo {
     static constexpr MAddress TEMPORARY_PTR = 0x1234;
+
     RegionInfo* bindedRegion = nullptr;
     RegionBitmap* markBitmap = nullptr;
     RegionBitmap* resurrectBitmap = nullptr;
     RegionBitmap* enqueueBitmap = nullptr;
+    AgeBitmap* ageBitmap = nullptr;
 
     uint64_t GetPreLiveBytes(size_t offset, size_t regionSize)
     {
@@ -227,7 +291,7 @@ struct RouteInfo {
     RouteKind kind = RouteKind::COPY_ROUTE;
     union {
         CopyRouteInfo copyRoute;
-        ForwardingTable* forwardingTable;
+        ObjectForwardingTable* forwardingTable;
         RegionFreeSlotList* freeSlotList;
     };
 
@@ -244,13 +308,13 @@ struct RouteInfo {
         copyRoute.SetRouteInfo(to1, to1used, to2);
     }
 
-    void SetForwardingTable(ForwardingTable* table)
+    void SetForwardingTable(ObjectForwardingTable* table)
     {
         kind = RouteKind::FORWARDING_TABLE;
         forwardingTable = table;
     }
 
-    ForwardingTable* GetForwardingTable() const
+    ObjectForwardingTable* GetForwardingTable() const
     {
         if (kind == RouteKind::FORWARDING_TABLE) {
             return forwardingTable;
