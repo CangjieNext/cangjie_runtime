@@ -1365,9 +1365,11 @@ bool ShouldWakeDirectly(Schedule* schedule, CJThread* cjthread)
     // just wake this schedule.
     if (schedule->scheduleType == SCHEDULE_UI_THREAD &&
         g_scheduleManager.postTaskFunc != nullptr &&
-        cjthread != nullptr && cjthread->threadStackTopList.size() > 1) {
+        cjthread->threadStackTopList.size() > 1) {
         return true;
     }
+#else
+    (void)cjthread;
 #endif
     return false;
 }
