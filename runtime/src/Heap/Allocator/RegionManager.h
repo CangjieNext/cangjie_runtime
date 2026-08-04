@@ -120,6 +120,10 @@ public:
 
     void ForwardFromRegions(GCThreadPool* threadPool);
     void ForwardFromRegions();
+    virtual void ForwardFromSpace(GCThreadPool* threadPool)
+    {
+        ForwardFromRegions(threadPool);
+    }
     void ForwardRegion(RegionInfo* region);
     void CompactRegion(RegionInfo* region);
     void CompactRegion(RegionInfo* region, RegionInfo* toRegion1);
@@ -303,9 +307,7 @@ public:
                                            RegionInfo::RegionType::RAW_POINTER_PINNED_REGION)) {
             GCPhase phase = Heap::GetHeap().GetGCPhase();
             CHECK(phase != GCPhase::GC_PHASE_FORWARD && phase != GCPhase::GC_PHASE_PREFORWARD);
-            if (phase == GCPhase::GC_PHASE_POST_TRACE) {
-                region->ClearGhostRegionBit();
-            }
+            region->ClearGhostRegionBit();
             rawPointerPinnedRegionList.PrependRegion(region, RegionInfo::RegionType::RAW_POINTER_PINNED_REGION);
         } else {
             CHECK(region->GetRegionType() != RegionInfo::RegionType::LONE_FROM_REGION);
@@ -477,6 +479,7 @@ public:
         CHECK(fromRegionInfo->IsGhostFromRegion());
         do {
             RegionInfo::RouteState oldState = fromRegionInfo->GetRouteState();
+            CHECK(oldState != RegionInfo::RouteState::PROMPTED);
             if (oldState == RegionInfo::RouteState::ROUTED || oldState == RegionInfo::RouteState::FORWARDED) {
                 return true;
             }
@@ -501,16 +504,17 @@ public:
         } while (true);
     }
 
-    void PrepareFromRegionList()
+    virtual void PrepareFromRegionList(bool isFull)
     {
+        (void)isFull;
         ghostFromRegionList.VisitAllGhostRegions([](RegionInfo* region) {
-            DLOG(REGION, "visit ghost from region %p@[%#zx, %#zx)", region, region->GetRegionStart(),
+            DLOG(REGION, "dispel ghost from region %p@[%#zx, %#zx)", region, region->GetRegionStart(),
                  region->GetRegionEnd());
             region->DispelGhostFromRegion();
         });
 
         fromRegionList.VisitAllRegions([](RegionInfo* region) {
-            DLOG(REGION, "visit from region %p@[%#zx+%zu, %#zx)", region, region->GetRegionStart(),
+            DLOG(REGION, "prepare from region %p@[%#zx+%zu, %#zx)", region, region->GetRegionStart(),
                  region->GetLiveByteCount(), region->GetRegionEnd());
             region->PrepareForwardableRegion();
         });
@@ -532,10 +536,9 @@ public:
         ClearLiveInfo(largeTraceRegions);
     }
 
-private:
+protected:
     static const size_t MAX_UNIT_COUNT_PER_REGION;
     static const size_t HUGE_PAGE;
-    inline void CheckRegionWhetherCreatedInFixPhase(RegionInfo* region);
     inline void TagHugePage(RegionInfo* region, size_t num) const;
     inline void UntagHugePage(RegionInfo* region, size_t num) const;
 

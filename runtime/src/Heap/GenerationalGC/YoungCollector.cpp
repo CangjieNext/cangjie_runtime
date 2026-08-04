@@ -1,0 +1,352 @@
+// Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
+// This source file is part of the Cangjie project, licensed under Apache-2.0
+// with Runtime Library Exception.
+//
+// See https://cangjie-lang.cn/pages/LICENSE for license information
+
+
+#include "YoungCollector.h"
+#include "Allocator/MixedRegionSpace/MixedRegionSpace.h"
+#include "Heap/GcThreadPool.h"
+#include "Heap/HeapWork.h"
+#include "RememberSet.h"
+
+namespace MapleRuntime {
+
+void YoungCollector::TraceHeap()
+{
+    WorkStack workStack = NewWorkStack();
+    WorkStack foreignStack = NewWorkStack();
+    AssembleCandidates();
+
+    {
+        TransitionToGCPhase(GCPhase::GC_PHASE_GENERATION_ENUM, true);
+        DoEnumeration(workStack, foreignStack);
+    }
+
+    {
+        markedObjectCount.store(0, std::memory_order_relaxed);
+        TransitionToGCPhase(GCPhase::GC_PHASE_GENERATION_TRACE, true);
+        reinterpret_cast<RegionSpace&>(theAllocator).PrepareTrace();
+        DoTracing(workStack, foreignStack);
+
+        ProcessFinalizers();
+    }
+}
+void YoungCollector::DoGarbageCollection()
+{
+    TraceHeap();
+    PostTrace();
+    ConcurrentSweep();
+    Preforward(GCPhase::GC_PHASE_GENERATION_PREFORWARD);
+
+    ForwardFromSpace();
+
+    TransitionToGCPhase(GCPhase::GC_PHASE_GENERATION_IDLE, true);
+    MergeResurrectExportObjects();
+    PostResolveCycleTask();
+    FlipTagID();
+    ForwardDataManager::GetForwardDataManager().SetTagID(currentTagID);
+
+    CollectSmallSpace();
+    ForwardDataManager::GetForwardDataManager().UnbindPreviousLiveInfo();
+}
+
+void YoungCollector::EnumRefFieldRoot(RefField<>& field, RootSet& rootSet) const {
+    RefField<> oldField(field);
+    // if field is already tagged currently, it is also already enumerated.
+    if (IsCurrentPointer(oldField)) {
+        rootSet.push_back(oldField.GetTargetObject());
+        return;
+    }
+
+    BaseObject* latest = nullptr;
+    if (IsOldPointer(oldField)) {
+        BaseObject* targetObj = oldField.GetTargetObject();
+        latest = FindLatestVersion(targetObj);
+    } else {
+        latest = field.GetTargetObject();
+    }
+
+    // target object could be null or non-heap for some static variable.
+    if (!IsTargetAddress(latest)) {
+        DLOG(ENUM, "skip invalid young field ref %p: %#zx -> %p", &field, oldField.GetFieldValue(), latest);
+        return;
+    }
+    CHECK_DETAIL(latest->IsValidObject(), "Enum static root %p(%p) encounters invalid object", latest, &field);
+    RefField<> newField = GetAndTryTagRefField(latest);
+    if (oldField.GetFieldValue() == newField.GetFieldValue()) {
+        DLOG(ENUM, "enum young static ref@%p: %#zx -> %p<%p>(%zu)", &field, oldField.GetFieldValue(), latest,
+             latest->GetTypeInfo(), latest->GetSize());
+    } else if (field.CompareExchange(oldField.GetFieldValue(), newField.GetFieldValue())) {
+        DLOG(ENUM, "enum young static ref@%p: %#zx=>%#zx -> %p<%p>(%zu)", &field, oldField.GetFieldValue(),
+             newField.GetFieldValue(), latest, latest->GetTypeInfo(), latest->GetSize());
+    } else {
+        DLOG(ENUM, "enum young static ref@%p: %#zx -> %p<%p>(%zu)", &field, oldField.GetFieldValue(), latest,
+             latest->GetTypeInfo(), latest->GetSize());
+    }
+    rootSet.push_back(latest);
+}
+
+// TODO: override
+void YoungCollector::EnumAndTagRawRoot(ObjectRef& ref, RootSet& rootSet) const
+{
+    RefField<>& refField = reinterpret_cast<RefField<>&>(ref);
+    RefField<> oldField(refField);
+    CHECK_DETAIL(!IsOldPointer(oldField), "EnumAndTagRawRoot failed: Invalid root: %zx", oldField.GetFieldValue());
+    if (IsCurrentPointer(oldField)) {
+        rootSet.push_back(oldField.GetTargetObject());
+        return;
+    }
+    BaseObject* root = oldField.GetTargetObject();
+    if (IsTargetAddress(root)) {
+        CHECK_DETAIL(root->IsValidObject(), "Enum and tag runtime root %p(%p) encounters invalid object", root, &ref);
+        RefField<> newField = GetAndTryTagRefField(root);
+        if (oldField.GetFieldValue() == newField.GetFieldValue()) {
+            DLOG(ENUM, "enum young raw root @%p: %p(%zu)", &ref, root, root->GetSize());
+        } else if (refField.CompareExchange(oldField.GetFieldValue(), newField.GetFieldValue())) {
+            DLOG(ENUM, "enum young static ref@%p: %#zx=>%#zx -> %p<%p>(%zu)", &refField, oldField.GetFieldValue(),
+                 newField.GetFieldValue(), root, root->GetTypeInfo(), root->GetSize());
+        } else {
+            DLOG(ENUM, "enum young static ref@%p: %#zx -> %p<%p>(%zu)", &refField, oldField.GetFieldValue(), root,
+                 root->GetTypeInfo(), root->GetSize());
+        }
+        rootSet.push_back(root);
+    } else {
+        DLOG(ENUM, "skip young invalid ref@%p: %#zx -> %p", &refField, oldField.GetFieldValue(), root);
+    }
+}
+
+// TODO: override
+RefField<> YoungCollector::GetAndTryTagRefField(BaseObject* target) const
+{
+    if (IsFromObject(target)) {
+        return RefField<>(target, 1, currentTagID);
+    } else {
+        return RefField<>(target);
+    }
+}
+
+bool YoungCollector::IsYoungHeapAddress(BaseObject* obj) const
+{
+    if (Heap::IsHeapAddress(obj)) {
+        auto regionInfo = RegionInfo::GetRegionInfoAt(reinterpret_cast<uintptr_t>(obj));
+        return !regionInfo->IsOldRegion();
+    }
+    return false;
+}
+
+bool YoungCollector::MarkObject(BaseObject* obj) const
+{
+    if (!IsTargetAddress(obj)) { return true; }
+
+    RegionInfo* region = RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(obj));
+    size_t objectSize = obj->GetSize();
+    bool marked = region->MarkObject(obj, objectSize);
+    if (!marked) {
+        // TODO: can be aggregated in MarkObject.
+        region->AddLiveByteCount(objectSize);
+        uint8_t age = region->IncObjectAge(obj);
+        if (ShouldPrompt(age)) {
+            TagPromptRegion(region);
+        }
+        (void)region;
+        DLOG(TRACE, "mark obj %p<%p>(%zu) in region %p(%u)@%#zx, live %u", obj, obj->GetTypeInfo(), objectSize,
+             region, region->GetRegionType(), region->GetRegionStart(), region->GetLiveByteCount());
+    }
+    return marked;
+}
+
+BaseObject* YoungCollector::TryForwardObject(BaseObject* fromVersion)
+{
+    RegionInfo* fromRegion = RegionInfo::GetGhostFromRegionAt(reinterpret_cast<uintptr_t>(fromVersion));
+
+    if (fromRegion == nullptr) {
+        DLOG(FORWARD, "object %p is not in from region", fromVersion);
+        return nullptr;
+    }
+    if (!fromRegion->IsPrompted0()) {
+        return WCollector::TryForwardObject(fromVersion);
+    }
+
+    MixedRegionSpace& space = static_cast<MixedRegionSpace&>(theAllocator);
+    MixedRegionManager& manager = MixedRegionSpace::CastDown(space.GetRegionManager());
+    return manager.PromptObject(fromVersion, fromRegion);
+}
+
+bool YoungCollector::ShouldPrompt(uint8_t age) const {
+    return age >= OLD_AGE;
+}
+
+void YoungCollector::EnumRememberedRoots(RootSet& rootSet) const
+{
+    RememberSet::Instance().VisitAllYoungSlots([this, &rootSet](uintptr_t slotAddr) {
+        RefField<>* field = reinterpret_cast<RefField<>*>(slotAddr);
+        BaseObject* oldTarget = field->GetTargetObject();
+        if (!Heap::IsHeapAddress(oldTarget)) {
+            return;
+        }
+        EnumRefFieldRoot(*field, rootSet);
+    });
+}
+
+void YoungCollector::EnumAllCommonRoots(GCThreadPool* threadPool, RootSet& rootSet)
+{
+    TracingCollector::EnumAllCommonRoots(threadPool, rootSet);
+    EnumRememberedRoots(rootSet);
+}
+
+void YoungCollector::ForwardFromSpace()
+{
+    TransitionToGCPhase(GCPhase::GC_PHASE_GENERATION_FORWARD, true);
+    MixedRegionSpace& space = static_cast<MixedRegionSpace&>(theAllocator);
+    space.ForwardFromSpace(GetThreadPool());
+}
+
+void YoungCollector::TagPromptRegion(RegionInfo* regionInfo) const
+{
+    regionInfo->SetPromptedFlag(1);
+}
+
+void YoungCollector::RefineFromSpace()
+{
+    GCStats& stats = GetGCStats();
+    MixedRegionSpace& space = static_cast<MixedRegionSpace&>(theAllocator);
+    stats.smallGarbageSize = space.ClassifyCandidateRegions();
+}
+
+void YoungCollector::ResetForwardingData()
+{
+    fwdTable.PrepareForwardTable(false);
+}
+
+void YoungCollector::PostTrace()
+{
+    MRT_PHASE_TIMER("PostTrace");
+    TransitionToGCPhase(GC_PHASE_GENERATION_POST_TRACE, true);
+    RegionSpace& space = reinterpret_cast<RegionSpace&>(theAllocator);
+    space.GetRegionManager().HandleTraceRegions();
+    // clear weakRef List, set the referent as null
+    WeakRefBuffer::Instance().ClearWeakRefBuffer();
+    // clear satb buffer when gc finish tracing.
+    SatbBuffer::Instance().ClearBuffer();
+    // reclaim large objects immediately after tracing is done.
+    PrepareCycleRef();
+
+    RefineFromSpace();
+    // Before ResetForwardingData dispels ghost from regions, migrate RememberSet
+    // slots from old ghost regions to new regions. At this point, slot values
+    // have already been updated to forwarded addresses by the previous GC's
+    // PromptRegionImpl, so reading the slot gives the new target whose region
+    // the slot should be re-associated with.
+    CollectPinnedGarbage();
+    CollectLargeGarbage();
+    MixedRegionSpace& mspace = static_cast<MixedRegionSpace&>(theAllocator);
+    MixedRegionSpace::CastDown(mspace.GetRegionManager()).MigrateGhostRegionRSet();
+    ResetForwardingData();
+}
+
+class SweepTask : public HeapWork {
+public:
+    SweepTask(RegionList& sweepable, RegionList& swept, GCThreadPool* pool,
+              RememberSet& rset, RegionManager& mgr)
+        : sweepableYoungRegionList(sweepable), sweptYoungRegionList(swept),
+          threadPool(pool), rememberSet(rset), regionManager(mgr) {}
+
+    ~SweepTask() override = default;
+
+    void Execute(size_t) override
+    {
+        constexpr size_t BATCH = 10;
+        for (size_t i = 0; i < BATCH; i++) {
+            RegionInfo* region = sweepableYoungRegionList.TakeHeadRegion();
+            if (region == nullptr) {
+                return;
+            }
+            if (region->GetLiveByteCount() == 0) {
+                rememberSet.MigrateGhostRegionSlots(region);
+                regionManager.CollectRegion(region);
+                continue;
+            }
+            region->SweepRegion();
+            sweptYoungRegionList.PrependRegion(region, RegionInfo::RegionType::SWEEP_REGION);
+        }
+        threadPool->AddWork(new (std::nothrow) SweepTask(sweepableYoungRegionList,
+                                                         sweptYoungRegionList, threadPool,
+                                                         rememberSet, regionManager));
+    }
+
+private:
+    RegionList& sweepableYoungRegionList;
+    RegionList& sweptYoungRegionList;
+    GCThreadPool* threadPool;
+    RememberSet& rememberSet;
+    RegionManager& regionManager;
+};
+
+void YoungCollector::ConcurrentSweep()
+{
+    GCThreadPool* threadPool = GetThreadPool();
+    if (threadPool == nullptr) {
+        return;
+    }
+    MixedRegionSpace& space = static_cast<MixedRegionSpace&>(theAllocator);
+    MixedRegionManager& manager = MixedRegionSpace::CastDown(space.GetRegionManager());
+    threadPool->Start();
+    threadPool->AddWork(new (std::nothrow) SweepTask(manager.GetSweepableRegionList(),
+                                                     manager.GetSweptRegionList(), threadPool,
+                                                     RememberSet::Instance(), manager));
+}
+
+bool YoungCollector::TryUpdateRefField(BaseObject* obj, RefField<>& field, BaseObject*& newRef) const
+{
+    RefField<> oldRef(field);
+    BaseObject* fromObj = oldRef.GetTargetObject();
+    if (!Heap::IsHeapAddress(fromObj)) {
+        return WCollector::TryUpdateRefField(obj, field, newRef);
+    }
+    RegionInfo* region = RegionInfo::GetGhostFromRegionAt(reinterpret_cast<uintptr_t>(fromObj));
+
+    if (region == nullptr || (region->IsGhostFromRegion() && !region->IsPrompted0())) {
+        return WCollector::TryUpdateRefField(obj, field, newRef);
+    }
+    ObjectForwardingTable* fwdTable = region->GetForwardingTable();
+    if (fwdTable != nullptr) {
+        BaseObject* newObj = fwdTable->GetRoute(fromObj);
+        if (newObj != nullptr) {
+            RefField<> newField(newObj);
+            if (field.CompareExchange(oldRef.GetFieldValue(), newField.GetFieldValue())) {
+                newRef = newObj;
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+bool YoungCollector::TryForwardRefField(BaseObject* obj, RefField<>& field, BaseObject*& newRef) const
+{
+    RefField<> oldRef(field);
+    BaseObject* fromObj = oldRef.GetTargetObject();
+    if (!Heap::IsHeapAddress(fromObj)) {
+        return WCollector::TryForwardRefField(obj, field, newRef);
+    }
+    RegionInfo* region = RegionInfo::GetGhostFromRegionAt(reinterpret_cast<uintptr_t>(fromObj));
+    if (region == nullptr || (region->IsGhostFromRegion() && !region->IsPrompted0())) {
+        return WCollector::TryForwardRefField(obj, field, newRef);
+    }
+    MixedRegionSpace& space = static_cast<MixedRegionSpace&>(theAllocator);
+    MixedRegionManager& manager = MixedRegionSpace::CastDown(space.GetRegionManager());
+    BaseObject* newObj = manager.PromptObject(fromObj, region);
+    if (newObj != nullptr) {
+        RefField<> newField(newObj);
+        if (field.CompareExchange(oldRef.GetFieldValue(), newField.GetFieldValue())) {
+            newRef = newObj;
+            return true;
+        }
+    }
+
+    return false;
+}
+} // namespace MapleRuntime

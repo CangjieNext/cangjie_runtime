@@ -13,7 +13,7 @@
 namespace MapleRuntime {
 namespace {
 const char* const COLLECTOR_NAME[] = { "No Collector", "Proxy Collector", "Regional-Copying Collector",
-                                       "Smooth Collector" };
+                                       "Smooth Collector", "Young Collector", "Mixed Collector" };
 }
 
 const char* Collector::GetGCPhaseName(GCPhase phase)

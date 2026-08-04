@@ -1,0 +1,14 @@
+# Source code copy at repo root (build uses runtime/, not src/)
+src/
+
+# AI assistant skill configuration
+.agents/
+
+# IDE configuration
+.vscode/
+
+# Build artifacts at repo root (e.g. cmake plugin)
+build/
+
+# Precompiled header artifacts
+*.h.gch

@@ -20,7 +20,7 @@
 #include "StackMap/StackMap.h"
 
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
-#define GCINFO_DEBUG (false)
+#define GCINFO_DEBUG (true)
 #else
 #define GCINFO_DEBUG (false)
 #endif

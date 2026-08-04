@@ -13,9 +13,9 @@
 #include "Collector/CopyCollector.h"
 namespace MapleRuntime {
 
-class ForwardTable {
+class RegionForwardTable {
 public:
-    explicit ForwardTable(RegionSpace& space) : theSpace(space) {}
+    explicit RegionForwardTable(RegionSpace& space) : theSpace(space) {}
 
     // if object is not relocated (forwarded or compacted), return nullptr.
     BaseObject* RouteObject(BaseObject* old)
@@ -27,10 +27,10 @@ public:
     // if region is compacted, return false.
     bool RouteRegion(RegionInfo* region) { return theSpace.GetRegionManager().RouteRegion(region); }
 
-    void PrepareForwardTable()
+    void PrepareForwardTable(bool isFull = true)
     {
         DLOG(FORWARD, "reset fwd table");
-        theSpace.PrepareFromSpace();
+        theSpace.PrepareFromSpace(isFull);
 
         ForwardDataManager::GetForwardDataManager().ClearPreviousForwardData();
     }
@@ -150,7 +150,7 @@ protected:
 
     bool TryUntagRefField(BaseObject* obj, RefField<>& field, BaseObject*& target) const override;
 
-    BaseObject* TryForwardObject(BaseObject* fromVersion);
+    virtual BaseObject* TryForwardObject(BaseObject* fromVersion);
 
     bool TryUpdateRefField(BaseObject* obj, RefField<>& field, BaseObject*& newRef) const override;
     bool TryForwardRefField(BaseObject* obj, RefField<>& field, BaseObject*& newRef) const override;
@@ -189,22 +189,23 @@ protected:
     void ProcessFinalizers() override;
     void EnumAndTagRawRoot(ObjectRef& ref, RootSet& rootSet) const override;
 
+protected:
+    virtual void TraceHeap();
+    virtual void PostTrace();
+    void Preforward(GCPhase phase);
+    // gc index 0 or 1 is used to distinguish previous gc and current gc.
+    uint16_t currentTagID = 0;
+    RegionForwardTable fwdTable;
+
 private:
     template<bool forward>
     bool TryUpdateRefFieldImpl(BaseObject* obj, RefField<>& ref, BaseObject*& oldRef, BaseObject*& newRef) const;
-    void TraceHeap();
     void PreforwardConcurrencyModelRoots();
-    void PostTrace();
-    void Preforward();
     void PreforwardAllExportFromRoots();
     void PreforwardFinalizerProcessorRoots();
     void PreforwardDiscoveredExternObjects();
     void PreforwardAllResurrectExportFromObjects();
     CrossRefHandler GetCrossRefHandler(BaseObject* foreignProxy);
-
-    ForwardTable fwdTable;
-    // gc index 0 or 1 is used to distinguish previous gc and current gc.
-    uint16_t currentTagID = 0;
 };
 } // namespace MapleRuntime
 #endif // ~MRT_WCOLLECTOR_H

@@ -16,6 +16,12 @@
 #include "WCollector/PostTraceBarrier.h"
 #include "WCollector/PreforwardBarrier.h"
 #include "WCollector/ForwardBarrier.h"
+#include "GenerationalGC/GenerationIdleBarrier.h"
+#include "GenerationalGC/GenerationEnumBarrier.h"
+#include "GenerationalGC/GenerationTraceBarrier.h"
+#include "GenerationalGC/GenerationPostTraceBarrier.h"
+#include "GenerationalGC/GenerationPreforwardBarrier.h"
+#include "GenerationalGC/GenerationForwardBarrier.h"
 #include "Mutator/MutatorManager.h"
 #if defined(_WIN64)
 #include <windows.h>
@@ -58,7 +64,10 @@ public:
         : theSpace(Allocator::NewAllocator()), collectorResources(collectorProxy),
           collectorProxy(*theSpace, collectorResources), stwBarrier(collectorProxy),
         idleBarrier(collectorProxy), enumBarrier(collectorProxy), traceBarrier(collectorProxy),
-        postTraceBarrier(collectorProxy), preforwardBarrier(collectorProxy), forwardBarrier(collectorProxy)
+        postTraceBarrier(collectorProxy), preforwardBarrier(collectorProxy), forwardBarrier(collectorProxy),
+        generationIdleBarrier(collectorProxy), generationEnumBarrier(collectorProxy),
+        generationTraceBarrier(collectorProxy), generationPostTraceBarrier(collectorProxy),
+        generationPreforwardBarrier(collectorProxy), generationForwardBarrier(collectorProxy)
     {
         currentBarrier = &stwBarrier;
         stwBarrierPtr = &stwBarrier;
@@ -148,6 +157,12 @@ private:
     PostTraceBarrier postTraceBarrier;
     PreforwardBarrier preforwardBarrier;
     ForwardBarrier forwardBarrier;
+    GenerationIdleBarrier generationIdleBarrier;
+    GenerationEnumBarrier generationEnumBarrier;
+    GenerationTraceBarrier generationTraceBarrier;
+    GenerationPostTraceBarrier generationPostTraceBarrier;
+    GenerationPreforwardBarrier generationPreforwardBarrier;
+    GenerationForwardBarrier generationForwardBarrier;
     Barrier* currentBarrier = nullptr;
 
     // manage gc roots entry
@@ -189,9 +204,10 @@ Allocator& HeapImpl::GetAllocator() { return *theSpace; }
 
 void HeapImpl::InstallBarrier(const GCPhase phase)
 {
+    // CLEAR_SATB_BUFFER and GC_PHASE_RECLAIM_SATB_NODE will use the barrier installed in last phase.
     if (phase == GCPhase::GC_PHASE_ENUM) {
         currentBarrier = &enumBarrier;
-    } else if (phase == GCPhase::GC_PHASE_TRACE || phase == GCPhase::GC_PHASE_CLEAR_SATB_BUFFER) {
+    } else if (phase == GCPhase::GC_PHASE_TRACE) {
         currentBarrier = &traceBarrier;
     } else if (phase == GCPhase::GC_PHASE_PREFORWARD) {
         currentBarrier = &preforwardBarrier;
@@ -201,6 +217,18 @@ void HeapImpl::InstallBarrier(const GCPhase phase)
         currentBarrier = &idleBarrier;
     } else if (phase == GCPhase::GC_PHASE_POST_TRACE) {
         currentBarrier = &postTraceBarrier;
+    } else if (phase == GCPhase::GC_PHASE_GENERATION_ENUM) {
+        currentBarrier = &generationEnumBarrier;
+    } else if (phase == GCPhase::GC_PHASE_GENERATION_TRACE) {
+        currentBarrier = &generationTraceBarrier;
+    } else if (phase == GCPhase::GC_PHASE_GENERATION_FORWARD) {
+        currentBarrier = &generationForwardBarrier;
+    } else if (phase == GCPhase::GC_PHASE_GENERATION_IDLE) {
+        currentBarrier = &generationIdleBarrier;
+    } else if (phase == GCPhase::GC_PHASE_GENERATION_PREFORWARD) {
+        currentBarrier = &generationPreforwardBarrier;
+    } else if (phase == GCPhase::GC_PHASE_GENERATION_POST_TRACE) {
+        currentBarrier = &generationPostTraceBarrier;
     }
     DLOG(GCPHASE, "install barrier for gc phase %u", phase);
 }

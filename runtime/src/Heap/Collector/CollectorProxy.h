@@ -12,6 +12,8 @@
 #include "Collector.h"
 #include "CollectorResources.h"
 #include "WCollector/WCollector.h"
+#include "GenerationalGC/YoungCollector.h"
+#include "GenerationalGC/MixedCollector.h"
 
 namespace MapleRuntime {
 // CollectorProxy is a special kind of collector, it is derived from Base class Collector, thus behaves like a real
@@ -20,7 +22,8 @@ namespace MapleRuntime {
 // CollectorProxy should inherit collector interfaces, but no datas
 class CollectorProxy : public Collector {
 public:
-    explicit CollectorProxy(Allocator& allocator, CollectorResources& resources) : wCollector(allocator, resources)
+    explicit CollectorProxy(Allocator& allocator, CollectorResources& resources)
+        : wCollector(allocator, resources), youngCollector(allocator, resources), mixedCollector(allocator, resources)
     {
         collectorType = CollectorType::PROXY_COLLECTOR;
     }
@@ -78,6 +81,8 @@ private:
     // supported collector set
     TracingCollector* currentCollector = nullptr;
     WCollector wCollector;
+    YoungCollector youngCollector;
+    MixedCollector mixedCollector;
 };
 } // namespace MapleRuntime
 

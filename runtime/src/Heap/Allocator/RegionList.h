@@ -21,6 +21,8 @@ public:
 
     void MergeRegionList(RegionList& regionList, RegionInfo::RegionType regionType);
 
+    void SplitList(RegionList& dst1, RegionList& dst2, size_t threshold);
+
     void DeleteRegion(RegionInfo* del)
     {
         if (del == nullptr) {

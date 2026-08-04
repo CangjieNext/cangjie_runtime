@@ -11,6 +11,7 @@
 #include "Mutator/MutatorManager.h"
 
 namespace MapleRuntime {
+
 bool WCollector::IsUnmovableFromObject(BaseObject* obj) const
 {
     // filter const string object.
@@ -405,12 +406,12 @@ void WCollector::PostTrace()
     fwdTable.PrepareForwardTable();
 }
 
-void WCollector::Preforward()
+void WCollector::Preforward(GCPhase phase)
 {
     ScopedEntryTrace trace("CJRT_GC_PREFORWARD");
     MRT_PHASE_TIMER("Preforward");
     {
-        ScopedLightSync scopedLightSync("Preforward", true, GCPhase::GC_PHASE_PREFORWARD);
+        ScopedLightSync scopedLightSync("Preforward", true, phase);
     }
 
     GCThreadPool* threadPool = GetThreadPool();
@@ -525,7 +526,7 @@ void WCollector::DoGarbageCollection()
     TraceHeap();
     PostTrace();
 
-    Preforward();
+    Preforward(GCPhase::GC_PHASE_PREFORWARD);
 
     ForwardFromSpace();
 
@@ -543,6 +544,7 @@ void WCollector::MarkNewObject(BaseObject* obj)
 {
     GCPhase mutatorPhase = Mutator::GetMutator()->GetMutatorPhase();
     if (UNLIKELY(mutatorPhase == GCPhase::GC_PHASE_ENUM) || UNLIKELY(mutatorPhase == GCPhase::GC_PHASE_TRACE) ||
+        UNLIKELY(mutatorPhase == GCPhase::GC_PHASE_GENERATION_ENUM) || UNLIKELY(mutatorPhase == GCPhase::GC_PHASE_GENERATION_TRACE) ||
         UNLIKELY(mutatorPhase == GCPhase::GC_PHASE_CLEAR_SATB_BUFFER)) {
         MarkObject(obj);
     }
@@ -585,7 +587,9 @@ BaseObject* WCollector::TryForwardObject(BaseObject* obj)
 
 BaseObject* WCollector::ForwardObjectImpl(BaseObject* obj, RegionInfo* ghostFromRegion)
 {
-    CHECK(GetGCPhase() == GCPhase::GC_PHASE_PREFORWARD || GetGCPhase() == GCPhase::GC_PHASE_FORWARD);
+    CHECK(GetGCPhase() == GCPhase::GC_PHASE_PREFORWARD || GetGCPhase() == GCPhase::GC_PHASE_FORWARD ||
+          GetGCPhase() == GCPhase::GC_PHASE_GENERATION_PREFORWARD ||
+          GetGCPhase() == GCPhase::GC_PHASE_GENERATION_FORWARD);
     do {
         StateWord oldWord = obj->GetStateWord();
 

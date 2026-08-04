@@ -1,0 +1,62 @@
+// Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
+// This source file is part of the Cangjie project, licensed under Apache-2.0
+// with Runtime Library Exception.
+//
+// See https://cangjie-lang.cn/pages/LICENSE for license information
+
+
+#ifndef MRT_YOUNGCOLLECTOR_H
+#define MRT_YOUNGCOLLECTOR_H
+
+#include "WCollector/WCollector.h"
+#include "Allocator/MixedRegionSpace/MixedRegionSpace.h"
+#include "Heap/GcThreadPool.h"
+#include "Heap/HeapWork.h"
+#include "RememberSet.h"
+#include "Collector/CardTable.h"
+
+namespace MapleRuntime {
+
+class YoungCollector : public WCollector {
+public:
+    explicit YoungCollector(Allocator& allocator, CollectorResources& resources)
+        : WCollector(allocator, resources) {
+        collectorType = CollectorType::YOUNG_COLLECTOR;
+    }
+
+    ~YoungCollector() override = default;
+
+    void DoGarbageCollection() override;
+    void TraceHeap() override;
+    void ForwardFromSpace() override;
+    void EnumAllCommonRoots(GCThreadPool* threadPool, RootSet& rootSet) override;
+    void EnumRefFieldRoot(RefField<>& ref, RootSet& rootSet) const override;
+    void EnumAndTagRawRoot(ObjectRef& ref, RootSet& rootSet) const override;
+    RefField<> GetAndTryTagRefField(BaseObject* target) const override;
+    BaseObject* TryForwardObject(BaseObject* fromVersion) override;
+    bool MarkObject(BaseObject* obj) const override;
+    bool TryUpdateRefField(BaseObject* obj, RefField<>& field, BaseObject*& newRef) const override;
+    bool TryForwardRefField(BaseObject* obj, RefField<>& field, BaseObject*& newRef) const override;
+
+protected:
+    virtual void ResetForwardingData();
+    void PostTrace() override;
+    void RefineFromSpace() override;
+    virtual void ConcurrentSweep();
+    virtual bool IsTargetAddress(BaseObject* obj) const { return IsYoungHeapAddress(obj); }
+    virtual void AssembleCandidates()
+    {
+        reinterpret_cast<MixedRegionSpace&>(theAllocator).AssembleYoungCandidates();
+    }
+
+private:
+    static constexpr uint8_t OLD_AGE = 15;
+    bool IsYoungHeapAddress(BaseObject* obj) const;
+    bool ShouldPrompt(uint8_t age) const;
+    void TagPromptRegion(RegionInfo* regionInfo) const;
+    void EnumRememberedRoots(RootSet& rootSet) const;
+};
+
+} // namespace MapleRuntime
+
+#endif // MRT_YOUNGCOLLECTOR_H

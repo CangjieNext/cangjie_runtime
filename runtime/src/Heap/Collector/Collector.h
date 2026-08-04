@@ -34,6 +34,13 @@ enum GCPhase : uint8_t {
     GC_PHASE_POST_TRACE = 12,
     GC_PHASE_PREFORWARD = 13,
     GC_PHASE_FORWARD = 14,
+    GC_PHASE_GENERATION_IDLE = 15,
+    GC_PHASE_GENERATION_ENUM = 16,
+    GC_PHASE_GENERATION_TRACE = 17,
+
+    GC_PHASE_GENERATION_PREFORWARD = 19,
+    GC_PHASE_GENERATION_FORWARD = 20,
+    GC_PHASE_GENERATION_POST_TRACE = 21,
 };
 
 enum CollectorType {
@@ -41,6 +48,8 @@ enum CollectorType {
     PROXY_COLLECTOR,  // Proxy of Collector
     COPY_COLLECTOR,   // Regional-Copying GC
     SMOOTH_COLLECTOR, // wgc
+    YOUNG_COLLECTOR,  // young collector
+    MIXED_COLLECTOR,  // mixed collector
     COLLECTOR_TYPE_COUNT,
 };
 

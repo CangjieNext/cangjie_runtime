@@ -10,6 +10,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include "Base/Log.h"
 #include "Heap/Allocator/RegionFreeSlot.h"
 
 namespace MapleRuntime {
@@ -21,6 +22,10 @@ struct FreeSlotNode {
     static constexpr size_t OFFSET_LEN = 32;
     static constexpr size_t SIZE_LEN = 20;
     static constexpr size_t MAGIC_LEN = 12;
+    static FreeSlotNode* Cast(uintptr_t addr)
+    {
+        return reinterpret_cast<FreeSlotNode*>(addr);
+    }
 
     uintptr_t offset : OFFSET_LEN;
     uintptr_t size : SIZE_LEN;
@@ -41,6 +46,7 @@ struct FreeSlotNode {
 class RegionFreeSlotList {
 public:
     static constexpr size_t NUM_SLOTS = RegionFreeSlot::NUM_SLOTS;
+    static constexpr size_t MIN_SLOT_SIZE = sizeof(FreeSlotNode) + sizeof(uintptr_t);
 
     RegionFreeSlotList() : regionStart_(0), heads_{}, maxSlotIndex_(NUM_SLOTS) {}
 
@@ -65,6 +71,7 @@ public:
 
     void AddSlot(uint32_t offset, uint32_t size)
     {
+        DCHECK(size >= MIN_SLOT_SIZE);
         size_t slotIdx = RegionFreeSlot::GetAlignedDownSlotIndex(size);
         if (slotIdx >= NUM_SLOTS) {
             slotIdx = NUM_SLOTS - 1;

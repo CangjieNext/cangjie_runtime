@@ -11,6 +11,8 @@ set(SRC_LIST
     "RegionSpace.cpp"
     "RegionManager.cpp"
     "CartesianTree.cpp"
+    "MixedRegionSpace/MixedRegionSpace.cpp"
+    "MixedRegionSpace/MixedRegionManager.cpp"
 )
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../)
