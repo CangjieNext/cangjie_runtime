@@ -10,9 +10,8 @@ package std.unittest.concurrent
 
 public class Operation<S> where S <: Any {
     Operation(
-        public let name!: String,
-        public let id!: Int64 = 0,
-        public let body!: (S) -> EquatableObj,
+        let name!: String,
+        let body!: (S) -> EquatableObj,
     ) {}
 
     func executeWrapped(state: S): EquatableObj {
@@ -39,11 +38,11 @@ public class OperationInvocation {
         public let operationIndex!: Int64,
         public let operationName!: String,
         public let result!: EquatableObj,
-        public let invocationVC!: ?Array<Int64> = None,
-        public let responseVC!: ?Array<Int64> = None
+        let invocationVC!: ?Array<Int64> = None,
+        let responseVC!: ?Array<Int64> = None
     ) {}
 
-    public prop operationId: Int64 {
+    prop operationId: Int64 {
         get() { actorId * 1000 + operationIndex }
     }
 }
