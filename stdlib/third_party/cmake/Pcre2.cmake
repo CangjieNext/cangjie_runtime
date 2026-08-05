@@ -92,3 +92,49 @@ endif()
 
 file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/include/pcre2/include)
 file(COPY ${CMAKE_BINARY_DIR}/third_party/pcre2/include/pcre2.h DESTINATION ${CMAKE_BINARY_DIR}/include/pcre2/include)
+
+# On OHOS the ROM ships pcre2 as libpcre2.z.so. Re-link the PIC objects from
+# libpcre2-8.a into a shared library named libpcre2.z.so with the matching
+# SONAME, so that libcangjie-std-regex.so records libpcre2.z.so in DT_NEEDED
+# and resolves against the ROM-provided library at runtime.
+#
+# Note: pcre2-8 itself does not depend on libm. It may link against pthread
+# when JIT is enabled (see pcre2/CMakeLists.txt, REQUIRE_PTHREAD). We use
+# find_library to detect pthread in the target sysroot and carry it over with
+# --as-needed so DT_NEEDED stays consistent with the original libpcre2-8.so.
+# pcre2 has no version-script, so there is nothing to carry over for symbol
+# versioning.
+if(OHOS)
+    set(PCRE2_Z_LIB ${PCRE2_INSTALL_DIR}/lib/libpcre2.z.so)
+    message(STATUS "Re-linking pcre2 as libpcre2.z.so for OHOS...")
+
+    find_library(PCRE2_PTHREAD_LIB pthread)
+    set(RELINK_EXTRA_LIBS "")
+    if(PCRE2_PTHREAD_LIB)
+        list(APPEND RELINK_EXTRA_LIBS "-Wl,--as-needed" "${PCRE2_PTHREAD_LIB}")
+    else()
+        message(STATUS "pthread not found in sysroot; leaving pcre2 pthread symbols undefined")
+    endif()
+
+    set(RELINK_FLAGS "")
+    if(CANGJIE_TARGET_SYSROOT)
+        set(RELINK_FLAGS "--sysroot=${CANGJIE_TARGET_SYSROOT}")
+    endif()
+    execute_process(
+        COMMAND ${CMAKE_C_COMPILER}
+            ${RELINK_FLAGS}
+            -shared
+            -Wl,-soname,libpcre2.z.so
+            -Wl,--whole-archive ${PCRE2_INSTALL_DIR}/lib/libpcre2-8.a
+            -Wl,--no-whole-archive
+            ${RELINK_EXTRA_LIBS}
+            -o ${PCRE2_Z_LIB}
+        RESULT_VARIABLE relink_result
+        OUTPUT_VARIABLE relink_stdout
+        ERROR_VARIABLE relink_stderr)
+    if(NOT ${relink_result} STREQUAL "0")
+        message(STATUS "${relink_stdout}")
+        message(STATUS "${relink_stderr}")
+        message(FATAL_ERROR "Re-linking pcre2 as libpcre2.z.so Failed!")
+    endif()
+endif()
