@@ -155,6 +155,7 @@ public class ScenarioResult {
     public prop consistencyValidations: ArrayList<ConsistencyValidationResult> {
         get() {
             iterationResults
+                .iterator()
                 .filterMap({ iter => iter.consistencyValidation })
                 |> collectArrayList
         }
