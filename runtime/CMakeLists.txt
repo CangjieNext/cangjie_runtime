@@ -349,7 +349,7 @@ endif()
 # GC mode conditional linking
 if (MARKSWEEP_FLAG MATCHES 1)
     # MS mode: no WCollector needed; MS barriers are built within Barrier/
-    list(APPEND LINK_LIBS "MAllocator" "MBarrier" "MCollector")
+    list(APPEND LINK_LIBS "MBarrier" "MCollector")
 else()
     list(APPEND LINK_LIBS "WCollector")
 endif()
