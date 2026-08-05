@@ -13,15 +13,13 @@ import std.collection.HashMap
 import std.sync.AtomicInt64
 import std.time.DateTime
 
-
-var registry: HashMap<String, Int64> = HashMap()
 // happens before clock
 public class HBClock {
     static var globalClock: HBClockCounter = HBClockCounter()
 
-    func reset(): Unit {
+    // Reset the global clock to its initial state. It is called automatically before each test case to ensure a clean state.
+    public static func reset(): Unit {
         globalClock.counter.store(0)
-        registry.clear()
     }
 
     // Enforce happens-before order between particular points in code using absolute ordering.
@@ -40,20 +38,6 @@ public class HBClock {
     public static func verify(id: Int64): Unit {
         globalClock.verify(id)
     }
-
-    public static func verify(before!: String): Unit {
-        let id = registry.get(before) ?? throw IllegalArgumentException("No counter found for identifier: ${before}")
-        globalClock.verify(id + 1)
-    }
-
-    public static func register(ident: String): Unit {
-        if (let Some(existingId) <- registry.get(ident)) {
-
-        }
-        var id = globalClock.counter.fetchAdd(1)
-        registry[ident] = id
-    }
-
 }
 
 class HBClockCounter {

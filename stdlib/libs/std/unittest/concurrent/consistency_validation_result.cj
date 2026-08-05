@@ -16,8 +16,8 @@ import std.unittest.common.PrettyText
 
 protected class MismatchInfo {
     protected MismatchInfo(
-        public let operation!: OperationInvocation,
-        public let expectedResult!: EquatableObj
+        protected let operation!: OperationInvocation,
+        protected let expectedResult!: EquatableObj
     ) {}
 }
 
@@ -25,9 +25,9 @@ public class ConsistencyValidationResult {
     protected ConsistencyValidationResult(
         public let consistencyModel!: ConsistencyModel,
         public let matchingPermutation!: ?ArrayList<Int64>,
-        public let operationChecks!: Int64,
-        public let prunedBranches!: Int64,
-        public let cacheHits!: Int64,
+        protected let operationChecks!: Int64,
+        protected let prunedBranches!: Int64,
+        protected let cacheHits!: Int64,
         protected let history!: ConcurrentHistory,
         protected let partialOrder!: PartialOrder,
         public let exception!: ?Exception = None,
@@ -50,7 +50,7 @@ public class ConsistencyValidationResult {
         }
     }
 
-    public func getOperationHistory(): String {
+    protected func getOperationHistory(): String {
         let sb = StringBuilder()
         sb.append("Executed operations:\n")
         for (actorId in history.groupByActor().keys()) {
@@ -65,30 +65,12 @@ public class ConsistencyValidationResult {
         }
         sb.toString()
     }
-    
-    public func getMatchingSequence(): ?String {
-        let permutation = matchingPermutation ?? return None
-
-        let sb = StringBuilder()
-        sb.append("Matching ${modelDisplayName(consistencyModel)} sequence:\n")
-        
-        for (opId in permutation) {
-            let actorId = opId / 1000
-            let opIndex = opId % 1000
-            match (history.getInvocation(actorId, opIndex)) {
-                case Some(inv) =>
-                    sb.append("  Actor ${inv.actorId} op[${inv.operationIndex}] '${inv.operationName}' -> result\n")
-                case None => ()
-            }
-        }
-        sb.toString()
-    }
 
     public func getMismatchDetails(): ?String {
         getMismatchTable()
     }
 
-    public func getMismatchTable(): ?String {
+    protected func getMismatchTable(): ?String {
         if (deadEndMismatches.isEmpty()) {
             return None
         }
