@@ -6600,7 +6600,7 @@ Parameters:
 
 Returns:
 
-- [Option](core_package_enums.md#enum-optiont)\<[Int64](core_package_intrinsics.md#int64)> - If the search is successful, returns the index of the first occurrence of `str`; otherwise, returns `None`. Specifically, if `str` is an empty string and `fromIndex` is greater than 0, returns `None`; otherwise, returns `Some(0)`. If `fromIndex` is negative, it is treated as 0. If `fromIndex` is greater than or equal to the length of the original string, returns `None`.
+- [Option](core_package_enums.md#enum-optiont)\<[Int64](core_package_intrinsics.md#int64)> - If the search is successful, returns the index of the first occurrence of `str`; otherwise, returns `None`. Specifically, if `str` is an empty string, returns `Some(fromIndex)`; if `fromIndex` is negative, returns `Some(0)`; if `fromIndex` is greater than the length of the original string, returns `None`. If `fromIndex` is negative, it is treated as 0. If `fromIndex` is greater than or equal to the length of the original string, returns `None`.
 
 Example:
 
@@ -6971,7 +6971,7 @@ Parameters:
 
 Returns:
 
-- [Option](core_package_enums.md#enum-optiont)\<[Int64](core_package_intrinsics.md#int64)> - Returns `None` if the string does not occur at or after position fromIndex. Specifically, when str is an empty string, returns `None` if fromIndex > 0, otherwise returns `Some(0)`. If fromIndex < 0, it is treated as 0. If fromIndex ≥ the length of the original string, returns `None`.
+- [Option](core_package_enums.md#enum-optiont)\<[Int64](core_package_intrinsics.md#int64)> - Returns `None` if the string does not occur at or after position fromIndex. Specifically, when str is an empty string, returns `Some(size)`; if fromIndex is greater than the length of the original string, returns `None`. If fromIndex < 0, it is treated as 0. If fromIndex ≥ the length of the original string, returns `None`.
 
 Example:
 
