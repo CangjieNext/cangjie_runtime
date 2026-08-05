@@ -15,7 +15,7 @@ package std.unittest
 */
 public interface NearEquatable<CT, D> {
     /**
-    * Determines wether objects are equal with some delta or not.
+    * Determines whether objects are equal with some delta or not.
     * 
     * @param obj another object for comparison
     * @param delta represents the maximum possible difference between two objects when we consider objects to be equal
