@@ -419,52 +419,6 @@ static inline bool ResolveNonSmallMarkTarget(
     return true;
 }
 
-// Trusted callers have already established that obj is a managed object
-// reference. The compiler inline barrier uses this same contract: Small Region
-// metadata and object-start alignment are allocation invariants, not release
-// hot-path rejection conditions.
-static inline bool ResolveTrustedMarkTarget(
-    BaseObject* obj, ResolvedMarkTarget& out)
-{
-    out = ResolvedMarkTarget {};
-#if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
-    CHECK_DETAIL(obj != nullptr && Heap::IsHeapAddress(obj),
-                 "[MS-GC] trusted mark target is not a managed ref obj=%p",
-                 static_cast<void*>(obj));
-#endif
-    uintptr_t addr = reinterpret_cast<uintptr_t>(obj);
-    size_t regionOffset = 0;
-    size_t regionIdx = 0;
-    MSRegionInfo* info = MSRegionInfoArray::GetRegionInfoDirect(
-        addr, regionOffset, regionIdx);
-    if (LIKELY(info->GetRegionKind() == MSRegionKind::SMALL)) {
-        uint8_t sizeClass = info->sizeClass;
-#if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
-        CHECK_DETAIL(sizeClass < kNumSizeClasses,
-                     "[MS-GC] trusted Small Region has invalid sizeClass=%u",
-                     static_cast<unsigned>(sizeClass));
-#endif
-        size_t slotIdx = SizeClassInfo::OffsetToSlotIndex(sizeClass, regionOffset);
-#if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
-        size_t slotSize = info->GetSlotSize();
-        CHECK_DETAIL(info->GetTotalSlotCount() > 0 && slotSize != 0 &&
-                         slotIdx < info->GetTotalSlotCount() &&
-                         slotIdx * slotSize == regionOffset,
-                     "[MS-GC] trusted ref is not an exact Small slot obj=%p region=%zu",
-                     static_cast<void*>(obj), regionIdx);
-        CHECK_DETAIL(MSRegionInfoArray::GetRegionInfoValidated(addr) == info,
-                     "[MS-GC] trusted direct Small lookup disagrees with validation obj=%p",
-                     static_cast<void*>(obj));
-#endif
-        out.info = info;
-        out.regionIdx = static_cast<uint32_t>(regionIdx);
-        out.wordIdx = slotIdx / 64;
-        out.bitMask = UINT64_C(1) << (slotIdx % 64);
-        return true;
-    }
-    return ResolveNonSmallMarkTarget(addr, info, out);
-}
-
 static inline bool ResolveDefensiveMarkTarget(
     BaseObject* obj, ResolvedMarkTarget& out)
 {
@@ -625,10 +579,7 @@ public:
             occupied &= occupied - 1;
             const MSBarrierMarkEntry& source = buffer_.entries[entryIdx];
             MSMarkWordBatchEntry entry;
-            entry.regionIdx =
-                GetMSBarrierMarkRegionIndex(source.wordKey);
-            entry.wordIdx = static_cast<uint8_t>(
-                GetMSBarrierMarkWordIndex(source.wordKey));
+            entry.wordKey = source.wordKey;
             entry.mask = source.mask;
             flushEntry(entry);
         }
@@ -926,13 +877,30 @@ bool MarkSweepCollector::DiscoverObject(BaseObject* obj, TypeInfo** markedTypeIn
     return true;
 }
 
+template<typename MarkBatch, typename WorkCounter>
+void MarkSweepCollector::AddMarkBitToBatch(
+    uint32_t regionIdx, size_t wordIdx, uint64_t bitMask,
+    MarkBatch& batch, WorkCounter& work,
+    MSMarkPublicationContext& publication)
+{
+    batch.Add(regionIdx, wordIdx, bitMask,
+              [this, &work, &batch,
+               &publication](const MSMarkWordBatchEntry& entry) {
+                  MSRegionInfo* publishInfo =
+                      FlushMarkWordEntryImpl(entry, work, batch);
+                  if (publishInfo == nullptr) {
+                      return;
+                  }
+                  StageMarkPublication(
+                      publishInfo, entry.WordIndex(), publication);
+              });
+}
+
 template<bool Trusted, typename MarkBatch, typename WorkCounter>
 void MarkSweepCollector::AddResolvedRefToMarkBatchImpl(
     BaseObject* obj, const ResolvedMarkTarget& target, MarkBatch& batch,
     WorkCounter& work, MSMarkPublicationContext& publication)
 {
-    work.AddResolvedRefs();
-
     // LARGE/SPAN has one canonical mark flag and one OBJECT task. It is not
     // mixed into the small-object word batch.
     if (target.isLarge) {
@@ -986,17 +954,9 @@ void MarkSweepCollector::AddResolvedRefToMarkBatchImpl(
         }
     }
 
-    batch.Add(regionIdx, target.wordIdx, target.bitMask,
-              [this, &work, &batch,
-               &publication](const MSMarkWordBatchEntry& entry) {
-                  MSRegionInfo* publishInfo =
-                      FlushMarkWordEntryImpl(entry, work, batch);
-                  if (publishInfo == nullptr) {
-                      return;
-                  }
-                  StageMarkPublication(
-                      publishInfo, entry.wordIdx, publication);
-              });
+    AddMarkBitToBatch(
+        regionIdx, target.wordIdx, target.bitMask,
+        batch, work, publication);
 }
 
 template<MarkSweepCollector::MSMarkRefSource Source, typename MarkBatch,
@@ -1012,21 +972,61 @@ void MarkSweepCollector::AddRefToMarkBatch(
         (void)ValidatePublishedMarkTarget(obj, MarkSourceTag<true> {});
     }
 
-    ResolvedMarkTarget target;
     if (Source == MSMarkRefSource::DEFENSIVE) {
+        ResolvedMarkTarget target;
         if (UNLIKELY(!ResolveDefensiveMarkTarget(obj, target))) {
             batch.RecordResolveRejected();
             return;
         }
+        work.AddResolvedRefs();
         AddResolvedRefToMarkBatchImpl<false>(
             obj, target, batch, work, publication);
         return;
     }
 
-    if (UNLIKELY(!ResolveTrustedMarkTarget(obj, target))) {
+#if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
+    CHECK_DETAIL(obj != nullptr && Heap::IsHeapAddress(obj),
+                 "[MS-GC] trusted mark target is not a managed ref obj=%p",
+                 static_cast<void*>(obj));
+#endif
+    uintptr_t addr = reinterpret_cast<uintptr_t>(obj);
+    size_t regionOffset = 0;
+    size_t resolvedRegionIdx = 0;
+    MSRegionInfo* info = MSRegionInfoArray::GetRegionInfoDirect(
+        addr, regionOffset, resolvedRegionIdx);
+    if (LIKELY(info->GetRegionKind() == MSRegionKind::SMALL)) {
+        uint8_t sizeClass = info->sizeClass;
+#if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
+        CHECK_DETAIL(sizeClass < kNumSizeClasses,
+                     "[MS-GC] trusted Small Region has invalid sizeClass=%u",
+                     static_cast<unsigned>(sizeClass));
+#endif
+        size_t slotIdx =
+            SizeClassInfo::OffsetToSlotIndex(sizeClass, regionOffset);
+#if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
+        size_t slotSize = info->GetSlotSize();
+        CHECK_DETAIL(info->GetTotalSlotCount() > 0 && slotSize != 0 &&
+                         slotIdx < info->GetTotalSlotCount() &&
+                         slotIdx * slotSize == regionOffset,
+                     "[MS-GC] trusted ref is not an exact Small slot obj=%p region=%zu",
+                     static_cast<void*>(obj), resolvedRegionIdx);
+        CHECK_DETAIL(MSRegionInfoArray::GetRegionInfoValidated(addr) == info,
+                     "[MS-GC] trusted direct Small lookup disagrees with validation obj=%p",
+                     static_cast<void*>(obj));
+#endif
+        work.AddResolvedRefs();
+        AddMarkBitToBatch(
+            static_cast<uint32_t>(resolvedRegionIdx), slotIdx / 64,
+            UINT64_C(1) << (slotIdx % 64), batch, work, publication);
+        return;
+    }
+
+    ResolvedMarkTarget target;
+    if (UNLIKELY(!ResolveNonSmallMarkTarget(addr, info, target))) {
         batch.RecordResolveRejected();
         return;
     }
+    work.AddResolvedRefs();
     AddResolvedRefToMarkBatchImpl<true>(
         obj, target, batch, work, publication);
 }
@@ -1036,14 +1036,16 @@ MSRegionInfo* MarkSweepCollector::FlushMarkWordEntryImpl(
     const MSMarkWordBatchEntry& entry, WorkCounter& work,
     const MarkBatch& batch)
 {
+    uint32_t regionIdx = entry.RegionIndex();
+    uint8_t wordIdx = entry.WordIndex();
     MSRegionInfo* info =
-        MSRegionInfoArray::GetRegionInfoByIdx(entry.regionIdx);
+        MSRegionInfoArray::GetRegionInfoByIdx(regionIdx);
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
     CHECK_DETAIL(
         info->GetRegionKind() == MSRegionKind::SMALL &&
-        entry.wordIdx < info->GetBitmapWordCount(),
+        wordIdx < info->GetBitmapWordCount(),
         "[MS-GC] stale MarkWordBatch entry region=%u word=%u kind=%u words=%u",
-        entry.regionIdx, static_cast<unsigned>(entry.wordIdx),
+        regionIdx, static_cast<unsigned>(wordIdx),
         static_cast<unsigned>(info->GetRegionKind()),
         static_cast<unsigned>(info->GetBitmapWordCount()));
 #endif
@@ -1052,11 +1054,11 @@ MSRegionInfo* MarkSweepCollector::FlushMarkWordEntryImpl(
     uint32_t markEpoch = batch.GetMarkEpoch();
     if (info->collectEpoch == markEpoch) {
         uint64_t validMask =
-            entry.wordIdx + 1 == info->GetBitmapWordCount()
+            wordIdx + 1 == info->GetBitmapWordCount()
             ? info->GetValidTailMask()
             : ~UINT64_C(0);
         uint64_t allocWord =
-            __atomic_load_n(&batch.GetAllocBitmap(entry.regionIdx)[entry.wordIdx],
+            __atomic_load_n(&batch.GetAllocBitmap(regionIdx)[wordIdx],
                             __ATOMIC_RELAXED);
         mask &= ~allocWord & validMask;
     }
@@ -1064,7 +1066,7 @@ MSRegionInfo* MarkSweepCollector::FlushMarkWordEntryImpl(
         return nullptr;
     }
 
-    uint64_t* markWord = &batch.GetMarkBitmap(entry.regionIdx)[entry.wordIdx];
+    uint64_t* markWord = &batch.GetMarkBitmap(regionIdx)[wordIdx];
     mask &= ~__atomic_load_n(markWord, __ATOMIC_RELAXED);
     if (mask == 0) {
         return nullptr;
@@ -1087,9 +1089,11 @@ bool MarkSweepCollector::PublishPendingMarkRegions(
     size_t preferredRegionShard = GetCurrentMarkReadyShard();
     pending.FlushAll([this, &schedulerPublished, preferredRegionShard](
         MSRegionInfo* info, uint64_t wordMask) {
-        markScheduler_.PublishRegionWords(info, wordMask);
-        schedulerPublished |= markScheduler_.TryPublishRegion(
-            info, preferredRegionShard);
+        uint64_t newWords = markScheduler_.PublishRegionWords(info, wordMask);
+        if (newWords != 0) {
+            schedulerPublished |= markScheduler_.TryPublishRegion(
+                info, preferredRegionShard);
+        }
     });
     return schedulerPublished;
 }
@@ -1132,7 +1136,7 @@ void MarkSweepCollector::FlushMarkBatch(
                 FlushMarkWordEntryImpl(entry, work, batch);
             if (publishInfo != nullptr) {
                 StageMarkPublication(
-                    publishInfo, entry.wordIdx, publication);
+                    publishInfo, entry.WordIndex(), publication);
             }
         });
     }

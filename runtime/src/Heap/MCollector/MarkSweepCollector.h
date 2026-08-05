@@ -208,6 +208,11 @@ private:
                                        MarkBatch& batch, WorkCounter& work,
                                        MSMarkPublicationContext& publication);
     template<typename MarkBatch, typename WorkCounter>
+    void AddMarkBitToBatch(uint32_t regionIdx, size_t wordIdx,
+                           uint64_t bitMask, MarkBatch& batch,
+                           WorkCounter& work,
+                           MSMarkPublicationContext& publication);
+    template<typename MarkBatch, typename WorkCounter>
     MSRegionInfo* FlushMarkWordEntryImpl(const MSMarkWordBatchEntry& entry,
                                          WorkCounter& work,
                                          const MarkBatch& batch);

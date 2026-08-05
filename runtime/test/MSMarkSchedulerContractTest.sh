@@ -89,6 +89,12 @@ rg -q 'OutstandingWorkHint' "$HEADER" "$SOURCE"
 rg -q 'PublishRegionWords' "$HEADER" "$SOURCE"
 rg -q 'CompleteRegionWork' "$HEADER" "$SOURCE"
 
+rg -q 'uint64_t PublishRegionWords' "$HEADER"
+pending_publish="$(sed -n '/bool MarkSweepCollector::PublishPendingMarkRegions/,/^}/p' "$COLLECTOR")"
+printf '%s\n' "$pending_publish" | rg -q 'uint64_t newWords =.*PublishRegionWords'
+printf '%s\n' "$pending_publish" |
+    rg -Uq '(?s)if \(newWords != 0\).*TryPublishRegion'
+
 if rg -q 'CONTROL_MARK_DIRTY|ClearMarkDirtyForOwner|TryReleaseScanOwnerIfClean' \
     "$ROOT_DIR/src/Heap/MAllocator/MSRegionInfo.h" "$COLLECTOR" "$SOURCE"; then
     echo 'hot-path Mark DIRTY handshake remains' >&2

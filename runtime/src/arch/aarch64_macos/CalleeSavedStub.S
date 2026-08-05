@@ -399,6 +399,17 @@ _CJ_MCC_GetStaticFieldValue:
 _CJ_MCC_NewArrayGeneric:
     CalleeSavedRegistersStub MCC_NewArrayGeneric
 
+#ifdef MRT_USE_MARK_SWEEP
+    // MSGC generic-array fast paths tail-call this entry on a slow allocation.
+    // Keep the managed caller's callee-saved roots available while the runtime
+    // performs GC, exactly as the ordinary generic-array entry does.
+    .text
+    .align 2
+    .global _CJ_MCC_NewArrayGenericFast3_MSGC
+_CJ_MCC_NewArrayGenericFast3_MSGC:
+    CalleeSavedRegistersStub MCC_NewArrayGenericFast3_MSGC
+#endif
+
     .text
     .align 2
     .global _CJ_MCC_DumpCJHeapData

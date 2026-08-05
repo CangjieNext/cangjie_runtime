@@ -169,7 +169,7 @@ void MSMarkScheduler::ResetCycle()
     objectReady_.ResetQuiescent();
 }
 
-void MSMarkScheduler::PublishRegionWords(
+uint64_t MSMarkScheduler::PublishRegionWords(
     MSRegionInfo* region, uint64_t wordMask)
 {
     CHECK_DETAIL(region != nullptr,
@@ -181,6 +181,7 @@ void MSMarkScheduler::PublishRegionWords(
     uint64_t newWords = region->PublishPendingMarkWords(wordMask);
     shard.Sub(requestedWords - static_cast<uint64_t>(
         __builtin_popcountll(newWords)));
+    return newWords;
 }
 
 void MSMarkScheduler::CompleteRegionWork(

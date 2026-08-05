@@ -6,7 +6,7 @@ COLLECTOR="$ROOT_DIR/src/Heap/MCollector/MarkSweepCollector.cpp"
 BARRIER="$ROOT_DIR/src/Heap/MBarrier/MSMarkBarrier.cpp"
 
 rg -Uq 'GetRegionInfoDirect\([[:space:]]*addr, regionOffset, regionIdx\)' "$COLLECTOR"
-rg -q 'batch.Add\(regionIdx, target.wordIdx, target.bitMask' "$COLLECTOR"
+rg -q 'batch.Add\(regionIdx, wordIdx, bitMask' "$COLLECTOR"
 rg -q 'batch.GetMarkBitmap\(regionIdx\)' "$COLLECTOR"
 rg -q '__atomic_load_n\(markWord, __ATOMIC_RELAXED\)' "$COLLECTOR"
 rg -q '__atomic_fetch_or\(markWord, mask, __ATOMIC_RELAXED\)' "$COLLECTOR"

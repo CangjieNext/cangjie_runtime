@@ -26,8 +26,6 @@ require_absent() {
     fi
 }
 
-require_present 'ResolveTrustedMarkTarget\(' \
-    'trusted write-barrier/root references need a dedicated resolver'
 require_present 'ResolveDefensiveMarkTarget\(' \
     'raw child references must retain a defensive resolver'
 require_present 'AddRefToMarkBatch<MSMarkRefSource::TRUSTED_MANAGED>\([[:space:]]*ref, batch, noWork, publication\)' \
@@ -35,15 +33,15 @@ require_present 'AddRefToMarkBatch<MSMarkRefSource::TRUSTED_MANAGED>\([[:space:]
 require_present 'AddRefToMarkBatch<MSMarkRefSource::TRUSTED_MANAGED>\([[:space:]]*obj, batch, work, publication\)' \
     'EnumRoots publication must use trusted ref-to-bitmap resolution'
 
-trusted_resolver="$(sed -n '/static inline bool ResolveTrustedMarkTarget/,/^}/p' "$COLLECTOR")"
-require_absent "$trusted_resolver" 'if \(obj == nullptr\)|!IsManagedAddress' \
-    'trusted resolution must not repeat null/heap rejection in release code'
-require_absent "$trusted_resolver" 'GetTotalSlotCount\(\) == 0|slotSize == 0' \
-    'trusted resolution must not repeat derived Small metadata checks'
-
 trusted_add="$(sed -n '/void MarkSweepCollector::AddRefToMarkBatch(/,/^}/p' "$COLLECTOR")"
 require_absent "$trusted_add" '__atomic_load_n\(markWord|GetTypeInfo\(\)|collectEpoch' \
     'trusted add must not probe mark state or revalidate publication per ref'
+require_present 'if \(LIKELY\(info->GetRegionKind\(\) == MSRegionKind::SMALL\)\)' \
+    'trusted Small references must stay on the direct AddRefToMarkBatch path'
+require_present 'AddMarkBitToBatch\(' \
+    'trusted and defensive Small references must share the final batch insertion helper'
+require_absent "$trusted_add" 'ResolveTrustedMarkTarget\(' \
+    'trusted Small references must not materialize a generic resolved target'
 
 require_present 'GetRegionInfoDirect\([[:space:]]*addr, regionOffset, regionIdx\)' \
     'ref resolution must retain the directly computed Region index'

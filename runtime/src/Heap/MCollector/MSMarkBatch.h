@@ -16,10 +16,18 @@
 namespace MapleRuntime {
 
 struct MSMarkWordBatchEntry {
-    uint32_t regionIdx;
-    uint8_t wordIdx;
-    uint8_t reserved[3];
+    uint64_t wordKey;
     uint64_t mask;
+
+    uint32_t RegionIndex() const
+    {
+        return static_cast<uint32_t>(wordKey >> 6);
+    }
+
+    uint8_t WordIndex() const
+    {
+        return static_cast<uint8_t>(wordKey & UINT64_C(63));
+    }
 };
 
 // Allocation-free staging for Region scheduler publication after MARK words
@@ -91,7 +99,7 @@ template<size_t SetCount>
 class MSMarkWordBatchStorage {
 public:
     static constexpr size_t kSetCount = SetCount;
-    static constexpr size_t kWays = 2;
+    static constexpr size_t kWays = 4;
     static constexpr size_t kCapacity = kSetCount * kWays;
     static_assert(kCapacity <= 32,
                   "MarkWordBatch occupancy mask supports at most 32 entries");
@@ -182,38 +190,57 @@ public:
             regionIdx, wordIdx, static_cast<unsigned long long>(mask));
 #endif
 
-        size_t set = HashSet(regionIdx, wordIdx);
-        size_t first = set * kWays;
-        size_t firstEmpty = kCapacity;
-        for (size_t way = 0; way < kWays; ++way) {
-            size_t i = first + way;
-            if (!IsOccupied(i)) {
-                if (firstEmpty == kCapacity) {
-                    firstEmpty = i;
-                }
-                continue;
-            }
-            MSMarkWordBatchEntry& entry = entries_[i];
-            if (entry.regionIdx == regionIdx && entry.wordIdx == wordIdx) {
-                entry.mask |= mask;
-                return;
-            }
-        }
-
-        if (firstEmpty != kCapacity) {
-            Fill(entries_[firstEmpty], regionIdx, wordIdx, mask);
-            occupiedMask_ |= EntryBit(firstEmpty);
-            ++size_;
+        uint64_t wordKey = MakeWordKey(regionIdx, wordIdx);
+        uint8_t last = lastEntry_;
+        if (last < kCapacity && IsOccupied(last) &&
+            entries_[last].wordKey == wordKey) {
+            entries_[last].mask |= mask;
             return;
         }
 
-        size_t victimWay =
-            static_cast<size_t>((nextVictimWayMask_ >> set) & 1U);
+        size_t set = HashSet(regionIdx, wordIdx);
+        size_t first = set * kWays;
+        uint32_t allWays = (UINT32_C(1) << kWays) - 1;
+        uint32_t occupiedSet = (occupiedMask_ >> first) & allWays;
+        uint32_t occupiedWays = occupiedSet;
+        if (last >= first && last < first + kWays) {
+            occupiedWays &= ~(UINT32_C(1) << (last - first));
+        }
+        while (occupiedWays != 0) {
+            size_t way = static_cast<size_t>(__builtin_ctz(occupiedWays));
+            size_t i = first + way;
+            MSMarkWordBatchEntry& entry = entries_[i];
+            if (entry.wordKey == wordKey) {
+                entry.mask |= mask;
+                lastEntry_ = static_cast<uint8_t>(i);
+                return;
+            }
+            occupiedWays &= occupiedWays - 1;
+        }
+
+        if (occupiedSet != allWays) {
+            size_t emptyWay = static_cast<size_t>(
+                __builtin_ctz((~occupiedSet) & allWays));
+            size_t emptyIdx = first + emptyWay;
+            Fill(entries_[emptyIdx], wordKey, mask);
+            occupiedMask_ |= EntryBit(emptyIdx);
+            ++size_;
+            lastEntry_ = static_cast<uint8_t>(emptyIdx);
+            return;
+        }
+
+        size_t victimShift = set * 2;
+        size_t victimWay = static_cast<size_t>(
+            (nextVictimWayBits_ >> victimShift) & UINT32_C(3));
         size_t victimIdx = first + victimWay;
         MSMarkWordBatchEntry& victim = entries_[victimIdx];
         flushEntry(victim);
-        Fill(victim, regionIdx, wordIdx, mask);
-        nextVictimWayMask_ ^= UINT32_C(1) << set;
+        Fill(victim, wordKey, mask);
+        uint32_t victimMask = UINT32_C(3) << victimShift;
+        nextVictimWayBits_ =
+            (nextVictimWayBits_ & ~victimMask) |
+            (static_cast<uint32_t>((victimWay + 1) & 3) << victimShift);
+        lastEntry_ = static_cast<uint8_t>(victimIdx);
     }
 
     template<typename FlushEntry>
@@ -227,6 +254,7 @@ public:
         }
         occupiedMask_ = 0;
         size_ = 0;
+        lastEntry_ = kInvalidEntry;
     }
 
     bool IsEmpty() const { return size_ == 0; }
@@ -237,6 +265,14 @@ private:
     static constexpr uint32_t EntryBit(size_t index)
     {
         return UINT32_C(1) << index;
+    }
+
+    static constexpr uint8_t kInvalidEntry = UINT8_C(0xff);
+
+    static uint64_t MakeWordKey(uint32_t regionIdx, size_t wordIdx)
+    {
+        return (static_cast<uint64_t>(regionIdx) << 6) |
+            static_cast<uint64_t>(wordIdx);
     }
 
     bool IsOccupied(size_t index) const
@@ -255,18 +291,18 @@ private:
         return static_cast<size_t>(hash) & (kSetCount - 1);
     }
 
-    static void Fill(MSMarkWordBatchEntry& entry, uint32_t regionIdx,
-                     size_t wordIdx, uint64_t mask)
+    static void Fill(MSMarkWordBatchEntry& entry, uint64_t wordKey,
+                     uint64_t mask)
     {
-        entry.regionIdx = regionIdx;
-        entry.wordIdx = static_cast<uint8_t>(wordIdx);
+        entry.wordKey = wordKey;
         entry.mask = mask;
     }
 
     MSMarkWordBatchEntry entries_[kCapacity];
     uint32_t occupiedMask_ = 0;
     size_t size_ = 0;
-    uint32_t nextVictimWayMask_ = 0;
+    uint32_t nextVictimWayBits_ = 0;
+    uint8_t lastEntry_ = kInvalidEntry;
     uint32_t markEpoch_ = MSRegionInfo::NO_COLLECT_EPOCH;
     uintptr_t allocPlaneBase_ = 0;
     uintptr_t markPlaneBase_ = 0;
@@ -278,7 +314,7 @@ private:
 // All GC-owned producers use the same 32-entry local storage. The compiler-
 // visible write-barrier POD also has 32 entries, but retains its ABI-specific
 // layout and is exposed to the shared collector logic through a storage view.
-using MSMarkWordBatch = MSMarkWordBatchStorage<16>;
+using MSMarkWordBatch = MSMarkWordBatchStorage<8>;
 
 static_assert(sizeof(MSMarkWordBatchEntry) == 16,
               "MarkWordBatch entry must stay compact");

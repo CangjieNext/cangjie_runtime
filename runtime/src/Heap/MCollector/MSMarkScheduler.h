@@ -255,7 +255,7 @@ public:
     // Account requested words before making pendingWordSummary visible. The
     // post-OR duplicate rollback preserves exact work hints without allowing
     // an owner to complete newly published work before it was counted.
-    void PublishRegionWords(MSRegionInfo* region, uint64_t wordMask);
+    uint64_t PublishRegionWords(MSRegionInfo* region, uint64_t wordMask);
     void CompleteRegionWork(MSRegionInfo* region, uint64_t wordMask);
     void CompleteObjectWork(MSRegionInfo* largePrimary);
 

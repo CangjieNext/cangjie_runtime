@@ -23,7 +23,7 @@ printf '%s\n' "$publish" | rg -q 'MSMarkWordBatch batch'
 printf '%s\n' "$publish" | rg -Uq 'AddRefToMarkBatch<MSMarkRefSource::TRUSTED_MANAGED>\([[:space:]]*obj, batch, work, publication\)'
 printf '%s\n' "$publish" | rg -q 'FlushMarkBatch\(batch, work, publication\)'
 
-rg -q 'using MSMarkWordBatch = MSMarkWordBatchStorage<16>;' "$BATCH_HEADER"
+rg -q 'using MSMarkWordBatch = MSMarkWordBatchStorage<8>;' "$BATCH_HEADER"
 if rg -q 'MSRootMarkWordBatch' "$BATCH_HEADER" "$SOURCE"; then
     echo 'EnumRoots must use the same 32-entry local storage as ConcurrentMark' >&2
     exit 1

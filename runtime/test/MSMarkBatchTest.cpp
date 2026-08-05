@@ -48,7 +48,7 @@ void TestCoalescesSameBitmapWord()
     uint64_t observedMask = 0;
     batch.FlushAll([&](const MSMarkWordBatchEntry& entry) {
         ++flushes;
-        Expect(entry.regionIdx == 7 && entry.wordIdx == 3,
+        Expect(entry.RegionIndex() == 7 && entry.WordIndex() == 3,
                "coalesced entry coordinate changed");
         observedMask = entry.mask;
     });
@@ -63,7 +63,7 @@ void TestEvictsOneEntryAtCapacity()
     MSMarkWordBatch batch;
     std::vector<uint32_t> flushed;
     auto flush = [&flushed](const MSMarkWordBatchEntry& entry) {
-        flushed.push_back(entry.regionIdx);
+        flushed.push_back(entry.RegionIndex());
     };
 
     for (size_t i = 0; i < MSMarkWordBatch::kCapacity; ++i) {
@@ -91,7 +91,7 @@ void TestSparseBatchReuseVisitsOnlyCurrentResidents()
     size_t visits = 0;
     batch.FlushAll([&](const MSMarkWordBatchEntry& entry) {
         ++visits;
-        Expect(entry.regionIdx == 9 && entry.wordIdx == 2 && entry.mask == 4,
+        Expect(entry.RegionIndex() == 9 && entry.WordIndex() == 2 && entry.mask == 4,
                "sparse batch reuse exposed a stale entry");
     });
     Expect(visits == 1 && batch.IsEmpty(),
@@ -102,6 +102,30 @@ void TestSharedBatchCapacity()
 {
     Expect(MSMarkWordBatch::kCapacity == 32,
            "all GC-owned batches must retain 32 bitmap-word entries");
+    Expect(MSMarkWordBatch::kSetCount == 8 && MSMarkWordBatch::kWays == 4,
+           "GC-owned batch must use eight four-way cache-line sets");
+}
+
+void TestFourWaySetDoesNotEvictEarly()
+{
+    MSMarkWordBatch batch;
+    size_t flushes = 0;
+    auto flush = [&flushes](const MSMarkWordBatchEntry&) {
+        ++flushes;
+    };
+
+    // With wordIdx=0 these Region indices map to the same power-of-two set.
+    // Four-way storage must retain all four before evicting one for the fifth.
+    batch.Add(0, 0, 1, flush);
+    batch.Add(16, 0, 1, flush);
+    batch.Add(32, 0, 1, flush);
+    batch.Add(48, 0, 1, flush);
+    Expect(flushes == 0 && batch.Size() == 4,
+           "four entries in one set must not trigger an early flush");
+    batch.Add(64, 0, 1, flush);
+    Expect(flushes == 1 && batch.Size() == 4,
+           "the fifth entry in one set must replace exactly one resident");
+    batch.FlushAll(flush);
 }
 
 void TestCachesOneMarkEpochForBatchLifetime()
@@ -200,6 +224,7 @@ int main()
 {
     TestCoalescesSameBitmapWord();
     TestSharedBatchCapacity();
+    TestFourWaySetDoesNotEvictEarly();
     TestEvictsOneEntryAtCapacity();
     TestSparseBatchReuseVisitsOnlyCurrentResidents();
     TestCachesOneMarkEpochForBatchLifetime();
