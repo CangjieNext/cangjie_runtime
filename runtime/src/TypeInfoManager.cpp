@@ -1037,6 +1037,11 @@ U32 TypeInfoManager::GetTypeSize(TypeInfo* ti)
 
 uintptr_t TypeInfoManager::Allocate(size_t size)
 {
+    // Dynamic metadata is accessed through TypeInfo pointers. Every bump
+    // allocation therefore preserves TypeInfo alignment before its address is
+    // used to construct or store a TypeInfo object.
+    constexpr size_t kTypeInfoAllocationAlignment = alignof(TypeInfo);
+    size = MRT_ALIGN(size, kTypeInfoAllocationAlignment);
     uintptr_t addr = position.fetch_add(size);
     if (addr + size > endAddress) {
         NewMMap(mapMemory);
