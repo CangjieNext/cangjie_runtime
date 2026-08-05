@@ -34,8 +34,16 @@ sealed abstract class IPPrefix <: Equatable<IPPrefix> & Hashable & ToString {
                 let u8 = UInt8.tryParse(prefixStr) ?? return None
                 let ip = IPAddress.tryParse(ipstr) ?? return None
                 match (ip) {
-                    case v4: IPv4Address => IPv4Prefix(v4, u8)
-                    case v6: IPv6Address => IPv6Prefix(v6, u8)
+                    case v4: IPv4Address =>
+                        if (u8 > 32) {
+                            return None
+                        }
+                        IPv4Prefix(v4, u8)
+                    case v6: IPv6Address =>
+                        if (u8 > 128) {
+                            return None
+                        }
+                        IPv6Prefix(v6, u8)
                     case _ => throw Exception()
                 }
             case _ => None
