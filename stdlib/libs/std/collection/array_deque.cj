@@ -95,19 +95,23 @@ public class ArrayDeque<T> <: Deque<T> {
         incModCount()
     }
 
+    @Frozen
     @OverflowWrapping
     public func addLast(element: T): Unit {
-        _data[_tail] = element
-        _tail = if (_tail == _data.size - 1) {
+        let tail = _tail
+        let capacity = _data.size
+        unsafe { _data.setUnchecked(tail, element) }
+        let newTail = if (tail == capacity - 1) {
             0
         } else {
-            _tail + 1
+            tail + 1
         }
+        _tail = newTail
 
-        if (_tail == _head) {
-            grow(_data.size + 1, full: true)
+        if (newTail == _head) {
+            grow(capacity + 1, full: true)
         }
-        incModCount()
+        _version++
     }
 
     @OverflowWrapping
@@ -146,25 +150,31 @@ public class ArrayDeque<T> <: Deque<T> {
         return res
     }
 
+    @Frozen
     private func grow(minCapacity: Int64, full!: Bool = false): Unit {
-        let oldCapacity: Int64 = _data.size
+        let oldData = _data
+        let oldHead = _head
+        let oldTail = _tail
+        let oldCapacity: Int64 = oldData.size
         var newCapacity: Int64 = oldCapacity + (oldCapacity >> 1)
         if (newCapacity < minCapacity) {
             newCapacity = minCapacity
         }
         let newArr: Array<T> = Array<T>(newCapacity, repeat: unsafe { zeroValue<T>() })
         let newSize: Int64 = if (full) {
-            _data.size
+            oldCapacity
+        } else if (oldHead > oldTail) {
+            oldCapacity - oldHead + oldTail
         } else {
-            size
+            oldTail - oldHead
         }
 
-        if (_head < _tail) {
-            _data.copyTo(newArr, 0, _head, _tail - _head)
+        if (oldHead < oldTail) {
+            oldData.copyTo(newArr, oldHead, 0, oldTail - oldHead)
         } else if (newSize != 0) {
-            let count = _data.size - _head
-            _data.copyTo(newArr, _head, 0, count)
-            _data.copyTo(newArr, 0, count, _tail)
+            let count = oldCapacity - oldHead
+            oldData.copyTo(newArr, oldHead, 0, count)
+            oldData.copyTo(newArr, 0, count, oldTail)
         }
         _head = 0
         _tail = newSize
