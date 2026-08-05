@@ -664,7 +664,7 @@ public struct BigInt <: Comparable<BigInt> & Hashable & ToString {
     /**
      * Return a BigInt, whose value is (this - @p other).
      *
-     * @param other: the value to be substracted from this BigInt;
+     * @param other: the value to be subtracted from this BigInt;
      *
      * @return: the result of (this - @p other).
      */

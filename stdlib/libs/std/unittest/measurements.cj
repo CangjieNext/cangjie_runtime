@@ -22,8 +22,8 @@ public interface Measurement {
     func setup(): Unit {} 
 
     /**
-     * @return representation of the measurement data that will be used for statistical analisys
-     * and should be suitable for substraction.
+     * @return representation of the measurement data that will be used for statistical analysis
+     * and should be suitable for subtraction.
      */
     @Frozen
     func measure(): Float64 { 0.0 }

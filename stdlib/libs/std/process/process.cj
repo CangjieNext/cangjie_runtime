@@ -490,12 +490,12 @@ func resolveExecutable(command: String, environment: ?Map<String, String>, worki
         throw ProcessException("Created process failed, errMessage: \"The parameter is incorrect.\".")
     }
 
-    let has_exe_extention = command.toAsciiLower().endsWith(".exe")
+    let has_exe_extension = command.toAsciiLower().endsWith(".exe")
 
     // If command is an path not filename, like C:\system32\xxx[.exe] or ./xxx[.exe]
     // We will only search this path.
     if (command.contains(":") || command.contains("\\") || command.contains("/")) {
-        return if (has_exe_extention) {
+        return if (has_exe_extension) {
             getExecutablePath(command)
         } else {
             getExecutablePath("${command}.exe")
@@ -504,7 +504,7 @@ func resolveExecutable(command: String, environment: ?Map<String, String>, worki
 
     // Command is a filename, search it by order.
     var newCommand = command
-    if (!has_exe_extention) {
+    if (!has_exe_extension) {
         newCommand += ".exe"
     }
 
