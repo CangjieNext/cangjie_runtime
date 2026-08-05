@@ -657,7 +657,7 @@ public struct Decimal <: Comparable<Decimal> & Hashable & ToString {
      * the specific precision is determined by the calculation result.
      * The result has scale = max(this.scale, @p d.scale).
      *
-     * @param d: the value to be substracted from this Decimal;
+     * @param d: the value to be subtracted from this Decimal;
      *
      * @return: the result of (this - @p d).
      *

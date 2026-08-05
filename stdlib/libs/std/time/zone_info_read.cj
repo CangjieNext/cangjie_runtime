@@ -254,7 +254,7 @@ func parseHeader(arrReader: ArrReader): (Int64, Array<Int64>) {
  *
  * @param reader a DataReader need to be parsed fields except magic and version in the header.
  * @param fields an array used to storage fields that parsed by this function.
- * @return true if no anything wrong occured, otherwise false.
+ * @return true if no anything wrong occurred, otherwise false.
  *
  * @throws InvalidDataException
  *

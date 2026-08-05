@@ -196,7 +196,7 @@ public:
 
     // note: AllocSmall() is always performed by region owned by mutator thread
     // thus no need to do in RegionManager
-    // caller assures size is truely large (> region size)
+    // caller assures size is truly large (> region size)
     uintptr_t AllocLarge(size_t size)
     {
         size_t regionCount = (size + RegionInfo::UNIT_SIZE - 1) / RegionInfo::UNIT_SIZE;
