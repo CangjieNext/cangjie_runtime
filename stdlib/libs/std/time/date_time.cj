@@ -1695,6 +1695,9 @@ func setDefault(num: Int64): Int64 {
 }
 
 func addZeroPrefix(value: Int64, length: Int64): String {
+    if (value < 0) {
+        return "-" + (-value).toString().padStart(length, padding: "0")
+    }
     return value.toString().padStart(length, padding: "0")
 }
 
