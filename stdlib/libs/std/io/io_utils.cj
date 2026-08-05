@@ -27,14 +27,31 @@ public enum SeekPosition {
 
 public func readString<T>(from: T): String where T <: InputStream & Seekable {
     return try {
-        String.fromUtf8(readToEnd(from))
+        String.fromUtf8(readRemainingBytes(from))
     } catch (e: IllegalArgumentException) {
         throw ContentFormatException(e.message)
     }
 }
 
 public unsafe func readStringUnchecked<T>(from: T): String where T <: InputStream & Seekable {
-    String.fromUtf8Unchecked(readToEnd(from))
+    String.fromUtf8Unchecked(readRemainingBytes(from))
+}
+
+/**
+ * Reads all remaining bytes from the stream into a dynamically growing buffer,
+ * without relying on any length or remaining-length snapshot.
+ */
+func readRemainingBytes<T>(from: T): Array<Byte> where T <: InputStream & Seekable {
+    let buffer: ByteBuffer = ByteBuffer(BLOCK_SIZE)
+    let temp: Array<Byte> = Array<Byte>(BLOCK_SIZE, repeat: 0)
+    while (true) {
+        let len = from.read(temp)
+        if (len <= 0) {
+            break
+        }
+        buffer.write(temp.slice(0, len))
+    }
+    buffer.bytes()
 }
 
 public func readToEnd<T>(from: T): Array<Byte> where T <: InputStream & Seekable {
