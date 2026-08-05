@@ -57,7 +57,6 @@ struct MSScavengeThresholdDecision {
 
 struct MSGCThresholdBaseDecision {
     size_t markedLiveBytes = 0;
-    size_t tlsReservationBytes = 0;
     size_t outsideCentralSmallBytes = 0;
     size_t outsideLargeBytes = 0;
     size_t gcBaseBytes = 0;
@@ -107,24 +106,17 @@ inline size_t ComputeMSHeapThresholdFloor(size_t absoluteFloorBytes,
 
 inline MSGCThresholdBaseDecision ComputeMSGCThresholdBase(
     size_t markedLiveBytes,
-    size_t processorCount,
-    size_t tlsLaneCount,
     size_t regionSize,
     size_t outsideCentralSmallRegionCount,
     size_t outsideLargeSpanCount)
 {
     MSGCThresholdBaseDecision decision;
     decision.markedLiveBytes = markedLiveBytes;
-    size_t tlsRegionCount = SaturatingMultiplyMSBytes(
-        processorCount, tlsLaneCount);
-    decision.tlsReservationBytes = SaturatingMultiplyMSBytes(
-        tlsRegionCount, regionSize);
     decision.outsideCentralSmallBytes = SaturatingMultiplyMSBytes(
         outsideCentralSmallRegionCount, regionSize);
     decision.outsideLargeBytes = SaturatingMultiplyMSBytes(
         outsideLargeSpanCount, regionSize);
-    decision.gcBaseBytes = SaturatingAddMSBytes(
-        decision.markedLiveBytes, decision.tlsReservationBytes);
+    decision.gcBaseBytes = decision.markedLiveBytes;
     decision.gcBaseBytes = SaturatingAddMSBytes(
         decision.gcBaseBytes, decision.outsideCentralSmallBytes);
     decision.gcBaseBytes = SaturatingAddMSBytes(
@@ -216,7 +208,6 @@ inline MSHeapThresholdDecision EvaluateMSHeapThreshold(size_t oldThreshold, size
     minThreshold = std::min(minThreshold, maxThreshold);
     decision.rawTarget = ScaleMSHeapThreshold(liveBytes, 1.0L + static_cast<long double>(heapGrowth));
     decision.rawTarget = std::max(minThreshold, std::min(decision.rawTarget, maxThreshold));
-
     bool oldThresholdOutsideBounds =
         oldThreshold < minThreshold || oldThreshold > maxThreshold;
     if (bypassTransition || oldThreshold == 0 || oldThresholdOutsideBounds) {

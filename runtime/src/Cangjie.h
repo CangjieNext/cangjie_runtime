@@ -276,9 +276,9 @@ struct GCParam {
 
     /*
      * Total number of GC threads, including the GC main thread.
-     * MSGC defaults to 2 total threads: one GC main and one helper.
-     * Zero selects the Runtime's available machine-core capacity. A positive
-     * MSGC value is limited by that same capacity.
+     * With a zero value, MSGC selects the smaller of half the available
+     * machine cores and half the configured processor count (rounding up).
+     * A positive MSGC value is limited by the available machine-core capacity.
      * CopyGC defaults to 2.
      */
     int32_t gcThreads;

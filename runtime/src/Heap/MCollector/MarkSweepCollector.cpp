@@ -1870,6 +1870,7 @@ void MarkSweepCollector::RunSchedulerMarkLoop(
     MSMarkControllerState markController(
         initialOutstanding, initialOutstandingWork,
         maxHelpers, maxAssistMultiplier, pressure);
+    MSMarkPressureGate pressureGate(pressure);
     size_t activeHelpers = markController.HelperTarget();
     cycleStats_.markMaxHelpers = maxHelpers;
     cycleStats_.markInitialHelpers = activeHelpers;
@@ -1937,6 +1938,27 @@ void MarkSweepCollector::RunSchedulerMarkLoop(
                 markController.HelperTarget();
             size_t previousAssistMultiplier =
                 markController.AssistMultiplier();
+            uint64_t elapsedMarkUs = std::max<uint64_t>(
+                1, TimeUtil::MicroSeconds() - markLoopStartUs);
+            uint64_t allocatedMarkBytes =
+                cycleAllocatedMarkBytes_.load(std::memory_order_relaxed);
+            MSMarkPressure observedPressure = MSMarkPressure::NORMAL;
+            if (allocatedMarkBytes != 0) {
+                RegionSpaceMS& markSpace =
+                    reinterpret_cast<RegionSpaceMS&>(Heap::GetHeap().GetAllocator());
+                size_t maxHeapBytes = markSpace.GetMaxCapacity();
+                size_t inUseBytes = markSpace.GetHeapInUseBytes();
+                if (maxHeapBytes > inUseBytes) {
+                    uint64_t allocatedBytesPerUs = std::max<uint64_t>(
+                        1, allocatedMarkBytes / elapsedMarkUs);
+                    uint64_t runwayUs = ComputeMSMarkRunwayUs(
+                        maxHeapBytes - inUseBytes, allocatedBytesPerUs);
+                    observedPressure = ClassifyMSMarkPressure(runwayUs, true);
+                }
+            }
+            markController.EscalatePressure(
+                pressureGate.Observe(observedPressure), outstanding, outstandingWork);
+
             markController.Observe(outstanding, outstandingWork);
             size_t targetHelpers = markController.HelperTarget();
             if (targetHelpers != control.targetHelpers) {
@@ -2687,13 +2709,10 @@ void MarkSweepCollector::PostMarkTermination()
         // so the outside LARGE span snapshot must precede it.
         MSGCThresholdBaseDecision thresholdBase = ComputeMSGCThresholdBase(
             markedStats.liveBytes,
-            markReadyProcessorCount_,
-            kNumSizeClasses * kMSScanClassCount,
             MS_REGION_SIZE,
             centralPool->GetSmallSweptRegionCount(),
             centralPool->GetLargeNextSupplySpanCount());
         cycleStats_.thresholdBaseBytes = thresholdBase.gcBaseBytes;
-        cycleStats_.tlsReservationBytes = thresholdBase.tlsReservationBytes;
         cycleStats_.outsideCentralSmallBytes = thresholdBase.outsideCentralSmallBytes;
         cycleStats_.outsideLargeBytes = thresholdBase.outsideLargeBytes;
 
@@ -3189,8 +3208,8 @@ void MarkSweepCollector::UpdateGCStats()
     size_t oldLastTrueLiveBytes = gcStats.lastTrueLiveBytes;
     size_t previousInUseBytes = gcStats.lastRegionBytes;
     // ComputeMarkedStats supplies exact live bytes for the frozen collect-set.
-    // PostMarkTermination has already combined that value with the fixed TLS
-    // reservation and Region-capacity snapshots for both outside-set supplies.
+    // PostMarkTermination has already combined it with Region-capacity
+    // snapshots for both outside-set supplies.
     size_t liveBytes = cycleStats_.trueLiveBytes;
     size_t inUseBytes = space.GetHeapInUseBytes();
     size_t maxHeapBytes = space.GetMaxCapacity();
@@ -3208,20 +3227,17 @@ void MarkSweepCollector::UpdateGCStats()
 
     // The raw MSGC target is the outside-set-aware base * (1 + heapGrowth).
     // Established normal cycles use an inclusive 10% deadband and symmetric
-    // 12.5% transition limits. Bootstrap and OOM cycles establish their
-    // clamped target directly.
+    // 12.5% transition limits. Bootstrap and OOM cycles establish the
+    // target directly.
     size_t baseBytes = cycleStats_.thresholdBaseBytes;
     if (baseBytes == 0) {
         MSGCThresholdBaseDecision thresholdBase = ComputeMSGCThresholdBase(
             liveBytes,
-            markReadyProcessorCount_,
-            kNumSizeClasses * kMSScanClassCount,
             MS_REGION_SIZE,
             0,
             0);
         baseBytes = thresholdBase.gcBaseBytes;
         cycleStats_.thresholdBaseBytes = thresholdBase.gcBaseBytes;
-        cycleStats_.tlsReservationBytes = thresholdBase.tlsReservationBytes;
     }
 
     double heapGrowth = CangjieRuntime::GetHeapParam().heapGrowth;
@@ -3268,10 +3284,9 @@ void MarkSweepCollector::UpdateGCStats()
          static_cast<unsigned long long>(markPacer_.GetThroughputQ16()));
     VLOG(REPORT,
          "[MS-GC] heapThreshold: old=%zuB new=%zuB prevLive=%zuB trueLive=%zuB "
-         "tlsReserve=%zuB outsideSmall=%zuB outsideLarge=%zuB base=%zuB "
+         "outsideSmall=%zuB outsideLarge=%zuB base=%zuB "
          "growth=%.2f minThreshold=%zuB maxHeap=%zuB",
          oldThreshold, newThreshold, oldLastTrueLiveBytes, liveBytes,
-         cycleStats_.tlsReservationBytes,
          cycleStats_.outsideCentralSmallBytes,
          cycleStats_.outsideLargeBytes,
          baseBytes, 1.0 + heapGrowth, minThreshold, maxHeapBytes);

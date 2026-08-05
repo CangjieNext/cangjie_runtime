@@ -33,8 +33,17 @@ inline size_t ResolveMSMarkTotalThreads(size_t processorCount, size_t logicalCpu
 {
     size_t availableCpus =
         ResolveMSGCThreadCapacity(processorCount, logicalCpuCount);
-    size_t requestedThreads =
-        configuredThreads == 0 ? availableCpus : configuredThreads;
+    if (configuredThreads != 0) {
+        return std::max<size_t>(1, std::min(availableCpus, configuredThreads));
+    }
+
+    // Keep the default collector width proportional to both the machine and
+    // the Cangjie processor setting.  The total includes the GC main thread,
+    // so round each half up to preserve a usable single-thread collector on
+    // small configurations.  cjGCThreads remains an explicit override.
+    size_t machineDefaultThreads = (availableCpus + 1) / 2;
+    size_t processorDefaultThreads = (std::max<size_t>(1, processorCount) + 1) / 2;
+    size_t requestedThreads = std::min(machineDefaultThreads, processorDefaultThreads);
     return std::max<size_t>(1, std::min(availableCpus, requestedThreads));
 }
 

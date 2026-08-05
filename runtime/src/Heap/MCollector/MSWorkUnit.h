@@ -145,6 +145,11 @@ struct MSWorkUnitCounter {
     }
 };
 
+constexpr uint64_t MS_MARK_HIGH_RUNWAY_US = 6 * 1000 * 1000;
+constexpr uint64_t MS_MARK_CRITICAL_RUNWAY_US = 3 * 1000 * 1000;
+constexpr uint8_t MS_MARK_HIGH_PRESSURE_WINDOWS = 3;
+constexpr uint8_t MS_MARK_CRITICAL_PRESSURE_WINDOWS = 2;
+
 enum class MSMarkPressure : uint8_t {
     NORMAL,
     HIGH,
@@ -153,10 +158,10 @@ enum class MSMarkPressure : uint8_t {
 
 inline MSMarkPressure ClassifyMSMarkPressure(uint64_t runwayUs, bool hasAllocation)
 {
-    if (!hasAllocation || runwayUs > 100000) {
+    if (!hasAllocation || runwayUs > MS_MARK_HIGH_RUNWAY_US) {
         return MSMarkPressure::NORMAL;
     }
-    if (runwayUs >= 20000) {
+    if (runwayUs > MS_MARK_CRITICAL_RUNWAY_US) {
         return MSMarkPressure::HIGH;
     }
     return MSMarkPressure::CRITICAL;
@@ -169,6 +174,52 @@ inline uint64_t ComputeMSMarkRunwayUs(uint64_t heapRunwayBytes,
         ? std::numeric_limits<uint64_t>::max()
         : heapRunwayBytes / allocatedBytesPerUs;
 }
+
+// Runway estimates are sampled while concurrent marking is active and can
+// spike when a mutator briefly allocates faster than the rolling average.
+// Require sustained observations before widening the worker set so a single
+// sample cannot jump directly to half (or all) of the available helpers.
+class MSMarkPressureGate {
+public:
+    explicit MSMarkPressureGate(MSMarkPressure initialPressure)
+        : acceptedPressure_(initialPressure)
+    {
+    }
+
+    MSMarkPressure Observe(MSMarkPressure observedPressure)
+    {
+        if (acceptedPressure_ == MSMarkPressure::CRITICAL) {
+            return acceptedPressure_;
+        }
+        if (observedPressure == MSMarkPressure::NORMAL) {
+            highWindows_ = 0;
+            criticalWindows_ = 0;
+            return acceptedPressure_;
+        }
+
+        ++highWindows_;
+        if (observedPressure == MSMarkPressure::CRITICAL) {
+            ++criticalWindows_;
+            if (criticalWindows_ >= MS_MARK_CRITICAL_PRESSURE_WINDOWS) {
+                acceptedPressure_ = MSMarkPressure::CRITICAL;
+                return acceptedPressure_;
+            }
+        } else {
+            criticalWindows_ = 0;
+        }
+
+        if (acceptedPressure_ == MSMarkPressure::NORMAL &&
+            highWindows_ >= MS_MARK_HIGH_PRESSURE_WINDOWS) {
+            acceptedPressure_ = MSMarkPressure::HIGH;
+        }
+        return acceptedPressure_;
+    }
+
+private:
+    MSMarkPressure acceptedPressure_ = MSMarkPressure::NORMAL;
+    uint8_t highWindows_ = 0;
+    uint8_t criticalWindows_ = 0;
+};
 
 inline size_t ComputeMSMarkHelperTarget(
     uint64_t outstandingTasks, uint64_t outstandingWorkWords,
@@ -267,6 +318,26 @@ public:
             maxHelpers_, pressure_);
         UpdateHelpers(desiredHelpers);
         UpdateAssist(previousFilteredWorkWords);
+    }
+
+    void EscalatePressure(MSMarkPressure pressure, uint64_t outstandingTasks,
+                          uint64_t outstandingWorkWords)
+    {
+        if (static_cast<uint8_t>(pressure) <= static_cast<uint8_t>(pressure_)) {
+            return;
+        }
+        pressure_ = pressure;
+        filteredWorkWords_ = std::max(filteredWorkWords_, outstandingWorkWords);
+        helperTarget_ = ComputeMSMarkHelperTarget(
+            outstandingTasks, filteredWorkWords_, maxHelpers_, pressure_);
+        minAssistMultiplier_ = ComputeMSMarkInitialAssistMultiplier(
+            maxAssistMultiplier_, pressure_);
+        assistMultiplier_ = std::max(assistMultiplier_, minAssistMultiplier_);
+        helperUpWindows_ = 0;
+        helperDownWindows_ = 0;
+        helperStableWindows_ = 0;
+        assistUpWindows_ = 0;
+        assistDownWindows_ = 0;
     }
 
     size_t HelperTarget() const

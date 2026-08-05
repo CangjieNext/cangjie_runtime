@@ -75,7 +75,6 @@ struct MSGCCycleStats {
     size_t markEndInUseBytes = 0;
     size_t inUseBurstBytes = 0;
     size_t thresholdBaseBytes = 0;
-    size_t tlsReservationBytes = 0;
     size_t outsideCentralSmallBytes = 0;
     size_t outsideLargeBytes = 0;
     bool floatingLiveInflated = false;
