@@ -4,6 +4,8 @@
 #
 # See https://cangjie-lang.cn/pages/LICENSE for license information.
 
+# The Cangjie API is in Beta. For details on its capabilities and limitations, please refer to the README file.
+
 message(STATUS "Configuring pcre2 library...")
 
 set(PCRE2_BUILD_DIR ${CMAKE_BINARY_DIR}/third_party/pcre2-build)
@@ -92,3 +94,64 @@ endif()
 
 file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/include/pcre2/include)
 file(COPY ${CMAKE_BINARY_DIR}/third_party/pcre2/include/pcre2.h DESTINATION ${CMAKE_BINARY_DIR}/include/pcre2/include)
+
+# On OHOS the ROM ships pcre2 as libpcre2.z.so. Re-link the PIC objects from
+# libpcre2-8.a into a shared library named libpcre2.z.so with the matching
+# SONAME, so that libcangjie-std-regex.so records libpcre2.z.so in DT_NEEDED
+# and resolves against the ROM-provided library at runtime.
+#
+# Note: pcre2-8 itself does not depend on libm. It may link against pthread
+# when JIT is enabled (see pcre2/CMakeLists.txt, REQUIRE_PTHREAD). To keep
+# DT_NEEDED consistent with the original libpcre2-8.so (which links
+# Threads::Threads via pcre2's own CMake), we pass -lpthread and let the
+# linker resolve it through --sysroot. We must NOT use an absolute path from
+# find_library here: on multilib x86_64 build hosts /usr/lib*/libpthread.so
+# is a linker script that emits OUTPUT_FORMAT(elf32-i386), which forces
+# ld.lld into x86-32 mode and makes every ARM object "incompatible with
+# elf32-i386". -lpthread is sysroot-aware and picks the target's libpthread
+# (or libc on musl, where pthread is integrated). pcre2 has no version-script,
+# so there is nothing to carry over for symbol versioning.
+if(OHOS)
+    set(PCRE2_Z_LIB ${PCRE2_INSTALL_DIR}/lib/libpcre2.z.so)
+    message(STATUS "Re-linking pcre2 as libpcre2.z.so for OHOS...")
+
+    set(RELINK_EXTRA_LIBS "-Wl,--as-needed" "-lpthread")
+
+    # Re-link with the cross target/arch/sysroot and the same linker flags
+    # used by the main build.
+    # We cannot rely on the TRIPLE variable here because it is set in the
+    # toolchain file via `set(TRIPLE ...)` (a normal variable) and may not
+    # propagate reliably into the include() context of Pcre2.cmake. Instead
+    # we build the target triple from CMAKE_SYSTEM_PROCESSOR (a standard
+    # CMake variable always set by the toolchain file).
+    # --target alone is not enough for arm32: clang needs -march=armv7-a to
+    # select the ARMv7-A variant, otherwise it falls back to the host target
+    # (elf32-i386) and linking fails with "incompatible with elf32-i386".
+    set(RELINK_TARGET ${CMAKE_SYSTEM_PROCESSOR}-linux-ohos)
+    set(RELINK_FLAGS --target=${RELINK_TARGET})
+    if(CMAKE_SYSTEM_PROCESSOR STREQUAL "arm")
+        list(APPEND RELINK_FLAGS -march=armv7-a)
+    endif()
+    if(CANGJIE_TARGET_SYSROOT)
+        list(APPEND RELINK_FLAGS --sysroot=${CANGJIE_TARGET_SYSROOT})
+    endif()
+    separate_arguments(RELINK_LINKER_FLAGS NATIVE_COMMAND "${CMAKE_SHARED_LINKER_FLAGS}")
+    execute_process(
+        COMMAND ${CMAKE_C_COMPILER}
+            ${RELINK_FLAGS}
+            ${RELINK_LINKER_FLAGS}
+            -shared
+            -Wl,-soname,libpcre2.z.so
+            -Wl,--whole-archive ${PCRE2_INSTALL_DIR}/lib/libpcre2-8.a
+            -Wl,--no-whole-archive
+            ${RELINK_EXTRA_LIBS}
+            -o ${PCRE2_Z_LIB}
+        RESULT_VARIABLE relink_result
+        OUTPUT_VARIABLE relink_stdout
+        ERROR_VARIABLE relink_stderr)
+    if(NOT ${relink_result} STREQUAL "0")
+        message(STATUS "${relink_stdout}")
+        message(STATUS "${relink_stderr}")
+        message(FATAL_ERROR "Re-linking pcre2 as libpcre2.z.so Failed!")
+    endif()
+endif()
