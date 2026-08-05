@@ -1400,8 +1400,16 @@ public struct Decimal <: Comparable<Decimal> & Hashable & ToString {
      * @since 0.46.1
      */
     public func toInt8(overflowHandling!: OverflowStrategy = Throwing): Int8 {
-        if (this.sign == 0 || Int64(this.scale) >= this.precision || this.scale <= -8) {
+        if (this.sign == 0 || Int64(this.scale) >= this.precision) {
             return 0
+        }
+        if (this.scale <= -8) {
+            // the value is a multiple of 10^8, hence of 2^8, so the low 8 bits are all zero
+            return match (overflowHandling) {
+                case Throwing => throw OverflowException("Out of range of the Int8.")
+                case Wrapping => 0
+                case Saturating => if (this.sign < 0) { Int8.Min } else { Int8.Max }
+            }
         }
 
         return this.toBigInt().toInt8(overflowHandling: overflowHandling)
@@ -1420,8 +1428,16 @@ public struct Decimal <: Comparable<Decimal> & Hashable & ToString {
      * @since 0.46.1
      */
     public func toInt16(overflowHandling!: OverflowStrategy = Throwing): Int16 {
-        if (this.sign == 0 || Int64(this.scale) >= this.precision || this.scale <= -16) {
+        if (this.sign == 0 || Int64(this.scale) >= this.precision) {
             return 0
+        }
+        if (this.scale <= -16) {
+            // the value is a multiple of 10^16, hence of 2^16, so the low 16 bits are all zero
+            return match (overflowHandling) {
+                case Throwing => throw OverflowException("Out of range of the Int16.")
+                case Wrapping => 0
+                case Saturating => if (this.sign < 0) { Int16.Min } else { Int16.Max }
+            }
         }
 
         return this.toBigInt().toInt16(overflowHandling: overflowHandling)
@@ -1440,8 +1456,16 @@ public struct Decimal <: Comparable<Decimal> & Hashable & ToString {
      * @since 0.46.1
      */
     public func toInt32(overflowHandling!: OverflowStrategy = Throwing): Int32 {
-        if (this.sign == 0 || Int64(this.scale) >= this.precision || this.scale <= -32) {
+        if (this.sign == 0 || Int64(this.scale) >= this.precision) {
             return 0
+        }
+        if (this.scale <= -32) {
+            // the value is a multiple of 10^32, hence of 2^32, so the low 32 bits are all zero
+            return match (overflowHandling) {
+                case Throwing => throw OverflowException("Out of range of the Int32.")
+                case Wrapping => 0
+                case Saturating => if (this.sign < 0) { Int32.Min } else { Int32.Max }
+            }
         }
 
         return this.toBigInt().toInt32(overflowHandling: overflowHandling)
@@ -1463,9 +1487,16 @@ public struct Decimal <: Comparable<Decimal> & Hashable & ToString {
         // return DECIMAL_ZERO in following cases:
         // 1. this.sign is 0
         // 2. this decimal only has fractional part, this.scale >= this.precision
-        // 3. a large number, which scale < 0 and -scale > Int.bitLen
-        if (this.sign == 0 || Int64(this.scale) >= this.precision || this.scale <= -64) {
+        if (this.sign == 0 || Int64(this.scale) >= this.precision) {
             return 0
+        }
+        if (this.scale <= -64) {
+            // the value is a multiple of 10^64, hence of 2^64, so the low 64 bits are all zero
+            return match (overflowHandling) {
+                case Throwing => throw OverflowException("Out of range of the Int64.")
+                case Wrapping => 0
+                case Saturating => if (this.sign < 0) { Int64.Min } else { Int64.Max }
+            }
         }
 
         return this.toBigInt().toInt64(overflowHandling: overflowHandling)
@@ -1489,8 +1520,16 @@ public struct Decimal <: Comparable<Decimal> & Hashable & ToString {
             nativeLen = 32
         }
 
-        if (this.sign == 0 || Int64(this.scale) >= this.precision || Int64(this.scale) <= -nativeLen) {
+        if (this.sign == 0 || Int64(this.scale) >= this.precision) {
             return 0
+        }
+        if (this.scale <= -Int32(nativeLen)) {
+            // the value is a multiple of 10^nativeLen, hence of 2^nativeLen, so the low nativeLen bits are all zero
+            return match (overflowHandling) {
+                case Throwing => throw OverflowException("Out of range of the IntNative.")
+                case Wrapping => 0
+                case Saturating => if (this.sign < 0) { IntNative.Min } else { IntNative.Max }
+            }
         }
 
         return this.toBigInt().toIntNative(overflowHandling: overflowHandling)
@@ -1509,8 +1548,16 @@ public struct Decimal <: Comparable<Decimal> & Hashable & ToString {
      * @since 0.46.1
      */
     public func toUInt8(overflowHandling!: OverflowStrategy = Throwing): UInt8 {
-        if (this.sign == 0 || Int64(this.scale) >= this.precision || this.scale <= -8) {
+        if (this.sign == 0 || Int64(this.scale) >= this.precision) {
             return 0
+        }
+        if (this.scale <= -8) {
+            // the value is a multiple of 10^8, hence of 2^8, so the low 8 bits are all zero
+            return match (overflowHandling) {
+                case Throwing => throw OverflowException("Out of range of the UInt8.")
+                case Wrapping => 0
+                case Saturating => if (this.sign < 0) { UInt8.Min } else { UInt8.Max }
+            }
         }
 
         return this.toBigInt().toUInt8(overflowHandling: overflowHandling)
@@ -1529,8 +1576,16 @@ public struct Decimal <: Comparable<Decimal> & Hashable & ToString {
      * @since 0.46.1
      */
     public func toUInt16(overflowHandling!: OverflowStrategy = Throwing): UInt16 {
-        if (this.sign == 0 || Int64(this.scale) >= this.precision || this.scale <= -16) {
+        if (this.sign == 0 || Int64(this.scale) >= this.precision) {
             return 0
+        }
+        if (this.scale <= -16) {
+            // the value is a multiple of 10^16, hence of 2^16, so the low 16 bits are all zero
+            return match (overflowHandling) {
+                case Throwing => throw OverflowException("Out of range of the UInt16.")
+                case Wrapping => 0
+                case Saturating => if (this.sign < 0) { UInt16.Min } else { UInt16.Max }
+            }
         }
 
         return this.toBigInt().toUInt16(overflowHandling: overflowHandling)
@@ -1549,8 +1604,16 @@ public struct Decimal <: Comparable<Decimal> & Hashable & ToString {
      * @since 0.46.1
      */
     public func toUInt32(overflowHandling!: OverflowStrategy = Throwing): UInt32 {
-        if (this.sign == 0 || Int64(this.scale) >= this.precision || this.scale <= -32) {
+        if (this.sign == 0 || Int64(this.scale) >= this.precision) {
             return 0
+        }
+        if (this.scale <= -32) {
+            // the value is a multiple of 10^32, hence of 2^32, so the low 32 bits are all zero
+            return match (overflowHandling) {
+                case Throwing => throw OverflowException("Out of range of the UInt32.")
+                case Wrapping => 0
+                case Saturating => if (this.sign < 0) { UInt32.Min } else { UInt32.Max }
+            }
         }
 
         return this.toBigInt().toUInt32(overflowHandling: overflowHandling)
@@ -1569,8 +1632,16 @@ public struct Decimal <: Comparable<Decimal> & Hashable & ToString {
      * @since 0.46.1
      */
     public func toUInt64(overflowHandling!: OverflowStrategy = Throwing): UInt64 {
-        if (this.sign == 0 || Int64(this.scale) >= this.precision || this.scale <= -64) {
+        if (this.sign == 0 || Int64(this.scale) >= this.precision) {
             return 0
+        }
+        if (this.scale <= -64) {
+            // the value is a multiple of 10^64, hence of 2^64, so the low 64 bits are all zero
+            return match (overflowHandling) {
+                case Throwing => throw OverflowException("Out of range of the UInt64.")
+                case Wrapping => 0
+                case Saturating => if (this.sign < 0) { UInt64.Min } else { UInt64.Max }
+            }
         }
 
         return this.toBigInt().toUInt64(overflowHandling: overflowHandling)
@@ -1594,8 +1665,16 @@ public struct Decimal <: Comparable<Decimal> & Hashable & ToString {
             nativeLen = 32
         }
 
-        if (this.sign == 0 || Int64(this.scale) >= this.precision || Int64(this.scale) <= -nativeLen) {
+        if (this.sign == 0 || Int64(this.scale) >= this.precision) {
             return 0
+        }
+        if (this.scale <= -Int32(nativeLen)) {
+            // the value is a multiple of 10^nativeLen, hence of 2^nativeLen, so the low nativeLen bits are all zero
+            return match (overflowHandling) {
+                case Throwing => throw OverflowException("Out of range of the UIntNative.")
+                case Wrapping => 0
+                case Saturating => if (this.sign < 0) { UIntNative.Min } else { UIntNative.Max }
+            }
         }
 
         return this.toBigInt().toUIntNative(overflowHandling: overflowHandling)
