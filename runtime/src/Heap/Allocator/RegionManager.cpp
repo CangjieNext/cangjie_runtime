@@ -144,6 +144,26 @@ bool RegionInfo::VisitLiveObjectsUntilFalse(const std::function<bool(BaseObject*
             BaseObject* obj = reinterpret_cast<BaseObject*>(position);
             size_t allocSize = RegionSpace::GetAllocSize(*obj);
             position += allocSize;
+            // Only read the next state word when a real next object lies within the allocated range.
+            // At/past allocPtr the bytes are the zeroed free tail and would falsely trip the check on
+            // every region's last object. Real 0x0 corruption (a nulled state word inside the region)
+            // still fires below, which is the compatibility-issue scenario we want to catch.
+            uint64_t nextAddr = ~0ULL;
+            if (position + sizeof(uint64_t) <= allocPtr) {
+                nextAddr = *reinterpret_cast<uint64_t*>(position);
+            }
+            // A valid state word holds a heap-aligned TypeInfo pointer, which
+            // must be far greater than 0x1000. A tiny value implies corruption.
+            if (nextAddr < 0x1000) {
+                LOG(RTLOG_FATAL,
+                    "heap corruption detected while scanning previous object: "
+                    "name %s, obj %p, allocSize %zu, offset %zu, "
+                    "TypeInfo %p, instanceSize %u, next position %p, suspicious next addr 0x%llx",
+                    obj->GetTypeInfo()->GetName(), static_cast<const void*>(obj), allocSize,
+                    offset, static_cast<const void*>(obj->GetTypeInfo()),
+                    obj->GetTypeInfo()->GetInstanceSize(), reinterpret_cast<void*>(position),
+                    static_cast<unsigned long long>(nextAddr));
+            }
             if (IsSurvivedObject(offset) && !func(obj)) { return false; }
             offset += allocSize;
         }
