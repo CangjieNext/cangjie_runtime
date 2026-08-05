@@ -109,6 +109,9 @@ extend Rune {
      *         there is no valid utf8 code among `arr[0] ~ arr[index - 1]`.
      */
     public static func utf8Size(arr: Array<UInt8>, index: Int64): Int64 {
+        if (index < 0) {
+            throw IllegalArgumentException("index: ${index} cannot be less than 0.")
+        }
         if (index >= arr.size) {
             throw IllegalArgumentException("Invalid utf8 byte sequence.")
         }
@@ -160,6 +163,9 @@ extend Rune {
      */
     @OverflowWrapping
     public static func fromUtf8(arr: Array<UInt8>, index: Int64): (Rune, Int64) {
+        if (index < 0) {
+            throw IllegalArgumentException("index: ${index} cannot be less than 0.")
+        }
         if (index >= arr.size) {
             throw IllegalArgumentException("Invalid utf8 byte sequence.")
         }
