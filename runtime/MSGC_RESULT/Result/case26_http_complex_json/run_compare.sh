@@ -43,7 +43,6 @@
 #     JAVAC_BIN            javac 命令，默认 javac
 #     JAVA_OPTS            可选 Java 运行参数
 #     JAVA_GC_OPTS         可选 Java GC 日志参数；为空时按 JDK 版本自动配置
-#     TAG                  结果目录名标识          默认 output_msgc_vs_copygc_go_java
 #
 #   用法示例：
 #     MSGC_SDK_ROOT=/path/to/msgc/sdk \
@@ -108,7 +107,6 @@ JAVA_BIN="${JAVA_BIN:-java}"
 JAVAC_BIN="${JAVAC_BIN:-javac}"
 JAVA_OPTS="${JAVA_OPTS:--Xmx16g}"
 JAVA_GC_OPTS="${JAVA_GC_OPTS:-}"
-TAG="${TAG:-output_msgc_vs_copygc_go_java}"
 
 for enable_name in COPYGC_ENABLE MSGC_ENABLE GO_ENABLE JAVA_ENABLE; do
     enable_value="${!enable_name}"
@@ -145,8 +143,10 @@ if [[ "$JAVA_ENABLE" != "0" ]]; then
     fi
 fi
 
-TS="$(date +%Y%m%d_%H%M%S)"
-COMPARE_DIR="$CASE_DIR/result/${TS}_${TAG}_c${CONC}_p${PAYLOAD}_compare"
+TS="$(date +%Y%m%d)"
+PERSISTENT_BYTES_MIB=$((PERSISTENT_BYTES / 1024 / 1024))
+PAYLOAD_TAG=$(printf '%s' "$PAYLOAD" | tr '[:upper:]' '[:lower:]')
+COMPARE_DIR="$CASE_DIR/result/${TS}_${PERSISTENT_BYTES_MIB}M_c${CONC}_${PAYLOAD_TAG}_HeapGrow${MSGC_HEAP_GROWTH}_Scavenge${MSGC_SCAVENGE_GROWTH}_compare"
 COPYGC_DIR="$COMPARE_DIR/copygc"
 MSGC_DIR="$COMPARE_DIR/msgc"
 GO_DIR="$COMPARE_DIR/go"

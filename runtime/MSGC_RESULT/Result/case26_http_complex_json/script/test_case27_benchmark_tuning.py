@@ -152,6 +152,25 @@ class Case27BenchmarkTuningTests(unittest.TestCase):
             text,
         )
 
+    def test_run_compare_names_result_from_benchmark_configuration(self) -> None:
+        text = RUN_COMPARE.read_text()
+
+        self.assertIn('TS="$(date +%Y%m%d)"', text)
+        self.assertIn(
+            'PERSISTENT_BYTES_MIB=$((PERSISTENT_BYTES / 1024 / 1024))',
+            text,
+        )
+        self.assertIn(
+            "PAYLOAD_TAG=$(printf '%s' \"$PAYLOAD\" | tr '[:upper:]' '[:lower:]')",
+            text,
+        )
+        self.assertNotIn('${PAYLOAD,,}', text)
+        self.assertIn(
+            'COMPARE_DIR="$CASE_DIR/result/${TS}_${PERSISTENT_BYTES_MIB}M_c${CONC}_${PAYLOAD_TAG}_HeapGrow${MSGC_HEAP_GROWTH}_Scavenge${MSGC_SCAVENGE_GROWTH}_compare"',
+            text,
+        )
+        self.assertNotIn('COMPARE_DIR="$CASE_DIR/result/${TS}_${TAG}_c${CONC}_p${PAYLOAD}_compare"', text)
+
 
 if __name__ == "__main__":
     unittest.main()
