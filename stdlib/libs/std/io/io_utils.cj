@@ -26,33 +26,15 @@ public enum SeekPosition {
 }
 
 public func readString<T>(from: T): String where T <: InputStream & Seekable {
-    var data = Array<Byte>(from.remainLength, repeat: 0)
     return try {
-        var readSize: Int64 = 0
-        while (readSize < data.size) {
-            let len = from.read(data.slice(readSize, data.size - readSize))
-            if (len <= 0) {
-                break
-            }
-            readSize += len
-        }
-        String.fromUtf8(data.slice(0, readSize))
+        String.fromUtf8(readToEnd(from))
     } catch (e: IllegalArgumentException) {
         throw ContentFormatException(e.message)
     }
 }
 
 public unsafe func readStringUnchecked<T>(from: T): String where T <: InputStream & Seekable {
-    var data = Array<Byte>(from.remainLength, repeat: 0)
-    var readSize: Int64 = 0
-    while (readSize < data.size) {
-        let len = from.read(data.slice(readSize, data.size - readSize))
-        if (len <= 0) {
-            break
-        }
-        readSize += len
-    }
-    String.fromUtf8Unchecked(data.slice(0, readSize))
+    String.fromUtf8Unchecked(readToEnd(from))
 }
 
 public func readToEnd<T>(from: T): Array<Byte> where T <: InputStream & Seekable {
