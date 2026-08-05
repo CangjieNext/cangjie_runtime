@@ -1490,8 +1490,8 @@ func parseTime(value: String, format: String, isRFC3339!: Bool = false): DateTim
     let formatTypes = parseFormat(format)
     for (formatType in formatTypes) {
         match (formatType) {
-            case FormatYear(length) => year = parser.parseYear(year, length)
-            case FormatISOYear(length) => isoYear = parser.parseYear(isoYear, length)
+            case FormatYear(length) => year = parser.parseYear(year, length, isRFC3339)
+            case FormatISOYear(length) => isoYear = parser.parseYear(isoYear, length, isRFC3339)
             case FormatMonth(length) => month = parser.parseMonth(month, length)
             case FormatDayOfMonth(length) => dayOfMonth = parser.parseDayOfMonth(dayOfMonth, length)
             case FormatHourIn24(length) => hour = parser.parseHourIn24(hour, length)
@@ -1727,7 +1727,7 @@ struct DateTimeParser {
         value[index + offset]
     }
 
-    mut func parseYear(value: Int64, length: Int64): Int64 {
+    mut func parseYear(value: Int64, length: Int64, isRFC3339: Bool): Int64 {
         if (value != MAX_YEAR + 1) {
             throw TimeParseException("Extra year format.")
         }
@@ -1737,7 +1737,17 @@ struct DateTimeParser {
             isPositive = -1
             this.move(1)
         }
-        this.parseLen = if (length < 5 && length != 2) {
+        this.parseLen = if (isRFC3339) {
+            // RFC3339 path supports extended years: at least 4 digits, parse all consecutive digits.
+            var n: Int64 = 0
+            while (this.index + n < this.value.size && this.value[this.index + n].isAsciiNumber()) {
+                n++
+            }
+            if (n < 4) {
+                throw TimeParseException("Fail to parse at index ${index}: year value is not correct.")
+            }
+            n
+        } else if (length < 5 && length != 2) {
             4
         } else {
             length
