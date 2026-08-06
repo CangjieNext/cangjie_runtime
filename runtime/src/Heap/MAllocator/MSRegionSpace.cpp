@@ -12,6 +12,7 @@
 #include "Heap/MAllocator/MSAllocBuffer.h"
 #include "Heap/MAllocator/MSCentralRegionPool.h"
 #include "Heap/MAllocator/MSOOMEmergencyPolicy.h"
+#include "Heap/MCollector/MSMemoryLimitPolicy.h"
 #include "Heap/MAllocator/MSRegionInfo.h"
 #include "Heap/MAllocator/MSRegionManager.h"
 #include "Heap/MAllocator/MSSizeClass.h"
@@ -322,13 +323,11 @@ size_t RegionSpaceMS::GetScavengeReleaseTargetBytes() const
     size_t reclaimableBytes =
         msCentralPool_->GetEmptySweptRegionCount() * MS_REGION_SIZE +
         msRegionManager_->GetHotFreeBytes();
-    size_t effectiveTarget = std::max(scavengeThreshold, inUseBytes);
+    size_t normalTarget = std::max(scavengeThreshold, inUseBytes);
+    size_t effectiveTarget = ResolveMSScavengeTarget(
+        normalTarget, CangjieRuntime::GetMSSoftHeapLimitBytes());
     size_t retainedBytes = inUseBytes + reclaimableBytes;
-    size_t releaseGap = retainedBytes > effectiveTarget
-        ? retainedBytes - effectiveTarget
-        : 0;
-    size_t releasableBytes = std::min(releaseGap, reclaimableBytes);
-    return releasableBytes;
+    return ComputeMSReleaseGap(retainedBytes, reclaimableBytes, effectiveTarget);
 }
 
 bool RegionSpaceMS::HasPendingShrinkWork() const

@@ -50,7 +50,7 @@
 #     JAVA_BIN             Java 运行命令，默认本机 Java 25
 #     JAVAC_BIN            Java 编译命令，默认本机 Java 8 javac（Java 25 runtime 包不含 javac）
 #     JAVA_PROCS           JVM ActiveProcessorCount；默认 10，设置 PROCS 时跟随 PROCS
-#     JAVA_OPTS            可选 Java 运行参数
+#     JAVA_OPTS            可选 Java 运行参数；未设置时使用 -Xmx$HEAP_SIZE
 #     JAVA_GC_OPTS         可选 Java GC 日志参数；为空时按 JDK 版本自动配置
 #
 #   用法示例：
@@ -115,7 +115,11 @@ JAVA_ENABLE="${JAVA_ENABLE:-1}"
 JAVA_BIN="${JAVA_BIN:-/usr/lib/jvm/java-25-openjdk-arm64/bin/java}"
 JAVAC_BIN="${JAVAC_BIN:-/usr/lib/jvm/java-8-openjdk-arm64/bin/javac}"
 JAVA_PROCS="${JAVA_PROCS:-${PROCS:-10}}"
-JAVA_OPTS="${JAVA_OPTS:-}"
+# HotSpot accepts g/m/k suffixes, but not the cjHeapSize-style gb/mb suffixes.
+# Keep an explicitly supplied JAVA_OPTS unchanged; otherwise cap Java with HEAP_SIZE.
+JAVA_HEAP_SIZE=$(printf '%s' "$HEAP_SIZE" | tr '[:upper:]' '[:lower:]')
+JAVA_HEAP_SIZE="${JAVA_HEAP_SIZE%b}"
+JAVA_OPTS="${JAVA_OPTS:--Xmx${JAVA_HEAP_SIZE}}"
 JAVA_GC_OPTS="${JAVA_GC_OPTS:-}"
 
 configure_nofile_limit() {
@@ -223,7 +227,13 @@ fi
 RUN_DATE="$(date +%Y%m%d)"
 RESULT_PROCS="${PROCS:-auto}"
 RESULT_HEAP_SIZE="${HEAP_SIZE^^}"
-COMPARE_DIR="$CASE_DIR/result/${RUN_DATE}_c${CONC}_${PAYLOAD}_HeapGrow${MSGC_HEAP_GROWTH}_ScavengeGrow${MSGC_SCAVENGE_GROWTH}_P${RESULT_PROCS}_HeapSize${RESULT_HEAP_SIZE}_compare"
+COMPARE_DIR_BASE="$CASE_DIR/result/${RUN_DATE}_c${CONC}_${PAYLOAD}_HeapGrow${MSGC_HEAP_GROWTH}_ScavengeGrow${MSGC_SCAVENGE_GROWTH}_P${RESULT_PROCS}_HeapSize${RESULT_HEAP_SIZE}_compare"
+COMPARE_DIR="$COMPARE_DIR_BASE"
+COMPARE_DIR_SUFFIX=1
+while [[ -e "$COMPARE_DIR" ]]; do
+    COMPARE_DIR="${COMPARE_DIR_BASE}_${COMPARE_DIR_SUFFIX}"
+    COMPARE_DIR_SUFFIX=$((COMPARE_DIR_SUFFIX + 1))
+done
 COPYGC_DIR="$COMPARE_DIR/copygc"
 MSGC_DIR="$COMPARE_DIR/msgc"
 GO_DIR="$COMPARE_DIR/go"
@@ -405,7 +415,7 @@ run_side() {
             echo "[$LABEL] CASE27_GRAPH_DIAG_RATE=${CASE27_GRAPH_DIAG_RATE:-<default>}"
 
             cd "$OUT_DIR"
-            cjc_args=("$BENCH_SRC")
+            cjc_args=("-O2" "$BENCH_SRC")
             if [ -n "$CJC_GC_MODE" ]; then
                 cjc_args+=("--gc-mode=$CJC_GC_MODE")
             fi
@@ -464,12 +474,9 @@ run_side() {
                 unset cjProcessorNum 2>/dev/null || true
             fi
 
-            if [ "$CJC_GC_MODE" = "marksweep" ]; then
-                echo "[$LABEL] cjMSMaxVirtualHeapSize=$HEAP_SIZE"
-                export cjMSMaxVirtualHeapSize="$HEAP_SIZE"
-            else
-                unset cjMSMaxVirtualHeapSize 2>/dev/null || true
-            fi
+            # cjHeapSize is the MSGC soft memory limit.  Leave the virtual heap
+            # reservation unset so the runtime uses the host-memory default.
+            echo "[$LABEL] cjHeapSize=$HEAP_SIZE (soft limit; virtual heap=runtime default)"
             MRT_REPORT="$OUT_DIR/gc.log" \
             MRT_LOG_FILE_SIZE="200mb" \
             cjHeapSize="$HEAP_SIZE" \

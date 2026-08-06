@@ -479,7 +479,7 @@ size_t CentralRegionPool::ReclaimIdleSegmentCaches(size_t startRegionIdx, size_t
 // GC operations
 // ============================================================================
 
-uint32_t CentralRegionPool::PrepareCollectSetForMarkUnderSTW()
+uint32_t CentralRegionPool::PrepareCollectSetForMarkUnderSTW(bool forceMaxHelpers)
 {
     uint64_t prepareStartUs = TimeUtil::MicroSeconds();
     uint32_t previousEpoch = currentMarkEpoch_.load(std::memory_order_relaxed);
@@ -543,8 +543,9 @@ uint32_t CentralRegionPool::PrepareCollectSetForMarkUnderSTW()
     size_t availableHelpers = threadPool == nullptr ? 0 : std::min(
         {resetLaneCount, resources.GetMSGCThreadPoolHelperLimit(),
          static_cast<size_t>(threadPool->GetMaxThreadNum())});
-    size_t helperCount = ComputeMSPreEnumResetHelperTarget(
-        estimatedResetBytes, availableHelpers);
+    size_t helperCount = forceMaxHelpers
+        ? availableHelpers
+        : ComputeMSPreEnumResetHelperTarget(estimatedResetBytes, availableHelpers);
     bool parallelReset = helperCount != 0;
     bool preEnumPoolOwned = false;
     bool parallelResetStarted = false;

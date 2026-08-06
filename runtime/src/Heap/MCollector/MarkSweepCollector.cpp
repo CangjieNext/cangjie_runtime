@@ -695,11 +695,31 @@ void MarkSweepCollector::RunGarbageCollection(uint64_t gcIndex, GCReason reason)
 
 void MarkSweepCollector::DoGarbageCollection()
 {
+    if (gcReason == GC_REASON_OOM) {
+        RunOOMEmergencyCycle();
+        return;
+    }
     PreEnumRoots();        // Step 2.1a
     EnumRoots();            // Step 2.1b
     ConcurrentMark();      // Step 2.2
     MarkTermination();     // Step 2.3
     PostMarkTermination(); // Step 2.4
+}
+
+void MarkSweepCollector::RunOOMEmergencyCycle()
+{
+    // An OOM notification takes one uninterrupted STW window. In particular,
+    // no mutator may allocate between the frozen mark preparation, root scan,
+    // mark closure, and the PostMarkTermination handoff to normal Sweep.
+    // Do not install MS_MARK_SETUP in the outer STW: PreEnumRoots must clear
+    // the prior bitmap epoch before EnumRoots asks mutators to mark roots.
+    ScopedStopTheWorld stw(
+        "MS OOM Mark through PostMarkTermination");
+    PreEnumRoots(true);
+    EnumRoots();
+    ConcurrentMark();
+    MarkTermination(true);
+    PostMarkTermination();
 }
 
 // ============================================================================
@@ -710,7 +730,7 @@ void MarkSweepCollector::DoGarbageCollection()
 //
 // ============================================================================
 
-void MarkSweepCollector::PreEnumRoots()
+void MarkSweepCollector::PreEnumRoots(bool worldStopped)
 {
     uint64_t t0 = TimeUtil::MicroSeconds();
     VLOG(REPORT, "[MS-GC] --- PreEnumRoots ---");
@@ -747,13 +767,12 @@ void MarkSweepCollector::PreEnumRoots()
 
         uint64_t clearBitmapUs = 0;
         uint64_t stwT0 = TimeUtil::MicroSeconds();
-        {
-            ScopedStopTheWorld stw("MS PreEnumRoots clear/reclassify/prepare STW");
+        auto prepareUnderSTW = [&]() {
             markScheduler_.ResetCycle();
             PrepareBarrierMarkBuffersForNewEpochUnderSTW(*centralPool);
             uint64_t clearBitmapT0 = TimeUtil::MicroSeconds();
             markBatchEpoch_ =
-                centralPool->PrepareCollectSetForMarkUnderSTW();
+                centralPool->PrepareCollectSetForMarkUnderSTW(gcReason == GC_REASON_OOM);
             markBatchAllocPlaneBase_ = static_cast<uintptr_t>(
                 __atomic_load_n(
                     &CJ_MRT_MSGCFastPathState.allocPlaneBase,
@@ -776,6 +795,12 @@ void MarkSweepCollector::PreEnumRoots()
             // stopped here, so opening the gate after the new epoch is fully
             // prepared cannot race a barrier publication.
             activeCollector_.store(this, std::memory_order_release);
+        };
+        if (worldStopped) {
+            prepareUnderSTW();
+        } else {
+            ScopedStopTheWorld stw("MS PreEnumRoots clear/reclassify/prepare STW");
+            prepareUnderSTW();
         }
         uint64_t stwUs = TimeUtil::MicroSeconds() - stwT0;
         VLOG(REPORT,
@@ -2283,7 +2308,7 @@ size_t MarkSweepCollector::MSMarkAssist(
 // Step 2.3: MarkTermination (STW)
 // ============================================================================
 
-void MarkSweepCollector::MarkTermination()
+void MarkSweepCollector::MarkTermination(bool worldStopped)
 {
     struct ClosureStats {
         uint64_t workUnits = 0;
@@ -2323,15 +2348,9 @@ void MarkSweepCollector::MarkTermination()
     ClosureStats resurrectionClosure;
     STWAcquireStats stwAcquireStats;
 
-    {
-        // Do not perform telemetry folding, worker-pool release or REPORT logging
-        // between one-way quiesce and this stop-the-world handoff.
-        ScopedStopTheWorld stw(
-            "MS MarkTermination", true,
-            GCPhase::GC_PHASE_MS_MARK_TERMINATION,
-            &stwAcquireStats);
+    auto runUnderSTW = [&]() {
         uint64_t stwBodyStartUs = TimeUtil::MicroSeconds();
-        stages.stwAcquireUs = stwBodyStartUs - stwStartUs;
+        stages.stwAcquireUs = worldStopped ? 0 : stwBodyStartUs - stwStartUs;
 
         RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(theAllocator);
         CentralRegionPool* centralPool = space.GetCentralPool();
@@ -2486,10 +2505,22 @@ void MarkSweepCollector::MarkTermination()
         stages.sweepPlanUs = TimeUtil::MicroSeconds() - stageStartUs;
         beforeStwResumeUs = TimeUtil::MicroSeconds();
         stages.stwBodyUs = beforeStwResumeUs - stwBodyStartUs;
+    };
+
+    if (worldStopped) {
+        runUnderSTW();
+    } else {
+        // Do not perform telemetry folding, worker-pool release or REPORT logging
+        // between one-way quiesce and this stop-the-world handoff.
+        ScopedStopTheWorld stw(
+            "MS MarkTermination", true,
+            GCPhase::GC_PHASE_MS_MARK_TERMINATION,
+            &stwAcquireStats);
+        runUnderSTW();
     }
 
     uint64_t phaseEndUs = TimeUtil::MicroSeconds();
-    stages.stwResumeUs = phaseEndUs - beforeStwResumeUs;
+    stages.stwResumeUs = worldStopped ? 0 : phaseEndUs - beforeStwResumeUs;
     cycleStats_.markTerminationUs = phaseEndUs - phaseStartUs;
     uint64_t stwAcquireAccountedUs = stwAcquireStats.syncMutexWaitUs +
         stwAcquireStats.mutatorLockWaitUs + stwAcquireStats.mutatorCountUs +
@@ -2684,8 +2715,10 @@ void MarkSweepCollector::PostMarkTermination()
         size_t availableHelpers = threadPool == nullptr ? 0 : std::min(
             collectorResources.GetMSGCThreadPoolHelperLimit(),
             static_cast<size_t>(threadPool->GetMaxThreadNum()));
-        size_t statsHelperCount = ComputeMSPostMarkStatsHelperTarget(
-            centralPool->GetCollectSetBitmapBytes(), availableHelpers);
+        size_t statsHelperCount = gcReason == GC_REASON_OOM
+            ? availableHelpers
+            : ComputeMSPostMarkStatsHelperTarget(
+                centralPool->GetCollectSetBitmapBytes(), availableHelpers);
         bool statsPoolOwned = statsHelperCount != 0 &&
             collectorResources.AcquireMSGCWorkerPoolForPostMarkStats();
         if (!statsPoolOwned) {
@@ -2731,16 +2764,6 @@ void MarkSweepCollector::PostMarkTermination()
         // after PreEnum remain in swept allocation supply for the next cycle.
         centralPool->PublishCollectSetForSweep();
 
-        if (sweepPlan.parallelSweepOnceInPostMark) {
-            RunOOMEmergencyParallelSweep(*centralPool);
-        }
-        if (sweepPlan.flushAllCaches) {
-            size_t flushedEmptyBytes = space.FlushAllEmptySweptToHotFree();
-            VLOG(REPORT,
-                 "[MS-GC] OOM cache flush: empty=%zuB hotFree=%zuB",
-                 flushedEmptyBytes, space.GetHotFreeBytesReference());
-            centralPool->ReenableSweepAdmission();
-        }
     } else {
         // Preserve collector accounting even if the allocator has no central
         // pool (initialization/teardown defensive path).
@@ -2754,74 +2777,6 @@ void MarkSweepCollector::PostMarkTermination()
     cycleStats_.postMarkUs = TimeUtil::MicroSeconds() - phaseStart;
     VLOG(REPORT, "[MS-GC] PostMark total: %sus",
          Pretty(cycleStats_.postMarkUs).Str());
-}
-
-void MarkSweepCollector::RunOOMEmergencyParallelSweep(CentralRegionPool& centralPool)
-{
-    size_t unsweptBefore = centralPool.GetTotalUnsweptCount();
-    size_t configuredThreads = std::min(
-        static_cast<size_t>(std::max<int32_t>(1, CangjieRuntime::GetGCParam().gcThreads)),
-        CangjieRuntime::GetMSGCThreadCapacity());
-    size_t helperCount = ComputeMSMaxSweepHelpers(
-        configuredThreads, CangjieRuntime::GetGCParam().msParallelSweepMaxHelpers);
-    GCThreadPool* threadPool = GetThreadPool();
-    if (threadPool == nullptr) {
-        helperCount = 0;
-    } else {
-        helperCount = std::min(helperCount, static_cast<size_t>(threadPool->GetMaxThreadNum()));
-    }
-
-    bool poolOwned = helperCount != 0 && collectorResources.TryAcquireMSGCWorkerPoolForSweep();
-    if (!poolOwned) {
-        helperCount = 0;
-    }
-
-    std::vector<std::unique_ptr<HeapWork>> stagedTasks;
-    stagedTasks.reserve(helperCount);
-    bool allocationFailed = false;
-    for (size_t taskIndex = 0; taskIndex < helperCount; ++taskIndex) {
-        uint8_t preferredCls = static_cast<uint8_t>(
-            (taskIndex + 1) % static_cast<size_t>(kNumSizeClasses));
-        std::unique_ptr<HeapWork> task(new (std::nothrow) LambdaWork(
-            [&centralPool, preferredCls](size_t) {
-                centralPool.ParallelSweepOnceForOOM(preferredCls);
-            }));
-        if (task == nullptr) {
-            allocationFailed = true;
-            break;
-        }
-        stagedTasks.push_back(std::move(task));
-    }
-
-    if (allocationFailed) {
-        stagedTasks.clear();
-        helperCount = 0;
-    } else if (helperCount != 0) {
-        threadPool->SetMaxActiveThreadNum(static_cast<int32_t>(helperCount));
-        for (std::unique_ptr<HeapWork>& task : stagedTasks) {
-            threadPool->AddWork(task.release());
-        }
-        threadPool->Start();
-    }
-
-    // GC main participates in the same one-pass claim protocol. Every helper
-    // task is joined before cache flush, but reaching zero unswept Regions is not
-    // a completion requirement for this emergency pass.
-    centralPool.ParallelSweepOnceForOOM(kNoPreferredSweepClass);
-    if (helperCount != 0) {
-        threadPool->WaitFinish();
-    }
-    if (poolOwned) {
-        collectorResources.ReleaseMSGCWorkerPool(MSGCWorkerPoolOwner::SWEEP);
-    }
-
-    // This is the only residual observation in the OOM PostMark path. Do not
-    // retry, assert zero, or publish sweepDone_; reopened ordinary Sweep lanes
-    // may continue processing any residual work.
-    size_t unsweptAfter = centralPool.GetTotalUnsweptCount();
-    VLOG(REPORT,
-         "[MS-GC] OOM parallel sweep once: helpers=%zu allocationFallback=%d unswept=%zu->%zu",
-         helperCount, static_cast<int>(allocationFailed), unsweptBefore, unsweptAfter);
 }
 
 void MarkSweepCollector::PrepareCycleRef()

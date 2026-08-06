@@ -44,6 +44,7 @@ namespace MapleRuntime {
 StackGrowConfig CangjieRuntime::stackGrowConfig = StackGrowConfig::UNDEF;
 size_t CangjieRuntime::msMaxVirtualHeapSizeKB = 0;
 #ifdef MRT_USE_MARK_SWEEP
+size_t CangjieRuntime::msSoftHeapLimitBytes = 0;
 MSAllocatorScaleConfig CangjieRuntime::msAllocatorScaleConfig {};
 size_t CangjieRuntime::msGCThreadCapacity = 1;
 bool CangjieRuntime::msEnumAssistEnabled = true;

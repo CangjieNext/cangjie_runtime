@@ -569,7 +569,7 @@ public:
     // TLS active Regions stay outside the boundary. The new epoch is published
     // only after every Small, active, and LARGE Region has been reset.
     // Must be called after StopAndWaitForAllSweep().
-    uint32_t PrepareCollectSetForMarkUnderSTW();
+    uint32_t PrepareCollectSetForMarkUnderSTW(bool forceMaxHelpers = false);
 
     // After Mark has reached a fixed point, transfer every collect-set chain to
     // the corresponding unswept supply. No Region is reclassified by its old

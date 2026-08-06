@@ -408,7 +408,7 @@ run_side() {
             echo "[$LABEL] CASE27_GRAPH_DIAG_RATE=${CASE27_GRAPH_DIAG_RATE:-<default>}"
 
             cd "$OUT_DIR"
-            cjc_args=("$BENCH_SRC")
+            cjc_args=("-O2" "$BENCH_SRC")
             if [ -n "$CJC_GC_MODE" ]; then
                 cjc_args+=("--gc-mode=$CJC_GC_MODE")
             fi
@@ -460,12 +460,9 @@ run_side() {
                 unset cjProcessorNum 2>/dev/null || true
             fi
 
-            if [ "$CJC_GC_MODE" = "marksweep" ]; then
-                echo "[$LABEL] cjMSMaxVirtualHeapSize=$HEAP_SIZE"
-                export cjMSMaxVirtualHeapSize="$HEAP_SIZE"
-            else
-                unset cjMSMaxVirtualHeapSize 2>/dev/null || true
-            fi
+            # cjHeapSize is the MSGC soft memory limit.  Leave the virtual heap
+            # reservation unset so the runtime uses the host-memory default.
+            echo "[$LABEL] cjHeapSize=$HEAP_SIZE (soft limit; virtual heap=runtime default)"
             MRT_REPORT="$OUT_DIR/gc.log" \
             MRT_LOG_FILE_SIZE="200mb" \
             cjHeapSize="$HEAP_SIZE" \

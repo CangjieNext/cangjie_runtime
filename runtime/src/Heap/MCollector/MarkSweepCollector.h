@@ -181,11 +181,12 @@ public:
 private:
     // ── MS GC phases ──
     void DoGarbageCollection();
-    void PreEnumRoots();        // Step 2.1a: Stop sweep, clear bitmaps, reclassify
+    void PreEnumRoots(bool worldStopped = false); // Step 2.1a: Stop sweep, clear bitmaps, reclassify
     void EnumRoots();            // Step 2.1b: Handshake + root enumeration
     void ConcurrentMark();      // Step 2.2: Concurrent marking (GC thread + assist)
-    void MarkTermination();     // Step 2.3: STW finalization of marking
+    void MarkTermination(bool worldStopped = false); // Step 2.3: STW finalization of marking
     void PostMarkTermination(); // Step 2.4: Non-STW statistics, threshold update and Sweep handoff
+    void RunOOMEmergencyCycle();
 
     // ── Step 2.1 internals ──
     void EnumAndMarkRoots();
@@ -290,7 +291,6 @@ private:
     void PrepareCycleRef();
     void PostResolveCycleTask();
     void CollectLargeGarbage();
-    void RunOOMEmergencyParallelSweep(CentralRegionPool& centralPool);
 
     // ============================================================
     // Assist tuning parameters

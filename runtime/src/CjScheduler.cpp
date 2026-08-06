@@ -34,6 +34,7 @@
 #include "schedule.h"
 #ifdef MRT_USE_MARK_SWEEP
 #include "Heap/MCollector/MSAssistPacing.h"
+#include "Heap/MCollector/MSMemoryLimitPolicy.h"
 #include "Heap/MCollector/MSMarkWorkerPolicy.h"
 #include "Heap/MAllocator/MSShardRouting.h"
 #endif
@@ -129,14 +130,18 @@ static size_t ComputeMSInitialHeapSizeKB(size_t initialSegmentCount)
 
 static size_t InitMSMaxVirtualHeapSize(size_t minVirtualHeapSizeKB)
 {
-    static constexpr size_t requestedDefaultValueKB = 16ULL * GB / KB;
-    static constexpr size_t defaultValueKB =
-        requestedDefaultValueKB > kMSMaxVirtualHeapSizeKB
-            ? kMSMaxVirtualHeapSizeKB
-            : requestedDefaultValueKB;
+    size_t defaultValueKB = ResolveMSDefaultVirtualHeapSizeKB(g_sysmemSize);
     return ReadSizeParameter("cjMSMaxVirtualHeapSize", defaultValueKB,
                              minVirtualHeapSizeKB, EnvBoundKind::CLOSED,
                              kMSMaxVirtualHeapSizeKB, EnvBoundKind::CLOSED);
+}
+
+static size_t InitMSSoftHeapLimit()
+{
+    size_t defaultValueKB = ResolveMSSoftHeapLimitKB(g_sysmemSize, 0);
+    return ReadSizeParameter("cjHeapSize", defaultValueKB,
+                             kMSSoftHeapLimitMinKB, EnvBoundKind::CLOSED,
+                             g_sysmemSize / KB, EnvBoundKind::CLOSED);
 }
 #endif
 
@@ -451,7 +456,9 @@ static RuntimeParam InitRuntimeParam()
     uint32_t processorNum = InitProcessorNum();
 #ifdef MRT_USE_MARK_SWEEP
     size_t maxVirtualHeapSizeKB = InitMSMaxVirtualHeapSize(kMSShardSegmentBytes / KB);
+    size_t softHeapLimitKB = InitMSSoftHeapLimit();
     CangjieRuntime::SetMSMaxVirtualHeapSizeKB(maxVirtualHeapSizeKB);
+    CangjieRuntime::SetMSSoftHeapLimitBytes(softHeapLimitKB * KB);
     CangjieRuntime::ConfigureMSAllocatorScale(processorNum, maxVirtualHeapSizeKB);
     MSAllocatorScaleConfig scaleConfig = CangjieRuntime::GetMSAllocatorScaleConfig();
     size_t initHeapSize = ComputeMSInitialHeapSizeKB(scaleConfig.initialSegmentCount);

@@ -22,11 +22,9 @@ struct MSPostMarkSweepPlan {
     bool notifyBackgroundSweep;
 };
 
-constexpr MSPostMarkSweepPlan BuildMSPostMarkSweepPlan(bool isOOM)
+constexpr MSPostMarkSweepPlan BuildMSPostMarkSweepPlan(bool)
 {
-    return isOOM
-        ? MSPostMarkSweepPlan{false, true, true, false}
-        : MSPostMarkSweepPlan{true, false, false, true};
+    return MSPostMarkSweepPlan{true, false, false, true};
 }
 
 constexpr size_t ResolveMSInitialMarkHelpers(bool isOOM, size_t dynamicHelpers,
