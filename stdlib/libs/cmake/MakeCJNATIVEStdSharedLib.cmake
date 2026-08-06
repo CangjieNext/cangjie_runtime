@@ -197,8 +197,17 @@ function(make_cangjie_lib target_name)
                 list(APPEND flags_to_compile "-L${CANGJIE_TARGET_TOOLCHAIN}/../lib/arm-linux-ohos")
             endif()
             list(APPEND flags_to_compile "-lc")
-            list(APPEND flags_to_compile "-lunwind")
+            # Use -l:libunwind.a (direct archive form) instead of -lunwind so that
+            # --exclude-libs treats it as a whole archive and actually hides its
+            # exported symbols. With the plain -lunwind form, ld extracts individual
+            # .o members that lose their archive identity, making --exclude-libs
+            # ineffective and leaking _Unwind_* / unw_* into the .so's dynsym.
+            list(APPEND flags_to_compile "-l:libunwind.a")
             list(APPEND flags_to_compile "--exclude-libs=libunwind.a")
+            # Only std-ast links libc++.a statically (via STDCPP_FLAG in AddCJNATIVELibrary.cmake).
+            # Hide its symbols so downstream linkers (e.g. harmonyApp) resolve __cxa_*/std::*
+            # from the system libc++.so instead of binding to ast.so via DT_NEEDED.
+            list(APPEND flags_to_compile "--exclude-libs=libc++.a")
         endif()
         if(NOT DARWIN AND NOT CANGJIE_LIBRARY_ALLOW_UNDEFINED AND NOT CANGJIE_ENABLE_HWASAN AND NOT CANGJIE_SANITIZER_SUPPORT_ENABLED)
             # Extra checkes when generating cangjie shared libraries. If symbols are used in Cangjie but not
