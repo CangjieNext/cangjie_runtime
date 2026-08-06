@@ -63,6 +63,8 @@ struct MSGCCycleStats {
     uint64_t markAssistActiveUs = 0;
     uint64_t markAssistCalls = 0;
     uint64_t markAssistNoTaskCalls = 0;
+    uint64_t markAssistAdmissionAccepted = 0;
+    uint64_t markAssistAdmissionRejectedBacklog = 0;
     size_t markMaxHelpers = 0;
     size_t markInitialHelpers = 0;
     size_t markQuiesceResidualTasks = 0;
@@ -131,11 +133,6 @@ public:
         uintptr_t markPlaneBase);
     void FlushBarrierMarkBuffer(MSBarrierMarkBuffer& buffer);
     void NotifyAllocBufferExit(AllocBufferMS& allocBuffer);
-    void AccountMarkAllocationBytes(size_t bytes)
-    {
-        cycleAllocatedMarkBytes_.fetch_add(bytes, std::memory_order_relaxed);
-    }
-
     // ── CopyGC-specific overrides: safe no-ops ──
     BaseObject* ForwardObject(BaseObject*) override { return nullptr; }
     bool IsFromObject(BaseObject*) const override { return false; }
@@ -309,7 +306,6 @@ private:
     uintptr_t markBatchMarkPlaneBase_ = 0;
     MSWorkUnitPacer markPacer_;
     std::atomic<uint64_t> cycleCompletedMarkWU_{0};
-    std::atomic<uint64_t> cycleAllocatedMarkBytes_{0};
 
     // Scheduler progress epoch and helper control.
     WorkEpoch markWorkEpoch_;
@@ -324,6 +320,8 @@ private:
     std::atomic<uint64_t> markAssistActiveUs_{0};
     std::atomic<uint64_t> markAssistCalls_{0};
     std::atomic<uint64_t> markAssistNoTaskCalls_{0};
+    std::atomic<uint64_t> markAssistAdmissionAccepted_{0};
+    std::atomic<uint64_t> markAssistAdmissionRejectedBacklog_{0};
     std::atomic<size_t> prevCycleMarkedObjects_{0};
 
     // ── Assist control ──

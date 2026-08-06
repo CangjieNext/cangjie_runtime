@@ -50,13 +50,18 @@ inline size_t ComputeMSReleaseGap(size_t retainedBytes, size_t reclaimableBytes,
     return std::min(releaseGap, reclaimableBytes);
 }
 
-inline MSMarkTrigger ResolveMSMarkTrigger(size_t retainedBytes, size_t sweptBytes,
+inline size_t SaturatingSubtractMSBytes(size_t value, size_t subtract)
+{
+    return value > subtract ? value - subtract : 0;
+}
+
+inline MSMarkTrigger ResolveMSMarkTrigger(size_t retainedBytes, size_t effectiveSweptBytes,
                                           size_t gcThresholdBytes, size_t softLimitBytes)
 {
     if (softLimitBytes != 0 && retainedBytes >= softLimitBytes) {
         return MSMarkTrigger::OOM;
     }
-    return sweptBytes >= gcThresholdBytes ? MSMarkTrigger::HEU : MSMarkTrigger::NONE;
+    return effectiveSweptBytes >= gcThresholdBytes ? MSMarkTrigger::HEU : MSMarkTrigger::NONE;
 }
 
 } // namespace MapleRuntime

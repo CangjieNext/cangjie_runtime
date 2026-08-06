@@ -49,16 +49,12 @@ struct MSHeapThresholdState {
 
 struct MSScavengeThresholdDecision {
     size_t gcGoalBytes = 0;
-    size_t outsideCentralSmallBytes = 0;
-    size_t outsideLargeBytes = 0;
     size_t baseBytes = 0;
     size_t thresholdBytes = 0;
 };
 
 struct MSGCThresholdBaseDecision {
     size_t markedLiveBytes = 0;
-    size_t outsideCentralSmallBytes = 0;
-    size_t outsideLargeBytes = 0;
     size_t gcBaseBytes = 0;
 };
 
@@ -105,22 +101,11 @@ inline size_t ComputeMSHeapThresholdFloor(size_t absoluteFloorBytes,
 }
 
 inline MSGCThresholdBaseDecision ComputeMSGCThresholdBase(
-    size_t markedLiveBytes,
-    size_t regionSize,
-    size_t outsideCentralSmallRegionCount,
-    size_t outsideLargeSpanCount)
+    size_t markedLiveBytes)
 {
     MSGCThresholdBaseDecision decision;
     decision.markedLiveBytes = markedLiveBytes;
-    decision.outsideCentralSmallBytes = SaturatingMultiplyMSBytes(
-        outsideCentralSmallRegionCount, regionSize);
-    decision.outsideLargeBytes = SaturatingMultiplyMSBytes(
-        outsideLargeSpanCount, regionSize);
     decision.gcBaseBytes = decision.markedLiveBytes;
-    decision.gcBaseBytes = SaturatingAddMSBytes(
-        decision.gcBaseBytes, decision.outsideCentralSmallBytes);
-    decision.gcBaseBytes = SaturatingAddMSBytes(
-        decision.gcBaseBytes, decision.outsideLargeBytes);
     return decision;
 }
 
@@ -252,19 +237,12 @@ inline MSHeapThresholdDecision EvaluateMSHeapThreshold(size_t oldThreshold, size
 
 inline MSScavengeThresholdDecision EvaluateMSScavengeThreshold(
     size_t gcGoalBytes,
-    size_t outsideCentralSmallBytes,
-    size_t outsideLargeBytes,
     size_t maxHeapBytes,
     double scavengeGrowth)
 {
     MSScavengeThresholdDecision decision;
     decision.gcGoalBytes = gcGoalBytes;
-    decision.outsideCentralSmallBytes = outsideCentralSmallBytes;
-    decision.outsideLargeBytes = outsideLargeBytes;
-    decision.baseBytes = SaturatingAddMSBytes(
-        gcGoalBytes, outsideCentralSmallBytes);
-    decision.baseBytes = SaturatingAddMSBytes(
-        decision.baseBytes, outsideLargeBytes);
+    decision.baseBytes = gcGoalBytes;
     long double boundedGrowth = std::max(
         static_cast<long double>(scavengeGrowth), 1.0L);
     decision.thresholdBytes = ScaleMSHeapThreshold(

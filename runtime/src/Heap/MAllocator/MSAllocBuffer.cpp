@@ -502,7 +502,6 @@ void AllocBufferMS::AccumulatePacingDebt(size_t size)
         gcAssistCreditWU_ = 0;
         return;
     }
-    collector->AccountMarkAllocationBytes(size);
     uint64_t ratioScaled = collector->GetAssistWorkPerByteScaled();
     if (ratioScaled == 0) {
         gcAssistDebtScaled_ = 0;  // Marking not active — clear stale debt

@@ -331,10 +331,12 @@ void MSRegionManager::MaybeNotifyMark()
     // uses retained physical-heap policy bytes so hot-free pages can request a
     // synchronous recovery before virtual allocation fails.
     size_t sweptBytes = space.GetSweptHeapBytes();
+    size_t lastMarkOutsideBytes = gcStats.GetLastMarkOutsideBytes();
+    size_t effectiveSweptBytes = SaturatingSubtractMSBytes(sweptBytes, lastMarkOutsideBytes);
     size_t threshold = gcStats.GetThreshold();
     size_t retainedBytes = space.GetHeapRetainedBytesReference();
     MSMarkTrigger trigger = ResolveMSMarkTrigger(
-        retainedBytes, sweptBytes, threshold,
+        retainedBytes, effectiveSweptBytes, threshold,
         CangjieRuntime::GetMSSoftHeapLimitBytes());
 
     if (trigger == MSMarkTrigger::NONE) {
@@ -363,15 +365,18 @@ void MSRegionManager::MaybeNotifyMark()
             Heap::GetHeap().GetCollectorResources().GetBackgroundProcessor();
         backgroundProcessor.NotifyToParallelSweep();
         VLOG(REPORT,
-             "[MS-GC] HEU waking parallel Sweep: swept=%zuB threshold=%zuB mode=%d",
-             sweptBytes, threshold, static_cast<int>(pressureMode));
+             "[MS-GC] HEU waking parallel Sweep: swept=%zuB outsideMark=%zuB "
+             "effectiveSwept=%zuB threshold=%zuB mode=%d",
+             sweptBytes, lastMarkOutsideBytes, effectiveSweptBytes,
+             threshold, static_cast<int>(pressureMode));
     }
 
     collector.RequestGC(GC_REASON_HEU, true);
     VLOG(REPORT,
-         "[MS-GC] HEU trigger (take-regions): swept-region bytes=%zuB "
-         "heapThreshold=%zuB retained=%zuB softLimit=%zuB reason=GC_REASON_HEU",
-         sweptBytes, threshold, retainedBytes,
+         "[MS-GC] HEU trigger (take-regions): swept=%zuB outsideMark=%zuB "
+         "effectiveSwept=%zuB heapThreshold=%zuB retained=%zuB softLimit=%zuB "
+         "reason=GC_REASON_HEU",
+         sweptBytes, lastMarkOutsideBytes, effectiveSweptBytes, threshold, retainedBytes,
          CangjieRuntime::GetMSSoftHeapLimitBytes());
 }
 

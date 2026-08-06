@@ -37,6 +37,16 @@ public:
     size_t lastStableLiveBytes = 0;     // last non-inflated trueLiveBytes sample
     size_t lastRegionBytes = 0;         // in-use Region bytes snapshot at GC end
     size_t lastSurvivingRegionBytes = 0;        // predicted surviving region bytes from last GC end
+    // Regions that joined allocation supply after the previous frozen mark
+    // boundary. HEU excludes this one-cycle supply from swept pressure.
+    size_t GetLastMarkOutsideBytes() const
+    {
+        return lastMarkOutsideBytes.load(std::memory_order_acquire);
+    }
+    void SetLastMarkOutsideBytes(size_t value)
+    {
+        lastMarkOutsideBytes.store(value, std::memory_order_release);
+    }
 
     void Dump() const;
 
@@ -79,6 +89,7 @@ public:
 private:
     std::atomic<size_t> heapThreshold{0};
     std::atomic<size_t> scavengeThreshold{0};
+    std::atomic<size_t> lastMarkOutsideBytes{0};
 };
 extern size_t g_gcCount;
 extern uint64_t g_gcTotalTimeUs;

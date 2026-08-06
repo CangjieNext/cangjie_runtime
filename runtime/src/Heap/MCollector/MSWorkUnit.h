@@ -58,6 +58,25 @@ inline uint64_t ComputeMSMarkAssistSliceBudget(uint64_t debtWU)
     return std::max<uint64_t>(MS_WU_ASSIST_THRESHOLD, debtWU);
 }
 
+// Mutator assist is useful only when there is enough globally visible Mark
+// work to keep the GC main and its currently requested helpers busy.  Do not
+// turn allocation debt into a contended scheduler probe for a shallow tail.
+inline bool ShouldAdmitMSMarkAssist(uint64_t outstandingTasks,
+                                    uint64_t outstandingWorkWords,
+                                    size_t targetHelpers)
+{
+    if (outstandingTasks == 0 || outstandingWorkWords == 0) {
+        return false;
+    }
+    uint64_t gcParticipants = static_cast<uint64_t>(targetHelpers) + 1;
+    uint64_t reservedTasks = gcParticipants + 1;
+    uint64_t reservedWorkWords = std::max<uint64_t>(
+        32, SaturatingMSWUMul(
+                gcParticipants, MS_MARK_WORK_WORDS_PER_PARTICIPANT));
+    return outstandingTasks > reservedTasks ||
+        outstandingWorkWords >= reservedWorkWords;
+}
+
 inline void ConsumeMSMarkAssistCredit(
     uint64_t& debtScaled, uint64_t& creditWU, uint64_t ratioScale)
 {
@@ -145,8 +164,11 @@ struct MSWorkUnitCounter {
     }
 };
 
-constexpr uint64_t MS_MARK_HIGH_RUNWAY_US = 6 * 1000 * 1000;
-constexpr uint64_t MS_MARK_CRITICAL_RUNWAY_US = 3 * 1000 * 1000;
+// A long-running Mark cycle allows mutators to build a large outside-set even
+// when the heap is not close to a configured limit. Use elapsed time as an
+// early pressure signal, but only while there is unfinished mark work.
+constexpr uint64_t MS_MARK_HIGH_ELAPSED_US = 20 * 1000;
+constexpr uint64_t MS_MARK_CRITICAL_ELAPSED_US = 100 * 1000;
 constexpr uint8_t MS_MARK_HIGH_PRESSURE_WINDOWS = 3;
 constexpr uint8_t MS_MARK_CRITICAL_PRESSURE_WINDOWS = 2;
 
@@ -156,27 +178,19 @@ enum class MSMarkPressure : uint8_t {
     CRITICAL,
 };
 
-inline MSMarkPressure ClassifyMSMarkPressure(uint64_t runwayUs, bool hasAllocation)
+inline MSMarkPressure ClassifyMSMarkElapsedPressure(
+    uint64_t elapsedMarkUs, bool hasOutstandingWork)
 {
-    if (!hasAllocation || runwayUs > MS_MARK_HIGH_RUNWAY_US) {
+    if (!hasOutstandingWork || elapsedMarkUs < MS_MARK_HIGH_ELAPSED_US) {
         return MSMarkPressure::NORMAL;
     }
-    if (runwayUs > MS_MARK_CRITICAL_RUNWAY_US) {
-        return MSMarkPressure::HIGH;
-    }
-    return MSMarkPressure::CRITICAL;
+    return elapsedMarkUs >= MS_MARK_CRITICAL_ELAPSED_US
+        ? MSMarkPressure::CRITICAL
+        : MSMarkPressure::HIGH;
 }
 
-inline uint64_t ComputeMSMarkRunwayUs(uint64_t heapRunwayBytes,
-                                      uint64_t allocatedBytesPerUs)
-{
-    return allocatedBytesPerUs == 0
-        ? std::numeric_limits<uint64_t>::max()
-        : heapRunwayBytes / allocatedBytesPerUs;
-}
-
-// Runway estimates are sampled while concurrent marking is active and can
-// spike when a mutator briefly allocates faster than the rolling average.
+// Pressure estimates are sampled while concurrent marking is active and can
+// fluctuate between scheduler-control windows.
 // Require sustained observations before widening the worker set so a single
 // sample cannot jump directly to half (or all) of the available helpers.
 class MSMarkPressureGate {
