@@ -56,6 +56,7 @@ class RebuildRuntimePlanTests(unittest.TestCase):
 
         with mock.patch.object(target, "parse_args", return_value=args), \
              mock.patch.object(target, "resolve_repo_layout", return_value=repo), \
+             mock.patch.object(target, "detect_host_layout", return_value=make_host("darwin", "aarch64")), \
              contextlib.redirect_stdout(output):
             self.assertEqual(target.main(), 0)
 
@@ -64,6 +65,33 @@ class RebuildRuntimePlanTests(unittest.TestCase):
                 "[info] sdk_root=/Users/lipeisheng/code/cangjie/cangjie/"
                 "cangjie_compiler_region_mark/output/msgc"
             ),
+            output.getvalue(),
+        )
+
+    def test_linux_default_sdk_root_uses_cmsgc_output(self) -> None:
+        workspace_root = pathlib.Path("/workspace")
+        repo = target.RepoLayout(
+            workspace_root=workspace_root,
+            compiler_root=workspace_root / "cangjie_compiler",
+            runtime_root=workspace_root / "cangjie_runtime" / "runtime",
+        )
+        args = argparse.Namespace(
+            runtime_root=None,
+            sdk_root=None,
+            build_type="release",
+            version="0.0.1",
+            skip_clean=False,
+            skip_verify_output=False,
+            dry_run=True,
+        )
+        output = io.StringIO()
+        with mock.patch.object(target, "parse_args", return_value=args), \
+             mock.patch.object(target, "resolve_repo_layout", return_value=repo), \
+             mock.patch.object(target, "detect_host_layout", return_value=make_host("linux", "aarch64")), \
+             contextlib.redirect_stdout(output):
+            self.assertEqual(target.main(), 0)
+        self.assertIn(
+            "[info] sdk_root=/home/lipeisheng/cangjie/cangjie_compiler_CMSGC/output/msgc",
             output.getvalue(),
         )
 
@@ -170,6 +198,34 @@ class RebuildRuntimePlanTests(unittest.TestCase):
             ],
         )
 
+
+    def test_linux_relayout_uses_so_and_skips_macos_only_section_object(self) -> None:
+        config = make_config()
+        host = make_host(os_name="linux", arch="aarch64")
+        root = config.runtime_root / "output" / "common"
+        output = root / "linux_release_aarch64"
+        platform_dir = "linux_aarch64_cjnative"
+
+        self.assertEqual(
+            target.build_runtime_relayout_plan(config, host),
+            [
+                (root / "lib" / platform_dir / "cjstart.o",
+                 output / "lib" / platform_dir / "cjstart.o"),
+                (root / "lib" / platform_dir / "libcangjie-runtime.a",
+                 output / "lib" / platform_dir / "libcangjie-runtime.a"),
+                (root / "runtime" / "lib" / platform_dir / "libcangjie-runtime.so",
+                 output / "runtime" / "lib" / platform_dir / "libcangjie-runtime.so"),
+                (root / "runtime" / "lib" / platform_dir / "libcangjie-trace.so",
+                 output / "runtime" / "lib" / platform_dir / "libcangjie-trace.so"),
+            ],
+        )
+
+    def test_linux_verification_plan_uses_so_and_omits_section_object(self) -> None:
+        plan = target.build_verification_plan(make_config(), make_host("linux", "aarch64"))
+        self.assertEqual(
+            [item.label for item in plan],
+            ["cjstart.o", "libcangjie-runtime.a", "libcangjie-runtime.so", "libcangjie-trace.so"],
+        )
     def test_build_copy_plan_copies_runtime_lib_and_runtime_tree_into_sdk(self) -> None:
         config = make_config()
         host = make_host()

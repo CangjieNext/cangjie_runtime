@@ -53,6 +53,10 @@ class ModeBindingTests(unittest.TestCase):
             target.sdk_helpers,
             "resolve_default_openssl_lib",
             return_value=openssl_lib,
+        ), mock.patch.object(
+            target.sdk_helpers,
+            "detect_host_layout",
+            return_value=make_host(),
         ):
             config = target.parse_args_for_mode(target.GCMode.MSGC, [])
 
@@ -69,6 +73,27 @@ class ModeBindingTests(unittest.TestCase):
                 "/Users/lipeisheng/code/cangjie/cangjie/"
                 "cangjie_compiler_region_mark/output/msgc"
             ),
+        )
+
+    def test_msgc_cli_defaults_to_linux_cmsgc_compiler_and_sdk(self) -> None:
+        openssl_lib = pathlib.Path("/tmp/openssl/lib")
+        with mock.patch.object(
+            target.sdk_helpers,
+            "resolve_default_openssl_lib",
+            return_value=openssl_lib,
+        ), mock.patch.object(
+            target.sdk_helpers,
+            "detect_host_layout",
+            return_value=target.HostLayout("linux", "aarch64", "linux_aarch64_cjnative"),
+        ):
+            config = target.parse_args_for_mode(target.GCMode.MSGC, [])
+        self.assertEqual(
+            config.compiler_root,
+            pathlib.Path("/home/lipeisheng/cangjie/cangjie_compiler_CMSGC"),
+        )
+        self.assertEqual(
+            config.sdk_root,
+            pathlib.Path("/home/lipeisheng/cangjie/cangjie_compiler_CMSGC/output/msgc"),
         )
 
     def test_msgc_defaults_to_marksweep_and_msgc_output(self) -> None:

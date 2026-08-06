@@ -26,7 +26,7 @@
 #     CASE27_DURATION_MS   压测时长 (ms)           默认 60000
 #     CASE27_NOFILE_LIMIT  进程 fd soft limit       默认 65535
 #     HEAP_SIZE            cjHeapSize             默认 16gb
-#     PROCS                可选；显式设置时透传 cjProcessorNum
+#     PROCS                可选；透传 cjProcessorNum，并设置 Go 的 GOMAXPROCS
 #     MSGC_HEAP_GROWTH     仅传给 MSGC 的 cjHeapGrowth，默认 1
 #     MSGC_SCAVENGE_GROWTH 仅传给 MSGC 的 cjScavengeGrowth，默认 5
 #     MSGC_MIN_GC_THRESHOLD 仅传给 MSGC 的 cjMSMinGCThreshold，默认 20mb；0 表示关闭地板
@@ -47,11 +47,11 @@
 #     GO_GODEBUG           Go benchmark 的 GODEBUG 默认 gctrace=1
 #     GO_GOGC              可选，透传给 Go side
 #     JAVA_ENABLE          是否加入 Java mirror side 默认 1
-#     JAVA_BIN             Java 命令，默认 java
-#     JAVAC_BIN            javac 命令，默认 javac
+#     JAVA_BIN             Java 运行命令，默认本机 Java 25
+#     JAVAC_BIN            Java 编译命令，默认本机 Java 8 javac（Java 25 runtime 包不含 javac）
+#     JAVA_PROCS           JVM ActiveProcessorCount；默认 10，设置 PROCS 时跟随 PROCS
 #     JAVA_OPTS            可选 Java 运行参数
 #     JAVA_GC_OPTS         可选 Java GC 日志参数；为空时按 JDK 版本自动配置
-#     TAG                  结果目录名标识          默认 output_msgc_vs_copygc_go_java
 #
 #   用法示例：
 #     MSGC_SDK_ROOT=/home/lipeisheng/cangjie/cangjie_compiler/output/msgc \
@@ -77,7 +77,7 @@ PLATFORM_DIR="linux_${CJ_ARCH}_cjnative"
 
 # ---------- SDK 路径（可通过环境变量覆盖） ----------
 # MSGC SDK 为单根目录：envsetup.sh / runtime / stdx 平台目录均在其下
-MSGC_SDK_ROOT="${MSGC_SDK_ROOT:-/home/lipeisheng/cangjie/cangjie_compiler/output/msgc}"
+MSGC_SDK_ROOT="${MSGC_SDK_ROOT:-/home/lipeisheng/cangjie/cangjie_compiler_CMSGC/output/msgc}"
 MSGC_STDX_ROOT="${MSGC_STDX_ROOT:-$MSGC_SDK_ROOT/$PLATFORM_DIR}"
 # CopyGC SDK 为分根目录（260723 解包布局）：
 #   - envsetup.sh + runtime 在 260723/cangjie/ 下
@@ -112,11 +112,11 @@ GO_ENABLE="${GO_ENABLE:-1}"
 GO_GODEBUG="${GO_GODEBUG:-gctrace=1}"
 GO_GOGC="${GO_GOGC:-}"
 JAVA_ENABLE="${JAVA_ENABLE:-1}"
-JAVA_BIN="${JAVA_BIN:-java}"
-JAVAC_BIN="${JAVAC_BIN:-javac}"
+JAVA_BIN="${JAVA_BIN:-/usr/lib/jvm/java-25-openjdk-arm64/bin/java}"
+JAVAC_BIN="${JAVAC_BIN:-/usr/lib/jvm/java-8-openjdk-arm64/bin/javac}"
+JAVA_PROCS="${JAVA_PROCS:-${PROCS:-10}}"
 JAVA_OPTS="${JAVA_OPTS:-}"
 JAVA_GC_OPTS="${JAVA_GC_OPTS:-}"
-TAG="${TAG:-output_msgc_vs_copygc_go_java}"
 
 configure_nofile_limit() {
     local requested="$1"
@@ -220,8 +220,10 @@ if [[ ! -d "$COPYGC_SDK_ROOT" ]]; then
     exit 1
 fi
 
-TS="$(date +%Y%m%d_%H%M%S)"
-COMPARE_DIR="$CASE_DIR/result/${TS}_${TAG}_c${CONC}_p${PAYLOAD}_compare"
+RUN_DATE="$(date +%Y%m%d)"
+RESULT_PROCS="${PROCS:-auto}"
+RESULT_HEAP_SIZE="${HEAP_SIZE^^}"
+COMPARE_DIR="$CASE_DIR/result/${RUN_DATE}_c${CONC}_${PAYLOAD}_HeapGrow${MSGC_HEAP_GROWTH}_ScavengeGrow${MSGC_SCAVENGE_GROWTH}_P${RESULT_PROCS}_HeapSize${RESULT_HEAP_SIZE}_compare"
 COPYGC_DIR="$COMPARE_DIR/copygc"
 MSGC_DIR="$COMPARE_DIR/msgc"
 GO_DIR="$COMPARE_DIR/go"
@@ -544,7 +546,8 @@ run_go_side() {
         echo "server_port=$port"
         echo "original_port=$orig_port"
         echo "heap_size=N/A"
-        echo "procs=N/A"
+        echo "procs=${PROCS:-auto}"
+        echo "go_gomaxprocs=${PROCS:-auto}"
         echo "go_godebug=$GO_GODEBUG"
         echo "go_gogc=${GO_GOGC:-}"
         echo "timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -556,7 +559,7 @@ run_go_side() {
     local -a child_env=(
         "HOME=$HOME"
         "TERM=${TERM:-xterm}"
-        "PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin"
+        "PATH=/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
         "CASE_DIR=$CASE_DIR"
         "OUT_DIR=$out_dir"
         "LABEL=$label"
@@ -569,6 +572,7 @@ run_go_side() {
         "CASE27_CLIENT_MODE=$CLIENT_MODE"
         "CASE27_SEND_INTERVAL_MS=$SEND_INTERVAL_MS"
         "CASE27_MAX_INFLIGHT=$MAX_INFLIGHT"
+        "PROCS=$PROCS"
         "GO_GODEBUG=$GO_GODEBUG"
         "GO_GOGC=$GO_GOGC"
     )
@@ -586,6 +590,11 @@ run_go_side() {
             fi
 
             cd "$OUT_DIR"
+            if [ -n "${PROCS:-}" ]; then
+                export GOMAXPROCS="$PROCS"
+            else
+                unset GOMAXPROCS 2>/dev/null || true
+            fi
             if [ -n "${GO_GOGC:-}" ]; then
                 export GOGC="$GO_GOGC"
             else
@@ -666,7 +675,8 @@ run_java_side() {
         echo "server_port=$port"
         echo "original_port=$orig_port"
         echo "heap_size=N/A"
-        echo "procs=N/A"
+        echo "procs=${JAVA_PROCS:-auto}"
+        echo "java_active_processor_count=${JAVA_PROCS:-auto}"
         echo "java_bin=$JAVA_BIN"
         echo "javac_bin=$JAVAC_BIN"
         echo "java_opts=$JAVA_OPTS"
@@ -689,6 +699,7 @@ run_java_side() {
         "LABEL=$label"
         "JAVA_BIN=$JAVA_BIN"
         "JAVAC_BIN=$JAVAC_BIN"
+        "JAVA_PROCS=$JAVA_PROCS"
         "JAVA_OPTS=$JAVA_OPTS"
         "JAVA_GC_OPTS=$JAVA_GC_OPTS"
         "CASE27_PAYLOAD=$PAYLOAD"
@@ -730,6 +741,9 @@ run_java_side() {
             if [[ -n "$JAVA_OPTS" ]]; then
                 read -r -a java_opts <<< "$JAVA_OPTS"
             fi
+            if [[ -n "$JAVA_PROCS" ]] && [[ ! " $JAVA_OPTS " =~ [[:space:]]-XX:ActiveProcessorCount= ]]; then
+                java_opts+=("-XX:ActiveProcessorCount=$JAVA_PROCS")
+            fi
             gc_opts=()
             if [[ -n "$JAVA_GC_OPTS" ]]; then
                 read -r -a gc_opts <<< "$JAVA_GC_OPTS"
@@ -750,7 +764,7 @@ run_java_side() {
                 printf "java_gc_opts="; printf "%q " "${gc_opts[@]}"; echo
             } > "$OUT_DIR/java_command.env"
 
-            "$JAVAC_BIN" "${module_opts[@]}" \
+            "$JAVAC_BIN" \
                 -d "$OUT_DIR/classes" \
                 "$CASE_DIR/java_benchmark/Case27HttpComplexJsonBenchmark.java" \
                 "$CASE_DIR/java_benchmark/Case27HttpComplexJsonBenchmarkTest.java" \
@@ -847,8 +861,9 @@ if [[ "$JAVA_ENABLE" != "0" ]]; then
 fi
 MPLCONFIGDIR="$MPLCONFIG_DIR" "$PYTHON_BIN" "$SCRIPT_DIR/compare_results.py" \
     "${compare_args[@]}" \
-    --output "$COMPARE_DIR/compare_report.md" \
-    || echo "[WARN] compare_results.py failed (non-fatal)"
+    --output "$COMPARE_DIR/compare_report.md"
+COMPARE_RC=$?
+echo "[INFO] compare_results.py rc=$COMPARE_RC"
 
 echo "[DONE] compare_dir=$COMPARE_DIR"
 if [[ "$JAVA_RC" -ne 0 ]]; then

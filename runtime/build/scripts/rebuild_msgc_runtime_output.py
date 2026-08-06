@@ -16,9 +16,13 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 
-DEFAULT_MSGC_SDK_ROOT = pathlib.Path(
+DEFAULT_MSGC_SDK_ROOT_DARWIN = pathlib.Path(
     "/Users/lipeisheng/code/cangjie/cangjie/"
     "cangjie_compiler_region_mark/output/msgc"
+)
+
+DEFAULT_MSGC_SDK_ROOT_LINUX = pathlib.Path(
+    "/home/lipeisheng/cangjie/cangjie_compiler_CMSGC/output/msgc"
 )
 
 
@@ -144,6 +148,14 @@ def detect_host_layout(system_name: str | None = None, machine_name: str | None 
     )
 
 
+def default_msgc_sdk_root(host: HostLayout) -> pathlib.Path:
+    if host.os_name == "darwin":
+        return DEFAULT_MSGC_SDK_ROOT_DARWIN
+    if host.os_name == "linux":
+        return DEFAULT_MSGC_SDK_ROOT_LINUX
+    raise ValueError(f"unsupported host system for MSGC SDK: {host.os_name}")
+
+
 def build_stage_plan(config: BuildConfig) -> list[BuildStage]:
     stages: list[BuildStage] = []
     if not config.skip_clean:
@@ -186,35 +198,37 @@ def build_stage_plan(config: BuildConfig) -> list[BuildStage]:
     return stages
 
 
+def runtime_static_artifact_names(host: HostLayout) -> list[str]:
+    artifacts = ["cjstart.o"]
+    if host.os_name == "darwin":
+        artifacts.append("section.o")
+    artifacts.append("libcangjie-runtime.a")
+    return artifacts
+
+
+def runtime_shared_library_suffix(host: HostLayout) -> str:
+    return ".dylib" if host.os_name == "darwin" else ".so"
+
+
 def build_runtime_relayout_plan(
     config: BuildConfig,
     host: HostLayout,
 ) -> list[tuple[pathlib.Path, pathlib.Path]]:
     runtime_common_root = config.runtime_root / "output" / "common"
     runtime_common_dir = runtime_common_root / host.runtime_common_name(config.build_type)
-    runtime_platform_dir = pathlib.Path(host.sdk_platform_name)
+    platform_dir = host.sdk_platform_name
+    static_root = runtime_common_root / "lib" / platform_dir
+    static_output = runtime_common_dir / "lib" / platform_dir
+    shared_root = runtime_common_root / "runtime" / "lib" / platform_dir
+    shared_output = runtime_common_dir / "runtime" / "lib" / platform_dir
+    suffix = runtime_shared_library_suffix(host)
 
     return [
-        (
-            runtime_common_root / "lib" / runtime_platform_dir / "cjstart.o",
-            runtime_common_dir / "lib" / runtime_platform_dir / "cjstart.o",
-        ),
-        (
-            runtime_common_root / "lib" / runtime_platform_dir / "section.o",
-            runtime_common_dir / "lib" / runtime_platform_dir / "section.o",
-        ),
-        (
-            runtime_common_root / "lib" / runtime_platform_dir / "libcangjie-runtime.a",
-            runtime_common_dir / "lib" / runtime_platform_dir / "libcangjie-runtime.a",
-        ),
-        (
-            runtime_common_root / "runtime" / "lib" / runtime_platform_dir / "libcangjie-runtime.dylib",
-            runtime_common_dir / "runtime" / "lib" / runtime_platform_dir / "libcangjie-runtime.dylib",
-        ),
-        (
-            runtime_common_root / "runtime" / "lib" / runtime_platform_dir / "libcangjie-trace.dylib",
-            runtime_common_dir / "runtime" / "lib" / runtime_platform_dir / "libcangjie-trace.dylib",
-        ),
+        (static_root / artifact, static_output / artifact)
+        for artifact in runtime_static_artifact_names(host)
+    ] + [
+        (shared_root / f"libcangjie-runtime{suffix}", shared_output / f"libcangjie-runtime{suffix}"),
+        (shared_root / f"libcangjie-trace{suffix}", shared_output / f"libcangjie-trace{suffix}"),
     ]
 
 
@@ -238,8 +252,6 @@ def build_codesign_targets(config: BuildConfig, host: HostLayout) -> list[pathli
     if host.os_name != "darwin":
         return []
     return [config.sdk_root / "runtime" / "lib" / host.sdk_platform_name]
-
-
 def build_verification_plan(config: BuildConfig, host: HostLayout) -> list[VerificationItem]:
     runtime_common_dir = (
         config.runtime_root
@@ -247,38 +259,31 @@ def build_verification_plan(config: BuildConfig, host: HostLayout) -> list[Verif
         / "common"
         / host.runtime_common_name(config.build_type)
     )
-    return [
+    platform_dir = host.sdk_platform_name
+    static_root = runtime_common_dir / "lib" / platform_dir
+    installed_static_root = config.sdk_root / "lib" / platform_dir
+    shared_root = runtime_common_dir / "runtime" / "lib" / platform_dir
+    installed_shared_root = config.sdk_root / "runtime" / "lib" / platform_dir
+    items = [
         VerificationItem(
-            label="cjstart.o",
+            label=artifact,
             compare_mode="sha256",
-            source=runtime_common_dir / "lib" / host.sdk_platform_name / "cjstart.o",
-            installed=config.sdk_root / "lib" / host.sdk_platform_name / "cjstart.o",
-        ),
-        VerificationItem(
-            label="section.o",
-            compare_mode="sha256",
-            source=runtime_common_dir / "lib" / host.sdk_platform_name / "section.o",
-            installed=config.sdk_root / "lib" / host.sdk_platform_name / "section.o",
-        ),
-        VerificationItem(
-            label="libcangjie-runtime.a",
-            compare_mode="sha256",
-            source=runtime_common_dir / "lib" / host.sdk_platform_name / "libcangjie-runtime.a",
-            installed=config.sdk_root / "lib" / host.sdk_platform_name / "libcangjie-runtime.a",
-        ),
-        VerificationItem(
-            label="libcangjie-runtime.dylib",
-            compare_mode="symbols",
-            source=runtime_common_dir / "runtime" / "lib" / host.sdk_platform_name / "libcangjie-runtime.dylib",
-            installed=config.sdk_root / "runtime" / "lib" / host.sdk_platform_name / "libcangjie-runtime.dylib",
-        ),
-        VerificationItem(
-            label="libcangjie-trace.dylib",
-            compare_mode="symbols",
-            source=runtime_common_dir / "runtime" / "lib" / host.sdk_platform_name / "libcangjie-trace.dylib",
-            installed=config.sdk_root / "runtime" / "lib" / host.sdk_platform_name / "libcangjie-trace.dylib",
-        ),
+            source=static_root / artifact,
+            installed=installed_static_root / artifact,
+        )
+        for artifact in runtime_static_artifact_names(host)
     ]
+    suffix = runtime_shared_library_suffix(host)
+    for artifact in (f"libcangjie-runtime{suffix}", f"libcangjie-trace{suffix}"):
+        items.append(
+            VerificationItem(
+                label=artifact,
+                compare_mode="symbols",
+                source=shared_root / artifact,
+                installed=installed_shared_root / artifact,
+            )
+        )
+    return items
 
 
 def run_command(
@@ -358,13 +363,7 @@ def repair_runtime_output_layout(config: BuildConfig, host: HostLayout, dry_run:
 
 
 def verify_outputs(config: BuildConfig, host: HostLayout) -> None:
-    required_paths = [
-        config.sdk_root / "lib" / host.sdk_platform_name / "cjstart.o",
-        config.sdk_root / "lib" / host.sdk_platform_name / "section.o",
-        config.sdk_root / "lib" / host.sdk_platform_name / "libcangjie-runtime.a",
-        config.sdk_root / "runtime" / "lib" / host.sdk_platform_name / "libcangjie-runtime.dylib",
-        config.sdk_root / "runtime" / "lib" / host.sdk_platform_name / "libcangjie-trace.dylib",
-    ]
+    required_paths = [item.installed for item in build_verification_plan(config, host)]
     missing = [str(path) for path in required_paths if not path.exists()]
     if missing:
         raise FileNotFoundError("missing installed runtime outputs:\n" + "\n".join(missing))
@@ -467,7 +466,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Rebuild MSGC runtime and install it into "
-            "cangjie_compiler_region_mark/output/msgc"
+            "the host platform MSGC output SDK"
         ),
     )
     parser.add_argument(
@@ -480,7 +479,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--sdk-root",
         type=pathlib.Path,
         default=None,
-        help=f"target SDK root; defaults to {DEFAULT_MSGC_SDK_ROOT}",
+        help="target SDK root; defaults to the host platform MSGC output SDK",
     )
     parser.add_argument(
         "--build-type",
@@ -516,12 +515,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     script_path = pathlib.Path(__file__)
     repo = resolve_repo_layout(script_path)
     runtime_root = args.runtime_root.resolve() if args.runtime_root else repo.runtime_root
+    host = detect_host_layout()
     sdk_root = (
         args.sdk_root.resolve()
         if args.sdk_root
-        else DEFAULT_MSGC_SDK_ROOT
+        else default_msgc_sdk_root(host)
     )
-    host = detect_host_layout()
     config = BuildConfig(
         runtime_root=runtime_root,
         sdk_root=sdk_root,
