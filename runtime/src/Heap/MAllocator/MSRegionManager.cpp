@@ -19,6 +19,7 @@
 #include "Heap/MAllocator/MSBitmapArena.h"
 #include "Heap/MAllocator/MSCentralRegionPool.h"
 #include "Heap/MAllocator/MSRegionSpace.h"
+#include "Heap/MCollector/MSMemoryLimitPolicy.h"
 #include "Heap/MCollector/MSHeapThresholdPolicy.h"
 #include "Concurrency/ConcurrencyModel.h"
 #include "CangjieRuntime.h"
@@ -286,8 +287,11 @@ void MSRegionManager::MaybeNotifyScavenge()
         return;
     }
 
+    size_t normalTarget = std::max(scavengeThreshold, space.GetHeapInUseBytes());
+    size_t effectiveTarget = ResolveMSScavengeTarget(
+        normalTarget, CangjieRuntime::GetMSSoftHeapLimitBytes());
     size_t heapRetained = space.GetHeapRetainedBytes();
-    if (heapRetained <= scavengeThreshold) {
+    if (heapRetained <= effectiveTarget) {
         return;
     }
     bool expectedProbe = false;
@@ -322,15 +326,28 @@ void MSRegionManager::MaybeNotifyMark()
         return;
     }
 
-    // Gate the next GC on the swept-retained footprint (partialSwept + fullSwept +
-    // large region spans) rather than the transient active-region total, so the
-    // trigger tracks the post-sweep live heap.
+    // The normal HEU path remains gated on the swept-retained footprint
+    // (partialSwept + fullSwept + large region spans). A configured soft limit
+    // uses retained physical-heap policy bytes so hot-free pages can request a
+    // synchronous recovery before virtual allocation fails.
     size_t sweptBytes = space.GetSweptHeapBytes();
     size_t threshold = gcStats.GetThreshold();
+    size_t retainedBytes = space.GetHeapRetainedBytesReference();
+    MSMarkTrigger trigger = ResolveMSMarkTrigger(
+        retainedBytes, sweptBytes, threshold,
+        CangjieRuntime::GetMSSoftHeapLimitBytes());
 
-    // The first aggregate threshold crossing is sufficient. Pending/running
-    // HEU requests are coalesced by the async GC task state.
-    if (!ShouldTriggerMSMark(sweptBytes, threshold)) {
+    if (trigger == MSMarkTrigger::NONE) {
+        return;
+    }
+
+    if (trigger == MSMarkTrigger::OOM) {
+        VLOG(REPORT,
+             "[MS-GC] soft-limit OOM trigger (take-regions): retained=%zuB "
+             "swept=%zuB heapThreshold=%zuB softLimit=%zuB",
+             retainedBytes, sweptBytes, threshold,
+             CangjieRuntime::GetMSSoftHeapLimitBytes());
+        collector.RequestGC(GC_REASON_OOM, false);
         return;
     }
 
@@ -352,10 +369,10 @@ void MSRegionManager::MaybeNotifyMark()
 
     collector.RequestGC(GC_REASON_HEU, true);
     VLOG(REPORT,
-         "[MS-GC] HEU trigger (take-regions): swept-region bytes=%zuB heapThreshold=%zuB"
-         " reason=GC_REASON_HEU",
-         sweptBytes,
-         threshold);
+         "[MS-GC] HEU trigger (take-regions): swept-region bytes=%zuB "
+         "heapThreshold=%zuB retained=%zuB softLimit=%zuB reason=GC_REASON_HEU",
+         sweptBytes, threshold, retainedBytes,
+         CangjieRuntime::GetMSSoftHeapLimitBytes());
 }
 
 // ============================================================================

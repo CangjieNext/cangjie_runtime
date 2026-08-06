@@ -45,6 +45,8 @@ public:
     static size_t GetMSMaxVirtualHeapSizeKB() { return msMaxVirtualHeapSizeKB; }
     static void SetMSMaxVirtualHeapSizeKB(size_t valueKB) { msMaxVirtualHeapSizeKB = valueKB; }
 #ifdef MRT_USE_MARK_SWEEP
+    static size_t GetMSSoftHeapLimitBytes() { return msSoftHeapLimitBytes; }
+    static void SetMSSoftHeapLimitBytes(size_t value) { msSoftHeapLimitBytes = value; }
     static void ConfigureMSAllocatorScale(uint32_t processorCount, size_t maxVirtualHeapSizeKB);
     static MSAllocatorScaleConfig GetMSAllocatorScaleConfig() { return msAllocatorScaleConfig; }
     static size_t GetMSGCThreadCapacity() { return msGCThreadCapacity; }
@@ -88,6 +90,7 @@ private:
     std::mutex mtx;
     static size_t msMaxVirtualHeapSizeKB;
 #ifdef MRT_USE_MARK_SWEEP
+    static size_t msSoftHeapLimitBytes;
     static MSAllocatorScaleConfig msAllocatorScaleConfig;
     static size_t msGCThreadCapacity;
     static bool msEnumAssistEnabled;

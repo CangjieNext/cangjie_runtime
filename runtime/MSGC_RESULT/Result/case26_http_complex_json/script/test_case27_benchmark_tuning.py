@@ -4,15 +4,17 @@ import unittest
 
 CASE_DIR = pathlib.Path(__file__).resolve().parent.parent
 BENCHMARK = CASE_DIR / "benchmark.cj"
+GO_BENCHMARK = CASE_DIR / "go_benchmark" / "main.go"
+JAVA_BENCHMARK = CASE_DIR / "java_benchmark" / "Case27HttpComplexJsonBenchmark.java"
 RUN_COMPARE = CASE_DIR / "run_compare.sh"
 RUN_COMPARE_LINUX = CASE_DIR / "run_compare_linux.sh"
 RUN_COMPARE_PORTSAFE = CASE_DIR / "run_compare_portsafe.sh"
 RUN_COMPARE_ALTPORTS = CASE_DIR / ".run_compare_altports.sh"
 DEFAULT_COPYGC_SDK = (
-    "/Users/lipeisheng/code/cangjie/cangjie-pkg/main/20260712/cangjie"
+    "/Users/lipeisheng/code/cangjie/cangjie-pkg/dev/20260507/cangjie"
 )
 DEFAULT_COPYGC_STDX = (
-    "/Users/lipeisheng/code/cangjie/cangjie-pkg/main/20260712/"
+    "/Users/lipeisheng/code/cangjie/cangjie-pkg/dev/20260507/"
     "darwin_aarch64_cjnative"
 )
 
@@ -36,6 +38,20 @@ class Case27BenchmarkTuningTests(unittest.TestCase):
         text = BENCHMARK.read_text()
         self.assertNotIn("payload.clone()", text)
 
+    def test_throughput_counts_only_successful_requests(self) -> None:
+        self.assertIn(
+            'let rps = if (totalMs > 0) { okReq * 1000 / totalMs } else { 0 }',
+            BENCHMARK.read_text(),
+        )
+        self.assertIn(
+            'throughput = stats.OK * 1000 / totalMs',
+            GO_BENCHMARK.read_text(),
+        )
+        self.assertIn(
+            'long throughput = ok * 1000L / totalMs;',
+            JAVA_BENCHMARK.read_text(),
+        )
+
     def test_cangjie_processor_cap_not_forced(self) -> None:
         text = RUN_COMPARE.read_text()
         self.assertNotIn('PROCS="${PROCS:-6}"', text)
@@ -44,7 +60,7 @@ class Case27BenchmarkTuningTests(unittest.TestCase):
 
     def test_copygc_compile_uses_default_gc_mode(self) -> None:
         text = RUN_COMPARE.read_text()
-        self.assertIn('cjc_args=("$BENCH_SRC")', text)
+        self.assertIn('cjc_args=("-O2" "$BENCH_SRC")', text)
         self.assertIn('if [ -n "$CJC_GC_MODE" ]; then', text)
         self.assertIn('cjc_args+=("--gc-mode=$CJC_GC_MODE")', text)
         self.assertIn('cjc "${cjc_args[@]}"', text)
@@ -60,6 +76,19 @@ class Case27BenchmarkTuningTests(unittest.TestCase):
         )
         self.assertIn('"$MSGC_MIN_GC_THRESHOLD" "marksweep"', text)
 
+    def test_all_cangjie_launchers_compile_at_o2(self) -> None:
+        for script in (
+            RUN_COMPARE,
+            RUN_COMPARE_LINUX,
+            RUN_COMPARE_PORTSAFE,
+            RUN_COMPARE_ALTPORTS,
+        ):
+            with self.subTest(script=script.name):
+                text = script.read_text()
+                self.assertTrue(
+                    'cjc_args=("-O2" "$BENCH_SRC")' in text
+                    or 'cjc -O2 "$BENCH_SRC"' in text
+                )
     def test_cangjie_has_concurrent_static_and_stack_persistent_roots(self) -> None:
         text = BENCHMARK.read_text()
         self.assertIn('CASE27_PERSISTENT_BYTES', text)
@@ -111,7 +140,7 @@ class Case27BenchmarkTuningTests(unittest.TestCase):
             )
             self.assertIn('"GOMEMLIMIT=$GO_GOMEMLIMIT"', text)
 
-    def test_macos_launchers_default_to_20260712_copygc_sdk(self) -> None:
+    def test_macos_launchers_default_to_20260507_copygc_sdk(self) -> None:
         for script in (RUN_COMPARE, RUN_COMPARE_PORTSAFE, RUN_COMPARE_ALTPORTS):
             text = script.read_text()
             self.assertIn(
@@ -122,6 +151,24 @@ class Case27BenchmarkTuningTests(unittest.TestCase):
                 f'COPYGC_STDX_ROOT="${{COPYGC_STDX_ROOT:-{DEFAULT_COPYGC_STDX}}}"',
                 text,
             )
+
+    def test_run_compare_uses_heap_size_for_default_java_heap_limit(self) -> None:
+        text = RUN_COMPARE.read_text()
+
+        self.assertIn(
+            "JAVA_HEAP_SIZE=$(printf '%s' \"$HEAP_SIZE\" | tr '[:upper:]' '[:lower:]')",
+            text,
+        )
+        self.assertIn('JAVA_HEAP_SIZE="${JAVA_HEAP_SIZE%b}"', text)
+        self.assertIn('JAVA_OPTS="${JAVA_OPTS:--Xmx${JAVA_HEAP_SIZE}}"', text)
+
+    def test_msgc_heap_size_is_soft_limit_not_virtual_heap_reservation(self) -> None:
+        for runner in (RUN_COMPARE, RUN_COMPARE_LINUX):
+            with self.subTest(runner=runner.name):
+                text = runner.read_text()
+                self.assertIn('cjHeapSize="$HEAP_SIZE"', text)
+                self.assertNotIn('export cjMSMaxVirtualHeapSize="$HEAP_SIZE"', text)
+                self.assertNotIn('cjMSMaxVirtualHeapSize=$HEAP_SIZE', text)
 
     def test_run_compare_can_disable_each_side(self) -> None:
         text = RUN_COMPARE.read_text()
@@ -166,7 +213,13 @@ class Case27BenchmarkTuningTests(unittest.TestCase):
         )
         self.assertNotIn('${PAYLOAD,,}', text)
         self.assertIn(
-            'COMPARE_DIR="$CASE_DIR/result/${TS}_${PERSISTENT_BYTES_MIB}M_c${CONC}_${PAYLOAD_TAG}_HeapGrow${MSGC_HEAP_GROWTH}_Scavenge${MSGC_SCAVENGE_GROWTH}_compare"',
+            'COMPARE_DIR_BASE="$CASE_DIR/result/${TS}_${PERSISTENT_BYTES_MIB}M_c${CONC}_${PAYLOAD_TAG}_HeapGrow${MSGC_HEAP_GROWTH}_Scavenge${MSGC_SCAVENGE_GROWTH}_compare"',
+            text,
+        )
+        self.assertIn('COMPARE_DIR="$COMPARE_DIR_BASE"', text)
+        self.assertIn('while [[ -e "$COMPARE_DIR" ]]; do', text)
+        self.assertIn(
+            'COMPARE_DIR="${COMPARE_DIR_BASE}_${COMPARE_DIR_SUFFIX}"',
             text,
         )
         self.assertNotIn('COMPARE_DIR="$CASE_DIR/result/${TS}_${TAG}_c${CONC}_p${PAYLOAD}_compare"', text)

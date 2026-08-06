@@ -660,7 +660,7 @@ public final class Case27HttpComplexJsonBenchmark {
             long total = stats.total.get();
             long ok = stats.ok.get();
             long fail = stats.fail.get();
-            long throughput = total * 1000L / totalMs;
+            long throughput = ok * 1000L / totalMs;
             long sentMb = stats.bytesSent.get() / 1024L / 1024L;
             long recvMb = stats.bytesReceived.get() / 1024L / 1024L;
             System.out.println("[RESULT] payload=" + config.payloadName

@@ -44,6 +44,7 @@
 #include "HeapManager.inline.h"
 #ifdef MRT_USE_MARK_SWEEP
 #include "Heap/MCollector/MSAssistPacing.h"
+#include "Heap/MCollector/MSMemoryLimitPolicy.h"
 #include "Heap/MCollector/MSMarkWorkerPolicy.h"
 #include "Heap/MAllocator/MSShardRouting.h"
 #endif
@@ -57,10 +58,6 @@ static std::condition_variable g_conditionVariable;
 static std::mutex g_mtx;
 static size_t g_sysmemSize = 1U * MapleRuntime::GB;
 static std::set<uintptr_t> futureSet;
-
-#ifdef MRT_USE_MARK_SWEEP
-static constexpr size_t DEFAULT_MS_MAX_VIRTUAL_HEAP_SIZE_KB = 16ULL * MapleRuntime::GB / MapleRuntime::KB;
-#endif
 
 static void CheckSysmemSize()
 {
@@ -193,13 +190,20 @@ static size_t ComputeMSInitialHeapSizeKB(size_t initialSegmentCount)
 
 static size_t ResolveMSMaxVirtualHeapSizeKB(size_t minVirtualHeapSizeKB)
 {
-    constexpr size_t defaultValueKB =
-        DEFAULT_MS_MAX_VIRTUAL_HEAP_SIZE_KB > MapleRuntime::kMSMaxVirtualHeapSizeKB
-            ? MapleRuntime::kMSMaxVirtualHeapSizeKB
-            : DEFAULT_MS_MAX_VIRTUAL_HEAP_SIZE_KB;
+    size_t defaultValueKB = MapleRuntime::ResolveMSDefaultVirtualHeapSizeKB(g_sysmemSize);
     return MapleRuntime::ReadSizeParameter("cjMSMaxVirtualHeapSize", defaultValueKB,
                                            minVirtualHeapSizeKB, MapleRuntime::EnvBoundKind::CLOSED,
                                            MapleRuntime::kMSMaxVirtualHeapSizeKB,
+                                           MapleRuntime::EnvBoundKind::CLOSED);
+}
+
+static size_t ResolveMSSoftHeapLimitKB()
+{
+    size_t defaultValueKB = MapleRuntime::ResolveMSSoftHeapLimitKB(g_sysmemSize, 0);
+    return MapleRuntime::ReadSizeParameter("cjHeapSize", defaultValueKB,
+                                           MapleRuntime::kMSSoftHeapLimitMinKB,
+                                           MapleRuntime::EnvBoundKind::CLOSED,
+                                           g_sysmemSize / MapleRuntime::KB,
                                            MapleRuntime::EnvBoundKind::CLOSED);
 }
 #endif
@@ -235,7 +239,10 @@ RTErrorCode InitCJRuntime(const struct RuntimeParam* param)
 #ifdef MRT_USE_MARK_SWEEP
     size_t maxVirtualHeapSizeKB = ResolveMSMaxVirtualHeapSizeKB(
         MapleRuntime::kMSShardSegmentBytes / MapleRuntime::KB);
+    size_t softHeapLimitKB = ResolveMSSoftHeapLimitKB();
     MapleRuntime::CangjieRuntime::SetMSMaxVirtualHeapSizeKB(maxVirtualHeapSizeKB);
+    MapleRuntime::CangjieRuntime::SetMSSoftHeapLimitBytes(
+        softHeapLimitKB * MapleRuntime::KB);
     MapleRuntime::CangjieRuntime::ConfigureMSAllocatorScale(resolvedProcessorNum, maxVirtualHeapSizeKB);
     MapleRuntime::MSAllocatorScaleConfig scaleConfig =
         MapleRuntime::CangjieRuntime::GetMSAllocatorScaleConfig();

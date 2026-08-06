@@ -61,9 +61,9 @@ fi
 MSGC_SDK_ROOT="${MSGC_SDK_ROOT:-/Users/lipeisheng/code/cangjie/cangjie/cangjie_compiler_region_mark/output/msgc}"
 MSGC_SDK="$MSGC_SDK_ROOT"
 MSGC_STDX_ROOT="${MSGC_STDX_ROOT:-/Users/lipeisheng/code/cangjie/cangjie/cangjie_compiler_region_mark/output/msgc/darwin_aarch64_cjnative}"
-COPYGC_SDK_ROOT="${COPYGC_SDK_ROOT:-/Users/lipeisheng/code/cangjie/cangjie-pkg/main/20260712/cangjie}"
+COPYGC_SDK_ROOT="${COPYGC_SDK_ROOT:-/Users/lipeisheng/code/cangjie/cangjie-pkg/dev/20260507/cangjie}"
 COPYGC_SDK="$COPYGC_SDK_ROOT"
-COPYGC_STDX_ROOT="${COPYGC_STDX_ROOT:-/Users/lipeisheng/code/cangjie/cangjie-pkg/main/20260712/darwin_aarch64_cjnative}"
+COPYGC_STDX_ROOT="${COPYGC_STDX_ROOT:-/Users/lipeisheng/code/cangjie/cangjie-pkg/dev/20260507/darwin_aarch64_cjnative}"
 
 MSGC_STDX="${MSGC_STDX_ROOT}/dynamic/stdx"
 COPYGC_STDX="${COPYGC_STDX_ROOT}/dynamic/stdx"
@@ -251,7 +251,7 @@ run_side() {
             echo "[$LABEL] CASE27_GRAPH_DIAG_RATE=${CASE27_GRAPH_DIAG_RATE:-<default>}"
 
             cd "$OUT_DIR"
-            cjc "$BENCH_SRC" \
+            cjc -O2 "$BENCH_SRC" \
                 --import-path "$STDX_DIR" \
                 -L "$STDX_DIR" \
                 --link-option "$STDX_DIR/libstdx.net.http.dylib" \

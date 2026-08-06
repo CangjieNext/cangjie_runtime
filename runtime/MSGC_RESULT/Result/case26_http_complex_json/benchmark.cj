@@ -851,7 +851,7 @@ main() {
     let totalReq = stats.total.load()
     let okReq = stats.ok.load()
     let failReq = stats.fail.load()
-    let rps = if (totalMs > 0) { totalReq * 1000 / totalMs } else { 0 }
+    let rps = if (totalMs > 0) { okReq * 1000 / totalMs } else { 0 }
     let sentMB = stats.bytesSent.load() / 1024 / 1024
     let recvMB = stats.bytesRecv.load() / 1024 / 1024
 

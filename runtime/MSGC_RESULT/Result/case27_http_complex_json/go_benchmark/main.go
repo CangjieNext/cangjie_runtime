@@ -598,7 +598,7 @@ func printSummary(cfg benchConfig, stats runStats, total time.Duration) {
 	totalMs := total.Milliseconds()
 	throughput := int64(0)
 	if totalMs > 0 {
-		throughput = stats.Total * 1000 / totalMs
+		throughput = stats.OK * 1000 / totalMs
 	}
 	fmt.Printf("[RESULT] payload=%s concurrency=%d duration=%dms client_mode=%s\n",
 		cfg.PayloadName, cfg.Concurrency, totalMs, cfg.ClientMode)

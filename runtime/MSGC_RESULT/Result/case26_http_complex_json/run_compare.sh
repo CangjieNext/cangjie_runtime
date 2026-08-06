@@ -105,7 +105,11 @@ GO_GOMEMLIMIT="${GO_GOMEMLIMIT:-16GiB}"
 JAVA_ENABLE="${JAVA_ENABLE:-1}"
 JAVA_BIN="${JAVA_BIN:-java}"
 JAVAC_BIN="${JAVAC_BIN:-javac}"
-JAVA_OPTS="${JAVA_OPTS:--Xmx16g}"
+# HotSpot accepts g/m/k suffixes, but not the cjHeapSize-style gb/mb suffixes.
+# Keep an explicitly supplied JAVA_OPTS unchanged; otherwise cap Java with HEAP_SIZE.
+JAVA_HEAP_SIZE=$(printf '%s' "$HEAP_SIZE" | tr '[:upper:]' '[:lower:]')
+JAVA_HEAP_SIZE="${JAVA_HEAP_SIZE%b}"
+JAVA_OPTS="${JAVA_OPTS:--Xmx${JAVA_HEAP_SIZE}}"
 JAVA_GC_OPTS="${JAVA_GC_OPTS:-}"
 
 for enable_name in COPYGC_ENABLE MSGC_ENABLE GO_ENABLE JAVA_ENABLE; do
@@ -146,7 +150,13 @@ fi
 TS="$(date +%Y%m%d)"
 PERSISTENT_BYTES_MIB=$((PERSISTENT_BYTES / 1024 / 1024))
 PAYLOAD_TAG=$(printf '%s' "$PAYLOAD" | tr '[:upper:]' '[:lower:]')
-COMPARE_DIR="$CASE_DIR/result/${TS}_${PERSISTENT_BYTES_MIB}M_c${CONC}_${PAYLOAD_TAG}_HeapGrow${MSGC_HEAP_GROWTH}_Scavenge${MSGC_SCAVENGE_GROWTH}_compare"
+COMPARE_DIR_BASE="$CASE_DIR/result/${TS}_${PERSISTENT_BYTES_MIB}M_c${CONC}_${PAYLOAD_TAG}_HeapGrow${MSGC_HEAP_GROWTH}_Scavenge${MSGC_SCAVENGE_GROWTH}_compare"
+COMPARE_DIR="$COMPARE_DIR_BASE"
+COMPARE_DIR_SUFFIX=1
+while [[ -e "$COMPARE_DIR" ]]; do
+    COMPARE_DIR="${COMPARE_DIR_BASE}_${COMPARE_DIR_SUFFIX}"
+    COMPARE_DIR_SUFFIX=$((COMPARE_DIR_SUFFIX + 1))
+done
 COPYGC_DIR="$COMPARE_DIR/copygc"
 MSGC_DIR="$COMPARE_DIR/msgc"
 GO_DIR="$COMPARE_DIR/go"
@@ -320,7 +330,7 @@ run_side() {
             echo "[$LABEL] CASE27_GRAPH_DIAG_RATE=${CASE27_GRAPH_DIAG_RATE:-<default>}"
 
             cd "$OUT_DIR"
-            cjc_args=("$BENCH_SRC")
+            cjc_args=("-O2" "$BENCH_SRC")
             if [ -n "$CJC_GC_MODE" ]; then
                 cjc_args+=("--gc-mode=$CJC_GC_MODE")
             fi
@@ -372,12 +382,9 @@ run_side() {
                 unset cjProcessorNum 2>/dev/null || true
             fi
 
-            if [ "$CJC_GC_MODE" = "marksweep" ]; then
-                echo "[$LABEL] cjMSMaxVirtualHeapSize=$HEAP_SIZE"
-                export cjMSMaxVirtualHeapSize="$HEAP_SIZE"
-            else
-                unset cjMSMaxVirtualHeapSize 2>/dev/null || true
-            fi
+            # cjHeapSize is the MSGC soft memory limit.  Leave the virtual heap
+            # reservation unset so the runtime uses the host-memory default.
+            echo "[$LABEL] cjHeapSize=$HEAP_SIZE (soft limit; virtual heap=runtime default)"
             MRT_REPORT="$OUT_DIR/gc.log" \
             MRT_LOG_FILE_SIZE="200mb" \
             cjHeapSize="$HEAP_SIZE" \

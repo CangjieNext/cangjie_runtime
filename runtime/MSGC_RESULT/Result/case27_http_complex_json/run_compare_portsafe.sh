@@ -34,7 +34,6 @@
 #     GO_ENABLE            是否加入 Go mirror side 默认 1
 #     GO_GODEBUG           Go benchmark 的 GODEBUG 默认 gctrace=1
 #     GO_GOGC              可选，透传给 Go side
-#     TAG                  结果目录名标识          默认 msgc_vs_copygc_go
 #
 #   用法示例：
 #     MSGC_SDK_ROOT=/path/to/msgc/sdk \
@@ -80,15 +79,21 @@ MAX_INFLIGHT="${CASE27_MAX_INFLIGHT:-32}"
 GO_ENABLE="${GO_ENABLE:-1}"
 GO_GODEBUG="${GO_GODEBUG:-gctrace=1}"
 GO_GOGC="${GO_GOGC:-}"
-TAG="${TAG:-msgc_vs_copygc_go}"
 
 if [[ ! -f "$CASE_DIR/payloads/${PAYLOAD}.json" ]]; then
     echo "[ERROR] payloads/${PAYLOAD}.json not found" >&2
     exit 1
 fi
 
-TS="$(date +%Y%m%d_%H%M%S)"
-COMPARE_DIR="$CASE_DIR/result/${TS}_${TAG}_c${CONC}_p${PAYLOAD}_compare"
+TS="$(date +%Y%m%d)"
+PAYLOAD_TAG=$(printf '%s' "$PAYLOAD" | tr '[:upper:]' '[:lower:]')
+COMPARE_DIR_BASE="$CASE_DIR/result/${TS}_c${CONC}_${PAYLOAD_TAG}_HeapGrow${MSGC_HEAP_GROWTH}_Scavenge${MSGC_SCAVENGE_GROWTH}_compare"
+COMPARE_DIR="$COMPARE_DIR_BASE"
+COMPARE_DIR_SUFFIX=1
+while [[ -e "$COMPARE_DIR" ]]; do
+    COMPARE_DIR="${COMPARE_DIR_BASE}_${COMPARE_DIR_SUFFIX}"
+    COMPARE_DIR_SUFFIX=$((COMPARE_DIR_SUFFIX + 1))
+done
 COPYGC_DIR="$COMPARE_DIR/copygc"
 MSGC_DIR="$COMPARE_DIR/msgc"
 GO_DIR="$COMPARE_DIR/go"
@@ -242,7 +247,7 @@ run_side() {
             echo "[$LABEL] CASE27_GRAPH_DIAG_RATE=${CASE27_GRAPH_DIAG_RATE:-<default>}"
 
             cd "$OUT_DIR"
-            cjc "$BENCH_SRC" \
+            cjc -O2 "$BENCH_SRC" \
                 --import-path "$STDX_DIR" \
                 -L "$STDX_DIR" \
                 --link-option "$STDX_DIR/libstdx.net.http.dylib" \
