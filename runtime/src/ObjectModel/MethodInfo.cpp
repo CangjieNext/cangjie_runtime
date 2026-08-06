@@ -8,6 +8,7 @@
 #include "Base/Log.h"
 #include "Heap/Heap.h"
 #include "ObjectManager.inline.h"
+#include "ObjectModel/RefField.inline.h"
 #include "ExceptionManager.inline.h"
 
 namespace MapleRuntime {
@@ -444,13 +445,28 @@ void* MethodInfo::RetValueToAny(Value ret, void* sret, TypeInfo* retType)
         if (typeSize == 0) {
             return obj;
         }
-        if (HasSRetNotGeneric()) {
-            Heap::GetBarrier().WriteStruct(obj, reinterpret_cast<Uptr>(obj) + TYPEINFO_PTR_SIZE,
-                                           typeSize, reinterpret_cast<Uptr>(sret), typeSize);
-        } else {
-            Heap::GetBarrier().WriteStruct(obj, reinterpret_cast<Uptr>(obj) + TYPEINFO_PTR_SIZE,
-                                           typeSize, reinterpret_cast<Uptr>(ret.ref), typeSize);
+        // Avoid WriteStruct: its SATB barrier would iterate dst's stale
+        // ref fields (NewObject does not zero memory) and crash in
+        // GetSize. Instead: zero dst, memcpy src, then fix up ref fields.
+        MAddress dst = reinterpret_cast<Uptr>(obj) + TYPEINFO_PTR_SIZE;
+        MAddress src = HasSRetNotGeneric() ? reinterpret_cast<Uptr>(sret) : reinterpret_cast<Uptr>(ret.ref);
+        if (memset_s(reinterpret_cast<void*>(dst), typeSize, 0, typeSize) != EOK) {
+            LOG(RTLOG_ERROR, "RetValueToAny: memset_s failed");
         }
+        if (memcpy_s(reinterpret_cast<void*>(dst), typeSize, reinterpret_cast<void*>(src), typeSize) != EOK) {
+            LOG(RTLOG_ERROR, "RetValueToAny: memcpy_s failed");
+        }
+        // Resolve all ref fields via barrier and update if changed.
+        obj->ForEachRefInStruct(
+            [&dst, typeSize](RefField<false>& field) {
+                RefField<> oldField(field);
+                BaseObject* resolved = Heap::GetBarrier().ReadReference(nullptr, field);
+                RefField<> newField = Heap::GetHeap().GetCollector().GetAndTryTagRefField(resolved);
+                if (oldField.GetFieldValue() != newField.GetFieldValue()) {
+                    field.SetFieldValue(newField.GetFieldValue());
+                }
+            },
+            dst, dst + typeSize);
         return obj;
     } else if (retType->IsPrimitiveType()) {
         MSize size = MRT_ALIGN(retType->GetInstanceSize() + TYPEINFO_PTR_SIZE, TYPEINFO_PTR_SIZE);
