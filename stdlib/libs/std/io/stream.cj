@@ -49,6 +49,20 @@ public interface OutputStream {
     func write(buffer: Array<Byte>): Unit
 
     /**
+     * Writes the byte range [offset, offset + length) from buffer.
+     *
+     * Implementations can override this to avoid creating a temporary range
+     * Array. The default preserves the behavior of existing OutputStream
+     * implementations.
+     */
+    func write(buffer: Array<Byte>, offset: Int64, length: Int64): Unit {
+        if (offset < 0 || length < 0 || offset > buffer.size - length) {
+            throw IllegalArgumentException("The byte range is out of bounds.")
+        }
+        write(buffer[offset..offset + length])
+    }
+
+    /**
      * Flush the OutputStream.
      */
     func flush(): Unit {}

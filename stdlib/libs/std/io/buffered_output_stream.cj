@@ -67,7 +67,14 @@ public class BufferedOutputStream<T> <: OutputStream where T <: OutputStream {
      * @params buffer - Will write to the OutputStream from the buffer.
      */
     public func write(buffer: Array<Byte>): Unit {
-        let len = buffer.size
+        write(buffer, 0, buffer.size)
+    }
+
+    public func write(buffer: Array<Byte>, offset: Int64, length: Int64): Unit {
+        if (offset < 0 || length < 0 || offset > buffer.size - length) {
+            throw IllegalArgumentException("The byte range is out of bounds.")
+        }
+        let len = length
         if (len == 0) {
             return
         }
@@ -75,14 +82,14 @@ public class BufferedOutputStream<T> <: OutputStream where T <: OutputStream {
         let outBufSize = outBuf.size
         if (len >= outBufSize) {
             flushOutBuf()
-            outputStream.write(buffer)
+            outputStream.write(buffer, offset, len)
             return
         }
 
         if (len > outBufSize - curPos) {
             flushOutBuf()
         }
-        buffer.copyTo(outBuf, 0, curPos, len)
+        buffer.copyTo(outBuf, offset, curPos, len)
         curPos += len
     }
 
@@ -102,7 +109,7 @@ public class BufferedOutputStream<T> <: OutputStream where T <: OutputStream {
 
     func flushOutBuf(): Unit {
         if (curPos > 0) {
-            outputStream.write(outBuf.slice(0, curPos))
+            outputStream.write(outBuf, 0, curPos)
             curPos = 0
         }
     }

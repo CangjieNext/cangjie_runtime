@@ -152,14 +152,25 @@ public class ByteBuffer <: IOStream & Seekable {
      */
     @OverflowWrapping
     public func write(buffer: Array<Byte>): Unit {
-        let bufSize = buffer.size
-        reserve(bufSize)
+        write(buffer, 0, buffer.size)
+    }
+
+    /**
+     * Write a range from the buffer to the ByteBuffer without creating an
+     * intermediate Array for the selected range.
+     */
+    @OverflowWrapping
+    public func write(buffer: Array<Byte>, offset: Int64, length: Int64): Unit {
+        if (offset < 0 || length < 0 || offset > buffer.size - length) {
+            throw IllegalArgumentException("The byte range is out of bounds.")
+        }
+        reserve(length)
         if (_length >= 0) {
-            buffer.copyTo(myData, 0, start + _length, bufSize)
-            _length += bufSize
+            buffer.copyTo(myData, offset, start + _length, length)
+            _length += length
         } else {
-            buffer.copyTo(myData, 0, start, bufSize)
-            _length = bufSize
+            buffer.copyTo(myData, offset, start, length)
+            _length = length
         }
     }
 

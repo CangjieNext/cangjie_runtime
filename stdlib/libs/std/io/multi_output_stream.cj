@@ -28,8 +28,12 @@ public class MultiOutputStream<T> <: OutputStream where T <: OutputStream {
     }
 
     public func write(buffer: Array<Byte>): Unit {
+        write(buffer, 0, buffer.size)
+    }
+
+    public func write(buffer: Array<Byte>, offset: Int64, length: Int64): Unit {
         for (outputStream in outputArr) {
-            outputStream.write(buffer)
+            outputStream.write(buffer, offset, length)
         }
     }
 
