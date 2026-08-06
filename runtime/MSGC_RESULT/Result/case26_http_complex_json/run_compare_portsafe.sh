@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================
-# case27 通用对比脚本：MSGC vs CopyGC (+ Go)
+# case26 通用对比脚本：MSGC vs CopyGC (+ Go)
 #
 # MSGC SDK/stdx 使用统一默认路径，也可通过环境变量覆盖。
 #
@@ -68,7 +68,7 @@ COPYGC_STDX_ROOT="${COPYGC_STDX_ROOT:-/Users/lipeisheng/code/cangjie/cangjie-pkg
 MSGC_STDX="${MSGC_STDX_ROOT}/dynamic/stdx"
 COPYGC_STDX="${COPYGC_STDX_ROOT}/dynamic/stdx"
 
-# ---------- 可选参数（与 README 中的 case27 环境变量对齐） ----------
+# ---------- 可选参数（与 README 中的 case26 环境变量约定对齐） ----------
 PAYLOAD="${CASE27_PAYLOAD:-10K}"
 CONC="${CASE27_CONCURRENCY:-8}"
 DUR="${CASE27_DURATION_MS:-60000}"
@@ -138,7 +138,7 @@ run_side() {
 
     echo "[INFO] ===== $label ($sdk_root) ====="
     {
-        echo "case=case27_http_complex_json"
+        echo "case=case26_http_complex_json"
         echo "label=$label"
         echo "sdk_root=$sdk_root"
         echo "stdx_dir=$stdx_dir"
@@ -351,7 +351,7 @@ run_go_side() {
 
     echo "[INFO] ===== $label (Go mirror benchmark) ====="
     {
-        echo "case=case27_http_complex_json"
+        echo "case=case26_http_complex_json"
         echo "label=$label"
         echo "payload=$PAYLOAD"
         echo "concurrency=$CONC"

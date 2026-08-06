@@ -49,12 +49,11 @@
 #     JAVA_ENABLE          是否加入 Java mirror side 默认 1
 #     JAVA_BIN             Java 运行命令，默认本机 Java 25
 #     JAVAC_BIN            Java 编译命令，默认本机 Java 8 javac（Java 25 runtime 包不含 javac）
-#     JAVA_PROCS           JVM ActiveProcessorCount；默认 10，设置 PROCS 时跟随 PROCS
 #     JAVA_OPTS            可选 Java 运行参数；未设置时使用 -Xmx$HEAP_SIZE
 #     JAVA_GC_OPTS         可选 Java GC 日志参数；为空时按 JDK 版本自动配置
 #
 #   用法示例：
-#     MSGC_SDK_ROOT=/home/lipeisheng/cangjie/cangjie_compiler/output/msgc \
+#     MSGC_SDK_ROOT=/home/lipeisheng/cangjie/cangjie_compiler_CMSGC/output/msgc \
 #     COPYGC_SDK_ROOT=/home/lipeisheng/cangjie-pkg/main/260723 \
 #     CASE27_PAYLOAD=10K CASE27_CONCURRENCY=8 \
 #     ./run_compare_linux.sh
@@ -114,7 +113,6 @@ GO_GOGC="${GO_GOGC:-}"
 JAVA_ENABLE="${JAVA_ENABLE:-1}"
 JAVA_BIN="${JAVA_BIN:-/usr/lib/jvm/java-25-openjdk-arm64/bin/java}"
 JAVAC_BIN="${JAVAC_BIN:-/usr/lib/jvm/java-8-openjdk-arm64/bin/javac}"
-JAVA_PROCS="${JAVA_PROCS:-${PROCS:-10}}"
 # HotSpot accepts g/m/k suffixes, but not the cjHeapSize-style gb/mb suffixes.
 # Keep an explicitly supplied JAVA_OPTS unchanged; otherwise cap Java with HEAP_SIZE.
 JAVA_HEAP_SIZE=$(printf '%s' "$HEAP_SIZE" | tr '[:upper:]' '[:lower:]')
@@ -682,8 +680,8 @@ run_java_side() {
         echo "server_port=$port"
         echo "original_port=$orig_port"
         echo "heap_size=N/A"
-        echo "procs=${JAVA_PROCS:-auto}"
-        echo "java_active_processor_count=${JAVA_PROCS:-auto}"
+        echo "procs=unlimited"
+        echo "java_active_processor_count=unlimited"
         echo "java_bin=$JAVA_BIN"
         echo "javac_bin=$JAVAC_BIN"
         echo "java_opts=$JAVA_OPTS"
@@ -706,7 +704,6 @@ run_java_side() {
         "LABEL=$label"
         "JAVA_BIN=$JAVA_BIN"
         "JAVAC_BIN=$JAVAC_BIN"
-        "JAVA_PROCS=$JAVA_PROCS"
         "JAVA_OPTS=$JAVA_OPTS"
         "JAVA_GC_OPTS=$JAVA_GC_OPTS"
         "CASE27_PAYLOAD=$PAYLOAD"
@@ -747,9 +744,6 @@ run_java_side() {
             java_opts=()
             if [[ -n "$JAVA_OPTS" ]]; then
                 read -r -a java_opts <<< "$JAVA_OPTS"
-            fi
-            if [[ -n "$JAVA_PROCS" ]] && [[ ! " $JAVA_OPTS " =~ [[:space:]]-XX:ActiveProcessorCount= ]]; then
-                java_opts+=("-XX:ActiveProcessorCount=$JAVA_PROCS")
             fi
             gc_opts=()
             if [[ -n "$JAVA_GC_OPTS" ]]; then

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # ============================================================
-# case27 通用对比脚本：MSGC vs CopyGC (+ Go + Java)
+# case26 通用对比脚本：MSGC vs CopyGC (+ Go + Java)
 #
-# SDK 路径可通过环境变量覆盖。其余参数见 README 中的 case27 约定。
+# SDK 路径可通过环境变量覆盖。其余参数见 README 中的 case26 约定。
 #
 #   SDK 参数（有默认值，可覆盖）：
 #     MSGC_SDK_ROOT       MSGC 的 SDK 根路径（应包含 envsetup.sh）
@@ -65,7 +65,7 @@ fi
 
 # ---------- SDK 路径（可通过环境变量覆盖） ----------
 MSGC_SDK_ROOT="${MSGC_SDK_ROOT:-/Users/lipeisheng/code/cangjie/cangjie/cangjie_compiler_region_mark/output/msgc}"
-MSGC_STDX_ROOT="${MSGC_STDX_ROOT:-/Users/lipeisheng/code/cangjie/cangjie/cangjie_compiler_region_mark/output/msgc/darwin_aarch64_cjnative}"
+MSGC_STDX_ROOT="${MSGC_STDX_ROOT:-$MSGC_SDK_ROOT/darwin_aarch64_cjnative}"
 COPYGC_SDK_ROOT="${COPYGC_SDK_ROOT:-/Users/lipeisheng/code/cangjie/cangjie-pkg/dev/20260507/cangjie}"
 COPYGC_STDX_ROOT="${COPYGC_STDX_ROOT:-/Users/lipeisheng/code/cangjie/cangjie-pkg/dev/20260507/darwin_aarch64_cjnative}"
 
@@ -75,7 +75,7 @@ COPYGC_SDK="$COPYGC_SDK_ROOT"
 MSGC_STDX="${MSGC_STDX_ROOT}/dynamic/stdx"
 COPYGC_STDX="${COPYGC_STDX_ROOT}/dynamic/stdx"
 
-# ---------- 可选参数（与 README 中的 case27 环境变量对齐） ----------
+# ---------- 可选参数（与 README 中的 case26 环境变量约定对齐） ----------
 PAYLOAD="${CASE27_PAYLOAD:-100K}"
 CONC="${CASE27_CONCURRENCY:-1000}"
 DUR="${CASE27_DURATION_MS:-60000}"
@@ -211,7 +211,7 @@ run_side() {
 
     echo "[INFO] ===== $label ($sdk_root) ====="
     {
-        echo "case=case27_http_complex_json"
+        echo "case=case26_http_complex_json"
         echo "label=$label"
         echo "sdk_root=$sdk_root"
         echo "stdx_dir=$stdx_dir"
@@ -446,7 +446,7 @@ run_go_side() {
 
     echo "[INFO] ===== $label (Go mirror benchmark) ====="
     {
-        echo "case=case27_http_complex_json"
+        echo "case=case26_http_complex_json"
         echo "label=$label"
         echo "payload=$PAYLOAD"
         echo "concurrency=$CONC"
@@ -571,7 +571,7 @@ run_java_side() {
 
     echo "[INFO] ===== $label (Java mirror benchmark) ====="
     {
-        echo "case=case27_http_complex_json"
+        echo "case=case26_http_complex_json"
         echo "label=$label"
         echo "payload=$PAYLOAD"
         echo "concurrency=$CONC"

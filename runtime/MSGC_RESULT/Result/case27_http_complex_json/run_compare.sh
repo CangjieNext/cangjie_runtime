@@ -62,7 +62,7 @@ fi
 
 # ---------- SDK 路径（可通过环境变量覆盖） ----------
 MSGC_SDK_ROOT="${MSGC_SDK_ROOT:-/Users/lipeisheng/code/cangjie/cangjie/cangjie_compiler_region_mark/output/msgc}"
-MSGC_STDX_ROOT="${MSGC_STDX_ROOT:-/Users/lipeisheng/code/cangjie/cangjie/cangjie_compiler_region_mark/output/msgc/darwin_aarch64_cjnative}"
+MSGC_STDX_ROOT="${MSGC_STDX_ROOT:-$MSGC_SDK_ROOT/darwin_aarch64_cjnative}"
 COPYGC_SDK_ROOT="${COPYGC_SDK_ROOT:-/Users/lipeisheng/code/cangjie/cangjie-pkg/dev/20260507/cangjie}"
 COPYGC_STDX_ROOT="${COPYGC_STDX_ROOT:-/Users/lipeisheng/code/cangjie/cangjie-pkg/dev/20260507/darwin_aarch64_cjnative}"
 
