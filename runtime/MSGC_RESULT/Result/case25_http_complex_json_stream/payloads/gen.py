@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Generate 5 complex JSON payload files for case25.
+Generate 4 complex JSON payload files for case27.
 
-Target sizes: 1K, 10K, 100K, 1M, 10M.
+Target sizes: 1K, 10K, 100K, 1M.
 
 Each payload is a deeply-nested document with mixed types (int/float/bool/null/
 string/array/object). Sizes are controlled by the count of repeated subtrees
@@ -12,7 +12,7 @@ so the encode/decode hot paths exercise all type branches identically.
 
 Run:
     python3 gen.py
-Writes payloads/1K.json, 10K.json, 100K.json, 1M.json, 10M.json next to this
+Writes payloads/1K.json, 10K.json, 100K.json, 1M.json next to this
 script.
 """
 from __future__ import annotations
@@ -31,7 +31,6 @@ TARGETS = [
     ("10K.json",   8),
     ("100K.json",  85),
     ("1M.json",    870),
-    ("10M.json",   8700),
 ]
 
 
@@ -133,13 +132,13 @@ def make_event(i: int) -> dict:
 
 def build_document(event_count: int) -> dict:
     return {
-        "request_id": "req-case25",
+        "request_id": "req-case27",
         "schema_version": "3.1.0",
         "pipeline": "analytics-ingest-v2",
         "ingestion_time": 1714560000999,
         "config": {
             "region": "cn-east-1",
-            "batch_id": "batch-case25",
+            "batch_id": "batch-case27",
             "compression": False,
             "encryption": None,
             "checksum_algo": "sha256",
