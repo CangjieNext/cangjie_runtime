@@ -197,8 +197,27 @@ function(make_cangjie_lib target_name)
                 list(APPEND flags_to_compile "-L${CANGJIE_TARGET_TOOLCHAIN}/../lib/arm-linux-ohos")
             endif()
             list(APPEND flags_to_compile "-lc")
-            list(APPEND flags_to_compile "-lunwind")
+            # Use -l:libunwind.a (direct archive form) instead of -lunwind so that
+            # --exclude-libs treats it as a whole archive and actually hides its
+            # exported symbols. With the plain -lunwind form, ld extracts individual
+            # .o members that lose their archive identity, making --exclude-libs
+            # ineffective and leaking _Unwind_* / unw_* into the .so's dynsym.
+            list(APPEND flags_to_compile "-l:libunwind.a")
             list(APPEND flags_to_compile "--exclude-libs=libunwind.a")
+            # Only std-ast links libc++.a statically (via STDCPP_FLAG in AddCJNATIVELibrary.cmake).
+            # Hide its symbols so downstream linkers (e.g. harmonyApp) resolve __cxa_*/std::*
+            # from the system libc++.so instead of binding to ast.so via DT_NEEDED.
+            #
+            # IMPORTANT: OHOS's libc++.a is NOT a real archive — it is a linker script whose
+            # only line is `INPUT(-lc++_static -lc++abi)`. So --exclude-libs=libc++.a matches
+            # nothing, because the symbols actually come from the two archives the script
+            # pulls in: libc++_static.a (std::__h containers, _ZNSt3__h*) and libc++abi.a
+            # (__cxa_*, __gxx_personality_v0, operator new/delete, _ZSt9terminatev, _ZTVN10__cxxabiv1*).
+            # Those leak into ast.so's dynsym and, being global, bind downstream .so's
+            # (e.g. harmonyApp's libkn.a) to ast.so via DT_NEEDED — which then fails to load
+            # because hvigor's demand-copy logic doesn't ship ast.so. Must exclude the real
+            # archive names the script references, not the script's own name.
+            list(APPEND flags_to_compile "--exclude-libs=libc++.a,libc++_static.a,libc++abi.a")
         endif()
         if(NOT DARWIN AND NOT CANGJIE_LIBRARY_ALLOW_UNDEFINED AND NOT CANGJIE_ENABLE_HWASAN AND NOT CANGJIE_SANITIZER_SUPPORT_ENABLED)
             # Extra checkes when generating cangjie shared libraries. If symbols are used in Cangjie but not
