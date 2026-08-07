@@ -526,8 +526,7 @@ public class ArrayList<T> <: List<T> {
             throw IllegalArgumentException("skip count must be greater than 0!")
         }
         if (count == 0) {
-            var newData: Array<T> = myData.clone()
-            return ArrayList<T>(newData)
+            return clone()
         }
         if (mySize - count <= 0) {
             return ArrayList<T>()
@@ -628,8 +627,7 @@ public class ArrayList<T> <: List<T> {
     @When[env != "ohos"]
     public func intersperse(separator: T): ArrayList<T> {
         if (mySize < 2) {
-            var newData: Array<T> = myData.clone()
-            return ArrayList<T>(newData)
+            return clone()
         }
         let newSize: Int64 = 2 * mySize - 1
         var newData: Array<T> = Array<T>(newSize, repeat: unsafe { zeroValue<T>() })
