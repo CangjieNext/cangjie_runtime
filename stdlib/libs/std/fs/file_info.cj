@@ -31,7 +31,7 @@ public struct FileInfo <: Equatable<FileInfo> {
      */
     init(path: Path, isCheckPath: Bool) {
         if (isCheckPath && !exists(path)) {
-            throw FSException("The input path `${path}` does not exist.")
+            throw FSException("Invalid argument 'path': '${path}' does not exist.")
         }
         _path = toAbsolutePath(path)
     }
@@ -128,7 +128,7 @@ public struct FileInfo <: Equatable<FileInfo> {
     public func isHidden(): Bool {
         let fileName = canonicalize(_path).fileName
         if (fileName.isEmpty()) {
-            throw FSException("FileName is empty.")
+            throw FSException("File name is empty.")
         }
         return fileName[0] == b'.'
     }
@@ -196,7 +196,7 @@ public struct FileInfo <: Equatable<FileInfo> {
             var ret: Int8 = nativeFunction(cPath)
             LibC.free(cPath)
             if (ret < 0) {
-                throw FSException("Native function error return ${ret}.")
+                throw FSException("Native function error: returned ${ret}.")
             }
             return ret > 0
         }
@@ -218,11 +218,11 @@ public struct FileInfo <: Equatable<FileInfo> {
             let ret: Int8 = nativeFunction(cPath, flag)
             LibC.free(cPath)
             if (ret == -1) {
-                throw FSException("Native function error return ${ret}.")
+                throw FSException("Native function error: returned ${ret}.")
             } else if (ret == -4) {
-                throw FSException("Operation not permitted!")
+                throw FSException("Operation not permitted.")
             } else if (ret == -2) {
-                throw FSException("Invalid argument!")
+                throw FSException("Invalid argument.")
             }
             return ret > 0
         }
@@ -242,7 +242,7 @@ public struct FileInfo <: Equatable<FileInfo> {
             let ret: Int64 = nativeFunction(cPath)
             LibC.free(cPath)
             if (ret < 0) {
-                throw FSException("${msg} Native function return ${ret}.")
+                throw FSException("${msg} Native function returned ${ret}.")
             }
             return ret
         }
