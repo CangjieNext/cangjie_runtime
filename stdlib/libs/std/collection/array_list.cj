@@ -319,23 +319,25 @@ public class ArrayList<T> <: List<T> {
             return
         }
 
+        var targetData = myData
         if (mySize + cSize > myData.size) {
             var newCapacity: Int64 = max(mySize + (mySize >> 1), mySize + cSize)
             let newArray: Array<T> = Array<T>(newCapacity, repeat: unsafe { zeroValue<T>() })
             myData.copyTo(newArray, 0, 0, at)
             myData.copyTo(newArray, at, at + cSize, mySize - at)
-            myData = newArray
+            targetData = newArray
         } else {
             myData.copyTo(myData, at, at + cSize, mySize - at)
         }
 
         match (all) {
-            case arr: Array<T> => arr.copyTo(myData, 0, at, cSize)
-            case arr: ArrayList<T> => arr.myData.copyTo(myData, 0, at, cSize)
+            case arr: Array<T> => arr.copyTo(targetData, 0, at, cSize)
+            case arr: ArrayList<T> => arr.myData.copyTo(targetData, 0, at, cSize)
             case _ =>
                 let arr = all.toArray()
-                arr.copyTo(myData, 0, at, cSize)
+                arr.copyTo(targetData, 0, at, cSize)
         }
+        myData = targetData
         mySize = mySize + cSize
         myVersion++
     }
