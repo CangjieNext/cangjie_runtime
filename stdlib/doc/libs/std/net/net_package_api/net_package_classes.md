@@ -6849,7 +6849,7 @@ public func connect(timeout!: ?Duration = None): Unit
 
 异常：
 
-- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 当远端地址不合法或者连接超时时间小于 0 或者超时时间小于 0 时，抛出异常。
+- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 当远端地址不合法或者连接超时时间小于 0  时，抛出异常。
 - [SocketException](net_package_exceptions.md#class-socketexception) - 当连接因系统原因（例如：套接字已关闭，没有访问权限，系统错误等）无法建立时，抛出异常。再次调用可能成功。
 - [SocketTimeoutException](net_package_exceptions.md#class-sockettimeoutexception) - 当连接超时时，抛出异常。
 
