@@ -392,7 +392,7 @@ cangjie code
 
   ```cangjie
   public static let compact: WriteConfig
-  （在功能里说明）初始值是一个 newline 为 "xx"、indentx 为 "xx"...的 WriteConfig 对象。
+  （在功能里说明）初始值是一个 newline 为 "xx"、indent 为 "xx"...的 WriteConfig 对象。
   ```
 
   ***总之：哪些信息是用户可感知的，就写到文档里，不感知的文档里就不出现！***
