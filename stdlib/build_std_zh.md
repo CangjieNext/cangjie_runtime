@@ -2,7 +2,7 @@
 
 ## 构建准备
 
-仓颉标准库支持在 Ubuntu/MacOS（x86_64, aarch64）环境中编译构建。构建前需要完成编译环境的搭建，详情请查看[构建依赖工具](https://gitcode.com/Cangjie/cangjie_build/blob/main/docs/env.md)
+仓颉标准库支持在 Ubuntu/MacOS（x86_64, aarch64）环境中编译构建。构建前需要完成编译环境的搭建，详情请查看[构建依赖工具]。(https://gitcode.com/Cangjie/cangjie_build/blob/main/docs/env.md)
 
 ## 构建步骤
 
