@@ -115,7 +115,7 @@ On the Windows platform, Cangjie provides developers with two formats of install
 
 **It is important to note** that the installation method using the zip package and execution scripts is similar to that on Linux platforms. Specifically, the environment variables configured by the `envsetup` script are only effective in the current command-line environment. If you open a new command-line window, you will need to re-execute the `envsetup` script to configure the environment. To make the Cangjie toolchain environment variables automatically effective upon command prompt or terminal startup, you can configure the system as follows:
 
-- For bash environments, follow these steps:Add the following command at the end of the initialization configuration file `$HOME/.bashrc` (`$HOME` represents the path to the current user's home directory):
+- For bash environments, follow these steps: Add the following command at the end of the initialization configuration file `$HOME/.bashrc` (`$HOME` represents the path to the current user's home directory):
 
 ```shell
 # Assuming the Cangjie installation package is extracted to /home/user/cangjie
