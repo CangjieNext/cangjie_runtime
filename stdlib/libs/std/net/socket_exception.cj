@@ -29,27 +29,27 @@ public class SocketException <: IOException {
     }
 
     static func throwClosedException(): Nothing {
-        throw SocketException("Socket is already closed")
+        throw SocketException("Socket is already closed.")
     }
 
     static func notYetConnected(): Nothing {
-        throw SocketException("Socket is not connected")
+        throw SocketException("Socket is not connected.")
     }
 
     static func notYetBound(): Nothing {
-        throw SocketException("Socket is not bound")
+        throw SocketException("Socket is not bound.")
     }
 
     static func notYetBoundNeedBind(): Nothing {
-        throw SocketException("The socket is not bound: invoke bind() first.")
+        throw SocketException("Socket is not bound.")
     }
 
     static func alreadyBound(): Nothing {
-        throw SocketException("The socket is already bound")
+        throw SocketException("Socket is already bound.")
     }
 
     static func alreadyConnected(): Nothing {
-        throw SocketException("The socket is already connected")
+        throw SocketException("Socket is already connected.")
     }
 }
 
