@@ -32,7 +32,7 @@ I/O 操作是指程序与外部设备进行数据交换的操作。仓颉提供�
 | --------------------------- | ------------------------ |
 | [BufferedInputStream\<T> where T <: InputStream](./io_package_api/io_package_classes.md#class-bufferedinputstreamt-where-t--inputstream) | 提供带缓冲区的输入流。 |
 | [BufferedOutputStream\<T> where T <: OutputStream](./io_package_api/io_package_classes.md#class-bufferedoutputstreamt-where-t--outputstream) | 提供带缓冲区的输出流。 |
-| [ByteBuffer](./io_package_api/io_package_classes.md#class-bytebuffer) | 输入流接口。 |
+| [ByteBuffer](./io_package_api/io_package_classes.md#class-bytebuffer) | "字节缓冲流接口。 |
 | [ChainedInputStream\<T> where T <: InputStream](./io_package_api/io_package_classes.md#class-chainedinputstreamt-where-t--inputstream) | 提供顺序从 InputStream 数组中读取数据的能力。 |
 | [MultiOutputStream\<T> where T <: OutputStream](./io_package_api/io_package_classes.md#class-multioutputstreamt-where-t--outputstream) | 提供将数据同时写入到 OutputStream 数组中每个输出流中的能力。 |
 | [StringReader\<T> where T <: InputStream](./io_package_api/io_package_classes.md#class-stringreadert-where-t--inputstream) | 提供从 InputStream 输入流中读出数据并转换成字符或字符串的能力。 |
