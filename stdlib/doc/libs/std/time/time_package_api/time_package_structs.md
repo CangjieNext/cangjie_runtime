@@ -1961,7 +1961,7 @@ main() {
 public func compare(other: DateTime): Ordering
 ```
 
-功能：判断一个 [DateTime](time_package_structs.md#struct-datetime) 实例与另一个一个 [DateTime](time_package_structs.md#struct-datetime) 实例的大小关系。如果大于，返回 [Ordering](../../core/core_package_api/core_package_enums.md#enum-ordering).GT；如果等于，返回 [Ordering](../../core/core_package_api/core_package_enums.md#enum-ordering).EQ；如果小于，返回 [Ordering](../../core/core_package_api/core_package_enums.md#enum-ordering).LT。
+功能：判断一个 [DateTime](time_package_structs.md#struct-datetime) 实例与另一个 [DateTime](time_package_structs.md#struct-datetime) 实例的大小关系。如果大于，返回 [Ordering](../../core/core_package_api/core_package_enums.md#enum-ordering).GT；如果等于，返回 [Ordering](../../core/core_package_api/core_package_enums.md#enum-ordering).EQ；如果小于，返回 [Ordering](../../core/core_package_api/core_package_enums.md#enum-ordering).LT。
 
 参数：
 
