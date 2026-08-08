@@ -126,7 +126,7 @@ public:
     // Helper for logging one line with no more than 256 characters.
     static CString FormatString(const char* format, ...);
 
-    // Helper for parsing infomation from environment variables.
+    // Helper for parsing information from environment variables.
     static size_t ParseSizeFromEnv(const CString& env);
     static uint64_t ParseTimeFromEnv(const CString& env);
     static int ParseNumFromEnv(const CString& env);
