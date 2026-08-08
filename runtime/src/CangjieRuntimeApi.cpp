@@ -120,7 +120,7 @@ static bool CheckInitConfig(const struct RuntimeParam& param)
         LOG(RTLOG_ERROR, "RuntimeParam.heapParam.heapUtilization must be in range (0, 1].\n");
         return false;
     }
-    // Garbage ration must be in range [0.0, 1.0], which should be consistent with the documentation.
+    // Garbage ratio must be in range [0.0, 1.0], which should be consistent with the documentation.
     const double minGarbageRation = 0.0;
     const double maxGarbageRation = 1;
     if (param.gcParam.garbageThreshold - minGarbageRation >= 0 &&
