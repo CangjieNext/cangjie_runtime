@@ -112,6 +112,33 @@ static size_t InitHeapSize(size_t defaultParam)
     return defaultParam;
 }
 
+/**
+ * 默认堆大小（KB 单位）。
+ *
+ * 旧实现固定为 256MB（系统内存 > 1GB 时）或 64MB（小内存设备），
+ * 大内存机器上大查询/并发分配会触发固定上限导致的 OutOfMemoryError。
+ * 现按物理内存比例扩容：>1GB 机器默认取系统内存的 25%（不低于旧默认
+ * 256MB，上限 16GB，避免无限扩大带来 OOM 风险）；≤1GB 机器保持 64MB
+ * 旧行为，避免嵌入式场景过度占用。堆为虚拟地址空间保留，按需提交，
+ * 调大默认值不增加常驻内存。
+ */
+static size_t InitDefaultHeapSize()
+{
+    if (g_sysmemSize <= 1 * GB) {
+        return 64 * KB;
+    }
+    size_t heapKB = (g_sysmemSize / 4) / KB;
+    constexpr size_t minHeapKB = 256 * KB;
+    constexpr size_t maxHeapKB = 16 * 1024 * 1024;
+    if (heapKB < minHeapKB) {
+        return minHeapKB;
+    }
+    if (heapKB > maxHeapKB) {
+        return maxHeapKB;
+    }
+    return heapKB;
+}
+
 static size_t InitRegionSize(size_t defaultParam)
 {
     auto env = std::getenv("cjRegionSize");
@@ -639,7 +666,7 @@ void* MCC_NewCJThreadNoReturn(void* executeClosure, void* closurePtr, void* sche
 static RuntimeParam InitRuntimeParam()
 {
     CheckSysmemSize();
-    size_t initHeapSize = InitHeapSize(g_sysmemSize > 1 * GB ? 256 * KB : 64 * KB);
+    size_t initHeapSize = InitHeapSize(InitDefaultHeapSize());
     RuntimeParam param = {
         .heapParam = {
 #if defined(__OHOS__) || defined(__ANDROID__)
@@ -649,7 +676,7 @@ static RuntimeParam InitRuntimeParam()
                 // Default region size is 64KB.
                 .regionSize = InitRegionSize(64UL),
 #endif
-                // Default heap size is 256MB if system memory size is greater than 1GB, otherwise is 64MB.
+                // Default heap size scales with physical memory (see InitDefaultHeapSize).
                 .heapSize = initHeapSize,
                 /*
                  * The minimux live region threshold is 0% of region,
