@@ -1,6 +1,6 @@
 # Cangjie Runtime and Cangjie Standard Library
 
-In the Cangjie programming language, program execution depends on the capabilities of the runtime and standard library. The Cangjie Runtime, as a lightweight and efficient fundamental engine, is responsible for managing core resources such as memory and threads during program execution. The Cangjie Language Standard Library provides feature-rich built-in libraries covering data structures, common algorithms, mathematical computations, regular expressions, system interactions, file operations, network communications, and other functionalities, which can meet most development needs.
+In the Cangjie programming language, program execution depends on the capabilities of the runtime and standard library. The Cangjie Runtime, as a lightweight and efficient fundamental engine, is responsible for managing core resources such as memory and threads during program execution.The Cangjie Language Standard Library provides feature-rich built-in libraries covering data structures, common algorithms, mathematical computations, regular expressions, system interactions, file operations, network communications, and other functionalities, which can meet most development needs.
 
 This repository provides the source code for the Cangjie Runtime and Cangjie Programming Language Standard Library. The overall structure diagram is shown below:
 
@@ -32,15 +32,15 @@ The architecture diagram of Cangjie Runtime is shown below:
 **Cangjie Runtime Architecture**
 
 - **Garbage Collection** uses a low-latency, fully concurrent memory compact algorithm, with the core goal of achieving lower latency and lower memory overhead, helping developers focus better on the programming itself.
-    - Fully Concurrent GC：Eliminate Stop-The-World (STW) pauses and optimize execution latency.
-    - Sweep：Defragment heap memory through object relocation to improve memory utilization and support long-running applications.
-    - Pointer Tag：Apply pointer tagging at reference to distinguish between garbage memory and newly reused memory, ensuring correctness of fully concurrent GC.
+    - Fully Concurrent GC:Eliminate Stop-The-World (STW) pauses and optimize execution latency.
+    - Sweep:Defragment heap memory through object relocation to improve memory utilization and support long-running applications.
+    - Pointer Tag:Apply pointer tagging at reference to distinguish between garbage memory and newly reused memory, ensuring correctness of fully concurrent GC.
 
 - **CJThread** provides a lighter and more flexible thread management solution, capable of better handling various scales of concurrent scenarios.
-    - Schedule：The Schedule encompasses fundamental modules such as thread, monitor, processor, and schmon. Each module undertakes distinct responsibilities, enabling the Cangjie runtime to fully leverage multi-core hardware resources and further scale its concurrency capabilities.
+    - Schedule:Encompasses fundamental modules such as thread, monitor, processor, and schmon. Each module undertakes distinct responsibilities, enabling the Cangjie runtime to fully leverage multi-core hardware resources and further scale its concurrency capabilities.
     - Stack Grow：CJThread employs a contiguous stack that automatically doubles in size once it reaches its capacity limit.
 
-- **Exception** provides Two types of exception handling mechanisms, categorized by severity into `Exceptions` and `Errors`:
+- **Exception** provides two types of exception handling mechanisms, categorized by severity into `Exception` and `Error`:
     - `Exception` represents exceptions caused by runtime logical errors or `IO` failures, such as array index out of bounds or attempting to open a non-existent file. These exceptions must be explicitly caught and handled in the program.
     - `Error` represents internal system errors and resource exhaustion conditions within the Cangjie runtime. Applications should not throw errors of this type. When an internal error occurs, the application should notify the user and terminate safely as soon as possible.
 
@@ -70,7 +70,7 @@ The architecture diagram of Cangjie Runtime is shown below:
 │       ├── Exception    # Exception handling module
 │       ├── Heap         # Heap memory management module
 │       ├── Inspector    # DFX Utilities
-│       ├── Loader       # Cangjie Loader
+│       ├── Loader # Cangjie Loader
 │       ├── Mutator      # Mutator state management module
 │       ├── ObjectModel  # Object model
 │       ├── Signal       # Signal management module
@@ -161,7 +161,7 @@ The main directories are as follows:
 
 Building the Cangjie runtime is supported on Ubuntu/MacOS (x86_64, aarch64) environments. For more details on environment and tool dependencies, please refer to the [Build Dependency Tools](https://gitcode.com/Cangjie/cangjie_build/blob/main/docs/env.md).
 
-Currently, building the Cangjie Programming Language Standard Library within the Windows environment is not supported. To generate Standard Library artifacts that can run on the Windows platform, cross-compilation in a Linux environment is required. For detailed information, please refer to  [Cangjie SDK Integration and Build Guide](https://gitcode.com/Cangjie/cangjie_build/blob/main/README_zh.md). For specific future support plans, please see [Platform Support Plan](#platform-support-plan).
+Currently, building the Cangjie Programming Language Standard Library within the Windows environment is not supported. To generate Standard Library artifacts that can run on the Windows platform, cross-compilation in a Linux environment is required. For detailed information, please refer to[Cangjie SDK Integration and Build Guide](https://gitcode.com/Cangjie/cangjie_build/blob/main/README_zh.md). For specific future support plans, please see [Platform Support Plan](#platform-support-plan).
 
 ### Compilation and Building
 
@@ -173,7 +173,8 @@ The standard library build artifacts need to be used with the cjc compiler and r
 
 ### Platform Support Plan
 
-- Build Platform Evolution: Plan to support Cangjie applications running on the OHOS-ARM32 platform on October 20, 2025. Advanced features such as reflection, dynamic loading capabilities, and some compiler optimizations are planned to be supported in Q4 2025.
+- Build Platform Evolution:Plan to support Cangjie application builds on Windows by the end of 2025.
+- Application Runing Support:Plan to support Cangjie applications running on the OHOS-ARM32 platform on October 20, 2025. Advanced features such as reflection, dynamic loading capabilities, and some compiler optimizations are planned to be supported in Q4 2025.
 
 ## Repositories Involved
 
@@ -191,7 +192,7 @@ The standard library build artifacts need to be used with the cjc compiler and r
 
 ## Open Source License
 
-This project is licensed under [Apache-2.0 with Runtime Library Exception](./LICENSE). Please enjoy and participate in open source freely.
+This project is licensed under [Apache-2.0 with Runtime Library Exceptions](./LICENSE). Please enjoy and participate in open source freely.
 
 ## Contribution Guide
 
