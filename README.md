@@ -32,9 +32,9 @@ The architecture diagram of Cangjie Runtime is shown below:
 **Cangjie Runtime Architecture**
 
 - **Garbage Collection** uses a low-latency, fully concurrent memory compact algorithm, with the core goal of achieving lower latency and lower memory overhead, helping developers focus better on the programming itself.
-    - Fully Concurrent GC：Eliminate Stop-The-World (STW) pauses and optimize execution latency.
-    - Sweep：Defragment heap memory through object relocation to improve memory utilization and support long-running applications.
-    - Pointer Tag：Apply pointer tagging at reference to distinguish between garbage memory and newly reused memory, ensuring correctness of fully concurrent GC.
+    - Fully Concurrent GC:Eliminate Stop-The-World (STW) pauses and optimize execution latency.
+    - Sweep:Defragment heap memory through object relocation to improve memory utilization and support long-running applications.
+    - Pointer Tag:Apply pointer tagging at reference to distinguish between garbage memory and newly reused memory, ensuring correctness of fully concurrent GC.
 
 - **CJThread** provides a lighter and more flexible thread management solution, capable of better handling various scales of concurrent scenarios.
     - Schedule：The Schedule encompasses fundamental modules such as thread, monitor, processor, and schmon. Each module undertakes distinct responsibilities, enabling the Cangjie runtime to fully leverage multi-core hardware resources and further scale its concurrency capabilities.
