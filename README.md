@@ -40,7 +40,7 @@ The architecture diagram of Cangjie Runtime is shown below:
     - Schedule：The Schedule encompasses fundamental modules such as thread, monitor, processor, and schmon. Each module undertakes distinct responsibilities, enabling the Cangjie runtime to fully leverage multi-core hardware resources and further scale its concurrency capabilities.
     - Stack Grow：CJThread employs a contiguous stack that automatically doubles in size once it reaches its capacity limit.
 
-- **Exception** provides Two types of exception handling mechanisms, categorized by severity into `Exceptions` and `Errors`:
+- **Exception** provides two types of exception handling mechanisms, categorized by severity into `Exceptions` and `Errors`:
     - `Exception` represents exceptions caused by runtime logical errors or `IO` failures, such as array index out of bounds or attempting to open a non-existent file. These exceptions must be explicitly caught and handled in the program.
     - `Error` represents internal system errors and resource exhaustion conditions within the Cangjie runtime. Applications should not throw errors of this type. When an internal error occurs, the application should notify the user and terminate safely as soon as possible.
 
