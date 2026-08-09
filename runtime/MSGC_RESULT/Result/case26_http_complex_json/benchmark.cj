@@ -22,19 +22,19 @@ import stdx.encoding.json.*
 //   单次运行只测试一组 (concurrency × payload)。
 //
 //   环境变量：
-//     CASE27_PAYLOAD       : 1K | 10K | 100K | 1M  (default 10K)
-//     CASE27_CONCURRENCY   : Int>=1  (default 8)
-//     CASE27_DURATION_MS   : Int; >0 means finite run, <=0 means no time limit
+//     CASE26_PAYLOAD       : 1K | 10K | 100K | 1M  (default 10K)
+//     CASE26_CONCURRENCY   : Int>=1  (default 8)
+//     CASE26_DURATION_MS   : Int; >0 means finite run, <=0 means no time limit
 //                            (default 60000)
-//     CASE27_PAYLOAD_DIR   : 目录，包含 <SIZE>.json (default ./payloads)
-//     CASE27_SERVER_PORT   : Int  (default 18125)
-//     CASE27_CLIENT_TIMEOUT_MS : HTTP client read/write timeout (default 5000)
-//     CASE27_ROLE          : both | server (default both)
-//     CASE27_CLIENT_MODE   : sync | async (default sync)
-//     CASE27_SEND_INTERVAL_MS : async sender tick interval (default 1)
-//     CASE27_MAX_INFLIGHT  : async global inflight cap (default 32)
-//     CASE27_PERSISTENT_BYTES : server persistent heap bytes (default 5 GiB)
-//     CASE27_PERSISTENT_WORKERS : persistent allocation coroutines (default 8)
+//     CASE26_PAYLOAD_DIR   : 目录，包含 <SIZE>.json (default ./payloads)
+//     CASE26_SERVER_PORT   : Int  (default 18125)
+//     CASE26_CLIENT_TIMEOUT_MS : HTTP client read/write timeout (default 5000)
+//     CASE26_ROLE          : both | server (default both)
+//     CASE26_CLIENT_MODE   : sync | async (default sync)
+//     CASE26_SEND_INTERVAL_MS : async sender tick interval (default 1)
+//     CASE26_MAX_INFLIGHT  : async global inflight cap (default 32)
+//     CASE26_PERSISTENT_BYTES : server persistent heap bytes (default 5 GiB)
+//     CASE26_PERSISTENT_WORKERS : persistent allocation coroutines (default 8)
 // ============================================================
 
 let SERVER_ADDR: String = "127.0.0.1"
@@ -64,7 +64,7 @@ func getEnvInt(key: String, def: Int64): Int64 {
     }
 }
 
-let CLIENT_TIMEOUT_MS: Int64 = getEnvInt("CASE27_CLIENT_TIMEOUT_MS", 5_000)
+let CLIENT_TIMEOUT_MS: Int64 = getEnvInt("CASE26_CLIENT_TIMEOUT_MS", 5_000)
 
 // ---------- Server persistent heap baseline ----------
 
@@ -204,11 +204,83 @@ func isEnvEnabled(key: String): Bool {
     }
 }
 
+// ---------- JSON 分阶段诊断（默认关闭） ----------
+
+let JSON_PROFILE_ENABLED: Bool = isEnvEnabled("CASE26_JSON_PROFILE")
+
+class JsonProfileStats {
+    let serverParseUs = AtomicInt64(0)
+    let serverMutateUs = AtomicInt64(0)
+    let serverSerializeUs = AtomicInt64(0)
+    let clientParseUs = AtomicInt64(0)
+    let serverCalls = AtomicInt64(0)
+    let clientCalls = AtomicInt64(0)
+}
+
+let JSON_PROFILE_STATS = JsonProfileStats()
+
+func elapsedUs(start: DateTime): Int64 {
+    (DateTime.now() - start).toMicroseconds()
+}
+
+func parseServerJson(bodyStr: String): JsonValue {
+    if (!JSON_PROFILE_ENABLED) {
+        return JsonValue.fromStr(bodyStr)
+    }
+    let start = DateTime.now()
+    let value = JsonValue.fromStr(bodyStr)
+    JSON_PROFILE_STATS.serverParseUs.fetchAdd(elapsedUs(start))
+    JSON_PROFILE_STATS.serverCalls.fetchAdd(1)
+    return value
+}
+
+func parseClientJson(bodyStr: String): JsonValue {
+    if (!JSON_PROFILE_ENABLED) {
+        return JsonValue.fromStr(bodyStr)
+    }
+    let start = DateTime.now()
+    let value = JsonValue.fromStr(bodyStr)
+    JSON_PROFILE_STATS.clientParseUs.fetchAdd(elapsedUs(start))
+    JSON_PROFILE_STATS.clientCalls.fetchAdd(1)
+    return value
+}
+
+func responseJsonCapacity(requestBytes: Int64): Int64 {
+    // case26 只为原 JSON 增加少量 marker/product id。预留 12.5% 余量，
+    // 避免 JsonValue.toString() 为估算容量而先完整遍历一次对象树。
+    return requestBytes + requestBytes / 8 + 1024
+}
+
+func serializeServerJson(root: JsonObject, requestBytes: Int64): String {
+    if (!JSON_PROFILE_ENABLED) {
+        return root.toStringWithCapacity(responseJsonCapacity(requestBytes))
+    }
+    let start = DateTime.now()
+    let value = root.toStringWithCapacity(responseJsonCapacity(requestBytes))
+    JSON_PROFILE_STATS.serverSerializeUs.fetchAdd(elapsedUs(start))
+    return value
+}
+
 // ---------- HTTP Body 读取 ----------
 
+// case26 的请求/响应主体通常为 100K 以上。按协议提供的 bodySize 预留容量，
+// 并减少分块次数，避免 ArrayList 在每次请求中反复扩容。
+let BODY_READ_CHUNK_SIZE: Int64 = 64 * 1024
+
+func reserveBodyCapacity(result: ArrayList<UInt8>, bodySize: Option<Int64>): Unit {
+    match (bodySize) {
+        case Some(size) =>
+            if (size > 0) {
+                result.reserve(size)
+            }
+        case None => ()
+    }
+}
+
 func readBodyStr(req: HttpRequest): String {
-    let chunk = Array<UInt8>(8192, repeat: 0)
+    let chunk = Array<UInt8>(BODY_READ_CHUNK_SIZE, repeat: 0)
     let result = ArrayList<UInt8>()
+    reserveBodyCapacity(result, req.bodySize)
     var n = req.body.read(chunk)
     while (n > 0) {
         result.add(all: chunk[..n])
@@ -218,8 +290,9 @@ func readBodyStr(req: HttpRequest): String {
 }
 
 func readRespStr(rsp: HttpResponse): String {
-    let chunk = Array<UInt8>(8192, repeat: 0)
+    let chunk = Array<UInt8>(BODY_READ_CHUNK_SIZE, repeat: 0)
     let result = ArrayList<UInt8>()
+    reserveBodyCapacity(result, rsp.bodySize)
     var n = rsp.body.read(chunk)
     while (n > 0) {
         result.add(all: chunk[..n])
@@ -229,19 +302,19 @@ func readRespStr(rsp: HttpResponse): String {
 }
 
 func isBodyDiagEnabled(): Bool {
-    isEnvEnabled("CASE27_BODY_DIAG")
+    isEnvEnabled("CASE26_BODY_DIAG")
 }
 
 func isGraphDiagEnabled(): Bool {
-    isEnvEnabled("CASE27_GRAPH_DIAG")
+    isEnvEnabled("CASE26_GRAPH_DIAG")
 }
 
 func isBadBodyDumpEnabled(): Bool {
-    isEnvEnabled("CASE27_DUMP_BAD_BODY")
+    isEnvEnabled("CASE26_DUMP_BAD_BODY")
 }
 
 func graphDiagRate(): Int64 {
-    let raw = getEnvInt("CASE27_GRAPH_DIAG_RATE", 512)
+    let raw = getEnvInt("CASE26_GRAPH_DIAG_RATE", 512)
     if (raw <= 0) {
         return 512
     }
@@ -298,7 +371,7 @@ func dumpBadBytesForDiag(stage: String, reqId: String, slotId: String, bytes: Ar
         return
     }
     try {
-        let dumpDir = getEnvStr("CASE27_DUMP_DIR", ".")
+        let dumpDir = getEnvStr("CASE26_DUMP_DIR", ".")
         if (!exists(dumpDir)) {
             Directory.create(dumpDir, recursive: true)
         }
@@ -423,10 +496,7 @@ func readFileBytes(path: String): Array<Byte> {
 //   5. events[i].custom.product_ids 追加一个元素
 //   6. 在 events[i] 上插入新 key "server_marker"
 
-func processRequest(bodyStr: String, seq: Int64, reqId: String): String {
-    let jv = JsonValue.fromStr(bodyStr)
-    let root = jv.asObject()
-
+func mutateRequestJson(root: JsonObject, seq: Int64): Unit {
     // (1) counters.in / counters.ok 累加
     match (root.get("counters")) {
         case Some(c) =>
@@ -497,8 +567,19 @@ func processRequest(bodyStr: String, seq: Int64, reqId: String): String {
         case None => ()
     }
 
+}
+
+func processRequest(bodyStr: String, seq: Int64, reqId: String): String {
+    let root = parseServerJson(bodyStr).asObject()
+    if (JSON_PROFILE_ENABLED) {
+        let start = DateTime.now()
+        mutateRequestJson(root, seq)
+        JSON_PROFILE_STATS.serverMutateUs.fetchAdd(elapsedUs(start))
+    } else {
+        mutateRequestJson(root, seq)
+    }
     printJsonGraphDiagBeforeString(reqId, seq, root)
-    root.toString()
+    serializeServerJson(root, bodyStr.size)
 }
 
 // ---------- Client ----------
@@ -547,7 +628,7 @@ func runRequest(client: Client, workerId: Int64, slotId: Int64, reqId: Int64, ur
         let bodySnapshot = captureBodySnapshotForDiag(body)
         // 校验：反序列化 + 确认 server_ok 字段存在
         try {
-            let jv = JsonValue.fromStr(body)
+            let jv = parseClientJson(body)
             let serverOk = jv.asObject().get("server_ok").getOrThrow().asBool().getValue()
             if (serverOk) {
                 stats.ok.fetchAdd(1)
@@ -629,46 +710,46 @@ main() {
     println("[INFO] Case27: HTTP Complex-JSON Concurrent Benchmark")
 
     // 1. 读取环境变量
-    let payloadName = getEnvStr("CASE27_PAYLOAD", "10K")
-    let concurrency = getEnvInt("CASE27_CONCURRENCY", 8)
-    let durationMs = getEnvInt("CASE27_DURATION_MS", 60_000)
+    let payloadName = getEnvStr("CASE26_PAYLOAD", "10K")
+    let concurrency = getEnvInt("CASE26_CONCURRENCY", 8)
+    let durationMs = getEnvInt("CASE26_DURATION_MS", 60_000)
     let runForever = durationMs <= 0
-    let payloadDir = getEnvStr("CASE27_PAYLOAD_DIR", "./payloads")
-    let serverPort = getEnvInt("CASE27_SERVER_PORT", DEFAULT_PORT)
-    let role = getEnvStr("CASE27_ROLE", "both")
-    let clientMode = getEnvStr("CASE27_CLIENT_MODE", "sync")
-    let sendIntervalMs = getEnvInt("CASE27_SEND_INTERVAL_MS", 1)
-    let maxInflight = getEnvInt("CASE27_MAX_INFLIGHT", 32)
-    let persistentBytes = getEnvInt("CASE27_PERSISTENT_BYTES", 5_368_709_120)
-    let persistentWorkers = getEnvInt("CASE27_PERSISTENT_WORKERS", 8)
+    let payloadDir = getEnvStr("CASE26_PAYLOAD_DIR", "./payloads")
+    let serverPort = getEnvInt("CASE26_SERVER_PORT", DEFAULT_PORT)
+    let role = getEnvStr("CASE26_ROLE", "both")
+    let clientMode = getEnvStr("CASE26_CLIENT_MODE", "sync")
+    let sendIntervalMs = getEnvInt("CASE26_SEND_INTERVAL_MS", 1)
+    let maxInflight = getEnvInt("CASE26_MAX_INFLIGHT", 32)
+    let persistentBytes = getEnvInt("CASE26_PERSISTENT_BYTES", 5_368_709_120)
+    let persistentWorkers = getEnvInt("CASE26_PERSISTENT_WORKERS", 8)
 
     if (role != "both" && role != "server") {
-        println("[ERROR] unsupported CASE27_ROLE=${role}; expected both or server")
+        println("[ERROR] unsupported CASE26_ROLE=${role}; expected both or server")
         return
     }
     if (clientMode != "sync" && clientMode != "async") {
-        println("[ERROR] unsupported CASE27_CLIENT_MODE=${clientMode}; expected sync or async")
+        println("[ERROR] unsupported CASE26_CLIENT_MODE=${clientMode}; expected sync or async")
         return
     }
     if (sendIntervalMs < 0) {
-        println("[ERROR] CASE27_SEND_INTERVAL_MS must be >= 0, got ${sendIntervalMs}")
+        println("[ERROR] CASE26_SEND_INTERVAL_MS must be >= 0, got ${sendIntervalMs}")
         return
     }
     if (maxInflight <= 0) {
-        println("[ERROR] CASE27_MAX_INFLIGHT must be > 0, got ${maxInflight}")
+        println("[ERROR] CASE26_MAX_INFLIGHT must be > 0, got ${maxInflight}")
         return
     }
     if (persistentBytes <= 0) {
-        println("[ERROR] CASE27_PERSISTENT_BYTES must be > 0, got ${persistentBytes}")
+        println("[ERROR] CASE26_PERSISTENT_BYTES must be > 0, got ${persistentBytes}")
         return
     }
     if (persistentWorkers < 2) {
-        println("[ERROR] CASE27_PERSISTENT_WORKERS must be >= 2, got ${persistentWorkers}")
+        println("[ERROR] CASE26_PERSISTENT_WORKERS must be >= 2, got ${persistentWorkers}")
         return
     }
     let persistentAlignment = persistentWorkers * 2 * PERSISTENT_SMALL_OBJECT_SIZES[0]
     if (persistentBytes % persistentAlignment != 0) {
-        println("[ERROR] CASE27_PERSISTENT_BYTES must be a multiple of ${persistentAlignment} for ${persistentWorkers} workers")
+        println("[ERROR] CASE26_PERSISTENT_BYTES must be a multiple of ${persistentAlignment} for ${persistentWorkers} workers")
         return
     }
 
@@ -742,7 +823,7 @@ main() {
         }
         ctx.responseBuilder
             .header("content-type", "application/json")
-            .body(ByteBuffer(respStr.toArray()))
+            .body(respStr)
     })
     let _ = spawn { server.serve() }
     sleep(Duration.second)
@@ -858,6 +939,20 @@ main() {
     println("[RESULT] payload=${payloadName} concurrency=${concurrency} duration=${totalMs}ms client_mode=${clientMode}")
     println("[RESULT] total=${totalReq} ok=${okReq} fail=${failReq} inflight=${stats.inflight.load()} throughput=${rps}req/s")
     println("[RESULT] bytes_sent=${sentMB}MB bytes_recv=${recvMB}MB")
+    if (JSON_PROFILE_ENABLED) {
+        let serverCalls = JSON_PROFILE_STATS.serverCalls.load()
+        let clientCalls = JSON_PROFILE_STATS.clientCalls.load()
+        let serverDivisor = if (serverCalls > 0) { serverCalls } else { 1 }
+        let clientDivisor = if (clientCalls > 0) { clientCalls } else { 1 }
+        let parseUs = JSON_PROFILE_STATS.serverParseUs.load()
+        let mutateUs = JSON_PROFILE_STATS.serverMutateUs.load()
+        let serializeUs = JSON_PROFILE_STATS.serverSerializeUs.load()
+        let clientParseUs = JSON_PROFILE_STATS.clientParseUs.load()
+        println("[JSON-PROFILE] server_calls=${serverCalls} parse_total_us=${parseUs} parse_avg_us=${parseUs / serverDivisor}")
+        println("[JSON-PROFILE] mutate_total_us=${mutateUs} mutate_avg_us=${mutateUs / serverDivisor}")
+        println("[JSON-PROFILE] serialize_total_us=${serializeUs} serialize_avg_us=${serializeUs / serverDivisor}")
+        println("[JSON-PROFILE] client_calls=${clientCalls} parse_total_us=${clientParseUs} parse_avg_us=${clientParseUs / clientDivisor}")
+    }
     println("[DONE]")
     Process.current.exit(0)
 }

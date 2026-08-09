@@ -505,49 +505,49 @@ public final class Case27HttpComplexJsonBenchmark {
         }
 
         private static Config fromEnvironment() {
-            String payloadName = envString("CASE27_PAYLOAD", "10K");
-            int concurrency = envInt("CASE27_CONCURRENCY", 8);
-            long durationMs = envLong("CASE27_DURATION_MS", 60000L);
-            String payloadDir = envString("CASE27_PAYLOAD_DIR", "./payloads");
-            int serverPort = envInt("CASE27_SERVER_PORT", DEFAULT_PORT);
-            int timeoutMs = envInt("CASE27_CLIENT_TIMEOUT_MS", DEFAULT_TIMEOUT_MS);
-            String role = envString("CASE27_ROLE", "both");
-            String clientMode = envString("CASE27_CLIENT_MODE", "sync");
-            long sendIntervalMs = envLong("CASE27_SEND_INTERVAL_MS", 1L);
-            int maxInflight = envInt("CASE27_MAX_INFLIGHT", 32);
+            String payloadName = envString("CASE26_PAYLOAD", "10K");
+            int concurrency = envInt("CASE26_CONCURRENCY", 8);
+            long durationMs = envLong("CASE26_DURATION_MS", 60000L);
+            String payloadDir = envString("CASE26_PAYLOAD_DIR", "./payloads");
+            int serverPort = envInt("CASE26_SERVER_PORT", DEFAULT_PORT);
+            int timeoutMs = envInt("CASE26_CLIENT_TIMEOUT_MS", DEFAULT_TIMEOUT_MS);
+            String role = envString("CASE26_ROLE", "both");
+            String clientMode = envString("CASE26_CLIENT_MODE", "sync");
+            long sendIntervalMs = envLong("CASE26_SEND_INTERVAL_MS", 1L);
+            int maxInflight = envInt("CASE26_MAX_INFLIGHT", 32);
             long persistentBytes =
-                    envLong("CASE27_PERSISTENT_BYTES", DEFAULT_PERSISTENT_BYTES);
+                    envLong("CASE26_PERSISTENT_BYTES", DEFAULT_PERSISTENT_BYTES);
             int persistentWorkers =
-                    envInt("CASE27_PERSISTENT_WORKERS", DEFAULT_PERSISTENT_WORKERS);
+                    envInt("CASE26_PERSISTENT_WORKERS", DEFAULT_PERSISTENT_WORKERS);
 
             if (concurrency <= 0) {
-                throw new IllegalArgumentException("CASE27_CONCURRENCY must be > 0");
+                throw new IllegalArgumentException("CASE26_CONCURRENCY must be > 0");
             }
             if (timeoutMs <= 0) {
-                throw new IllegalArgumentException("CASE27_CLIENT_TIMEOUT_MS must be > 0");
+                throw new IllegalArgumentException("CASE26_CLIENT_TIMEOUT_MS must be > 0");
             }
             if (!"both".equals(role) && !"server".equals(role)) {
                 throw new IllegalArgumentException(
-                        "unsupported CASE27_ROLE=" + role + "; expected both or server");
+                        "unsupported CASE26_ROLE=" + role + "; expected both or server");
             }
             if (!"sync".equals(clientMode) && !"async".equals(clientMode)) {
                 throw new IllegalArgumentException(
-                        "unsupported CASE27_CLIENT_MODE=" + clientMode + "; expected sync or async");
+                        "unsupported CASE26_CLIENT_MODE=" + clientMode + "; expected sync or async");
             }
             if (sendIntervalMs < 0) {
-                throw new IllegalArgumentException("CASE27_SEND_INTERVAL_MS must be >= 0");
+                throw new IllegalArgumentException("CASE26_SEND_INTERVAL_MS must be >= 0");
             }
             if (maxInflight <= 0) {
-                throw new IllegalArgumentException("CASE27_MAX_INFLIGHT must be > 0");
+                throw new IllegalArgumentException("CASE26_MAX_INFLIGHT must be > 0");
             }
             if (serverPort <= 0 || serverPort > 65535) {
-                throw new IllegalArgumentException("CASE27_SERVER_PORT must be in 1..65535");
+                throw new IllegalArgumentException("CASE26_SERVER_PORT must be in 1..65535");
             }
             if (persistentBytes <= 0L) {
-                throw new IllegalArgumentException("CASE27_PERSISTENT_BYTES must be > 0");
+                throw new IllegalArgumentException("CASE26_PERSISTENT_BYTES must be > 0");
             }
             if (persistentWorkers < 2) {
-                throw new IllegalArgumentException("CASE27_PERSISTENT_WORKERS must be >= 2");
+                throw new IllegalArgumentException("CASE26_PERSISTENT_WORKERS must be >= 2");
             }
             return new Config(payloadName, concurrency, durationMs, payloadDir, serverPort,
                     timeoutMs, role, clientMode, sendIntervalMs, maxInflight,

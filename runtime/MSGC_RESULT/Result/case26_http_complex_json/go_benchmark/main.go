@@ -118,46 +118,46 @@ func getEnvInt64(key string, def int64) int64 {
 
 func loadConfigFromEnv() (benchConfig, error) {
 	cfg := benchConfig{
-		PayloadName:       getEnvStr("CASE27_PAYLOAD", defaultPayloadName),
-		Concurrency:       getEnvInt("CASE27_CONCURRENCY", defaultConcurrency),
-		Duration:          time.Duration(getEnvInt("CASE27_DURATION_MS", defaultDurationMs)) * time.Millisecond,
-		PayloadDir:        getEnvStr("CASE27_PAYLOAD_DIR", "./payloads"),
+		PayloadName:       getEnvStr("CASE26_PAYLOAD", defaultPayloadName),
+		Concurrency:       getEnvInt("CASE26_CONCURRENCY", defaultConcurrency),
+		Duration:          time.Duration(getEnvInt("CASE26_DURATION_MS", defaultDurationMs)) * time.Millisecond,
+		PayloadDir:        getEnvStr("CASE26_PAYLOAD_DIR", "./payloads"),
 		ServerAddr:        defaultServerAddr,
-		ServerPort:        getEnvInt("CASE27_SERVER_PORT", defaultServerPort),
-		ClientTimeout:     time.Duration(getEnvInt("CASE27_CLIENT_TIMEOUT_MS", defaultTimeoutMs)) * time.Millisecond,
-		Role:              getEnvStr("CASE27_ROLE", "both"),
-		ClientMode:        getEnvStr("CASE27_CLIENT_MODE", "sync"),
-		SendInterval:      time.Duration(getEnvInt("CASE27_SEND_INTERVAL_MS", 1)) * time.Millisecond,
-		MaxInflight:       getEnvInt("CASE27_MAX_INFLIGHT", 32),
+		ServerPort:        getEnvInt("CASE26_SERVER_PORT", defaultServerPort),
+		ClientTimeout:     time.Duration(getEnvInt("CASE26_CLIENT_TIMEOUT_MS", defaultTimeoutMs)) * time.Millisecond,
+		Role:              getEnvStr("CASE26_ROLE", "both"),
+		ClientMode:        getEnvStr("CASE26_CLIENT_MODE", "sync"),
+		SendInterval:      time.Duration(getEnvInt("CASE26_SEND_INTERVAL_MS", 1)) * time.Millisecond,
+		MaxInflight:       getEnvInt("CASE26_MAX_INFLIGHT", 32),
 		ProgressInterval:  defaultProgressEvery,
-		PersistentBytes:   getEnvInt64("CASE27_PERSISTENT_BYTES", defaultPersistentBytes),
-		PersistentWorkers: getEnvInt("CASE27_PERSISTENT_WORKERS", defaultPersistentWorkers),
+		PersistentBytes:   getEnvInt64("CASE26_PERSISTENT_BYTES", defaultPersistentBytes),
+		PersistentWorkers: getEnvInt("CASE26_PERSISTENT_WORKERS", defaultPersistentWorkers),
 	}
 	cfg.RunForever = cfg.Duration <= 0
 
 	if cfg.Concurrency <= 0 {
-		return benchConfig{}, errors.New("CASE27_CONCURRENCY must be > 0")
+		return benchConfig{}, errors.New("CASE26_CONCURRENCY must be > 0")
 	}
 	if cfg.ClientTimeout <= 0 {
-		return benchConfig{}, errors.New("CASE27_CLIENT_TIMEOUT_MS must be > 0")
+		return benchConfig{}, errors.New("CASE26_CLIENT_TIMEOUT_MS must be > 0")
 	}
 	if cfg.Role != "both" && cfg.Role != "server" {
-		return benchConfig{}, fmt.Errorf("unsupported CASE27_ROLE=%s; expected both or server", cfg.Role)
+		return benchConfig{}, fmt.Errorf("unsupported CASE26_ROLE=%s; expected both or server", cfg.Role)
 	}
 	if cfg.ClientMode != "sync" && cfg.ClientMode != "async" {
-		return benchConfig{}, fmt.Errorf("unsupported CASE27_CLIENT_MODE=%s; expected sync or async", cfg.ClientMode)
+		return benchConfig{}, fmt.Errorf("unsupported CASE26_CLIENT_MODE=%s; expected sync or async", cfg.ClientMode)
 	}
 	if cfg.SendInterval < 0 {
-		return benchConfig{}, errors.New("CASE27_SEND_INTERVAL_MS must be >= 0")
+		return benchConfig{}, errors.New("CASE26_SEND_INTERVAL_MS must be >= 0")
 	}
 	if cfg.MaxInflight <= 0 {
-		return benchConfig{}, errors.New("CASE27_MAX_INFLIGHT must be > 0")
+		return benchConfig{}, errors.New("CASE26_MAX_INFLIGHT must be > 0")
 	}
 	if cfg.PersistentBytes <= 0 {
-		return benchConfig{}, errors.New("CASE27_PERSISTENT_BYTES must be > 0")
+		return benchConfig{}, errors.New("CASE26_PERSISTENT_BYTES must be > 0")
 	}
 	if cfg.PersistentWorkers < 2 {
-		return benchConfig{}, errors.New("CASE27_PERSISTENT_WORKERS must be >= 2")
+		return benchConfig{}, errors.New("CASE26_PERSISTENT_WORKERS must be >= 2")
 	}
 	return cfg, nil
 }

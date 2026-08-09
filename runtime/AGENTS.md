@@ -583,6 +583,17 @@ python3 skills/cangjie-runtime-skill/scripts/build_copy_verify.py \
 
 ## AI 工作规范
 
+### 优化改动的最小重编与验证规则
+
+性能优化默认采用最小影响范围的重编和单次 MSGC 复测，不做回退重编或完整 A/B，除非用户明确要求：
+
+- **MSGC 吞吐优化验证**：只使用 MSGC SDK 执行一次目标用例；不启动 CopyGC、Go 或 Java，不做多语言对比，除非用户明确要求。
+- **只修改 stdx**：只重编并安装 stdx，再执行对应 case 的 MSGC 一次，与最近基准结果比较。
+- **修改 LLVM**：使用 `build/scripts/incremental_rebuild_msgc_sdk.py` 完成重编、安装和验证。
+- **只修改 runtime**：使用 `build/scripts/rebuild_msgc_runtime_sdk.py` 完成重编、安装和验证。
+- 不得因仅改 stdx 或 runtime 而重编 compiler、LLVM、stdlib 等无关组件。
+- **性能采样时长**：后续使用 `perf`、火焰图或其他 profiler 做性能采样时，默认只采集 **10 秒**；只有用户明确指定其他时长时才调整。
+
 ### 任务确认流程（必须遵守）
 
 收到用户的任务指令后，**必须先确认理解再执行**，流程如下：

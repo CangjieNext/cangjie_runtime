@@ -13,9 +13,9 @@
 #     COPYGC_STDX_ROOT    CopyGC 的平台根目录（脚本内部使用 dynamic/stdx）
 #
 #   可选环境变量（有默认值）：
-#     CASE27_PAYLOAD       1K|10K|100K|1M        默认 10K
-#     CASE27_CONCURRENCY   worker 并发数           默认 8
-#     CASE27_DURATION_MS   压测时长 (ms)           默认 60000
+#     CASE26_PAYLOAD       1K|10K|100K|1M        默认 10K
+#     CASE26_CONCURRENCY   worker 并发数           默认 8
+#     CASE26_DURATION_MS   压测时长 (ms)           默认 60000
 #     HEAP_SIZE            cjHeapSize             默认 12gb
 #     PROCS                可选；显式设置时透传 cjProcessorNum
 #     MSGC_HEAP_GROWTH     仅传给 MSGC 的 cjHeapGrowth，默认 1
@@ -26,13 +26,13 @@
 #     CJ_MS_VERIFY_MARK    仅透传给 MSGC runtime 的 verifier 开关，默认不设置
 #     CJ_MS_VERIFY_MARK_DETAIL  verifier detail 开关，默认不设置
 #     CJ_MS_VERIFY_ROOTS   root 枚举诊断开关，默认不设置
-#     CASE27_BODY_DIAG     benchmark 请求/响应体诊断开关，默认不设置
-#     CASE27_DUMP_BAD_BODY benchmark 失败请求/响应完整 body 落盘开关，默认不设置
-#     CASE27_GRAPH_DIAG    benchmark JSON 图遍历诊断开关，默认不设置
-#     CASE27_GRAPH_DIAG_RATE  JSON 图遍历每 N 个节点打印一次，默认不设置
-#     CASE27_CLIENT_MODE   sync|async             默认 sync
-#     CASE27_SEND_INTERVAL_MS async 发射间隔 (ms)  默认 1
-#     CASE27_MAX_INFLIGHT  async 最大在途请求数    默认 32
+#     CASE26_BODY_DIAG     benchmark 请求/响应体诊断开关，默认不设置
+#     CASE26_DUMP_BAD_BODY benchmark 失败请求/响应完整 body 落盘开关，默认不设置
+#     CASE26_GRAPH_DIAG    benchmark JSON 图遍历诊断开关，默认不设置
+#     CASE26_GRAPH_DIAG_RATE  JSON 图遍历每 N 个节点打印一次，默认不设置
+#     CASE26_CLIENT_MODE   sync|async             默认 sync
+#     CASE26_SEND_INTERVAL_MS async 发射间隔 (ms)  默认 1
+#     CASE26_MAX_INFLIGHT  async 最大在途请求数    默认 32
 #     GO_ENABLE            是否加入 Go mirror side 默认 1
 #     GO_GODEBUG           Go benchmark 的 GODEBUG 默认 gctrace=1
 #     GO_GOGC              可选，透传给 Go side
@@ -43,7 +43,7 @@
 #     MSGC_STDX_ROOT=/path/to/msgc/platform-root \
 #     COPYGC_SDK_ROOT=/path/to/copygc/sdk \
 #     COPYGC_STDX_ROOT=/path/to/copygc/platform-root \
-#     CASE27_PAYLOAD=10K CASE27_CONCURRENCY=8 \
+#     CASE26_PAYLOAD=10K CASE26_CONCURRENCY=8 \
 #     ./run_compare.sh
 # ============================================================
 set -uo pipefail
@@ -69,20 +69,20 @@ MSGC_STDX="${MSGC_STDX_ROOT}/dynamic/stdx"
 COPYGC_STDX="${COPYGC_STDX_ROOT}/dynamic/stdx"
 
 # ---------- 可选参数（与 README 中的 case26 环境变量约定对齐） ----------
-PAYLOAD="${CASE27_PAYLOAD:-10K}"
-CONC="${CASE27_CONCURRENCY:-8}"
-DUR="${CASE27_DURATION_MS:-60000}"
+PAYLOAD="${CASE26_PAYLOAD:-10K}"
+CONC="${CASE26_CONCURRENCY:-8}"
+DUR="${CASE26_DURATION_MS:-60000}"
 HEAP_SIZE="${HEAP_SIZE:-16gb}"
 PROCS="${PROCS:-}"
 MSGC_HEAP_GROWTH="${MSGC_HEAP_GROWTH:-1}"
 MSGC_SCAVENGE_GROWTH="${MSGC_SCAVENGE_GROWTH:-1.10}"
 COPYGC_GC_INTERVAL="${COPYGC_GC_INTERVAL:-}"
 MSGC_GC_INTERVAL="${MSGC_GC_INTERVAL:-}"
-CLIENT_MODE="${CASE27_CLIENT_MODE:-sync}"
-SEND_INTERVAL_MS="${CASE27_SEND_INTERVAL_MS:-1}"
-MAX_INFLIGHT="${CASE27_MAX_INFLIGHT:-32}"
-PERSISTENT_BYTES="${CASE27_PERSISTENT_BYTES:-5368709120}"
-PERSISTENT_WORKERS="${CASE27_PERSISTENT_WORKERS:-8}"
+CLIENT_MODE="${CASE26_CLIENT_MODE:-sync}"
+SEND_INTERVAL_MS="${CASE26_SEND_INTERVAL_MS:-1}"
+MAX_INFLIGHT="${CASE26_MAX_INFLIGHT:-32}"
+PERSISTENT_BYTES="${CASE26_PERSISTENT_BYTES:-5368709120}"
+PERSISTENT_WORKERS="${CASE26_PERSISTENT_WORKERS:-8}"
 GO_ENABLE="${GO_ENABLE:-1}"
 GO_GODEBUG="${GO_GODEBUG:-gctrace=1}"
 GO_GOGC="${GO_GOGC:-}"
@@ -147,7 +147,7 @@ run_side() {
         echo "duration_ms=$DUR"
         echo "persistent_bytes=$PERSISTENT_BYTES"
         echo "persistent_workers=$PERSISTENT_WORKERS"
-        echo "client_timeout_ms=${CASE27_CLIENT_TIMEOUT_MS:-5000}"
+        echo "client_timeout_ms=${CASE26_CLIENT_TIMEOUT_MS:-5000}"
         echo "client_mode=$CLIENT_MODE"
         echo "send_interval_ms=$SEND_INTERVAL_MS"
         echo "max_inflight=$MAX_INFLIGHT"
@@ -165,11 +165,11 @@ run_side() {
         echo "cj_ms_verify_mark=${CJ_MS_VERIFY_MARK:-}"
         echo "cj_ms_verify_mark_detail=${CJ_MS_VERIFY_MARK_DETAIL:-}"
         echo "cj_ms_verify_roots=${CJ_MS_VERIFY_ROOTS:-}"
-        echo "case27_body_diag=${CASE27_BODY_DIAG:-}"
-        echo "case27_dump_bad_body=${CASE27_DUMP_BAD_BODY:-}"
-        echo "case27_dump_dir=$out_dir"
-        echo "case27_graph_diag=${CASE27_GRAPH_DIAG:-}"
-        echo "case27_graph_diag_rate=${CASE27_GRAPH_DIAG_RATE:-}"
+        echo "case26_body_diag=${CASE26_BODY_DIAG:-}"
+        echo "case26_dump_bad_body=${CASE26_DUMP_BAD_BODY:-}"
+        echo "case26_dump_dir=$out_dir"
+        echo "case26_graph_diag=${CASE26_GRAPH_DIAG:-}"
+        echo "case26_graph_diag_rate=${CASE26_GRAPH_DIAG_RATE:-}"
         echo "timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
         echo "runtime_dylib_md5=$(md5 -q "$sdk_root"/runtime/lib/darwin_aarch64_cjnative/libcangjie-runtime.dylib 2>/dev/null || echo 'N/A')"
     } > "$out_dir/run_metadata.env"
@@ -191,26 +191,26 @@ run_side() {
         "RUNTIME_GC_INTERVAL=$runtime_gc_interval"
         "BENCH_SRC=$CASE_DIR/benchmark.cj"
         "PAYLOAD_DIR=$CASE_DIR/payloads"
-        "CASE27_PAYLOAD=$PAYLOAD"
-        "CASE27_CONCURRENCY=$CONC"
-        "CASE27_DURATION_MS=$DUR"
-        "CASE27_PERSISTENT_BYTES=$PERSISTENT_BYTES"
-        "CASE27_PERSISTENT_WORKERS=$PERSISTENT_WORKERS"
-        "CASE27_SERVER_PORT=$port"
-        "CASE27_CLIENT_TIMEOUT_MS=${CASE27_CLIENT_TIMEOUT_MS:-5000}"
-        "CASE27_PAYLOAD_DIR=$CASE_DIR/payloads"
-        "CASE27_DUMP_DIR=$out_dir"
-        "CASE27_CLIENT_MODE=$CLIENT_MODE"
-        "CASE27_SEND_INTERVAL_MS=$SEND_INTERVAL_MS"
-        "CASE27_MAX_INFLIGHT=$MAX_INFLIGHT"
+        "CASE26_PAYLOAD=$PAYLOAD"
+        "CASE26_CONCURRENCY=$CONC"
+        "CASE26_DURATION_MS=$DUR"
+        "CASE26_PERSISTENT_BYTES=$PERSISTENT_BYTES"
+        "CASE26_PERSISTENT_WORKERS=$PERSISTENT_WORKERS"
+        "CASE26_SERVER_PORT=$port"
+        "CASE26_CLIENT_TIMEOUT_MS=${CASE26_CLIENT_TIMEOUT_MS:-5000}"
+        "CASE26_PAYLOAD_DIR=$CASE_DIR/payloads"
+        "CASE26_DUMP_DIR=$out_dir"
+        "CASE26_CLIENT_MODE=$CLIENT_MODE"
+        "CASE26_SEND_INTERVAL_MS=$SEND_INTERVAL_MS"
+        "CASE26_MAX_INFLIGHT=$MAX_INFLIGHT"
     )
     local optional_var=""
     local optional_value=""
     for optional_var in \
-        CASE27_BODY_DIAG \
-        CASE27_DUMP_BAD_BODY \
-        CASE27_GRAPH_DIAG \
-        CASE27_GRAPH_DIAG_RATE \
+        CASE26_BODY_DIAG \
+        CASE26_DUMP_BAD_BODY \
+        CASE26_GRAPH_DIAG \
+        CASE26_GRAPH_DIAG_RATE \
         CJ_SCHDFD_TIMEOUT_DIAG \
         CJ_MS_DISABLE_ASSIST \
         CJ_MS_ASSIST_RATIO_SCALE \
@@ -244,11 +244,11 @@ run_side() {
             echo "[$LABEL] CJ_MS_VERIFY_ROOTS=${CJ_MS_VERIFY_ROOTS:-<default>}"
             echo "[$LABEL] cjGCBGSweepMaxTime=${cjGCBGSweepMaxTime:-<default>}"
             echo "[$LABEL] cjScavengeGrowth=${RUNTIME_SCAVENGE_GROWTH:-<default>}"
-            echo "[$LABEL] CASE27_BODY_DIAG=${CASE27_BODY_DIAG:-<default>}"
-            echo "[$LABEL] CASE27_DUMP_BAD_BODY=${CASE27_DUMP_BAD_BODY:-<default>}"
-            echo "[$LABEL] CASE27_DUMP_DIR=${CASE27_DUMP_DIR:-<default>}"
-            echo "[$LABEL] CASE27_GRAPH_DIAG=${CASE27_GRAPH_DIAG:-<default>}"
-            echo "[$LABEL] CASE27_GRAPH_DIAG_RATE=${CASE27_GRAPH_DIAG_RATE:-<default>}"
+            echo "[$LABEL] CASE26_BODY_DIAG=${CASE26_BODY_DIAG:-<default>}"
+            echo "[$LABEL] CASE26_DUMP_BAD_BODY=${CASE26_DUMP_BAD_BODY:-<default>}"
+            echo "[$LABEL] CASE26_DUMP_DIR=${CASE26_DUMP_DIR:-<default>}"
+            echo "[$LABEL] CASE26_GRAPH_DIAG=${CASE26_GRAPH_DIAG:-<default>}"
+            echo "[$LABEL] CASE26_GRAPH_DIAG_RATE=${CASE26_GRAPH_DIAG_RATE:-<default>}"
 
             cd "$OUT_DIR"
             cjc -O2 "$BENCH_SRC" \
@@ -358,7 +358,7 @@ run_go_side() {
         echo "duration_ms=$DUR"
         echo "persistent_bytes=$PERSISTENT_BYTES"
         echo "persistent_workers=$PERSISTENT_WORKERS"
-        echo "client_timeout_ms=${CASE27_CLIENT_TIMEOUT_MS:-5000}"
+        echo "client_timeout_ms=${CASE26_CLIENT_TIMEOUT_MS:-5000}"
         echo "client_mode=$CLIENT_MODE"
         echo "send_interval_ms=$SEND_INTERVAL_MS"
         echo "max_inflight=$MAX_INFLIGHT"
@@ -382,17 +382,17 @@ run_go_side() {
         "CASE_DIR=$CASE_DIR"
         "OUT_DIR=$out_dir"
         "LABEL=$label"
-        "CASE27_PAYLOAD=$PAYLOAD"
-        "CASE27_CONCURRENCY=$CONC"
-        "CASE27_DURATION_MS=$DUR"
-        "CASE27_PERSISTENT_BYTES=$PERSISTENT_BYTES"
-        "CASE27_PERSISTENT_WORKERS=$PERSISTENT_WORKERS"
-        "CASE27_SERVER_PORT=$port"
-        "CASE27_CLIENT_TIMEOUT_MS=${CASE27_CLIENT_TIMEOUT_MS:-5000}"
-        "CASE27_PAYLOAD_DIR=$CASE_DIR/payloads"
-        "CASE27_CLIENT_MODE=$CLIENT_MODE"
-        "CASE27_SEND_INTERVAL_MS=$SEND_INTERVAL_MS"
-        "CASE27_MAX_INFLIGHT=$MAX_INFLIGHT"
+        "CASE26_PAYLOAD=$PAYLOAD"
+        "CASE26_CONCURRENCY=$CONC"
+        "CASE26_DURATION_MS=$DUR"
+        "CASE26_PERSISTENT_BYTES=$PERSISTENT_BYTES"
+        "CASE26_PERSISTENT_WORKERS=$PERSISTENT_WORKERS"
+        "CASE26_SERVER_PORT=$port"
+        "CASE26_CLIENT_TIMEOUT_MS=${CASE26_CLIENT_TIMEOUT_MS:-5000}"
+        "CASE26_PAYLOAD_DIR=$CASE_DIR/payloads"
+        "CASE26_CLIENT_MODE=$CLIENT_MODE"
+        "CASE26_SEND_INTERVAL_MS=$SEND_INTERVAL_MS"
+        "CASE26_MAX_INFLIGHT=$MAX_INFLIGHT"
         "GO_GODEBUG=$GO_GODEBUG"
         "GO_GOGC=$GO_GOGC"
         "GOMEMLIMIT=$GO_GOMEMLIMIT"

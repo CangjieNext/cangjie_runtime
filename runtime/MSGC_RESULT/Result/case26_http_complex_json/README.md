@@ -51,8 +51,8 @@ bash ./run_compare_linux.sh
 | `MSGC_SCAVENGE_GROWTH` | `1.10` |
 | `MSGC_MIN_GC_THRESHOLD` | `20mb` |
 | client mode | `sync` |
-| `CASE27_SEND_INTERVAL_MS` | `1` |
-| `CASE27_MAX_INFLIGHT` | `32` |
+| `CASE26_SEND_INTERVAL_MS` | `1` |
+| `CASE26_MAX_INFLIGHT` | `32` |
 | persistent bytes | `5368709120`（5 GiB） |
 | persistent workers | `8` |
 | fd soft limit | `65535` |
@@ -68,18 +68,22 @@ Java 默认开启，堆上限随 `HEAP_SIZE` 设置（默认 `-Xmx16g`）。Linu
 # 10 个并发、10K payload、10 个处理器
 HEAP_SIZE=16gb PROCS=10 \
 MSGC_HEAP_GROWTH=2 MSGC_SCAVENGE_GROWTH=2 \
-CASE27_PAYLOAD=10K CASE27_CONCURRENCY=10 \
+CASE26_PAYLOAD=10K CASE26_CONCURRENCY=10 \
 bash ./run_compare_linux.sh
 
 # 小内存冒烟：缩小持久对象和时长
-CASE27_PERSISTENT_BYTES=64mb CASE27_PERSISTENT_WORKERS=2 \
-CASE27_DURATION_MS=1000 CASE27_CONCURRENCY=8 \
+CASE26_PERSISTENT_BYTES=64mb CASE26_PERSISTENT_WORKERS=2 \
+CASE26_DURATION_MS=1000 CASE26_CONCURRENCY=8 \
 bash ./run_compare_linux.sh
 ```
 
-## 环境变量兼容性
+## 环境变量
 
-case26 的 benchmark 源码此前沿用了 case27 的环境变量接口，因而当前仍使用
-`CASE27_PAYLOAD`、`CASE27_CONCURRENCY`、`CASE27_DURATION_MS` 等变量名。
-这只是兼容接口；输出元数据、脚本标题和本文档均标识为 `case26`。不要把
-case27 文档中的旧 SDK 路径或旧默认参数当作 case26 的执行配置。
+case26 的脚本、Cangjie benchmark、Go benchmark 和 Java benchmark 统一使用
+`CASE26_*` 环境变量；不再读取旧用例前缀的环境变量。
+
+Linux 主入口会在设置 `PROCS` 时同时限制 Cangjie、Go 和 Java：Cangjie 使用
+`cjProcessorNum`，Go 使用 `GOMAXPROCS`，Java 使用
+`-XX:ActiveProcessorCount` 并通过 `taskset -c 0-(P-1)` 设置硬 CPU 亲和性。
+Java 默认使用 Java 25 runtime 和 Java 8 javac，Go 默认使用当前 shell 中解析到
+的 Go 1.26；这些路径可分别通过 `JAVA_BIN`、`JAVAC_BIN` 和 `GO_BIN` 覆盖。

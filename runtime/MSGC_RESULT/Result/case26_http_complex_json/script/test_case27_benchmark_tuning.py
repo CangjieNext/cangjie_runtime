@@ -91,8 +91,8 @@ class Case27BenchmarkTuningTests(unittest.TestCase):
                 )
     def test_cangjie_has_concurrent_static_and_stack_persistent_roots(self) -> None:
         text = BENCHMARK.read_text()
-        self.assertIn('CASE27_PERSISTENT_BYTES', text)
-        self.assertIn('CASE27_PERSISTENT_WORKERS', text)
+        self.assertIn('CASE26_PERSISTENT_BYTES', text)
+        self.assertIn('CASE26_PERSISTENT_WORKERS', text)
         self.assertIn('let PERSISTENT_STATIC_ROOT_SHARDS', text)
         self.assertIn('let stackRoots = ArrayList<Array<Byte>>(', text)
         self.assertIn('spawn { persistentAllocationWorker(', text)
@@ -112,11 +112,11 @@ class Case27BenchmarkTuningTests(unittest.TestCase):
         )
         for script in scripts:
             text = script.read_text()
-            self.assertIn('DUR="${CASE27_DURATION_MS:-60000}"', text)
+            self.assertIn('DUR="${CASE26_DURATION_MS:-60000}"', text)
             self.assertIn('HEAP_SIZE="${HEAP_SIZE:-16gb}"', text)
-            if script == RUN_COMPARE:
+            if script in (RUN_COMPARE, RUN_COMPARE_LINUX):
                 self.assertIn(
-                    'PERSISTENT_BYTES_INPUT="${CASE27_PERSISTENT_BYTES:-5368709120}"',
+                    'PERSISTENT_BYTES_INPUT="${CASE26_PERSISTENT_BYTES:-5368709120}"',
                     text,
                 )
                 self.assertIn(
@@ -125,15 +125,15 @@ class Case27BenchmarkTuningTests(unittest.TestCase):
                 )
             else:
                 self.assertIn(
-                    'PERSISTENT_BYTES="${CASE27_PERSISTENT_BYTES:-5368709120}"',
+                    'PERSISTENT_BYTES="${CASE26_PERSISTENT_BYTES:-5368709120}"',
                     text,
                 )
             self.assertIn(
-                'PERSISTENT_WORKERS="${CASE27_PERSISTENT_WORKERS:-8}"',
+                'PERSISTENT_WORKERS="${CASE26_PERSISTENT_WORKERS:-8}"',
                 text,
             )
-            self.assertIn('"CASE27_PERSISTENT_BYTES=$PERSISTENT_BYTES"', text)
-            self.assertIn('"CASE27_PERSISTENT_WORKERS=$PERSISTENT_WORKERS"', text)
+            self.assertIn('"CASE26_PERSISTENT_BYTES=$PERSISTENT_BYTES"', text)
+            self.assertIn('"CASE26_PERSISTENT_WORKERS=$PERSISTENT_WORKERS"', text)
             self.assertIn(
                 'GO_GOMEMLIMIT="${GO_GOMEMLIMIT:-16GiB}"',
                 text,
@@ -223,6 +223,30 @@ class Case27BenchmarkTuningTests(unittest.TestCase):
             text,
         )
         self.assertNotIn('COMPARE_DIR="$CASE_DIR/result/${TS}_${TAG}_c${CONC}_p${PAYLOAD}_compare"', text)
+
+    def test_linux_run_compare_names_result_with_procs(self) -> None:
+        text = RUN_COMPARE_LINUX.read_text()
+
+        self.assertIn('RUN_DATE="$(date +%Y%m%d)"', text)
+        self.assertIn(
+            'PERSISTENT_BYTES_MIB=$((PERSISTENT_BYTES / 1024 / 1024))',
+            text,
+        )
+        self.assertIn(
+            "PAYLOAD_TAG=$(printf '%s' \"$PAYLOAD\" | tr '[:upper:]' '[:lower:]')",
+            text,
+        )
+        self.assertIn('PROCS_TAG="${PROCS:-Auto}"', text)
+        self.assertIn(
+            'COMPARE_DIR_BASE="$CASE_DIR/result/${RUN_DATE}_${PERSISTENT_BYTES_MIB}M_c${CONC}_${PAYLOAD_TAG}_HeapGrow${MSGC_HEAP_GROWTH}_Scavenge${MSGC_SCAVENGE_GROWTH}_Procs${PROCS_TAG}_compare"',
+            text,
+        )
+        self.assertIn('COMPARE_DIR="$COMPARE_DIR_BASE"', text)
+        self.assertIn('while [[ -e "$COMPARE_DIR" ]]; do', text)
+        self.assertIn(
+            'COMPARE_DIR="${COMPARE_DIR_BASE}_${COMPARE_DIR_SUFFIX}"',
+            text,
+        )
 
 
 if __name__ == "__main__":

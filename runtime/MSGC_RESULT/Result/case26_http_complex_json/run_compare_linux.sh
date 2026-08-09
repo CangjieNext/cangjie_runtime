@@ -21,10 +21,10 @@
 #     CJ_ARCH             目标架构（aarch64|x86_64），默认取 uname -m
 #
 #   可选环境变量（有默认值）：
-#     CASE27_PAYLOAD       1K|10K|100K|1M        默认 100K
-#     CASE27_CONCURRENCY   worker 并发数           默认 1000
-#     CASE27_DURATION_MS   压测时长 (ms)           默认 60000
-#     CASE27_NOFILE_LIMIT  进程 fd soft limit       默认 65535
+#     CASE26_PAYLOAD       1K|10K|100K|1M        默认 100K
+#     CASE26_CONCURRENCY   worker 并发数           默认 1000
+#     CASE26_DURATION_MS   压测时长 (ms)           默认 60000
+#     CASE26_NOFILE_LIMIT  进程 fd soft limit       默认 65535
 #     HEAP_SIZE            cjHeapSize             默认 16gb
 #     PROCS                可选；显式设置时透传 cjProcessorNum
 #     MSGC_HEAP_GROWTH     仅传给 MSGC 的 cjHeapGrowth，默认 1
@@ -36,13 +36,13 @@
 #     CJ_MS_VERIFY_MARK    仅透传给 MSGC runtime 的 verifier 开关，默认不设置
 #     CJ_MS_VERIFY_MARK_DETAIL  verifier detail 开关，默认不设置
 #     CJ_MS_VERIFY_ROOTS   root 枚举诊断开关，默认不设置
-#     CASE27_BODY_DIAG     benchmark 请求/响应体诊断开关，默认不设置
-#     CASE27_DUMP_BAD_BODY benchmark 失败请求/响应完整 body 落盘开关，默认不设置
-#     CASE27_GRAPH_DIAG    benchmark JSON 图遍历诊断开关，默认不设置
-#     CASE27_GRAPH_DIAG_RATE  JSON 图遍历每 N 个节点打印一次，默认不设置
-#     CASE27_CLIENT_MODE   sync|async             默认 sync
-#     CASE27_SEND_INTERVAL_MS async 发射间隔 (ms)  默认 1
-#     CASE27_MAX_INFLIGHT  async 最大在途请求数    默认 32
+#     CASE26_BODY_DIAG     benchmark 请求/响应体诊断开关，默认不设置
+#     CASE26_DUMP_BAD_BODY benchmark 失败请求/响应完整 body 落盘开关，默认不设置
+#     CASE26_GRAPH_DIAG    benchmark JSON 图遍历诊断开关，默认不设置
+#     CASE26_GRAPH_DIAG_RATE  JSON 图遍历每 N 个节点打印一次，默认不设置
+#     CASE26_CLIENT_MODE   sync|async             默认 sync
+#     CASE26_SEND_INTERVAL_MS async 发射间隔 (ms)  默认 1
+#     CASE26_MAX_INFLIGHT  async 最大在途请求数    默认 32
 #     GO_ENABLE            是否加入 Go mirror side 默认 1
 #     GO_GODEBUG           Go benchmark 的 GODEBUG 默认 gctrace=1
 #     GO_GOGC              可选，透传给 Go side
@@ -51,12 +51,11 @@
 #     JAVAC_BIN            javac 命令，默认 javac
 #     JAVA_OPTS            可选 Java 运行参数
 #     JAVA_GC_OPTS         可选 Java GC 日志参数；为空时按 JDK 版本自动配置
-#     TAG                  结果目录名标识          默认 output_msgc_vs_copygc_go_java
 #
 #   用法示例：
 #     MSGC_SDK_ROOT=/home/lipeisheng/cangjie/cangjie_compiler_CMSGC/output/msgc \
 #     COPYGC_SDK_ROOT=/home/lipeisheng/cangjie-pkg/main/260723 \
-#     CASE27_PAYLOAD=10K CASE27_CONCURRENCY=8 \
+#     CASE26_PAYLOAD=10K CASE26_CONCURRENCY=8 \
 #     ./run_compare_linux.sh
 # ============================================================
 set -uo pipefail
@@ -94,10 +93,10 @@ MSGC_STDX="${MSGC_STDX_ROOT}/dynamic/stdx"
 COPYGC_STDX="${COPYGC_STDX_ROOT}/dynamic/stdx"
 
 # ---------- 可选参数（与 README 中的 case26 环境变量约定对齐） ----------
-PAYLOAD="${CASE27_PAYLOAD:-100K}"
-CONC="${CASE27_CONCURRENCY:-1000}"
-DUR="${CASE27_DURATION_MS:-60000}"
-CASE27_NOFILE_LIMIT="${CASE27_NOFILE_LIMIT:-65535}"
+PAYLOAD="${CASE26_PAYLOAD:-100K}"
+CONC="${CASE26_CONCURRENCY:-1000}"
+DUR="${CASE26_DURATION_MS:-60000}"
+CASE26_NOFILE_LIMIT="${CASE26_NOFILE_LIMIT:-65535}"
 HEAP_SIZE="${HEAP_SIZE:-16gb}"
 PROCS="${PROCS:-}"
 MSGC_HEAP_GROWTH="${MSGC_HEAP_GROWTH:-1}"
@@ -105,21 +104,43 @@ MSGC_SCAVENGE_GROWTH="${MSGC_SCAVENGE_GROWTH:-1.10}"
 MSGC_MIN_GC_THRESHOLD="${MSGC_MIN_GC_THRESHOLD:-20mb}"
 COPYGC_GC_INTERVAL="${COPYGC_GC_INTERVAL:-}"
 MSGC_GC_INTERVAL="${MSGC_GC_INTERVAL:-}"
-CLIENT_MODE="${CASE27_CLIENT_MODE:-sync}"
-SEND_INTERVAL_MS="${CASE27_SEND_INTERVAL_MS:-1}"
-MAX_INFLIGHT="${CASE27_MAX_INFLIGHT:-32}"
-PERSISTENT_BYTES="${CASE27_PERSISTENT_BYTES:-5368709120}"
-PERSISTENT_WORKERS="${CASE27_PERSISTENT_WORKERS:-8}"
+CLIENT_MODE="${CASE26_CLIENT_MODE:-sync}"
+SEND_INTERVAL_MS="${CASE26_SEND_INTERVAL_MS:-1}"
+MAX_INFLIGHT="${CASE26_MAX_INFLIGHT:-32}"
+PERSISTENT_BYTES_INPUT="${CASE26_PERSISTENT_BYTES:-5368709120}"
+if ! PERSISTENT_BYTES="$(
+    bash "$SCRIPT_DIR/normalize_byte_size.sh" "$PERSISTENT_BYTES_INPUT"
+)"; then
+    exit 1
+fi
+PERSISTENT_WORKERS="${CASE26_PERSISTENT_WORKERS:-8}"
 GO_ENABLE="${GO_ENABLE:-1}"
 GO_GODEBUG="${GO_GODEBUG:-gctrace=1}"
 GO_GOGC="${GO_GOGC:-}"
 GO_GOMEMLIMIT="${GO_GOMEMLIMIT:-16GiB}"
 JAVA_ENABLE="${JAVA_ENABLE:-1}"
-JAVA_BIN="${JAVA_BIN:-java}"
-JAVAC_BIN="${JAVAC_BIN:-javac}"
-JAVA_OPTS="${JAVA_OPTS:--Xmx16g}"
+GO_BIN="${GO_BIN:-$(command -v go 2>/dev/null || true)}"
+JAVA_BIN="${JAVA_BIN:-/usr/lib/jvm/java-25-openjdk-arm64/bin/java}"
+JAVAC_BIN="${JAVAC_BIN:-/usr/lib/jvm/java-8-openjdk-arm64/bin/javac}"
+JAVA_HEAP_SIZE="${HEAP_SIZE%[bB]}"
+JAVA_OPTS="${JAVA_OPTS:--Xmx${JAVA_HEAP_SIZE}}"
 JAVA_GC_OPTS="${JAVA_GC_OPTS:-}"
-TAG="${TAG:-output_msgc_vs_copygc_go_java}"
+JAVA_CPUSET="${JAVA_CPUSET:-}"
+
+if [[ -n "$PROCS" ]]; then
+    if ! [[ "$PROCS" =~ ^[1-9][0-9]*$ ]]; then
+        echo "[ERROR] PROCS must be a positive integer when set: $PROCS" >&2
+        exit 1
+    fi
+    ONLINE_CPUS="$(getconf _NPROCESSORS_ONLN)"
+    if ((PROCS > ONLINE_CPUS)); then
+        echo "[ERROR] PROCS=$PROCS exceeds online CPUs=$ONLINE_CPUS" >&2
+        exit 1
+    fi
+    if [[ -z "$JAVA_CPUSET" ]]; then
+        JAVA_CPUSET="0-$((PROCS - 1))"
+    fi
+fi
 
 configure_nofile_limit() {
     local requested="$1"
@@ -131,11 +152,11 @@ configure_nofile_limit() {
     local effective
 
     if [[ ! "$requested" =~ ^[1-9][0-9]*$ ]]; then
-        echo "[ERROR] CASE27_NOFILE_LIMIT must be a positive integer: $requested" >&2
+        echo "[ERROR] CASE26_NOFILE_LIMIT must be a positive integer: $requested" >&2
         return 1
     fi
     if [[ ! "$concurrency" =~ ^[1-9][0-9]*$ ]]; then
-        echo "[ERROR] CASE27_CONCURRENCY must be a positive integer: $concurrency" >&2
+        echo "[ERROR] CASE26_CONCURRENCY must be a positive integer: $concurrency" >&2
         return 1
     fi
 
@@ -178,17 +199,17 @@ configure_nofile_limit() {
         fi
         if ((effective < required)); then
             echo "[ERROR] effective nofile=$effective is below required=$required for concurrency=$concurrency" >&2
-            echo "[ERROR] raise the hard limit or lower CASE27_CONCURRENCY" >&2
+            echo "[ERROR] raise the hard limit or lower CASE26_CONCURRENCY" >&2
             return 1
         fi
     fi
 
-    CASE27_NOFILE_REQUIRED="$required"
-    CASE27_NOFILE_EFFECTIVE="$effective"
+    CASE26_NOFILE_REQUIRED="$required"
+    CASE26_NOFILE_EFFECTIVE="$effective"
     echo "[INFO] nofile: requested=$requested required=$required effective=$effective hard=$hard"
 }
 
-if ! configure_nofile_limit "$CASE27_NOFILE_LIMIT" "$CONC"; then
+if ! configure_nofile_limit "$CASE26_NOFILE_LIMIT" "$CONC"; then
     exit 1
 fi
 
@@ -207,11 +228,19 @@ if [[ "$JAVA_ENABLE" != "0" ]]; then
     fi
     JAVA_BIN="$(command -v "$JAVA_BIN")"
     JAVAC_BIN="$(command -v "$JAVAC_BIN")"
+    if [[ -n "$JAVA_CPUSET" ]] && ! command -v taskset >/dev/null 2>&1; then
+        echo "[ERROR] Java CPU affinity requires taskset, but taskset is unavailable" >&2
+        exit 1
+    fi
     if [[ ! -f "$CASE_DIR/java_benchmark/Case27HttpComplexJsonBenchmark.java" ]] ||
        [[ ! -f "$CASE_DIR/java_benchmark/Case27HttpComplexJsonBenchmarkTest.java" ]]; then
         echo "[ERROR] Java benchmark sources are incomplete under $CASE_DIR/java_benchmark" >&2
         exit 1
     fi
+fi
+if [[ "$GO_ENABLE" != "0" && ! -x "$GO_BIN" ]]; then
+    echo "[ERROR] GO_BIN is unavailable or not executable: $GO_BIN" >&2
+    exit 1
 fi
 
 if [[ ! -d "$MSGC_SDK_ROOT" ]]; then
@@ -223,8 +252,17 @@ if [[ ! -d "$COPYGC_SDK_ROOT" ]]; then
     exit 1
 fi
 
-TS="$(date +%Y%m%d_%H%M%S)"
-COMPARE_DIR="$CASE_DIR/result/${TS}_${TAG}_c${CONC}_p${PAYLOAD}_compare"
+RUN_DATE="$(date +%Y%m%d)"
+PERSISTENT_BYTES_MIB=$((PERSISTENT_BYTES / 1024 / 1024))
+PAYLOAD_TAG=$(printf '%s' "$PAYLOAD" | tr '[:upper:]' '[:lower:]')
+PROCS_TAG="${PROCS:-Auto}"
+COMPARE_DIR_BASE="$CASE_DIR/result/${RUN_DATE}_${PERSISTENT_BYTES_MIB}M_c${CONC}_${PAYLOAD_TAG}_HeapGrow${MSGC_HEAP_GROWTH}_Scavenge${MSGC_SCAVENGE_GROWTH}_Procs${PROCS_TAG}_compare"
+COMPARE_DIR="$COMPARE_DIR_BASE"
+COMPARE_DIR_SUFFIX=1
+while [[ -e "$COMPARE_DIR" ]]; do
+    COMPARE_DIR="${COMPARE_DIR_BASE}_${COMPARE_DIR_SUFFIX}"
+    COMPARE_DIR_SUFFIX=$((COMPARE_DIR_SUFFIX + 1))
+done
 COPYGC_DIR="$COMPARE_DIR/copygc"
 MSGC_DIR="$COMPARE_DIR/msgc"
 GO_DIR="$COMPARE_DIR/go"
@@ -240,7 +278,9 @@ fi
 mkdir -p "$MPLCONFIG_DIR"
 echo "[INFO] compare dir: $COMPARE_DIR"
 echo "[INFO] platform_dir: $PLATFORM_DIR (arch=$CJ_ARCH)"
-echo "[INFO] config: payload=$PAYLOAD concurrency=$CONC duration=${DUR}ms heap=$HEAP_SIZE proc=${PROCS:-auto} mode=$CLIENT_MODE nofile=$CASE27_NOFILE_EFFECTIVE msgcMinGCThreshold=$MSGC_MIN_GC_THRESHOLD"
+echo "[INFO] config: payload=$PAYLOAD concurrency=$CONC duration=${DUR}ms heap=$HEAP_SIZE proc=${PROCS:-auto} mode=$CLIENT_MODE nofile=$CASE26_NOFILE_EFFECTIVE msgcMinGCThreshold=$MSGC_MIN_GC_THRESHOLD"
+echo "[INFO] Go=$GO_BIN Java=$JAVA_BIN javac=$JAVAC_BIN"
+[[ -n "$JAVA_CPUSET" ]] && echo "[INFO] Java CPU affinity=$JAVA_CPUSET"
 
 # Linux 下计算 dylib md5（md5sum 输出 "hash  file"）
 dylib_md5() {
@@ -294,10 +334,10 @@ run_side() {
         echo "duration_ms=$DUR"
         echo "persistent_bytes=$PERSISTENT_BYTES"
         echo "persistent_workers=$PERSISTENT_WORKERS"
-        echo "nofile_requested=$CASE27_NOFILE_LIMIT"
-        echo "nofile_required=$CASE27_NOFILE_REQUIRED"
-        echo "nofile_effective=$CASE27_NOFILE_EFFECTIVE"
-        echo "client_timeout_ms=${CASE27_CLIENT_TIMEOUT_MS:-5000}"
+        echo "nofile_requested=$CASE26_NOFILE_LIMIT"
+        echo "nofile_required=$CASE26_NOFILE_REQUIRED"
+        echo "nofile_effective=$CASE26_NOFILE_EFFECTIVE"
+        echo "client_timeout_ms=${CASE26_CLIENT_TIMEOUT_MS:-5000}"
         echo "client_mode=$CLIENT_MODE"
         echo "send_interval_ms=$SEND_INTERVAL_MS"
         echo "max_inflight=$MAX_INFLIGHT"
@@ -316,11 +356,11 @@ run_side() {
         echo "cj_ms_verify_mark=${CJ_MS_VERIFY_MARK:-}"
         echo "cj_ms_verify_mark_detail=${CJ_MS_VERIFY_MARK_DETAIL:-}"
         echo "cj_ms_verify_roots=${CJ_MS_VERIFY_ROOTS:-}"
-        echo "case27_body_diag=${CASE27_BODY_DIAG:-}"
-        echo "case27_dump_bad_body=${CASE27_DUMP_BAD_BODY:-}"
-        echo "case27_dump_dir=$out_dir"
-        echo "case27_graph_diag=${CASE27_GRAPH_DIAG:-}"
-        echo "case27_graph_diag_rate=${CASE27_GRAPH_DIAG_RATE:-}"
+        echo "case26_body_diag=${CASE26_BODY_DIAG:-}"
+        echo "case26_dump_bad_body=${CASE26_DUMP_BAD_BODY:-}"
+        echo "case26_dump_dir=$out_dir"
+        echo "case26_graph_diag=${CASE26_GRAPH_DIAG:-}"
+        echo "case26_graph_diag_rate=${CASE26_GRAPH_DIAG_RATE:-}"
         echo "platform_dir=$PLATFORM_DIR"
         echo "arch=$CJ_ARCH"
         echo "timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -346,26 +386,26 @@ run_side() {
         "CJC_GC_MODE=$cjc_gc_mode"
         "BENCH_SRC=$CASE_DIR/benchmark.cj"
         "PAYLOAD_DIR=$CASE_DIR/payloads"
-        "CASE27_PAYLOAD=$PAYLOAD"
-        "CASE27_CONCURRENCY=$CONC"
-        "CASE27_DURATION_MS=$DUR"
-        "CASE27_PERSISTENT_BYTES=$PERSISTENT_BYTES"
-        "CASE27_PERSISTENT_WORKERS=$PERSISTENT_WORKERS"
-        "CASE27_SERVER_PORT=$port"
-        "CASE27_CLIENT_TIMEOUT_MS=${CASE27_CLIENT_TIMEOUT_MS:-5000}"
-        "CASE27_PAYLOAD_DIR=$CASE_DIR/payloads"
-        "CASE27_DUMP_DIR=$out_dir"
-        "CASE27_CLIENT_MODE=$CLIENT_MODE"
-        "CASE27_SEND_INTERVAL_MS=$SEND_INTERVAL_MS"
-        "CASE27_MAX_INFLIGHT=$MAX_INFLIGHT"
+        "CASE26_PAYLOAD=$PAYLOAD"
+        "CASE26_CONCURRENCY=$CONC"
+        "CASE26_DURATION_MS=$DUR"
+        "CASE26_PERSISTENT_BYTES=$PERSISTENT_BYTES"
+        "CASE26_PERSISTENT_WORKERS=$PERSISTENT_WORKERS"
+        "CASE26_SERVER_PORT=$port"
+        "CASE26_CLIENT_TIMEOUT_MS=${CASE26_CLIENT_TIMEOUT_MS:-5000}"
+        "CASE26_PAYLOAD_DIR=$CASE_DIR/payloads"
+        "CASE26_DUMP_DIR=$out_dir"
+        "CASE26_CLIENT_MODE=$CLIENT_MODE"
+        "CASE26_SEND_INTERVAL_MS=$SEND_INTERVAL_MS"
+        "CASE26_MAX_INFLIGHT=$MAX_INFLIGHT"
     )
     local optional_var=""
     local optional_value=""
     for optional_var in \
-        CASE27_BODY_DIAG \
-        CASE27_DUMP_BAD_BODY \
-        CASE27_GRAPH_DIAG \
-        CASE27_GRAPH_DIAG_RATE \
+        CASE26_BODY_DIAG \
+        CASE26_DUMP_BAD_BODY \
+        CASE26_GRAPH_DIAG \
+        CASE26_GRAPH_DIAG_RATE \
         CJ_SCHDFD_TIMEOUT_DIAG \
         CJ_MS_DISABLE_ASSIST \
         CJ_MS_ASSIST_RATIO_SCALE \
@@ -401,11 +441,11 @@ run_side() {
             echo "[$LABEL] cjGCBGSweepMaxTime=${cjGCBGSweepMaxTime:-<default>}"
             echo "[$LABEL] cjScavengeGrowth=${RUNTIME_SCAVENGE_GROWTH:-<default>}"
             echo "[$LABEL] cjMSMinGCThreshold=${RUNTIME_MIN_GC_THRESHOLD:-<default>}"
-            echo "[$LABEL] CASE27_BODY_DIAG=${CASE27_BODY_DIAG:-<default>}"
-            echo "[$LABEL] CASE27_DUMP_BAD_BODY=${CASE27_DUMP_BAD_BODY:-<default>}"
-            echo "[$LABEL] CASE27_DUMP_DIR=${CASE27_DUMP_DIR:-<default>}"
-            echo "[$LABEL] CASE27_GRAPH_DIAG=${CASE27_GRAPH_DIAG:-<default>}"
-            echo "[$LABEL] CASE27_GRAPH_DIAG_RATE=${CASE27_GRAPH_DIAG_RATE:-<default>}"
+            echo "[$LABEL] CASE26_BODY_DIAG=${CASE26_BODY_DIAG:-<default>}"
+            echo "[$LABEL] CASE26_DUMP_BAD_BODY=${CASE26_DUMP_BAD_BODY:-<default>}"
+            echo "[$LABEL] CASE26_DUMP_DIR=${CASE26_DUMP_DIR:-<default>}"
+            echo "[$LABEL] CASE26_GRAPH_DIAG=${CASE26_GRAPH_DIAG:-<default>}"
+            echo "[$LABEL] CASE26_GRAPH_DIAG_RATE=${CASE26_GRAPH_DIAG_RATE:-<default>}"
 
             cd "$OUT_DIR"
             cjc_args=("-O2" "$BENCH_SRC")
@@ -477,8 +517,8 @@ run_side() {
                     if (length \$line) {
                         my (\$rss, \$cpu) = split /\s+/, \$line, 2;
                         my \$t = time();
-                        my @lt = localtime(int(\$t));
-                        my \$frac = sprintf(\"%.3f\", \$t - int(\$t));
+                        my @lt = gmtime(int(\$t));
+                        my \$frac = sprintf(\"%.6f\", \$t - int(\$t));
                         \$frac =~ s/^0//;
                         printf \"%04d-%02d-%02dT%02d:%02d:%02d%s,%s,%s\n\",
                             \$lt[5]+1900,\$lt[4]+1,\$lt[3],\$lt[2],\$lt[1],\$lt[0],\$frac,\$rss,\$cpu;
@@ -531,22 +571,23 @@ run_go_side() {
         echo "duration_ms=$DUR"
         echo "persistent_bytes=$PERSISTENT_BYTES"
         echo "persistent_workers=$PERSISTENT_WORKERS"
-        echo "nofile_requested=$CASE27_NOFILE_LIMIT"
-        echo "nofile_required=$CASE27_NOFILE_REQUIRED"
-        echo "nofile_effective=$CASE27_NOFILE_EFFECTIVE"
-        echo "client_timeout_ms=${CASE27_CLIENT_TIMEOUT_MS:-5000}"
+        echo "nofile_requested=$CASE26_NOFILE_LIMIT"
+        echo "nofile_required=$CASE26_NOFILE_REQUIRED"
+        echo "nofile_effective=$CASE26_NOFILE_EFFECTIVE"
+        echo "client_timeout_ms=${CASE26_CLIENT_TIMEOUT_MS:-5000}"
         echo "client_mode=$CLIENT_MODE"
         echo "send_interval_ms=$SEND_INTERVAL_MS"
         echo "max_inflight=$MAX_INFLIGHT"
         echo "server_port=$port"
         echo "original_port=$orig_port"
         echo "heap_size=N/A"
-        echo "procs=N/A"
+        echo "procs=${PROCS:-}"
         echo "go_godebug=$GO_GODEBUG"
         echo "go_gogc=${GO_GOGC:-}"
         echo "go_gomemlimit=$GO_GOMEMLIMIT"
+        echo "go_bin=$GO_BIN"
         echo "timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-        echo "go_version=$(go version 2>/dev/null || echo unavailable)"
+        echo "go_version=$($GO_BIN version 2>/dev/null || echo unavailable)"
     } > "$out_dir/run_metadata.env"
     cp -R "$CASE_DIR/go_benchmark" "$out_dir/go_benchmark.snapshot"
     cp "$CASE_DIR/payloads/${PAYLOAD}.json" "$out_dir/payload.snapshot.json"
@@ -558,20 +599,22 @@ run_go_side() {
         "CASE_DIR=$CASE_DIR"
         "OUT_DIR=$out_dir"
         "LABEL=$label"
-        "CASE27_PAYLOAD=$PAYLOAD"
-        "CASE27_CONCURRENCY=$CONC"
-        "CASE27_DURATION_MS=$DUR"
-        "CASE27_PERSISTENT_BYTES=$PERSISTENT_BYTES"
-        "CASE27_PERSISTENT_WORKERS=$PERSISTENT_WORKERS"
-        "CASE27_SERVER_PORT=$port"
-        "CASE27_CLIENT_TIMEOUT_MS=${CASE27_CLIENT_TIMEOUT_MS:-5000}"
-        "CASE27_PAYLOAD_DIR=$CASE_DIR/payloads"
-        "CASE27_CLIENT_MODE=$CLIENT_MODE"
-        "CASE27_SEND_INTERVAL_MS=$SEND_INTERVAL_MS"
-        "CASE27_MAX_INFLIGHT=$MAX_INFLIGHT"
+        "CASE26_PAYLOAD=$PAYLOAD"
+        "CASE26_CONCURRENCY=$CONC"
+        "CASE26_DURATION_MS=$DUR"
+        "CASE26_PERSISTENT_BYTES=$PERSISTENT_BYTES"
+        "CASE26_PERSISTENT_WORKERS=$PERSISTENT_WORKERS"
+        "CASE26_SERVER_PORT=$port"
+        "CASE26_CLIENT_TIMEOUT_MS=${CASE26_CLIENT_TIMEOUT_MS:-5000}"
+        "CASE26_PAYLOAD_DIR=$CASE_DIR/payloads"
+        "CASE26_CLIENT_MODE=$CLIENT_MODE"
+        "CASE26_SEND_INTERVAL_MS=$SEND_INTERVAL_MS"
+        "CASE26_MAX_INFLIGHT=$MAX_INFLIGHT"
         "GO_GODEBUG=$GO_GODEBUG"
         "GO_GOGC=$GO_GOGC"
         "GOMEMLIMIT=$GO_GOMEMLIMIT"
+        "GO_BIN=$GO_BIN"
+        "PROCS=$PROCS"
     )
 
     env -i "${child_env[@]}" bash -c '
@@ -581,7 +624,7 @@ run_go_side() {
             mkdir -p "$GOCACHE" "$GOTMPDIR"
 
             cd "$CASE_DIR/go_benchmark"
-            go build -o "$OUT_DIR/benchmark_go" .
+            "$GO_BIN" build -o "$OUT_DIR/benchmark_go" .
             if [ ! -x "$OUT_DIR/benchmark_go" ]; then
                 echo "[$LABEL] go build failed"; exit 1
             fi
@@ -591,6 +634,11 @@ run_go_side() {
                 export GOGC="$GO_GOGC"
             else
                 unset GOGC 2>/dev/null || true
+            fi
+            if [[ -n "${PROCS:-}" ]]; then
+                export GOMAXPROCS="$PROCS"
+            else
+                unset GOMAXPROCS 2>/dev/null || true
             fi
 
             GODEBUG="$GO_GODEBUG" \
@@ -605,8 +653,8 @@ run_go_side() {
                     if (length \$line) {
                         my (\$rss, \$cpu) = split /\\s+/, \$line, 2;
                         my \$t = time();
-                        my @lt = localtime(int(\$t));
-                        my \$frac = sprintf(\"%.3f\", \$t - int(\$t));
+                        my @lt = gmtime(int(\$t));
+                        my \$frac = sprintf(\"%.6f\", \$t - int(\$t));
                         \$frac =~ s/^0//;
                         printf \"%04d-%02d-%02dT%02d:%02d:%02d%s,%s,%s\\n\",
                             \$lt[5]+1900,\$lt[4]+1,\$lt[3],\$lt[2],\$lt[1],\$lt[0],\$frac,\$rss,\$cpu;
@@ -659,21 +707,23 @@ run_java_side() {
         echo "duration_ms=$DUR"
         echo "persistent_bytes=$PERSISTENT_BYTES"
         echo "persistent_workers=$PERSISTENT_WORKERS"
-        echo "nofile_requested=$CASE27_NOFILE_LIMIT"
-        echo "nofile_required=$CASE27_NOFILE_REQUIRED"
-        echo "nofile_effective=$CASE27_NOFILE_EFFECTIVE"
-        echo "client_timeout_ms=${CASE27_CLIENT_TIMEOUT_MS:-5000}"
+        echo "nofile_requested=$CASE26_NOFILE_LIMIT"
+        echo "nofile_required=$CASE26_NOFILE_REQUIRED"
+        echo "nofile_effective=$CASE26_NOFILE_EFFECTIVE"
+        echo "client_timeout_ms=${CASE26_CLIENT_TIMEOUT_MS:-5000}"
         echo "client_mode=$CLIENT_MODE"
         echo "send_interval_ms=$SEND_INTERVAL_MS"
         echo "max_inflight=$MAX_INFLIGHT"
         echo "server_port=$port"
         echo "original_port=$orig_port"
-        echo "heap_size=N/A"
-        echo "procs=N/A"
+        echo "heap_size=$HEAP_SIZE"
+        echo "procs=${PROCS:-}"
         echo "java_bin=$JAVA_BIN"
         echo "javac_bin=$JAVAC_BIN"
         echo "java_opts=$JAVA_OPTS"
         echo "java_gc_opts=$JAVA_GC_OPTS"
+        echo "java_active_processor_count=${PROCS:-host-default}"
+        echo "java_cpuset=${JAVA_CPUSET:-unrestricted}"
         echo "java_version=$("$JAVA_BIN" -version 2>&1 | sed -n '1p')"
         echo "timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
     } > "$out_dir/run_metadata.env"
@@ -694,17 +744,19 @@ run_java_side() {
         "JAVAC_BIN=$JAVAC_BIN"
         "JAVA_OPTS=$JAVA_OPTS"
         "JAVA_GC_OPTS=$JAVA_GC_OPTS"
-        "CASE27_PAYLOAD=$PAYLOAD"
-        "CASE27_CONCURRENCY=$CONC"
-        "CASE27_DURATION_MS=$DUR"
-        "CASE27_PERSISTENT_BYTES=$PERSISTENT_BYTES"
-        "CASE27_PERSISTENT_WORKERS=$PERSISTENT_WORKERS"
-        "CASE27_SERVER_PORT=$port"
-        "CASE27_CLIENT_TIMEOUT_MS=${CASE27_CLIENT_TIMEOUT_MS:-5000}"
-        "CASE27_PAYLOAD_DIR=$CASE_DIR/payloads"
-        "CASE27_CLIENT_MODE=$CLIENT_MODE"
-        "CASE27_SEND_INTERVAL_MS=$SEND_INTERVAL_MS"
-        "CASE27_MAX_INFLIGHT=$MAX_INFLIGHT"
+        "PROCS=$PROCS"
+        "JAVA_CPUSET=$JAVA_CPUSET"
+        "CASE26_PAYLOAD=$PAYLOAD"
+        "CASE26_CONCURRENCY=$CONC"
+        "CASE26_DURATION_MS=$DUR"
+        "CASE26_PERSISTENT_BYTES=$PERSISTENT_BYTES"
+        "CASE26_PERSISTENT_WORKERS=$PERSISTENT_WORKERS"
+        "CASE26_SERVER_PORT=$port"
+        "CASE26_CLIENT_TIMEOUT_MS=${CASE26_CLIENT_TIMEOUT_MS:-5000}"
+        "CASE26_PAYLOAD_DIR=$CASE_DIR/payloads"
+        "CASE26_CLIENT_MODE=$CLIENT_MODE"
+        "CASE26_SEND_INTERVAL_MS=$SEND_INTERVAL_MS"
+        "CASE26_MAX_INFLIGHT=$MAX_INFLIGHT"
     )
 
     env -i "${child_env[@]}" bash -c '
@@ -731,6 +783,14 @@ run_java_side() {
             if ((java_major >= 9)); then
                 module_opts=(--add-modules jdk.httpserver)
             fi
+            cpu_opts=()
+            if [[ -n "$PROCS" ]]; then
+                cpu_opts=(-XX:ActiveProcessorCount="$PROCS")
+            fi
+            java_cmd=("$JAVA_BIN")
+            if [[ -n "$JAVA_CPUSET" ]]; then
+                java_cmd=(taskset -c "$JAVA_CPUSET" "${java_cmd[@]}")
+            fi
             java_opts=()
             if [[ -n "$JAVA_OPTS" ]]; then
                 read -r -a java_opts <<< "$JAVA_OPTS"
@@ -755,7 +815,7 @@ run_java_side() {
                 printf "java_gc_opts="; printf "%q " "${gc_opts[@]}"; echo
             } > "$OUT_DIR/java_command.env"
 
-            "$JAVAC_BIN" "${module_opts[@]}" \
+            "$JAVAC_BIN" \
                 -d "$OUT_DIR/classes" \
                 "$CASE_DIR/java_benchmark/Case27HttpComplexJsonBenchmark.java" \
                 "$CASE_DIR/java_benchmark/Case27HttpComplexJsonBenchmarkTest.java" \
@@ -767,7 +827,7 @@ run_java_side() {
                 exit "$compile_rc"
             fi
 
-            "$JAVA_BIN" "${module_opts[@]}" "${java_opts[@]}" \
+            "${java_cmd[@]}" "${module_opts[@]}" "${cpu_opts[@]}" "${java_opts[@]}" \
                 -cp "$OUT_DIR/classes" Case27HttpComplexJsonBenchmarkTest \
                 > "$OUT_DIR/test.stdout.txt" 2> "$OUT_DIR/test.stderr.txt"
             test_rc=$?
@@ -778,7 +838,7 @@ run_java_side() {
             fi
 
             : > "$OUT_DIR/gc.log"
-            "$JAVA_BIN" "${module_opts[@]}" "${java_opts[@]}" "${gc_opts[@]}" \
+            "${java_cmd[@]}" "${module_opts[@]}" "${cpu_opts[@]}" "${java_opts[@]}" "${gc_opts[@]}" \
                 -cp "$OUT_DIR/classes" Case27HttpComplexJsonBenchmark \
                 > "$OUT_DIR/stdout.txt" 2> "$OUT_DIR/stderr.txt" &
             BENCH_PID=$!
@@ -791,8 +851,8 @@ run_java_side() {
                     if (length \$line) {
                         my (\$rss, \$cpu) = split /\\s+/, \$line, 2;
                         my \$t = time();
-                        my @lt = localtime(int(\$t));
-                        my \$frac = sprintf(\"%.3f\", \$t - int(\$t));
+                        my @lt = gmtime(int(\$t));
+                        my \$frac = sprintf(\"%.6f\", \$t - int(\$t));
                         \$frac =~ s/^0//;
                         printf \"%04d-%02d-%02dT%02d:%02d:%02d%s,%s,%s\\n\",
                             \$lt[5]+1900,\$lt[4]+1,\$lt[3],\$lt[2],\$lt[1],\$lt[0],\$frac,\$rss,\$cpu;

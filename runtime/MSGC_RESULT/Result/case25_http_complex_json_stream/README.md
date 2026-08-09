@@ -86,6 +86,22 @@ CASE25_PAYLOAD=10K CASE25_CONCURRENCY=8 CASE25_DURATION_MS=60000 \
 HEAP_SIZE=2gb ./run_compare.sh
 ```
 
+Linux 使用独立脚本 `run_compare_linux.sh`，默认使用本机 MSGC SDK
+`/home/lipeisheng/cangjie/cangjie_compiler_CMSGC/output/msgc`、CopyGC SDK
+`/home/lipeisheng/cangjie-pkg/main/260723/cangjie`、Go 1.26 和 Java 25：
+
+```bash
+CASE25_PAYLOAD=100K CASE25_CONCURRENCY=100 CASE25_DURATION_MS=60000 \
+CASE25_PERSISTENT_BYTES=512mb CASE25_PERSISTENT_WORKERS=8 \
+HEAP_SIZE=20gb PROCS=8 MSGC_HEAP_GROWTH=1 MSGC_SCAVENGE_GROWTH=2 \
+MSGC_MIN_GC_THRESHOLD=20mb ./run_compare_linux.sh
+```
+
+Linux 脚本使用 `LD_LIBRARY_PATH` 和 `.so`，在隔离子 shell 中分别加载 SDK；
+Go 通过 `GO_BIN`（默认取当前 shell 中的 Go，避免清理 PATH 后误选系统旧版本），
+并将 `PROCS` 映射为 `GOMAXPROCS`。Java 的编译器和运行时可以分别用
+`JAVAC_BIN`、`JAVA_BIN` 覆盖。
+
 `run_compare.sh` 会在本目录 `result/` 下生成一个时间戳结果目录，依次运行 MSGC、
 CopyGC、Go、Java，并由相邻的 `script/compare_results.py` 输出汇总。`throughput`
 始终按成功请求数 `ok` 计算。
