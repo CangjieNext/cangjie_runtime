@@ -133,7 +133,7 @@ extend<T> Array<T> <: Equatable<Array<T>> where T <: Equatable<T> {
      *
      * @params element - The target element.
      *
-     * @return Index of the first occurrence of the element in the Array, or None if the the element does not occur.
+     * @return Index of the first occurrence of the element in the Array, or None if the  element does not occur.
      * @throws IllegalArgumentException - If the start less than 0.
      */
     @Frozen
