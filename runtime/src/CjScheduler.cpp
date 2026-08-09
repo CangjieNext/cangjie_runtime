@@ -112,6 +112,43 @@ static size_t InitHeapSize(size_t defaultParam)
     return defaultParam;
 }
 
+/**
+ * Default heap size (in KB).
+ *
+ * The old default was a fixed 256MB on machines with more than 1GB of system
+ * memory and 64MB otherwise, regardless of actual physical memory. Large
+ * result sets or concurrent allocations could hit this fixed cap and throw
+ * OutOfMemoryError even when the machine had plenty of free memory.
+ *
+ * The new default scales with physical memory: machines with more than 1GB
+ * take 25% of system memory, clamped to [256MB, 16GB]; devices with 1GB or
+ * less keep the old 64MB behavior. On 32-bit targets the upper bound is
+ * reduced to 1GB to stay within the address space. The heap is reserved as
+ * virtual address space and committed on demand, so a larger default does
+ * not increase resident memory. Explicit cjHeapSize / cjGCThreshold settings
+ * still take precedence.
+ */
+static size_t InitDefaultHeapSize()
+{
+    if (g_sysmemSize <= 1 * GB) {
+        return 64 * KB;
+    }
+    size_t heapKB = (g_sysmemSize / 4) / KB;
+    constexpr size_t minHeapKB = 256 * KB;
+    // 64-bit targets may reserve up to 16GB of virtual address space; 32-bit
+    // targets stay at 1GB to avoid exhausting the address space.
+    constexpr size_t maxHeapKB64 = 16 * 1024 * 1024;
+    constexpr size_t maxHeapKB32 = 1 * 1024 * 1024;
+    size_t maxHeapKB = (sizeof(void*) >= 8) ? maxHeapKB64 : maxHeapKB32;
+    if (heapKB < minHeapKB) {
+        return minHeapKB;
+    }
+    if (heapKB > maxHeapKB) {
+        return maxHeapKB;
+    }
+    return heapKB;
+}
+
 static size_t InitRegionSize(size_t defaultParam)
 {
     auto env = std::getenv("cjRegionSize");
@@ -639,7 +676,7 @@ void* MCC_NewCJThreadNoReturn(void* executeClosure, void* closurePtr, void* sche
 static RuntimeParam InitRuntimeParam()
 {
     CheckSysmemSize();
-    size_t initHeapSize = InitHeapSize(g_sysmemSize > 1 * GB ? 256 * KB : 64 * KB);
+    size_t initHeapSize = InitHeapSize(InitDefaultHeapSize());
     RuntimeParam param = {
         .heapParam = {
 #if defined(__OHOS__) || defined(__ANDROID__)
@@ -649,7 +686,7 @@ static RuntimeParam InitRuntimeParam()
                 // Default region size is 64KB.
                 .regionSize = InitRegionSize(64UL),
 #endif
-                // Default heap size is 256MB if system memory size is greater than 1GB, otherwise is 64MB.
+                // Default heap size scales with physical memory (see InitDefaultHeapSize).
                 .heapSize = initHeapSize,
                 /*
                  * The minimux live region threshold is 0% of region,
