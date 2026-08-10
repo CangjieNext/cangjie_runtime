@@ -17,10 +17,32 @@ let TEST_BUILDER_MACRO = MacroKey.create("@TestBuilder", Function, TestEntity, c
 let TEST_TEMPLATE_MACRO = MacroKey.create("@TestTemplate", Class, TestEntity, conflicts: [TEST_MACRO],
     placement: TopLevel, allowedModifiers: [ABSTRACT])
 
+// NOTE: Maybe allow to use on functions:
+// ```cangjie
+// @ConcurrentTest
+// func concurrentTest(scenario: ScenarioBuilder) {
+//     let x: Int64 = 0
+//
+//     @Operation[arg in [-1, 1]]
+//     func add(arg: Int64) { x += arg }
+//
+//     @Operation
+//     func sum(arg: Int64) { x -= arg }
+//   
+//     scenario.iterations(1000)
+// }
+// ```
+let CONCURRENT_TEST_MACRO = MacroKey.create("@ConcurrentTest", Class, TestEntity, placement: TopLevel, conflicts: [TEST_MACRO])
+// FIXME: What's right kind for these?
+let OPERATION_MACRO = MacroKey.create("@Operation", Function, Lifecycle, placement: InsideParent([CONCURRENT_TEST_MACRO]), conflicts: [])
+let GROUP_MACRO = MacroKey.create("@Group", Function, Lifecycle, placement: InsideParent([CONCURRENT_TEST_MACRO]), conflicts: [])
+
 // actual keys that are written to @Attribute section
 let SKIP_MACRO = MacroKey.create("@Skip", ClassOrFunction, Configuration)
 let TESTCASE_MACRO = MacroKey.create("@TestCase", Function, TestEntity,
-    placement: InsideParent([TEST_MACRO, TEST_TEMPLATE_MACRO]))
+    placement: InsideParent([TEST_MACRO, TEST_TEMPLATE_MACRO, CONCURRENT_TEST_MACRO]))
+let STRESS_TEST_MACRO = MacroKey.create("@StressTest", Function, TestEntity,
+    placement: InsideParent([CONCURRENT_TEST_MACRO]))
 let CONFIGURE_MACRO = MacroKey.create("@Configure", ClassOrFunction, Configuration, repeatable: true)
 let TYPES_MACRO = MacroKey.create("@Types", ClassOrFunction, Configuration,
     conflicts: [TEST_BUILDER_MACRO, TEST_TEMPLATE_MACRO])
@@ -83,6 +105,7 @@ enum MacroKind {
     | Configuration // configures an existing runnable entity
     | Lifecycle // controls lifecycle and cannot have any other annotations apart from other lifecycle annotations
     | Assertion // registers custom assertion function and prevents other annotations being put
+    | Concurrent // markers for member declarations for concurrent test configuration
 }
 
 enum MacroPlacement {
@@ -177,6 +200,7 @@ struct MacroKey <: ToString & Equatable<MacroKey> & Hashable {
             case (Configuration, Configuration) => true
             case (Lifecycle, Lifecycle) => true
             case (Assertion, Assertion) => true
+            case (Concurrent, Concurrent) => true
             case _ => false
         }
     }
@@ -228,19 +252,24 @@ struct MacroKey <: ToString & Equatable<MacroKey> & Hashable {
             }
         }
 
-        let lifecycleKeys = attrs.keys() |> filter { it: MacroKey => it.isOfKind(Lifecycle) } |> collectArray
-        let nonLifecycleKeys = attrs.keys() |> filter { it: MacroKey => !it.isOfKind(Lifecycle) } |> collectArray
-        for (lifecycleKey in lifecycleKeys) {
-            for (nonLifecycleKey in nonLifecycleKeys) {
-                errors.add("${lifecycleKey} macro can't be used together with ${nonLifecycleKey}.")
-            }
-        }
+        checkOnlyOfKindIfAny(attrs, errors, MacroKind.Lifecycle)
+        checkOnlyOfKindIfAny(attrs, errors, MacroKind.Concurrent)
 
         let assertionKeys = attrs.keys() |> filter { it: MacroKey => it.isOfKind(Assertion) } |> collectArray
         let nonAssertionKeysCount = attrs.keys() |> filter { it: MacroKey => !it.isOfKind(Assertion) } |> count
 
         if (assertionKeys.size != 0 && nonAssertionKeysCount != 0) {
             errors.add("${assertionKeys[0]} macro can't be used together with any other macro.")
+        }
+    }
+
+    private static func checkOnlyOfKindIfAny(attrs: MacroAttrs, errors: MacroErrors, kind: MacroKind) {
+        let keys = attrs.keys() |> filter { it: MacroKey => it.isOfKind(kind) } |> collectArray
+        let otherKeys = attrs.keys() |> filter { it: MacroKey => !it.isOfKind(kind) } |> collectArray
+        for (key in keys) {
+            for (otherKey in otherKeys) {
+                errors.add("${key} macro can't be used together with ${otherKey}.")
+            }
         }
     }
 
@@ -310,6 +339,7 @@ enum MacroTarget <: ToString {
     | Class
     | Function
     | ClassOrFunction
+    | Variable
 
     func accepts(decl: Decl): Bool {
         match ((this, decl)) {
@@ -317,6 +347,7 @@ enum MacroTarget <: ToString {
             case (Function, f: FuncDecl) where !f.isConstructor => true
             case (ClassOrFunction, _: ClassDecl) => true
             case (Class, _: ClassDecl) => true
+            case (Variable, _: VarDecl) => true
             case _ => false
         }
     }
@@ -326,6 +357,7 @@ enum MacroTarget <: ToString {
             case Class => "class"
             case Function => "function"
             case ClassOrFunction => "class or function"
+            case Variable => "variable"
         }
     }
 }
