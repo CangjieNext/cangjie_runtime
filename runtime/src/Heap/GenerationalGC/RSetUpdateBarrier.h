@@ -8,6 +8,7 @@
 #define MRT_RSET_UPDATE_BARRIER_H
 
 #include "RememberSet.h"
+#include "ObjectModel/RefField.h"
 
 namespace MapleRuntime {
 
@@ -18,7 +19,11 @@ public:
     RSetUpdateBarrier() : rset_(RememberSet::Instance()) {}
     ~RSetUpdateBarrier() = default;
 
-    void WriteReference(BaseObject* obj, BaseObject* field, BaseObject* target);
+    void WriteReference(BaseObject* obj, RefField<>* field, BaseObject* target);
+    void WriteReference(BaseObject* obj, RefField<true>* field, BaseObject* target)
+    {
+        WriteReference(obj, reinterpret_cast<RefField<>*>(field), target);
+    }
 
 private:
     RememberSet& rset_;

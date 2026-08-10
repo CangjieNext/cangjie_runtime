@@ -16,11 +16,15 @@ class GenerationEnumBarrier : public EnumBarrier {
 public:
     explicit GenerationEnumBarrier(Collector& collector) : EnumBarrier(collector) {}
 
-    void WriteReference(BaseObject* obj, RefField<false>& field, BaseObject* ref) const override
-    {
-        EnumBarrier::WriteReference(obj, field, ref);
-        rsetUpdateBarrier_.WriteReference(obj, reinterpret_cast<BaseObject*>(&field), ref);
-    }
+    void WriteReference(BaseObject* obj, RefField<false>& field, BaseObject* ref) const;
+
+    void WriteStruct(BaseObject* obj, MAddress dst, size_t dstLen, MAddress src, size_t srcLen) const override;
+    void AtomicWriteReference(BaseObject* obj, RefField<true>& field, BaseObject* ref, MemoryOrder order) const override;
+    BaseObject* AtomicSwapReference(BaseObject* obj, RefField<true>& field, BaseObject* ref, MemoryOrder order) const override;
+    bool CompareAndSwapReference(BaseObject* obj, RefField<true>& field, BaseObject* oldRef, BaseObject* newRef,
+                                 MemoryOrder succOrder, MemoryOrder failOrder) const override;
+    void CopyStructArray(BaseObject* dstObj, MAddress dstField, MIndex dstSize, BaseObject* srcObj, MAddress srcField,
+                         MIndex srcSize) const override;
 
 private:
     mutable RSetUpdateBarrier rsetUpdateBarrier_;
