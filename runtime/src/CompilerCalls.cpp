@@ -442,6 +442,8 @@ extern "C" bool MCC_StopCpuProfiling(int fd)
 
 extern "C" void MCC_SetGCThreshold(uint64_t GCThreshold) { Runtime::Current().SetGCThreshold(GCThreshold); }
 
+extern "C" void MCC_SetHeapGrowth(double heapGrowth) { Runtime::Current().SetHeapGrowth(heapGrowth); }
+
 extern "C" void* MCC_PostThrowException(ExceptionWrapper* mExceptionWrapper)
 {
     return ExceptionManager::BeginCatch(mExceptionWrapper);

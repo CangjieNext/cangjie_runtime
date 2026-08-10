@@ -43,6 +43,18 @@ public:
             LOG(RTLOG_INFO, "gcThreshold is set to %d KB.", threshold);
         }
     }
+    // 动态调整堆增长系数（heapGrowth，GC 后下一次阈值 = live * (1 + heapGrowth)）。
+    // 与 cjHeapGrowth 环境变量同语义，运行中调用即刻对后续 GC 生效；
+    // 默认行为不变（0.15），仅显式调用时覆盖。
+    void SetHeapGrowth(double growth) override
+    {
+        if (growth < 0.0 || growth > 10.0) {
+            LOG(RTLOG_ERROR, "heapGrowth must be in range [0, 10], got %f.\n", growth);
+            return;
+        }
+        param.heapParam.heapGrowth = growth;
+        LOG(RTLOG_INFO, "heapGrowth is set to %.2f.", growth);
+    }
     static ConcurrencyParam GetConcurrencyParam() { return Runtime::Current().GetRuntimeParam().coParam; }
     static GCParam GetGCParam() { return Runtime::Current().GetRuntimeParam().gcParam; }
     static LogParam GetLogParam() { return Runtime::Current().GetRuntimeParam().logParam; }

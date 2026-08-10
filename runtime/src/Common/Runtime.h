@@ -105,6 +105,7 @@ public:
 
     virtual RuntimeParam GetRuntimeParam() const = 0;
     virtual void SetGCThreshold(uint64_t threshold) = 0;
+    virtual void SetHeapGrowth(double growth) = 0;
 
 protected:
     static Runtime* runtime;
