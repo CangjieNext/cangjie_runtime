@@ -26,6 +26,7 @@ if printf '%s\n' "$helper_loop" | rg -q 'ComputeMSMarkSliceBudget'; then
 fi
 printf '%s\n' "$main_loop" | rg -q 'MS_WU_UNLIMITED_BUDGET'
 printf '%s\n' "$helper_loop" | rg -q 'MS_WU_UNLIMITED_BUDGET'
+printf '%s\n' "$assist_loop" | rg -q 'MS_WU_ASSIST_WALL_BUDGET_US'
 printf '%s\n' "$main_loop" | rg -q 'mainCompletedWU = SaturatingMSWUAdd'
 if [[ "$(printf '%s\n' "$main_loop" | rg -c 'cycleCompletedMarkWU_\.fetch_add')" -ne 2 ]]; then
     echo 'GC main and folded Assist WU must each merge only once per Mark loop' >&2

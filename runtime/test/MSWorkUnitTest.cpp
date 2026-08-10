@@ -43,6 +43,22 @@ void TestAssistSlicePolicyStartsAtTwoKForOneHundredMicroseconds()
            "large Assist debt must preserve the requested WU slice");
 }
 
+void TestAssistAdmissionRequiresSustainedBacklog()
+{
+    Expect(!ShouldAdmitMSMarkAssist(0, 4096, 4),
+           "Assist must reject an empty task backlog");
+    Expect(!ShouldAdmitMSMarkAssist(8, 0, 4),
+           "Assist must reject an empty work-word backlog");
+    Expect(!ShouldAdmitMSMarkAssist(6, 639, 4),
+           "Assist must leave shallow work to main plus helpers");
+    Expect(ShouldAdmitMSMarkAssist(7, 1, 4),
+           "extra tasks beyond the reserved workers must admit Assist");
+    Expect(ShouldAdmitMSMarkAssist(1, 640, 4),
+           "deep work-word backlog must admit Assist");
+    Expect(ShouldAdmitMSMarkAssist(3, 128, 0),
+           "single-worker Mark must admit Assist beyond its reserve");
+}
+
 void TestAssistCreditPaysFutureDebtAndPreservesFraction()
 {
     constexpr uint64_t scale = 16;
@@ -240,6 +256,55 @@ void TestMarkControllerCascadesAssistAfterStableHelpers()
            "two draining windows must reduce Assist by one level");
 }
 
+void TestMarkPressureEscalatesOnElapsedTime()
+{
+    Expect(ClassifyMSMarkElapsedPressure(19999, true) == MSMarkPressure::NORMAL,
+           "short Mark cycle must remain normal");
+    Expect(ClassifyMSMarkElapsedPressure(20000, true) == MSMarkPressure::HIGH,
+           "20ms Mark cycle must raise high pressure");
+    Expect(ClassifyMSMarkElapsedPressure(99999, true) == MSMarkPressure::HIGH,
+           "sub-100ms Mark cycle must remain high pressure");
+    Expect(ClassifyMSMarkElapsedPressure(100000, true) == MSMarkPressure::CRITICAL,
+           "100ms Mark cycle must raise critical pressure");
+    Expect(ClassifyMSMarkElapsedPressure(1000000, false) == MSMarkPressure::NORMAL,
+           "elapsed time without mark work must not raise pressure");
+}
+
+void TestMarkPressureRequiresSustainedSignals()
+{
+    MSMarkPressureGate highGate(MSMarkPressure::NORMAL);
+    Expect(highGate.Observe(MSMarkPressure::HIGH) == MSMarkPressure::NORMAL,
+           "one high-pressure sample must not expand mark helpers");
+    Expect(highGate.Observe(MSMarkPressure::HIGH) == MSMarkPressure::NORMAL,
+           "two high-pressure samples must remain gated");
+    Expect(highGate.Observe(MSMarkPressure::HIGH) == MSMarkPressure::HIGH,
+           "three high-pressure samples must enable high pressure");
+
+    MSMarkPressureGate resetGate(MSMarkPressure::NORMAL);
+    (void)resetGate.Observe(MSMarkPressure::HIGH);
+    Expect(resetGate.Observe(MSMarkPressure::NORMAL) == MSMarkPressure::NORMAL,
+           "normal pressure must reset a partial high-pressure streak");
+    Expect(resetGate.Observe(MSMarkPressure::HIGH) == MSMarkPressure::NORMAL,
+           "a reset high-pressure streak must restart from one sample");
+
+    MSMarkPressureGate criticalGate(MSMarkPressure::NORMAL);
+    Expect(criticalGate.Observe(MSMarkPressure::CRITICAL) == MSMarkPressure::NORMAL,
+           "one critical-pressure sample must not activate every helper");
+    Expect(criticalGate.Observe(MSMarkPressure::CRITICAL) == MSMarkPressure::CRITICAL,
+           "two critical-pressure samples must activate critical pressure");
+}
+
+void TestMarkControllerEscalatesToCriticalPressure()
+{
+    MSMarkControllerState controller(
+        64, 4096, 7, 4, MSMarkPressure::NORMAL);
+    controller.EscalatePressure(MSMarkPressure::CRITICAL, 64, 4096);
+    Expect(controller.HelperTarget() == 7,
+           "critical pressure escalation must immediately activate all helpers");
+    Expect(controller.AssistMultiplier() == 4,
+           "critical pressure escalation must immediately use the Assist cap");
+}
+
 void TestCriticalMarkControllerBypassesHysteresis()
 {
     MSMarkControllerState controller(
@@ -256,6 +321,7 @@ int main()
 {
     TestFixedIntegerCost();
     TestAssistSlicePolicyStartsAtTwoKForOneHundredMicroseconds();
+    TestAssistAdmissionRequiresSustainedBacklog();
     TestAssistCreditPaysFutureDebtAndPreservesFraction();
     TestFullCycleEwma();
     TestAssistRatio();
@@ -264,6 +330,9 @@ int main()
     TestMarkControllerAppliesHelperHysteresis();
     TestNormalMarkSoftStartsAndRampsOnSustainedBacklog();
     TestMarkControllerCascadesAssistAfterStableHelpers();
+    TestMarkPressureEscalatesOnElapsedTime();
+    TestMarkPressureRequiresSustainedSignals();
+    TestMarkControllerEscalatesToCriticalPressure();
     TestCriticalMarkControllerBypassesHysteresis();
     return 0;
 }

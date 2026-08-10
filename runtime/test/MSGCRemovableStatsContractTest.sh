@@ -17,6 +17,10 @@ if rg -n "$removable_pattern" "$src_root" "$test_root" \
 fi
 
 rg -q 'cycleCompletedMarkWU_' "$src_root/Heap/MCollector/MarkSweepCollector.h"
-rg -q 'cycleAllocatedMarkBytes_' "$src_root/Heap/MCollector/MarkSweepCollector.h"
+if rg -q 'cycleAllocatedMarkBytes_|AccountMarkAllocationBytes' "$src_root" "$test_root" \
+    --glob '!MSGCRemovableStatsContractTest.sh'; then
+    echo "cycleAllocatedMarkBytes must not remain after switching to mark-boundary accounting" >&2
+    exit 1
+fi
 rg -q 'sweepAdmission_' "$src_root/Heap/MAllocator/MSCentralRegionPool.h"
 rg -q 'reusedScavengedRegionCount_' "$src_root/Heap/MAllocator/MSFreeManager.h"

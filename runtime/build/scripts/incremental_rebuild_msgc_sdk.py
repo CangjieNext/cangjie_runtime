@@ -2,10 +2,10 @@
 
 """Incrementally rebuild CJC and fully rebuild the remaining MSGC SDK parts.
 
-The compiler build and ``cangjie_compiler_region_mark/output/msgc`` are
-preserved unless the compiler CMake cache belongs to another checkout. Runtime,
-stdlib, and stdx are each cleaned, rebuilt, installed, and synchronized into
-the MSGC SDK before the next component starts.
+The compiler build and the selected compiler's ``output/msgc`` are preserved
+unless the compiler CMake cache belongs to another checkout. Runtime, stdlib,
+and stdx are each cleaned, rebuilt, installed, and synchronized into the MSGC
+SDK before the next component starts.
 """
 
 from __future__ import annotations

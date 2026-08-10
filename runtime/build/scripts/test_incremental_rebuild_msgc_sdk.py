@@ -87,6 +87,46 @@ class IncrementalStagePlanTests(unittest.TestCase):
         )
 
 
+class IncrementalPathDefaultsTests(unittest.TestCase):
+    def parse_for_host(self, host: target.HostLayout) -> target.FullBuildConfig:
+        with mock.patch.object(
+            target.full_builder.sdk_helpers,
+            "resolve_default_openssl_lib",
+            return_value=pathlib.Path("/tmp/openssl/lib"),
+        ), mock.patch.object(
+            target.full_builder.sdk_helpers,
+            "detect_host_layout",
+            return_value=host,
+        ):
+            return target.parse_args([])
+
+    def test_darwin_keeps_existing_msgc_stdx_default(self) -> None:
+        config = self.parse_for_host(make_host())
+
+        self.assertEqual(
+            config.stdx_root,
+            pathlib.Path(
+                "/Users/lipeisheng/code/cangjie/cangjie/cangjie_stdx"
+            ).resolve(),
+        )
+
+    def test_linux_uses_cmsgc_stdx_default(self) -> None:
+        config = self.parse_for_host(
+            target.HostLayout(
+                os_name="linux",
+                arch="aarch64",
+                sdk_platform_name="linux_aarch64_cjnative",
+            )
+        )
+
+        self.assertEqual(
+            config.stdx_root,
+            pathlib.Path(
+                "/home/lipeisheng/cangjie/cangjie_stdx_CMSGC"
+            ).resolve(),
+        )
+
+
 class CompilerBuildCacheTests(unittest.TestCase):
     def test_relocated_cache_resets_compiler_build_and_keeps_sdk(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

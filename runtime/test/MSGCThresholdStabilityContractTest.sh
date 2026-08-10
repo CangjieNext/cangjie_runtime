@@ -18,15 +18,19 @@ require_pattern() {
 collector_text="$(tr '\n' ' ' < "$COLLECTOR_SOURCE")"
 
 require_pattern "$COLLECTOR_SOURCE" 'size_t baseBytes = cycleStats_\.thresholdBaseBytes;' \
-    "the next MSGC heap goal must use the completed outside-set-aware base"
-require_pattern "$COLLECTOR_SOURCE" 'cycleStats_\.tlsReservationBytes = thresholdBase\.tlsReservationBytes;' \
-    "the GC base must include the fixed P-local TLS reservation"
+    "the next MSGC heap goal must use the completed marked-live base"
 require_pattern "$COLLECTOR_SOURCE" \
-    'cycleStats_\.outsideCentralSmallBytes = thresholdBase\.outsideCentralSmallBytes;' \
-    "the GC base must include central outside-set Small Regions"
+    'ComputeMSGCThresholdBase\([[:space:]]*markedStats\.liveBytes\)' \
+    "the GC base must be computed from the frozen marked-live bytes"
 require_pattern "$COLLECTOR_SOURCE" \
-    'cycleStats_\.outsideLargeBytes = thresholdBase\.outsideLargeBytes;' \
-    "the GC base must include post-freeze LARGE spans"
+    'GetSmallSweptRegionCount' \
+    "central outside Small supply must be snapshotted separately from the GC base"
+require_pattern "$COLLECTOR_SOURCE" \
+    'GetLargeNextSupplySpanCount' \
+    "outside LARGE supply must be snapshotted separately from the GC base"
+require_pattern "$COLLECTOR_SOURCE" \
+    'gcStats\.SetLastMarkOutsideBytes\(outsideMarkBytes\);' \
+    "the completed mark must publish its outside-supply HEU correction"
 require_pattern "$COLLECTOR_SOURCE" \
     'bool exceptionalBypass = gcStats\.reason == GC_REASON_OOM;' \
     "UpdateGCStats must recognize OOM as an exceptional threshold cycle"
@@ -49,7 +53,6 @@ if ! printf '%s\n' "$collector_text" |
 fi
 
 for field in \
-    'tlsReserve=%zuB' \
     'outsideSmall=%zuB' \
     'outsideLarge=%zuB' \
     'deadbandLower=%zuB' \
@@ -63,14 +66,15 @@ for field in \
         "heapThreshold REPORT must expose $field"
 done
 
-if rg -q 'ComputeMSMarkRunway|SetMarkRunway|markRunway=' "$COLLECTOR_SOURCE"; then
-    echo "UpdateGCStats must not retain Mark runway calculation or publication" >&2
+if ! printf '%s\n' "$collector_text" |
+    rg -q 'EvaluateMSScavengeThreshold\([^;]*newThreshold,[[:space:]]*scavengeCap,[[:space:]]*scavengeGrowth'; then
+    echo "Scavenge threshold must use only the completed GC goal and its heap/soft-limit cap" >&2
     exit 1
 fi
 
-if ! printf '%s\n' "$collector_text" |
-    rg -q 'EvaluateMSScavengeThreshold\([^;]*cycleStats_\.outsideCentralSmallBytes,[[:space:]]*cycleStats_\.outsideLargeBytes'; then
-    echo "Scavenge threshold must add central Small and outside Large bytes without TLS" >&2
+if printf '%s\n' "$collector_text" |
+    rg -q 'ComputeMSGCThresholdBase\([^;]*GetSmallSweptRegionCount|EvaluateMSScavengeThreshold\([^;]*outsideCentralSmallBytes|EvaluateMSScavengeThreshold\([^;]*outsideLargeBytes'; then
+    echo "outside allocation supply must not inflate the GC or Scavenge threshold base" >&2
     exit 1
 fi
 

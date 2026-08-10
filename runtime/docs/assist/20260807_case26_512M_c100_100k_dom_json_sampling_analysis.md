@@ -1317,3 +1317,889 @@ NEON 的 16-byte load/compare，但当前“命中 mask → 首个 index”的 l
 位组合指令，抵消甚至超过了逐 byte 扫描的成本；而 payload 中大量字符串本身较短，也限制了批量路径的
 覆盖率。若再尝试向量化，需要先改进该 mask-to-index 降低方式，并以同样的 60 秒 CPU/request 验证；否则应
 回退本轮 `vectorIndexByte16` 代码。
+
+## 23. Linux 最新 MSGC SDK 后续优化基线（2026-08-10）
+
+### 23.1 基线目的、SDK 与固定参数
+
+本节在用户已经完成 `incremental_rebuild_msgc_sdk.py` 后，直接使用当前 Linux MSGC SDK 建立新的
+case26 优化基线。本轮没有再次重建 SDK，没有运行 CopyGC、Go 或 Java，也没有开启 profiler。case26
+在运行前使用当前 SDK 重新编译，未复用旧 binary。
+
+验证三件套及 stdx 来源如下：
+
+- compiler、runtime、stdlib：
+  `/home/lipeisheng/cangjie/cangjie_compiler_CMSGC/output/msgc`；
+- stdx：上述 SDK 的 `linux_aarch64_cjnative/dynamic/stdx`；
+- runtime 动态加载来源已用 `ldd` 确认为上述 SDK 的
+  `runtime/lib/linux_aarch64_cjnative/libcangjie-runtime.so`；
+- `cjc --gc-mode=marksweep --version` 成功，GC 日志包含 `MSRegionManager initialized`、
+  `P=10 gcThreads=5` 和 `[MS-GC]`，确认不是 CopyGC。
+
+用于追溯 SDK 的关键产物 SHA-256：
+
+| 产物 | SHA-256 |
+| --- | --- |
+| `bin/cjc` | `655f7bc62c3d2ecc541b41dea6cd736e728b5614728e986fbc9cf4a7586183bc` |
+| `libcangjie-runtime.so` | `8d6aa37a21d9dcda144128105650ce8bcaadb49b59a77eeb3854f5c67b724dc9` |
+| `libstdx.encoding.json.so` | `0a8f3e3b53b678cf1d4a7c055363e32c6772121193add2ddf40a2e45e06871f7` |
+| `benchmark.cj` | `a380ce36cc290f4752c7f73f0f8377fc530a8474cabe2dd70e3faa07c6a7a53b` |
+
+本基线固定参数：
+
+| 参数 | 值 |
+| --- | --- |
+| payload / concurrency / duration | 100K / 100 / 60,000 ms |
+| client mode / send interval / max inflight | sync / 1 ms / 32 |
+| persistent / workers | 512 MiB / 8 |
+| `cjProcessorNum` | 10 |
+| `cjHeapSize` | 20 GiB |
+| `cjHeapGrowth` / `cjScavengeGrowth` | 1 / 2 |
+| `cjMSMinGCThreshold` | 20 MiB |
+
+### 23.2 单次 MSGC 基线结果
+
+benchmark 和采样脚本均以 exit code 0 结束，`stderr.txt` 为空；65,498 个请求全部成功，没有在途
+请求残留。退出阶段的 `Socket is closed` 是关闭 100 条连接时的既有 warning，不计为请求失败。
+
+| 指标 | Linux 最新 SDK 基线 |
+| --- | ---: |
+| 实际压测时长 | 60.269 s |
+| 成功 / 失败 | 65,498 / 0 |
+| 报告吞吐 | **1,086 req/s** |
+| 精确吞吐（成功 / 实际时长） | **1,086.761 req/s** |
+| 平均 / 峰值 `ps` CPU | 997.9% / 1,092.0% |
+| 结束时累计 CPU 时间 | 666 s |
+| CPU / 成功请求 | 10.1682 ms |
+| success / CPU-s | 98.345 |
+| 平均 RSS | 1,940,834 KB（1,895.3 MiB） |
+| 峰值 RSS | 2,002,604 KB（1,955.7 MiB） |
+| 首 / 末 20 个 RSS 样本均值 | 1,401,598 / 2,002,440 KB |
+| GC 次数 | 358 |
+| GC 总时间 | 17.357 s |
+| 平均 / 最大单次 GC | 48.483 / 84.904 ms |
+| GC 次数 / 千请求 | 5.466 |
+| GC 时间 / 请求 | 264.997 us |
+
+`rss.csv` 包含 242 个约 200 ms 间隔的样本。GC 总时间中，ConcMark 为 10.948 s（63.08%），
+PostMark 为 2.176 s（12.54%），PreEnum 为 1.712 s（9.86%），MarkTerm 为 1.526 s
+（8.79%），EnumRoots 为 0.742 s（4.28%），其余约 1.46%。这些数据用于后续判断优化是否把
+CPU/分配压力转移到了 GC，而不是只观察吞吐。
+
+结果产物目录：
+
+- `MSGC_RESULT/Result/case26_http_complex_json/youhua/result/20260810_linux_latest_sdk_baseline_c100_100K_Procs10`
+
+其中保存了重新编译的 `benchmark`、`stdout.txt`、`stderr.txt`、`gc.log`、`rss.csv`、
+`run.exitcode`、`sdk_artifacts.sha256` 和可复现运行脚本。
+
+### 23.3 与上一轮 Linux 单次结果的关系及后续比较规则
+
+同一 Linux 20 GiB 参数下，第 16 节旧 SDK 单次结果为 1,101 req/s；本基线为 1,086 req/s，
+报告吞吐低 1.36%，精确吞吐低 1.38%。同时平均 RSS 高 5.37%，平均 `ps` CPU 高 2.03%；
+GC 次数少 11.39%，但平均/最大 GC 分别高 22.48%/24.75%，按请求归一化的 GC 时间高 9.91%。
+由于中间 SDK 已整体更新，这些差异不能归因于某一项 stdx、compiler 或 runtime 修改；第 16 节数据只作为
+历史参照，不再作为后续收益判据。
+
+从本节开始，后续 Linux case26 优化统一以 **1,086 req/s、65,498 successes、10.1682 ms
+CPU/request、1,940,834 KB 平均 RSS、264.997 us GC/request** 为基线，并保持第 23.1 节参数不变。
+若 SDK、case26 源码、平台、P、heap、duration 或 persistent 配置变化，必须重新建立基线，不能与本节
+直接做收益归因。按当前优化规则，每次只运行一次 MSGC；结果应同时报告吞吐、CPU/request、RSS 和
+GC/request，不能只依据整数化吞吐决定是否有收益。
+
+## 24. Linux 最新 SDK 10 秒全进程采样与后续优化路线（2026-08-10）
+
+本节基于第 23 节最新基线 SDK，对 case26 的 MSGC 进程做 10 秒全进程 CPU 采样。采样目的不是
+重新建立吞吐基线，而是确认当前 CPU 时间分布，并为下一轮单点优化排序。
+
+### 24.1 采样配置、有效性与产物
+
+采样保持第 23.1 节参数不变：100K payload、c100、60 s、512 MiB persistent、8 个
+persistent worker、P10、20 GiB heap、HeapGrowth=1、ScavengeGrowth=2、最小 GC 阈值
+20 MiB。compiler、runtime、stdlib 和 stdx 均来自：
+
+`/home/lipeisheng/cangjie/cangjie_compiler_CMSGC/output/msgc`
+
+采样前重新用该 SDK 编译了 `benchmark.cj`，没有复用旧 binary。启动后等待
+`Started 100 workers`，只在稳定负载阶段对整个 MSGC 进程执行：
+
+```bash
+sudo -n perf record -q -F 99 -g --call-graph dwarf,16384 -p <pid> -- sleep 10
+```
+
+有效性检查如下：
+
+- benchmark 和 perf 的 exit code 都是 0，二者 `stderr` 都为空；
+- 实际采样窗口 10,062.210 ms，共 10K samples，`Total Lost Samples: 0`；
+- 采样运行完成 66,109 个请求、0 失败，负载没有因功能错误中断；
+- 采样运行报告的 1,097 req/s 只用于确认负载正常。perf 本身会产生开销，不能把该吞吐与
+  第 23 节无 profiler 的 1,086 req/s 当作优化 A/B；
+- `cjc`、runtime、stdx JSON 和 `benchmark.cj` 的 SHA-256 与第 23 节完全一致，保证采样对应
+  当前基线代码。
+
+结果目录：
+
+`MSGC_RESULT/Result/case26_http_complex_json/youhua/result/20260810_linux_latest_sdk_profile10s_c100_100K_Procs10`
+
+关键产物包括 `perf.data`（173,202,968 bytes）、`perf.script`、`perf.folded`、
+`msgc_cpu_flamegraph.svg`、self/inclusive/DSO/thread 报告、`perf_header.txt`、benchmark 输出和
+`gc.log`。后续重新分析应优先使用该目录内的原始 `perf.data`，而不是只根据本文的截断 TopN。
+
+### 24.2 DSO、线程与 TopN self 热点
+
+模块 self CPU 分布为：
+
+| DSO | self CPU |
+| --- | ---: |
+| `libstdx.encoding.json.so` | **44.01%** |
+| `libcangjie-runtime.so` | **26.82%** |
+| `libc.so.6` | 15.27% |
+| case26 `benchmark` | 6.93% |
+| kernel | 5.19% |
+| HTTP 相关库 | 1.14% |
+
+这说明当前第一优化域仍是 stdx JSON；但 runtime 加 libc 已达 42.09%，分配、mark、sweep 和
+内存清零也占了显著成本，不能把 44.01% 之外的全部时间简单归为“不可优化的运行时开销”。
+
+线程 self CPU 分布为：
+
+| 线程 | self CPU |
+| --- | ---: |
+| `schd-worker` | **78.77%** |
+| `benchmark` 主线程 | 9.10% |
+| `gc-helper` | 2.66% |
+| `gc-pool-t3/t1/t2/t4` | 2.15% / 2.04% / 1.84% / 1.58% |
+| `gc-main` | 1.78% |
+| `schmon` | 0.08% |
+
+专用 GC 线程合计约 12.05%，但这不是 GC 的完整占比：mark assist 和 sweep assist 会在
+`schd-worker` 的分配路径中执行，其时间仍记在 mutator 线程名下。
+
+当前 Top20 self 热点如下。self 百分比可以横向比较；递归函数的 inclusive 百分比不能累加。
+
+| 排名 | 符号 | self CPU | 主要归属 |
+| ---: | --- | ---: | --- |
+| 1 | `memset` | **9.53%** | sweep、large allocation、body buffer 清零 |
+| 2 | `parseJsonString` | **8.60%** | JSON 字符串扫描/构造 |
+| 3 | `parseJsonObject` | **7.69%** | JSON object 解析循环 |
+| 4 | `WriteBuffer.appendEscapeSmall` | **3.50%** | 短字符串转义扫描 |
+| 5 | `__aarch64_ldadd8_relax` | **3.17%** | GC/region 原子计数与发布 |
+| 6 | `JsonObject.writeCompactTo` | **2.78%** | object 序列化 |
+| 7 | `__aarch64_cas8_acq_rel` | **2.25%** | 无锁栈/GC 原子竞争 |
+| 8 | `WriteBuffer.checkAndExpend` | **2.24%** | writer 容量检查 |
+| 9 | `AddRefToMarkBatch` | **2.19%** | mark work batching |
+| 10 | case26 `String.checkInvalid` | **1.90%** | HTTP body 转 String 校验 |
+| 11 | `memcpy` | **1.87%** | body/writer/容器复制 |
+| 12 | `RunRegionTask` | **1.75%** | runtime region task |
+| 13 | `parseJsonNumberSlow` | **1.75%** | 浮点/扩展数字慢路径 |
+| 14 | `parseJson` | **1.74%** | JSON 类型分派 |
+| 15 | `tryParseJsonIntFast` | **1.58%** | integer 快路径 |
+| 16 | `TypeInfo::GetMethodOuterTI` | **1.54%** | writer 虚调用解析 |
+| 17 | `MCC_AcquireRawData` | **1.50%** | RawData acquire |
+| 18 | `__aarch64_swp4_rel` | **1.29%** | runtime 原子交换 |
+| 19 | `parseJsonArray` | **1.19%** | JSON array 解析循环 |
+| 20 | `MRT_GetThreadLocalData` | **1.10%** | runtime TLS 获取 |
+
+其后仍值得跟踪的热点包括 mark storage `Add` 1.06%、`wyhash` 0.89%、Ryu `s2d_n`
+0.87%、`CJ_JSON_ParseFloat64` 0.79%、`SweepRegion` 0.78% 和
+`JsonArray.writeCompactTo` 0.76%。
+
+### 24.3 inclusive 调用链与关键成本归因
+
+主要 inclusive 调用链如下。这里的百分比表示“包含该函数的样本比例”；`parseJson` 递归、
+分配与 GC assist 调用链彼此嵌套，**不能相加得到总 CPU**。
+
+| 调用链/符号 | inclusive | self | 解释 |
+| --- | ---: | ---: | --- |
+| `JsonValue.fromStr` / `parseString` / `parseJsonObject` 根链 | 52.56% | - | 整个 DOM 解析根调用链 |
+| `parseJsonArray` 递归链 | 52.37% | 1.19% | 多层 object/array 递归重叠 |
+| `parseServerJson` / `parseClientJson` | 26.35% / 26.11% | - | 服务端和客户端各解析一次 |
+| `toStringWithCapacity` | 17.91% | - | 整体序列化路径 |
+| `serializeServer` | 17.86% | - | 服务端序列化 |
+| `JsonObject.writeCompactTo` | 17.19% | 2.78% | object writer |
+| `JsonArray.writeCompactTo` | 17.05% | 0.76% | array writer |
+| `AllocateRegularObject` / `SlowAlloc` | 15.07% / 14.92% | - | DOM、String、容器等分配 |
+| `NewGenericArray` | 13.66% | - | DOM 容器和 buffer array 分配 |
+| `parseJsonString` | 11.78% | 8.60% | 当前最大的 stdx 单函数 self 热点 |
+| `parseJsonNumberSlow` | 10.10% | 1.75% | 浮点 token 的重复扫描及转换 |
+| `RunRegionTask` / `SweepRegion` | 8.56% / 7.50% | 1.75% / 0.78% | region 任务与 sweep |
+| `MSMarkAssist` / `RunMarkAssistSlice` | 6.77% / 6.72% | 0.02% / - | mutator mark assist |
+| `SweepUnsweptList` | 6.74% | 0.10% | sweep backlog |
+| `MSSweepAssist` / `AssistSweep` | 5.61% / 5.54% | - | mutator sweep assist |
+| `SweepOneUnsweptRegionForAssist` | 5.43% | - | 分配路径代做 sweep |
+| `AllocateLargeObject` | 4.98% | - | 大数组/body/writer buffer |
+
+#### `memset` 9.53% 的来源
+
+调用链归因显示，`memset` 并不是单一的 writer 清零：
+
+- 含 `SweepRegion` 的样本约 **6.48 个百分点**；其中 background `ParallelSweep` 约 3.07
+  个百分点，mutator sweep assist 约 3.26 个百分点。两者都包含在 `SweepRegion` 路径内，不能再与
+  6.48% 相加；
+- `TryAllocateLargeObjectOnce` 路径约 **3.01 个百分点**；
+- case26 `readHttpBodyString` 路径约 **1.53 个百分点**；
+- serializer 输出 buffer 分配路径约 **0.43 个百分点**。
+
+这些是不同层级的调用链视角，不能求和：例如 body/output buffer 清零可能同时包含在
+`TryAllocateLargeObjectOnce` 中；上面的 background/assist 也都是 `SweepRegion` 的子路径。
+
+源码上，`MSRegionInfo::SweepRegion()` 在 region 没有有效 mark bit 时会清零整个
+`MS_REGION_SIZE`；部分存活时也会清零连续 dead run。因此“GC 专用线程只有 12.05%”并不代表 GC
+只消耗 12.05% CPU：分配线程执行 sweep assist 时产生的 `SweepRegion` 和 `memset` 都记在
+`schd-worker` 下。
+
+#### mark publication 与原子操作
+
+`AddRefToMarkBatch` self 2.19%，其 PLT 入口约 0.95%，mark storage `Add` self 1.06%；
+`ldadd` 3.17%、`cas` 2.25% 和 `swp` 1.29% 还覆盖 central-region 计数、mark ready stack 及
+lock-free unswept stack。它们的调用链存在重叠，不能简单求和为“mark 占比”。
+
+当前 mark batch 已是 32-entry（8 set × 4 way）合并，并带 8-entry pending publication batch。
+后续若优化这一域，应先增加 conflict/eviction/publication 统计，区分 hash 冲突、batch 满和 ready
+stack 争用；没有这些数据前，不应仅凭火焰图继续放大 batch。
+
+#### HTTP body 路径
+
+`readHttpBodyString` inclusive 约 5.57%，其中 `String.checkInvalid` self 1.90%、`memset` 约
+1.53%、`memcpy` 约 0.85%。这说明 body chunk 汇聚、byte array 到 String 的 UTF-8 校验/转换仍有
+实际成本，但它属于 benchmark/HTTP 接口路径，不是 stdx JSON writer 本身。以前直接改 body 最终数组的
+10 秒实验收益不明确，已经回退；若再次处理，应优先设计“拥有 buffer 的 read-to-String”接口，并保持 UTF-8
+正确性，不能直接换成 unchecked 转换。
+
+### 24.4 与旧采样对照及输入结构特征
+
+#### 已生效优化的热点迁移
+
+当前采样能确认之前保留的 writer 虚调用和 span-copy 优化已经进入 SDK：
+
+| 热点 | 旧采样 self | 当前 self | 结论 |
+| --- | ---: | ---: | --- |
+| `jsonWriteWithoutFormat` | 5.06% | TopN 中消失 | 旧 subtype 分派已移除 |
+| `TypeInfo::IsSubType` | 2.87% | 仅 3 个 callchain sample | `match(json)` 链已基本消除 |
+| `WriteBuffer.append(Array)` | 2.80% | 0.59% | span-copy 合并有效 |
+| `MCC_AcquireRawData` | 3.10% | 1.50% | RawData acquire 明显下降 |
+| `MCC_ReleaseRawData` | 1.69% | 0.53% | RawData release 明显下降 |
+| `CJ_JSON_StringEscapeCharNumGet` | 曾存在 | 消失 | 旧 native escape scan 不在当前路径 |
+| `TypeInfo::GetMethodOuterTI` | 非主要项 | 1.54% | 成本迁移到虚调用解析 |
+
+因此不应恢复旧的 `match(json)`/`IsSubType` writer。`GetMethodOuterTI` 是当前虚调用方案留下的
+compiler/runtime 优化点，但其 1.54% 低于旧 `jsonWriteWithoutFormat + IsSubType` 的总成本。
+
+#### 100K payload 的结构
+
+对固定 payload 做结构统计，结果为：
+
+- 总字节数 99,572；反斜杠转义 token 为 **0**；
+- key 6,055 个、仅 87 个不同 key，平均 5.50 bytes、最大 14 bytes，全部小于 16 bytes；
+- string value 2,299 个、555 个不同值，平均 8.03 bytes、最大 19 bytes；其中 1,987 个小于
+  16 bytes，全部小于 32 bytes；
+- object 1,364 个，其中 1,279 个字段数不超过 7；字段数为 12 的 object 有 85 个；
+- array 851 个，其中 850 个长度不超过 5，另一个长度为 85；
+- integer 2,215 个，float 1,431 个。
+
+当前 `parseJsonString` 源码和 Linux SDK 反汇编都是标量 quote/backslash 扫描，之前实验过的
+`vectorIndexByte16` 路径已经回退且不在当前基线中。由于本 payload 没有反斜杠，所有字符串都走
+no-escape 分支；`String.withRawData(slice)` 已经保留，当前 8.60% self 主要是数组访问、逐字节比较和
+`JsonString`/String 对象路径，而不是最终字符串整包复制。
+
+writer 侧所有 key/value 都小于 32 bytes，因此几乎全部进入 `appendEscapeSmall`。该函数仍对每个
+byte 做控制字符、DEL、双引号、反斜杠和 html-safe 条件检查，最后整段 `copyTo`。之前将短字符串逐个
+下沉 native scan-and-copy 曾回退 16.1%，所以当前 3.50% 热点不能用同一方案重试。
+
+### 24.5 后续优化优先级
+
+#### P0-1：object key 直接解析为 `String`，不创建临时 `JsonString`
+
+这是建议下一步首先实施的 stdx-only 优化。当前 `parseJsonObject` 的逻辑是：
+
+1. 调用 `parseJsonString(parser)` 创建 `JsonString`；
+2. 紧接着调用 `key.getValue()` 取出内部 `String` 放进 `JsonObject`；
+3. 临时 `JsonString` wrapper 随即变成垃圾。
+
+可以把字符串扫描与 wrapper 构造拆开：内部 `parseJsonStringValue(parser): String` 负责扫描并返回
+`String`；普通 JSON string value 再由 `parseJsonString` 包成 `JsonString`，而 object key 直接把
+`String` 交给 `obj.put`。公开 DOM 类型和字符串所有权语义都不改变。
+
+固定 payload 每次解析有 6,055 个 key；一次完整请求服务端和客户端各解析一次，因此理论上可消除
+约 **12,110 个短命 `JsonString` wrapper/请求**。预期主要下降项是 `parseJsonString`、
+`CJ_MCC_NewObject`/regular allocation，以及由分配量引出的 mark/sweep assist。采样中
+`parseJsonString` 调用链含对象分配的样本约 2.28 个百分点，但其中不全是 key wrapper，因此不能把
+2.28% 直接当作收益承诺。
+
+#### P0-2：把 writer 容量检查拆成 common fast path 和 out-of-line grow path
+
+`WriteBuffer.checkAndExpend` self 已达 2.24%，反汇编显示它仍是独立函数，常见“不扩容”路径也要承担
+函数序言、返回和多次调用开销。`toStringWithCapacity` 已按输入长度预留空间；本 payload 又没有 escape，
+因此绝大多数检查预计不会真正扩容。
+
+建议让各 `append` common path 只做 `size + addition <= capacity` 的轻量比较，不足时才调用独立
+`expandSlow`；修改后必须用反汇编确认比较逻辑确实被内联，不能只根据源码形态判断。该项直接优化上限是
+当前 2.24% self，真实收益会更低；需要同时检查边界条件，尤其 exact-fit 不能触发无意义扩容。
+
+#### P1-1：融合 number token 扫描，浮点不再先走一遍 integer scan 再重扫
+
+当前 2,215 个 integer 走 `tryParseJsonIntFast`，1,431 个 float 也会先尝试 integer fast path，遇到
+小数点/指数后重置 offset，再由 `parseJsonNumberSlow` 重新扫描 token。相关 self 至少分散在
+`tryParseJsonIntFast` 1.58%、`parseJsonNumberSlow` 1.75%、Ryu `s2d_n` 0.87% 和
+`CJ_JSON_ParseFloat64` 0.79%。
+
+建议把 `(success, integer)` 尝试改为一次 tokenizer：一次扫描同时返回 token end、是否含 decimal/
+exponent 及整数 fast value；integer 直接构造，float 把同一段 token 交给现有 Ryu 转换。重点是消除
+重复扫描，不是替换已经工作的 Ryu，也不能破坏负数、指数、溢出及当前扩展 number 语义。
+
+#### P1-2：仅在 object 达到 8 个字段时做 parser-specific reserve
+
+`JsonObject` 当前初始容量为 8。payload 中 1,279/1,364 个 object 不超过 7 个字段，只有 85 个
+object 有 12 个字段，且没有 8～11 字段的 object。全局把初始容量改成 12 会浪费绝大多数小 object，
+不推荐。可评估在 parser 添加第 9 个字段前一次性 `reserve(4)`，让 12-field object 避免分开的 entries
+增长和 bucket rehash。该项受 `wyhash` self 0.89% 的上限约束，优先级低于 key wrapper 和 number scan。
+
+#### P1-3：保留虚 writer，在 compiler/runtime 侧降低 `GetMethodOuterTI`
+
+`TypeInfo::GetMethodOuterTI` self 1.54% 是从 subtype match 迁移到虚调用后的剩余成本。后续可研究
+`JsonValue` 封闭层次的跨 DSO devirtualization、monomorphic direct call 或更便宜的 vtable lookup；不能为
+消除这 1.54% 恢复旧 `IsSubType` 链，因为旧 writer 的 `jsonWriteWithoutFormat + IsSubType` 更贵。
+
+#### P2：需要额外计数或跨模块设计后再做
+
+- `parseJsonString` wrapper 消除后若标量扫描仍居首，再分别统计扫描、String 构造和 DOM wrapper 成本。
+  可研究 quote/backslash 单遍专用搜索或安全的 unchecked raw load，但不重试已回退的
+  `vectorIndexByte16` 实现；本 payload 字符串很短，SIMD setup 未必划算；
+- `appendEscapeSmall` 若仍高，应先做按长度、escape/htmlSafe 命中率计数，再设计库内批量 special-byte
+  查找；不重试此前回退 16.1% 的“每个短字符串调用一次 native scan-and-copy”；
+- HTTP body 的 read-to-owned-String API 可以同时减少 `String.checkInvalid`、body `memcpy/memset`，但要
+  单独设计 UTF-8 和 buffer ownership，且不使用 unchecked 转换；
+- runtime 的 sweep `memset` 与 mark publication 是真实热点，但下一轮先做 stdx 分配削减。若之后仍优化
+  runtime，应先统计 full-region/partial-run 清零字节数、background/assist sweep 数量，以及 mark batch
+  conflict/eviction/publication 次数，再决定是否改清零策略或 batch 大小。
+
+明确不进入下一轮的方案：恢复 raw-token descriptor、恢复 subtype match writer、恢复旧 16-byte vector
+scanner、逐短字符串 native FFI，以及无计数依据地继续放大 mark batch。这些方案要么已经实测回退，要么
+当前证据不足。
+
+### 24.6 后续验证规则
+
+后续按上述顺序一次只实现一个优化点，统一遵守以下流程：
+
+1. 当前 P0/P1 JSON 修改只涉及 stdx，因此只重编并安装 stdx；不执行 compiler/LLVM/runtime 全量重建；
+2. 只使用 `/home/lipeisheng/cangjie/cangjie_compiler_CMSGC/output/msgc` 的 MSGC SDK 跑一次
+   case26，不启动 CopyGC、Go 或 Java；运行脚本重新编译 `.cj` benchmark；
+3. 保持第 23.1 节所有参数不变，以第 23 节 **1,086 req/s、10.1682 ms CPU/request、
+   1,940,834 KB 平均 RSS、264.997 us GC/request** 为当前无 profiler 基线；
+4. 每次记录 success/fail、精确吞吐、CPU/request、平均/峰值 RSS、GC/request、GC 次数和平均/最大 GC；
+   不只根据整数化 req/s 判断；
+5. 若要确认热点迁移，perf/火焰图仍只采 **10 秒**，并与本节相同：warmup 后 attach 整个进程，检查
+   exit code 和 lost samples；profile 运行的吞吐不用于 A/B；
+6. stdx、benchmark 或 SDK 任一来源变化时保存 SHA-256。若 compiler/runtime/stdlib、P、heap、duration、
+   persistent 或平台变化，则重新建立基线。
+
+各方案的采样验收重点：
+
+| 优化 | 首要观测 | 次要观测 |
+| --- | --- | --- |
+| object key 不建 wrapper | `parseJsonString`、NewObject/SlowAlloc 下降 | mark/sweep assist、GC/request、RSS |
+| writer capacity fast path | `checkAndExpend` self 明显下降或消失 | `toStringWithCapacity`、CPU/request |
+| fused number tokenizer | integer fast + slow scan 合计下降 | Ryu 转换结果正确、吞吐 |
+| object selective reserve | `parseJsonObject`、`wyhash`/rehash 下降 | array allocation、RSS，避免小 object 膨胀 |
+| writer devirtualization | `GetMethodOuterTI` 下降 | 不得让 `IsSubType`/旧分派重新出现 |
+
+据当前证据，建议实际执行顺序为：**object key wrapper → writer capacity fast path → fused number
+tokenizer → selective reserve**。完成前两项后再采一次 10 秒火焰图，依据新的 TopN 决定是否继续 number/
+HashMap，还是转向 HTTP body 或 runtime sweep/mark。
+
+## 25. Object key 直接返回 String（2026-08-10）
+
+### 25.1 改动
+
+本轮落实第 24.5 节 P0-1，只修改 stdx：
+
+- 把原 `parseJsonString(parser): JsonString` 中的扫描与 String 构造提取为内部
+  `parseJsonStringValue(parser): String`；
+- 普通 JSON string value 仍由 `parseJsonString` 包装成 `JsonString`，公开 DOM 类型和行为不变；
+- `parseJsonObject` 的 key 路径直接接收 `String` 并传给 `obj.put`，不再创建随后立即丢弃的
+  `JsonString` wrapper；
+- 无转义的 `String.withRawData`、转义路径的懒分配 `strCache` 及现有转义语义全部保留。
+
+涉及文件：
+
+`/home/lipeisheng/cangjie/cangjie_stdx_CMSGC/src/stdx/encoding/json/native.cj`
+
+固定 payload 每次解析包含 6,055 个 key；服务端和客户端各解析一次，因此每个完整请求理论上减少
+约 12,110 个短命 `JsonString` wrapper。
+
+### 25.2 最小重编与 SDK 来源
+
+本轮只执行 stdx release build/install，没有重编 compiler、LLVM、stdlib 或 runtime。安装目标为：
+
+`/home/lipeisheng/cangjie/cangjie_compiler_CMSGC/output/msgc`
+
+验证三件套及 stdx 来源：
+
+- compiler、runtime、stdlib：上述 MSGC SDK 原有版本；
+- stdx：`/home/lipeisheng/cangjie/cangjie_stdx_CMSGC` 本次修改后构建产物；
+- `cjc` SHA-256：`655f7bc62c3d2ecc541b41dea6cd736e728b5614728e986fbc9cf4a7586183bc`；
+- runtime SHA-256：`8d6aa37a21d9dcda144128105650ce8bcaadb49b59a77eeb3854f5c67b724dc9`；
+- 安装前 stdx JSON SHA-256：`0a8f3e3b53b678cf1d4a7c055363e32c6772121193add2ddf40a2e45e06871f7`；
+- 安装后 stdx JSON SHA-256：`694a7bd184ec733c5edb42168c003ec211c993cd17cc2589dcfc77cbcfaece6e`。
+
+build 和 install 均以 exit code 0 完成。case26 在运行前使用上述 SDK 重新编译，没有复用旧 binary。
+
+### 25.3 case26 单次 MSGC 验证
+
+按当前规则只运行一次修改后的 MSGC，没有启动 CopyGC、Go、Java，也没有回退代码做完整 A/B。参数与
+第 23 节基线完全一致：100K/c100/60 s、512 MiB persistent/8 workers、P10、20 GiB heap、
+HeapGrowth=1、ScavengeGrowth=2、最小 GC 阈值 20 MiB。
+
+| 指标 | 第 23 节基线 | key 直接返回 String | 变化 |
+| --- | ---: | ---: | ---: |
+| 成功 / 失败 | 65,498 / 0 | **69,635 / 0** | 成功请求 +6.32% |
+| 实际压测时长 | 60.269 s | 60.206 s | -0.10% |
+| 报告吞吐 | 1,086 req/s | **1,156 req/s** | **+6.45%** |
+| 精确吞吐 | 1,086.761 req/s | **1,156.612 req/s** | **+6.43%** |
+| CPU / 成功请求 | 10.1682 ms | **9.3344 ms** | **-8.20%** |
+| success / CPU-s | 98.345 | **107.131** | **+8.93%** |
+| 平均 RSS | 1,940,834 KB | **1,921,306 KB** | -1.01% |
+| 峰值 RSS | 2,002,604 KB | **1,997,772 KB** | -0.24% |
+| GC 次数 | 358 | 367 | +2.51% |
+| GC 总时间 | 17.357 s | **15.125 s** | -12.86% |
+| 平均 / 最大单次 GC | 48.483 / 84.904 ms | **41.212 / 74.515 ms** | -15.00% / -12.24% |
+| GC 时间 / 请求 | 264.997 us | **217.203 us** | **-18.04%** |
+
+benchmark exit code 为 0，69,635 个请求全部成功、`inflight=0`，独立 `stderr.txt` 为空。退出时的
+`Socket is closed` 仍是关闭连接阶段的既有 warning，不计入请求失败。
+
+结果目录：
+
+`MSGC_RESULT/Result/case26_http_complex_json/youhua/result/20260810_key_string_direct_c100_100K_Procs10`
+
+### 25.4 结论与下一步
+
+本次单次结果同时出现吞吐提升、CPU/request 下降和 GC/request 下降，与“减少大量短命 wrapper”这一
+机制一致；收益不只是把 CPU 从 mutator 转移到 GC。由于按规则没有回退重跑，6.43% 仍是单次验证结果，
+不作为多轮统计置信区间。
+
+该优化保留。下一项按第 24.5 节顺序处理 `WriteBuffer.checkAndExpend` common fast path。修改前先确认
+当前编译产物是否能通过源码拆分真正内联容量比较；若不能内联，就不应只做函数重命名或机械拆分。
+
+## 26. Writer capacity common fast path 实验（2026-08-10）
+
+### 26.1 改动与机器码确认
+
+本轮在第 25 节 key-wrapper 优化之上，只修改 stdx
+`src/stdx/encoding/json/write_buffer.cj`：
+
+- 原 `checkAndExpend(addition)` 改为只执行分配、复制和替换 buffer 的 `expendSlow(addition)`；
+- `append(Array)`、slice append、byte、integer、float、blank、`appendEscapeSmall` 和
+  `appendEscapeNative` 在各自入口直接比较 `_size + addition` 与 `_buffer.size`；
+- 容量足够时不调用函数，容量不足才调用 `expendSlow`；
+- 使用 `>=` 保持原 `minCapacity < oldCapacity` 才直接返回的 exact-fit 语义，本轮不混入容量策略变化。
+
+构建后的 `libstdx.encoding.json.so` 已做符号和 AArch64 反汇编检查：
+
+- 旧 `WriteBuffer.checkAndExpend` 符号完全消失；
+- 新产物只保留 `WriteBuffer.expendSlow`；
+- 例如 byte append 的机器码先执行 `_size + 1`、与 buffer size 比较，只有 `b.ge` 分支才调用
+  `expendSlow@plt`；
+- `appendEscapeSmall` 的首次预留和 escape 扩容点也是比较后条件调用。
+
+因此本实验在机器码层面确实实现了 common fast path，不是只修改函数名。
+
+### 26.2 最小重编、安装与来源
+
+只执行 stdx release build/install，没有重编 compiler、LLVM、stdlib 或 runtime。build/install 均以
+exit code 0 完成，安装目标仍为：
+
+`/home/lipeisheng/cangjie/cangjie_compiler_CMSGC/output/msgc`
+
+产物来源与哈希：
+
+- compiler：`655f7bc62c3d2ecc541b41dea6cd736e728b5614728e986fbc9cf4a7586183bc`；
+- runtime：`8d6aa37a21d9dcda144128105650ce8bcaadb49b59a77eeb3854f5c67b724dc9`；
+- 修改前（第 25 节）stdx JSON：`694a7bd184ec733c5edb42168c003ec211c993cd17cc2589dcfc77cbcfaece6e`；
+- 本实验 stdx JSON：`ad2880f0e272331390002e76184f7658308db6809bd662689c5575d6c8c1526a`。
+
+case26 在运行前使用上述 SDK 重新编译，没有复用旧 binary。
+
+### 26.3 case26 单次 MSGC 结果
+
+只运行一次修改后的 MSGC，没有启动 CopyGC、Go 或 Java，也没有回退重编做完整 A/B。参数保持
+100K/c100/60 s、512 MiB persistent/8 workers、P10、20 GiB heap、HeapGrowth=1、
+ScavengeGrowth=2、最小 GC 阈值 20 MiB。
+
+| 指标 | 第 25 节 key-wrapper 版本 | capacity fast path | 变化 |
+| --- | ---: | ---: | ---: |
+| 成功 / 失败 | 69,635 / 0 | **66,734 / 0** | 成功请求 -4.17% |
+| 实际压测时长 | 60.206 s | 60.206 s | 相同 |
+| 报告吞吐 | 1,156 req/s | **1,108 req/s** | **-4.15%** |
+| 精确吞吐 | 1,156.612 req/s | **1,108.428 req/s** | **-4.17%** |
+| CPU / 成功请求 | 9.3344 ms | **10.1597 ms** | **+8.84%** |
+| success / CPU-s | 107.131 | **98.428** | -8.12% |
+| 平均 RSS | 1,921,306 KB | **1,883,504 KB** | -1.97% |
+| 峰值 RSS | 1,997,772 KB | **2,000,224 KB** | +0.12% |
+| GC 次数 | 367 | 363 | -1.09% |
+| GC 总时间 | 15.125 s | **21.371 s** | **+41.30%** |
+| 平均 / 最大单次 GC | 41.212 / 74.515 ms | **58.872 / 111.097 ms** | **+42.85% / +49.09%** |
+| GC 时间 / 请求 | 217.203 us | **320.235 us** | **+47.44%** |
+
+benchmark exit code 为 0，66,734 个请求全部成功、`inflight=0`，独立 `stderr.txt` 为空。相对第 23 节
+最初 1,086.761 req/s 基线仍高 1.99%，但该净提升来自已经保留的 key-wrapper 优化；不能据此认为
+capacity fast path 有收益。
+
+结果目录：
+
+`MSGC_RESULT/Result/case26_http_complex_json/youhua/result/20260810_writer_capacity_fastpath_c100_100K_Procs10`
+
+### 26.4 结论
+
+本方案达成了“容量足够时不调用检查函数”的机器码目标，但单次 case26 结果相对直接前序版本明显回退，
+因此**不作为后续性能新基线，也不计入已验证有效优化**。
+
+当前可见的风险是把原本集中的容量加法、溢出检查和比较复制进多个热 append 函数，扩大了
+`appendEscapeSmall` 等热点的机器码；消除一次函数调用不足以保证抵消代码尺寸和指令缓存成本。本轮 GC
+总时间也显著上升，但容量策略与分配条件没有改变，且没有追加 perf 采样，因此不能仅凭一次运行断言 GC
+上升就是 fast-path 指令布局直接造成的。
+
+按照最小验证规则，本轮不执行回退后重编和第二轮 A/B。后续不继续微调这条手工展开方案；下一项优先回到
+第 24.5 节的 fused number tokenizer。若未来重新研究 writer capacity，应先用 compiler 内联能力或 PGO
+控制 code layout，并用 10 秒采样确认 `checkAndExpend` 的消失是否被 append 本体、I-cache 或 GC 热点抵消。
+
+### 26.5 同一 fast-path 产物重复 60 秒验证
+
+为判断第 26.3 节的 1,108 req/s 是否只是单轮低点，在不修改、不重编、不重新安装 stdx 的情况下，用完全
+相同参数再次运行 60 秒 MSGC。compiler、runtime、stdx JSON 和 benchmark source 的 SHA-256 均与
+第 26.3 节相同；case26 仍在运行前重新编译，避免复用旧 binary。
+
+| 指标 | 第 25 节直接前序 | fast path 第一次 | fast path 第二次 |
+| --- | ---: | ---: | ---: |
+| 成功 / 失败 | 69,635 / 0 | 66,734 / 0 | **56,756 / 0** |
+| 实际压测时长 | 60.206 s | 60.206 s | 60.315 s |
+| 精确吞吐 | **1,156.612 req/s** | 1,108.428 req/s | **940.993 req/s** |
+| 相对直接前序 | - | -4.17% | **-18.64%** |
+| CPU / 成功请求 | **9.3344 ms** | 10.1597 ms | **11.8754 ms** |
+| success / CPU-s | **107.131** | 98.428 | **84.208** |
+| 平均 RSS | 1,921,306 KB | 1,883,504 KB | **2,364,077 KB** |
+| 峰值 RSS | 1,997,772 KB | 2,000,224 KB | **2,480,644 KB** |
+| GC 次数 | 367 | 363 | 308 |
+| GC 总时间 | **15.125 s** | 21.371 s | **24.442 s** |
+| 平均 / 最大单次 GC | **41.212 / 74.515 ms** | 58.872 / 111.097 ms | **79.356 / 310.998 ms** |
+| GC 时间 / 请求 | **217.203 us** | 320.235 us | **430.646 us** |
+
+第二次运行 exit code 为 0，56,756 个请求全部成功，`stderr.txt` 为空。结果目录：
+
+`MSGC_RESULT/Result/case26_http_complex_json/youhua/result/20260810_writer_capacity_fastpath_repeat60s_c100_100K_Procs10`
+
+两次 fast-path 之间确实存在明显轮次波动：第二次 ConcMark 总时间从 14.452 s 上升到 16.360 s，
+PreEnum 从 1.989 s 上升到 2.400 s，MarkTerm 从 1.620 s 上升到 1.870 s，PostMark 从 2.252 s
+上升到 2.666 s；同时 GC 次数从 363 降至 308，说明单次周期更长，而不是 GC 更频繁。
+
+但重复结果没有支持“第一次只是偶然低点，fast path 实际有收益”：同一 fast-path 产物的两次结果都低于
+第 25 节 1,156.612 req/s，CPU/request 和 GC/request 也都更差。结论保持不变：当前手工展开的 writer
+capacity fast path 不作为有效优化或新基线。第二次结果进一步说明 case26 的并发 Mark 周期存在较大波动；
+如果后续需要严格量化小于约 5% 的优化，需要多轮统计，但这不改变当前方案没有获得正向证据的判断。
+
+### 26.6 移除 fast path 后的 60 秒验证
+
+按实验结论移除了本轮 capacity fast path，`write_buffer.cj` 恢复集中式 `checkAndExpend`；第 25 节
+object key 直接返回 `String` 的 `native.cj` 优化继续保留。只重新构建、安装 stdx，没有重编
+compiler、LLVM、stdlib 或 runtime。
+
+恢复后的 `libstdx.encoding.json.so` SHA-256 为：
+
+`694a7bd184ec733c5edb42168c003ec211c993cd17cc2589dcfc77cbcfaece6e`
+
+该哈希与第 25 节 1,156.612 req/s 的产物完全一致；符号检查确认 `checkAndExpend` 已恢复、
+`expendSlow` 已消失。case26 运行前重新编译，参数仍为 100K/c100/60 s、512 MiB persistent/
+8 workers、P10、20 GiB heap、HeapGrowth=1、ScavengeGrowth=2、最小 GC 阈值 20 MiB。
+
+| 指标 | 第 25 节同一产物 | fast path 第一次 | fast path 第二次 | 移除 fast path 后 |
+| --- | ---: | ---: | ---: | ---: |
+| 成功 / 失败 | 69,635 / 0 | 66,734 / 0 | 56,756 / 0 | **48,951 / 0** |
+| 实际压测时长 | 60.206 s | 60.206 s | 60.315 s | 60.454 s |
+| 精确吞吐 | **1,156.612 req/s** | 1,108.428 req/s | 940.993 req/s | **809.723 req/s** |
+| CPU / 成功请求 | **9.3344 ms** | 10.1597 ms | 11.8754 ms | **14.1162 ms** |
+| success / CPU-s | **107.131** | 98.428 | 84.208 | **70.841** |
+| 平均 RSS | 1,921,306 KB | 1,883,504 KB | 2,364,077 KB | **2,414,474 KB** |
+| 峰值 RSS | 1,997,772 KB | 2,000,224 KB | 2,480,644 KB | **3,208,448 KB** |
+| GC 次数 | 367 | 363 | 308 | **236** |
+| GC 总时间 | **15.125 s** | 21.371 s | 24.442 s | **24.943 s** |
+| 平均 / 最大单次 GC | **41.212 / 74.515 ms** | 58.872 / 111.097 ms | 79.356 / 310.998 ms | **105.692 / 944.925 ms** |
+| GC 时间 / 请求 | **217.203 us** | 320.235 us | 430.646 us | **509.555 us** |
+
+恢复版本 benchmark exit code 为 0，48,951 个请求全部成功、`inflight=0`，`stderr.txt` 为空。结果目录：
+
+`MSGC_RESULT/Result/case26_http_complex_json/youhua/result/20260810_writer_capacity_reverted60s_c100_100K_Procs10`
+
+GC 阶段累计时间为：PreEnum 2.250 s、EnumRoots 0.671 s、ConcMark **18.049 s**、MarkTerm
+1.439 s、PostMark 2.232 s。低吞吐与 GC 周期显著拉长同步出现：GC 次数继续下降，但平均和最大周期时延
+继续上升，RSS 峰值也达到 3.06 GiB。
+
+这次结果提供了重要反证：相同 `694a7b...` stdx、相同 compiler/runtime、相同 benchmark source 和
+相同参数，精确吞吐可以从 1,156.612 波动到 809.723 req/s。因而第 26.3～26.5 节看到的 fast-path
+下降不能再可靠归因于 writer 代码膨胀；同样，第 25 节单次 +6.43% 也只能视为候选收益，不能作为已排除
+GC 波动后的严格因果值。
+
+代码层面仍应移除 capacity fast path，因为现有三轮数据没有任何正向证据；性能基线暂恢复为集中式
+`checkAndExpend + key-wrapper` 的代码状态。后续若要判定小幅 stdx 优化，应先解决或控制并发 Mark 周期的
+大幅波动，或者至少使用交错多轮的统计结果；单轮 60 秒吞吐不足以区分约 5% 量级的优化。
+
+## 27. Writer capacity fast path：五轮 10 秒 MSGC 复测（2026-08-10）
+
+### 27.1 改动与验证设置
+
+根据前述恢复版本也可从 1,156.612 降至 809.723 req/s 的事实，本轮重新启用 P0-2，避免把单轮
+结果直接归因于机器或 GC 周期之外的 writer 改动。只改动 stdx
+`src/stdx/encoding/json/write_buffer.cj`：将容量不足时的扩容和复制保留在 `expendSlow`，并在各
+append 的 common path 内联 `_size + addition >= _buffer.size` 判断；容量充足时不发生函数调用。
+exact-fit 仍走扩容分支，与集中版 `checkAndExpend` 的语义一致。
+
+只执行 stdx release build/install，未重编 compiler、LLVM 或 runtime；安装到：
+
+`/home/lipeisheng/cangjie/cangjie_compiler_CMSGC/output/msgc`
+
+SDK 中 `libstdx.encoding.json.so` SHA-256 为
+`ad2880f0e272331390002e76184f7658308db6809bd662689c5575d6c8c1526a`；动态符号仅有
+`WriteBuffer.expendSlow`，没有 `checkAndExpend`，确认实际链接的是新产物。
+
+case26 由该 SDK 重新编译一次，随后顺序运行五次独立进程。参数均为：100K/c100、10 s、512 MiB
+persistent/8 workers、P10、20 GiB heap、HeapGrowth=1、ScavengeGrowth=2、最小 GC 阈值 20 MiB。
+每轮使用独立端口（18626--18630）和独立 `stdout.txt`、`gc.log`、`rss.csv`，所有退出码均为 0，
+请求失败均为 0；未运行 CopyGC、Go 或 Java。
+
+原始结果目录和可复跑脚本分别为：
+
+- `MSGC_RESULT/Result/case26_http_complex_json/youhua/result/20260810_writer_capacity_fastpath_5x10s_c100_100K_Procs10`
+- `MSGC_RESULT/Result/case26_http_complex_json/youhua/run_writer_capacity_fastpath_5x10s.sh`
+
+### 27.2 五轮结果与结论
+
+精确吞吐按 `total * 1000 / 实际 duration_ms` 计算，未采用 benchmark 输出的整数 req/s：
+
+| 轮次 | 成功请求 | 实际时长 | 精确吞吐 | GC 次数 | GC 总时间 | 平均 / 最大 GC | RSS 峰值 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 9,023 | 10.143 s | 889.579 req/s | 62 | 5.306 s | 85.576 / 200.338 ms | 2,225,144 KB |
+| 2 | 11,371 | 10.187 s | 1,116.227 req/s | 82 | 3.438 s | 41.933 / 75.035 ms | 1,932,668 KB |
+| 3 | 8,682 | 10.224 s | 849.178 req/s | 64 | 4.242 s | 66.286 / 451.230 ms | 2,342,384 KB |
+| 4 | 11,004 | 10.120 s | 1,087.352 req/s | 82 | 3.914 s | 47.736 / 81.967 ms | 1,865,516 KB |
+| 5 | 11,312 | 10.121 s | **1,117.676 req/s** | 76 | 3.302 s | 43.442 / 77.319 ms | 1,972,024 KB |
+
+五轮最小 / 中位 / 平均 / 最大吞吐分别为 **849.178 / 1,087.352 / 1,012.002 / 1,117.676 req/s**；
+最高值为第 5 轮的 **1,117.676 req/s**。最高与最低相差 31.62%，而第 3 轮同时出现 451.230 ms
+的最长 GC 和最高 RSS 2.23 GiB，说明短窗口内 GC 周期状态足以主导结果。
+
+因此，这五轮数据不能证明 P0-2 的小幅正向或负向收益；它明确证明用单次 10 秒、甚至单次 60 秒结果
+判断约数个百分点的 stdx 微优化并不可靠。P0-2 目前保持启用，作为后续多轮/受控机器验证的候选版本，
+而不是宣称已验证的吞吐提升。后续应以相同代码做交错多轮并同时统计 GC 阶段时间，或先降低并发 Mark
+周期波动，再对 writer 级优化作因果判断。
+
+## 28. Writer capacity fast path：三轮 60 秒 MSGC 复测（2026-08-10）
+
+### 28.1 设置与结果
+
+在第 27 节已安装的 P0-2 writer capacity fast-path stdx 上继续验证，没有再次修改源码或重建
+stdx/compiler/runtime。SDK 仍为：
+
+`/home/lipeisheng/cangjie/cangjie_compiler_CMSGC/output/msgc`
+
+SDK 的 `libstdx.encoding.json.so` SHA-256 仍为
+`ad2880f0e272331390002e76184f7658308db6809bd662689c5575d6c8c1526a`。case26 使用这套 SDK
+重新编译一次，之后顺序启动三个独立进程；每轮独立端口、`stdout.txt`、`gc.log`、`rss.csv`，且三轮
+exit code 均为 0、所有请求成功。只运行 MSGC，不启动 CopyGC、Go 或 Java。
+
+参数固定为：100K/c100、60 s、512 MiB persistent/8 workers、P10、20 GiB heap、
+HeapGrowth=1、ScavengeGrowth=2、最小 GC 阈值 20 MiB。
+
+| 轮次 | 成功 / 失败 | 实际时长 | 精确吞吐 | 平均进程 CPU | GC 次数 | GC 总时间 | ConcMark | 平均 / 最大 GC |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 72,721 / 0 | 60.195 s | 1,208.090 req/s | 986.3% | 381 | 15.178 s | 8.669 s | 39.838 / 81.215 ms |
+| 2 | 72,869 / 0 | 60.200 s | **1,210.449 req/s** | 992.5% | 384 | 15.890 s | 8.646 s | 41.380 / 81.433 ms |
+| 3 | 70,507 / 0 | 60.212 s | 1,170.979 req/s | 961.6% | 370 | 16.267 s | 9.745 s | 43.964 / 77.198 ms |
+
+精确吞吐采用 `total * 1000 / 实际 duration_ms` 计算。三轮最小 / 中位 / 平均 / 最大吞吐为
+**1,170.979 / 1,208.090 / 1,196.506 / 1,210.449 req/s**。
+
+原始结果目录和可复跑脚本：
+
+- `MSGC_RESULT/Result/case26_http_complex_json/youhua/result/20260810_writer_capacity_fastpath_3x60s_c100_100K_Procs10`
+- `MSGC_RESULT/Result/case26_http_complex_json/youhua/run_writer_capacity_fastpath_3x60s.sh`
+
+### 28.2 结论
+
+60 秒窗口将第 27 节 10 秒测试中 31.62% 的吞吐跨度收敛到 **3.37%**。三轮的平均进程 CPU 均接近
+P10（9.62--9.93 核），说明这次没有出现明显的 CPU 供给不足；第 3 轮的 ConcMark 增加到 9.745 s，
+同时吞吐降至 1,170.979 req/s，仍符合“GC 尤其并发 Mark 时长主导残余波动”的判断。
+
+本组数据可作为当前 P0-2 代码状态的**候选吞吐区间**（约 1,171--1,210 req/s），但没有集中版
+`checkAndExpend` 的同机器交错三轮对照，不能把这组绝对值归因于 fast path 本身。后续评估 stdx
+微优化应至少使用 60 秒、多轮，并同时保留 GC 阶段和 CPU 数据。
+
+## 29. 融合标准十进制整数/浮点 token 扫描（2026-08-10）
+
+### 29.1 实现与正确性验证
+
+本轮只修改 stdx 的 `src/stdx/encoding/json/native.cj`。原路径会先以
+`tryParseJsonIntFast` 扫描整数前缀；遇到 `.` / `e` / `E` 时将 offset 回退，再由
+`parseJsonNumberSlow` 对同一浮点 token 完整扫描一次。固定 100K payload 每次解析含 1,431 个
+float，服务端与客户端各解析一次，因此这段重复扫描在每请求中会发生约 2,862 次。
+
+新 `tryParseJsonDecimalNumber` 对标准十进制数只扫描一次：
+
+- 扫描整数部分时同步累积可表示的 `UInt64` 值；纯整数直接构造 `JsonInt`；
+- 遇到 `.` 时直接扫描小数位，随后在同一 offset 调用现有 `parseExponent`；遇到 `e/E` 时直接扫描
+  指数；token 边界确定后仍调用既有 Ryu `CJ_JSON_ParseFloat64`，并保留 `JsonFloat` 的 raw token；
+- `0x` / `0o` / `0b`（以及原来识别为慢路径的 `0d`）、超过 `UInt64` 的整数前缀、负号后无数字等情况
+  会恢复 offset 并走未修改的 `parseJsonNumberSlow`，不改变扩展 number 或异常语义。
+
+只执行 stdx release build/install，未重编 compiler、LLVM 或 runtime；安装到：
+
+`/home/lipeisheng/cangjie/cangjie_compiler_CMSGC/output/msgc`
+
+安装后的 `libstdx.encoding.json.so` SHA-256 为：
+
+`42a079395bc9c8f1c0b73d1b1bd2fb771dd5beabf7d7ceb609ffb6d99eb695ca`
+
+使用该 SDK 额外编译并运行了最小功能程序，验证 `0`、`-42`、两个 `Int64` 边界、`1.25`、`-0.5`、
+`6e3`、`-2.5E-2` 以及 `0x10` / `0b101` / `0o17`，全部通过。验证程序：
+
+`MSGC_RESULT/Result/case26_http_complex_json/youhua/result/20260810_fused_number_tokenizer_validation.cj`
+
+### 29.2 单次 60 秒 MSGC 验证与结论
+
+case26 以新 SDK 重新编译；只运行一次 MSGC，不启动 CopyGC、Go 或 Java。参数为：100K/c100、60 s、
+512 MiB persistent/8 workers、P10、20 GiB heap、HeapGrowth=1、ScavengeGrowth=2、最小 GC 阈值
+20 MiB。运行 exit code 为 0，69,607 个请求全部成功、失败为 0。
+
+| 指标 | 融合数字扫描本轮 |
+| --- | ---: |
+| 实际时长 | 60.272 s |
+| 成功请求 | 69,607 |
+| 精确吞吐 | **1,154.886 req/s** |
+| 平均进程 CPU | 1,022.3% |
+| 平均 / 峰值 RSS | 1,955,220 / 2,262,600 KB |
+| GC 次数 | 398 |
+| GC 总时间 | 17.353 s |
+| ConcMark | 10.616 s |
+| 平均 / 最大 GC | 43.600 / 215.800 ms |
+
+精确吞吐按 `69,607 * 1000 / 60,272` 计算。结果目录：
+
+`MSGC_RESULT/Result/case26_http_complex_json/youhua/result/20260810_fused_number_tokenizer_c100_100K_Procs10`
+
+与第 28 节同一 P0-2 代码状态的三轮 60 秒结果（1,170.979--1,210.449 req/s）相比，本轮较低；但
+ConcMark 为 10.616 s，也高于那三轮的 8.646--9.745 s，且单次 GC 最大值达到 215.800 ms。因此这次
+单轮吞吐不能用于判定融合 tokenizer 回退，也尚未提供可排除 GC 波动后的端到端正向收益。
+
+代码保留：它消除了标准浮点在源码层面确定存在的前缀重复扫描，并保持最小功能和扩展 number 验证通过。
+若要量化收益，应在同一机器负载下进行 3 次以上 60 秒的交错对照，并比较 `parseJsonNumberSlow` /
+`tryParseJsonDecimalNumber` 的 perf 样本及 ConcMark 时间；在此之前不把单次 1,154.886 req/s 作为
+该优化的性能结论。
+
+## 30. 短、无转义 JSON 字符串的本地扫描 fast path（2026-08-10）
+
+### 30.1 实现
+
+本轮只修改 stdx 的 `src/stdx/encoding/json/native.cj` 中的 `parseJsonStringValue`，没有修改 compiler、
+LLVM 或 runtime。原实现每扫描一个普通字节都递增 `parser.offset`；新路径把 `parser.size` 和扫描位置
+放在局部变量中，在遇到结束引号时只写回一次 `parser.offset`，随后仍使用已经验证过的
+`String.withRawData(parser.data[start..(parser.offset - 1)])` 返回无拷贝字符串。发现反斜杠时立即写回
+当前 offset，完全回到原有 escape/cache 路径；未闭合字符串仍抛出原有异常。
+
+`withRawData` 的生命周期约束需要特别注意：实验中把 `parser.data` 保存为局部 Array，或把局部
+`offset` 直接作为零拷贝 slice 终点，功能程序会 SIGSEGV。最终实现保留 field-based raw-data 表达式，
+并通过最小程序验证短 ASCII、空串、UTF-8、转义回退和源 String 离开作用域后的 DOM 读取。
+
+### 30.2 重编、安装与功能校验
+
+按照 stdx-only 规则执行了三次修正后的 stdx release build，最后一次完整完成 178/178；随后安装到：
+
+`/home/lipeisheng/cangjie/cangjie_compiler_CMSGC/output/msgc`
+
+安装后的 JSON 动态库与 build 产物一致，SHA-256 为：
+
+`8df183b4e59a838f132ac6a72f630a6e892094e9b66b1197a8c967f6b862c7b1`
+
+功能程序：
+
+`MSGC_RESULT/Result/case26_http_complex_json/youhua/test_short_string_scan_only.cj`
+
+覆盖短无转义字符串（含空串和 UTF-8）、跨作用域 DOM 保活以及含转义字符串回退，输出
+`[PASS] short string local scan`，exit code 为 0。
+
+### 30.3 单次 MSGC case26 验证
+
+使用上述 SDK 重新编译 case26 benchmark，仅运行 MSGC 一次；未启动 CopyGC、Go 或 Java。参数为：
+100K/c100、60 s、512 MiB persistent/8 workers、P10、20 GiB heap、HeapGrowth=1、ScavengeGrowth=2、
+最小 GC 阈值 20 MiB。脚本及原始结果：
+
+`MSGC_RESULT/Result/case26_http_complex_json/youhua/run_short_string_local_scan_60s.sh`
+
+`MSGC_RESULT/Result/case26_http_complex_json/youhua/result/20260810_short_string_local_scan_c100_100K_Procs10`
+
+| 指标 | 本轮 fast path |
+| --- | ---: |
+| exit code | 0 |
+| 实际时长 | 60.203 s |
+| 成功 / 失败 | 71,342 / 0 |
+| 精确吞吐 | **1,185.02 req/s**（程序打印 1,185 req/s） |
+| 平均进程 CPU | 1,006.9% |
+| 最大 RSS | 2,018.9 MiB |
+
+最近的三轮“融合数字扫描已回退、writer fast path 保留”60 秒结果为 1,177.961、1,172.319、
+1,152.343 req/s，平均 1,167.541 req/s。本轮比该平均值高约 1.5%，也高于其最高值约 0.6%；由于
+只有一次运行，且并发 Mark/GC 存在机器级波动，当前只能记录为**候选正向结果**，不能据此宣称稳定收益。
+
+本轮平均 CPU 约 10.1 核，说明吞吐仍处于 CPU 饱和区；下一步若要确认收益，应按既定规则做受控的多轮
+60 秒测量，并同时比较 `gc.log` 的 ConcMark 和 RSS，而不是只看单轮 req/s。
+
+## 31. 缓存 JSON null/boolean 常量对象（2026-08-10）
+
+### 31.1 实现与安全性
+
+本轮只修改 stdx 的 `src/stdx/encoding/json/native.cj`。在 JSON parser 模块内增加三个共享实例：
+`SHARED_JSON_NULL`、`SHARED_JSON_TRUE` 和 `SHARED_JSON_FALSE`，并让 `parseJsonNull`、`parseJsonTrue`、
+`parseJsonFalse` 直接返回这些实例。`JsonNull` 没有可变字段，`JsonBool.value` 为私有字段且没有写入接口，
+因此 parser 生成的三类对象对所有调用方均是不可变的；公开的 `JsonNull()` / `JsonBool(Bool)` 构造函数
+仍保留，非 parser 场景的显式构造语义没有改变。
+
+case26 的 100K payload 约包含 206 个 `true`、135 个 `false`、18 个 `null`，服务端和客户端各解析一次，
+因此每次请求预计减少约 718 个短命对象及其 mark/sweep 扫描。功能程序
+`MSGC_RESULT/Result/case26_http_complex_json/youhua/test_json_constant_singletons.cj` 验证了 null、true、
+false 的值访问和紧凑序列化，输出 `[PASS] JSON constant parser singletons`，exit code 为 0。
+
+### 31.2 重编安装
+
+遵循 stdx-only 规则完成 release build 178/178，并安装到：
+
+`/home/lipeisheng/cangjie/cangjie_compiler_CMSGC/output/msgc`
+
+安装后的 `libstdx.encoding.json.so` 与 build 产物 SHA-256 一致：
+
+`003e1e7bdaa6399cd4f280e7baf06aa52ee1c1e4aca73aa72f58b371db3775ca`
+
+case26 benchmark 使用该 SDK 重新编译后再运行，没有复用旧 binary。compiler、runtime、stdlib 均来自
+同一个 `/home/lipeisheng/cangjie/cangjie_compiler_CMSGC/output/msgc`。
+
+### 31.3 单次 MSGC case26 验证
+
+只运行 MSGC，不启动 CopyGC、Go 或 Java。参数保持当前基线：100K/c100、60 s、512 MiB persistent/8
+workers、P10、20 GiB heap、HeapGrowth=1、ScavengeGrowth=2、最小 GC 阈值 20 MiB。脚本及原始结果：
+
+`MSGC_RESULT/Result/case26_http_complex_json/youhua/run_json_constant_singletons_60s.sh`
+
+`MSGC_RESULT/Result/case26_http_complex_json/youhua/result/20260810_json_constant_singletons_c100_100K_Procs10`
+
+| 指标 | 常量单例本轮 |
+| --- | ---: |
+| exit code | 0 |
+| 实际时长 | 60.180 s |
+| 成功 / 失败 | 73,350 / 0 |
+| 精确吞吐 | **1,218.84 req/s**（程序打印 1,218 req/s） |
+| 平均进程 CPU | 978.7% |
+| 最大 RSS | 1,883.7 MiB |
+| GC 周期数 | 398 |
+| GC 总时间 | 16.065 s |
+| 平均 GC 时间 | 40.36 ms |
+
+与上一轮短字符串 fast path 单次结果（1,185.02 req/s、最大 RSS 2,018.9 MiB、GC 总时间 18.644 s）
+相比，吞吐提高约 **2.85%**，峰值 RSS 降低约 6.7%，GC 总时间减少约 13.8%；与最近三轮回退基线均值
+1,167.54 req/s 相比提高约 4.4%。不过这仍是单次运行，GC 周期数从 363 增至 398，说明压力模型和机器
+负载仍会造成波动，当前应将其记录为候选正向优化，不将单次数据视为稳定收益定论。

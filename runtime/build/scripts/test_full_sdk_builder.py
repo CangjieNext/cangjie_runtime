@@ -103,6 +103,12 @@ class ModeBindingTests(unittest.TestCase):
                 "/home/lipeisheng/cangjie/cangjie_compiler_CMSGC/output/msgc"
             ).resolve(),
         )
+        self.assertEqual(
+            config.stdx_root,
+            pathlib.Path(
+                "/home/lipeisheng/cangjie/cangjie_stdx_CMSGC"
+            ).resolve(),
+        )
 
     def test_msgc_defaults_to_marksweep_and_msgc_output(self) -> None:
         root = pathlib.Path("/tmp/cangjie-full-sdk-test")

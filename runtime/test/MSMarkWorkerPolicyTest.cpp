@@ -45,14 +45,15 @@ void TestThreadCountResolution()
     ExpectEq(ResolveMSGCThreadCapacity(160, 8), 8, "logical cores define MSGC capacity");
     ExpectEq(ResolveMSGCThreadCapacity(8, 128), 128, "processor setting does not shrink pool capacity");
     ExpectEq(ResolveMSGCThreadCapacity(4, 0), 4, "processor count is used only when hardware count is unavailable");
-    ExpectEq(ResolveMSMarkTotalThreads(1, 128, 0), 128, "default mark threads use machine capacity");
-    ExpectEq(ResolveMSMarkTotalThreads(4, 128, 0), 128, "default mark threads use machine capacity");
-    ExpectEq(ResolveMSMarkTotalThreads(8, 128, 0), 128, "default mark threads use machine capacity");
-    ExpectEq(ResolveMSMarkTotalThreads(32, 128, 0), 128, "default mark threads use machine capacity");
-    ExpectEq(ResolveMSMarkTotalThreads(64, 128, 0), 128, "default mark threads use machine capacity");
-    ExpectEq(ResolveMSMarkTotalThreads(128, 128, 0), 128, "default mark threads use machine capacity");
-    ExpectEq(ResolveMSMarkTotalThreads(256, 256, 0), 256, "default mark follows machine capacity");
-    ExpectEq(ResolveMSMarkTotalThreads(160, 8, 0), 8, "160P on 8 logical CPUs");
+    ExpectEq(ResolveMSMarkTotalThreads(1, 128, 0), 1, "one processor keeps one total GC thread");
+    ExpectEq(ResolveMSMarkTotalThreads(4, 128, 0), 2, "default GC threads use half of P");
+    ExpectEq(ResolveMSMarkTotalThreads(5, 128, 0), 3, "odd processor counts round the default half up");
+    ExpectEq(ResolveMSMarkTotalThreads(8, 128, 0), 4, "default GC threads use half of P");
+    ExpectEq(ResolveMSMarkTotalThreads(32, 128, 0), 16, "default GC threads use half of P");
+    ExpectEq(ResolveMSMarkTotalThreads(64, 128, 0), 32, "default GC threads use half of P");
+    ExpectEq(ResolveMSMarkTotalThreads(128, 128, 0), 64, "default GC threads use half of machine cores");
+    ExpectEq(ResolveMSMarkTotalThreads(256, 256, 0), 128, "default GC threads use half of machine cores");
+    ExpectEq(ResolveMSMarkTotalThreads(160, 8, 0), 4, "machine half caps a wider processor setting");
     ExpectEq(ResolveMSMarkTotalThreads(8, 128, 4), 4,
              "explicit mark threads should enable four total GC threads");
     ExpectEq(ResolveMSMarkTotalThreads(160, 8, 12), 8,

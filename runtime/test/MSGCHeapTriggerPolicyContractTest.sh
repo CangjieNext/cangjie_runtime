@@ -35,8 +35,14 @@ require_pattern "$COLLECTOR_HEADER" \
     'request\.reason != GC_REASON_HEU && request\.ShouldBeIgnored\(\)' \
     "MSGC must bypass the generic time policy for HEU requests"
 require_pattern "$REGION_MANAGER_SOURCE" \
-    'ShouldTriggerMSMark\(sweptBytes, threshold\)' \
-    "MSGC Region acquisition must trigger directly from swept bytes"
+    'SaturatingSubtractMSBytes\([[:space:]]*sweptBytes, lastMarkOutsideBytes\)' \
+    "MSGC Region acquisition must remove the previous mark's outside supply from HEU pressure"
+require_pattern "$REGION_MANAGER_SOURCE" \
+    'retainedBytes, effectiveSweptBytes, threshold' \
+    "MSGC Region acquisition must compare the outside-adjusted swept bytes with the GC threshold"
+require_pattern "$REGION_MANAGER_SOURCE" \
+    'GetLastMarkOutsideBytes\(\)' \
+    "MSGC Region acquisition must use the last completed mark's outside-supply snapshot"
 reject_pattern "$REGION_MANAGER_SOURCE" 'runwayBytes|GetMarkRunway|heapRunway=' \
     "MSGC Region acquisition must not apply a Mark runway"
 reject_pattern "$REGION_MANAGER_SOURCE" 'GetHeuRequestCooldownNs|lastHeuRequestNs_' \

@@ -2,6 +2,7 @@
 #include <cstdlib>
 
 #include "src/Heap/MCollector/MSHeapThresholdPolicy.h"
+#include "src/Heap/MCollector/MSMemoryLimitPolicy.h"
 
 namespace {
 
@@ -210,33 +211,25 @@ void TestThresholdFloorUsesOnlyAbsoluteFloor()
         "the absolute floor must remain capped by the maximum heap");
 }
 
-void TestGCThresholdBaseIncludesTLSAndOutsideSetRegions()
+void TestGCThresholdBaseUsesMarkedLiveOnly()
 {
     MapleRuntime::MSGCThresholdBaseDecision decision =
-        MapleRuntime::ComputeMSGCThresholdBase(
-            100, 2, 72, 32, 3, 5);
+        MapleRuntime::ComputeMSGCThresholdBase(100);
 
-    ExpectEqual(decision.tlsReservationBytes, 4608,
-                "TLS reservation must use P times 72 lanes times Region size");
-    ExpectEqual(decision.outsideCentralSmallBytes, 96,
-                "outside Small bytes must use the central swept Region count");
-    ExpectEqual(decision.outsideLargeBytes, 160,
-                "outside Large bytes must use the new Large span count");
-    ExpectEqual(decision.gcBaseBytes, 4964,
-                "GC base must add marked live, TLS reservation and both outside-set supplies");
+    ExpectEqual(decision.markedLiveBytes, 100,
+                "GC base must retain the frozen marked-live sample");
+    ExpectEqual(decision.gcBaseBytes, 100,
+                "GC base must not add TLS or outside allocation supply");
 }
 
-void TestGCThresholdBaseSaturates()
+void TestGCThresholdBasePreservesLargeMarkedLive()
 {
     constexpr size_t maximum = static_cast<size_t>(-1);
     MapleRuntime::MSGCThresholdBaseDecision decision =
-        MapleRuntime::ComputeMSGCThresholdBase(
-            maximum - 1, 2, 72, maximum, 3, 5);
+        MapleRuntime::ComputeMSGCThresholdBase(maximum - 1);
 
-    ExpectEqual(decision.tlsReservationBytes, maximum,
-                "TLS reservation multiplication must saturate");
-    ExpectEqual(decision.gcBaseBytes, maximum,
-                "GC base addition must saturate");
+    ExpectEqual(decision.gcBaseBytes, maximum - 1,
+                "GC base must be exactly the marked-live value");
 }
 
 void TestMarkTriggerUsesSweptBytesWithoutRunway()
@@ -249,31 +242,48 @@ void TestMarkTriggerUsesSweptBytesWithoutRunway()
                "swept bytes above the GC threshold must trigger Mark");
 }
 
-void TestScavengeThresholdAddsOnlyCentralOutsideSetBytes()
+void TestMarkTriggerSubtractsOutsideSupplyButPreservesSoftLimitOOM()
+{
+    size_t effectiveSweptBytes = MapleRuntime::SaturatingSubtractMSBytes(1200, 300);
+    ExpectEqual(effectiveSweptBytes, 900,
+                "HEU pressure must exclude the previous mark's outside supply");
+    ExpectEqual(MapleRuntime::SaturatingSubtractMSBytes(300, 1200), 0,
+                "outside-supply correction must saturate at zero");
+    ExpectTrue(
+        MapleRuntime::ResolveMSMarkTrigger(10000, effectiveSweptBytes, 1000, 10000) ==
+            MapleRuntime::MSMarkTrigger::OOM,
+        "soft-limit OOM must take precedence over outside-adjusted HEU pressure");
+    ExpectTrue(
+        MapleRuntime::ResolveMSMarkTrigger(9999, 1000, 1000, 10000) ==
+            MapleRuntime::MSMarkTrigger::HEU,
+        "HEU must trigger when outside-adjusted swept bytes reach the GC goal");
+}
+
+void TestScavengeThresholdUsesGCGoalOnly()
 {
     MapleRuntime::MSScavengeThresholdDecision decision =
         MapleRuntime::EvaluateMSScavengeThreshold(
-            2000, 300, 500, 10000, 1.20);
+            2000, 10000, 1.20);
 
-    ExpectEqual(decision.baseBytes, 2800,
-                "Scavenge base must add GC goal, central Small and outside Large bytes");
-    ExpectEqual(decision.thresholdBytes, 3360,
-                "Scavenge growth must scale the complete Scavenge base");
+    ExpectEqual(decision.baseBytes, 2000,
+                "Scavenge base must be the completed GC goal only");
+    ExpectEqual(decision.thresholdBytes, 2399,
+                "Scavenge growth must scale only the GC goal with the policy's truncating semantics");
 }
 
 void TestScavengeThresholdClampsGrowthAndHeapCap()
 {
     MapleRuntime::MSScavengeThresholdDecision boundedGrowth =
         MapleRuntime::EvaluateMSScavengeThreshold(
-            2000, 300, 500, 10000, 0.50);
-    ExpectEqual(boundedGrowth.thresholdBytes, 2800,
+            2000, 10000, 0.50);
+    ExpectEqual(boundedGrowth.thresholdBytes, 2000,
                 "Scavenge growth below one must not shrink the base");
 
     MapleRuntime::MSScavengeThresholdDecision capped =
         MapleRuntime::EvaluateMSScavengeThreshold(
-            2000, 300, 500, 3000, 1.20);
-    ExpectEqual(capped.thresholdBytes, 3000,
-                "Scavenge threshold must respect the maximum heap cap");
+            2000, 2200, 1.20);
+    ExpectEqual(capped.thresholdBytes, 2200,
+                "Scavenge threshold must respect its supplied heap/soft-limit cap");
 }
 
 } // namespace
@@ -291,10 +301,11 @@ int main()
     TestThresholdBootstrapBypassesSmoothing();
     TestThresholdFloorAndCapRemainHardBounds();
     TestThresholdFloorUsesOnlyAbsoluteFloor();
-    TestGCThresholdBaseIncludesTLSAndOutsideSetRegions();
-    TestGCThresholdBaseSaturates();
+    TestGCThresholdBaseUsesMarkedLiveOnly();
+    TestGCThresholdBasePreservesLargeMarkedLive();
     TestMarkTriggerUsesSweptBytesWithoutRunway();
-    TestScavengeThresholdAddsOnlyCentralOutsideSetBytes();
+    TestMarkTriggerSubtractsOutsideSupplyButPreservesSoftLimitOOM();
+    TestScavengeThresholdUsesGCGoalOnly();
     TestScavengeThresholdClampsGrowthAndHeapCap();
     return 0;
 }

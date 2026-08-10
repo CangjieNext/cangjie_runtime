@@ -30,8 +30,12 @@ DEFAULT_MSGC_COMPILER_ROOT_LINUX = pathlib.Path(
     "/home/lipeisheng/cangjie/cangjie_compiler_CMSGC"
 )
 
-DEFAULT_MSGC_STDX_ROOT = pathlib.Path(
+DEFAULT_MSGC_STDX_ROOT_DARWIN = pathlib.Path(
     "/Users/lipeisheng/code/cangjie/cangjie/cangjie_stdx"
+)
+
+DEFAULT_MSGC_STDX_ROOT_LINUX = pathlib.Path(
+    "/home/lipeisheng/cangjie/cangjie_stdx_CMSGC"
 )
 
 
@@ -78,6 +82,14 @@ def default_msgc_compiler_root(host: HostLayout) -> pathlib.Path:
         return DEFAULT_MSGC_COMPILER_ROOT_DARWIN
     if host.os_name == "linux":
         return DEFAULT_MSGC_COMPILER_ROOT_LINUX
+    raise ValueError(f"unsupported host system for MSGC SDK: {host.os_name}")
+
+
+def default_msgc_stdx_root(host: HostLayout) -> pathlib.Path:
+    if host.os_name == "darwin":
+        return DEFAULT_MSGC_STDX_ROOT_DARWIN
+    if host.os_name == "linux":
+        return DEFAULT_MSGC_STDX_ROOT_LINUX
     raise ValueError(f"unsupported host system for MSGC SDK: {host.os_name}")
 
 
@@ -471,7 +483,9 @@ def parse_args_for_mode(
         else layout.compiler_root
     )
     default_stdx_root = (
-        DEFAULT_MSGC_STDX_ROOT if gc_mode is GCMode.MSGC else layout.stdx_root
+        default_msgc_stdx_root(host)
+        if gc_mode is GCMode.MSGC
+        else layout.stdx_root
     )
     parser = argparse.ArgumentParser(
         description=(
