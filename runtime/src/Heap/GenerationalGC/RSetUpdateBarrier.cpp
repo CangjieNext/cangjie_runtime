@@ -9,15 +9,15 @@
 
 namespace MapleRuntime {
 
-void RSetUpdateBarrier::WriteReference(BaseObject* obj, BaseObject* field, BaseObject* target)
+void RSetUpdateBarrier::WriteReference(BaseObject* obj, RefField<>* field, BaseObject* target)
 {
-    if (!Heap::IsHeapAddress(obj)) { return; }
+    if (!Heap::IsHeapAddress(obj) || !Heap::IsHeapAddress(target)) { return; }
     RegionInfo* objRegion = RegionInfo::GetRegionInfoAt(reinterpret_cast<uintptr_t>(obj));
-    if (!objRegion->IsOldRegion()) {
-        return;
+    RegionInfo* refRegion = RegionInfo::GetRegionInfoAt(reinterpret_cast<uintptr_t>(target));
+    if (objRegion->IsOldRegion() && !refRegion->IsOldRegion()) {
+        RegionInfo* targetRegion = RegionInfo::GetRegionInfoAt(reinterpret_cast<uintptr_t>(target));
+        rset_.Record(targetRegion, reinterpret_cast<uintptr_t>(field));
     }
-    RegionInfo* targetRegion = RegionInfo::GetRegionInfoAt(reinterpret_cast<uintptr_t>(target));
-    rset_.Record(targetRegion, reinterpret_cast<uintptr_t>(field));
 }
 
 } // namespace MapleRuntime

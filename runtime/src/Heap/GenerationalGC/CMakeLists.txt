@@ -10,6 +10,12 @@ set(SRC_LIST
     "RememberSet.cpp"
     "RSetUpdateBarrier.cpp"
     "GenerationBarriers.cpp"
+    "GenerationEnumBarrier.cpp"
+    "GenerationTraceBarrier.cpp"
+    "GenerationIdleBarrier.cpp"
+    "GenerationPostTraceBarrier.cpp"
+    "GenerationPreforwardBarrier.cpp"
+    "GenerationForwardBarrier.cpp"
     "GenerationAllocBuffer.cpp"
 )
 
