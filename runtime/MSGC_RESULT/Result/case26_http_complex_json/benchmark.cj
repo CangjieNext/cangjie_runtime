@@ -223,23 +223,23 @@ func elapsedUs(start: DateTime): Int64 {
     (DateTime.now() - start).toMicroseconds()
 }
 
-func parseServerJson(bodyStr: String): JsonValue {
+func parseServerJson(body: Array<Byte>): JsonValue {
     if (!JSON_PROFILE_ENABLED) {
-        return JsonValue.fromStr(bodyStr)
+        return JsonValue.fromUtf8Bytes(body)
     }
     let start = DateTime.now()
-    let value = JsonValue.fromStr(bodyStr)
+    let value = JsonValue.fromUtf8Bytes(body)
     JSON_PROFILE_STATS.serverParseUs.fetchAdd(elapsedUs(start))
     JSON_PROFILE_STATS.serverCalls.fetchAdd(1)
     return value
 }
 
-func parseClientJson(bodyStr: String): JsonValue {
+func parseClientJson(body: Array<Byte>): JsonValue {
     if (!JSON_PROFILE_ENABLED) {
-        return JsonValue.fromStr(bodyStr)
+        return JsonValue.fromUtf8Bytes(body)
     }
     let start = DateTime.now()
-    let value = JsonValue.fromStr(bodyStr)
+    let value = JsonValue.fromUtf8Bytes(body)
     JSON_PROFILE_STATS.clientParseUs.fetchAdd(elapsedUs(start))
     JSON_PROFILE_STATS.clientCalls.fetchAdd(1)
     return value
@@ -277,7 +277,7 @@ func reserveBodyCapacity(result: ArrayList<UInt8>, bodySize: Option<Int64>): Uni
     }
 }
 
-func readHttpBodyString(body: InputStream, bodySize: Option<Int64>): String {
+func readHttpBodyBytes(body: InputStream, bodySize: Option<Int64>): Array<Byte> {
     let chunk = Array<UInt8>(BODY_READ_CHUNK_SIZE, repeat: 0)
     let result = ArrayList<UInt8>()
     reserveBodyCapacity(result, bodySize)
@@ -286,11 +286,13 @@ func readHttpBodyString(body: InputStream, bodySize: Option<Int64>): String {
         result.add(all: chunk[..n])
         n = body.read(chunk)
     }
-    String.fromUtf8(result.toArray())
+    // slice() avoids the ArrayList -> Array copy. JsonValue.fromUtf8Bytes
+    // clones this view before parsing, so the DOM never borrows HTTP storage.
+    return unsafe { result.getRawArray().slice(0, result.size) }
 }
 
-func verifyHttpBodyRead(actual: String, expected: String, caseName: String): Unit {
-    if (actual != expected) {
+func verifyHttpBodyRead(actual: Array<Byte>, expected: String, caseName: String): Unit {
+    if (String.fromUtf8(actual) != expected) {
         throw Exception("HTTP body read self-test failed: ${caseName}")
     }
 }
@@ -298,27 +300,27 @@ func verifyHttpBodyRead(actual: String, expected: String, caseName: String): Uni
 func runHttpBodyReadSelfTest(): Unit {
     let expected = "{\"id\":7,\"name\":\"body-copy\",\"items\":[1,2,3]}"
     verifyHttpBodyRead(
-        readHttpBodyString(ByteBuffer(expected.toArray()), Some(Int64(expected.size))),
+        readHttpBodyBytes(ByteBuffer(expected.toArray()), Some(Int64(expected.size))),
         expected,
         "known-content-length"
     )
     let unknownBodySize: Option<Int64> = None
     verifyHttpBodyRead(
-        readHttpBodyString(ByteBuffer(expected.toArray()), unknownBodySize),
+        readHttpBodyBytes(ByteBuffer(expected.toArray()), unknownBodySize),
         expected,
         "unknown-content-length"
     )
     let response = HttpResponseBuilder().body(expected).build()
-    verifyHttpBodyRead(readRespStr(response), expected, "string-response-body")
+    verifyHttpBodyRead(readRespBytes(response), expected, "string-response-body")
     println("[PASS] HTTP body copy self-test")
 }
 
-func readBodyStr(req: HttpRequest): String {
-    readHttpBodyString(req.body, req.bodySize)
+func readBodyBytes(req: HttpRequest): Array<Byte> {
+    readHttpBodyBytes(req.body, req.bodySize)
 }
 
-func readRespStr(rsp: HttpResponse): String {
-    readHttpBodyString(rsp.body, rsp.bodySize)
+func readRespBytes(rsp: HttpResponse): Array<Byte> {
+    readHttpBodyBytes(rsp.body, rsp.bodySize)
 }
 
 func isBodyDiagEnabled(): Bool {
@@ -377,13 +379,6 @@ func printServerBodyDiag(reqId: String, slotId: String, bodyStr: String, e: Exce
 
 func shouldCaptureBodySnapshotForDiag(): Bool {
     isBodyDiagEnabled() || isBadBodyDumpEnabled()
-}
-
-func captureBodySnapshotForDiag(bodyStr: String): Option<Array<Byte>> {
-    if (!shouldCaptureBodySnapshotForDiag()) {
-        return None
-    }
-    Some(bodyStr.toArray())
 }
 
 func dumpBadBytesForDiag(stage: String, reqId: String, slotId: String, bytes: Array<Byte>): Unit {
@@ -521,10 +516,10 @@ func mutateRequestJson(root: JsonObject, seq: Int64): Unit {
     match (root.get("counters")) {
         case Some(c) =>
             let co = c.asObject()
-            let inV = co.get("in").getOrThrow().asInt().getValue() + 1
-            let okV = co.get("ok").getOrThrow().asInt().getValue() + 1
-            co.put("in", JsonInt(inV))
-            co.put("ok", JsonInt(okV))
+            let inValue = co.get("in").getOrThrow().asInt()
+            let okValue = co.get("ok").getOrThrow().asInt()
+            inValue.setValue(inValue.getValue() + 1)
+            okValue.setValue(okValue.getValue() + 1)
         case None => ()
     }
 
@@ -542,15 +537,15 @@ func mutateRequestJson(root: JsonObject, seq: Int64): Unit {
                 // seq+=1
                 match (item.get("seq")) {
                     case Some(s) =>
-                        let v = s.asInt().getValue() + 1
-                        item.put("seq", JsonInt(v))
+                        let value = s.asInt()
+                        value.setValue(value.getValue() + 1)
                     case None => ()
                 }
                 // score *= 2.0
                 match (item.get("score")) {
                     case Some(s) =>
-                        let v = s.asFloat().getValue() * 2.0
-                        item.put("score", JsonFloat(v))
+                        let value = s.asFloat()
+                        value.setValue(value.getValue() * 2.0)
                     case None => ()
                 }
                 // user.attrs.credits *= 2.0
@@ -562,8 +557,8 @@ func mutateRequestJson(root: JsonObject, seq: Int64): Unit {
                                 let ao = a.asObject()
                                 match (ao.get("credits")) {
                                     case Some(cv) =>
-                                        let v = cv.asFloat().getValue() * 2.0
-                                        ao.put("credits", JsonFloat(v))
+                                        let value = cv.asFloat()
+                                        value.setValue(value.getValue() * 2.0)
                                     case None => ()
                                 }
                             case None => ()
@@ -589,8 +584,8 @@ func mutateRequestJson(root: JsonObject, seq: Int64): Unit {
 
 }
 
-func processRequest(bodyStr: String, seq: Int64, reqId: String): String {
-    let root = parseServerJson(bodyStr).asObject()
+func processRequest(body: Array<Byte>, seq: Int64, reqId: String): String {
+    let root = parseServerJson(body).asObject()
     if (JSON_PROFILE_ENABLED) {
         let start = DateTime.now()
         mutateRequestJson(root, seq)
@@ -599,7 +594,7 @@ func processRequest(bodyStr: String, seq: Int64, reqId: String): String {
         mutateRequestJson(root, seq)
     }
     printJsonGraphDiagBeforeString(reqId, seq, root)
-    serializeServerJson(root, bodyStr.size)
+    serializeServerJson(root, body.size)
 }
 
 // ---------- Client ----------
@@ -644,8 +639,12 @@ func runRequest(client: Client, workerId: Int64, slotId: Int64, reqId: Int64, ur
             .body(ByteBuffer(payload))
             .build()
         let rsp = client.send(req)
-        let body = readRespStr(rsp)
-        let bodySnapshot = captureBodySnapshotForDiag(body)
+        let body = readRespBytes(rsp)
+        let bodySnapshot = if (shouldCaptureBodySnapshotForDiag()) {
+            Some(body.clone())
+        } else {
+            Option<Array<Byte>>.None
+        }
         // 校验：反序列化 + 确认 server_ok 字段存在
         try {
             let jv = parseClientJson(body)
@@ -656,14 +655,15 @@ func runRequest(client: Client, workerId: Int64, slotId: Int64, reqId: Int64, ur
                 stats.fail.fetchAdd(1)
             }
         } catch (e: Exception) {
-            printBodyMutationDiag("client-response", reqId.toString(), slotId.toString(), bodySnapshot, body)
-            printClientResponseDiag(workerId, slotId, reqId, body, e)
+            let bodyStr = String.fromUtf8(body)
+            printBodyMutationDiag("client-response", reqId.toString(), slotId.toString(), bodySnapshot, bodyStr)
+            printClientResponseDiag(workerId, slotId, reqId, bodyStr, e)
             match (bodySnapshot) {
                 case Some(snapshotBytes) =>
                     dumpBadBytesForDiag("client-response-snapshot", reqId.toString(), slotId.toString(), snapshotBytes)
                 case None => ()
             }
-            dumpBadBodyForDiag("client-response-fail", reqId.toString(), slotId.toString(), body)
+            dumpBadBodyForDiag("client-response-fail", reqId.toString(), slotId.toString(), bodyStr)
             throw e
         }
         stats.bytesSent.fetchAdd(Int64(payload.size))
@@ -830,12 +830,17 @@ main() {
         ctx =>
         let reqId = ctx.request.headers.getFirst("x-case27-reqid") ?? "unknown"
         let slotId = ctx.request.headers.getFirst("x-case27-slotid") ?? "unknown"
-        let bodyStr = readBodyStr(ctx.request)
-        let bodySnapshot = captureBodySnapshotForDiag(bodyStr)
+        let body = readBodyBytes(ctx.request)
+        let bodySnapshot = if (shouldCaptureBodySnapshotForDiag()) {
+            Some(body.clone())
+        } else {
+            Option<Array<Byte>>.None
+        }
         let s = serverSeq.fetchAdd(1)
         let respStr = try {
-            processRequest(bodyStr, s, reqId)
+            processRequest(body, s, reqId)
         } catch (e: Exception) {
+            let bodyStr = String.fromUtf8(body)
             printBodyMutationDiag("server-body", reqId, slotId, bodySnapshot, bodyStr)
             printServerBodyDiag(reqId, slotId, bodyStr, e)
             match (bodySnapshot) {
@@ -884,7 +889,7 @@ main() {
                     .body(ByteBuffer(payload))
                     .build()
             )
-            let _ = readRespStr(rsp)
+            let _ = readRespBytes(rsp)
         } catch (e: Exception) {
             println("[WARN] warmup request failed: ${e.message}")
         }

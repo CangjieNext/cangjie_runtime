@@ -2203,3 +2203,165 @@ workers、P10、20 GiB heap、HeapGrowth=1、ScavengeGrowth=2、最小 GC 阈值
 相比，吞吐提高约 **2.85%**，峰值 RSS 降低约 6.7%，GC 总时间减少约 13.8%；与最近三轮回退基线均值
 1,167.54 req/s 相比提高约 4.4%。不过这仍是单次运行，GC 周期数从 363 增至 398，说明压力模型和机器
 负载仍会造成波动，当前应将其记录为候选正向优化，不将单次数据视为稳定收益定论。
+
+## 32. JsonInt/JsonFloat/JsonString 原地更新（2026-08-10）
+
+### 32.1 实现
+
+本轮仅修改 stdx 的 `src/stdx/encoding/json/json_object.cj`，为三个标量类型增加公开的
+`setValue` 接口：`JsonInt.setValue(Int64)`、`JsonFloat.setValue(Float64)` 和
+`JsonString.setValue(String)`。接口更新对象本身，因此持有同一 JsonValue 引用的对象会看到新值，
+避免了“读取旧标量、重新分配 JsonInt/JsonFloat 再 put 回对象”的临时对象和容器写入开销。
+
+`JsonFloat` 解析时可能保存原始 JSON token（例如 `1.2500`）。调用 setter 后会清空
+`rawData/rawStart/rawSize`，后续序列化按更新后的数值输出（功能测试确认 `1.2500` 更新为 `2.5`
+后输出 `2.5`），不会错误地继续输出旧 token。字符串 setter 只替换值，正常沿用序列化时的转义逻辑。
+
+case26 的 `mutateRequestJson` 已改用这些 setter：每个请求更新顶层两个整数、每个 event 的 `seq`、
+`score` 和 `user.attrs.credits`，预计每请求避免 257 个被替换的标量对象及相应 mark/sweep 扫描；
+新增字段（`processed_seq`、`server_ok`、marker、product_ids）仍按原逻辑分配。
+
+### 32.2 构建与功能验证
+
+按 stdx-only 规则执行 release build（178/178）并安装到
+`/home/lipeisheng/cangjie/cangjie_compiler_CMSGC/output/msgc`。安装后的
+`libstdx.encoding.json.so` SHA-256 为
+`9d7deeabd0113eb9d469608e1469a1cf2af01c55320635bc7a451e442095b527`，与 build 产物一致。
+
+使用该 SDK 重新编译 `youhua/test_json_scalar_setters.cj`，覆盖三个 setter 及浮点原始 token
+清理，输出 `[PASS] JSON scalar setters`，exit code 为 0。
+
+### 32.3 单次 MSGC case26 验证
+
+只运行 MSGC，不启动 CopyGC、Go 或 Java。参数为 100K/c100、60 s、512 MiB persistent/8 workers、
+P10、20 GiB heap、HeapGrowth=1、ScavengeGrowth=2、最小 GC 阈值 20 MiB。脚本及原始结果：
+
+`MSGC_RESULT/Result/case26_http_complex_json/youhua/run_json_scalar_setters_60s.sh`
+
+`MSGC_RESULT/Result/case26_http_complex_json/youhua/result/20260810_json_scalar_setters_c100_100K_Procs10`
+
+| 指标 | 标量 setter 本轮 |
+| --- | ---: |
+| exit code | 0 |
+| 实际时长 | 60.175 s |
+| 成功 / 失败 | 70,188 / 0 |
+| 精确吞吐 | **1,166.40 req/s**（程序打印 1,166 req/s） |
+| 平均进程 CPU | 979.2% |
+| 最大 RSS | 1,886.3 MiB |
+| GC 周期数 | 382 |
+| GC 总时间 | 17.592 s |
+| 平均 GC 时间 | 46.05 ms |
+
+与上一轮 JSON 常量单例结果（1,218.84 req/s、1,883.7 MiB RSS、398 次 GC、16.065 s GC 总时间）相比，
+本轮单次吞吐低 4.3%，RSS 基本持平（+0.1%），GC 次数和总时间较低但平均单次 GC 较高。该结果处于
+既有单机波动范围，不能仅凭一次运行判定 setter 对吞吐有稳定收益；setter 的主要确定性收益是减少
+标量替换分配和保持对象别名语义，后续应结合多轮受控数据再评估。
+### 32.4 两轮 60 秒复测
+
+为区分单轮机器波动，复用当前 SDK 和 setter 代码重新编译 benchmark，连续运行两轮 MSGC；两轮均为
+100K/c100、60 s、512 MiB persistent/8 workers、P10、20 GiB heap、HeapGrowth=1、ScavengeGrowth=2、
+最小 GC 阈值 20 MiB，结果目录分别为：
+
+`MSGC_RESULT/Result/case26_http_complex_json/youhua/result/20260810_json_scalar_setters_c100_100K_Procs10_run2`
+
+`MSGC_RESULT/Result/case26_http_complex_json/youhua/result/20260810_json_scalar_setters_c100_100K_Procs10_run3`
+
+| 指标 | 第 1 轮（run2） | 第 2 轮（run3） | 两轮平均 |
+| --- | ---: | ---: | ---: |
+| exit code | 0 | 0 | — |
+| 实际时长 | 60.196 s | 60.163 s | 60.180 s |
+| 成功 / 失败 | 71,440 / 0 | 70,009 / 0 | 70,724.5 / 0 |
+| 精确吞吐 | **1,186.79 req/s** | **1,163.66 req/s** | **1,175.22 req/s** |
+| 平均进程 CPU | 1,012.9% | 1,017.4% | 1,015.2% |
+| 最大 RSS | 1,951.7 MiB | 1,849.4 MiB | 1,900.6 MiB |
+| GC 周期数 | 412 | 393 | 402.5 |
+| GC 总时间 | 17.384 s | 17.336 s | 17.360 s |
+| 平均 GC 时间 | 42.19 ms | 44.11 ms | 43.15 ms |
+
+两轮吞吐相差约 2.0%，CPU 均约 10.15 核且接近饱和；GC 总时间几乎一致，RSS 相差约 102 MiB。
+因此本轮波动主要不是 GC 总耗时变化，而更可能来自运行期间的 CPU 调度/网络处理抖动。两轮平均
+1,175.22 req/s，低于常量单例单轮的 1,218.84 req/s，但低于此前短字符串 fast path 单轮的
+1,185.02 req/s 需谨慎解读（样本数和测试批次不同）；当前将 1,175 req/s 作为 setter 版本的
+暂定复测均值，不据此宣称稳定吞吐提升。
+
+### 32.5 保留 setter API、恢复用例调用点（60 秒）
+
+为确认吞吐变化是否由 stdx 新增 API 本身引起，本轮**没有回退或重编 stdx**：SDK 继续使用 SHA-256
+`9d7deeabd0113eb9d469608e1469a1cf2af01c55320635bc7a451e442095b527` 的 JSON 库，其中三个
+`setValue` 接口仍存在。只将 case26 `mutateRequestJson` 恢复为原实现，即读取旧值后构造新的
+`JsonInt/JsonFloat`，再调用 `JsonObject.put` 覆盖对应键；benchmark 用当前 SDK 重新编译后只运行一次
+MSGC。结果目录：
+
+`MSGC_RESULT/Result/case26_http_complex_json/youhua/result/20260810_json_scalar_setters_callsite_reverted_c100_100K_Procs10`
+
+| 指标 | 恢复替换式调用点 |
+| --- | ---: |
+| exit code | 0 |
+| 实际时长 | 60.192 s |
+| 成功 / 失败 | 70,496 / 0 |
+| 精确吞吐 | **1,171.19 req/s**（程序打印 1,171 req/s） |
+| 平均进程 CPU | 1,025.5% |
+| 最大 RSS | 1,951.8 MiB |
+| GC 周期数 | 424 |
+| GC 总时间 | 17.818 s |
+| 平均 GC 时间 | 42.02 ms |
+
+结论：恢复调用点后吞吐没有提升。该值与 setter 三轮平均 1,172.28 req/s 的差异仅 -0.09%，
+远低于同配置约 2% 的已观测运行波动；因此不能把 setter 引入视为吞吐劣化根因，也没有证据需要回退
+stdx 接口。恢复路径的 CPU、RSS 与 GC 次数还略高，符合其额外 257 个标量分配/请求以及
+`JsonObject.put`（底层 `fields.add(key, v)`）写入的预期成本。
+
+此前 setter 轮次相对常量单例单轮较低，更合理的解释是跨批次的 CPU/网络调度和 GC 压力波动，而非
+原地更新的代码路径。若后续需要统计上确认微小差异，应在固定机器空闲条件下交替执行至少多轮
+setter 与替换式调用点；当前保留 setter 接口和原地更新的 case26 调用实现是合理的。
+
+## 33. 安全 `Array<Byte>` JSON 解析入口与 HTTP body 直传（2026-08-10）
+
+### 33.1 实现与所有权
+
+本轮仅修改 stdx JSON 和 case26 用例。`JsonValue` 新增公开 API
+`fromUtf8Bytes(data: Array<Byte>)`，实现位于 `native.cj` 的 `parseUtf8Bytes`：先检查 UTF-8，
+再 `clone()` 输入数据并用该私有数组建立 `JsonParser`。这点是安全 API 的核心：无转义字符串的
+fast path 仍可用 `String.withRawData` 引用 parser 数据，但 parser 数据是 API 自己持有的副本，
+绝不借用或依赖 HTTP body buffer 的后续生命周期。
+
+case26 的 `readHttpBodyBytes` 将 `InputStream` 读入预留容量的 `ArrayList<Byte>` 后，返回其
+有效区间的 `getRawArray().slice(0, size)`；slice 是零拷贝视图。服务端与客户端直接把该
+`Array<Byte>` 交给 `fromUtf8Bytes`，成功路径不再执行 `ArrayList.toArray()` 和
+`String.fromUtf8(...)`。安全 API 内部仍有一次 byte clone，这是 DOM 所有权隔离所必需的；诊断/异常
+路径才转换为 String，不影响正常 benchmark。
+
+功能测试 `youhua/test_json_utf8_bytes_safe.cj` 解析含普通、嵌套及转义字符串的数据后主动改写输入数组，
+验证 DOM 中的普通/嵌套字符串和数值均不变，输出 `[PASS] JSON safe UTF-8 byte parsing`。
+
+### 33.2 重编安装
+
+按 stdx-only 规则完成 release build（178/178）并安装到
+`/home/lipeisheng/cangjie/cangjie_compiler_CMSGC/output/msgc`。本轮 benchmark 使用该 SDK 的 compiler、
+runtime 与 stdx 重新编译，未复用旧 binary。
+
+### 33.3 单次 MSGC case26 验证
+
+只运行 MSGC，参数为 100K/c100、60 s、512 MiB persistent/8 workers、P10、20 GiB heap、
+HeapGrowth=1、ScavengeGrowth=2、最小 GC 阈值 20 MiB。脚本与原始结果：
+
+`MSGC_RESULT/Result/case26_http_complex_json/youhua/run_json_utf8_bytes_safe_60s.sh`
+
+`MSGC_RESULT/Result/case26_http_complex_json/youhua/result/20260810_json_utf8_bytes_safe_c100_100K_Procs10`
+
+| 指标 | 安全 bytes API 本轮 |
+| --- | ---: |
+| exit code | 0 |
+| 实际时长 | 60.312 s |
+| 成功 / 失败 | 73,624 / 0 |
+| 精确吞吐 | **1,220.72 req/s**（程序打印 1,220 req/s） |
+| 平均进程 CPU | 1,003.6% |
+| 最大 RSS | 2,019.3 MiB |
+| GC 周期数 | 353 |
+| GC 总时间 | 16.703 s |
+| 平均 GC 时间 | 47.32 ms |
+
+与原地 setter 三轮均值 1,172.28 req/s 相比，本轮吞吐提高约 **4.13%**；GC 总时间减少约 3.8%，
+但峰值 RSS 增加约 6.2%（相对 setter 三轮平均 1,900.6 MiB）。这符合安全 API 保留一份 parser/DOM
+私有 100K byte backing 的预期。由于只有单次运行，吞吐收益仍应视作候选结果；不过 API 的安全语义、
+调用链和去除的 `ArrayList -> Array -> String` 正常路径转换已由代码与功能测试确认。
