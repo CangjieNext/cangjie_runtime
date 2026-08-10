@@ -40,6 +40,8 @@
 #     JAVAC_BIN            javac 命令，默认 javac
 #     JAVA_OPTS            可选 Java 运行参数；未设置时使用 -Xmx$HEAP_SIZE
 #     JAVA_GC_OPTS         可选 Java GC 日志参数；为空时按 JDK 版本自动配置
+#     CASE27_SAMPLE_DURATION_SECONDS  macOS sample 时长（秒），0 表示关闭，默认 0
+#     CASE27_SAMPLE_DELAY_SECONDS     启动后等待多久再采样（秒），默认 8
 #
 #   用法示例：
 #     MSGC_SDK_ROOT=/path/to/msgc/sdk \
@@ -98,6 +100,8 @@ JAVA_HEAP_SIZE=$(printf '%s' "$HEAP_SIZE" | tr '[:upper:]' '[:lower:]')
 JAVA_HEAP_SIZE="${JAVA_HEAP_SIZE%b}"
 JAVA_OPTS="${JAVA_OPTS:--Xmx${JAVA_HEAP_SIZE}}"
 JAVA_GC_OPTS="${JAVA_GC_OPTS:-}"
+CASE27_SAMPLE_DURATION_SECONDS="${CASE27_SAMPLE_DURATION_SECONDS:-0}"
+CASE27_SAMPLE_DELAY_SECONDS="${CASE27_SAMPLE_DELAY_SECONDS:-8}"
 
 if [[ ! -f "$CASE_DIR/payloads/${PAYLOAD}.json" ]]; then
     echo "[ERROR] payloads/${PAYLOAD}.json not found" >&2
@@ -211,6 +215,8 @@ run_side() {
         echo "case27_dump_dir=$out_dir"
         echo "case27_graph_diag=${CASE27_GRAPH_DIAG:-}"
         echo "case27_graph_diag_rate=${CASE27_GRAPH_DIAG_RATE:-}"
+        echo "sample_duration_seconds=$CASE27_SAMPLE_DURATION_SECONDS"
+        echo "sample_delay_seconds=$CASE27_SAMPLE_DELAY_SECONDS"
         echo "timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
         echo "runtime_dylib_md5=$(md5 -q "$sdk_root"/runtime/lib/darwin_aarch64_cjnative/libcangjie-runtime.dylib 2>/dev/null || echo 'N/A')"
     } > "$out_dir/run_metadata.env"
@@ -244,6 +250,8 @@ run_side() {
         "CASE27_CLIENT_MODE=$CLIENT_MODE"
         "CASE27_SEND_INTERVAL_MS=$SEND_INTERVAL_MS"
         "CASE27_MAX_INFLIGHT=$MAX_INFLIGHT"
+        "SAMPLE_DURATION_SECONDS=$CASE27_SAMPLE_DURATION_SECONDS"
+        "SAMPLE_DELAY_SECONDS=$CASE27_SAMPLE_DELAY_SECONDS"
     )
     local optional_var=""
     local optional_value=""
@@ -363,6 +371,19 @@ run_side() {
                 "$OUT_DIR/benchmark" > "$OUT_DIR/stdout.txt" 2>&1 &
             BENCH_PID=$!
 
+            SAMPLE_PID=""
+            if [[ "$SAMPLE_DURATION_SECONDS" =~ ^[1-9][0-9]*$ ]] && [[ -x /usr/bin/sample ]]; then
+                (
+                    sleep "$SAMPLE_DELAY_SECONDS"
+                    if kill -0 "$BENCH_PID" 2>/dev/null; then
+                        /usr/bin/sample "$BENCH_PID" "$SAMPLE_DURATION_SECONDS" 1 \
+                            -file "$OUT_DIR/sample_${SAMPLE_DURATION_SECONDS}s.txt" \
+                            > "$OUT_DIR/sample.stdout.txt" 2> "$OUT_DIR/sample.stderr.txt"
+                    fi
+                ) &
+                SAMPLE_PID=$!
+            fi
+
             perl -MTime::HiRes=sleep,time -e "
                 my \$pid = \$ARGV[0];
                 while (kill 0, \$pid) {
@@ -385,6 +406,9 @@ run_side() {
             ec=$?
             kill "$SAMPLER_PID" 2>/dev/null || true
             wait "$SAMPLER_PID" 2>/dev/null || true
+            if [[ -n "$SAMPLE_PID" ]]; then
+                wait "$SAMPLE_PID" || true
+            fi
             echo "[$LABEL] bench exit=$ec"
             exit $ec
         '
@@ -554,6 +578,8 @@ run_java_side() {
         echo "javac_bin=$JAVAC_BIN"
         echo "java_opts=$JAVA_OPTS"
         echo "java_gc_opts=$JAVA_GC_OPTS"
+        echo "sample_duration_seconds=$CASE27_SAMPLE_DURATION_SECONDS"
+        echo "sample_delay_seconds=$CASE27_SAMPLE_DELAY_SECONDS"
         echo "java_version=$("$JAVA_BIN" -version 2>&1 | sed -n '1p')"
         echo "timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
     } > "$out_dir/run_metadata.env"
@@ -583,6 +609,8 @@ run_java_side() {
         "CASE27_CLIENT_MODE=$CLIENT_MODE"
         "CASE27_SEND_INTERVAL_MS=$SEND_INTERVAL_MS"
         "CASE27_MAX_INFLIGHT=$MAX_INFLIGHT"
+        "SAMPLE_DURATION_SECONDS=$CASE27_SAMPLE_DURATION_SECONDS"
+        "SAMPLE_DELAY_SECONDS=$CASE27_SAMPLE_DELAY_SECONDS"
     )
 
     env -i "${child_env[@]}" bash -c '
@@ -661,6 +689,19 @@ run_java_side() {
                 > "$OUT_DIR/stdout.txt" 2> "$OUT_DIR/stderr.txt" &
             BENCH_PID=$!
 
+            SAMPLE_PID=""
+            if [[ "$SAMPLE_DURATION_SECONDS" =~ ^[1-9][0-9]*$ ]] && [[ -x /usr/bin/sample ]]; then
+                (
+                    sleep "$SAMPLE_DELAY_SECONDS"
+                    if kill -0 "$BENCH_PID" 2>/dev/null; then
+                        /usr/bin/sample "$BENCH_PID" "$SAMPLE_DURATION_SECONDS" 1 \
+                            -file "$OUT_DIR/sample_${SAMPLE_DURATION_SECONDS}s.txt" \
+                            > "$OUT_DIR/sample.stdout.txt" 2> "$OUT_DIR/sample.stderr.txt"
+                    fi
+                ) &
+                SAMPLE_PID=$!
+            fi
+
             perl -MTime::HiRes=sleep,time -e "
                 my \$pid = \$ARGV[0];
                 while (kill 0, \$pid) {
@@ -683,6 +724,9 @@ run_java_side() {
             run_rc=$?
             kill "$SAMPLER_PID" 2>/dev/null || true
             wait "$SAMPLER_PID" 2>/dev/null || true
+            if [[ -n "$SAMPLE_PID" ]]; then
+                wait "$SAMPLE_PID" || true
+            fi
             if ((run_rc == 0)) && ! grep -q "^\[RESULT\] total=" "$OUT_DIR/stdout.txt"; then
                 echo "[$LABEL] Java benchmark exited without a result line" >&2
                 run_rc=1

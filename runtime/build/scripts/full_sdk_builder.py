@@ -31,7 +31,7 @@ DEFAULT_MSGC_COMPILER_ROOT_LINUX = pathlib.Path(
 )
 
 DEFAULT_MSGC_STDX_ROOT = pathlib.Path(
-    "/home/lipeisheng/cangjie/cangjie_stdx_CMSGC"
+    "/Users/lipeisheng/code/cangjie/cangjie/cangjie_stdx"
 )
 
 

@@ -931,3 +931,389 @@ RSS 序列各有 243 个样本，新版本平均/峰值增加约 1.3%～1.4%，�
 分别归因，也不应排除运行波动**。后续 10 秒采样应重点确认 `TypeInfo::IsSubType` 是否已从
 compact writer 调用链消失，以及 `MCC_AcquireRawData`/`CJ_JSON_StringEscapeCharNumGet` 在
 短字符串 writer 路径中的占比是否下降。
+
+## 17. macOS MSGC 后续优化基线（2026-08-10）
+
+### 17.1 目的与固定配置
+
+本节建立后续 case26 DOM JSON 优化的 **macOS 单侧 MSGC 基线**。后续未特别说明时，
+优化前后都应保持本节的 SDK、负载、GC 参数和统计口径一致；主比较指标为
+`累计 CPU 秒 / 成功请求数`，吞吐仅作为辅助结果。
+
+本轮仅运行 Region-scan MSGC side；CopyGC、Go 与 Java 均关闭。用例由当前安装的
+`/Users/lipeisheng/code/cangjie/cangjie/cangjie_compiler_region_mark/output/msgc` 重新以
+`-O2 --gc-mode=marksweep` 编译并运行。
+
+| 项目 | 固定值 |
+| --- | --- |
+| 平台 | macOS / darwin-aarch64 |
+| payload | `100K.json`，99,572 B |
+| 并发 / client mode | 100 / `sync` |
+| 压测时长 | 60,000 ms |
+| 持久对象基线 | 512 MiB，8 workers |
+| `PROCS` | 10 |
+| `cjHeapSize` | 16 GiB |
+| `cjHeapGrowth` / `cjScavengeGrowth` | 1 / 2 |
+| `cjMSMinGCThreshold` | 20 MiB |
+| assist | 默认开启（未设置 `CJ_MS_DISABLE_ASSIST`） |
+| 采样 | 关闭（`CASE26_SAMPLE_DURATION_SECONDS=0`） |
+
+注意：首次按旧 Linux 记录尝试 `cjHeapSize=20gb` 时，macOS 当前 Runtime 输出
+`Unsupported cjHeapSize parameter`；其支持上限为 16 GiB。因此 20 GiB 那轮结果不纳入
+本基线，后续统一使用本节的 16 GiB 合法配置。
+
+### 17.2 基线结果
+
+执行实际耗时 60.168 s，所有请求成功。`rss.csv` 以约 200 ms 间隔记录 benchmark
+进程的 user/sys CPU；最后一个累计值为 361.84 CPU 秒（user 318.44 s + sys 43.40 s）。
+
+| 指标 | macOS MSGC 基线 |
+| --- | ---: |
+| 成功请求 | 143,582 |
+| 失败请求 | 0 |
+| 报告吞吐 | **2,386 req/s** |
+| 精确吞吐（成功数 / 实际时长） | 2,386.35 req/s |
+| 累计 CPU 时间 | 361.84 s |
+| 每成功请求 CPU | **2.5201 ms/request** |
+| 每 CPU 秒成功请求 | **396.81 success/CPU-s** |
+| 平均 RSS | 1,953,881 KB |
+| 平均 CPU | 587.6% |
+
+产物目录：
+
+- `MSGC_RESULT/Result/case26_http_complex_json/result/20260810_512M_c100_100k_HeapGrow1_Scavenge2_compare_1`
+- `msgc/stdout.txt`：请求总数、成功/失败数与吞吐。
+- `msgc/rss.csv`：CPU 与 RSS 原始时间序列。
+- `msgc/run_metadata.env`：SDK、GC 模式和完整参数快照。
+
+此目录与本节数值构成 macOS 后续优化的起点。后续每项优化至少记录成功数、实际时长、
+累计 CPU 秒、CPU/request、success/CPU-s、RSS 和失败数；若 `cjHeapSize`、P 值、payload、
+并发、持久对象大小或 SDK 发生变化，则必须新建独立基线，不得与本节直接比较。
+
+## 18. macOS 基线 CPU 采样与下一轮优化方向（2026-08-10）
+
+### 18.1 采样配置、产物与解释边界
+
+在第 17 节相同的 Region-scan MSGC 配置上，只增加 macOS `/usr/bin/sample`：benchmark
+启动后等待 10 秒，以 1 ms 间隔采样 30 秒。采样运行的结果为 109,976 成功请求、0 失败、
+60.218 s、1,826 req/s；无采样基线为 2,386 req/s。因此本节只使用 sample 定位活跃调用链，
+不把采样运行的吞吐、CPU 或 RSS 与第 17 节的正式性能基线直接比较。
+
+产物：
+
+- `MSGC_RESULT/Result/case26_http_complex_json/result/20260810_512M_c100_100k_HeapGrow1_Scavenge2_compare_2/msgc/sample_30s.txt`
+- `MSGC_RESULT/Result/case26_http_complex_json/result/20260810_512M_c100_100k_HeapGrow1_Scavenge2_compare_2/msgc/sample.stderr.txt`
+- `MSGC_RESULT/Result/case26_http_complex_json/result/20260810_512M_c100_100k_HeapGrow1_Scavenge2_compare_2/msgc/stdout.txt`
+
+`sample` 的 `Sort by top of stack` 共聚合 297,197 个线程栈顶样本。`__psynch_cvwait`、
+`__psynch_mutexwait`、`swtch_pri`、`kevent`、`__recvfrom` 等是 parked/socket 等待，不是
+CPU 热点，不能据此优化业务代码。下表只列出真正运行中的业务、JSON 和 GC 路径；栈顶计数
+不是严格 CPU 百分比，且 `parseJson` / `parseJsonObject` 等递归调用不能互相相加。
+
+### 18.2 当前 TopN 活跃函数
+
+| 路径 | 栈顶计数 | 归因 |
+| --- | ---: | --- |
+| `parseJsonString` | 10,173 | 当前最大的 JSON 业务热点；无转义路径仍在 Cangjie 中逐 byte 扫描 quote/backslash。 |
+| `WriteBuffer.appendEscapeSmall` | 6,083 | 短 key/value 写出逐 byte 判断并写入；本 payload 的普通字段大量落入该路径。 |
+| `parseJsonObject` | 5,895 | 对象语法、key 解析与字段插入的总路径。 |
+| `HashMap<String, JsonValue>.add` | 5,062 | DOM object 字段建立；对应 `wyhash` 还有 2,926 个样本。 |
+| `String.checkInvalid`（benchmark） | 4,580 | 主要来自 HTTP request/response body 的 `String.fromUtf8(...)`，并非 JSON parser 本体。 |
+| `parseJson` | 3,843 | DOM 递归分派。 |
+| `tryParseJsonIntFast` | 2,904 | 高频整数 token 解析。 |
+| `WriteBuffer.checkAndExpend` | 2,836 | 每段输出前容量检查；虽已预留 response 容量，仍有大量小 append 边界。 |
+| `JsonObject.writeCompactTo` | 2,086 | compact writer 的 object 遍历和 key/value 输出。 |
+| `s2d_n` / `CJ_JSON_ParseFloat64` | 1,825 / 1,075 | Ryu 浮点解析仍有成本，但 libc `strtod` 只有 31 个样本，旧的 libc 格式化/解析主热点已被移除。 |
+| `parseJsonNumberSlow` | 1,329 | 浮点和非 fast-int 数字的语法扫描。 |
+| `ArrayList<JsonValue>.add` / `WriteBuffer.append(Array)` | 1,148 / 1,112 | DOM array 建立与 JSON 字节复制。 |
+
+Runtime/GC 侧的活跃路径也较高：`MSMarkWordBatchStorage::Add` 为 5,794，
+`AddRefToMarkBatch` 为 5,513，`RunRegionTask` 为 4,183，`ForEachBitmapWordFast` 为 2,803，
+`TryPublishRegion` 为 2,658。`MSMarkAssist` 本身只有 152 个栈顶样本，sweep assist 也不在
+当前首位；当前更符合“DOM 大量对象/引用建立带来持续 mark 工作”，而不是一个单独的 assist
+调度故障。此前 writer 的 subtype dispatch 优化仍有效：`TypeInfo::IsSubType` 本次只有 19 个
+样本，不再是优先方向。
+
+### 18.3 源码核验
+
+1. `parseJsonString` 在 `stdx/encoding/json/native.cj` 中从 opening quote 后逐 byte 读取，
+   直到 quote 或 backslash；无转义分支虽已用 `String.withRawData` 消除字节 clone，但扫描仍在
+   Cangjie 循环中。它是本轮最大的 JSON CPU 热点。
+2. `WriteBuffer.appendEscapeSmall` 在 `stdx/encoding/json/write_buffer.cj` 中对小于 32 B 的
+   字符串逐 byte 进行 control/quote/backslash/HTML-safe 检查，并逐 byte 写到 output buffer。
+   `JsonObject.writeCompactTo` 对每个 key 都调用 `appendEscape`，所以短字段名会稳定触发该路径。
+3. parser 仍以 `INITIAL_JSON_OBJECT_CAPACITY = 8` 创建所有 `JsonObject`，随后用
+   `obj.put(key.getValue(), value)` 写入 `HashMap<String, JsonValue>`。因此字段较多的 event
+   object 会集中产生 `HashMap.add`、`wyhash` 和扩容/rehash 成本；不能粗暴提高所有 object 的
+   初始容量，因为本 payload 中多数 object 很小。
+4. case26 `readHttpBodyString` 已按 `Content-Length` reserve，但仍执行
+   `result.add(all: chunk[..n])`、`result.toArray()`、`String.fromUtf8(...)`。这解释了
+   `String.checkInvalid` 的 4,580 个样本；它是 benchmark/HTTP body 路径，不应误归因给 DOM parser。
+5. `JsonFloat` 的 raw token 回写和 Ryu 写出仍在使用；数字解析也先进入带长度的 `s2d_n`。少量
+   `strtod` 是 Ryu 准入外 token 的兼容回退，不是当前主导成本。
+6. `RunRegionTask` 对 region 内候选对象逐个枚举引用，并通过 `AddRefToMarkBatch` 将引用按 mark-word
+   batch 发布；当前 DOM object/string/array 的短命分配会同时放大这条路径。直接先改 Runtime
+   batching 的收益不容易与 JSON 分配下降区分。
+
+### 18.4 下一轮优化优先级
+
+1. **P0：对 `parseJsonString` 做低表示成本的批量扫描 A/B。** 目标是只降低无转义字符串的
+   quote/backslash 扫描成本，不恢复第 9 节已验证回退的 `JsonString` raw-token descriptor、
+   延迟物化状态或“每个字符串一次 FFI”的方案。优先设计 parser 侧的批量 tokenizer / 阈值化 native
+   scan（例如只对较长字符串走 native scan），并先写 parser microbenchmark；必须同时测量
+   100K/c100 的 CPU/request 和长期 DOM RSS，确认 FFI 边界没有吞掉收益。
+2. **P0：聚焦短字符串 writer，而不是再次改 subtype dispatch。** `appendEscapeSmall` 已经消除旧的
+   两阶段 native escape 调用，但仍是第二大 JSON 热点。可候选为“无 escape 的连续 span 一次复制 +
+   遇到特殊字符再回退”的实现，或一个 scan-and-copy native helper；两种方案都需要先 microbenchmark。
+   关键约束是不要为每个短字符串增加多个 descriptor 字段或多次 RawData acquire/release。当前
+   `TypeInfo::IsSubType` 已降至 19 样本，禁止把这一轮资源投入到 writer 类型分派。
+3. **P1：选择性处理 12-field event object 的 HashMap 容量。** 保持小 object 的 initial capacity=8；
+   在 parser 识别到第 8/9 个字段时再做一次针对性 reserve/rehash 规避，或给已知对象形状提供容量提示。
+   A/B 必须同时报告 `HashMap.add`、`wyhash`、RSS、GC 次数与 CPU/request，避免用全局 16/32 容量
+   换取少量 event 的收益却扩大绝大多数小 object 的扫描成本。
+4. **P1：减少 HTTP body 的受控复制和重复 UTF-8 检查。** 为“读取完成且不再修改的 byte array”提供
+   验证 UTF-8 后接管 backing array 的 API，或在 benchmark 的受控路径使用等价所有权转移；不能直接
+   将不可信 HTTP 输入改为 `fromUtf8Unchecked`。该项主要消除 `String.checkInvalid` 与大 body clone，
+   同时也会减少 `__bzero`、大对象分配与 GC mark 输入。
+5. **P1：收紧 WriteBuffer 小 append 边界。** `checkAndExpend` 仍有 2,836 样本，且 exact-fit 分支
+   仍使用 `minCapacity < oldCapacity`。先修正为允许 `minCapacity == oldCapacity`，再用基准确认；
+   真正收益更可能来自已知容量下的 fast ensure/unchecked append，不能只根据函数计数承诺端到端提升。
+6. **P2：数字 parser 和 Runtime mark 作为后续 A/B。** Ryu 已将 `strtod` 压到边缘，继续改 `s2d_n`
+   的优先级低于字符串与 HTTP body。GC 侧先在完成上述分配下降后，以 `CJ_MS_DISABLE_ASSIST=1`
+   做同参数 A/B；若 `AddRefToMarkBatch`/`RunRegionTask` 仍保持高位，再针对 mark batch 发布、region
+   claim/publish 进行 Runtime 级优化。
+
+下一轮建议先实施并独立验证 P0 的第 2 项（短字符串无 escape 写出），原因是其热点紧邻
+`parseJsonString`、改动局限于 DOM writer 且不需要改变 `JsonString` representation。实施前先增加
+短 key/value、HTML-safe `&`、控制字符、quote/backslash 的正确性回归；实施后以第 17 节的
+2.5201 ms/request 为唯一正式性能对照，并重新抓同配置 30 秒 sample 验证
+`appendEscapeSmall` 是否从高位路径下降。
+
+## 19. `parseJsonString` 原生批量扫描单次验证（2026-08-10）
+
+### 19.1 实现
+
+在 `cangjie_stdx/src/stdx/encoding/json/native.cj` 的 `parseJsonString` 中加入
+`CJ_JSON_ScanUnescapedString`。opening quote 已消费后，该 native helper 在输入数组上连续扫描：
+遇到 closing quote 时直接返回 offset；遇到 `\\` 或到达输入末尾则返回 `INT64_MIN`，并完全回退到
+原有 Cangjie 转义解码循环。无转义成功路径仍只构造现有的 `String.withRawData` view，未恢复已验证
+回退的 raw-token descriptor / 延迟物化表示。
+
+该实现的目标是降低逐 byte Cangjie 循环的表示成本；但每次 JSON string 都会跨一次 FFI，因而必须用
+端到端运行检验短字符串负载中的调用边界成本。
+
+### 19.2 构建与功能验证
+
+修改涉及 stdx，使用固定 SDK 脚本完成重编安装：
+
+```text
+runtime/build/scripts/incremental_rebuild_msgc_sdk.py
+```
+
+验证使用安装后的 `output/msgc`，且显式传入 `--gc-mode=marksweep`。新增回归
+`cangjie_stdx/test/dom_json_native_batch_scan.cj` 覆盖无转义快路径、含转义回退路径和未闭合字符串错误；
+执行结果为 `PASS dom_json_native_batch_scan`。源级契约测试
+`test_dom_json_native_batch_scan.py` 也通过。
+
+### 19.3 同参数单次 Case26 结果
+
+按用户要求，本项没有重新做严格 A/B，只在完成安装后使用第 17 节相同参数跑了一次 MSGC：100K、c100、
+60 s、512 MiB persistent / 8 workers、`PROCS=10`、`cjHeapSize=16gb`、HeapGrow=1、Scavenge=2、
+`cjMSMinGCThreshold=20mb`，采样关闭。
+
+| 指标 | 本次单次结果 |
+| --- | ---: |
+| 成功请求 | 121,267 |
+| 失败请求 | 0 |
+| 实际时长 | 60.158 s |
+| 报告吞吐 | **2,015 req/s** |
+| 按成功请求计算的精确吞吐 | 2,015.81 req/s |
+
+产物目录：
+
+- `MSGC_RESULT/Result/case26_http_complex_json/result/20260810_512M_c100_100k_HeapGrow1_Scavenge2_compare_3`
+
+虽然这不是严格 A/B，但其吞吐低于第 17 节的 Mac 基线 2,386.35 req/s，不能将该实现宣称为收益。
+结合本 payload 的 key/value 基本都是短字符串，最可能的原因是每个 string 的 `acquireArrayRawData` /
+`releaseArrayRawData` 与 FFI 调用成本超过了原本很短的 Cangjie 扫描循环。后续若继续该方向，应改为
+长度阈值（仅长字符串进入 native scan）或把扫描并入 parser/tokenizer 的单一 native 边界，再进行正式
+CPU/request A/B；在此之前不应把这条无阈值路径视为默认优化。
+
+## 20. 短字符串 writer：span-copy 与 native scan-and-copy 对比（2026-08-10）
+
+`appendEscapeSmall` 是第 18 节第二高的 JSON 热点。本轮不再修改 writer 的 subtype dispatch，也没有给
+`JsonString` 增加 descriptor。两版都保持既有转义语义，并用同一 Region-scan MSGC Case26 参数运行：100K、
+c100、60 s、512 MiB persistent / 8 workers、`PROCS=10`、`cjHeapSize=16gb`、HeapGrow=1、Scavenge=2、
+`cjMSMinGCThreshold=20mb`。
+
+| 版本 | 实现 | 成功 / 失败 | 吞吐 | 累计 CPU | CPU / 成功请求 | 成功 / CPU-s |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| span-copy | Cangjie 扫描 special byte；普通连续区间用一次 `Array.copyTo` 写入 | 145,357 / 0 | **2,414 req/s** | 370.77 s | **2.5508 ms** | **392.04** |
+| native scan-and-copy | 每个短字符串获取一对 input/output RawData，native 扫描后 `memcpy`；遇 special byte 回退 | 125,197 / 0 | 2,080 req/s | 362.51 s | 2.8955 ms | 345.36 |
+
+产物：
+
+- span-copy：`MSGC_RESULT/Result/case26_http_complex_json/result/20260810_512M_c100_100k_HeapGrow1_Scavenge2_compare_4`
+- native：`MSGC_RESULT/Result/case26_http_complex_json/result/20260810_512M_c100_100k_HeapGrow1_Scavenge2_compare_5`
+
+span-copy 的吞吐高 16.1%，CPU/request 低 11.9%，因此保留 span-copy。native 版本已从最终源码移除；
+它在 no-escape 路径中避免了 Cangjie 的逐 byte 写入，但 Case26 的 key/value 大多不足 32 B，FFI 与
+RawData 边界固定成本仍大于其收益。最终版本只改 `cangjie_stdx`，使用 `build.py build/install` 安装到
+MSGC SDK；没有重建 compiler、Runtime 或 stdlib。短字符串普通、quote/backslash/control、HTML-safe `&`
+与 `U+007F` 回归均通过。
+
+## 21. HTTP body 最终数组直读与校验后接管（2026-08-10）
+
+### 21.1 实现
+
+本节更新第 8.1 节所述 HTTP body reader 的当前实现；第 8 节的旧实验数据保留为历史记录。本次只修改
+`case26_http_complex_json/benchmark.cj`，不修改 Runtime、stdlib 或 stdx，因此由 case26 compare 脚本使用
+已安装的 MSGC SDK 以 `-O2 --gc-mode=marksweep` 重新编译即可。
+
+原路径在已知 `Content-Length` 时仍是：底层 body 写入 64 KiB `chunk`，复制到 `ArrayList`，`toArray()`
+复制为精确数组，最后 `String.fromUtf8()` 在 UTF-8 校验后再 clone 一份数组。当前改为：
+
+1. `bodySize=Some(size)` 且 `size > 0` 时，直接创建精确大小的 `Array<UInt8>`；每次
+   `body.read(data[used..size])` 直接写入该数组的剩余 view。`Array` slice 只调整 start/length，
+   不复制 body 字节。
+2. 读完后使用 `String.checkUtf8Encoding` 保留原有不可信 HTTP 输入的 UTF-8 校验；校验成功才在私有、
+   后续不再修改的数组上调用 `String.withRawData`，让 String 持有同一个 `RawArray`，不再 clone。
+3. `bodySize=None` 仍使用 `ArrayList` 累积，但直接以 `getRawArray()[..size]` 的有效 view 进入相同的
+   校验和接管步骤，去掉原先 `toArray()` 与 `fromUtf8()` 的两次整包复制。
+
+`withRawData` 没有提升为通用公开 UTF-8 API；其调用被限制在该 helper 中，以保持 `String.fromUtf8` 对外
+“输入数组后续仍可修改”的 clone 语义。无效 UTF-8 仍会抛出 `IllegalArgumentException`，没有改用
+`fromUtf8Unchecked`。
+
+### 21.2 正确性验证
+
+新增 `BodyReadProbe` 自测输入流，并将 body 长度设为 `64 KiB + 1`。改动前，首次 read 的目标 buffer
+固定为 64 KiB，新增断言按预期失败；改动后首次目标 buffer 等于完整 Content-Length，证明已知长度路径
+直接写入最终数组。安装后的 MSGC SDK 使用显式 `--gc-mode=marksweep` 编译并运行
+`CASE26_BODY_READ_SELF_TEST=1`，结果通过以下场景：
+
+- 已知 Content-Length；
+- 未知 body 长度；
+- 大于 64 KiB 的已知长度 body；
+- `HttpResponseBuilder.body(String)` 构造的 client response body。
+
+### 21.3 单次 MSGC 10 秒验证
+
+按第 17 节相同的 Mac 参数，仅把时长按最小化验证规则设为 10 秒：100K、c100、512 MiB persistent / 8 workers、
+`PROCS=10`、`cjHeapSize=16gb`、HeapGrow=1、Scavenge=2、`cjMSMinGCThreshold=20mb`，仅启用 MSGC，关闭 sample。
+
+| 指标 | 本次结果 |
+| --- | ---: |
+| 实际压测时长 | 10.129 s |
+| 成功 / 失败 | 24,250 / 0 |
+| 报告吞吐 | **2,394 req/s** |
+| 累计 CPU 时间 | 60.41 s |
+| CPU / 成功请求 | 2.4911 ms |
+| success / CPU-s | 401.42 |
+
+产物目录：
+
+- `MSGC_RESULT/Result/case26_http_complex_json/result/20260810_512M_c100_100k_HeapGrow1_Scavenge2_compare_7`
+
+本次短测确认新路径正确且无失败；由于没有为本项运行同条件的优化前 10 秒 A/B，且 10 秒累计 CPU 含启动、
+持久对象初始化和 warmup 影响，不能将其与第 17 节的 60 秒基线或第 8 节的历史数据做严格收益归因。后续若要
+量化该项的独立收益，应以同一 SDK、同一 10 秒配置进行优化前/后 CPU per success 对照，或各运行足够长的
+稳定窗口后再比较。
+
+### 21.4 结论与回退
+
+本轮没有观察到足以支持保留该优化的明确收益，按结论将其从当前 `benchmark.cj` 移除，恢复为
+`chunk -> ArrayList -> toArray -> String.fromUtf8` 路径，同时删除仅服务于直读实现的 `BodyReadProbe`
+自测。第 21 节保留为已验证但未纳入默认实现的实验记录；其中的 10 秒数据不计入后续优化基线。
+
+## 22. `parseJsonString` 16-byte 双字符批量扫描（2026-08-10）
+
+### 22.1 实现
+
+按第 18.4 的 P1/P2 方向，本轮将无转义 JSON string 的扫描从逐 byte 的 Cangjie 循环改为 16-byte
+批量探测。公开调用点命名为 **`vectorIndexByte16`**；它接收 `Array<Byte>`、起始 offset、`'"'` 和
+`'\\'` 两个目标 byte，返回区间内最早命中的相对位置，未命中返回 16。
+
+实现分三层：
+
+1. `std.core` 的 `vectorIndexByte16` 只提取既有 `Array.rawptr + Array.start`，随后调用
+   `vectorIndexByte16Raw` intrinsic；没有新增 `JsonString` descriptor，也没有
+   `acquireRawData` / `releaseRawData`。
+2. compiler 为 `vectorIndexByte16Raw` 生成固定 `<16 x i8>` load、两次 byte splat/equal、OR 和首位
+   命中计算。没有读取 `CJ_CORE_CanUseSIMD`，因此不存在“macOS AArch64 永远启用”的运行时开关；LLVM
+   会按每个 Cangjie Native 目标将 fixed-vector IR 合法化，目标缺少对应向量指令时由后端降为合法的标量序列。
+3. `parseJsonString` 仅在 `offset + 16 <= size` 时进入批量循环；发现 quote 或 backslash 后仍回到原有
+   标量分支，分别走现有的 `String.withRawData` 无转义返回和转义解码逻辑。尾部不足 16 B 也保持原循环。
+
+本机安装后的 `libstdx.encoding.json.dylib` 反汇编确认 `parseJsonString` 已生成 AArch64 NEON
+`ldur q0`、`cmeq.16b`、`orr.16b` 等 16-byte 比较指令，而非运行时 CPU 特性分支。
+
+### 22.2 构建与正确性验证
+
+本轮同时修改 compiler、stdlib 与 stdx，因此严格使用：
+
+```text
+runtime/build/scripts/incremental_rebuild_msgc_sdk.py
+```
+
+脚本成功完成并安装到 `output/msgc`。新增结构契约测试
+`cangjie_stdx/test/test_json_vector_index_byte16.py` 已通过；新增/扩展的
+`cangjie_stdx/test/dom_json_short_escape.cj` 使用安装后的 SDK、显式
+`--gc-mode=marksweep` 编译运行通过，覆盖：
+
+- 普通短无转义字符串；
+- 恰好跨过 16-byte 批量边界的无转义字符串；
+- 16-byte 范围内出现 `\\n` 的转义回退；
+- 原有 quote、backslash、HTML-safe `&` 与 Unicode escape 行为。
+
+### 22.3 单次 MSGC 10 秒验证
+
+按简洁验证规则，仅启用 MSGC、关闭 sample，参数为 100K / c100 / 10 s、512 MiB persistent / 8 workers、
+`PROCS=10`、`cjHeapSize=16gb`、HeapGrow=1、Scavenge=2、`cjMSMinGCThreshold=20mb`。
+
+| 指标 | 本次结果 |
+| --- | ---: |
+| 实际压测时长 | 10.122 s |
+| 成功 / 失败 | 22,633 / 0 |
+| 报告吞吐 | **2,236 req/s** |
+| 精确吞吐（成功 / 实际时长） | 2,236.02 req/s |
+| 累计 CPU 时间 | 61.29 s |
+| 每成功请求 CPU | 2.7080 ms |
+| 每 CPU 秒成功请求 | 369.28 |
+
+产物目录：
+
+- `MSGC_RESULT/Result/case26_http_complex_json/result/20260810_512M_c100_100k_HeapGrow1_Scavenge2_compare_8`
+
+### 22.4 结论
+
+本次确认 intrinsic、stdlib wrapper、stdx parser 和安装后的 MSGC SDK 全链路生效，且没有请求失败。
+但此处只有一次 10 秒验证；其 CPU/request 高于第 17 节的 60 秒基线（2.5201 ms），吞吐也低于该基线。
+10 秒窗口仍包含启动、持久对象初始化和 warmup，不能据此将差异完全归因于本优化，也不能宣称有端到端收益。
+后续若继续评估，应以相同 10 秒窗口对优化前/后各运行多次，并以 CPU/request 为主判据；若仍无改善，
+应回退此批量扫描，转向 `appendEscapeSmall` 或 DOM object 容量方向。
+
+### 22.5 60 秒复测：确认没有端到端收益
+
+为排除 10 秒窗口的 warmup 与启动扰动，使用与第 17 节 Mac 基线完全相同的 60 秒配置再次仅运行 MSGC：
+100K / c100、512 MiB persistent / 8 workers、`PROCS=10`、`cjHeapSize=16gb`、HeapGrow=1、
+Scavenge=2、`cjMSMinGCThreshold=20mb`，关闭 sample。
+
+| 指标 | 第 17 节 Mac 基线 | 本轮 vectorIndexByte16 | 变化 |
+| --- | ---: | ---: | ---: |
+| 实际压测时长 | 60.168 s | 60.199 s | — |
+| 成功 / 失败 | 143,582 / 0 | 121,938 / 0 | — |
+| 精确吞吐（成功 / 实际时长） | 2,386.35 req/s | 2,025.58 req/s | **-15.12%** |
+| 累计 CPU 时间 | 361.84 s | 323.05 s | — |
+| 每成功请求 CPU | 2.5201 ms | 2.6493 ms | **+5.13%** |
+| 每 CPU 秒成功请求 | 396.81 | 377.46 | **-4.88%** |
+
+产物目录：
+
+- `MSGC_RESULT/Result/case26_http_complex_json/result/20260810_512M_c100_100k_HeapGrow1_Scavenge2_compare_9`
+
+结论更新：60 秒结果确认该实现没有收益，且 CPU 效率发生回退；不应将其保留为默认路径。虽已生成
+NEON 的 16-byte load/compare，但当前“命中 mask → 首个 index”的 lowering 仍包含多条逐 lane 提取和
+位组合指令，抵消甚至超过了逐 byte 扫描的成本；而 payload 中大量字符串本身较短，也限制了批量路径的
+覆盖率。若再尝试向量化，需要先改进该 mask-to-index 降低方式，并以同样的 60 秒 CPU/request 验证；否则应
+回退本轮 `vectorIndexByte16` 代码。

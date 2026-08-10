@@ -129,6 +129,14 @@ class Case27BenchmarkTuningTests(unittest.TestCase):
                 self.assertNotIn('export cjMSMaxVirtualHeapSize="$HEAP_SIZE"', text)
                 self.assertNotIn('cjMSMaxVirtualHeapSize=$HEAP_SIZE', text)
 
+    def test_macos_runner_supports_opt_in_native_stack_sampling(self) -> None:
+        text = RUN_COMPARE.read_text()
+        self.assertIn('CASE27_SAMPLE_DURATION_SECONDS="${CASE27_SAMPLE_DURATION_SECONDS:-0}"', text)
+        self.assertIn('CASE27_SAMPLE_DELAY_SECONDS="${CASE27_SAMPLE_DELAY_SECONDS:-8}"', text)
+        self.assertIn('"SAMPLE_DURATION_SECONDS=$CASE27_SAMPLE_DURATION_SECONDS"', text)
+        self.assertIn('/usr/bin/sample "$BENCH_PID" "$SAMPLE_DURATION_SECONDS" 1', text)
+        self.assertIn('"$OUT_DIR/sample_${SAMPLE_DURATION_SECONDS}s.txt"', text)
+
 
 if __name__ == "__main__":
     unittest.main()

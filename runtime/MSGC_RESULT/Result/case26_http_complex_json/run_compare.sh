@@ -33,6 +33,9 @@
 #     CASE26_SEND_INTERVAL_MS async 发射间隔 (ms)  默认 1
 #     CASE26_MAX_INFLIGHT  async 最大在途请求数    默认 32
 #     CASE26_PERSISTENT_BYTES 持久堆大小，支持 bytes/mb/gb，默认 5gb
+#     CASE26_SAMPLE_DURATION_SECONDS  macOS sample 时长（秒），0 表示关闭，默认 0
+#     CASE26_SAMPLE_DELAY_SECONDS     启动后等待多久再采样（秒），默认 8
+#     rss.csv 额外列                 Cangjie side 记录累计 user/sys CPU 秒，可用成功数计算每请求 CPU 时间
 #     COPYGC_ENABLE       是否执行 CopyGC side     默认 1
 #     MSGC_ENABLE         是否执行 MSGC side       默认 1
 #     GO_ENABLE            是否加入 Go mirror side 默认 1
@@ -111,6 +114,8 @@ JAVA_HEAP_SIZE=$(printf '%s' "$HEAP_SIZE" | tr '[:upper:]' '[:lower:]')
 JAVA_HEAP_SIZE="${JAVA_HEAP_SIZE%b}"
 JAVA_OPTS="${JAVA_OPTS:--Xmx${JAVA_HEAP_SIZE}}"
 JAVA_GC_OPTS="${JAVA_GC_OPTS:-}"
+CASE26_SAMPLE_DURATION_SECONDS="${CASE26_SAMPLE_DURATION_SECONDS:-0}"
+CASE26_SAMPLE_DELAY_SECONDS="${CASE26_SAMPLE_DELAY_SECONDS:-8}"
 
 for enable_name in COPYGC_ENABLE MSGC_ENABLE GO_ENABLE JAVA_ENABLE; do
     enable_value="${!enable_name}"
@@ -245,6 +250,8 @@ run_side() {
         echo "case26_dump_dir=$out_dir"
         echo "case26_graph_diag=${CASE26_GRAPH_DIAG:-}"
         echo "case26_graph_diag_rate=${CASE26_GRAPH_DIAG_RATE:-}"
+        echo "sample_duration_seconds=$CASE26_SAMPLE_DURATION_SECONDS"
+        echo "sample_delay_seconds=$CASE26_SAMPLE_DELAY_SECONDS"
         echo "timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
         echo "runtime_dylib_md5=$(md5 -q "$sdk_root"/runtime/lib/darwin_aarch64_cjnative/libcangjie-runtime.dylib 2>/dev/null || echo 'N/A')"
     } > "$out_dir/run_metadata.env"
@@ -280,6 +287,8 @@ run_side() {
         "CASE26_CLIENT_MODE=$CLIENT_MODE"
         "CASE26_SEND_INTERVAL_MS=$SEND_INTERVAL_MS"
         "CASE26_MAX_INFLIGHT=$MAX_INFLIGHT"
+        "SAMPLE_DURATION_SECONDS=$CASE26_SAMPLE_DURATION_SECONDS"
+        "SAMPLE_DELAY_SECONDS=$CASE26_SAMPLE_DELAY_SECONDS"
     )
     local optional_var=""
     local optional_value=""
@@ -391,19 +400,40 @@ run_side() {
                 "$OUT_DIR/benchmark" > "$OUT_DIR/stdout.txt" 2>&1 &
             BENCH_PID=$!
 
+            SAMPLE_PID=""
+            if [[ "$SAMPLE_DURATION_SECONDS" =~ ^[1-9][0-9]*$ ]] && [[ -x /usr/bin/sample ]]; then
+                (
+                    sleep "$SAMPLE_DELAY_SECONDS"
+                    if kill -0 "$BENCH_PID" 2>/dev/null; then
+                        /usr/bin/sample "$BENCH_PID" "$SAMPLE_DURATION_SECONDS" 1 \
+                            -file "$OUT_DIR/sample_${SAMPLE_DURATION_SECONDS}s.txt" \
+                            > "$OUT_DIR/sample.stdout.txt" 2> "$OUT_DIR/sample.stderr.txt"
+                    fi
+                ) &
+                SAMPLE_PID=$!
+            fi
+
             perl -MTime::HiRes=sleep,time -e "
                 my \$pid = \$ARGV[0];
                 while (kill 0, \$pid) {
-                    my \$line = \`ps -o rss=,%cpu= -p \$pid 2>/dev/null\`;
+                    my \$line = \`ps -o rss=,%cpu=,utime=,stime= -p \$pid 2>/dev/null\`;
                     chomp \$line; \$line =~ s/^\s+//;
                     if (length \$line) {
-                        my (\$rss, \$cpu) = split /\s+/, \$line, 2;
+                        my (\$rss, \$cpu, \$utime, \$stime) = split /\s+/, \$line, 4;
+                        my \$to_seconds = sub {
+                            my \$total = 0;
+                            for my \$part (split /:/, \$_[0]) {
+                                \$total = \$total * 60 + \$part;
+                            }
+                            return \$total;
+                        };
+                        my \$cpu_seconds = \$to_seconds->(\$utime) + \$to_seconds->(\$stime);
                         my \$t = time();
                         my @lt = localtime(int(\$t));
                         my \$frac = sprintf(\"%.3f\", \$t - int(\$t));
                         \$frac =~ s/^0//;
-                        printf \"%04d-%02d-%02dT%02d:%02d:%02d%s,%s,%s\n\",
-                            \$lt[5]+1900,\$lt[4]+1,\$lt[3],\$lt[2],\$lt[1],\$lt[0],\$frac,\$rss,\$cpu;
+                        printf \"%04d-%02d-%02dT%02d:%02d:%02d%s,%s,%s,%s,%s,%.2f\n\",
+                            \$lt[5]+1900,\$lt[4]+1,\$lt[3],\$lt[2],\$lt[1],\$lt[0],\$frac,\$rss,\$cpu,\$utime,\$stime,\$cpu_seconds;
                     }
                     sleep(0.2);
                 }
@@ -413,6 +443,9 @@ run_side() {
             ec=$?
             kill "$SAMPLER_PID" 2>/dev/null || true
             wait "$SAMPLER_PID" 2>/dev/null || true
+            if [[ -n "$SAMPLE_PID" ]]; then
+                wait "$SAMPLE_PID" || true
+            fi
             echo "[$LABEL] bench exit=$ec"
             exit $ec
         '
@@ -621,6 +654,8 @@ run_java_side() {
         "CASE26_CLIENT_MODE=$CLIENT_MODE"
         "CASE26_SEND_INTERVAL_MS=$SEND_INTERVAL_MS"
         "CASE26_MAX_INFLIGHT=$MAX_INFLIGHT"
+        "SAMPLE_DURATION_SECONDS=$CASE26_SAMPLE_DURATION_SECONDS"
+        "SAMPLE_DELAY_SECONDS=$CASE26_SAMPLE_DELAY_SECONDS"
     )
 
     env -i "${child_env[@]}" bash -c '
@@ -699,6 +734,19 @@ run_java_side() {
                 > "$OUT_DIR/stdout.txt" 2> "$OUT_DIR/stderr.txt" &
             BENCH_PID=$!
 
+            SAMPLE_PID=""
+            if [[ "$SAMPLE_DURATION_SECONDS" =~ ^[1-9][0-9]*$ ]] && [[ -x /usr/bin/sample ]]; then
+                (
+                    sleep "$SAMPLE_DELAY_SECONDS"
+                    if kill -0 "$BENCH_PID" 2>/dev/null; then
+                        /usr/bin/sample "$BENCH_PID" "$SAMPLE_DURATION_SECONDS" 1 \
+                            -file "$OUT_DIR/sample_${SAMPLE_DURATION_SECONDS}s.txt" \
+                            > "$OUT_DIR/sample.stdout.txt" 2> "$OUT_DIR/sample.stderr.txt"
+                    fi
+                ) &
+                SAMPLE_PID=$!
+            fi
+
             perl -MTime::HiRes=sleep,time -e "
                 my \$pid = \$ARGV[0];
                 while (kill 0, \$pid) {
@@ -721,6 +769,9 @@ run_java_side() {
             run_rc=$?
             kill "$SAMPLER_PID" 2>/dev/null || true
             wait "$SAMPLER_PID" 2>/dev/null || true
+            if [[ -n "$SAMPLE_PID" ]]; then
+                wait "$SAMPLE_PID" || true
+            fi
             if ((run_rc == 0)) && ! grep -q "^\[RESULT\] total=" "$OUT_DIR/stdout.txt"; then
                 echo "[$LABEL] Java benchmark exited without a result line" >&2
                 run_rc=1

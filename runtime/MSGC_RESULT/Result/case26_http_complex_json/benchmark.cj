@@ -277,28 +277,48 @@ func reserveBodyCapacity(result: ArrayList<UInt8>, bodySize: Option<Int64>): Uni
     }
 }
 
-func readBodyStr(req: HttpRequest): String {
+func readHttpBodyString(body: InputStream, bodySize: Option<Int64>): String {
     let chunk = Array<UInt8>(BODY_READ_CHUNK_SIZE, repeat: 0)
     let result = ArrayList<UInt8>()
-    reserveBodyCapacity(result, req.bodySize)
-    var n = req.body.read(chunk)
+    reserveBodyCapacity(result, bodySize)
+    var n = body.read(chunk)
     while (n > 0) {
         result.add(all: chunk[..n])
-        n = req.body.read(chunk)
+        n = body.read(chunk)
     }
     String.fromUtf8(result.toArray())
 }
 
-func readRespStr(rsp: HttpResponse): String {
-    let chunk = Array<UInt8>(BODY_READ_CHUNK_SIZE, repeat: 0)
-    let result = ArrayList<UInt8>()
-    reserveBodyCapacity(result, rsp.bodySize)
-    var n = rsp.body.read(chunk)
-    while (n > 0) {
-        result.add(all: chunk[..n])
-        n = rsp.body.read(chunk)
+func verifyHttpBodyRead(actual: String, expected: String, caseName: String): Unit {
+    if (actual != expected) {
+        throw Exception("HTTP body read self-test failed: ${caseName}")
     }
-    String.fromUtf8(result.toArray())
+}
+
+func runHttpBodyReadSelfTest(): Unit {
+    let expected = "{\"id\":7,\"name\":\"body-copy\",\"items\":[1,2,3]}"
+    verifyHttpBodyRead(
+        readHttpBodyString(ByteBuffer(expected.toArray()), Some(Int64(expected.size))),
+        expected,
+        "known-content-length"
+    )
+    let unknownBodySize: Option<Int64> = None
+    verifyHttpBodyRead(
+        readHttpBodyString(ByteBuffer(expected.toArray()), unknownBodySize),
+        expected,
+        "unknown-content-length"
+    )
+    let response = HttpResponseBuilder().body(expected).build()
+    verifyHttpBodyRead(readRespStr(response), expected, "string-response-body")
+    println("[PASS] HTTP body copy self-test")
+}
+
+func readBodyStr(req: HttpRequest): String {
+    readHttpBodyString(req.body, req.bodySize)
+}
+
+func readRespStr(rsp: HttpResponse): String {
+    readHttpBodyString(rsp.body, rsp.bodySize)
 }
 
 func isBodyDiagEnabled(): Bool {
@@ -708,6 +728,11 @@ func asyncSenderLoop(url: String, payload: Array<Byte>, stop: AtomicBool, stats:
 
 main() {
     println("[INFO] Case27: HTTP Complex-JSON Concurrent Benchmark")
+
+    if (isEnvEnabled("CASE26_BODY_READ_SELF_TEST")) {
+        runHttpBodyReadSelfTest()
+        return
+    }
 
     // 1. 读取环境变量
     let payloadName = getEnvStr("CASE26_PAYLOAD", "10K")

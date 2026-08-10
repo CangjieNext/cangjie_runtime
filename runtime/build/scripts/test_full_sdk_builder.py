@@ -74,6 +74,12 @@ class ModeBindingTests(unittest.TestCase):
                 "cangjie_compiler_region_mark/output/msgc"
             ),
         )
+        self.assertEqual(
+            config.stdx_root,
+            pathlib.Path(
+                "/Users/lipeisheng/code/cangjie/cangjie/cangjie_stdx"
+            ).resolve(),
+        )
 
     def test_msgc_cli_defaults_to_linux_cmsgc_compiler_and_sdk(self) -> None:
         openssl_lib = pathlib.Path("/tmp/openssl/lib")
@@ -89,11 +95,13 @@ class ModeBindingTests(unittest.TestCase):
             config = target.parse_args_for_mode(target.GCMode.MSGC, [])
         self.assertEqual(
             config.compiler_root,
-            pathlib.Path("/home/lipeisheng/cangjie/cangjie_compiler_CMSGC"),
+            pathlib.Path("/home/lipeisheng/cangjie/cangjie_compiler_CMSGC").resolve(),
         )
         self.assertEqual(
             config.sdk_root,
-            pathlib.Path("/home/lipeisheng/cangjie/cangjie_compiler_CMSGC/output/msgc"),
+            pathlib.Path(
+                "/home/lipeisheng/cangjie/cangjie_compiler_CMSGC/output/msgc"
+            ).resolve(),
         )
 
     def test_msgc_defaults_to_marksweep_and_msgc_output(self) -> None:
