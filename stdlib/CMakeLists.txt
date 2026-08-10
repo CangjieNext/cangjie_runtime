@@ -37,7 +37,9 @@ if(IOS AND IOS_PLATFORM MATCHES "SIMULATOR")
 endif()
 if(ANDROID)
     set(target_folder_name "linux_android${CMAKE_ANDROID_API}")
-    if(CMAKE_ANDROID_API EQUAL 26)
+    # Android API 23 is the baseline layout for aarch64/x86_64;
+    # ARM32 keeps the linux_android23_* layout. API 26/31 use suffixes.
+    if(CMAKE_ANDROID_API EQUAL 23 AND NOT CMAKE_SYSTEM_PROCESSOR STREQUAL "armv7-a")
         set(target_folder_name "linux_android")
     endif()
 elseif(OHOS)
