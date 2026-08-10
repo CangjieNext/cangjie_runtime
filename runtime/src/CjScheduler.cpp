@@ -139,6 +139,32 @@ static size_t InitDefaultHeapSize()
     return heapKB;
 }
 
+/**
+ * Default heap growth factor.
+ *
+ * The old default was a fixed 0.15 regardless of machine size. On large
+ * machines, allocation-heavy concurrent workloads (e.g. databases) trigger
+ * GC too often: after each GC the next threshold only grows by 15%, so the
+ * collector keeps chasing the allocation rate instead of letting the heap
+ * settle, and stop-the-world pauses dominate.
+ *
+ * The new default scales with physical memory: machines with up to 8GB keep
+ * the old 0.15 behavior; between 8GB and 32GB it rises linearly to 1.0 and
+ * stays there. The heap is virtual address space committed on demand, so a
+ * larger growth factor only raises committed memory when the workload
+ * actually allocates. Explicit cjHeapGrowth / MCC_SetHeapGrowth settings
+ * still take precedence.
+ */
+static double InitDefaultHeapGrowth()
+{
+    if (g_sysmemSize <= 8 * GB) {
+        return 0.15;
+    }
+    double ratio = static_cast<double>(g_sysmemSize - 8 * GB) / static_cast<double>(24 * GB);
+    double growth = 0.15 + 0.85 * ratio;
+    return (growth > 1.0) ? 1.0 : growth;
+}
+
 static size_t InitRegionSize(size_t defaultParam)
 {
     auto env = std::getenv("cjRegionSize");
@@ -689,7 +715,7 @@ static RuntimeParam InitRuntimeParam()
                  */
                 .heapUtilization = InitPercentParameter("cjHeapUtilization", 0.0, 1.0, 0.8),
                 // Default heap growth is (1 + 0.15) = 1.15.
-                .heapGrowth = InitDecParameter("cjHeapGrowth", 0.0, 0.15),
+                .heapGrowth = InitDecParameter("cjHeapGrowth", 0.0, InitDefaultHeapGrowth()),
                 // Default allocation rate is 10240MB/s.
                 .allocationRate = InitDecParameter("cjAllocationRate", 0.0, 10240),
                 // Default allocation wait time is 1000ns.

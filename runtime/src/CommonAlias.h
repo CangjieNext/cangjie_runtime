@@ -49,6 +49,7 @@ extern "C" MRT_EXPORT size_t CJ_MCC_GetGCFreedSize() __attribute__((alias("MCC_G
 extern "C" MRT_EXPORT size_t CJ_MCC_StartCpuProfiling() __attribute__((alias("MCC_StartCpuProfiling")));
 extern "C" MRT_EXPORT size_t CJ_MCC_StopCpuProfiling(int fd) __attribute__((alias("MCC_StopCpuProfiling")));
 extern "C" MRT_EXPORT void CJ_MCC_SetGCThreshold(uint64_t GCThreshold) __attribute__((alias("MCC_SetGCThreshold")));
+extern "C" MRT_EXPORT void CJ_MCC_SetHeapGrowth(double heapGrowth) __attribute__((alias("MCC_SetHeapGrowth")));
 extern "C" MRT_EXPORT void* CJ_MCC_PostThrowException(ExceptionWrapper* mExceptionWrapper)
     __attribute__((alias("MCC_PostThrowException")));
 

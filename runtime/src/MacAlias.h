@@ -70,6 +70,8 @@ extern "C" MRT_EXPORT size_t CJ_MCC_StopCpuProfiling(int fd);
 __asm__(".global _CJ_MCC_StopCpuProfiling\n\t.set _CJ_MCC_StopCpuProfiling, _MCC_StopCpuProfiling");
 extern "C" MRT_EXPORT void CJ_MCC_SetGCThreshold(uint64_t GCThreshold);
 __asm__(".global _CJ_MCC_SetGCThreshold\n\t.set _CJ_MCC_SetGCThreshold, _MCC_SetGCThreshold");
+extern "C" MRT_EXPORT void CJ_MCC_SetHeapGrowth(double heapGrowth);
+__asm__(".global _CJ_MCC_SetHeapGrowth\n\t.set _CJ_MCC_SetHeapGrowth, _MCC_SetHeapGrowth");
 extern "C" MRT_EXPORT void* CJ_MCC_PostThrowException(ExceptionWrapper* mExceptionWrapper);
 __asm__(".global _CJ_MCC_PostThrowException\n\t.set _CJ_MCC_PostThrowException, _MCC_PostThrowException");
 extern "C" MRT_EXPORT void CJ_MCC_ThrowException(ExceptionRef exception);
