@@ -9,6 +9,7 @@ package std.unittest
 
 import std.collection.*
 import std.unittest.common.toStringOrPlaceholder
+import std.unittest.concurrent.ConcurrentScenario
 
 public class FlatMapProcessor<T, R> <: DataStrategyProcessor<R> {
     var provider: RememberingDataProvider<R> = RememberingDataProvider("", [])
@@ -489,6 +490,14 @@ sealed abstract class DataStrategyProcessor<T> {
         doRun!: (T) -> Unit
     ): UnitTestCase {
         UnitTestCase.createParameterized<T>(caseName, this, configuration: configuration, body: doRun)
+    }
+
+    public func intoStressTestCase<S>(
+        caseName!: String,
+        configuration!: Configuration,
+        doRun!: (T) -> ConcurrentScenario<S>
+    ): ConcurrentTestCase {
+        ConcurrentTestCase.createParameterized<T, S>(caseName, this, configuration: configuration, body: doRun)
     }
 
     /** Starting point for combinding/mapping `DataStategy`es.

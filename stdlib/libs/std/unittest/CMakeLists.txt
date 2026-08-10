@@ -23,13 +23,13 @@ set(UNITTEST_SRCS
     framework.cj
     id.cj
     json_strategy.cj
+    operations_manager.cj
     options.cj
     parallel.cj
     parameter_test_case.cj
     platform_specific.cj
     power_assert_diagram_builder.cj
     pretty_console.cj
-    pretty_table.cj
     process.cj
     reexport.cj
     render_exception.cj

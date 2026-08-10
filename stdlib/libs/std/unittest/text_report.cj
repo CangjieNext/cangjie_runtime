@@ -554,9 +554,9 @@ private func printFailure(pp: PrettyPrinter, tsr: TestSuiteResult, tcr: TestCase
     } else if (tcr.details.executedSteps > 1) {
         let failure = tcr.subResults.iterator().filter{ r => r.hasFailures() }.last().getOrThrow()
         match (failure.kind) {
-            case CaseStep(arg) where arg.stepIndex + 1 >= tcr.details.executedSteps =>
+            case CaseStep(arg) where arg.textDescription.isSome() && arg.stepIndex + 1 >= tcr.details.executedSteps =>
                 " (failed after ${arg.stepIndex+1} steps)"
-            case CaseStep(_) =>
+            case CaseStep(arg) where arg.textDescription.isSome() =>
                 " (failed 1/${tcr.details.executedSteps} steps)"
             case _ => ""
         }
@@ -629,6 +629,26 @@ extend CheckResult <: PrettyPrintable {
                 pp.append("Found assert that was not attached to a specific test case:")
                     .newLine()
                     .append(cr.inner)
+            case cr: ConcurrentTestCheckResult =>
+                pp.append("Concurrent test iteration ${cr.iterationIndex} failed: ")
+                    .append(cr.message)
+                    .newLine()
+                if (let Some(actorDetails) <- cr.actorFailureDetails) {
+                    for (line in actorDetails.lines()) {
+                        pp.appendLine(line)
+                    }
+                }
+                if (let Some(consDetails) <- cr.consistencyValidationDetails) {
+                    var first = true
+                    for (line in consDetails.lines()) {
+                        if (first) {
+                            pp.append("Consistency validation: ").append(line).newLine()
+                            first = false
+                        } else {
+                            pp.appendLine(line)
+                        }
+                    }
+                }
             case _ => throw Exception("Required due to bug in compiler")
         }
         pp
