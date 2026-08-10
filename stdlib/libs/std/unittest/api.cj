@@ -8,6 +8,8 @@
 package std.unittest
 
 import std.collection.*
+import std.unittest.concurrent.ConcurrentScenario
+import std.unittest.concurrent.ScenarioBuilder
 
 public class TestSuite {
     TestSuite(
@@ -147,6 +149,11 @@ public class TestGroupBuilder {
         this
     }
 
+    public func add(concurrent: ConcurrentTestCase): TestGroupBuilder {
+        add(fakeSuite(Concurrent(concurrent)))
+        this
+    }
+
     public func add(suite: TestSuite): TestGroupBuilder {
         enableOptimizedMockForBenchIfNeeded(suite)
         add({ => suite })
@@ -233,6 +240,11 @@ public class TestSuiteBuilder {
 
     public func add(benchmark: Benchmark): TestSuiteBuilder {
         tests.add(Bench(benchmark))
+        this
+    }
+
+    public func add(concurrent: ConcurrentTestCase): TestSuiteBuilder {
+        tests.add(Concurrent(concurrent))
         this
     }
 
@@ -387,6 +399,62 @@ public class Benchmark {
     }
 }
 
+public class ConcurrentTestCase {
+    ConcurrentTestCase(
+        private let _name: String,
+        let caseConfiguration: Configuration,
+        let executor: Executor
+    ) {}
+
+    public prop name: String { get() { _name } }
+
+    public func run(): TestReport {
+        fakeGroup(fakeSuite(Concurrent(this))).run(caseConfiguration, OnlyTests).asTestReport(caseConfiguration)
+    }
+
+    public static func create<S>(
+        name: String,
+        scenario!: ConcurrentScenario<S>,
+        configuration!: Configuration = Configuration()
+    ): ConcurrentTestCase {
+        createParameterized<Unit, S>(name, noArgsProcessor(), body: { _: Unit => scenario })
+    }
+
+    public static func createFromBuilder<S>(
+        name: String,
+        builder!: ScenarioBuilder<S>,
+        configuration!: Configuration = Configuration()
+    ): ConcurrentTestCase where S <: Any {
+        create(name, scenario: builder.build(), configuration: configuration)
+    }
+
+    public static func createParameterized<T, S>(
+        name: String,
+        strategy: DataStrategyProcessor<T>, 
+        body!: (T) -> ConcurrentScenario<S>,
+        configuration!: Configuration = Configuration()
+    ): ConcurrentTestCase where S <: Any {
+        let executor = ConcurrentExecutor<T, S>(strategy: strategy, body: body)
+        ConcurrentTestCase(name, configuration, executor)
+    }
+}
+
+public func concurrentTest<S>(
+    name: String,
+    scenario!: ConcurrentScenario<S>,
+    configuration!: Configuration = Configuration()
+): ConcurrentTestCase where S <: Any {
+    ConcurrentTestCase.create(name, scenario: scenario, configuration: configuration)
+}
+
+public func concurrentTest<S>(
+    name: String,
+    builder!: ScenarioBuilder<S>,
+    configuration!: Configuration = Configuration()
+): ConcurrentTestCase where S <: Any {
+    ConcurrentTestCase.createFromBuilder(name, builder: builder, configuration: configuration)
+}
+
 public struct TestCaseInfo {
     TestCaseInfo(
         public let groupName: String,
@@ -504,12 +572,14 @@ enum ExecutionMode {
 enum CaseOrBench {
     | Case(UnitTestCase)
     | Bench(Benchmark)
+    | Concurrent(ConcurrentTestCase)
 
     prop caseConfiguration: Configuration {
         get() {
             match (this) {
                 case Case(testCase) => testCase.caseConfiguration
                 case Bench(benchmark) => benchmark.benchmarkConfiguration
+                case Concurrent(ct) => ct.caseConfiguration
             }
         }
     }
@@ -519,6 +589,7 @@ enum CaseOrBench {
             match (this) {
                 case Case(testCase) => testCase.name
                 case Bench(benchmark) => benchmark.name
+                case Concurrent(ct) => ct.name
             }
         }
     }
@@ -528,6 +599,7 @@ enum CaseOrBench {
             match (this) {
                 case Case(_) => false
                 case Bench(_) => true
+                case Concurrent(_) => false
             }
         }
     }
@@ -537,6 +609,7 @@ enum CaseOrBench {
             match (this) {
                 case Case(testCase) => testCase.executor
                 case Bench(benchmark) => benchmark.executor
+                case Concurrent(ct) => ct.executor
             }
         }
     }
@@ -548,6 +621,10 @@ private func fakeSuite(test: CaseOrBench): () -> TestSuite {
             [], [], [], [], None
         )
     }
+}
+
+private func fakeSuite(concurrent: ConcurrentTestCase): () -> TestSuite {
+    fakeSuite(Concurrent(concurrent))
 }
 
 private func fakeGroup(testSuite: () -> TestSuite): TestGroup {

@@ -47,7 +47,7 @@ public class UnittestTimeoutException <: Exception {
         super()
     }
 
-    protected open override func getClassName(): String {
+    protected override func getClassName(): String {
         return "UnittestTimeoutException"
     }
 }
