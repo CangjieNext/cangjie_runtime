@@ -478,3 +478,33 @@ MSGC 完成 21,511 个成功请求、0 失败、2,123 req/s。日志共出现 3 
 306 次 `hold`；稳态 `gcRatioEWMA` 约为 0.21--0.26，未触发内存压力动作。所有记录的
 `heapThreshold` 都使用 `cap=13,743,895,348B`，即 16 GiB 的 80%。该短跑只验证控制路径与
 安装后的 Runtime 生效，不将单次吞吐作为 A/B 性能结论。
+
+### 10.5 启动保护与低 GC 占比回落（2026-08-11）
+
+case26 的 512 MiB persistent workload 发现初版控制器会在 persistent object 建立期间，把接近
+连续的 bootstrap HEU 周期误判为稳定 GC 压力。`effectiveGrowth` 从配置值 1 增至 2.604；此后
+GC ratio 已低于 40%，但旧策略只有“停止上调”而没有正常回落，所以 Mark threshold 和 retain
+watermarks 长期保持在过高位置。
+
+本轮没有增加环境变量，增加以下内部收敛规则：
+
+- 只有 `thresholdBaseBytes` 与 `preSweepInUseBytes` 均连续三次相邻比较在 ±10% 内，working set
+  才稳定，才允许 high-ratio streak 触发 raise；
+- 进入第一个稳定比较时，以该轮 sample 重置 GC wall/ratio EWMA，bootstrap 的高 ratio 不会泄漏到
+  稳态判断；
+- stable 后连续两次 `gcRatioEWMA <= 40%`，按反向 12.5% 步长归还 HeapGrow bonus，但正常路径
+  不低于用户设置的 `cjHeapGrowth`；日志 action 为 `low_gc_ratio`；
+- `low_gc_ratio`、80% memory pressure 和 critical/OOM 都请求 `retainHigh` 立即下降到新的
+  desired high。普通 workload 波动仍维持原有的一秒、一个 Segment 的 high 迟滞。
+
+纯策略测试新增启动 gate、EWMA 重置、低 ratio 回落和 forced high decrease 覆盖。
+
+已重建并安装 Runtime 后，以 `case26`、`CASE26_PERSISTENT_BYTES=512mb`、`HEAP_SIZE=20gb`、
+`c100`、`100K`、`10s`、`HeapGrow=1`、`Scavenge=2` 做控制路径验证：
+
+`MSGC_RESULT/Result/case26_http_complex_json/result/20260811_512M_c100_100k_HeapGrow1_Scavenge2_compare_1`
+
+MSGC 24,765 成功、0 失败、2,448 req/s。日志先经历三轮稳定判定后才有一次 `raise`，随后出现一次
+`low_gc_ratio`，将 growth 从 1.25 归回 1.0；对应 high 从 3,571,906,024 B 立即收紧至
+3,290,379,376 B。该 10 秒运行 RSS 平均 1,468.9 MiB、峰值 2,013.2 MiB；它只证明新收敛与
+high 收缩路径实际生效，不能与 60 秒基准直接做吞吐或 RSS A/B 结论。

@@ -3244,6 +3244,7 @@ void MarkSweepCollector::UpdateGCStats()
     MSAdaptiveHeapGrowthInput adaptiveInput;
     adaptiveInput.initialGrowth = configuredHeapGrowth;
     adaptiveInput.maxGrowth = maxAdaptiveGrowth;
+    adaptiveInput.thresholdBaseBytes = baseBytes;
     adaptiveInput.preSweepInUseBytes = cycleStats_.preSweepInUseBytes;
     adaptiveInput.softLimitBytes = softLimitBytes;
     adaptiveInput.gcWallUs = nowUs >= currentGcStartUs_
@@ -3282,7 +3283,8 @@ void MarkSweepCollector::UpdateGCStats()
     MSScavengeHighWatermarkDecision highDecision =
         StabilizeMSScavengeHighWatermark(
             scavengeDecision.retainHighBytes, newScavengeThreshold,
-            oldScavengeTriggerThreshold, highDecayElapsedUs, segmentBytes);
+            oldScavengeTriggerThreshold, highDecayElapsedUs, segmentBytes,
+            adaptiveDecision.requestHighContraction);
     size_t newScavengeTriggerThreshold = highDecision.retainHighBytes;
     if (oldScavengeTriggerThreshold == 0 ||
         scavengeDecision.retainHighBytes >= oldScavengeTriggerThreshold) {
@@ -3327,7 +3329,8 @@ void MarkSweepCollector::UpdateGCStats()
          "[MS-GC] heapAdaptive: action=%s gcWallUs=%llu heuPeriodUs=%llu "
          "ratio=%.3f ratioEwma=%.3f wallEwmaUs=%.0f preSweepInUse=%zuB "
          "softLimit=%zuB effectiveGrowth=%.3f maxGrowth=%.3f cooldown=%u "
-         "memoryPressure=%d criticalPressure=%d",
+         "workingSetStable=%u memoryPressure=%d criticalPressure=%d "
+         "requestHighContraction=%d",
          MSAdaptiveHeapGrowthActionName(adaptiveDecision.action),
          static_cast<unsigned long long>(adaptiveInput.gcWallUs),
          static_cast<unsigned long long>(heuPeriodUs), adaptiveDecision.gcRatio,
@@ -3335,8 +3338,10 @@ void MarkSweepCollector::UpdateGCStats()
          cycleStats_.preSweepInUseBytes, softLimitBytes,
          adaptiveDecision.effectiveGrowth, maxAdaptiveGrowth,
          static_cast<unsigned>(adaptiveDecision.cooldownCycles),
+         static_cast<unsigned>(adaptiveDecision.stableWorkingSetStreak),
          static_cast<int>(adaptiveDecision.memoryPressure),
-         static_cast<int>(adaptiveDecision.criticalPressure));
+         static_cast<int>(adaptiveDecision.criticalPressure),
+         static_cast<int>(adaptiveDecision.requestHighContraction));
     VLOG(REPORT,
          "[MS-GC] heapThreshold stability: rawTarget=%zuB deadbandLower=%zuB "
          "deadbandUpper=%zuB deadbandHeld=%d fallLimit=%zuB riseLimit=%zuB "
