@@ -34,6 +34,9 @@ public interface Parsable<T> {
      * @since 0.31.2
      */
     static func parse(value: String): T
+    static func parse(value: String @local?): T {
+        throw Exception()
+    }
 
     /**
      * @Description Provides an abstract function to support specific types of parsing from strings.
@@ -54,7 +57,7 @@ public interface RadixConvertible<T> {
     func toString(radix!: Int64): String
 }
 
-func parseCompInt(rawData: Array<Byte>, formatBaseNum: UInt64, multmin: UInt64, maxAbsVal: UInt64, isMark!: Bool = true): UInt64 {
+func parseCompInt(rawData: Array<Byte> @local?, formatBaseNum: UInt64, multmin: UInt64, maxAbsVal: UInt64, isMark!: Bool = true): UInt64 {
     var num: UInt64 = 0
     var lineLength = 0
     var rawDataSlice = rawData
@@ -94,7 +97,7 @@ func parseCompInt(rawData: Array<Byte>, formatBaseNum: UInt64, multmin: UInt64, 
     return num
 }
 
-func tryParseCompInt(rawData: Array<Byte>, formatBaseNum: UInt64, multmin: UInt64, maxAbsVal: UInt64,
+func tryParseCompInt(rawData: Array<Byte> @local?, formatBaseNum: UInt64, multmin: UInt64, maxAbsVal: UInt64,
     isMark!: Bool = true): ConvertResult<UInt64> {
     var num: UInt64 = 0
     var lineLength = 0
@@ -755,6 +758,24 @@ extend Int64 <: Parsable<Int64> {
         }
         return Int64(num)
     }
+    
+    @OverflowWrapping
+    public static func parse(data: String @local?): Int64 {
+        let (rawData, isNegative) = getDataAndFlag(data, true, "Int64")
+        var (formatBaseNum, multmin, maxAbsVal): (UInt64, UInt64, UInt64) = if (isNegative == 0) {
+            (FOTMAT_BASE_NUM_UI64_10, DECIMAL_OVERFLOW_LIMIT_MAXABSVAL_I64, MAXABSVAL_I64)
+        } else {
+            (FOTMAT_BASE_NUM_UI64_10, DECIMAL_OVERFLOW_LIMIT_I64, MAXVAL_I64)
+        }
+        if (rawData.size > 1 && rawData[0] == b'0') {
+            (formatBaseNum, multmin, maxAbsVal) = getBaseInfos(TypeBase.I64, isNegative, rawData)
+        }
+        var num: UInt64 = parseCompInt(rawData, formatBaseNum, multmin, maxAbsVal)
+        if (isNegative == 0) {
+            return Int64(-num)
+        }
+        return Int64(num)
+    }
 
     /**
      * @Description Convert a string of Int64 literals to an Option<Int64> value. If the failure occurs, Option<Int64>.None will be returned.
@@ -949,9 +970,47 @@ func getDataAndFlag(data: String, isSigned: Bool, typeName: String): (Array<Byte
     checkParseDataNotEmpty(data)
     getDataAndFlagCore(data, isSigned, typeName, false)
 }
+func getDataAndFlag(data: String @local?, isSigned: Bool, typeName: String): (Array<Byte>, Int64) @local? {
+    if (data.isEmpty()) {
+        throw IllegalArgumentException("The string is empty.")
+    }
+    let (rawData, isNegative) = match (data[0]) {
+        case '+' => throw IllegalArgumentException("Starting with \"+\" is illegal in ${typeName}.") // r'+'
+        case '-' =>
+            if (isSigned) {
+                (unsafe { data.rawData() }[1..], 0)
+            } else {
+                throw IllegalArgumentException("Starting with \"-\" is illegal in ${typeName}.")
+            }
+        case _ => (unsafe { data.rawData() }, 1)
+    }
+    if (rawData.size == 0) {
+        throw IllegalArgumentException("The value part is empty.")
+    }
+    return (rawData, isNegative)
+}
 
 func getTryDataAndFlag(data: String, isSigned: Bool, _: String): (Array<Byte>, Int64) {
     getTryDataAndFlagCore(data, isSigned, false)
+}
+func getTryDataAndFlag(data: String @local?, isSigned: Bool, _: String): (Array<Byte>, Int64) @local? {
+    if (data.isEmpty()) {
+        return ([], 1)
+    }
+    let (rawData, isNegative) = match (data[0]) {
+        case '+' => return ([], 0)
+        case '-' =>
+            if (isSigned) {
+                (unsafe { data.rawData() }[1..], 0)
+            } else {
+                return ([], 0)
+            }
+        case _ => (unsafe { data.rawData() }, 1)
+    }
+    if (rawData.size == 0) {
+        return ([], 1)
+    }
+    return (rawData, isNegative)
 }
 
 func getDataAndFlagWithRadix(data: String, isSigned: Bool, typeName: String, radix: Int64): (Array<Byte>, Int64) {
@@ -1079,21 +1138,21 @@ interface FloatParsable<T> {
     static func fromFloat64(n: Float64): T
 }
 
-func parseFloat<T>(data: String): T where T <: FloatParsable<T> {
+func parseFloat<T>(data: String @local?): T where T <: FloatParsable<T> {
     match (doParseFloat<T>(data)) {
         case Success(n) => n
         case Failure(str) => throw IllegalArgumentException(str)
     }
 }
 
-func tryParseFloat<T>(data: String): Option<T> where T <: FloatParsable<T> {
+func tryParseFloat<T>(data: String @local?): Option<T> where T <: FloatParsable<T> {
     match (doParseFloat<T>(data)) {
         case Success(n) => Some(n)
         case _ => None
     }
 }
 
-func doParseFloat<T>(data: String): ConvertResult<T> where T <: FloatParsable<T> {
+func doParseFloat<T>(data: String @local?): ConvertResult<T> where T <: FloatParsable<T> {
     if (data.isEmpty()) {
         return Failure("The string is empty.")
     }
@@ -1160,7 +1219,7 @@ func doParseFloat<T>(data: String): ConvertResult<T> where T <: FloatParsable<T>
     return Success(T.fromFloat64(result))
 }
 
-func doParseFloatFromCffi<T>(data: String): ConvertResult<T> where T <: FloatParsable<T> {
+func doParseFloatFromCffi<T>(data: String @local?): ConvertResult<T> where T <: FloatParsable<T> {
     var result: Float64
     unsafe {
         let cStr = LibC.mallocCString(data)

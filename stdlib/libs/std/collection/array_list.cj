@@ -92,6 +92,12 @@ public class ArrayList<T> <: List<T> {
             this.myData.size
         }
     }
+    @Frozen
+    public prop capacity: Int64 @local? {
+        get() {
+            this.myData.size
+        }
+    }
 
     /**
      * Initializes an empty ArrayList with the default capacity.
@@ -101,6 +107,11 @@ public class ArrayList<T> <: List<T> {
     @Frozen
     public init() {
         myData = Array<T>(DEFAULT_CAPACITY, repeat: unsafe { zeroValue<T>() })
+        mySize = 0
+    }
+    @Frozen
+    public exclave init(this @local!) {
+        myData = Array<T>(DEFAULT_CAPACITY, repeat: unsafe { zeroValue2<T>() })
         mySize = 0
     }
 
@@ -120,6 +131,16 @@ public class ArrayList<T> <: List<T> {
             throw IllegalArgumentException("Invalid capacity of ArrayList: ${capacity}.")
         }
         myData = Array<T>(cap, repeat: unsafe { zeroValue<T>() })
+    }
+    @Frozen
+    public exclave init(this @local!, capacity: Int64) {
+        mySize = 0
+        let cap: Int64 = if (capacity >= 0) {
+            capacity
+        } else {
+            throw IllegalArgumentException("Invalid capacity of ArrayList: ${capacity}.")
+        }
+        myData = Array<T>(cap, repeat: unsafe { zeroValue2<T>() })
     }
 
     /**
@@ -184,6 +205,10 @@ public class ArrayList<T> <: List<T> {
     public unsafe func getRawArray(): Array<T> {
         return this.myData
     }
+    @Frozen
+    public unsafe func getRawArray(this @local?): Array<T> @local? {
+        return this.myData
+    }
 
     /**
      * Returns the element in this ArrayList as an Array.
@@ -216,6 +241,13 @@ public class ArrayList<T> <: List<T> {
         }
         return myData.get(index)
     }
+    @Frozen
+    public exclave func get(this @local!, index: Int64): ?T @local! {
+        if (index >= mySize || index < 0) {
+            return Option<T>.None
+        }
+        return myData.get(index)
+    }
 
     @Frozen
     public prop first: ?T {
@@ -239,6 +271,15 @@ public class ArrayList<T> <: List<T> {
      */
     @Frozen
     public func add(element: T): Unit {
+        if (mySize == myData.size) {
+            grow(mySize + 1)
+        }
+        myData[mySize] = element
+        mySize++
+        myVersion++
+    }
+    @Frozen
+    public exclave func add(this @local!, element: T @local!): Unit {
         if (mySize == myData.size) {
             grow(mySize + 1)
         }
@@ -453,6 +494,18 @@ public class ArrayList<T> <: List<T> {
     public func clear(): Unit {
         if (mySize > 0) {
             let zero: T = unsafe { zeroValue<T>() }
+            /* Back-to-front traversal can reduce boundary checks and improve performance */
+            for (i in mySize - 1..=0 : -1) {
+                myData[i] = zero
+            }
+            mySize = 0
+        }
+        myVersion++
+    }
+    @Frozen
+    public exclave func clear(this @local!): Unit {
+        if (mySize > 0) {
+            let zero: T @local! = unsafe { zeroValue2<T>() }
             /* Back-to-front traversal can reduce boundary checks and improve performance */
             for (i in mySize - 1..=0 : -1) {
                 myData[i] = zero
@@ -804,6 +857,19 @@ public class ArrayList<T> <: List<T> {
         }
         myVersion++
     }
+    @Frozen
+    public exclave func reverse(this @local!): Unit {
+        var i: Int64 = 0
+        var j: Int64 = mySize - 1
+        while (i < j) {
+            let tempJ: T @local! = myData[j]
+            myData[j] = myData[i]
+            myData[i] = tempJ
+            i++
+            j--
+        }
+        myVersion++
+    }
 
     /**
      * Operator overload slice.
@@ -909,6 +975,11 @@ public class ArrayList<T> <: List<T> {
         checkRange(index)
         return this.myData[index]
     }
+    @Frozen
+    public exclave operator func [](this @local!, index: Int64): T @local! {
+        checkRange(index)
+        return this.myData[index]
+    }
 
     /**
      * Operator overload set.
@@ -921,6 +992,14 @@ public class ArrayList<T> <: List<T> {
      */
     @Frozen
     public operator func [](index: Int64, value!: T): Unit {
+        if (index >= mySize || index < 0) {
+            throw IndexOutOfBoundsException(
+                "index: ${index} cannot be less than 0 or greater than the arraylist size: ${mySize}.")
+        }
+        unsafe { myData.setUnchecked(index, value) }
+    }
+    @Frozen
+    public exclave operator func [](this @local!, index: Int64, value!: T @local!): Unit {
         if (index >= mySize || index < 0) {
             throw IndexOutOfBoundsException(
                 "index: ${index} cannot be less than 0 or greater than the arraylist size: ${mySize}.")
@@ -951,6 +1030,10 @@ public class ArrayList<T> <: List<T> {
     public func isEmpty(): Bool {
         return mySize == 0
     }
+    @Frozen
+    public func isEmpty(this @local?): Bool {
+        return mySize == 0
+    }
 
     /**
      * Returns the number of elements in this ArrayList.
@@ -961,6 +1044,12 @@ public class ArrayList<T> <: List<T> {
      */
     @Frozen
     public prop size: Int64 {
+        get() {
+            return mySize
+        }
+    }
+    @Frozen
+    public prop size: Int64 @local? {
         get() {
             return mySize
         }
@@ -976,7 +1065,7 @@ public class ArrayList<T> <: List<T> {
      * @since 0.18.2
      */
     @Frozen
-    private func checkRange(index: Int64): Unit {
+    private func checkRange(this @local?, index: Int64): Unit {
         if (index >= mySize || index < 0) {
             throw IndexOutOfBoundsException("index: ${index}, size: ${mySize}")
         }
@@ -992,7 +1081,7 @@ public class ArrayList<T> <: List<T> {
      * @since 0.18.2
      */
     @Frozen
-    private func checkRangeInsert(index: Int64): Unit {
+    private func checkRangeInsert(this @local?, index: Int64): Unit {
         if (index > mySize || index < 0) {
             throw IndexOutOfBoundsException("index: ${index}, size: ${mySize}")
         }
@@ -1016,8 +1105,22 @@ public class ArrayList<T> <: List<T> {
         myData.copyTo(newArr, 0, startIndex, mySize)
         myData = newArr
     }
+    @Frozen
+    private exclave func grow(this @local!, minCapacity: Int64, startIndex!: Int64 = 0): Unit {
+        let oldCapacity: Int64 = myData.size
+        var newCapacity: Int64 = oldCapacity + (oldCapacity >> 1)
+        if (newCapacity < minCapacity) {
+            newCapacity = minCapacity
+        }
+        let newArr: Array<T> @local! = Array<T>(newCapacity, repeat: unsafe { zeroValue2<T>() })
+        myData.copyTo(newArr, 0, startIndex, mySize)
+        myData = newArr
+    }
 
     protected func updateVersion(): Unit {
+        myVersion++
+    }
+    protected func updateVersion(this @local!): Unit {
         myVersion++
     }
 }
