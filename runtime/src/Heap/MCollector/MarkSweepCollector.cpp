@@ -3187,6 +3187,7 @@ struct MarkSweepCollector::MSHeapThresholdStateUpdate {
     uint64_t gcWallUs = 0;
     uint64_t heuPeriodUs = 0;
     bool exceptionalBypass = false;
+    bool adaptiveEnabled = false;
     MSHeapThresholdDecision thresholdDecision;
     MSAdaptiveHeapGrowthDecision adaptiveDecision;
 };
@@ -3197,6 +3198,8 @@ struct MarkSweepCollector::MSScavengeWatermarkStateUpdate {
     size_t newLowBytes = 0;
     size_t newHighBytes = 0;
     uint64_t highDecayElapsedUs = 0;
+    double configuredScavengeGrowth = 1.0;
+    bool adaptiveEnabled = false;
     MSScavengeWatermarkDecision scavengeDecision;
     MSScavengeHighWatermarkDecision highDecision;
 };
@@ -3227,6 +3230,7 @@ MarkSweepCollector::UpdateMSHeapThresholdState(
     }
 
     state.configuredHeapGrowth = CangjieRuntime::GetHeapParam().heapGrowth;
+    state.adaptiveEnabled = CangjieRuntime::GetGCParam().msAdaptiveGrowth != 0;
     state.softLimitBytes = CangjieRuntime::GetMSSoftHeapLimitBytes();
     state.gcThresholdCap = state.maxHeapBytes != 0
         ? state.maxHeapBytes
@@ -3257,6 +3261,7 @@ MarkSweepCollector::UpdateMSHeapThresholdState(
         lastHeuGcStartUs_ = 0;
     }
     MSAdaptiveHeapGrowthInput adaptiveInput;
+    adaptiveInput.adaptiveEnabled = state.adaptiveEnabled;
     adaptiveInput.initialGrowth = state.configuredHeapGrowth;
     adaptiveInput.maxGrowth = state.maxAdaptiveGrowth;
     adaptiveInput.thresholdBaseBytes = state.baseBytes;
@@ -3290,6 +3295,8 @@ MarkSweepCollector::UpdateMSScavengeWatermarkState(
     MSScavengeWatermarkStateUpdate state;
     state.oldLowBytes = gcStats.GetScavengeThreshold();
     state.oldHighBytes = gcStats.GetScavengeTriggerThreshold();
+    state.adaptiveEnabled = heapThresholdState.adaptiveEnabled;
+    state.configuredScavengeGrowth = CangjieRuntime::GetGCParam().scavengeGrowth;
     size_t scavengeBudgetBytes = heapThresholdState.softLimitBytes != 0
         ? heapThresholdState.softLimitBytes
         : (heapThresholdState.maxHeapBytes != 0
@@ -3299,10 +3306,21 @@ MarkSweepCollector::UpdateMSScavengeWatermarkState(
     size_t segmentBytes = regionManager == nullptr
         ? MS_REGION_SIZE
         : regionManager->GetSegmentSizeBytes();
-    state.scavengeDecision = EvaluateMSScavengeWatermarks(
-        heapThresholdState.newThreshold, cycleStats_.preSweepInUseBytes,
-        scavengeBudgetBytes, segmentBytes);
+    state.scavengeDecision = state.adaptiveEnabled
+        ? EvaluateMSScavengeWatermarks(
+            heapThresholdState.newThreshold, cycleStats_.preSweepInUseBytes,
+            scavengeBudgetBytes, segmentBytes)
+        : EvaluateMSStaticScavengeWatermarks(
+            heapThresholdState.newThreshold, cycleStats_.preSweepInUseBytes,
+            scavengeBudgetBytes, state.configuredScavengeGrowth);
     state.newLowBytes = state.scavengeDecision.retainLowBytes;
+    if (!state.adaptiveEnabled) {
+        state.highDecision.desiredHighBytes = state.scavengeDecision.retainHighBytes;
+        state.highDecision.retainHighBytes = state.scavengeDecision.retainHighBytes;
+        state.newHighBytes = state.scavengeDecision.retainHighBytes;
+        lastScavengeHighDecayUs_ = 0;
+        return state;
+    }
     uint64_t watermarkNowUs = TimeUtil::MicroSeconds();
     if (lastScavengeHighDecayUs_ != 0 &&
         state.scavengeDecision.retainHighBytes < state.oldHighBytes) {
@@ -3383,11 +3401,12 @@ void MarkSweepCollector::UpdateGCStats()
          heapThresholdState.minThreshold, heapThresholdState.maxHeapBytes,
          heapThresholdState.gcThresholdCap);
     VLOG(REPORT,
-         "[MS-GC] heapAdaptive: action=%s gcWallUs=%llu heuPeriodUs=%llu "
+         "[MS-GC] heapAdaptive: enabled=%d action=%s gcWallUs=%llu heuPeriodUs=%llu "
          "ratio=%.3f ratioEwma=%.3f wallEwmaUs=%.0f preSweepInUse=%zuB "
          "softLimit=%zuB effectiveGrowth=%.3f maxGrowth=%.3f cooldown=%u "
          "workingSetStable=%u memoryPressure=%d criticalPressure=%d "
          "requestHighContraction=%d",
+         static_cast<int>(heapThresholdState.adaptiveEnabled),
          MSAdaptiveHeapGrowthActionName(heapThresholdState.adaptiveDecision.action),
          static_cast<unsigned long long>(heapThresholdState.gcWallUs),
          static_cast<unsigned long long>(heapThresholdState.heuPeriodUs),
@@ -3422,10 +3441,13 @@ void MarkSweepCollector::UpdateGCStats()
          cycleStats_.markStartInUseBytes, cycleStats_.markEndInUseBytes,
          cycleStats_.inUseBurstBytes);
     VLOG(REPORT,
-         "[MS-GC] scavengeWatermark: oldLow=%zuB oldHigh=%zuB low=%zuB "
+         "[MS-GC] scavengeWatermark: enabled=%d configuredGrowth=%.2f "
+         "oldLow=%zuB oldHigh=%zuB low=%zuB "
          "desiredHigh=%zuB high=%zuB heapGoal=%zuB preSweepInUse=%zuB "
          "retainBudget=%zuB band=%zuB highDecayElapsedUs=%llu highDecayBytes=%zuB "
          "highRaised=%d highHeld=%d highDecayed=%d budgetConstrained=%d",
+         static_cast<int>(scavengeWatermarkState.adaptiveEnabled),
+         scavengeWatermarkState.configuredScavengeGrowth,
          scavengeWatermarkState.oldLowBytes, scavengeWatermarkState.oldHighBytes,
          scavengeWatermarkState.newLowBytes,
          scavengeWatermarkState.highDecision.desiredHighBytes,

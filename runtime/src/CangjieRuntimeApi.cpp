@@ -354,6 +354,7 @@ RTErrorCode InitCJRuntime(const struct RuntimeParam* param)
             .msVerifyMarkDetail = param->gcParam.msVerifyMarkDetail,
             .msParallelSweepMaxHelpers = param->gcParam.msParallelSweepMaxHelpers,
             .msParallelSweep = static_cast<uint8_t>(param->gcParam.msParallelSweep != 0 ? 1U : 0U),
+            .msAdaptiveGrowth = static_cast<uint8_t>(param->gcParam.msAdaptiveGrowth != 0 ? 1U : 0U),
 #endif
         },
         .logParam = {

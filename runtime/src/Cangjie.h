@@ -395,6 +395,12 @@ struct GCParam {
      * MSGC dynamic parallel Sweep switch. 0 = off, 1 = on.
      */
     uint8_t msParallelSweep;
+
+    /*
+     * MSGC adaptive HeapGrow/Scavenge switch. 0 keeps cjHeapGrowth and
+     * cjScavengeGrowth static; 1 enables runtime feedback control.
+     */
+    uint8_t msAdaptiveGrowth;
 };
 
 /*

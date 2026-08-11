@@ -115,6 +115,7 @@ struct MSAdaptiveHeapGrowthState {
 };
 
 struct MSAdaptiveHeapGrowthInput {
+    bool adaptiveEnabled = true;
     double initialGrowth = 0.0;
     double maxGrowth = 0.0;
     size_t thresholdBaseBytes = 0;
@@ -221,6 +222,15 @@ inline MSAdaptiveHeapGrowthDecision EvaluateMSAdaptiveHeapGrowth(
     if (!state.initialized) {
         state.initialized = true;
         state.effectiveGrowth = configuredGrowth;
+    }
+    if (!input.adaptiveEnabled) {
+        // Static mode is intentionally history-free: cjHeapGrowth is the
+        // complete policy, not merely the seed of an internal controller.
+        state = MSAdaptiveHeapGrowthState {};
+        state.initialized = true;
+        state.effectiveGrowth = configuredGrowth;
+        decision.effectiveGrowth = configuredGrowth;
+        return decision;
     }
     bool cadenceOpen = input.nowUs == 0 || state.lastAdjustmentUs == 0 ||
         (input.nowUs >= state.lastAdjustmentUs &&
@@ -642,6 +652,35 @@ inline MSScavengeThresholdDecision EvaluateMSScavengeThreshold(
         decision.thresholdBytes = std::min(
             decision.thresholdBytes, maxHeapBytes);
     }
+    return decision;
+}
+
+// Static MSGC mode preserves the user-facing cjScavengeGrowth contract. The
+// configured multiplier controls the high wake-up watermark directly, while
+// the low target remains the just-observed in-use footprint.  The RegionSpace
+// release path still clamps low to its current in-use bytes before releasing.
+inline MSScavengeWatermarkDecision EvaluateMSStaticScavengeWatermarks(
+    size_t heapGoalBytes, size_t preSweepInUseBytes,
+    size_t softLimitBytes, double scavengeGrowth)
+{
+    MSScavengeWatermarkDecision decision;
+    if (softLimitBytes == 0) {
+        decision.retainBudgetBytes = std::numeric_limits<size_t>::max();
+    } else {
+        size_t emergencyReserve = softLimitBytes / 16;
+        decision.retainBudgetBytes = emergencyReserve >= softLimitBytes
+            ? 0
+            : softLimitBytes - emergencyReserve;
+    }
+    decision.retainLowBytes = std::min(preSweepInUseBytes,
+                                       decision.retainBudgetBytes);
+    MSScavengeThresholdDecision staticThreshold = EvaluateMSScavengeThreshold(
+        heapGoalBytes, decision.retainBudgetBytes, scavengeGrowth);
+    decision.retainHighBytes = std::max(decision.retainLowBytes,
+                                        staticThreshold.thresholdBytes);
+    decision.releaseBandBytes = decision.retainHighBytes - decision.retainLowBytes;
+    decision.budgetConstrained = heapGoalBytes > decision.retainBudgetBytes ||
+        preSweepInUseBytes > decision.retainBudgetBytes;
     return decision;
 }
 

@@ -566,6 +566,8 @@ static RuntimeParam InitRuntimeParam()
                 "cjMSParallelSweepMaxHelpers", 0, 0, EnvBoundKind::CLOSED),
             .msParallelSweep =
                 static_cast<uint8_t>(ReadBoolParameter("cjMSParallelSweep", true) ? 1U : 0U),
+            .msAdaptiveGrowth =
+                static_cast<uint8_t>(ReadBoolParameter("cjMSAdaptiveGrowth", false) ? 1U : 0U),
 #endif
         },
         .logParam = {
