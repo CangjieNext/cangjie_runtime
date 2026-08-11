@@ -258,6 +258,27 @@ class StringIteratorData {
         this.end = myData.size
         this.nextPos = 0
     }
+
+    exclave init(this @local!, data: Array<UInt8> @local!) {
+        myData = data
+        end = myData.size
+        nextPos = 0
+    }
+    exclave init(this @local!, data: RawArray<UInt8> @local!) {
+        this.myData = toArray(data)
+        this.end = myData.size
+        this.nextPos = 0
+    }
+    exclave init(this @local?, data: Array<UInt8> @local?) {
+        myData = data
+        end = myData.size
+        nextPos = 0
+    }
+    exclave init(this @local?, data: RawArray<UInt8> @local?) {
+        this.myData = toArray(data)
+        this.end = myData.size
+        this.nextPos = 0
+    }
 }
 
 // String's Rune Iterator.
@@ -285,6 +306,14 @@ class StringRuneIterator <: Iterator<Rune> {
 class StringByteIterator <: Iterator<Byte> {
     @Frozen
     StringByteIterator(let iteratorData: StringIteratorData) {}
+    @Frozen
+    exclave init(this @local!, iteratorData: StringIteratorData @local!) {
+        this.iteratorData = iteratorData
+    }
+    @Frozen
+    exclave init(this @local?, iteratorData: StringIteratorData @local?) {
+        this.iteratorData = iteratorData
+    }
     /**
      * @return the next element in the iteration.
      * @throws IllegalArgumentException if there is an invalid utf8 leading code
@@ -293,6 +322,26 @@ class StringByteIterator <: Iterator<Byte> {
     @Frozen
     @OverflowWrapping
     public func next(): Option<Byte> {
+        if (iteratorData.nextPos >= iteratorData.end) {
+            return None
+        }
+        let byte = iteratorData.myData.get(iteratorData.nextPos)
+        iteratorData.nextPos = iteratorData.nextPos + 1
+        return byte
+    }
+    @Frozen
+    @OverflowWrapping
+    public exclave func next(this @local!): Option<Byte> @local! {
+        if (iteratorData.nextPos >= iteratorData.end) {
+            return None
+        }
+        let byte = iteratorData.myData.get(iteratorData.nextPos)
+        iteratorData.nextPos = iteratorData.nextPos + 1
+        return byte
+    }
+    @Frozen
+    @OverflowWrapping
+    public func next(this @local?): Option<Byte> @local? {
         if (iteratorData.nextPos >= iteratorData.end) {
             return None
         }

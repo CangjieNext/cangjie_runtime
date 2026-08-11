@@ -54,7 +54,7 @@ func arrayGetUnchecked<T>(rawArr: RawArray<T>, index: Int64): T
 func arrayGetUnchecked2<T>(rawArr: RawArray<T> @local!, index: Int64): T @local!
 
 @Intrinsic
-func arrayGetUnchecked3<T>(rawArr: RawArray<T> @local?, index: Int64): T @local? where T <: Copyable
+func arrayGetUnchecked3<T>(rawArr: RawArray<T> @local?, index: Int64): T @local?
 
 @Intrinsic
 func arraySetUnchecked<T>(rawArr: RawArray<T>, index: Int64, element: T): Unit
@@ -63,7 +63,7 @@ func arraySetUnchecked<T>(rawArr: RawArray<T>, index: Int64, element: T): Unit
 func arraySetUnchecked2<T>(rawArr: RawArray<T> @local!, index: Int64, element: T @local!): Unit
 
 @Intrinsic
-func arraySetUnchecked3<T>(rawArr: RawArray<T> @local?, index: Int64, element: T @local?): Unit
+func arraySetUnchecked3<T>(rawArr: RawArray<T> @local?, index: Int64, element: T @local?): Unit where T <: Copyable
 
 @Intrinsic
 func arraySize<T>(rawArr: RawArray<T> @local?): Int64
