@@ -44,6 +44,20 @@ func toArray<T>(raw: RawArray<T>): Array<T> {
     }
     return Array<T>(raw, 0, arraySize(raw))
 }
+@Frozen
+exclave func toArray<T>(raw: RawArray<T> @local!): Array<T> @local! {
+    if (arraySize(raw) == 0) {
+        return Array<T>()
+    }
+    return Array<T>(raw, 0, arraySize(raw))
+}
+@Frozen
+func toArray<T>(raw: RawArray<T> @local?): Array<T> @local? {
+    if (arraySize(raw) == 0) {
+        return Array<T>()
+    }
+    return Array<T>(raw, 0, arraySize(raw))
+}
 
 extend<T> Array<T> <: Collection<T> {
     /** Returns an iterator over the elements in this Array in proper sequence. */

@@ -465,3 +465,25 @@ func numberToString(number: UInt64, endIndex: Int64, buffer: Array<Byte>): Unit 
         buffer[next - 1] = digits100[i]
     }
 }
+@OverflowWrapping
+exclave func numberToString(number: UInt64, endIndex: Int64, buffer: Array<Byte> @local!): Unit {
+    //make sure endindex is smaller then buffer.size
+    var next = endIndex - 1
+    var value = number
+    var i = 0
+    while (value >= 100) {
+        let remain = value / 100
+        i = Int64((value - 100 * remain) * 2)
+        value = remain
+        buffer[next] = digits100[i + 1]
+        buffer[next - 1] = digits100[i]
+        next = next - 2
+    }
+    if (value < 10) {
+        buffer[next] = b'0' + UInt8(value)
+    } else {
+        i = Int64(value * 2)
+        buffer[next] = digits100[i + 1]
+        buffer[next - 1] = digits100[i]
+    }
+}

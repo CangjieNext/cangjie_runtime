@@ -166,7 +166,15 @@ extend Rune {
         return fromUtf8(arr.rawptr, arr.start + index, arr.start + arr.len)
     }
 
-    static func fromUtf8(arr: RawArray<UInt8>, startIndex: Int64, endIndex: Int64): (Rune, Int64) {
+    @OverflowWrapping
+    public static func fromUtf8(arr: Array<UInt8> @local?, index: Int64): (Rune, Int64) {
+        if (index >= arr.size) {
+            throw IllegalArgumentException("Invalid utf8 byte sequence.")
+        }
+        return fromUtf8(arr.rawptr, arr.start + index, arr.start + arr.len)
+    }
+
+    static func fromUtf8(arr: RawArray<UInt8> @local?, startIndex: Int64, endIndex: Int64): (Rune, Int64) {
         let byte0: UInt8 = arrayGetUnchecked3<UInt8>(arr, startIndex)
         return match {
             case byte0 < HIGH_1_UInt8 => (Rune(byte0), 1)

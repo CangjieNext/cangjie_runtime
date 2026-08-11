@@ -384,6 +384,14 @@ public class File <: Resource & IOStream & Seekable {
             file.close()
         }
     }
+    public static exclave func readFromLocal(path: String): Array<Byte> @local! {
+        var file = File(path, Read)
+        try {
+            readToEndLocal(file)
+        } finally {
+            file.close()
+        }
+    }
 
     /**
      * @throws FSException while path is empty.
