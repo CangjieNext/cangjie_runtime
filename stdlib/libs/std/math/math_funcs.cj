@@ -2094,7 +2094,7 @@ public func lcm(x: UInt64, y: UInt64): UInt64 {
  * @throws IllegalArgumentException if the argument `min` is larger than `max`, or `min` or `max` is NaN
  */
 public func clamp(v: Float16, min: Float16, max: Float16): Float16 {
-    if (!isEqual(min, min) || !isEqual(max, max) || min > max) {
+    if (min.isNaN() || max.isNaN() || min > max) {
         throw IllegalArgumentException("Check parameter min:'${min}' or max:'${max}'.\n")
     }
     if (v < min) {
@@ -2124,7 +2124,7 @@ public func clamp(v: Float16, min: Float16, max: Float16): Float16 {
  * @throws IllegalArgumentException if the argument `min` is larger than `max`, or `min` or `max` is NaN
  */
 public func clamp(v: Float32, min: Float32, max: Float32): Float32 {
-    if (!isEqual(min, min) || !isEqual(max, max) || min > max) {
+    if (min.isNaN() || max.isNaN() || min > max) {
         throw IllegalArgumentException("Check parameter min:'${min}' or max:'${max}'.\n")
     }
     if (v < min) {
@@ -2153,7 +2153,7 @@ public func clamp(v: Float32, min: Float32, max: Float32): Float32 {
  * @throws IllegalArgumentException if the argument `min` is larger than `max`, or `min` or `max` is NaN
  */
 public func clamp(v: Float64, min: Float64, max: Float64): Float64 {
-    if (!isEqual(min, min) || !isEqual(max, max) || min > max) {
+    if (min.isNaN() || max.isNaN() || min > max) {
         throw IllegalArgumentException("Check parameter min:'${min}' or max:'${max}'.\n")
     }
     if (v < min) {
