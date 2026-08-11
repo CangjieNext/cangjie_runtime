@@ -3170,6 +3170,159 @@ void MarkSweepCollector::LogGCSummary(uint64_t gcTimeUs)
 // ============================================================================
 // MS-GC specific UpdateGCStats: simplified Go-style threshold
 // ============================================================================
+struct MarkSweepCollector::MSHeapThresholdStateUpdate {
+    size_t oldThreshold = 0;
+    size_t oldLastTrueLiveBytes = 0;
+    size_t previousInUseBytes = 0;
+    size_t liveBytes = 0;
+    size_t inUseBytes = 0;
+    size_t maxHeapBytes = 0;
+    size_t baseBytes = 0;
+    size_t softLimitBytes = 0;
+    size_t gcThresholdCap = 0;
+    size_t minThreshold = 0;
+    size_t newThreshold = 0;
+    double configuredHeapGrowth = 0.0;
+    double maxAdaptiveGrowth = 0.0;
+    uint64_t gcWallUs = 0;
+    uint64_t heuPeriodUs = 0;
+    bool exceptionalBypass = false;
+    MSHeapThresholdDecision thresholdDecision;
+    MSAdaptiveHeapGrowthDecision adaptiveDecision;
+};
+
+struct MarkSweepCollector::MSScavengeWatermarkStateUpdate {
+    size_t oldLowBytes = 0;
+    size_t oldHighBytes = 0;
+    size_t newLowBytes = 0;
+    size_t newHighBytes = 0;
+    uint64_t highDecayElapsedUs = 0;
+    MSScavengeWatermarkDecision scavengeDecision;
+    MSScavengeHighWatermarkDecision highDecision;
+};
+
+MarkSweepCollector::MSHeapThresholdStateUpdate
+MarkSweepCollector::UpdateMSHeapThresholdState(
+    RegionSpaceMS& space, const GCStats& gcStats, bool exceptionalBypass)
+{
+    MSHeapThresholdStateUpdate state;
+    state.oldThreshold = gcStats.GetThreshold();
+    state.oldLastTrueLiveBytes = gcStats.lastTrueLiveBytes;
+    state.previousInUseBytes = gcStats.lastRegionBytes;
+    state.liveBytes = cycleStats_.trueLiveBytes;
+    state.inUseBytes = space.GetHeapInUseBytes();
+    state.maxHeapBytes = space.GetMaxCapacity();
+    state.exceptionalBypass = exceptionalBypass;
+
+    // The raw MSGC target is marked-live bytes * (1 + heapGrowth).
+    // Established normal cycles use an inclusive 10% deadband and symmetric
+    // 12.5% transition limits. Bootstrap and OOM cycles establish the
+    // target directly.
+    state.baseBytes = cycleStats_.thresholdBaseBytes;
+    if (state.baseBytes == 0) {
+        MSGCThresholdBaseDecision thresholdBase =
+            ComputeMSGCThresholdBase(state.liveBytes);
+        state.baseBytes = thresholdBase.gcBaseBytes;
+        cycleStats_.thresholdBaseBytes = thresholdBase.gcBaseBytes;
+    }
+
+    state.configuredHeapGrowth = CangjieRuntime::GetHeapParam().heapGrowth;
+    state.softLimitBytes = CangjieRuntime::GetMSSoftHeapLimitBytes();
+    state.gcThresholdCap = state.maxHeapBytes != 0
+        ? state.maxHeapBytes
+        : CangjieRuntime::GetGCParam().gcThreshold;
+    if (state.softLimitBytes != 0) {
+        // Preserve a 20% allocation runway beneath the configured heap budget.
+        state.gcThresholdCap = std::min(
+            state.gcThresholdCap,
+            state.softLimitBytes - state.softLimitBytes / 5);
+    }
+    size_t absoluteMinThreshold =
+        std::min(state.gcThresholdCap, static_cast<size_t>(20) * 1024 * 1024);
+    state.minThreshold = ComputeMSHeapThresholdFloor(
+        absoluteMinThreshold, state.gcThresholdCap);
+    state.maxAdaptiveGrowth = 0.0;
+    if (state.baseBytes != 0 && state.gcThresholdCap > state.baseBytes) {
+        state.maxAdaptiveGrowth = static_cast<double>(state.gcThresholdCap) /
+            static_cast<double>(state.baseBytes) - 1.0;
+    }
+    uint64_t nowUs = TimeUtil::MicroSeconds();
+    bool normalHeu = gcStats.reason == GC_REASON_HEU;
+    if (normalHeu) {
+        if (lastHeuGcStartUs_ != 0 && nowUs >= lastHeuGcStartUs_) {
+            state.heuPeriodUs = nowUs - lastHeuGcStartUs_;
+        }
+        lastHeuGcStartUs_ = nowUs;
+    } else if (state.exceptionalBypass) {
+        lastHeuGcStartUs_ = 0;
+    }
+    MSAdaptiveHeapGrowthInput adaptiveInput;
+    adaptiveInput.initialGrowth = state.configuredHeapGrowth;
+    adaptiveInput.maxGrowth = state.maxAdaptiveGrowth;
+    adaptiveInput.thresholdBaseBytes = state.baseBytes;
+    adaptiveInput.preSweepInUseBytes = cycleStats_.preSweepInUseBytes;
+    adaptiveInput.softLimitBytes = state.softLimitBytes;
+    state.gcWallUs = nowUs >= currentGcStartUs_
+        ? nowUs - currentGcStartUs_ : 0;
+    adaptiveInput.gcWallUs = state.gcWallUs;
+    adaptiveInput.gcPeriodUs = state.heuPeriodUs;
+    adaptiveInput.nowUs = nowUs;
+    adaptiveInput.normalHeu = normalHeu;
+    adaptiveInput.oom = state.exceptionalBypass;
+    state.adaptiveDecision =
+        EvaluateMSAdaptiveHeapGrowth(adaptiveHeapGrowthState_, adaptiveInput);
+    bool bypassTransition =
+        state.exceptionalBypass || state.oldLastTrueLiveBytes == 0 ||
+        state.adaptiveDecision.bypassTransition;
+    state.thresholdDecision = EvaluateMSHeapThreshold(
+        state.oldThreshold, state.baseBytes,
+        state.adaptiveDecision.effectiveGrowth, state.minThreshold,
+        state.gcThresholdCap, bypassTransition);
+    state.newThreshold = state.thresholdDecision.threshold;
+    return state;
+}
+
+MarkSweepCollector::MSScavengeWatermarkStateUpdate
+MarkSweepCollector::UpdateMSScavengeWatermarkState(
+    RegionSpaceMS& space, const GCStats& gcStats,
+    const MSHeapThresholdStateUpdate& heapThresholdState)
+{
+    MSScavengeWatermarkStateUpdate state;
+    state.oldLowBytes = gcStats.GetScavengeThreshold();
+    state.oldHighBytes = gcStats.GetScavengeTriggerThreshold();
+    size_t scavengeBudgetBytes = heapThresholdState.softLimitBytes != 0
+        ? heapThresholdState.softLimitBytes
+        : (heapThresholdState.maxHeapBytes != 0
+            ? heapThresholdState.maxHeapBytes
+            : CangjieRuntime::GetGCParam().gcThreshold);
+    MSRegionManager* regionManager = space.GetMSRegionManager();
+    size_t segmentBytes = regionManager == nullptr
+        ? MS_REGION_SIZE
+        : regionManager->GetSegmentSizeBytes();
+    state.scavengeDecision = EvaluateMSScavengeWatermarks(
+        heapThresholdState.newThreshold, cycleStats_.preSweepInUseBytes,
+        scavengeBudgetBytes, segmentBytes);
+    state.newLowBytes = state.scavengeDecision.retainLowBytes;
+    uint64_t watermarkNowUs = TimeUtil::MicroSeconds();
+    if (lastScavengeHighDecayUs_ != 0 &&
+        state.scavengeDecision.retainHighBytes < state.oldHighBytes) {
+        state.highDecayElapsedUs = watermarkNowUs - lastScavengeHighDecayUs_;
+    }
+    state.highDecision = StabilizeMSScavengeHighWatermark(
+        state.scavengeDecision.retainHighBytes, state.newLowBytes,
+        state.oldHighBytes, state.highDecayElapsedUs, segmentBytes,
+        heapThresholdState.adaptiveDecision.requestHighContraction);
+    state.newHighBytes = state.highDecision.retainHighBytes;
+    if (state.oldHighBytes == 0 ||
+        state.scavengeDecision.retainHighBytes >= state.oldHighBytes) {
+        lastScavengeHighDecayUs_ = watermarkNowUs;
+    } else if (state.highDecision.decayIntervals != 0) {
+        lastScavengeHighDecayUs_ = watermarkNowUs -
+            (state.highDecayElapsedUs % kMSScavengeHighDecayIntervalUs);
+    }
+    return state;
+}
+
 void MarkSweepCollector::UpdateGCStats()
 {
     VLOG(REPORT, "[MS-GC] --- UpdateGCStats ---");
@@ -3177,122 +3330,22 @@ void MarkSweepCollector::UpdateGCStats()
     RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(theAllocator);
     GCStats& gcStats = GetGCStats();
 
-    size_t oldThreshold = gcStats.GetThreshold();
-    size_t oldScavengeThreshold = gcStats.GetScavengeThreshold();
-    size_t oldScavengeTriggerThreshold = gcStats.GetScavengeTriggerThreshold();
-    size_t oldLastTrueLiveBytes = gcStats.lastTrueLiveBytes;
-    size_t previousInUseBytes = gcStats.lastRegionBytes;
-    // ComputeMarkedStats supplies exact live bytes for the frozen collect-set.
-    // Outside-set supplies are retained only as a one-cycle HEU correction;
-    // they do not inflate the heap or Scavenge threshold base.
-    size_t liveBytes = cycleStats_.trueLiveBytes;
-    size_t inUseBytes = space.GetHeapInUseBytes();
-    size_t maxHeapBytes = space.GetMaxCapacity();
-    cycleStats_.markEndInUseBytes = inUseBytes;
-    cycleStats_.inUseBurstBytes =
-        inUseBytes > cycleStats_.markStartInUseBytes
-        ? inUseBytes - cycleStats_.markStartInUseBytes
-        : 0;
     bool exceptionalBypass = gcStats.reason == GC_REASON_OOM;
+    MSHeapThresholdStateUpdate heapThresholdState =
+        UpdateMSHeapThresholdState(space, gcStats, exceptionalBypass);
+    cycleStats_.markEndInUseBytes = heapThresholdState.inUseBytes;
+    cycleStats_.inUseBurstBytes =
+        heapThresholdState.inUseBytes > cycleStats_.markStartInUseBytes
+        ? heapThresholdState.inUseBytes - cycleStats_.markStartInUseBytes
+        : 0;
     cycleStats_.floatingLiveInflated = false;
-    gcStats.lastStableLiveBytes = liveBytes;
-    gcStats.lastTrueLiveBytes = liveBytes;
-    gcStats.lastRegionBytes = inUseBytes;
-    gcStats.baselineAllocatedBytes = inUseBytes;
+    gcStats.lastStableLiveBytes = heapThresholdState.liveBytes;
+    gcStats.lastTrueLiveBytes = heapThresholdState.liveBytes;
+    gcStats.lastRegionBytes = heapThresholdState.inUseBytes;
+    gcStats.baselineAllocatedBytes = heapThresholdState.inUseBytes;
 
-    // The raw MSGC target is marked-live bytes * (1 + heapGrowth).
-    // Established normal cycles use an inclusive 10% deadband and symmetric
-    // 12.5% transition limits. Bootstrap and OOM cycles establish the
-    // target directly.
-    size_t baseBytes = cycleStats_.thresholdBaseBytes;
-    if (baseBytes == 0) {
-        MSGCThresholdBaseDecision thresholdBase = ComputeMSGCThresholdBase(liveBytes);
-        baseBytes = thresholdBase.gcBaseBytes;
-        cycleStats_.thresholdBaseBytes = thresholdBase.gcBaseBytes;
-    }
-
-    double configuredHeapGrowth = CangjieRuntime::GetHeapParam().heapGrowth;
-    size_t softLimitBytes = CangjieRuntime::GetMSSoftHeapLimitBytes();
-    size_t gcThresholdCap = maxHeapBytes != 0
-        ? maxHeapBytes
-        : CangjieRuntime::GetGCParam().gcThreshold;
-    if (softLimitBytes != 0) {
-        // Preserve a 20% allocation runway beneath the configured heap budget.
-        gcThresholdCap = std::min(
-            gcThresholdCap, softLimitBytes - softLimitBytes / 5);
-    }
-    size_t absoluteMinThreshold =
-        std::min(gcThresholdCap, static_cast<size_t>(20) * 1024 * 1024);
-    size_t minThreshold = ComputeMSHeapThresholdFloor(
-        absoluteMinThreshold, gcThresholdCap);
-    double maxAdaptiveGrowth = 0.0;
-    if (baseBytes != 0 && gcThresholdCap > baseBytes) {
-        maxAdaptiveGrowth = static_cast<double>(gcThresholdCap) /
-            static_cast<double>(baseBytes) - 1.0;
-    }
-    uint64_t nowUs = TimeUtil::MicroSeconds();
-    bool normalHeu = gcStats.reason == GC_REASON_HEU;
-    uint64_t heuPeriodUs = 0;
-    if (normalHeu) {
-        if (lastHeuGcStartUs_ != 0 && nowUs >= lastHeuGcStartUs_) {
-            heuPeriodUs = nowUs - lastHeuGcStartUs_;
-        }
-        lastHeuGcStartUs_ = nowUs;
-    } else if (exceptionalBypass) {
-        lastHeuGcStartUs_ = 0;
-    }
-    MSAdaptiveHeapGrowthInput adaptiveInput;
-    adaptiveInput.initialGrowth = configuredHeapGrowth;
-    adaptiveInput.maxGrowth = maxAdaptiveGrowth;
-    adaptiveInput.thresholdBaseBytes = baseBytes;
-    adaptiveInput.preSweepInUseBytes = cycleStats_.preSweepInUseBytes;
-    adaptiveInput.softLimitBytes = softLimitBytes;
-    adaptiveInput.gcWallUs = nowUs >= currentGcStartUs_
-        ? nowUs - currentGcStartUs_ : 0;
-    adaptiveInput.gcPeriodUs = heuPeriodUs;
-    adaptiveInput.normalHeu = normalHeu;
-    adaptiveInput.oom = exceptionalBypass;
-    MSAdaptiveHeapGrowthDecision adaptiveDecision =
-        EvaluateMSAdaptiveHeapGrowth(adaptiveHeapGrowthState_, adaptiveInput);
-    double heapGrowth = adaptiveDecision.effectiveGrowth;
-    bool bypassTransition =
-        exceptionalBypass || oldLastTrueLiveBytes == 0 ||
-        adaptiveDecision.bypassTransition;
-    MSHeapThresholdDecision thresholdDecision =
-        EvaluateMSHeapThreshold(
-            oldThreshold, baseBytes, heapGrowth, minThreshold, gcThresholdCap,
-            bypassTransition);
-    size_t newThreshold = thresholdDecision.threshold;
-    size_t scavengeBudgetBytes = softLimitBytes != 0
-        ? softLimitBytes
-        : (maxHeapBytes != 0 ? maxHeapBytes : CangjieRuntime::GetGCParam().gcThreshold);
-    MSRegionManager* regionManager = space.GetMSRegionManager();
-    size_t segmentBytes = regionManager == nullptr
-        ? MS_REGION_SIZE
-        : regionManager->GetSegmentSizeBytes();
-    MSScavengeWatermarkDecision scavengeDecision = EvaluateMSScavengeWatermarks(
-        newThreshold, cycleStats_.preSweepInUseBytes,
-        scavengeBudgetBytes, segmentBytes);
-    size_t newScavengeThreshold = scavengeDecision.retainLowBytes;
-    uint64_t watermarkNowUs = TimeUtil::MicroSeconds();
-    uint64_t highDecayElapsedUs = 0;
-    if (lastScavengeHighDecayUs_ != 0 &&
-        scavengeDecision.retainHighBytes < oldScavengeTriggerThreshold) {
-        highDecayElapsedUs = watermarkNowUs - lastScavengeHighDecayUs_;
-    }
-    MSScavengeHighWatermarkDecision highDecision =
-        StabilizeMSScavengeHighWatermark(
-            scavengeDecision.retainHighBytes, newScavengeThreshold,
-            oldScavengeTriggerThreshold, highDecayElapsedUs, segmentBytes,
-            adaptiveDecision.requestHighContraction);
-    size_t newScavengeTriggerThreshold = highDecision.retainHighBytes;
-    if (oldScavengeTriggerThreshold == 0 ||
-        scavengeDecision.retainHighBytes >= oldScavengeTriggerThreshold) {
-        lastScavengeHighDecayUs_ = watermarkNowUs;
-    } else if (highDecision.decayIntervals != 0) {
-        lastScavengeHighDecayUs_ = watermarkNowUs -
-            (highDecayElapsedUs % kMSScavengeHighDecayIntervalUs);
-    }
+    MSScavengeWatermarkStateUpdate scavengeWatermarkState =
+        UpdateMSScavengeWatermarkState(space, gcStats, heapThresholdState);
     uint64_t completedWU =
         cycleCompletedMarkWU_.load(std::memory_order_relaxed);
     uint64_t allocatedMarkBytes = cycleStats_.inUseBurstBytes;
@@ -3302,10 +3355,10 @@ void MarkSweepCollector::UpdateGCStats()
     size_t outsideMarkBytes = SaturatingAddMSBytes(
         cycleStats_.outsideCentralSmallBytes, cycleStats_.outsideLargeBytes);
     gcStats.SetLastMarkOutsideBytes(outsideMarkBytes);
-    gcStats.SetScavengeThreshold(newScavengeThreshold);
-    gcStats.SetScavengeTriggerThreshold(newScavengeTriggerThreshold);
-    gcStats.SetThreshold(newThreshold);
-    gcStats.lastSurvivingRegionBytes = liveBytes;
+    gcStats.SetScavengeThreshold(scavengeWatermarkState.newLowBytes);
+    gcStats.SetScavengeTriggerThreshold(scavengeWatermarkState.newHighBytes);
+    gcStats.SetThreshold(heapThresholdState.newThreshold);
+    gcStats.lastSurvivingRegionBytes = heapThresholdState.liveBytes;
     markPacer_.UpdateFullCycle(
         completedWU, allocatedMarkBytes, cycleStats_.concurrentMarkUs);
     VLOG(REPORT,
@@ -3320,42 +3373,52 @@ void MarkSweepCollector::UpdateGCStats()
          "[MS-GC] heapThreshold: old=%zuB new=%zuB prevLive=%zuB trueLive=%zuB "
          "outsideSmall=%zuB outsideLarge=%zuB base=%zuB "
          "growth=%.2f configuredGrowth=%.2f minThreshold=%zuB maxHeap=%zuB cap=%zuB",
-         oldThreshold, newThreshold, oldLastTrueLiveBytes, liveBytes,
+         heapThresholdState.oldThreshold, heapThresholdState.newThreshold,
+         heapThresholdState.oldLastTrueLiveBytes, heapThresholdState.liveBytes,
          cycleStats_.outsideCentralSmallBytes,
          cycleStats_.outsideLargeBytes,
-         baseBytes, 1.0 + heapGrowth, 1.0 + configuredHeapGrowth,
-         minThreshold, maxHeapBytes, gcThresholdCap);
+         heapThresholdState.baseBytes,
+         1.0 + heapThresholdState.adaptiveDecision.effectiveGrowth,
+         1.0 + heapThresholdState.configuredHeapGrowth,
+         heapThresholdState.minThreshold, heapThresholdState.maxHeapBytes,
+         heapThresholdState.gcThresholdCap);
     VLOG(REPORT,
          "[MS-GC] heapAdaptive: action=%s gcWallUs=%llu heuPeriodUs=%llu "
          "ratio=%.3f ratioEwma=%.3f wallEwmaUs=%.0f preSweepInUse=%zuB "
          "softLimit=%zuB effectiveGrowth=%.3f maxGrowth=%.3f cooldown=%u "
          "workingSetStable=%u memoryPressure=%d criticalPressure=%d "
          "requestHighContraction=%d",
-         MSAdaptiveHeapGrowthActionName(adaptiveDecision.action),
-         static_cast<unsigned long long>(adaptiveInput.gcWallUs),
-         static_cast<unsigned long long>(heuPeriodUs), adaptiveDecision.gcRatio,
-         adaptiveDecision.gcRatioEwma, adaptiveDecision.gcWallEwmaUs,
-         cycleStats_.preSweepInUseBytes, softLimitBytes,
-         adaptiveDecision.effectiveGrowth, maxAdaptiveGrowth,
-         static_cast<unsigned>(adaptiveDecision.cooldownCycles),
-         static_cast<unsigned>(adaptiveDecision.stableWorkingSetStreak),
-         static_cast<int>(adaptiveDecision.memoryPressure),
-         static_cast<int>(adaptiveDecision.criticalPressure),
-         static_cast<int>(adaptiveDecision.requestHighContraction));
+         MSAdaptiveHeapGrowthActionName(heapThresholdState.adaptiveDecision.action),
+         static_cast<unsigned long long>(heapThresholdState.gcWallUs),
+         static_cast<unsigned long long>(heapThresholdState.heuPeriodUs),
+         heapThresholdState.adaptiveDecision.gcRatio,
+         heapThresholdState.adaptiveDecision.gcRatioEwma,
+         heapThresholdState.adaptiveDecision.gcWallEwmaUs,
+         cycleStats_.preSweepInUseBytes, heapThresholdState.softLimitBytes,
+         heapThresholdState.adaptiveDecision.effectiveGrowth,
+         heapThresholdState.maxAdaptiveGrowth,
+         static_cast<unsigned>(heapThresholdState.adaptiveDecision.cooldownCycles),
+         static_cast<unsigned>(heapThresholdState.adaptiveDecision.stableWorkingSetStreak),
+         static_cast<int>(heapThresholdState.adaptiveDecision.memoryPressure),
+         static_cast<int>(heapThresholdState.adaptiveDecision.criticalPressure),
+         static_cast<int>(heapThresholdState.adaptiveDecision.requestHighContraction));
     VLOG(REPORT,
          "[MS-GC] heapThreshold stability: rawTarget=%zuB deadbandLower=%zuB "
          "deadbandUpper=%zuB deadbandHeld=%d fallLimit=%zuB riseLimit=%zuB "
          "riseLimited=%d fallLimited=%d transitionLimited=%d transitionBypassed=%d "
          "exceptionalBypass=%d previousInUse=%zuB inUse=%zuB markStart=%zuB markEnd=%zuB burst=%zuB",
-         thresholdDecision.rawTarget,
-         thresholdDecision.deadbandLower, thresholdDecision.deadbandUpper,
-         static_cast<int>(thresholdDecision.deadbandHeld),
-         thresholdDecision.fallLimit, thresholdDecision.riseLimit,
-         static_cast<int>(thresholdDecision.riseLimited),
-         static_cast<int>(thresholdDecision.fallLimited),
-         static_cast<int>(thresholdDecision.transitionLimited),
-         static_cast<int>(thresholdDecision.transitionBypassed),
-         static_cast<int>(exceptionalBypass), previousInUseBytes, inUseBytes,
+         heapThresholdState.thresholdDecision.rawTarget,
+         heapThresholdState.thresholdDecision.deadbandLower,
+         heapThresholdState.thresholdDecision.deadbandUpper,
+         static_cast<int>(heapThresholdState.thresholdDecision.deadbandHeld),
+         heapThresholdState.thresholdDecision.fallLimit,
+         heapThresholdState.thresholdDecision.riseLimit,
+         static_cast<int>(heapThresholdState.thresholdDecision.riseLimited),
+         static_cast<int>(heapThresholdState.thresholdDecision.fallLimited),
+         static_cast<int>(heapThresholdState.thresholdDecision.transitionLimited),
+         static_cast<int>(heapThresholdState.thresholdDecision.transitionBypassed),
+         static_cast<int>(heapThresholdState.exceptionalBypass),
+         heapThresholdState.previousInUseBytes, heapThresholdState.inUseBytes,
          cycleStats_.markStartInUseBytes, cycleStats_.markEndInUseBytes,
          cycleStats_.inUseBurstBytes);
     VLOG(REPORT,
@@ -3363,21 +3426,24 @@ void MarkSweepCollector::UpdateGCStats()
          "desiredHigh=%zuB high=%zuB heapGoal=%zuB preSweepInUse=%zuB "
          "retainBudget=%zuB band=%zuB highDecayElapsedUs=%llu highDecayBytes=%zuB "
          "highRaised=%d highHeld=%d highDecayed=%d budgetConstrained=%d",
-         oldScavengeThreshold, oldScavengeTriggerThreshold,
-         newScavengeThreshold, highDecision.desiredHighBytes,
-         newScavengeTriggerThreshold,
-         newThreshold, cycleStats_.preSweepInUseBytes,
-         scavengeDecision.retainBudgetBytes, scavengeDecision.releaseBandBytes,
-         static_cast<unsigned long long>(highDecayElapsedUs),
-         highDecision.decayBytes,
-         static_cast<int>(highDecision.highRaised),
-         static_cast<int>(highDecision.highHeld),
-         static_cast<int>(highDecision.highDecayed),
-         static_cast<int>(scavengeDecision.budgetConstrained));
+         scavengeWatermarkState.oldLowBytes, scavengeWatermarkState.oldHighBytes,
+         scavengeWatermarkState.newLowBytes,
+         scavengeWatermarkState.highDecision.desiredHighBytes,
+         scavengeWatermarkState.newHighBytes,
+         heapThresholdState.newThreshold, cycleStats_.preSweepInUseBytes,
+         scavengeWatermarkState.scavengeDecision.retainBudgetBytes,
+         scavengeWatermarkState.scavengeDecision.releaseBandBytes,
+         static_cast<unsigned long long>(scavengeWatermarkState.highDecayElapsedUs),
+         scavengeWatermarkState.highDecision.decayBytes,
+         static_cast<int>(scavengeWatermarkState.highDecision.highRaised),
+         static_cast<int>(scavengeWatermarkState.highDecision.highHeld),
+         static_cast<int>(scavengeWatermarkState.highDecision.highDecayed),
+         static_cast<int>(scavengeWatermarkState.scavengeDecision.budgetConstrained));
 
     VLOG(REPORT,
          "[MS-GC] live bytes %zu, inUseRegionBytes %zu, update gc threshold %zu -> %zu",
-         liveBytes, inUseBytes, oldThreshold, gcStats.GetThreshold());
+         heapThresholdState.liveBytes, heapThresholdState.inUseBytes,
+         heapThresholdState.oldThreshold, gcStats.GetThreshold());
     uint64_t updateStatsUs = TimeUtil::MicroSeconds() - updateStatsStart;
     VLOG(REPORT, "[MS-GC] UpdateGCStats took %lu us", static_cast<unsigned long>(updateStatsUs));
     TRACE_COUNT("CJRT_post_GC_HeapSize", Heap::GetHeap().GetAllocatedSize());

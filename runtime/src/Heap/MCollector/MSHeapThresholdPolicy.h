@@ -58,7 +58,7 @@ struct MSScavengeThresholdDecision {
 // Region immediately after it becomes reclaimable. The low watermark keeps
 // the capacity used in the just-finished allocation period or the current
 // HeapGrow heap goal, whichever is larger. The high watermark is only a
-// compact hysteresis band that decides when background Scavenge starts.
+// full allocation runway that decides when background Scavenge starts.
 struct MSScavengeWatermarkDecision {
     size_t retainBudgetBytes = 0;
     size_t retainLowBytes = 0;
@@ -67,7 +67,7 @@ struct MSScavengeWatermarkDecision {
     bool budgetConstrained = false;
 };
 
-constexpr uint64_t kMSScavengeHighDecayIntervalUs = 1000000ULL;
+constexpr uint64_t kMSScavengeHighDecayIntervalUs = 10000000ULL;
 
 // Low follows the most recent pre-sweep footprint directly. High is a cache
 // admission gate and must not fall on every short GC-cycle fluctuation: it
@@ -111,6 +111,7 @@ struct MSAdaptiveHeapGrowthState {
     uint8_t stableWorkingSetStreak = 0;
     uint8_t observationCycles = 0;
     uint8_t cooldownCycles = 0;
+    uint64_t lastAdjustmentUs = 0;
 };
 
 struct MSAdaptiveHeapGrowthInput {
@@ -121,6 +122,7 @@ struct MSAdaptiveHeapGrowthInput {
     size_t softLimitBytes = 0;
     uint64_t gcWallUs = 0;
     uint64_t gcPeriodUs = 0;
+    uint64_t nowUs = 0;
     bool normalHeu = false;
     bool oom = false;
 };
@@ -197,8 +199,11 @@ inline MSAdaptiveHeapGrowthDecision EvaluateMSAdaptiveHeapGrowth(
     MSAdaptiveHeapGrowthState& state, const MSAdaptiveHeapGrowthInput& input)
 {
     constexpr double kGrowthStepMultiplier = 1.125;
-    constexpr double kRaiseRatio = 0.50;
-    constexpr double kHoldRatio = 0.40;
+    constexpr double kTargetGcRatio = 0.35;
+    constexpr double kMaximumGrowthStepMultiplier = 2.0;
+    constexpr double kRaiseRatio = 0.40;
+    constexpr double kHoldRatio = 0.20;
+    constexpr uint64_t kMinimumAdjustmentIntervalUs = 2000000ULL;
     constexpr uint8_t kRaiseStreakCycles = 2;
     constexpr uint8_t kObservationCycles = 2;
     constexpr uint8_t kRollbackCooldownCycles = 4;
@@ -217,6 +222,9 @@ inline MSAdaptiveHeapGrowthDecision EvaluateMSAdaptiveHeapGrowth(
         state.initialized = true;
         state.effectiveGrowth = configuredGrowth;
     }
+    bool cadenceOpen = input.nowUs == 0 || state.lastAdjustmentUs == 0 ||
+        (input.nowUs >= state.lastAdjustmentUs &&
+         input.nowUs - state.lastAdjustmentUs >= kMinimumAdjustmentIntervalUs);
 
     // Heap pressure bypasses the normal threshold fall-rate limiter. This is
     // important because the soft budget is a safety constraint, not a tuning
@@ -232,6 +240,7 @@ inline MSAdaptiveHeapGrowthDecision EvaluateMSAdaptiveHeapGrowth(
         state.observingRaise = false;
         state.observationCycles = 0;
         state.cooldownCycles = 0;
+        state.lastAdjustmentUs = input.nowUs;
         decision.action = MSAdaptiveHeapGrowthAction::CRITICAL_PRESSURE;
         decision.bypassTransition = true;
         decision.memoryPressure = true;
@@ -243,6 +252,7 @@ inline MSAdaptiveHeapGrowthDecision EvaluateMSAdaptiveHeapGrowth(
         state.highRatioStreak = 0;
         state.observingRaise = false;
         state.observationCycles = 0;
+        state.lastAdjustmentUs = input.nowUs;
         decision.action = MSAdaptiveHeapGrowthAction::MEMORY_PRESSURE;
         decision.bypassTransition = true;
         decision.memoryPressure = true;
@@ -305,9 +315,17 @@ inline MSAdaptiveHeapGrowthDecision EvaluateMSAdaptiveHeapGrowth(
                 if (slowerGc && ratioNotImproved) {
                     state.effectiveGrowth = state.growthBeforeLastRaise;
                     state.cooldownCycles = kRollbackCooldownCycles;
+                    state.lastAdjustmentUs = input.nowUs;
                     decision.action = MSAdaptiveHeapGrowthAction::ROLLBACK;
                 }
             }
+        } else if (!cadenceOpen) {
+            // GC periods in Case27 can be only tens of milliseconds. Do not
+            // turn those adjacent samples into a sequence of conflicting heap
+            // adjustments; require a fresh stable streak after the cadence
+            // window opens.
+            state.highRatioStreak = 0;
+            state.lowRatioStreak = 0;
         } else if (state.gcRatioEwma <= kHoldRatio) {
             state.highRatioStreak = 0;
             state.lowRatioStreak = std::min<uint8_t>(
@@ -315,11 +333,16 @@ inline MSAdaptiveHeapGrowthDecision EvaluateMSAdaptiveHeapGrowth(
                 kLowRatioContractionCycles);
             if (state.lowRatioStreak >= kLowRatioContractionCycles &&
                 state.effectiveGrowth > configuredGrowth) {
+                // A normal low-cost observation is a throughput-tuning signal,
+                // not heap pressure. Give back only one bounded step so a
+                // transient low-ratio interval cannot discard the reusable
+                // Region runway built by the preceding high-cost interval.
                 state.effectiveGrowth = std::max(configuredGrowth,
-                    (1.0 + state.effectiveGrowth) / kGrowthStepMultiplier - 1.0);
+                    (1.0 + state.effectiveGrowth) /
+                        kGrowthStepMultiplier - 1.0);
                 state.lowRatioStreak = 0;
+                state.lastAdjustmentUs = input.nowUs;
                 decision.action = MSAdaptiveHeapGrowthAction::LOW_GC_RATIO;
-                decision.requestHighContraction = true;
             }
         } else if (state.cooldownCycles != 0) {
             --state.cooldownCycles;
@@ -329,8 +352,10 @@ inline MSAdaptiveHeapGrowthDecision EvaluateMSAdaptiveHeapGrowth(
             state.highRatioStreak = std::min<uint8_t>(
                 static_cast<uint8_t>(state.highRatioStreak + 1), kRaiseStreakCycles);
             if (state.highRatioStreak >= kRaiseStreakCycles) {
+                double ratioScale = std::min(kMaximumGrowthStepMultiplier,
+                    std::max(1.0, state.gcRatioEwma / kTargetGcRatio));
                 double raisedGrowth = std::min(maxGrowth,
-                    (1.0 + state.effectiveGrowth) * kGrowthStepMultiplier - 1.0);
+                    (1.0 + state.effectiveGrowth) * ratioScale - 1.0);
                 state.highRatioStreak = 0;
                 state.lowRatioStreak = 0;
                 if (raisedGrowth > state.effectiveGrowth) {
@@ -340,6 +365,7 @@ inline MSAdaptiveHeapGrowthDecision EvaluateMSAdaptiveHeapGrowth(
                     state.effectiveGrowth = raisedGrowth;
                     state.observationCycles = 0;
                     state.observingRaise = true;
+                    state.lastAdjustmentUs = input.nowUs;
                     decision.action = MSAdaptiveHeapGrowthAction::RAISE;
                 }
             }
@@ -363,18 +389,17 @@ inline MSScavengeWatermarkDecision EvaluateMSScavengeWatermarks(
 {
     MSScavengeWatermarkDecision decision;
     size_t minimumBand = std::max<size_t>(segmentBytes, 1);
-    // retainLow already keeps the current HeapGrow goal. Retaining another
-    // full goal above it doubles the reusable Region cache and lets RSS grow
-    // well beyond the active footprint. Keep one quarter of that goal as the
-    // hysteresis band; the Segment floor still preserves a useful local cache
-    // for small heaps.
-    size_t compactReleaseBand = heapGoalBytes / 4;
+    // retainLow is the footprint required by the allocation period that just
+    // completed. A transient in-use spike must not also reserve a second full
+    // heap goal above it. Keep one Segment above low and a stable 1.5-goal
+    // cache floor, which matches the observed steady Region footprint.
     if (softLimitBytes == 0) {
         decision.retainBudgetBytes = std::numeric_limits<size_t>::max();
         decision.retainLowBytes = std::max(heapGoalBytes, preSweepInUseBytes);
-        decision.releaseBandBytes = std::max(minimumBand, compactReleaseBand);
-        decision.retainHighBytes = SaturatingAddMSBytes(
-            decision.retainLowBytes, decision.releaseBandBytes);
+        decision.releaseBandBytes = minimumBand;
+        decision.retainHighBytes = std::max(
+            SaturatingAddMSBytes(decision.retainLowBytes, decision.releaseBandBytes),
+            SaturatingMultiplyMSBytes(heapGoalBytes, 3) / 2);
         return decision;
     }
 
@@ -385,12 +410,14 @@ inline MSScavengeWatermarkDecision EvaluateMSScavengeWatermarks(
         : softLimitBytes - emergencyReserve;
     size_t boundedHeapGoal = std::min(heapGoalBytes, decision.retainBudgetBytes);
     decision.retainLowBytes = std::max(preSweepInUseBytes, boundedHeapGoal);
-    decision.releaseBandBytes = std::max(minimumBand, compactReleaseBand);
+    decision.releaseBandBytes = minimumBand;
+    size_t stableCacheFloor = SaturatingMultiplyMSBytes(boundedHeapGoal, 3) / 2;
+    size_t lowWatermarkRunway = SaturatingAddMSBytes(
+        decision.retainLowBytes, decision.releaseBandBytes);
+    size_t desiredHighBytes = std::max(lowWatermarkRunway, stableCacheFloor);
     decision.retainHighBytes = std::max(
         decision.retainLowBytes,
-        std::min(decision.retainBudgetBytes,
-                 SaturatingAddMSBytes(decision.retainLowBytes,
-                                      decision.releaseBandBytes)));
+        std::min(decision.retainBudgetBytes, desiredHighBytes));
     decision.budgetConstrained = heapGoalBytes > decision.retainBudgetBytes ||
         preSweepInUseBytes > decision.retainBudgetBytes;
     return decision;

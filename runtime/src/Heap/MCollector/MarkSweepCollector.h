@@ -27,6 +27,7 @@ namespace MapleRuntime {
 
 class CentralRegionPool;
 class AllocBufferMS;
+class RegionSpaceMS;
 struct MSBarrierMarkBuffer;
 struct MSRegionInfo;
 struct ResolvedMarkTarget;
@@ -180,6 +181,15 @@ public:
     }
     void UpdateGCStats() override;
 private:
+    struct MSHeapThresholdStateUpdate;
+    struct MSScavengeWatermarkStateUpdate;
+
+    MSHeapThresholdStateUpdate UpdateMSHeapThresholdState(
+        RegionSpaceMS& space, const GCStats& gcStats, bool exceptionalBypass);
+    MSScavengeWatermarkStateUpdate UpdateMSScavengeWatermarkState(
+        RegionSpaceMS& space, const GCStats& gcStats,
+        const MSHeapThresholdStateUpdate& heapThresholdState);
+
     // ── MS GC phases ──
     void DoGarbageCollection();
     void PreEnumRoots(bool worldStopped = false); // Step 2.1a: Stop sweep, clear bitmaps, reclassify
