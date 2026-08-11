@@ -62,29 +62,53 @@ namespace MapleRuntime {
 #ifdef MRT_USE_MARK_SWEEP
 namespace {
 enum MSGCRuntimeWriteBarrierCounterKind : uint8_t {
+    // Allocation calls which missed/left the compiler-owned fast path and
+    // entered the Runtime C ABI.
+    MSGC_RUNTIME_ALLOC_OBJECT,
+    MSGC_RUNTIME_ALLOC_WEAK_REF,
+    MSGC_RUNTIME_ALLOC_PINNED,
+    MSGC_RUNTIME_ALLOC_FINALIZER,
+    MSGC_RUNTIME_ALLOC_ARRAY,
+    MSGC_RUNTIME_ALLOC_OBJ_ARRAY,
+    MSGC_RUNTIME_ALLOC_ARRAY8,
+    MSGC_RUNTIME_ALLOC_ARRAY16,
+    MSGC_RUNTIME_ALLOC_ARRAY32,
+    MSGC_RUNTIME_ALLOC_ARRAY64,
+    MSGC_RUNTIME_ALLOC_ARRAY_GENERIC,
+    MSGC_RUNTIME_ALLOC_ARRAY_GENERIC_FAST3,
+
+    // Compiler-to-Runtime write-barrier calls.
     MSGC_RUNTIME_WB_REF,
     MSGC_RUNTIME_WB_STATIC_REF,
     MSGC_RUNTIME_WB_STRUCT,
     MSGC_RUNTIME_WB_STATIC_STRUCT,
     MSGC_RUNTIME_WB_ARRAY_REF,
     MSGC_RUNTIME_WB_ARRAY_STRUCT,
+    MSGC_RUNTIME_WB_ATOMIC_WRITE,
+    MSGC_RUNTIME_WB_ATOMIC_SWAP,
+    MSGC_RUNTIME_WB_ATOMIC_CAS,
     MSGC_RUNTIME_WB_COUNT,
 };
 
 struct alignas(64) MSGCRuntimeWriteBarrierThreadCounters {
     std::atomic<uint64_t> counts[MSGC_RUNTIME_WB_COUNT] {};
+    uint32_t eventsSinceReport { 0 };
     MSGCRuntimeWriteBarrierThreadCounters* next { nullptr };
 };
 
 std::atomic<MSGCRuntimeWriteBarrierThreadCounters*> g_msgcRuntimeWriteBarrierCounters { nullptr };
+std::atomic<uint64_t> g_msgcRuntimeEntryLastReportedTotal { 0 };
 thread_local MSGCRuntimeWriteBarrierThreadCounters* g_msgcRuntimeWriteBarrierThreadCounters = nullptr;
+constexpr uint32_t kMSGCRuntimeEntryReportInterval = 4096;
 
 bool IsMSGCRuntimeWriteBarrierCountEnabled()
 {
     static const bool enabled = []() {
         const char* value = std::getenv("CJ_MSGC_BARRIER_COUNT");
-        return value != nullptr && value[0] != '\0' &&
-            !(value[0] == '0' && value[1] == '\0');
+        // Runtime entry counts are diagnostic output by default. Set the
+        // variable to exactly 0 to disable their per-entry accounting.
+        return value == nullptr ||
+            (value[0] != '\0' && !(value[0] == '0' && value[1] == '\0'));
     }();
     return enabled;
 }
@@ -100,6 +124,92 @@ MSGCRuntimeWriteBarrierThreadCounters* RegisterMSGCRuntimeWriteBarrierThreadCoun
     return counters;
 }
 
+void CollectMSGCRuntimeEntryTotals(uint64_t (&totals)[MSGC_RUNTIME_WB_COUNT])
+{
+    for (auto* counters = g_msgcRuntimeWriteBarrierCounters.load(std::memory_order_acquire);
+         counters != nullptr; counters = counters->next) {
+        for (uint8_t kind = 0; kind < MSGC_RUNTIME_WB_COUNT; ++kind) {
+            totals[kind] += counters->counts[kind].load(std::memory_order_relaxed);
+        }
+    }
+}
+
+uint64_t GetMSGCRuntimeEntryTotal(const uint64_t (&totals)[MSGC_RUNTIME_WB_COUNT])
+{
+    uint64_t total = 0;
+    for (uint8_t kind = 0; kind < MSGC_RUNTIME_WB_COUNT; ++kind) {
+        total += totals[kind];
+    }
+    return total;
+}
+
+void DumpMSGCRuntimeEntryCounts()
+{
+    uint64_t totals[MSGC_RUNTIME_WB_COUNT] {};
+    CollectMSGCRuntimeEntryTotals(totals);
+    const uint64_t allocationTotal =
+        totals[MSGC_RUNTIME_ALLOC_OBJECT] +
+        totals[MSGC_RUNTIME_ALLOC_WEAK_REF] +
+        totals[MSGC_RUNTIME_ALLOC_PINNED] +
+        totals[MSGC_RUNTIME_ALLOC_FINALIZER] +
+        totals[MSGC_RUNTIME_ALLOC_ARRAY] +
+        totals[MSGC_RUNTIME_ALLOC_OBJ_ARRAY] +
+        totals[MSGC_RUNTIME_ALLOC_ARRAY8] +
+        totals[MSGC_RUNTIME_ALLOC_ARRAY16] +
+        totals[MSGC_RUNTIME_ALLOC_ARRAY32] +
+        totals[MSGC_RUNTIME_ALLOC_ARRAY64] +
+        totals[MSGC_RUNTIME_ALLOC_ARRAY_GENERIC] +
+        totals[MSGC_RUNTIME_ALLOC_ARRAY_GENERIC_FAST3];
+    const uint64_t writeBarrierTotal =
+        totals[MSGC_RUNTIME_WB_REF] + totals[MSGC_RUNTIME_WB_STATIC_REF] +
+        totals[MSGC_RUNTIME_WB_STRUCT] + totals[MSGC_RUNTIME_WB_STATIC_STRUCT] +
+        totals[MSGC_RUNTIME_WB_ARRAY_REF] + totals[MSGC_RUNTIME_WB_ARRAY_STRUCT] +
+        totals[MSGC_RUNTIME_WB_ATOMIC_WRITE] + totals[MSGC_RUNTIME_WB_ATOMIC_SWAP] +
+        totals[MSGC_RUNTIME_WB_ATOMIC_CAS];
+    (void)fprintf(stderr,
+        "[MSGC_RUNTIME_ENTRY_COUNTS] new_object=%" PRIu64
+        " new_weak_ref=%" PRIu64 " new_pinned=%" PRIu64
+        " new_finalizer=%" PRIu64 " new_array=%" PRIu64
+        " new_obj_array=%" PRIu64 " new_array_1=%" PRIu64
+        " new_array_2=%" PRIu64 " new_array_4=%" PRIu64
+        " new_array_8=%" PRIu64 " new_array_generic=%" PRIu64
+        " new_array_generic_fast3=%" PRIu64
+        " allocation_total=%" PRIu64 " entry_total=%" PRIu64 "\n",
+        totals[MSGC_RUNTIME_ALLOC_OBJECT], totals[MSGC_RUNTIME_ALLOC_WEAK_REF],
+        totals[MSGC_RUNTIME_ALLOC_PINNED], totals[MSGC_RUNTIME_ALLOC_FINALIZER],
+        totals[MSGC_RUNTIME_ALLOC_ARRAY], totals[MSGC_RUNTIME_ALLOC_OBJ_ARRAY],
+        totals[MSGC_RUNTIME_ALLOC_ARRAY8], totals[MSGC_RUNTIME_ALLOC_ARRAY16],
+        totals[MSGC_RUNTIME_ALLOC_ARRAY32], totals[MSGC_RUNTIME_ALLOC_ARRAY64],
+        totals[MSGC_RUNTIME_ALLOC_ARRAY_GENERIC],
+        totals[MSGC_RUNTIME_ALLOC_ARRAY_GENERIC_FAST3], allocationTotal,
+        allocationTotal + writeBarrierTotal);
+    (void)fprintf(stderr,
+        "[MSGC_WB_RUNTIME_COUNTS] ref=%" PRIu64 " static_ref=%" PRIu64
+        " struct=%" PRIu64 " static_struct=%" PRIu64 " array_ref=%" PRIu64
+        " array_struct=%" PRIu64 " atomic_write=%" PRIu64
+        " atomic_swap=%" PRIu64 " atomic_cas=%" PRIu64 " total=%" PRIu64 "\n",
+        totals[MSGC_RUNTIME_WB_REF], totals[MSGC_RUNTIME_WB_STATIC_REF],
+        totals[MSGC_RUNTIME_WB_STRUCT], totals[MSGC_RUNTIME_WB_STATIC_STRUCT],
+        totals[MSGC_RUNTIME_WB_ARRAY_REF], totals[MSGC_RUNTIME_WB_ARRAY_STRUCT],
+        totals[MSGC_RUNTIME_WB_ATOMIC_WRITE], totals[MSGC_RUNTIME_WB_ATOMIC_SWAP],
+        totals[MSGC_RUNTIME_WB_ATOMIC_CAS], writeBarrierTotal);
+}
+
+void MaybeReportMSGCRuntimeEntryCounts()
+{
+    uint64_t totals[MSGC_RUNTIME_WB_COUNT] {};
+    CollectMSGCRuntimeEntryTotals(totals);
+    const uint64_t total = GetMSGCRuntimeEntryTotal(totals);
+    uint64_t last = g_msgcRuntimeEntryLastReportedTotal.load(std::memory_order_relaxed);
+    while (total >= last + kMSGCRuntimeEntryReportInterval) {
+        if (g_msgcRuntimeEntryLastReportedTotal.compare_exchange_weak(
+                last, total, std::memory_order_relaxed, std::memory_order_relaxed)) {
+            DumpMSGCRuntimeEntryCounts();
+            return;
+        }
+    }
+}
+
 inline void CountMSGCRuntimeWriteBarrier(MSGCRuntimeWriteBarrierCounterKind kind)
 {
     if (LIKELY(!IsMSGCRuntimeWriteBarrierCountEnabled())) {
@@ -108,33 +218,22 @@ inline void CountMSGCRuntimeWriteBarrier(MSGCRuntimeWriteBarrierCounterKind kind
     if (UNLIKELY(g_msgcRuntimeWriteBarrierThreadCounters == nullptr)) {
         g_msgcRuntimeWriteBarrierThreadCounters = RegisterMSGCRuntimeWriteBarrierThreadCounters();
     }
-    g_msgcRuntimeWriteBarrierThreadCounters->counts[kind].fetch_add(1, std::memory_order_relaxed);
+    MSGCRuntimeWriteBarrierThreadCounters* counters =
+        g_msgcRuntimeWriteBarrierThreadCounters;
+    counters->counts[kind].fetch_add(1, std::memory_order_relaxed);
+    if (UNLIKELY(++counters->eventsSinceReport >= kMSGCRuntimeEntryReportInterval)) {
+        counters->eventsSinceReport = 0;
+        MaybeReportMSGCRuntimeEntryCounts();
+    }
 }
 
 class MSGCRuntimeWriteBarrierCounterReporter {
 public:
     ~MSGCRuntimeWriteBarrierCounterReporter()
     {
-        if (!IsMSGCRuntimeWriteBarrierCountEnabled()) {
-            return;
+        if (IsMSGCRuntimeWriteBarrierCountEnabled()) {
+            DumpMSGCRuntimeEntryCounts();
         }
-        uint64_t totals[MSGC_RUNTIME_WB_COUNT] {};
-        for (auto* counters = g_msgcRuntimeWriteBarrierCounters.load(std::memory_order_acquire);
-             counters != nullptr; counters = counters->next) {
-            for (uint8_t kind = 0; kind < MSGC_RUNTIME_WB_COUNT; ++kind) {
-                totals[kind] += counters->counts[kind].load(std::memory_order_relaxed);
-            }
-        }
-        const uint64_t total = totals[MSGC_RUNTIME_WB_REF] + totals[MSGC_RUNTIME_WB_STATIC_REF] +
-            totals[MSGC_RUNTIME_WB_STRUCT] + totals[MSGC_RUNTIME_WB_STATIC_STRUCT] +
-            totals[MSGC_RUNTIME_WB_ARRAY_REF] + totals[MSGC_RUNTIME_WB_ARRAY_STRUCT];
-        (void)fprintf(stderr,
-            "[MSGC_WB_RUNTIME_COUNTS] ref=%" PRIu64 " static_ref=%" PRIu64
-            " struct=%" PRIu64 " static_struct=%" PRIu64 " array_ref=%" PRIu64
-            " array_struct=%" PRIu64 " total=%" PRIu64 "\n",
-            totals[MSGC_RUNTIME_WB_REF], totals[MSGC_RUNTIME_WB_STATIC_REF],
-            totals[MSGC_RUNTIME_WB_STRUCT], totals[MSGC_RUNTIME_WB_STATIC_STRUCT],
-            totals[MSGC_RUNTIME_WB_ARRAY_REF], totals[MSGC_RUNTIME_WB_ARRAY_STRUCT], total);
     }
 };
 
@@ -302,12 +401,18 @@ ArrayRef AllocateKnownWidthArrayOrThrow(const TypeInfo* arrayInfo, MIndex nElems
 
 extern "C" ObjRef MCC_NewObject(const TypeInfo* klass, MSize size)
 {
+#ifdef MRT_USE_MARK_SWEEP
+    CountMSGCRuntimeWriteBarrier(MSGC_RUNTIME_ALLOC_OBJECT);
+#endif
     return AllocateObjectOrThrow(klass, size, "object", "ObjectManager::NewObject return nullptr",
         [&]() { return ObjectManager::NewObject(klass, size); });
 }
 
 extern "C" ObjRef MCC_NewWeakRefObject(const TypeInfo* klass, MSize size)
 {
+#ifdef MRT_USE_MARK_SWEEP
+    CountMSGCRuntimeWriteBarrier(MSGC_RUNTIME_ALLOC_WEAK_REF);
+#endif
     return AllocateObjectOrThrow(klass, size, "weak reference",
         "ObjectManager::NewWeakRefObject return nullptr",
         [&]() { return ObjectManager::NewWeakRefObject(klass, size); });
@@ -315,6 +420,9 @@ extern "C" ObjRef MCC_NewWeakRefObject(const TypeInfo* klass, MSize size)
 
 extern "C" ObjRef MCC_NewPinnedObject(const TypeInfo* klass, MSize size, bool isFinalizer)
 {
+#ifdef MRT_USE_MARK_SWEEP
+    CountMSGCRuntimeWriteBarrier(MSGC_RUNTIME_ALLOC_PINNED);
+#endif
     return AllocateObjectOrThrow(klass, size, "object",
         "ObjectManager::NewPinnedObject return nullptr",
         [&]() { return ObjectManager::NewPinnedObject(klass, size, isFinalizer); });
@@ -322,6 +430,9 @@ extern "C" ObjRef MCC_NewPinnedObject(const TypeInfo* klass, MSize size, bool is
 
 extern "C" ObjRef MCC_NewFinalizer(const TypeInfo* klass, MSize size)
 {
+#ifdef MRT_USE_MARK_SWEEP
+    CountMSGCRuntimeWriteBarrier(MSGC_RUNTIME_ALLOC_FINALIZER);
+#endif
     return AllocateObjectOrThrow(klass, size, "object with ~init",
         "ObjectManager::NewFinalizer return nullptr",
         [&]() { return ObjectManager::NewFinalizer(klass, size); });
@@ -334,36 +445,54 @@ extern "C" ObjRef MCC_OnFinalizerCreated(ObjRef ref)
 }
 extern "C" ArrayRef MCC_NewArray(const TypeInfo* arrayInfo, MIndex nElems)
 {
+#ifdef MRT_USE_MARK_SWEEP
+    CountMSGCRuntimeWriteBarrier(MSGC_RUNTIME_ALLOC_ARRAY);
+#endif
     return AllocateArrayOrThrow(arrayInfo, nElems, "ObjectManager::NewArray return nullptr",
         [&]() { return ObjectManager::NewArray(nElems, arrayInfo); });
 }
 
 extern "C" ArrayRef MCC_NewObjArray(const TypeInfo* arrayInfo, MIndex nElems)
 {
+#ifdef MRT_USE_MARK_SWEEP
+    CountMSGCRuntimeWriteBarrier(MSGC_RUNTIME_ALLOC_OBJ_ARRAY);
+#endif
     return AllocateArrayOrThrow(arrayInfo, nElems, "ObjectManager::NewObjArray return nullptr",
         [&]() { return ObjectManager::NewObjArray(nElems, arrayInfo); });
 }
 
 extern "C" ArrayRef MCC_NewArray8(const TypeInfo* arrayInfo, MIndex nElems)
 {
+#ifdef MRT_USE_MARK_SWEEP
+    CountMSGCRuntimeWriteBarrier(MSGC_RUNTIME_ALLOC_ARRAY8);
+#endif
     return AllocateKnownWidthArrayOrThrow(arrayInfo, nElems, ObjectManager::ArrayElementWidth::ONE_BYTE,
         "ObjectManager::NewKnownWidthArray(1 byte) return nullptr");
 }
 
 extern "C" ArrayRef MCC_NewArray16(const TypeInfo* arrayInfo, MIndex nElems)
 {
+#ifdef MRT_USE_MARK_SWEEP
+    CountMSGCRuntimeWriteBarrier(MSGC_RUNTIME_ALLOC_ARRAY16);
+#endif
     return AllocateKnownWidthArrayOrThrow(arrayInfo, nElems, ObjectManager::ArrayElementWidth::TWO_BYTES,
         "ObjectManager::NewKnownWidthArray(2 bytes) return nullptr");
 }
 
 extern "C" ArrayRef MCC_NewArray32(const TypeInfo* arrayInfo, MIndex nElems)
 {
+#ifdef MRT_USE_MARK_SWEEP
+    CountMSGCRuntimeWriteBarrier(MSGC_RUNTIME_ALLOC_ARRAY32);
+#endif
     return AllocateKnownWidthArrayOrThrow(arrayInfo, nElems, ObjectManager::ArrayElementWidth::FOUR_BYTES,
         "ObjectManager::NewKnownWidthArray(4 bytes) return nullptr");
 }
 
 extern "C" ArrayRef MCC_NewArray64(const TypeInfo* arrayInfo, MIndex nElems)
 {
+#ifdef MRT_USE_MARK_SWEEP
+    CountMSGCRuntimeWriteBarrier(MSGC_RUNTIME_ALLOC_ARRAY64);
+#endif
     return AllocateKnownWidthArrayOrThrow(arrayInfo, nElems, ObjectManager::ArrayElementWidth::EIGHT_BYTES,
         "ObjectManager::NewKnownWidthArray(8 bytes) return nullptr");
 }
@@ -494,6 +623,7 @@ extern "C" void MCC_AtomicWriteReference(const ObjectPtr ref, const ObjectPtr ob
                                          MemoryOrder order)
 {
 #ifdef MRT_USE_MARK_SWEEP
+    CountMSGCRuntimeWriteBarrier(MSGC_RUNTIME_WB_ATOMIC_WRITE);
     (void)obj;
     MSBarrierOps::AtomicWriteReference(*field, ref, order);
 #else
@@ -515,6 +645,7 @@ extern "C" ObjectPtr MCC_AtomicSwapReference(const ObjectPtr ref, const ObjectPt
                                              MemoryOrder order)
 {
 #ifdef MRT_USE_MARK_SWEEP
+    CountMSGCRuntimeWriteBarrier(MSGC_RUNTIME_WB_ATOMIC_SWAP);
     (void)obj;
     return MSBarrierOps::AtomicSwapReference(*field, ref, order);
 #else
@@ -526,6 +657,7 @@ extern "C" bool MCC_AtomicCompareSwapReference(const ObjectPtr oldRef, const Obj
                                                RefField<true>* field, MemoryOrder succOrder, MemoryOrder failOrder)
 {
 #ifdef MRT_USE_MARK_SWEEP
+    CountMSGCRuntimeWriteBarrier(MSGC_RUNTIME_WB_ATOMIC_CAS);
     (void)obj;
     return MSBarrierOps::CompareAndSwapReference(
         *field, oldRef, newRef, succOrder, failOrder);
@@ -1952,6 +2084,9 @@ ArrayRef NewGenericArrayOrThrow(const TypeInfo* arrayInfo, MIndex nElems,
 
 extern "C" ArrayRef MCC_NewArrayGeneric(const TypeInfo* arrayInfo, MIndex nElems)
 {
+#ifdef MRT_USE_MARK_SWEEP
+    CountMSGCRuntimeWriteBarrier(MSGC_RUNTIME_ALLOC_ARRAY_GENERIC);
+#endif
     return NewGenericArrayOrThrow(arrayInfo, nElems, "NewArrayGeneric return nullptr");
 }
 
@@ -1959,6 +2094,9 @@ extern "C" ArrayRef MCC_NewArrayGeneric(const TypeInfo* arrayInfo, MIndex nElems
 extern "C" MRT_EXPORT ArrayRef MCC_NewArrayGenericFast3_MSGC(const TypeInfo* arrayInfo, MIndex nElems,
                                                               MSize totalSize)
 {
+#ifdef MRT_USE_MARK_SWEEP
+    CountMSGCRuntimeWriteBarrier(MSGC_RUNTIME_ALLOC_ARRAY_GENERIC_FAST3);
+#endif
     // The third argument is the compiler-checked 32-bit fast-allocation size:
     // 0 means the object exceeds the small-object path. Runtime slow allocation
     // always recomputes size from TypeInfo and length.

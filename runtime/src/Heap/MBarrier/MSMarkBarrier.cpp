@@ -58,8 +58,8 @@ bool IsMSBarrierRuntimeStatsEnabled()
 {
     static const bool enabled = []() {
         const char* value = std::getenv("CJ_MSGC_BARRIER_COUNT");
-        bool on = value != nullptr && value[0] != '\0' &&
-            !(value[0] == '0' && value[1] == '\0');
+        bool on = value == nullptr ||
+            (value[0] != '\0' && !(value[0] == '0' && value[1] == '\0'));
         if (on) {
             std::atexit(DumpMSBarrierRuntimeStats);
         }
