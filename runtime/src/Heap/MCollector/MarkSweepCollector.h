@@ -336,6 +336,9 @@ private:
     // ── DFX: Per-cycle stats ──
     MSGCCycleStats cycleStats_;
     uint64_t gcCycle_ = 0;  // Monotonic GC cycle counter
+    MSAdaptiveHeapGrowthState adaptiveHeapGrowthState_;
+    uint64_t currentGcStartUs_ = 0;
+    uint64_t lastHeuGcStartUs_ = 0;
     // High is intentionally sticky across short GC-cycle fluctuations. Low is
     // still recomputed directly from the current pre-sweep footprint.
     uint64_t lastScavengeHighDecayUs_ = 0;

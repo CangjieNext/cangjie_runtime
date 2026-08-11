@@ -16,7 +16,8 @@ Scavenge 已尽力    -> 才逐步收紧 Mark runway
 接近软上限        -> 保留现有 OOM Mark 保护路径
 ```
 
-本文是设计和验证计划，尚未修改 Runtime 行为。
+第 1--8 节保留最初的设计推演。实际落地的无新增参数控制器、精确阈值和验证结果见第 10 节；
+其中原先建议的 `cjMSHeapTargetInterval` 已取消，并未加入 Runtime。
 
 ## 2. 现有 case27 证据
 
@@ -200,7 +201,9 @@ NORMAL  --------------------------------------> THROUGHPUT_PRESSURE
 
 ## 6. 配置接口和兼容性
 
-不新增独立的 enable 开关，也不暴露水位、EWMA、runway cap 等调参项。只新增一个参数：
+不新增独立的 enable 开关，也不暴露水位、EWMA、runway cap 等调参项。此处曾建议新增一个
+`cjMSHeapTargetInterval`，但最终实现已取消该参数，改为每个普通 HEU 周期基于实测 GC 占比闭环
+控制；以第 10 节为准。
 
 | 参数 | 默认 | 作用 |
 | --- | --- | --- |
@@ -402,3 +405,76 @@ MSGC 成功 21,609、失败 0、吞吐 2,135 req/s。369 个 GC 周期中 high �
 按时间下降 6 次；后台 Scavenge 仅 3 次实际释放、约 0.2 GiB。日志中 steady-state 例子为
 `low=247 MiB`、`desiredHigh=451 MiB`、已发布 `high=468 MiB`、`highHeld=1`，表明 low 仍可下降，
 但 high 不会随单轮采样立即下跳。
+
+## 10. 已实施：无新增参数的自适应 HeapGrow（2026-08-11）
+
+实现不增加任何环境变量。`cjHeapGrowth` 只在进程启动时读取一次，作为内部
+`effectiveGrowth` 的初值；`cjHeapSize` 是首要堆预算。控制器只在
+`MarkSweepCollector::UpdateGCStats()` 更新，未进入 mutator 分配快路径。
+
+### 10.1 输入、上限与状态
+
+每个普通 HEU GC 记录本轮开始时间；相邻两个 HEU 开始时刻之差为 `heuPeriod`，本轮已耗费的
+GC wall time 为 `gcWall`。因此：
+
+```text
+gcRatio = gcWall / heuPeriod
+```
+
+`gcRatio` 和 `gcWall` 均采用 `3/4 old + 1/4 sample` 的 EWMA。阈值上限为：
+
+```text
+gcThresholdCap = min(existingVirtualHeapCap, 80% × cjHeapSize)  # 设置 cjHeapSize 时
+maxGrowth       = max(0, gcThresholdCap / thresholdBase - 1)
+```
+
+最终仍通过已有 `EvaluateMSHeapThreshold()` 的 10% deadband 与 12.5% 单周期限幅发布。
+
+### 10.2 控制规则
+
+- 连续两个普通 HEU 周期 `gcRatioEWMA > 50%` 时，将**总乘数**上调 12.5%：
+  `G = (1 + G) × 1.125 - 1`；
+- `gcRatioEWMA <= 40%` 时清除上调 streak，保持当前 `effectiveGrowth`；
+- 每次上调后观察两个 HEU 周期。若 `gcWallEWMA` 比上调前高超过 25%，且
+  `gcRatioEWMA` 没有至少降低 10%，恢复上调前的 `effectiveGrowth`，并冷却四个周期；
+- `preSweepInUseBytes >= 80% × cjHeapSize` 时优先内存预算，按一个反向 12.5% 步长降低：
+  `G = max(0, (1 + G) / 1.125 - 1)`；该周期绕过普通 threshold 的下降限幅；
+- `preSweepInUseBytes >= 90% × cjHeapSize` 或发生 OOM 时，`G` 立即归零，同样绕过下降限幅。
+
+这里的 `preSweepInUseBytes` 取自强制等待本轮 sweep 前，表达的是“上次 GC 后到本次 GC 实际用到
+的 Region 容量”，而不是 sweep 后剩余的 live bytes。这样内存压力可在下一轮 Mark 阈值上直接
+生效，而不要求先额外释放 Region。
+
+### 10.3 代码与日志
+
+- `src/Heap/MCollector/MSHeapThresholdPolicy.h`：纯函数
+  `EvaluateMSAdaptiveHeapGrowth()`，包含状态、EWMA、raise/rollback/pressure 决策；
+- `src/Heap/MCollector/MarkSweepCollector.h`：仅保存控制器状态、本轮 GC 开始时间、上一 HEU
+  开始时间；
+- `src/Heap/MCollector/MarkSweepCollector.cpp::UpdateGCStats()`：计算输入、约束 cap、将压力
+  bypass 传给既有 threshold policy，并输出：
+
+```text
+[MS-GC] heapAdaptive: action=raise|hold|rollback|memory_pressure|critical_pressure \
+  gcWallUs=... heuPeriodUs=... ratio=... ratioEwma=... wallEwmaUs=... \
+  preSweepInUse=... softLimit=... effectiveGrowth=... maxGrowth=... cooldown=...
+```
+
+### 10.4 验证
+
+新增纯策略测试覆盖：两次高 GC ratio 后上调、无收益上调的回退及四周期冷却、80% 压力的反向
+下降、90%/OOM 的归零与限幅 bypass。测试通过后，已按固定流程执行：
+
+```bash
+./build/scripts/rebuild_msgc_runtime_output.py
+```
+
+安装后的 case27 短验证参数为 `HEAP_SIZE=16gb`、`c100`、`100K`、`10s`、`HeapGrow=10`、
+`Scavenge=5`、显式 marksweep：
+
+`MSGC_RESULT/Result/case27_http_complex_json/result/20260811_c100_100k_HeapGrow10_Scavenge5_compare_4`
+
+MSGC 完成 21,511 个成功请求、0 失败、2,123 req/s。日志共出现 3 次 `raise`、1 次 `rollback`、
+306 次 `hold`；稳态 `gcRatioEWMA` 约为 0.21--0.26，未触发内存压力动作。所有记录的
+`heapThreshold` 都使用 `cap=13,743,895,348B`，即 16 GiB 的 80%。该短跑只验证控制路径与
+安装后的 Runtime 生效，不将单次吞吐作为 A/B 性能结论。

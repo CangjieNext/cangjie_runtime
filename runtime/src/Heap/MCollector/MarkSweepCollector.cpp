@@ -669,6 +669,7 @@ void MarkSweepCollector::RunGarbageCollection(uint64_t gcIndex, GCReason reason)
     gcStats.reason = reason;
     gcStats.collectedBytes = 0;
     gcStats.gcStartTime = TimeUtil::NanoSeconds();
+    currentGcStartUs_ = TimeUtil::MicroSeconds();
     // Block ①: GC Entry
     LogGCEntry(gcIndex, reason);
 
@@ -3210,22 +3211,57 @@ void MarkSweepCollector::UpdateGCStats()
         cycleStats_.thresholdBaseBytes = thresholdBase.gcBaseBytes;
     }
 
-    double heapGrowth = CangjieRuntime::GetHeapParam().heapGrowth;
+    double configuredHeapGrowth = CangjieRuntime::GetHeapParam().heapGrowth;
+    size_t softLimitBytes = CangjieRuntime::GetMSSoftHeapLimitBytes();
     size_t gcThresholdCap = maxHeapBytes != 0
         ? maxHeapBytes
         : CangjieRuntime::GetGCParam().gcThreshold;
+    if (softLimitBytes != 0) {
+        // Preserve a 20% allocation runway beneath the configured heap budget.
+        gcThresholdCap = std::min(
+            gcThresholdCap, softLimitBytes - softLimitBytes / 5);
+    }
     size_t absoluteMinThreshold =
         std::min(gcThresholdCap, static_cast<size_t>(20) * 1024 * 1024);
     size_t minThreshold = ComputeMSHeapThresholdFloor(
         absoluteMinThreshold, gcThresholdCap);
+    double maxAdaptiveGrowth = 0.0;
+    if (baseBytes != 0 && gcThresholdCap > baseBytes) {
+        maxAdaptiveGrowth = static_cast<double>(gcThresholdCap) /
+            static_cast<double>(baseBytes) - 1.0;
+    }
+    uint64_t nowUs = TimeUtil::MicroSeconds();
+    bool normalHeu = gcStats.reason == GC_REASON_HEU;
+    uint64_t heuPeriodUs = 0;
+    if (normalHeu) {
+        if (lastHeuGcStartUs_ != 0 && nowUs >= lastHeuGcStartUs_) {
+            heuPeriodUs = nowUs - lastHeuGcStartUs_;
+        }
+        lastHeuGcStartUs_ = nowUs;
+    } else if (exceptionalBypass) {
+        lastHeuGcStartUs_ = 0;
+    }
+    MSAdaptiveHeapGrowthInput adaptiveInput;
+    adaptiveInput.initialGrowth = configuredHeapGrowth;
+    adaptiveInput.maxGrowth = maxAdaptiveGrowth;
+    adaptiveInput.preSweepInUseBytes = cycleStats_.preSweepInUseBytes;
+    adaptiveInput.softLimitBytes = softLimitBytes;
+    adaptiveInput.gcWallUs = nowUs >= currentGcStartUs_
+        ? nowUs - currentGcStartUs_ : 0;
+    adaptiveInput.gcPeriodUs = heuPeriodUs;
+    adaptiveInput.normalHeu = normalHeu;
+    adaptiveInput.oom = exceptionalBypass;
+    MSAdaptiveHeapGrowthDecision adaptiveDecision =
+        EvaluateMSAdaptiveHeapGrowth(adaptiveHeapGrowthState_, adaptiveInput);
+    double heapGrowth = adaptiveDecision.effectiveGrowth;
     bool bypassTransition =
-        exceptionalBypass || oldLastTrueLiveBytes == 0;
+        exceptionalBypass || oldLastTrueLiveBytes == 0 ||
+        adaptiveDecision.bypassTransition;
     MSHeapThresholdDecision thresholdDecision =
         EvaluateMSHeapThreshold(
             oldThreshold, baseBytes, heapGrowth, minThreshold, gcThresholdCap,
             bypassTransition);
     size_t newThreshold = thresholdDecision.threshold;
-    size_t softLimitBytes = CangjieRuntime::GetMSSoftHeapLimitBytes();
     size_t scavengeBudgetBytes = softLimitBytes != 0
         ? softLimitBytes
         : (maxHeapBytes != 0 ? maxHeapBytes : CangjieRuntime::GetGCParam().gcThreshold);
@@ -3281,11 +3317,26 @@ void MarkSweepCollector::UpdateGCStats()
     VLOG(REPORT,
          "[MS-GC] heapThreshold: old=%zuB new=%zuB prevLive=%zuB trueLive=%zuB "
          "outsideSmall=%zuB outsideLarge=%zuB base=%zuB "
-         "growth=%.2f minThreshold=%zuB maxHeap=%zuB",
+         "growth=%.2f configuredGrowth=%.2f minThreshold=%zuB maxHeap=%zuB cap=%zuB",
          oldThreshold, newThreshold, oldLastTrueLiveBytes, liveBytes,
          cycleStats_.outsideCentralSmallBytes,
          cycleStats_.outsideLargeBytes,
-         baseBytes, 1.0 + heapGrowth, minThreshold, maxHeapBytes);
+         baseBytes, 1.0 + heapGrowth, 1.0 + configuredHeapGrowth,
+         minThreshold, maxHeapBytes, gcThresholdCap);
+    VLOG(REPORT,
+         "[MS-GC] heapAdaptive: action=%s gcWallUs=%llu heuPeriodUs=%llu "
+         "ratio=%.3f ratioEwma=%.3f wallEwmaUs=%.0f preSweepInUse=%zuB "
+         "softLimit=%zuB effectiveGrowth=%.3f maxGrowth=%.3f cooldown=%u "
+         "memoryPressure=%d criticalPressure=%d",
+         MSAdaptiveHeapGrowthActionName(adaptiveDecision.action),
+         static_cast<unsigned long long>(adaptiveInput.gcWallUs),
+         static_cast<unsigned long long>(heuPeriodUs), adaptiveDecision.gcRatio,
+         adaptiveDecision.gcRatioEwma, adaptiveDecision.gcWallEwmaUs,
+         cycleStats_.preSweepInUseBytes, softLimitBytes,
+         adaptiveDecision.effectiveGrowth, maxAdaptiveGrowth,
+         static_cast<unsigned>(adaptiveDecision.cooldownCycles),
+         static_cast<int>(adaptiveDecision.memoryPressure),
+         static_cast<int>(adaptiveDecision.criticalPressure));
     VLOG(REPORT,
          "[MS-GC] heapThreshold stability: rawTarget=%zuB deadbandLower=%zuB "
          "deadbandUpper=%zuB deadbandHeld=%d fallLimit=%zuB riseLimit=%zuB "

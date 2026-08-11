@@ -82,6 +82,72 @@ struct MSScavengeHighWatermarkDecision {
     bool highDecayed = false;
 };
 
+// HeapGrowth is an internal controller state, seeded once from cjHeapGrowth.
+// It deliberately has no extra user-facing tuning knobs: cjHeapSize remains
+// the priority, while the controller only trades unused heap headroom for a
+// lower normal HEU-GC frequency.
+enum class MSAdaptiveHeapGrowthAction : uint8_t {
+    HOLD = 0,
+    RAISE,
+    ROLLBACK,
+    MEMORY_PRESSURE,
+    CRITICAL_PRESSURE,
+};
+
+struct MSAdaptiveHeapGrowthState {
+    bool initialized = false;
+    double effectiveGrowth = 0.0;
+    double gcRatioEwma = 0.0;
+    double gcWallEwmaUs = 0.0;
+    double growthBeforeLastRaise = 0.0;
+    double ratioBeforeLastRaise = 0.0;
+    double wallBeforeLastRaiseUs = 0.0;
+    bool observingRaise = false;
+    uint8_t highRatioStreak = 0;
+    uint8_t observationCycles = 0;
+    uint8_t cooldownCycles = 0;
+};
+
+struct MSAdaptiveHeapGrowthInput {
+    double initialGrowth = 0.0;
+    double maxGrowth = 0.0;
+    size_t preSweepInUseBytes = 0;
+    size_t softLimitBytes = 0;
+    uint64_t gcWallUs = 0;
+    uint64_t gcPeriodUs = 0;
+    bool normalHeu = false;
+    bool oom = false;
+};
+
+struct MSAdaptiveHeapGrowthDecision {
+    double effectiveGrowth = 0.0;
+    double gcRatio = 0.0;
+    double gcRatioEwma = 0.0;
+    double gcWallEwmaUs = 0.0;
+    uint8_t cooldownCycles = 0;
+    MSAdaptiveHeapGrowthAction action = MSAdaptiveHeapGrowthAction::HOLD;
+    bool bypassTransition = false;
+    bool memoryPressure = false;
+    bool criticalPressure = false;
+};
+
+inline const char* MSAdaptiveHeapGrowthActionName(MSAdaptiveHeapGrowthAction action)
+{
+    switch (action) {
+        case MSAdaptiveHeapGrowthAction::HOLD:
+            return "hold";
+        case MSAdaptiveHeapGrowthAction::RAISE:
+            return "raise";
+        case MSAdaptiveHeapGrowthAction::ROLLBACK:
+            return "rollback";
+        case MSAdaptiveHeapGrowthAction::MEMORY_PRESSURE:
+            return "memory_pressure";
+        case MSAdaptiveHeapGrowthAction::CRITICAL_PRESSURE:
+            return "critical_pressure";
+    }
+    return "unknown";
+}
+
 struct MSGCThresholdBaseDecision {
     size_t markedLiveBytes = 0;
     size_t gcBaseBytes = 0;
@@ -104,6 +170,120 @@ inline size_t SaturatingMultiplyMSBytes(size_t lhs, size_t rhs)
         return std::numeric_limits<size_t>::max();
     }
     return lhs * rhs;
+}
+
+inline MSAdaptiveHeapGrowthDecision EvaluateMSAdaptiveHeapGrowth(
+    MSAdaptiveHeapGrowthState& state, const MSAdaptiveHeapGrowthInput& input)
+{
+    constexpr double kGrowthStepMultiplier = 1.125;
+    constexpr double kRaiseRatio = 0.50;
+    constexpr double kHoldRatio = 0.40;
+    constexpr uint8_t kRaiseStreakCycles = 2;
+    constexpr uint8_t kObservationCycles = 2;
+    constexpr uint8_t kRollbackCooldownCycles = 4;
+    constexpr double kRollbackWallIncrease = 1.25;
+    constexpr double kRollbackRequiredRatioReduction = 0.90;
+    constexpr double kEwmaPreviousWeight = 0.75;
+    constexpr double kEwmaSampleWeight = 0.25;
+
+    MSAdaptiveHeapGrowthDecision decision;
+    double maxGrowth = std::max(0.0, input.maxGrowth);
+    if (!state.initialized) {
+        state.initialized = true;
+        state.effectiveGrowth = std::min(std::max(0.0, input.initialGrowth), maxGrowth);
+    }
+
+    // Heap pressure bypasses the normal threshold fall-rate limiter. This is
+    // important because the soft budget is a safety constraint, not a tuning
+    // suggestion. A zero soft limit means no configured heap budget.
+    bool hasSoftLimit = input.softLimitBytes != 0;
+    bool criticalPressure = input.oom || (hasSoftLimit &&
+        input.preSweepInUseBytes >= input.softLimitBytes - input.softLimitBytes / 10);
+    bool memoryPressure = hasSoftLimit &&
+        input.preSweepInUseBytes >= input.softLimitBytes - input.softLimitBytes / 5;
+    if (criticalPressure) {
+        state.effectiveGrowth = 0.0;
+        state.highRatioStreak = 0;
+        state.observingRaise = false;
+        state.observationCycles = 0;
+        state.cooldownCycles = 0;
+        decision.action = MSAdaptiveHeapGrowthAction::CRITICAL_PRESSURE;
+        decision.bypassTransition = true;
+        decision.memoryPressure = true;
+        decision.criticalPressure = true;
+    } else if (memoryPressure) {
+        state.effectiveGrowth = std::max(
+            0.0, (1.0 + state.effectiveGrowth) / kGrowthStepMultiplier - 1.0);
+        state.highRatioStreak = 0;
+        state.observingRaise = false;
+        state.observationCycles = 0;
+        decision.action = MSAdaptiveHeapGrowthAction::MEMORY_PRESSURE;
+        decision.bypassTransition = true;
+        decision.memoryPressure = true;
+    } else if (input.normalHeu && input.gcPeriodUs != 0) {
+        decision.gcRatio = static_cast<double>(input.gcWallUs) /
+            static_cast<double>(input.gcPeriodUs);
+        if (state.gcRatioEwma == 0.0) {
+            state.gcRatioEwma = decision.gcRatio;
+        } else {
+            state.gcRatioEwma = state.gcRatioEwma * kEwmaPreviousWeight +
+                decision.gcRatio * kEwmaSampleWeight;
+        }
+        if (state.gcWallEwmaUs == 0.0) {
+            state.gcWallEwmaUs = static_cast<double>(input.gcWallUs);
+        } else {
+            state.gcWallEwmaUs = state.gcWallEwmaUs * kEwmaPreviousWeight +
+                static_cast<double>(input.gcWallUs) * kEwmaSampleWeight;
+        }
+
+        if (state.observingRaise) {
+            ++state.observationCycles;
+            if (state.observationCycles >= kObservationCycles) {
+                bool slowerGc = state.gcWallEwmaUs >
+                    state.wallBeforeLastRaiseUs * kRollbackWallIncrease;
+                bool ratioNotImproved = state.gcRatioEwma >
+                    state.ratioBeforeLastRaise * kRollbackRequiredRatioReduction;
+                state.observationCycles = 0;
+                state.observingRaise = false;
+                state.highRatioStreak = 0;
+                if (slowerGc && ratioNotImproved) {
+                    state.effectiveGrowth = state.growthBeforeLastRaise;
+                    state.cooldownCycles = kRollbackCooldownCycles;
+                    decision.action = MSAdaptiveHeapGrowthAction::ROLLBACK;
+                }
+            }
+        } else if (state.cooldownCycles != 0) {
+            --state.cooldownCycles;
+            state.highRatioStreak = 0;
+        } else if (state.gcRatioEwma <= kHoldRatio) {
+            state.highRatioStreak = 0;
+        } else if (state.gcRatioEwma > kRaiseRatio) {
+            state.highRatioStreak = std::min<uint8_t>(
+                static_cast<uint8_t>(state.highRatioStreak + 1), kRaiseStreakCycles);
+            if (state.highRatioStreak >= kRaiseStreakCycles) {
+                double raisedGrowth = std::min(maxGrowth,
+                    (1.0 + state.effectiveGrowth) * kGrowthStepMultiplier - 1.0);
+                state.highRatioStreak = 0;
+                if (raisedGrowth > state.effectiveGrowth) {
+                    state.growthBeforeLastRaise = state.effectiveGrowth;
+                    state.ratioBeforeLastRaise = state.gcRatioEwma;
+                    state.wallBeforeLastRaiseUs = state.gcWallEwmaUs;
+                    state.effectiveGrowth = raisedGrowth;
+                    state.observationCycles = 0;
+                    state.observingRaise = true;
+                    decision.action = MSAdaptiveHeapGrowthAction::RAISE;
+                }
+            }
+        } else {
+            state.highRatioStreak = 0;
+        }
+    }
+
+    decision.effectiveGrowth = state.effectiveGrowth;
+    decision.gcRatioEwma = state.gcRatioEwma;
+    decision.gcWallEwmaUs = state.gcWallEwmaUs;
+    decision.cooldownCycles = state.cooldownCycles;
+    return decision;
 }
 
 inline MSScavengeWatermarkDecision EvaluateMSScavengeWatermarks(
