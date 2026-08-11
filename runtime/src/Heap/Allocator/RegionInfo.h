@@ -9,6 +9,7 @@
 
 #include <list>
 #include <map>
+#include <new>
 #include <set>
 #include <thread>
 #include <vector>
@@ -356,6 +357,76 @@ public:
         SetMarkedRegionFlag(0);
         SetEnqueuedRegionFlag(0);
         SetResurrectedRegionFlag(0);
+    }
+
+    // ---- Per-old-region remembered-set card table ----
+    // Each old region owns a bitmap (1 bit per pointer-sized slot) used by RememberSet
+    // to record which slots hold cross-generational references and to lazily skip
+    // stale entries after the region is freed and reset by InitFreeRegion.
+    static constexpr size_t RSET_SLOT_SIZE = sizeof(uintptr_t); // == sizeof(RefField<>)
+
+    // Sentinel value published in rsetCardTable while a thread is allocating it,
+    // so that racing allocators serialize (mirrors LiveInfo::TEMPORARY_PTR).
+    static constexpr uintptr_t RSET_CARD_TABLE_TEMPORARY = 0x1;
+
+    size_t GetRSetSlotCount() const { return GetRegionSize() / RSET_SLOT_SIZE; }
+
+    // Lazily allocate the card table on the owning region. Concurrency-safe: only
+    // one allocator publishes the real pointer, others spin until it is published.
+    // Returns nullptr if allocation fails (the failure is logged and the slot is
+    // left unrecorded; a later call may retry).
+    uint8_t* EnsureRSetCardTable()
+    {
+        do {
+            uint8_t* table = __atomic_load_n(&metadata.rsetCardTable, std::memory_order_acquire);
+            if (UNLIKELY(reinterpret_cast<uintptr_t>(table) == RSET_CARD_TABLE_TEMPORARY)) {
+                continue;
+            }
+            if (LIKELY(table != nullptr)) {
+                return table;
+            }
+            uint8_t* expected = nullptr;
+            if (__atomic_compare_exchange_n(&metadata.rsetCardTable, &expected,
+                                            reinterpret_cast<uint8_t*>(RSET_CARD_TABLE_TEMPORARY), false,
+                                            std::memory_order_seq_cst, std::memory_order_relaxed)) {
+                size_t bytes = (GetRSetSlotCount() + 7) / 8;
+                uint8_t* allocated = new (std::nothrow) uint8_t[bytes];
+                if (allocated == nullptr) {
+                    // Give up the claim so a later call can retry.
+                    __atomic_store_n(&metadata.rsetCardTable, nullptr, std::memory_order_release);
+                    LOG(RTLOG_ERROR, "alloc rset card table failed for region %p (%zu bytes)", this, bytes);
+                    return nullptr;
+                }
+                if (memset_s(allocated, bytes, 0, bytes) != EOK) {
+                    delete[] allocated;
+                    __atomic_store_n(&metadata.rsetCardTable, nullptr, std::memory_order_release);
+                    return nullptr;
+                }
+                __atomic_store_n(&metadata.rsetCardTable, allocated, std::memory_order_release);
+                DLOG(REGION, "region %p@%#zx rset card table %p (%zu bytes)", this, GetRegionStart(), allocated, bytes);
+                return allocated;
+            }
+        } while (true);
+        return nullptr;
+    }
+
+    void MarkRSetSlot(size_t slotIdx)
+    {
+        uint8_t* table = EnsureRSetCardTable();
+        if (table == nullptr) {
+            return;
+        }
+        __atomic_fetch_or(&table[slotIdx >> 3], static_cast<uint8_t>(1u << (slotIdx & 7)), __ATOMIC_SEQ_CST);
+    }
+
+    bool IsRSetSlotMarked(size_t slotIdx)
+    {
+        uint8_t* table = __atomic_load_n(&metadata.rsetCardTable, std::memory_order_acquire);
+        if (table == nullptr || reinterpret_cast<uintptr_t>(table) == RSET_CARD_TABLE_TEMPORARY) {
+            return false;
+        }
+        uint8_t byte = __atomic_load_n(&table[slotIdx >> 3], __ATOMIC_ACQUIRE);
+        return (byte >> (slotIdx & 7)) & 1u;
     }
 
     bool MarkObject(const BaseObject* obj)
@@ -1184,6 +1255,11 @@ private:
         };
         RouteState routeState; // todo: put in RouteInfo
         RwLock rwLock;
+
+        // Per-old-region remembered-set slot bitmap (1 bit per pointer-sized slot).
+        // A set bit marks a slot whose entry in RememberSet is still valid; resetting
+        // (freeing) the table on InitFreeRegion invalidates stale entries lazily.
+        uint8_t* rsetCardTable = nullptr;
     };
 
     class UnitInfo {
@@ -1315,6 +1391,14 @@ private:
         if (metadata.routeInfo.kind == RouteInfo::RouteKind::FREE_SLOT_LIST) {
             delete metadata.routeInfo.freeSlotList;
             metadata.routeInfo.SetRouteInfo(0);
+        }
+
+        // Reset (free) the remembered-set card table atomically. RememberSet entries
+        // still referencing this region will be skipped lazily via IsRSetSlotMarked==false.
+        uint8_t* oldRSetCardTable = __atomic_exchange_n(&metadata.rsetCardTable, nullptr, __ATOMIC_SEQ_CST);
+        if (oldRSetCardTable != nullptr &&
+            reinterpret_cast<uintptr_t>(oldRSetCardTable) != RSET_CARD_TABLE_TEMPORARY) {
+            delete[] oldRSetCardTable;
         }
 
         metadata.allocPtr = GetRegionStart();

@@ -2,7 +2,7 @@
 // This source file is part of the Cangjie project, licensed under Apache-2.0
 // with Runtime Library Exception.
 //
-// See https://cangjie-lang.cn/pages/LICENSE for license information.
+// See https://cangjie-lang.cn/pages/LICENSE for license information
 
 #include "RememberSet.h"
 #include "ObjectModel/RefField.inline.h"
@@ -15,10 +15,16 @@ RememberSet& RememberSet::Instance() noexcept
     return instance;
 }
 
-void RememberSet::Record(RegionInfo* target, uintptr_t sourceAddr)
+void RememberSet::Record(RegionInfo* target, uintptr_t slotAddr)
 {
+    RegionInfo* src = RegionInfo::GetRegionInfoAt(slotAddr);
+    if (src == nullptr) {
+        return;
+    }
+    size_t slotIdx = (slotAddr - src->GetRegionStart()) / RegionInfo::RSET_SLOT_SIZE;
     std::lock_guard<std::mutex> lock(mtx_);
-    rememberedSlots[target].insert(sourceAddr);
+    src->MarkRSetSlot(slotIdx);
+    rememberedSlots[target].emplace_back(src, slotIdx);
 }
 
 void RememberSet::Clear(RegionInfo* target)
@@ -40,12 +46,15 @@ void RememberSet::MigrateGhostRegionSlots(RegionInfo* oldRegion)
     if (it == rememberedSlots.end()) {
         return;
     }
-    auto slots = std::move(it->second);
+    auto entries = std::move(it->second);
     rememberedSlots.erase(it);
     // At this point, slot values have already been updated to forwarded
     // addresses by PromptRegionImpl. Read the new target and find its
-    // region to migrate the slot into the correct region's slot set.
-    for (uintptr_t slotAddr : slots) {
+    // region to migrate the slot into the correct region's slot list.
+    for (auto& entry : entries) {
+        RegionInfo* src = entry.first;
+        size_t slotIdx = entry.second;
+        uintptr_t slotAddr = src->GetRegionStart() + slotIdx * RegionInfo::RSET_SLOT_SIZE;
         RefField<>* field = reinterpret_cast<RefField<>*>(slotAddr);
         BaseObject* target = field->GetTargetObject();
         if (target == nullptr) {
@@ -53,7 +62,7 @@ void RememberSet::MigrateGhostRegionSlots(RegionInfo* oldRegion)
         }
         RegionInfo* newRegion = RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(target));
         if (newRegion != nullptr && newRegion != oldRegion) {
-            rememberedSlots[newRegion].insert(slotAddr);
+            rememberedSlots[newRegion].emplace_back(src, slotIdx);
         }
     }
 }
