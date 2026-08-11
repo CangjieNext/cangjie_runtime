@@ -98,14 +98,16 @@ public:
     // Release one fully-idle segment worth of pages while keeping the current
     // committed/owned-segment topology intact. Returns newly released bytes.
     size_t BackgroundShrinkOneSegment();
-    // Releasable bytes above max(scavengeThreshold, current in-use bytes).
+    // Releasable bytes once retained heap crosses the published high
+    // watermark, released toward max(low watermark, current in-use bytes).
     size_t GetScavengeReleaseTargetBytes() const;
-    // True when releasable retained memory remains above the effective target.
+    // True when retained heap is above high watermark and can release toward
+    // the effective low target.
     bool HasPendingScavengeWork() const;
     // True when at least one segment has no in-use regions and still holds
     // unreleased physical pages or central-pool cached regions.
     bool HasPendingShrinkWork() const;
-    // Trigger scavenge when heapRetained exceeds scavengeThreshold.
+    // Trigger Scavenge when heapRetained exceeds the high watermark.
     void MaybeNotifyScavenge();
 
     inline size_t GetTargetSize() const

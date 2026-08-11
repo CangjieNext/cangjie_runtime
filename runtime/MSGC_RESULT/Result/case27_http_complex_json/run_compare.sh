@@ -161,6 +161,10 @@ run_side() {
     local runtime_gc_interval="${8:-}"
     local runtime_min_gc_threshold="${9:-}"
     local cjc_gc_mode="${10}"
+    local bench_src="$CASE_DIR/benchmark.cj"
+    if [ "$cjc_gc_mode" = "marksweep" ]; then
+        bench_src="$CASE_DIR/benchmark_msgc.cj"
+    fi
     local orig_port=$port
     local max_tries=10
     local tries=0
@@ -187,6 +191,7 @@ run_side() {
         echo "sdk_root=$sdk_root"
         echo "stdx_dir=$stdx_dir"
         echo "cjc_gc_mode=$cjc_gc_mode"
+        echo "benchmark_source=$(basename "$bench_src")"
         echo "payload=$PAYLOAD"
         echo "concurrency=$CONC"
         echo "duration_ms=$DUR"
@@ -220,7 +225,7 @@ run_side() {
         echo "timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
         echo "runtime_dylib_md5=$(md5 -q "$sdk_root"/runtime/lib/darwin_aarch64_cjnative/libcangjie-runtime.dylib 2>/dev/null || echo 'N/A')"
     } > "$out_dir/run_metadata.env"
-    cp "$CASE_DIR/benchmark.cj" "$out_dir/benchmark.cj.snapshot"
+    cp "$bench_src" "$out_dir/benchmark.cj.snapshot"
     cp "$CASE_DIR/payloads/${PAYLOAD}.json" "$out_dir/payload.snapshot.json"
 
     local -a child_env=(
@@ -238,7 +243,7 @@ run_side() {
         "RUNTIME_GC_INTERVAL=$runtime_gc_interval"
         "RUNTIME_MIN_GC_THRESHOLD=$runtime_min_gc_threshold"
         "CJC_GC_MODE=$cjc_gc_mode"
-        "BENCH_SRC=$CASE_DIR/benchmark.cj"
+        "BENCH_SRC=$bench_src"
         "PAYLOAD_DIR=$CASE_DIR/payloads"
         "CASE27_PAYLOAD=$PAYLOAD"
         "CASE27_CONCURRENCY=$CONC"

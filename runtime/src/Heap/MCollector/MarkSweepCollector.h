@@ -74,6 +74,10 @@ struct MSGCCycleStats {
 
     // ── Floating-live threshold baseline ──
     size_t markStartInUseBytes = 0;
+    // Snapshot immediately before PreEnum forces the previous Sweep epoch to
+    // finish. It records the just-used Region footprint used to retain a
+    // reusable cache after that Sweep makes dead Regions reclaimable.
+    size_t preSweepInUseBytes = 0;
     size_t markEndInUseBytes = 0;
     size_t inUseBurstBytes = 0;
     size_t thresholdBaseBytes = 0;
@@ -332,6 +336,9 @@ private:
     // ── DFX: Per-cycle stats ──
     MSGCCycleStats cycleStats_;
     uint64_t gcCycle_ = 0;  // Monotonic GC cycle counter
+    // High is intentionally sticky across short GC-cycle fluctuations. Low is
+    // still recomputed directly from the current pre-sweep footprint.
+    uint64_t lastScavengeHighDecayUs_ = 0;
 
     // ── DFX: Logging methods (Step 5) ──
     void LogGCEntry(uint64_t gcIndex, GCReason reason);           // Block ①

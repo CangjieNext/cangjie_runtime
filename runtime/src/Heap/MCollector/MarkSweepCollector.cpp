@@ -762,6 +762,10 @@ void MarkSweepCollector::PreEnumRoots(bool worldStopped)
     CHECK_DETAIL(centralPool != nullptr,
                  "[MS-GC] RegionSpaceMS has no CentralRegionPool in PreEnumRoots");
     {
+        // Capture the capacity used during the preceding allocation period
+        // before its dead Regions become empty/hot-free. Scavenge uses this
+        // as a cache floor after the Sweep epoch is forced to completion.
+        cycleStats_.preSweepInUseBytes = space.GetHeapInUseBytes();
         uint64_t stopSweepT0 = TimeUtil::MicroSeconds();
         centralPool->StopAndWaitForAllSweep();
         uint64_t stopSweepUs = TimeUtil::MicroSeconds() - stopSweepT0;
@@ -3174,6 +3178,7 @@ void MarkSweepCollector::UpdateGCStats()
 
     size_t oldThreshold = gcStats.GetThreshold();
     size_t oldScavengeThreshold = gcStats.GetScavengeThreshold();
+    size_t oldScavengeTriggerThreshold = gcStats.GetScavengeTriggerThreshold();
     size_t oldLastTrueLiveBytes = gcStats.lastTrueLiveBytes;
     size_t previousInUseBytes = gcStats.lastRegionBytes;
     // ComputeMarkedStats supplies exact live bytes for the frozen collect-set.
@@ -3220,19 +3225,36 @@ void MarkSweepCollector::UpdateGCStats()
             oldThreshold, baseBytes, heapGrowth, minThreshold, gcThresholdCap,
             bypassTransition);
     size_t newThreshold = thresholdDecision.threshold;
-    double scavengeGrowth = CangjieRuntime::GetGCParam().scavengeGrowth;
-    size_t scavengeCap = maxHeapBytes != 0
-        ? maxHeapBytes
-        : CangjieRuntime::GetGCParam().gcThreshold;
     size_t softLimitBytes = CangjieRuntime::GetMSSoftHeapLimitBytes();
-    if (softLimitBytes != 0) {
-        scavengeCap = std::min(scavengeCap, softLimitBytes);
+    size_t scavengeBudgetBytes = softLimitBytes != 0
+        ? softLimitBytes
+        : (maxHeapBytes != 0 ? maxHeapBytes : CangjieRuntime::GetGCParam().gcThreshold);
+    MSRegionManager* regionManager = space.GetMSRegionManager();
+    size_t segmentBytes = regionManager == nullptr
+        ? MS_REGION_SIZE
+        : regionManager->GetSegmentSizeBytes();
+    MSScavengeWatermarkDecision scavengeDecision = EvaluateMSScavengeWatermarks(
+        newThreshold, cycleStats_.preSweepInUseBytes,
+        scavengeBudgetBytes, segmentBytes);
+    size_t newScavengeThreshold = scavengeDecision.retainLowBytes;
+    uint64_t watermarkNowUs = TimeUtil::MicroSeconds();
+    uint64_t highDecayElapsedUs = 0;
+    if (lastScavengeHighDecayUs_ != 0 &&
+        scavengeDecision.retainHighBytes < oldScavengeTriggerThreshold) {
+        highDecayElapsedUs = watermarkNowUs - lastScavengeHighDecayUs_;
     }
-    MSScavengeThresholdDecision scavengeDecision = EvaluateMSScavengeThreshold(
-        newThreshold,
-        scavengeCap,
-        scavengeGrowth);
-    size_t newScavengeThreshold = scavengeDecision.thresholdBytes;
+    MSScavengeHighWatermarkDecision highDecision =
+        StabilizeMSScavengeHighWatermark(
+            scavengeDecision.retainHighBytes, newScavengeThreshold,
+            oldScavengeTriggerThreshold, highDecayElapsedUs, segmentBytes);
+    size_t newScavengeTriggerThreshold = highDecision.retainHighBytes;
+    if (oldScavengeTriggerThreshold == 0 ||
+        scavengeDecision.retainHighBytes >= oldScavengeTriggerThreshold) {
+        lastScavengeHighDecayUs_ = watermarkNowUs;
+    } else if (highDecision.decayIntervals != 0) {
+        lastScavengeHighDecayUs_ = watermarkNowUs -
+            (highDecayElapsedUs % kMSScavengeHighDecayIntervalUs);
+    }
     uint64_t completedWU =
         cycleCompletedMarkWU_.load(std::memory_order_relaxed);
     uint64_t allocatedMarkBytes = cycleStats_.inUseBurstBytes;
@@ -3243,6 +3265,7 @@ void MarkSweepCollector::UpdateGCStats()
         cycleStats_.outsideCentralSmallBytes, cycleStats_.outsideLargeBytes);
     gcStats.SetLastMarkOutsideBytes(outsideMarkBytes);
     gcStats.SetScavengeThreshold(newScavengeThreshold);
+    gcStats.SetScavengeTriggerThreshold(newScavengeTriggerThreshold);
     gcStats.SetThreshold(newThreshold);
     gcStats.lastSurvivingRegionBytes = liveBytes;
     markPacer_.UpdateFullCycle(
@@ -3280,11 +3303,21 @@ void MarkSweepCollector::UpdateGCStats()
          cycleStats_.markStartInUseBytes, cycleStats_.markEndInUseBytes,
          cycleStats_.inUseBurstBytes);
     VLOG(REPORT,
-         "[MS-GC] scavengeThreshold: old=%zuB new=%zuB gcGoal=%zuB "
-         "base=%zuB growth=%.2f cap=%zuB",
-         oldScavengeThreshold, newScavengeThreshold,
-         scavengeDecision.gcGoalBytes,
-         scavengeDecision.baseBytes, scavengeGrowth, scavengeCap);
+         "[MS-GC] scavengeWatermark: oldLow=%zuB oldHigh=%zuB low=%zuB "
+         "desiredHigh=%zuB high=%zuB heapGoal=%zuB preSweepInUse=%zuB "
+         "retainBudget=%zuB band=%zuB highDecayElapsedUs=%llu highDecayBytes=%zuB "
+         "highRaised=%d highHeld=%d highDecayed=%d budgetConstrained=%d",
+         oldScavengeThreshold, oldScavengeTriggerThreshold,
+         newScavengeThreshold, highDecision.desiredHighBytes,
+         newScavengeTriggerThreshold,
+         newThreshold, cycleStats_.preSweepInUseBytes,
+         scavengeDecision.retainBudgetBytes, scavengeDecision.releaseBandBytes,
+         static_cast<unsigned long long>(highDecayElapsedUs),
+         highDecision.decayBytes,
+         static_cast<int>(highDecision.highRaised),
+         static_cast<int>(highDecision.highHeld),
+         static_cast<int>(highDecision.highDecayed),
+         static_cast<int>(scavengeDecision.budgetConstrained));
 
     VLOG(REPORT,
          "[MS-GC] live bytes %zu, inUseRegionBytes %zu, update gc threshold %zu -> %zu",

@@ -57,6 +57,7 @@ void GCStats::Init()
     // MSGC derives this from observed Region usage after its first GC. Keep
     // background Scavenge disabled until that first complete sample exists.
     scavengeThreshold.store(0, std::memory_order_relaxed);
+    scavengeTriggerThreshold.store(0, std::memory_order_relaxed);
 }
 
 void GCStats::Dump() const

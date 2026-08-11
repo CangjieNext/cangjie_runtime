@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <limits>
 
 namespace MapleRuntime {
@@ -53,6 +54,34 @@ struct MSScavengeThresholdDecision {
     size_t thresholdBytes = 0;
 };
 
+// Scavenge uses a low/high retained-heap band instead of releasing every
+// Region immediately after it becomes reclaimable. The low watermark keeps
+// the capacity used in the just-finished allocation period or the current
+// HeapGrow heap goal, whichever is larger. The high watermark is only a
+// bounded hysteresis band that decides when background Scavenge starts.
+struct MSScavengeWatermarkDecision {
+    size_t retainBudgetBytes = 0;
+    size_t retainLowBytes = 0;
+    size_t retainHighBytes = 0;
+    size_t releaseBandBytes = 0;
+    bool budgetConstrained = false;
+};
+
+constexpr uint64_t kMSScavengeHighDecayIntervalUs = 1000000ULL;
+
+// Low follows the most recent pre-sweep footprint directly. High is a cache
+// admission gate and must not fall on every short GC-cycle fluctuation: it
+// rises immediately, then gives back no more than one Segment per second.
+struct MSScavengeHighWatermarkDecision {
+    size_t desiredHighBytes = 0;
+    size_t retainHighBytes = 0;
+    size_t decayBytes = 0;
+    uint64_t decayIntervals = 0;
+    bool highRaised = false;
+    bool highHeld = false;
+    bool highDecayed = false;
+};
+
 struct MSGCThresholdBaseDecision {
     size_t markedLiveBytes = 0;
     size_t gcBaseBytes = 0;
@@ -76,6 +105,77 @@ inline size_t SaturatingMultiplyMSBytes(size_t lhs, size_t rhs)
     }
     return lhs * rhs;
 }
+
+inline MSScavengeWatermarkDecision EvaluateMSScavengeWatermarks(
+    size_t heapGoalBytes, size_t preSweepInUseBytes,
+    size_t softLimitBytes, size_t segmentBytes)
+{
+    MSScavengeWatermarkDecision decision;
+    size_t minimumBand = std::max<size_t>(segmentBytes, 1);
+    if (softLimitBytes == 0) {
+        decision.retainBudgetBytes = std::numeric_limits<size_t>::max();
+        decision.retainLowBytes = std::max(heapGoalBytes, preSweepInUseBytes);
+        decision.releaseBandBytes = std::max(minimumBand, heapGoalBytes);
+        decision.retainHighBytes = SaturatingAddMSBytes(
+            decision.retainLowBytes, decision.releaseBandBytes);
+        return decision;
+    }
+
+    size_t emergencyReserve = std::max(
+        SaturatingMultiplyMSBytes(segmentBytes, 2), softLimitBytes / 16);
+    decision.retainBudgetBytes = emergencyReserve >= softLimitBytes
+        ? 0
+        : softLimitBytes - emergencyReserve;
+    size_t boundedHeapGoal = std::min(heapGoalBytes, decision.retainBudgetBytes);
+    decision.retainLowBytes = std::max(preSweepInUseBytes, boundedHeapGoal);
+    decision.releaseBandBytes = std::max(minimumBand, heapGoalBytes);
+    decision.retainHighBytes = std::max(
+        decision.retainLowBytes,
+        std::min(decision.retainBudgetBytes,
+                 SaturatingAddMSBytes(decision.retainLowBytes,
+                                      decision.releaseBandBytes)));
+    decision.budgetConstrained = heapGoalBytes > decision.retainBudgetBytes ||
+        preSweepInUseBytes > decision.retainBudgetBytes;
+    return decision;
+}
+
+inline MSScavengeHighWatermarkDecision StabilizeMSScavengeHighWatermark(
+    size_t desiredHighBytes, size_t retainLowBytes,
+    size_t previousHighBytes, uint64_t elapsedDecayUs, size_t segmentBytes)
+{
+    MSScavengeHighWatermarkDecision decision;
+    decision.desiredHighBytes = std::max(desiredHighBytes, retainLowBytes);
+    if (previousHighBytes == 0 || decision.desiredHighBytes >= previousHighBytes) {
+        decision.retainHighBytes = decision.desiredHighBytes;
+        decision.highRaised = previousHighBytes != 0 &&
+            decision.desiredHighBytes > previousHighBytes;
+        return decision;
+    }
+
+    decision.decayIntervals = elapsedDecayUs / kMSScavengeHighDecayIntervalUs;
+    if (decision.decayIntervals == 0) {
+        decision.retainHighBytes = previousHighBytes;
+        decision.highHeld = true;
+        return decision;
+    }
+
+    size_t decayStepCount = decision.decayIntervals >
+        static_cast<uint64_t>(std::numeric_limits<size_t>::max())
+        ? std::numeric_limits<size_t>::max()
+        : static_cast<size_t>(decision.decayIntervals);
+    decision.decayBytes = SaturatingMultiplyMSBytes(
+        std::max<size_t>(segmentBytes, 1), decayStepCount);
+    size_t decayedHighBytes = previousHighBytes > decision.decayBytes
+        ? previousHighBytes - decision.decayBytes
+        : 0;
+    decision.retainHighBytes = std::max(
+        retainLowBytes,
+        std::max(decision.desiredHighBytes, decayedHighBytes));
+    decision.highDecayed = decision.retainHighBytes < previousHighBytes;
+    decision.highHeld = !decision.highDecayed;
+    return decision;
+}
+
 
 inline size_t ScaleMSHeapThreshold(size_t value, long double multiplier)
 {

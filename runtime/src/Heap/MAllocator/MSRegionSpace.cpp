@@ -315,7 +315,9 @@ size_t RegionSpaceMS::GetScavengeReleaseTargetBytes() const
         return 0;
     }
     size_t scavengeThreshold = GetScavengeThresholdBytes();
-    if (scavengeThreshold == 0) {
+    size_t scavengeTriggerThreshold =
+        Heap::GetHeap().GetCollector().GetGCStats().GetScavengeTriggerThreshold();
+    if (scavengeThreshold == 0 || scavengeTriggerThreshold == 0) {
         return 0;
     }
 
@@ -323,11 +325,11 @@ size_t RegionSpaceMS::GetScavengeReleaseTargetBytes() const
     size_t reclaimableBytes =
         msCentralPool_->GetEmptySweptRegionCount() * MS_REGION_SIZE +
         msRegionManager_->GetHotFreeBytes();
-    size_t normalTarget = std::max(scavengeThreshold, inUseBytes);
-    size_t effectiveTarget = ResolveMSScavengeTarget(
-        normalTarget, CangjieRuntime::GetMSSoftHeapLimitBytes());
+    size_t effectiveLowTarget = std::max(scavengeThreshold, inUseBytes);
     size_t retainedBytes = inUseBytes + reclaimableBytes;
-    return ComputeMSReleaseGap(retainedBytes, reclaimableBytes, effectiveTarget);
+    return ComputeMSScavengeWatermarkReleaseGap(
+        retainedBytes, reclaimableBytes,
+        effectiveLowTarget, scavengeTriggerThreshold);
 }
 
 bool RegionSpaceMS::HasPendingShrinkWork() const

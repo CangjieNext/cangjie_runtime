@@ -50,6 +50,27 @@ inline size_t ComputeMSReleaseGap(size_t retainedBytes, size_t reclaimableBytes,
     return std::min(releaseGap, reclaimableBytes);
 }
 
+// Start a Scavenge burst only after retained bytes cross the high watermark,
+// then release toward the low watermark. This hysteresis keeps recently used
+// Region capacity available for the next allocation period.
+inline size_t ComputeMSScavengeWatermarkReleaseGap(
+    size_t retainedBytes, size_t reclaimableBytes,
+    size_t retainLowBytes, size_t retainHighBytes)
+{
+    if (retainedBytes <= retainHighBytes) {
+        return 0;
+    }
+    return ComputeMSReleaseGap(retainedBytes, reclaimableBytes, retainLowBytes);
+}
+
+// Unsigned subtraction deliberately makes an epoch-age comparison continue to
+// work when the monotonically increasing sweep epoch wraps around uint32_t.
+inline bool HasMSScavengeEpochAge(uint32_t currentEpoch, uint32_t freeEpoch,
+                                  uint32_t minimumAge)
+{
+    return static_cast<uint32_t>(currentEpoch - freeEpoch) >= minimumAge;
+}
+
 inline size_t SaturatingSubtractMSBytes(size_t value, size_t subtract)
 {
     return value > subtract ? value - subtract : 0;

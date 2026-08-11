@@ -29,8 +29,18 @@ public:
 
     size_t GetThreshold() const { return heapThreshold.load(std::memory_order_acquire); }
     void SetThreshold(size_t val) { heapThreshold.store(val, std::memory_order_release); }
+    // Scavenge uses a low release target and a high wakeup watermark. The
+    // former is retained for compatibility with existing RegionSpace readers.
     size_t GetScavengeThreshold() const { return scavengeThreshold.load(std::memory_order_acquire); }
     void SetScavengeThreshold(size_t val) { scavengeThreshold.store(val, std::memory_order_release); }
+    size_t GetScavengeTriggerThreshold() const
+    {
+        return scavengeTriggerThreshold.load(std::memory_order_acquire);
+    }
+    void SetScavengeTriggerThreshold(size_t val)
+    {
+        scavengeTriggerThreshold.store(val, std::memory_order_release);
+    }
     // Snapshots persisted at GC end for pacing / HEU trigger calculations.
     size_t baselineAllocatedBytes = 0;  // in-use Region bytes snapshot at GC end
     size_t lastTrueLiveBytes = 0;       // trueLiveBytes from last GC marking
@@ -89,6 +99,7 @@ public:
 private:
     std::atomic<size_t> heapThreshold{0};
     std::atomic<size_t> scavengeThreshold{0};
+    std::atomic<size_t> scavengeTriggerThreshold{0};
     std::atomic<size_t> lastMarkOutsideBytes{0};
 };
 extern size_t g_gcCount;

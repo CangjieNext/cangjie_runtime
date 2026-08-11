@@ -277,7 +277,8 @@ void MSRegionManager::MaybeNotifyScavenge()
     Collector& collector = Heap::GetHeap().GetCollector();
     const GCStats& gcStats = collector.GetGCStats();
     size_t scavengeThreshold = gcStats.GetScavengeThreshold();
-    if (scavengeThreshold == 0) {
+    size_t scavengeTriggerThreshold = gcStats.GetScavengeTriggerThreshold();
+    if (scavengeThreshold == 0 || scavengeTriggerThreshold == 0) {
         return;
     }
 
@@ -287,11 +288,8 @@ void MSRegionManager::MaybeNotifyScavenge()
         return;
     }
 
-    size_t normalTarget = std::max(scavengeThreshold, space.GetHeapInUseBytes());
-    size_t effectiveTarget = ResolveMSScavengeTarget(
-        normalTarget, CangjieRuntime::GetMSSoftHeapLimitBytes());
     size_t heapRetained = space.GetHeapRetainedBytes();
-    if (heapRetained <= effectiveTarget) {
+    if (heapRetained <= scavengeTriggerThreshold) {
         return;
     }
     bool expectedProbe = false;

@@ -354,10 +354,12 @@ private:
     uint32_t ComputeMaxFreeRunInViewLocked(const OwnedSegmentView& view) const;
     uint64_t AgedHotFreeMaskForWord(const OwnedSegmentView& view,
                                     size_t wordIdx, size_t committedLocal,
-                                    uint32_t currentEpoch) const;
+                                    uint32_t currentEpoch,
+                                    uint32_t minimumAge) const;
     size_t ClaimAgedScavengeSpansLocked(FreeManagerShard& shard,
                                        size_t regionBudget,
                                        uint32_t currentEpoch,
+                                       uint32_t minimumAge,
                                        std::vector<PendingScavengeSpan>& spans);
 
     mutable std::mutex pageHeapMutex_;

@@ -21,6 +21,7 @@
 
 #include "Base/Log.h"
 #include "Base/MemUtils.h"
+#include "Heap/MCollector/MSMemoryLimitPolicy.h"
 
 namespace MapleRuntime {
 
@@ -1044,7 +1045,7 @@ size_t FreeManager::ScavengeFreeRegionsUpTo(size_t maxBytes)
 
 uint64_t FreeManager::AgedHotFreeMaskForWord(
     const OwnedSegmentView& view, size_t wordIdx, size_t committedLocal,
-    uint32_t currentEpoch) const
+    uint32_t currentEpoch, uint32_t minimumAge) const
 {
     size_t wordBase = wordIdx * kChunkBits;
     uint64_t hot = HotFreeMaskForWord(view, wordIdx, committedLocal);
@@ -1053,7 +1054,8 @@ uint64_t FreeManager::AgedHotFreeMaskForWord(
         size_t bit = static_cast<size_t>(__builtin_ctzll(hot));
         size_t localIdx = wordBase + bit;
         uint32_t freeEpoch = view.freeEpochs_[localIdx];
-        if (freeEpoch != kNoFreeEpoch && freeEpoch != currentEpoch) {
+        if (freeEpoch != kNoFreeEpoch &&
+            HasMSScavengeEpochAge(currentEpoch, freeEpoch, minimumAge)) {
             eligible |= 1ULL << bit;
         }
         hot &= hot - 1;
@@ -1070,6 +1072,7 @@ void FreeManager::AdvanceScavengeEpoch(uint32_t epoch)
 
 size_t FreeManager::ClaimAgedScavengeSpansLocked(
     FreeManagerShard& shard, size_t regionBudget, uint32_t currentEpoch,
+    uint32_t minimumAge,
     std::vector<PendingScavengeSpan>& spans)
 {
     size_t claimed = 0;
@@ -1083,7 +1086,7 @@ size_t FreeManager::ClaimAgedScavengeSpansLocked(
              wordIdx < view.bitmapWordCount_ && claimed < regionBudget;
              ++wordIdx) {
             uint64_t aged = AgedHotFreeMaskForWord(
-                view, wordIdx, committedLocal, currentEpoch);
+                view, wordIdx, committedLocal, currentEpoch, minimumAge);
             size_t remaining = regionBudget - claimed;
             uint64_t claimMask = 0;
             while (aged != 0 &&
@@ -1117,20 +1120,26 @@ size_t FreeManager::ScavengeAgedRegionsUpTo(size_t maxBytes)
     uint16_t startShardId = nextScavengeShard_;
     std::vector<std::vector<PendingScavengeSpan>> staged(shardCount_);
     size_t claimedRegions = 0;
-    for (uint32_t scannedShardCount = 0;
-         scannedShardCount < shardCount_ && claimedRegions < regionBudget;
-         ++scannedShardCount) {
-        uint16_t ownerShardId = static_cast<uint16_t>(
-            (startShardId + scannedShardCount) % shardCount_);
-        FreeManagerShard& shard = GetShard(ownerShardId);
-        std::unique_lock<std::mutex> shardLock(
-            shard.shardMutex_, std::try_to_lock);
-        if (!shardLock.owns_lock()) {
-            continue;
+    // Prefer the oldest hot-free Regions without collecting or sorting a
+    // candidate list: scan all shards for old age buckets first, then fall
+    // back to younger eligible buckets only when the release budget remains.
+    static constexpr uint32_t kAgeFloors[] = {4, 2, 1};
+    for (uint32_t minimumAge : kAgeFloors) {
+        for (uint32_t scannedShardCount = 0;
+             scannedShardCount < shardCount_ && claimedRegions < regionBudget;
+             ++scannedShardCount) {
+            uint16_t ownerShardId = static_cast<uint16_t>(
+                (startShardId + scannedShardCount) % shardCount_);
+            FreeManagerShard& shard = GetShard(ownerShardId);
+            std::unique_lock<std::mutex> shardLock(
+                shard.shardMutex_, std::try_to_lock);
+            if (!shardLock.owns_lock()) {
+                continue;
+            }
+            claimedRegions += ClaimAgedScavengeSpansLocked(
+                shard, regionBudget - claimedRegions, currentEpoch, minimumAge,
+                staged[ownerShardId]);
         }
-        claimedRegions += ClaimAgedScavengeSpansLocked(
-            shard, regionBudget - claimedRegions, currentEpoch,
-            staged[ownerShardId]);
     }
 
     if (claimedRegions == 0) {
