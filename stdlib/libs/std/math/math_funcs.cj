@@ -477,7 +477,7 @@ public func cosh(x: Float32): Float32 {
     if (x.isNaN()) {
         return Float32.NaN
     }
-    unsafe { return Float32(CJ_MATH_Cosh(Float64(x))) }
+    unsafe { return CJ_MATH_Coshf(x) }
 }
 
 /**
