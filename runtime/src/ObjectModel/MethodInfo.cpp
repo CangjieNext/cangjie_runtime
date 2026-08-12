@@ -437,7 +437,10 @@ void* MethodInfo::RetValueToAny(Value ret, void* sret, TypeInfo* retType)
 {
     if (retType->IsRef()) {
         return ret.ref;
-    } else if (retType->IsStruct() || retType->IsTuple()) {
+    } else if (retType->IsStruct() || retType->IsTuple() || retType->IsEnum() || retType->IsTempEnum()) {
+        // enum（含 Option<T>）在 Cangjie 中是值类型，整体布局为 tag + payload，
+        // 与 struct/tuple 一样按 GetInstanceSize() 整块拷贝即可。此处与
+        // FieldInfo.cpp 的 GetValue/SetValue 对 enum 的处理保持一致。
         MSize typeSize = retType->GetInstanceSize();
         MSize size = MRT_ALIGN(typeSize + TYPEINFO_PTR_SIZE, TYPEINFO_PTR_SIZE);
         MObject* obj = ObjectManager::NewObject(retType, size, AllocType::RAW_POINTER_OBJECT);
