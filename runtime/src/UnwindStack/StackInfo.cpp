@@ -262,12 +262,11 @@ void StackInfo::GetStackTraceByLiteFrameInfo(const uint64_t v1, const uint64_t v
 
     StackMetadataHelper stackMetadataHelper(reinterpret_cast<uint32_t*>(v1), reinterpret_cast<uint32_t*>(v2),
                                             reinterpret_cast<uint64_t*>(v3));
-    stackMetadataHelper.GetMangleNameHelper()->Demangle();
-
     if (stackMetadataHelper.IsNeedFiltExceptionCreationLayer()) {
         ste.lineNumber = NEED_FILTED_FLAG;
         return;
     }
+    stackMetadataHelper.GetMangleNameHelper()->Demangle();
 
     ste.lineNumber = stackMetadataHelper.GetLineNumber();
     ste.methodName = stackMetadataHelper.GetMangleNameHelper()->GetMethodName();
