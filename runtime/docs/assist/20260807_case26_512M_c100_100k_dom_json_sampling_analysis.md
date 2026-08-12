@@ -2320,8 +2320,8 @@ setter 与替换式调用点；当前保留 setter 接口和原地更新的 case
 ### 33.1 实现与所有权
 
 本轮仅修改 stdx JSON 和 case26 用例。`JsonValue` 新增公开 API
-`fromUtf8Bytes(data: Array<Byte>)`，实现位于 `native.cj` 的 `parseUtf8Bytes`：先检查 UTF-8，
-再 `clone()` 输入数据并用该私有数组建立 `JsonParser`。这点是安全 API 的核心：无转义字符串的
+`fromUtf8Bytes(data: Array<Byte>)`，实现位于 `native.cj` 的 `parseUtf8Bytes`：最初先检查 UTF-8，
+再 `clone()` 输入数据并用该私有数组建立 `JsonParser`；该两阶段实现随后由第 34 节融合替换。这点是安全 API 的核心：无转义字符串的
 fast path 仍可用 `String.withRawData` 引用 parser 数据，但 parser 数据是 API 自己持有的副本，
 绝不借用或依赖 HTTP body buffer 的后续生命周期。
 
@@ -2365,3 +2365,59 @@ HeapGrowth=1、ScavengeGrowth=2、最小 GC 阈值 20 MiB。脚本与原始结�
 但峰值 RSS 增加约 6.2%（相对 setter 三轮平均 1,900.6 MiB）。这符合安全 API 保留一份 parser/DOM
 私有 100K byte backing 的预期。由于只有单次运行，吞吐收益仍应视作候选结果；不过 API 的安全语义、
 调用链和去除的 `ArrayList -> Array -> String` 正常路径转换已由代码与功能测试确认。
+
+## 34. `fromUtf8Bytes` UTF-8 校验与私有复制融合（2026-08-12）
+
+### 34.1 动机与实现
+
+第 33 节的安全 API 保证了 DOM 不借用 HTTP body 的 backing array，但其初始实现对每个输入执行两次完整
+线性访问：先 `String.checkUtf8Encoding(data)` 校验 UTF-8，再 `data.clone()` 生成 parser/DOM 私有的
+backing array。case26 的服务端和客户端都在 `parseServerJson` / `parseClientJson` 调用
+`JsonValue.fromUtf8Bytes(body)`，因此一个成功请求至少会两次承担这段“校验 + 复制”前置成本。
+
+本轮只修改 `cangjie_stdx_region_mark` 的 DOM JSON 实现，不改变 `fromUtf8Bytes` 的公开 API，也不改
+case26 的调用点：
+
+1. `src/stdx/encoding/json/native.cj` 的 `parseUtf8Bytes` 仍先分配私有 `parserData`，但改为调用
+   `CJ_JSON_ValidateUtf8AndCopy(input, output, size)`；成功后直接以 `parserData` 构造 `JsonParser`。
+2. `src/stdx/encoding/json/native/json_string_escape.c/.h` 新增该 native helper。它在复制过程中执行严格
+   UTF-8 校验；连续 ASCII 使用 8-byte load/store 快路径，非 ASCII 继续逐序列校验。
+3. 校验规则保持拒绝 standalone continuation、overlong encoding、UTF-16 surrogate、超过 `U+10FFFF`
+   和截断序列。失败仍抛出原有的 `JsonException("Json byte array is not valid UTF-8.")`。
+
+私有复制没有删除：无转义 `JsonString` 可以通过 raw data 引用 parser backing，直接解析调用者的 body
+会使返回 DOM 依赖 HTTP buffer 的可变性和生命周期。融合只消除了对输入的额外遍历，不改变 DOM 的
+所有权隔离语义。
+
+### 34.2 正确性与安装验证
+
+新增 `stdx/test/dom_json_utf8_validate_copy.cj`，覆盖：
+
+- 合法 ASCII、中文和 emoji 的严格 UTF-8 校验及字节逐一复制；
+- standalone continuation、overlong 2/3/4-byte 序列、surrogate、超过 Unicode 上界和截断序列；
+- 解析后改写调用方 `Array<Byte>`，确认 DOM 字符串仍保持原值；
+- 非法输入的 `JsonException` 类型与消息保持不变。
+
+使用 Region-scan 固定脚本
+`runtime/build/scripts/incremental_rebuild_msgc_sdk.py` 完整重建并安装 SDK；安装后的 JSON dylib
+已包含 `_CJ_JSON_ValidateUtf8AndCopy`。以该 SDK、显式 `--gc-mode=marksweep` 编译并运行上述测试，结果：
+
+```text
+PASS dom_json_utf8_validate_copy
+```
+
+### 34.3 微基准效果与 case26 解释边界
+
+新增 `stdx/test/dom_json_utf8_validate_copy_bench.cj`，对 100 KiB 全 ASCII 输入循环 4,000 次，比较旧的
+`String.checkUtf8Encoding + clone` 与新融合路径；两者均分配同等大小的目标数组，并校验 copy checksum。
+本机一次结果如下：
+
+| 路径 | 累计时间 | 相对结果 |
+| --- | ---: | ---: |
+| 原校验 + clone | 216,768 us | 1.00x |
+| 融合校验 + 复制 | 35,184 us | **6.16x** 更快 |
+
+该数据只衡量 `fromUtf8Bytes` 的 UTF-8 前置阶段，不能直接等同于完整 HTTP/DOM 请求的 6.16x 吞吐提升。
+case26 的 JSON 解析、DOM 构造、字段 HashMap、业务修改、序列化、HTTP 和 GC 仍占主要端到端成本；且 case26
+调用点/API 未变化。因此后续 case26 验证应使用已安装 SDK 进行同配置的 10 秒 MSGC-only 吞吐或 CPU/request
+复测，只把稳定的端到端差异归因给本项。

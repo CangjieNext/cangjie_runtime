@@ -31,7 +31,7 @@ DEFAULT_MSGC_COMPILER_ROOT_LINUX = pathlib.Path(
 )
 
 DEFAULT_MSGC_STDX_ROOT_DARWIN = pathlib.Path(
-    "/Users/lipeisheng/code/cangjie/cangjie/cangjie_stdx"
+    "/Users/lipeisheng/code/cangjie/cangjie/cangjie_stdx_region_mark"
 )
 
 DEFAULT_MSGC_STDX_ROOT_LINUX = pathlib.Path(

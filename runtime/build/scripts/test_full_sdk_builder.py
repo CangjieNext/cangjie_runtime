@@ -77,7 +77,7 @@ class ModeBindingTests(unittest.TestCase):
         self.assertEqual(
             config.stdx_root,
             pathlib.Path(
-                "/Users/lipeisheng/code/cangjie/cangjie/cangjie_stdx"
+                "/Users/lipeisheng/code/cangjie/cangjie/cangjie_stdx_region_mark"
             ).resolve(),
         )
 

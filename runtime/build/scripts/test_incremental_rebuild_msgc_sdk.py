@@ -100,13 +100,13 @@ class IncrementalPathDefaultsTests(unittest.TestCase):
         ):
             return target.parse_args([])
 
-    def test_darwin_keeps_existing_msgc_stdx_default(self) -> None:
+    def test_darwin_uses_region_mark_stdx_default(self) -> None:
         config = self.parse_for_host(make_host())
 
         self.assertEqual(
             config.stdx_root,
             pathlib.Path(
-                "/Users/lipeisheng/code/cangjie/cangjie/cangjie_stdx"
+                "/Users/lipeisheng/code/cangjie/cangjie/cangjie_stdx_region_mark"
             ).resolve(),
         )
 
