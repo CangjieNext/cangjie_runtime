@@ -14,6 +14,12 @@ if [[ "$CJ_ARCH" != "aarch64" && "$CJ_ARCH" != "x86_64" ]]; then
     exit 1
 fi
 
+case "$CJ_ARCH" in
+    x86_64) JAVA_PACKAGE_ARCH="amd64" ;;
+    aarch64) JAVA_PACKAGE_ARCH="arm64" ;;
+esac
+JAVA_HOME_DEFAULT="/usr/lib/jvm/java-25-openjdk-${JAVA_PACKAGE_ARCH}"
+
 MSGC_SDK_ROOT="${MSGC_SDK_ROOT:-/home/lipeisheng/cangjie/cangjie_compiler_CMSGC/output/msgc}"
 MSGC_STDX_ROOT="${MSGC_STDX_ROOT:-$MSGC_SDK_ROOT/$PLATFORM_DIR}"
 COPYGC_SDK_ROOT="${COPYGC_SDK_ROOT:-/home/lipeisheng/cangjie-pkg/main/260723/cangjie}"
@@ -42,8 +48,8 @@ GO_GODEBUG="${GO_GODEBUG:-gctrace=1}"
 GO_GOGC="${GO_GOGC:-}"
 GO_GOMEMLIMIT="${GO_GOMEMLIMIT:-16GiB}"
 GO_BIN="${GO_BIN:-$(command -v go 2>/dev/null || true)}"
-JAVA_BIN="${JAVA_BIN:-/usr/lib/jvm/java-25-openjdk-arm64/bin/java}"
-JAVAC_BIN="${JAVAC_BIN:-/usr/lib/jvm/java-8-openjdk-arm64/bin/javac}"
+JAVA_BIN="${JAVA_BIN:-$JAVA_HOME_DEFAULT/bin/java}"
+JAVAC_BIN="${JAVAC_BIN:-$JAVA_HOME_DEFAULT/bin/javac}"
 JACKSON_CORE_JAR="$CASE_DIR/java_benchmark/lib/jackson-core-2.17.2.jar"
 JAVA_CPUSET="${JAVA_CPUSET:-}"
 
@@ -67,8 +73,17 @@ if [[ ! -f "$CASE_DIR/payloads/${PAYLOAD}.json" ]]; then
     echo "[ERROR] payloads/${PAYLOAD}.json not found" >&2
     exit 1
 fi
-for path in "$MSGC_SDK_ROOT/envsetup.sh" "$MSGC_STDX/libstdx.net.http.so" \
-            "$COPYGC_SDK_ROOT/envsetup.sh" "$COPYGC_STDX/libstdx.net.http.so"; do
+dependency_paths=(
+    "$MSGC_SDK_ROOT/envsetup.sh"
+    "$MSGC_STDX/libstdx.net.http.so"
+)
+if [[ "$COPYGC_ENABLE" == 1 ]]; then
+    dependency_paths+=(
+        "$COPYGC_SDK_ROOT/envsetup.sh"
+        "$COPYGC_STDX/libstdx.net.http.so"
+    )
+fi
+for path in "${dependency_paths[@]}"; do
     if [[ ! -e "$path" ]]; then
         echo "[ERROR] Linux case25 dependency not found: $path" >&2
         exit 1
@@ -294,9 +309,7 @@ run_java_side() {
         if [[ -n "$JAVA_CPUSET" ]]; then
             java_cmd=(taskset -c "$JAVA_CPUSET" "${java_cmd[@]}")
         fi
-        # Keep the module_opts form documented for the Java 9+ runtime; javac is
-        # deliberately Java 8 on this host, so module_opts must not be passed to it.
-        # "$JAVAC_BIN" "${module_opts[@]}" -cp "$JACKSON_CORE_JAR"
+        # jdk.httpserver is a runtime module; javac only needs the Jackson classpath.
         "$JAVAC_BIN" -cp "$JACKSON_CORE_JAR" -d "$OUT_DIR/classes" \
             "$CASE_DIR/java_benchmark/Case27HttpComplexJsonBenchmark.java" "$CASE_DIR/java_benchmark/Case27HttpComplexJsonBenchmarkTest.java" \
             >"$OUT_DIR/compile.stdout.txt" 2>"$OUT_DIR/compile.stderr.txt"
