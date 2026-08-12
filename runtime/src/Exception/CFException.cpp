@@ -16,7 +16,7 @@ mach_header_target* CFException::FindCoreFoundationMachHeader()
 {
     Dl_info info;
     if (dladdr(reinterpret_cast<void*>(&CFRunLoopRun), &info) ==0) {
-        LOG(RTLOG_ERROR, "can not find CFRunLoopRun function");
+        LOG(RTLOG_ERROR, "cannot find CFRunLoopRun function");
         return nullptr;
     } else {
         return reinterpret_cast<mach_header_target*>(info.dli_fbase);
@@ -27,11 +27,11 @@ char* CFException::FindExceptionBacktraceSectionAddr(unsigned long *bufferSize)
 {
     mach_header_target* header = FindCoreFoundationMachHeader();
     if (header == nullptr) {
-        LOG(RTLOG_ERROR, "can not find mach_header_target");
+        LOG(RTLOG_ERROR, "cannot find mach_header_target");
         return nullptr;
     }
     if (header->magic != MH_MAGIC_TARGET) {
-        LOG(RTLOG_ERROR, "Head magic is error");
+        LOG(RTLOG_ERROR, "Head magic is invalid");
         return nullptr;
     }
     uintptr_t textVmaddr = 0;
