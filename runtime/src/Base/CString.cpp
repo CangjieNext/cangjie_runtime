@@ -254,14 +254,22 @@ CString& CString::Insert(size_t index, const char* addStr)
 
 int CString::Find(const char* subStr, size_t begin) const
 {
-    PRINT_ERROR_RETURN_IF(begin >= length, -1, "CString::Find input parameter error");
+    // begin == length 是合法的"查找起点在末尾"，返回未找到而非错误；
+    // 仅 begin > length 才是参数错误。RFind 在匹配到末尾时会传入 begin == length。
+    PRINT_ERROR_RETURN_IF(begin > length, -1, "CString::Find input parameter error");
+    if (begin == length) {
+        return -1;
+    }
     char* ret = strstr(str + begin, subStr);
     return ret != nullptr ? ret - str : -1;
 }
 
 int CString::Find(const char chr, size_t begin) const
 {
-    PRINT_ERROR_RETURN_IF(begin >= length, -1, "CString::Find input parameter error");
+    PRINT_ERROR_RETURN_IF(begin > length, -1, "CString::Find input parameter error");
+    if (begin == length) {
+        return -1;
+    }
     char* ret = strchr(str + begin, chr);
     return ret != nullptr ? ret - str : -1;
 }
