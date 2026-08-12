@@ -671,7 +671,7 @@ static RuntimeParam InitRuntimeParam()
         .gcParam = {
                 // Default gc threshold is heapSize.
                 .gcThreshold = InitSizeParameter("cjGCThreshold", 0, initHeapSize) * KB,
-                // Default garbage ration is 50% of from space.
+                // Default garbage ratio is 50% of from space.
                 .garbageThreshold = InitPercentParameterIncl("cjGarbageThreshold", 0.0, 1.0, 0.5),
                 // Default GC interval is 150ms.
                 .gcInterval = InitTimeParameter("cjGCInterval", 0, 150 * MILLI_SECOND_TO_NANO_SECOND),
