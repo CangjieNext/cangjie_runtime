@@ -73,6 +73,15 @@ fi
 CJ_ARCH="${CJ_ARCH:-$(uname -m)}"
 # uname -m 在 Linux 上 aarch64 返回 "aarch64"，x86_64 返回 "x86_64"
 PLATFORM_DIR="linux_${CJ_ARCH}_cjnative"
+case "$CJ_ARCH" in
+    x86_64) JAVA_PACKAGE_ARCH="amd64" ;;
+    aarch64) JAVA_PACKAGE_ARCH="arm64" ;;
+    *)
+        echo "[ERROR] unsupported Linux architecture: $CJ_ARCH" >&2
+        exit 1
+        ;;
+esac
+JAVA_HOME_DEFAULT="/usr/lib/jvm/java-25-openjdk-${JAVA_PACKAGE_ARCH}"
 
 # ---------- SDK 路径（可通过环境变量覆盖） ----------
 # MSGC SDK 为单根目录：envsetup.sh / runtime / stdx 平台目录均在其下
@@ -114,14 +123,16 @@ if ! PERSISTENT_BYTES="$(
     exit 1
 fi
 PERSISTENT_WORKERS="${CASE26_PERSISTENT_WORKERS:-8}"
+COPYGC_ENABLE="${COPYGC_ENABLE:-1}"
+MSGC_ENABLE="${MSGC_ENABLE:-1}"
 GO_ENABLE="${GO_ENABLE:-1}"
 GO_GODEBUG="${GO_GODEBUG:-gctrace=1}"
 GO_GOGC="${GO_GOGC:-}"
 GO_GOMEMLIMIT="${GO_GOMEMLIMIT:-16GiB}"
 JAVA_ENABLE="${JAVA_ENABLE:-1}"
 GO_BIN="${GO_BIN:-$(command -v go 2>/dev/null || true)}"
-JAVA_BIN="${JAVA_BIN:-/usr/lib/jvm/java-25-openjdk-arm64/bin/java}"
-JAVAC_BIN="${JAVAC_BIN:-/usr/lib/jvm/java-8-openjdk-arm64/bin/javac}"
+JAVA_BIN="${JAVA_BIN:-$JAVA_HOME_DEFAULT/bin/java}"
+JAVAC_BIN="${JAVAC_BIN:-$JAVA_HOME_DEFAULT/bin/javac}"
 JAVA_HEAP_SIZE="${HEAP_SIZE%[bB]}"
 JAVA_OPTS="${JAVA_OPTS:--Xmx${JAVA_HEAP_SIZE}}"
 JAVA_GC_OPTS="${JAVA_GC_OPTS:-}"
@@ -243,11 +254,11 @@ if [[ "$GO_ENABLE" != "0" && ! -x "$GO_BIN" ]]; then
     exit 1
 fi
 
-if [[ ! -d "$MSGC_SDK_ROOT" ]]; then
+if [[ "$MSGC_ENABLE" != "0" && ! -d "$MSGC_SDK_ROOT" ]]; then
     echo "[ERROR] MSGC SDK root not found: $MSGC_SDK_ROOT" >&2
     exit 1
 fi
-if [[ ! -d "$COPYGC_SDK_ROOT" ]]; then
+if [[ "$COPYGC_ENABLE" != "0" && ! -d "$COPYGC_SDK_ROOT" ]]; then
     echo "[ERROR] CopyGC SDK root not found: $COPYGC_SDK_ROOT" >&2
     exit 1
 fi
@@ -268,7 +279,12 @@ MSGC_DIR="$COMPARE_DIR/msgc"
 GO_DIR="$COMPARE_DIR/go"
 JAVA_DIR="$COMPARE_DIR/java"
 MPLCONFIG_DIR="$SHARED_MPLCONFIG_DIR"
-mkdir -p "$COPYGC_DIR" "$MSGC_DIR"
+if [[ "$COPYGC_ENABLE" != "0" ]]; then
+    mkdir -p "$COPYGC_DIR"
+fi
+if [[ "$MSGC_ENABLE" != "0" ]]; then
+    mkdir -p "$MSGC_DIR"
+fi
 if [[ "$GO_ENABLE" != "0" ]]; then
     mkdir -p "$GO_DIR"
 fi
@@ -878,13 +894,19 @@ run_java_side() {
     return $rc
 }
 
-# 先跑 CopyGC 基线，再跑 MSGC
-run_side "CopyGC" "$COPYGC_DIR" "$COPYGC_SDK" "$COPYGC_STDX" 18226 "" "" "$COPYGC_GC_INTERVAL" "" ""
-COPYGC_RC=$?
+# 先跑 CopyGC 基线，再跑 MSGC。
+COPYGC_RC=0
+if [[ "$COPYGC_ENABLE" != "0" ]]; then
+    run_side "CopyGC" "$COPYGC_DIR" "$COPYGC_SDK" "$COPYGC_STDX" 18226 "" "" "$COPYGC_GC_INTERVAL" "" ""
+    COPYGC_RC=$?
+fi
 
-run_side "MSGC" "$MSGC_DIR" "$MSGC_SDK" "$MSGC_STDX" 18230 \
-    "$MSGC_HEAP_GROWTH" "$MSGC_SCAVENGE_GROWTH" "$MSGC_GC_INTERVAL" "$MSGC_MIN_GC_THRESHOLD" "marksweep"
-MSGC_RC=$?
+MSGC_RC=0
+if [[ "$MSGC_ENABLE" != "0" ]]; then
+    run_side "MSGC" "$MSGC_DIR" "$MSGC_SDK" "$MSGC_STDX" 18230 \
+        "$MSGC_HEAP_GROWTH" "$MSGC_SCAVENGE_GROWTH" "$MSGC_GC_INTERVAL" "$MSGC_MIN_GC_THRESHOLD" "marksweep"
+    MSGC_RC=$?
+fi
 
 echo "[INFO] CopyGC rc=$COPYGC_RC  MSGC rc=$MSGC_RC"
 GO_RC=0
@@ -900,10 +922,13 @@ if [[ "$JAVA_ENABLE" != "0" ]]; then
     echo "[INFO] Java rc=$JAVA_RC"
 fi
 
-compare_args=(
-    --run "CopyGC=$COPYGC_DIR"
-    --run "MSGC=$MSGC_DIR"
-)
+compare_args=()
+if [[ "$COPYGC_ENABLE" != "0" ]]; then
+    compare_args+=(--run "CopyGC=$COPYGC_DIR")
+fi
+if [[ "$MSGC_ENABLE" != "0" ]]; then
+    compare_args+=(--run "MSGC=$MSGC_DIR")
+fi
 if [[ "$GO_ENABLE" != "0" ]]; then
     compare_args+=(--run "Go=$GO_DIR")
 fi
