@@ -36,6 +36,7 @@
 #include "Heap/MCollector/MSAssistPacing.h"
 #include "Heap/MCollector/MSMemoryLimitPolicy.h"
 #include "Heap/MCollector/MSMarkWorkerPolicy.h"
+#include "Heap/MCollector/MSGCConfig.h"
 #include "Heap/MAllocator/MSShardRouting.h"
 #endif
 #if defined(CANGJIE_SANITIZER_SUPPORT)
@@ -470,6 +471,31 @@ static RuntimeParam InitRuntimeParam()
                                             std::numeric_limits<double>::max(), EnvBoundKind::CLOSED);
 #endif
     uint64_t gcInterval = ReadTimeParameter("cjGCInterval", 0, 0, EnvBoundKind::OPEN, true);
+#ifdef MRT_USE_MARK_SWEEP
+    MSGCConfigInput msConfigInput;
+    msConfigInput.backgroundSweepMaxTimeNs = ReadTimeParameter(
+        "cjGCBGSweepMaxTime", kMSGCDefaultBackgroundSweepMaxTimeNs,
+        0, EnvBoundKind::OPEN, true);
+    msConfigInput.markTimeBudgetNs = ReadTimeParameter(
+        "cjMSMarkTimeBudget", kMSGCDefaultMarkTimeBudgetNs,
+        0, EnvBoundKind::OPEN, true);
+    msConfigInput.assistMaxMultiplier = ReadCountParameter(
+        "cjMSAssistMaxMultiplier", 4, 0, EnvBoundKind::OPEN);
+    msConfigInput.assistSweepMaxRegionsPerCall = ReadCountParameter(
+        "cjMSAssistSweepMaxRegionsPerCall", 4, 0, EnvBoundKind::OPEN);
+    msConfigInput.enumAssistBatchSize = ReadCountParameter(
+        "cjMSEnumAssistBatchSize", 10, 0, EnvBoundKind::OPEN);
+    msConfigInput.backgroundSweep = static_cast<uint8_t>(ReadBoolParameter("cjMSBackgroundSweep", true));
+    msConfigInput.backgroundScavenge = static_cast<uint8_t>(ReadBoolParameter("cjMSBackgroundScavenge", true));
+    msConfigInput.backgroundShrink = static_cast<uint8_t>(ReadBoolParameter("cjMSBackgroundShrink", false));
+    msConfigInput.verifyMark = static_cast<uint8_t>(ReadBoolParameter("cjMSVerifyMark", false));
+    msConfigInput.verifyMarkDetail = static_cast<uint8_t>(ReadBoolParameter("cjMSVerifyMarkDetail", false));
+    msConfigInput.parallelSweepMaxHelpers = ReadCountParameter(
+        "cjMSParallelSweepMaxHelpers", 0, 0, EnvBoundKind::CLOSED);
+    msConfigInput.parallelSweep = static_cast<uint8_t>(ReadBoolParameter("cjMSParallelSweep", true));
+    msConfigInput.adaptiveGrowth = static_cast<uint8_t>(ReadBoolParameter("cjMSAdaptiveGrowth", false));
+    MSGCResolvedConfig msConfig = ResolveMSGCConfig(msConfigInput, MSGCConfigSource::ENVIRONMENT);
+#endif
     RuntimeParam param = {
         .heapParam = {
 #if defined(__OHOS__) || defined(__ANDROID__)
@@ -535,39 +561,25 @@ static RuntimeParam InitRuntimeParam()
             .scavengeHeapGoalMultiplier = 1.0,
 #endif
 #ifdef MRT_USE_MARK_SWEEP
-            .msBackgroundSweepMaxTime = ReadTimeParameter("cjGCBGSweepMaxTime", 2 * MILLI_SECOND_TO_NANO_SECOND,
-                                                          0, EnvBoundKind::OPEN, true),
-            .msMarkTimeBudget = ReadTimeParameter("cjMSMarkTimeBudget", 10 * SECOND_TO_NANO_SECOND,
-                                                  0, EnvBoundKind::OPEN, true),
-            .msAssistBaseRatioPercent = ReadCountParameter(
-                "cjMSAssistBaseRatioPercent", kMSAssistBaseRatioPercentDefault, 0,
-                                                           EnvBoundKind::OPEN),
-            .msAssistBacklogStepBuffers = ReadCountParameter("cjMSAssistBacklogStepBuffers", 16, 0,
-                                                              EnvBoundKind::OPEN),
-            .msAssistMaxMultiplier = ReadCountParameter("cjMSAssistMaxMultiplier", 4, 0,
-                                                         EnvBoundKind::OPEN),
-            .msAssistCreditDecayRounds = ReadCountParameter("cjMSAssistCreditDecayRounds", 100, 0,
-                                                            EnvBoundKind::OPEN),
-            .msAssistSweepMaxRegionsPerCall = ReadCountParameter("cjMSAssistSweepMaxRegionsPerCall", 4, 0,
-                                                                 EnvBoundKind::OPEN),
-            .msEnumAssistBatchSize = ReadCountParameter("cjMSEnumAssistBatchSize", 10, 0, EnvBoundKind::OPEN),
-            .msReleasedBusyRetryLimit = 0,
-            .msScavengeRounds = ReadCountParameter("cjMSScavengeRounds", 8, 0, EnvBoundKind::OPEN),
-            .msBackgroundSweep = static_cast<uint8_t>(ReadBoolParameter("cjMSBackgroundSweep", true) ? 1U : 0U),
-            .reservedMSBackgroundFeed = 0,
-            .msBackgroundScavenge =
-                static_cast<uint8_t>(ReadBoolParameter("cjMSBackgroundScavenge", true) ? 1U : 0U),
-            .msBackgroundShrink =
-                static_cast<uint8_t>(ReadBoolParameter("cjMSBackgroundShrink", false) ? 1U : 0U),
-            .msVerifyMark = static_cast<uint8_t>(ReadBoolParameter("cjMSVerifyMark", false) ? 1U : 0U),
-            .msVerifyMarkDetail =
-                static_cast<uint8_t>(ReadBoolParameter("cjMSVerifyMarkDetail", false) ? 1U : 0U),
-            .msParallelSweepMaxHelpers = ReadCountParameter(
-                "cjMSParallelSweepMaxHelpers", 0, 0, EnvBoundKind::CLOSED),
-            .msParallelSweep =
-                static_cast<uint8_t>(ReadBoolParameter("cjMSParallelSweep", true) ? 1U : 0U),
-            .msAdaptiveGrowth =
-                static_cast<uint8_t>(ReadBoolParameter("cjMSAdaptiveGrowth", false) ? 1U : 0U),
+            .msBackgroundSweepMaxTime = msConfig.backgroundSweepMaxTimeNs,
+            .msMarkTimeBudget = msConfig.markTimeBudgetNs,
+            .msAssistBaseRatioPercent = msConfig.assistBaseRatioPercent,
+            .msAssistBacklogStepBuffers = msConfig.assistBacklogStepBuffers,
+            .msAssistMaxMultiplier = msConfig.assistMaxMultiplier,
+            .msAssistCreditDecayRounds = msConfig.assistCreditDecayRounds,
+            .msAssistSweepMaxRegionsPerCall = msConfig.assistSweepMaxRegionsPerCall,
+            .msEnumAssistBatchSize = msConfig.enumAssistBatchSize,
+            .msReleasedBusyRetryLimit = msConfig.releasedBusyRetryLimit,
+            .msScavengeRounds = msConfig.scavengeRounds,
+            .msBackgroundSweep = msConfig.backgroundSweep,
+            .reservedMSBackgroundFeed = msConfig.reservedBackgroundFeed,
+            .msBackgroundScavenge = msConfig.backgroundScavenge,
+            .msBackgroundShrink = msConfig.backgroundShrink,
+            .msVerifyMark = msConfig.verifyMark,
+            .msVerifyMarkDetail = msConfig.verifyMarkDetail,
+            .msParallelSweepMaxHelpers = msConfig.parallelSweepMaxHelpers,
+            .msParallelSweep = msConfig.parallelSweep,
+            .msAdaptiveGrowth = msConfig.adaptiveGrowth,
 #endif
         },
         .logParam = {

@@ -187,9 +187,12 @@ public:
     void TransitionAllMutatorsToGCPhase(GCPhase phase);
 
 #ifdef MRT_USE_MARK_SWEEP
+    void TransitionAllMutatorsToMarkSweepGCPhase(GCPhase phase);
     bool HasPendingEnumAssist(GCPhase phase);
     size_t AssistEnumRoots(GCPhase phase, size_t batchSize, Mutator* assistant);
     void FinalizeEnumAssistContext(GCPhase phase);
+#else
+    void TransitionAllMutatorsToCopyGCPhase(GCPhase phase);
 #endif
 
     void EnsureCpuProfileFinish(std::list<Mutator*> &undoneMutators);
@@ -294,21 +297,14 @@ private:
         std::mutex lock;
         std::condition_variable drained;
         GCPhase phase = GCPhase::GC_PHASE_UNDEF;
-        bool active = false;
-        bool assistEnabled = false;
-        size_t remaining = 0;
         size_t claimCursor = 0;
         size_t inFlight = 0;
         std::vector<Mutator*> candidates;
-        std::atomic<size_t> gcMainScanned{0};
-        std::atomic<size_t> mutatorAssistScanned{0};
-        std::atomic<uint64_t> readyPolls{0};
     } enumAssistContext_;
 
     size_t ClaimEnumAssistBatch(
         GCPhase phase, size_t batchSize, std::vector<Mutator*>& claimed);
     void FinishEnumAssistBatch(GCPhase phase);
-    void UpdateEnumAssistRemaining(GCPhase phase, size_t remaining);
 #endif
 
 #if defined(_WIN64) || defined (__APPLE__)

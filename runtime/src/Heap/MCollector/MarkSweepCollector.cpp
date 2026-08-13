@@ -12,11 +12,10 @@
 #include <cstdlib>
 #include <cstring>
 #include <limits>
-#include <memory>
 #include <string>
 #include <thread>
+#include <vector>
 #include "Base/CString.h"
-#include "Base/EnvParam.h"
 #include "Base/Log.h"
 #include "Base/LogFile.h"
 #include "Base/SysCall.h"
@@ -25,7 +24,6 @@
 #include "Common/GCRefFieldScan.inline.h"
 #include "Heap/MAllocator/MSCentralRegionPool.h"
 #include "Heap/MAllocator/MSAllocBuffer.h"
-#include "Heap/MAllocator/MSOOMEmergencyPolicy.h"
 #include "Heap/MAllocator/MSParallelSweepPolicy.h"
 #include "Heap/MAllocator/MSRegionInfo.h"
 #include "Heap/MAllocator/MSRegionManager.h"
@@ -107,6 +105,25 @@ private:
     size_t count_ = 0;
 };
 
+bool HasReachedMarkSchedulerQuiescence(
+    uint64_t outstanding, const MSMarkWorkerControl::Snapshot& control,
+    bool readyEmpty)
+{
+    return outstanding == 0 && control.workersInFlight == 0 &&
+           control.assistsInFlight == 0 && readyEmpty;
+}
+
+bool HasReachedMarkTimeBudget(
+    uint64_t elapsedMarkUs, uint64_t markBudgetUs)
+{
+    return markBudgetUs != 0 && elapsedMarkUs >= markBudgetUs;
+}
+
+}
+
+static bool IsVerifyMarkEnabled()
+{
+    return CangjieRuntime::GetGCParam().msVerifyMark != 0;
 }
 
 static const char* GetDiagTypeName(const BaseObject* obj)
@@ -135,11 +152,6 @@ static bool IsInterestingDiagType(const BaseObject* obj)
 static bool IsVerifyDetailEnabled()
 {
     return CangjieRuntime::GetGCParam().msVerifyMarkDetail != 0;
-}
-
-static bool IsVerifyMarkEnabled()
-{
-    return CangjieRuntime::GetGCParam().msVerifyMark != 0;
 }
 
 static std::string HexForDiag(uintptr_t value)
@@ -462,13 +474,18 @@ static inline bool ResolveDefensiveMarkTarget(
 
 void MarkSweepCollector::InitializeGCMarkBatch(MSMarkWordBatch& batch) const
 {
+    uint32_t markEpoch = __atomic_load_n(
+        &CJ_MRT_MSGCFastPathState.currentMarkEpoch, __ATOMIC_ACQUIRE);
+    uintptr_t allocPlaneBase = static_cast<uintptr_t>(__atomic_load_n(
+        &CJ_MRT_MSGCFastPathState.allocPlaneBase, __ATOMIC_ACQUIRE));
+    uintptr_t markPlaneBase = static_cast<uintptr_t>(__atomic_load_n(
+        &CJ_MRT_MSGCFastPathState.markPlaneBase, __ATOMIC_ACQUIRE));
     CHECK_DETAIL(
-        markBatchEpoch_ != MSRegionInfo::NO_COLLECT_EPOCH &&
-        markBatchAllocPlaneBase_ != 0 && markBatchMarkPlaneBase_ != 0,
+        markEpoch != MSRegionInfo::NO_COLLECT_EPOCH &&
+        allocPlaneBase != 0 && markPlaneBase != 0,
         "[MS-GC] GC MarkWordBatch initialized without a cycle bitmap context");
-    batch.SetMarkEpoch(markBatchEpoch_);
-    batch.SetBitmapPlaneBases(
-        markBatchAllocPlaneBase_, markBatchMarkPlaneBase_);
+    batch.SetMarkEpoch(markEpoch);
+    batch.SetBitmapPlaneBases(allocPlaneBase, markPlaneBase);
 }
 
 // Runtime slow-path view over the compiler-visible mutator buffer. The POD
@@ -522,12 +539,6 @@ public:
                 MSBitmapArena::kPlaneStrideBytes);
     }
 
-    void RecordResolveRejected() const
-    {
-        RecordMSBarrierRuntimeStat(
-            MSBarrierRuntimeStat::OLD_REF_RESOLVE_REJECTED);
-    }
-
     template<typename FlushEntry>
     void Add(uint32_t regionIdx, size_t wordIdx, uint64_t mask,
              FlushEntry&& flushEntry)
@@ -535,8 +546,6 @@ public:
         if (UNLIKELY(
                 buffer_.pendingBitCount >=
                 kMSBarrierMarkBufferPendingBitFlushThreshold)) {
-            RecordMSBarrierRuntimeStat(
-                MSBarrierRuntimeStat::OLD_REF_THRESHOLD_FLUSH);
             FlushAll(flushEntry);
         }
 
@@ -555,8 +564,6 @@ public:
             TryAddMSBarrierMarkSingleBitAtLookup(
                 buffer_, wordKey, mask, lookup);
         if (UNLIKELY(result == MSBarrierMarkAddResult::NEEDS_FLUSH)) {
-            RecordMSBarrierRuntimeStat(
-                MSBarrierRuntimeStat::OLD_REF_SET_CONFLICT_FLUSH);
             FlushAll(flushEntry);
             result = TryAddMSBarrierMarkSingleBitAtLookup(
                 buffer_, wordKey, mask,
@@ -617,6 +624,7 @@ void MarkSweepCollector::Init()
     size_t markReadyShardCount = ComputeMSMarkReadyShardCount(
         markReadyProcessorCount_, totalGCMarkThreads);
     markScheduler_.ConfigureRegionShards(markReadyShardCount);
+    UpdateMarkAssistPlan();
     VLOG(REPORT,
          "[MS-GC] Mark ready shards: P=%zu gcThreads=%zu shards=%zu",
          markReadyProcessorCount_, totalGCMarkThreads,
@@ -644,7 +652,6 @@ void MarkSweepCollector::PreGarbageCollection(bool isConcurrent)
 
 void MarkSweepCollector::PostGarbageCollection(uint64_t gcIndex)
 {
-    uint64_t t0 = TimeUtil::MicroSeconds();
     // MarkTermination has already restored the idle barrier before Mutators
     // resume.  The Sweep epoch is tracked independently by CentralRegionPool.
     collectorResources.NotifyGCFinished(gcIndex);
@@ -652,7 +659,6 @@ void MarkSweepCollector::PostGarbageCollection(uint64_t gcIndex)
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
     DumpAfterGC();
 #endif
-    cycleStats_.postGcHookUs = TimeUtil::MicroSeconds() - t0;
 }
 
 // ============================================================================
@@ -670,23 +676,17 @@ void MarkSweepCollector::RunGarbageCollection(uint64_t gcIndex, GCReason reason)
     gcStats.collectedBytes = 0;
     gcStats.gcStartTime = TimeUtil::NanoSeconds();
     currentGcStartUs_ = TimeUtil::MicroSeconds();
-    // Block ①: GC Entry
     LogGCEntry(gcIndex, reason);
-
     PreGarbageCollection(/* isConcurrent */ true);
     DumpGCStateSnapshot("preGCMark");
     DoGarbageCollection();
-    Heap::GetHeap().GetCollectorResources().GetBackgroundProcessor().NotifyToScavenge();
     PostGarbageCollection(gcIndex);
 
     gcStats.gcEndTime = TimeUtil::NanoSeconds();
     uint64_t gcTimeNs = gcStats.gcEndTime - gcStats.gcStartTime;
     uint64_t gcTimeUs = gcTimeNs / NS_PER_US;
 
-    // Block ⑤: Region statistics
     DumpRegionStatsMS();
-
-    // Block ⑥: GC Summary
     LogGCSummary(gcTimeUs);
 
     g_gcCount++;
@@ -701,7 +701,7 @@ void MarkSweepCollector::DoGarbageCollection()
         return;
     }
     PreEnumRoots();        // Step 2.1a
-    EnumRoots();            // Step 2.1b
+    EnumRoots();           // Step 2.1b
     ConcurrentMark();      // Step 2.2
     MarkTermination();     // Step 2.3
     PostMarkTermination(); // Step 2.4
@@ -734,22 +734,20 @@ void MarkSweepCollector::RunOOMEmergencyCycle()
 void MarkSweepCollector::PreEnumRoots(bool worldStopped)
 {
     uint64_t t0 = TimeUtil::MicroSeconds();
-    VLOG(REPORT, "[MS-GC] --- PreEnumRoots ---");
     cycleCompletedMarkWU_.store(0, std::memory_order_relaxed);
     assistWorkPerByteScaled_.store(0, std::memory_order_relaxed);
     markAssistCompletedWU_.store(0, std::memory_order_relaxed);
-    markAssistActiveUs_.store(0, std::memory_order_relaxed);
-    markAssistCalls_.store(0, std::memory_order_relaxed);
-    markAssistNoTaskCalls_.store(0, std::memory_order_relaxed);
-    markAssistAdmissionAccepted_.store(0, std::memory_order_relaxed);
-    markAssistAdmissionRejectedBacklog_.store(0, std::memory_order_relaxed);
     // GC main follows the P participants in the stable affinity namespace.
     // The hint remains valid through root publication, concurrent Mark and
     // both MarkTermination closure drains on this GC thread.
     g_msMarkReadyParticipant = markReadyProcessorCount_;
 
+
     RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(theAllocator);
-    CentralRegionPool* centralPool = space.GetCentralPool();
+    // Capture the capacity used during the preceding allocation period
+    // before its dead Regions become empty/hot-free. Scavenge uses this
+    // as a cache floor after the Sweep epoch is forced to completion.
+    cycleStats_.preSweepInUseBytes = space.GetHeapInUseBytes();
     
     // Stop sweep → wait for in-flight sweep to quiesce → under STW clear
     // bitmaps / reclassify residual unswept entries / flip sweep generation
@@ -760,38 +758,14 @@ void MarkSweepCollector::PreEnumRoots(bool worldStopped)
     // swept this cycle, which wrongly reclaims live objects that are only held
     // by stack/local roots (those never pass through the write barrier).
     // Safe pre-mark: no SweepRegion running, mark-at-alloc inactive.
+    CentralRegionPool* centralPool = space.GetCentralPool();
     CHECK_DETAIL(centralPool != nullptr,
                  "[MS-GC] RegionSpaceMS has no CentralRegionPool in PreEnumRoots");
     {
-        // Capture the capacity used during the preceding allocation period
-        // before its dead Regions become empty/hot-free. Scavenge uses this
-        // as a cache floor after the Sweep epoch is forced to completion.
-        cycleStats_.preSweepInUseBytes = space.GetHeapInUseBytes();
-        uint64_t stopSweepT0 = TimeUtil::MicroSeconds();
         centralPool->StopAndWaitForAllSweep();
-        uint64_t stopSweepUs = TimeUtil::MicroSeconds() - stopSweepT0;
-
-        uint64_t clearBitmapUs = 0;
-        uint64_t stwT0 = TimeUtil::MicroSeconds();
         auto prepareUnderSTW = [&]() {
             markScheduler_.ResetCycle();
-            PrepareBarrierMarkBuffersForNewEpochUnderSTW(*centralPool);
-            uint64_t clearBitmapT0 = TimeUtil::MicroSeconds();
-            markBatchEpoch_ =
-                centralPool->PrepareCollectSetForMarkUnderSTW(gcReason == GC_REASON_OOM);
-            markBatchAllocPlaneBase_ = static_cast<uintptr_t>(
-                __atomic_load_n(
-                    &CJ_MRT_MSGCFastPathState.allocPlaneBase,
-                    __ATOMIC_RELAXED));
-            markBatchMarkPlaneBase_ = static_cast<uintptr_t>(
-                __atomic_load_n(
-                    &CJ_MRT_MSGCFastPathState.markPlaneBase,
-                    __ATOMIC_RELAXED));
-            CHECK_DETAIL(
-                markBatchAllocPlaneBase_ != 0 &&
-                markBatchMarkPlaneBase_ != 0,
-                "[MS-GC] PreEnum prepared an empty bitmap context");
-            clearBitmapUs = TimeUtil::MicroSeconds() - clearBitmapT0;
+            centralPool->PrepareMarkEpochUnderSTW(gcReason == GC_REASON_OOM);
 
             // Keep the old collector gate closed until every prior-epoch
             // scheduler and barrier-buffer state has been discarded.  In
@@ -808,16 +782,8 @@ void MarkSweepCollector::PreEnumRoots(bool worldStopped)
             ScopedStopTheWorld stw("MS PreEnumRoots clear/reclassify/prepare STW");
             prepareUnderSTW();
         }
-        uint64_t stwUs = TimeUtil::MicroSeconds() - stwT0;
-        VLOG(REPORT,
-             "[MS-GC] PreEnumRoots: stage-times stopSweep=%sus clearBitmaps=%sus stw=%sus",
-             Pretty(stopSweepUs).Str(),
-             Pretty(clearBitmapUs).Str(),
-             Pretty(stwUs).Str());
     }
     cycleStats_.preEnumRootsUs = TimeUtil::MicroSeconds() - t0;
-    VLOG(REPORT, "[MS-GC] PreEnumRoots: %sus",
-         Pretty(cycleStats_.preEnumRootsUs).Str());
 }
 
 // ============================================================================
@@ -829,40 +795,16 @@ void MarkSweepCollector::PreEnumRoots(bool worldStopped)
 
 void MarkSweepCollector::EnumRoots()
 {
-    uint64_t phaseStart = TimeUtil::MicroSeconds();
-    VLOG(REPORT, "[MS-GC] --- EnumRoots ---");
-
+    uint64_t startUs = TimeUtil::MicroSeconds();
     // Handshake: each Mutator reaches safepoint, scans its own stack roots.
-    uint64_t mutatorCountT0 = TimeUtil::MicroSeconds();
-    size_t enumMutatorCount = MutatorManager::Instance().GetMutatorCount();
-    uint64_t mutatorCountUs = TimeUtil::MicroSeconds() - mutatorCountT0;
-    uint64_t poolSetupUs = 0;
-    uint64_t phaseTransitionT0 = TimeUtil::MicroSeconds();
     MutatorManager::Instance().TransitionAllMutatorsToGCPhase(
         GCPhase::GC_PHASE_MS_MARK_SETUP);
-    uint64_t phaseTransitionUs = TimeUtil::MicroSeconds() - phaseTransitionT0;
 
     // GC thread enumerates global roots + marks root set.
-    rootStaging_.clear();
-    uint64_t rootEnumerationT0 = TimeUtil::MicroSeconds();
+    rootSnapshot_.Clear();
     EnumAndMarkRoots();
-    uint64_t rootEnumerationUs = TimeUtil::MicroSeconds() - rootEnumerationT0;
-    uint64_t rootPublishT0 = TimeUtil::MicroSeconds();
     PublishRootStaging();
-    uint64_t rootPublishUs = TimeUtil::MicroSeconds() - rootPublishT0;
-    uint64_t poolFinishUs = 0;
-
-    cycleStats_.markSetupUs = TimeUtil::MicroSeconds() - phaseStart;
-    VLOG(REPORT,
-         "[MS-GC] EnumRoots: stage-times mutators=%zu mutatorCount=%sus poolSetup=%sus "
-         "phaseTransition=%sus rootEnumeration=%sus rootPublish=%sus poolFinish=%sus "
-         "total=%sus roots=%zu",
-         enumMutatorCount, Pretty(mutatorCountUs).Str(), Pretty(poolSetupUs).Str(),
-         Pretty(phaseTransitionUs).Str(), Pretty(rootEnumerationUs).Str(), Pretty(rootPublishUs).Str(),
-         Pretty(poolFinishUs).Str(),
-         Pretty(cycleStats_.markSetupUs).Str(), cycleStats_.rootsCount);
-    VLOG(REPORT, "[MS-GC] EnumRoots: %sus, roots=%zu",
-         Pretty(cycleStats_.markSetupUs).Str(), cycleStats_.rootsCount);
+    cycleStats_.enumRootsUs = TimeUtil::MicroSeconds() - startUs;
 }
 
 // ============================================================================
@@ -1006,7 +948,6 @@ void MarkSweepCollector::AddRefToMarkBatch(
     if (Source == MSMarkRefSource::DEFENSIVE) {
         ResolvedMarkTarget target;
         if (UNLIKELY(!ResolveDefensiveMarkTarget(obj, target))) {
-            batch.RecordResolveRejected();
             return;
         }
         work.AddResolvedRefs();
@@ -1054,7 +995,6 @@ void MarkSweepCollector::AddRefToMarkBatch(
 
     ResolvedMarkTarget target;
     if (UNLIKELY(!ResolveNonSmallMarkTarget(addr, info, target))) {
-        batch.RecordResolveRejected();
         return;
     }
     work.AddResolvedRefs();
@@ -1214,38 +1154,21 @@ void MarkSweepCollector::FlushBarrierMarkBuffer(
 
 void MarkSweepCollector::NotifyAllocBufferExit(AllocBufferMS& allocBuffer)
 {
-    FoldGCMarkAssistTelemetry(allocBuffer);
+    FoldGCMarkAssistWork(allocBuffer);
     FlushBarrierMarkBuffer(allocBuffer.GetBarrierMarkBuffer());
 }
 
-void MarkSweepCollector::FoldGCMarkAssistTelemetry(
+void MarkSweepCollector::FoldGCMarkAssistWork(
     AllocBufferMS& allocBuffer)
 {
-    uint64_t completedWU;
-    uint64_t activeUs;
-    uint64_t productiveCalls;
-    uint64_t noTaskCalls;
-    allocBuffer.DrainGCMarkAssistTelemetry(
-        completedWU, activeUs, productiveCalls, noTaskCalls);
+    uint64_t completedWU = allocBuffer.DrainGCMarkAssistWork();
     if (completedWU != 0) {
         markAssistCompletedWU_.fetch_add(
             completedWU, std::memory_order_relaxed);
     }
-    if (activeUs != 0) {
-        markAssistActiveUs_.fetch_add(
-            activeUs, std::memory_order_relaxed);
-    }
-    if (productiveCalls != 0) {
-        markAssistCalls_.fetch_add(
-            productiveCalls, std::memory_order_relaxed);
-    }
-    if (noTaskCalls != 0) {
-        markAssistNoTaskCalls_.fetch_add(
-            noTaskCalls, std::memory_order_relaxed);
-    }
 }
 
-void MarkSweepCollector::FoldActiveGCMarkAssistTelemetry()
+void MarkSweepCollector::FoldActiveGCMarkAssistWork()
 {
     RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(theAllocator);
     CentralRegionPool* centralPool = space.GetCentralPool();
@@ -1253,41 +1176,18 @@ void MarkSweepCollector::FoldActiveGCMarkAssistTelemetry()
         return;
     }
     centralPool->VisitAllocBufferMS([this](AllocBufferMS& buffer) {
-        FoldGCMarkAssistTelemetry(buffer);
+        FoldGCMarkAssistWork(buffer);
     });
 }
 
-void MarkSweepCollector::FlushAllBarrierMarkBuffersUnderSTW(
-    CentralRegionPool& central, size_t& visitedBuffers,
-    size_t& nonEmptyBuffers, size_t& bufferedEntries)
+void MarkSweepCollector::FlushAllBarrierMarkBuffersUnderSTW(CentralRegionPool& central)
 {
-    visitedBuffers = 0;
-    nonEmptyBuffers = 0;
-    bufferedEntries = 0;
-    central.VisitAllocBufferMS([this, &visitedBuffers, &nonEmptyBuffers,
-                                &bufferedEntries](AllocBufferMS& buffer) {
-        ++visitedBuffers;
+    central.VisitAllocBufferMS([this](AllocBufferMS& buffer) {
         MSBarrierMarkBuffer& markBuffer = buffer.GetBarrierMarkBuffer();
-        uint32_t occupancy = markBuffer.occupancy;
-        if (occupancy == 0) {
+        if (markBuffer.occupancy == 0) {
             return;
         }
-        ++nonEmptyBuffers;
-        bufferedEntries += static_cast<size_t>(__builtin_popcount(occupancy));
         FlushBarrierMarkBuffer(markBuffer);
-    });
-}
-
-void MarkSweepCollector::PrepareBarrierMarkBuffersForNewEpochUnderSTW(
-    CentralRegionPool& central)
-{
-    central.VisitAllocBufferMS([](AllocBufferMS& buffer) {
-        MSBarrierMarkBuffer& markBuffer = buffer.GetBarrierMarkBuffer();
-        // The buffer has no epoch tag. Anything left while the mark barrier is
-        // inactive belongs to the completed cycle and must not be published
-        // into the mark plane that PreEnum prepares for the new cycle.
-        ResetMSBarrierMarkBuffer(markBuffer);
-        buffer.ResetGCMarkAssistCycleState();
     });
 }
 
@@ -1474,7 +1374,7 @@ size_t MarkSweepCollector::GetCurrentMarkReadyShard() const
         participant, markScheduler_.RegionShardCount());
 }
 
-uint64_t MarkSweepCollector::DrainSchedulerUnderSTW()
+uint64_t MarkSweepCollector::DrainSchedulerSeriallyUnderSTW()
 {
     uint64_t completedWU = 0;
     size_t preferredRegionShard = GetCurrentMarkReadyShard();
@@ -1516,15 +1416,10 @@ void MarkSweepCollector::RunTerminationDrainLaneUnderSTW(
                 MSMarkWorkerCaps::GCWorker(), preferObject,
                 preferredRegionShard, regionProbeCursor, lease)) {
             preferObject = !preferObject;
-            uint64_t taskStartUs = TimeUtil::MicroSeconds();
             MSWorkUnitCounter work;
             RunSchedulerTask(lease, work);
-            stats.activeUs = SaturatingMSWUAdd(
-                stats.activeUs,
-                TimeUtil::MicroSeconds() - taskStartUs);
             stats.workUnits = SaturatingMSWUAdd(
                 stats.workUnits, work.Total());
-            ++stats.completedTasks;
             if (markScheduler_.OutstandingForTermination() == 0) {
                 markWorkEpoch_.Notify();
             }
@@ -1537,7 +1432,6 @@ void MarkSweepCollector::RunTerminationDrainLaneUnderSTW(
         if (markScheduler_.OutstandingForTermination() == 0) {
             break;
         }
-        ++stats.waits;
         (void)markWorkEpoch_.WaitForChange(
             observedProgressEpoch,
             std::chrono::microseconds(kMSTerminationDrainWaitUs));
@@ -1546,14 +1440,10 @@ void MarkSweepCollector::RunTerminationDrainLaneUnderSTW(
 }
 
 MarkSweepCollector::MSTerminationDrainStats
-MarkSweepCollector::DrainOrdinarySchedulerUnderSTW()
+MarkSweepCollector::DrainSchedulerWithHelpersUnderSTW()
 {
     MSTerminationDrainStats stats;
-    uint64_t totalStartUs = TimeUtil::MicroSeconds();
     uint64_t startTasks = markScheduler_.OutstandingForTermination();
-    stats.startTasks = static_cast<size_t>(std::min<uint64_t>(
-        startTasks, std::numeric_limits<size_t>::max()));
-    stats.startWorkWords = markScheduler_.OutstandingWorkHint();
 
     size_t configuredThreads = std::min(
         static_cast<size_t>(std::max<int32_t>(
@@ -1571,20 +1461,16 @@ MarkSweepCollector::DrainOrdinarySchedulerUnderSTW()
             static_cast<size_t>(threadPool->GetMaxThreadNum()));
     }
     size_t policyWorkWords = static_cast<size_t>(std::min<uint64_t>(
-        stats.startWorkWords, std::numeric_limits<size_t>::max()));
+        markScheduler_.OutstandingWorkHint(), std::numeric_limits<size_t>::max()));
     size_t helperCount = ComputeMSMarkTerminationDrainHelpers(
-        stats.startTasks, policyWorkWords, maxHelpers);
+        static_cast<size_t>(std::min<uint64_t>(startTasks, std::numeric_limits<size_t>::max())),
+        policyWorkWords, maxHelpers);
     if (helperCount == 0) {
-        uint64_t serialStartUs = TimeUtil::MicroSeconds();
-        stats.main.workUnits = DrainSchedulerUnderSTW();
-        stats.main.activeUs = TimeUtil::MicroSeconds() - serialStartUs;
+        stats.main.workUnits = DrainSchedulerSeriallyUnderSTW();
         stats.workUnits = stats.main.workUnits;
-        stats.mainLaneUs = stats.main.activeUs;
-        stats.totalUs = TimeUtil::MicroSeconds() - totalStartUs;
         return stats;
     }
 
-    uint64_t setupStartUs = TimeUtil::MicroSeconds();
     std::vector<MSTerminationDrainLaneStats> helperStats(helperCount);
     std::vector<std::unique_ptr<HeapWork>> stagedTasks;
     stagedTasks.reserve(helperCount);
@@ -1603,41 +1489,25 @@ MarkSweepCollector::DrainOrdinarySchedulerUnderSTW()
         stagedTasks.push_back(std::move(task));
     }
     if (allocationFailed) {
-        uint64_t serialStartUs = TimeUtil::MicroSeconds();
-        stats.main.workUnits = DrainSchedulerUnderSTW();
-        stats.main.activeUs = TimeUtil::MicroSeconds() - serialStartUs;
+        stats.main.workUnits = DrainSchedulerSeriallyUnderSTW();
         stats.workUnits = stats.main.workUnits;
-        stats.mainLaneUs = stats.main.activeUs;
-        stats.setupUs = serialStartUs - setupStartUs;
-        stats.totalUs = TimeUtil::MicroSeconds() - totalStartUs;
         return stats;
     }
 
-    stats.parallel = true;
-    stats.helperCount = helperCount;
     threadPool->SetMaxActiveThreadNum(
         static_cast<int32_t>(helperCount));
     for (std::unique_ptr<HeapWork>& task : stagedTasks) {
         threadPool->AddWork(task.release());
     }
     threadPool->Start();
-    stats.setupUs = TimeUtil::MicroSeconds() - setupStartUs;
 
-    uint64_t mainLaneStartUs = TimeUtil::MicroSeconds();
     RunTerminationDrainLaneUnderSTW(
         markReadyProcessorCount_, stats.main);
-    stats.mainLaneUs = TimeUtil::MicroSeconds() - mainLaneStartUs;
 
-    uint64_t joinStartUs = TimeUtil::MicroSeconds();
     threadPool->WaitFinish();
-    stats.joinUs = TimeUtil::MicroSeconds() - joinStartUs;
     for (const MSTerminationDrainLaneStats& helper : helperStats) {
         stats.helpers.workUnits = SaturatingMSWUAdd(
             stats.helpers.workUnits, helper.workUnits);
-        stats.helpers.activeUs = SaturatingMSWUAdd(
-            stats.helpers.activeUs, helper.activeUs);
-        stats.helpers.completedTasks += helper.completedTasks;
-        stats.helpers.waits += helper.waits;
     }
     stats.workUnits = SaturatingMSWUAdd(
         stats.main.workUnits, stats.helpers.workUnits);
@@ -1653,23 +1523,16 @@ MarkSweepCollector::DrainOrdinarySchedulerUnderSTW()
         static_cast<unsigned long long>(
             markScheduler_.OutstandingForTermination()),
         markScheduler_.ReadyEmptyForTermination());
-    stats.totalUs = TimeUtil::MicroSeconds() - totalStartUs;
     return stats;
 }
 
 void MarkSweepCollector::VerifyMarkSchedulerQuiescence(
     const char* closureName)
 {
-    if (!IsVerifyMarkEnabled()) {
-        return;
-    }
-
-    constexpr size_t kMaxReport = 32;
     size_t badRegions = 0;
     size_t strandedPendingRegions = 0;
     size_t nonIdleRegions = 0;
     size_t unscannedObjects = 0;
-    size_t reported = 0;
     const size_t regionCount = MSRegionInfoArray::GetMaxRegionCount();
     for (size_t idx = 0; idx < regionCount; ++idx) {
         MSRegionInfo* info = MSRegionInfoArray::GetRegionInfoByIdx(idx);
@@ -1699,24 +1562,7 @@ void MarkSweepCollector::VerifyMarkSchedulerQuiescence(
         strandedPendingRegions += pending != 0 ? 1 : 0;
         nonIdleRegions += state != MSScanState::IDLE ? 1 : 0;
         unscannedObjects += regionUnscanned;
-        if (reported < kMaxReport) {
-            VLOG(REPORT,
-                 "[MS-GC][VERIFY] scheduler-not-quiescent: closure=%s "
-                 "region=%zu state=%u pending=0x%llx "
-                 "unscannedObjects=%zu",
-                 closureName, idx, static_cast<unsigned>(state),
-                 static_cast<unsigned long long>(pending),
-                 regionUnscanned);
-            ++reported;
-        }
     }
-
-    VLOG(REPORT,
-         "[MS-GC][VERIFY] scheduler-quiescence: closure=%s badRegions=%zu "
-         "pendingRegions=%zu nonIdleRegions=%zu "
-         "unscannedObjects=%zu",
-         closureName, badRegions, strandedPendingRegions,
-         nonIdleRegions, unscannedObjects);
     CHECK_DETAIL(
         badRegions == 0,
          "[MS-GC] Mark scheduler reached false fixed point: closure=%s "
@@ -1734,45 +1580,25 @@ void MarkSweepCollector::EnumAndMarkRoots()
     // mutator's root scan. The AllocBufferMS registry lock protects buffer
     // lifetime while roots are merged, so reacquiring the mutator-management
     // write lock here only introduces reader/writer contention.
-    MergeRootsFromAllocBuffers(rootStaging_);
+    MergeRootsFromAllocBuffers(rootSnapshot_);
 
     WorkStack globalRoots = NewWorkStack();
     EnumAllNonMutatorRootsSerial(globalRoots);
     EnumAllExportRoots(globalRoots);
     while (!globalRoots.empty()) {
-        rootStaging_.push_back(globalRoots.back());
+        rootSnapshot_.Append(globalRoots.back());
         globalRoots.pop_back();
     }
 }
 
 void MarkSweepCollector::PublishRootStaging()
 {
-    std::vector<BaseObject*>& roots = rootStaging_;
-    const size_t rawRootCount = roots.size();
-    cycleStats_.rootsCount = rawRootCount;
-    rootDedupTable_.Reset(rawRootCount);
-    size_t uniqueRootCount = 0;
-    for (BaseObject* obj : roots) {
-        if (UNLIKELY(!Heap::IsHeapAddress(obj))) {
-            continue;
-        }
-        uintptr_t address = reinterpret_cast<uintptr_t>(obj);
-        if (!rootDedupTable_.Insert(address)) {
-            continue;
-        }
-        roots[uniqueRootCount++] = obj;
-    }
-    roots.resize(uniqueRootCount);
-
-    PublishRootRange(roots, 0, uniqueRootCount);
-
-    VLOG(REPORT,
-         "[MS-GC] EnumRoots root-publish: helpers=%zu rawRoots=%zu uniqueRoots=%zu "
-         "batchEntries=%zu dedupCapacity=%zu dedupCleared=%zu helperStage=%sus",
-         static_cast<size_t>(0), rawRootCount, uniqueRootCount,
-         MSMarkWordBatch::kCapacity, rootDedupTable_.Capacity(),
-         rootDedupTable_.LastResetClearedSlotCount(), Pretty(0).Str());
-    roots.clear();
+    rootSnapshot_.Deduplicate([](BaseObject* obj) {
+        return Heap::IsHeapAddress(obj);
+    });
+    rootSnapshot_.Publish([this](const std::vector<BaseObject*>& roots) {
+        PublishRootRange(roots, 0, roots.size());
+    });
 }
 
 void MarkSweepCollector::PublishRootRange(
@@ -1802,14 +1628,13 @@ void MarkSweepCollector::MergeRootsFromAllocBuffers(WorkStack& workStack)
     }
 }
 
-void MarkSweepCollector::MergeRootsFromAllocBuffers(
-    std::vector<BaseObject*>& roots)
+void MarkSweepCollector::MergeRootsFromAllocBuffers(MSRootSnapshot& roots)
 {
     RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(theAllocator);
     CentralRegionPool* centralPool = space.GetCentralPool();
     if (centralPool != nullptr) {
         centralPool->VisitAllocBufferMS([&roots](AllocBufferMS& buffer) {
-            buffer.MergeRoots(roots);
+            buffer.MergeRoots(roots.Roots());
         });
     }
 }
@@ -1820,110 +1645,74 @@ void MarkSweepCollector::MergeRootsFromAllocBuffers(
 
 void MarkSweepCollector::ConcurrentMark()
 {
-    uint64_t concurrentStartUs = TimeUtil::MicroSeconds();
-    uint64_t stageStartUs = concurrentStartUs;
+    uint64_t markStartUs = TimeUtil::MicroSeconds();
+    VLOG(REPORT, "[MS-GC] --- ConcurrentMark begin ---");
     TransitionToGCPhase(GCPhase::GC_PHASE_MS_CONCURRENT_MARK, true);
-    cycleStats_.markPhaseTransitionUs =
-        TimeUtil::MicroSeconds() - stageStartUs;
-
-    stageStartUs = TimeUtil::MicroSeconds();
     markWorkerControl_.Start(0);
 
-    bool disableAssist = ReadBoolParameter("CJ_MS_DISABLE_ASSIST", false);
-    uint64_t baseAssistRatio = ApplyMSAssistDisableOverride(
+    MSMarkAssistPlan assistPlan;
+    MSMarkPressure pressure = ActivateMarkAssistForCurrentCycle(assistPlan);
+    RunSchedulerMarkLoop(
+        assistPlan.baseRatio, assistPlan.maxMultiplier, pressure);
+    assistWorkPerByteScaled_.store(0, std::memory_order_release);
+    cycleStats_.concurrentMarkUs = TimeUtil::MicroSeconds() - markStartUs;
+    VLOG(REPORT, "[MS-GC] --- ConcurrentMark end: total=%sus ---",
+         Pretty(cycleStats_.concurrentMarkUs).Str());
+}
+
+void MarkSweepCollector::UpdateMarkAssistPlan()
+{
+    nextMarkAssistPlan_.baseRatio = ApplyMSAssistDisableOverride(
         ComputeMSAssistRatioQ16(
-            markPacer_.GetWorkDensityQ16(), MSMarkPressure::NORMAL,
-            1),
-        disableAssist);
-    size_t maxAssistMultiplier = std::max<size_t>(
+            markPacer_.GetWorkDensityQ16(), MSMarkPressure::NORMAL, 1),
+        CangjieRuntime::IsMSAssistDisabled());
+    nextMarkAssistPlan_.maxMultiplier = std::max<size_t>(
         1, CangjieRuntime::GetGCParam().msAssistMaxMultiplier);
-    MSMarkPressure pressure =
-        gcReason == GC_REASON_OOM
+}
+
+MSMarkPressure MarkSweepCollector::ActivateMarkAssistForCurrentCycle(
+    MSMarkAssistPlan& assistPlan)
+{
+    assistPlan = nextMarkAssistPlan_;
+    MSMarkPressure pressure = gcReason == GC_REASON_OOM
         ? MSMarkPressure::CRITICAL
         : MSMarkPressure::NORMAL;
-    uint64_t outstanding = markScheduler_.OutstandingHint();
-    size_t assistMultiplier = ComputeMSMarkInitialAssistMultiplier(
-        maxAssistMultiplier, pressure);
-    uint64_t assistRatio = SaturatingMSWUMul(
-        baseAssistRatio, assistMultiplier);
-    assistWorkPerByteScaled_.store(assistRatio, std::memory_order_release);
-    VLOG(REPORT,
-         "[MS-GC] Assist pacing: disabled=%d baseRatio=%llu "
-         "effectiveRatio=%llu multiplier=%zu outstanding=%llu",
-         static_cast<int>(disableAssist),
-         static_cast<unsigned long long>(baseAssistRatio),
-         static_cast<unsigned long long>(assistRatio),
-         assistMultiplier,
-         static_cast<unsigned long long>(outstanding));
-    cycleStats_.markPacingSetupUs =
-        TimeUtil::MicroSeconds() - stageStartUs;
-
-    RunSchedulerMarkLoop(
-        baseAssistRatio, maxAssistMultiplier, pressure);
-    assistWorkPerByteScaled_.store(0, std::memory_order_release);
-    cycleStats_.concurrentMarkUs =
-        TimeUtil::MicroSeconds() - concurrentStartUs;
+    size_t multiplier = ComputeMSMarkInitialAssistMultiplier(
+        assistPlan.maxMultiplier, pressure);
+    uint64_t ratio = SaturatingMSWUMul(assistPlan.baseRatio, multiplier);
+    assistWorkPerByteScaled_.store(ratio, std::memory_order_release);
+    return pressure;
 }
 
 void MarkSweepCollector::RunSchedulerMarkLoop(
     uint64_t baseAssistRatio, size_t maxAssistMultiplier,
     MSMarkPressure pressure)
 {
-    uint64_t t0 = TimeUtil::MicroSeconds();
-    VLOG(REPORT,
-         "[MS-GC] --- ConcurrentMark (REGION/OBJECT scheduler) ---");
-
-    size_t configuredThreads = std::min(
-        static_cast<size_t>(std::max<int32_t>(1, CangjieRuntime::GetGCParam().gcThreads)),
-        CangjieRuntime::GetMSGCThreadCapacity());
-    size_t maxHelpers = configuredThreads > 1 ? configuredThreads - 1 : 0;
-    GCThreadPool* threadPool = GetThreadPool();
-    if (threadPool == nullptr) {
-        maxHelpers = 0;
-    } else {
-        maxHelpers = std::min(
-            maxHelpers, static_cast<size_t>(threadPool->GetMaxThreadNum()));
-    }
-
+    // Step 1: claim the shared GC worker pool for this cycle and establish
+    // the initial controller state. The lease remains held through
+    // MarkTermination so its STW closure can reuse the same helpers.
     bool markPoolOwned = false;
-    if (maxHelpers != 0) {
-        uint64_t poolAcquireStartUs = TimeUtil::MicroSeconds();
-        markPoolOwned = collectorResources.AcquireMSGCWorkerPoolForMark();
-        cycleStats_.markPoolAcquireUs =
-            TimeUtil::MicroSeconds() - poolAcquireStartUs;
-        if (!markPoolOwned) {
-            maxHelpers = 0;
-        }
-    }
-
-    uint64_t initialOutstanding = markScheduler_.OutstandingHint();
-    uint64_t initialOutstandingWork = markScheduler_.OutstandingWorkHint();
+    size_t maxHelpers = AcquireMarkWorkerPool(markPoolOwned);
     MSMarkControllerState markController(
-        initialOutstanding, initialOutstandingWork,
+        markScheduler_.OutstandingHint(), markScheduler_.OutstandingWorkHint(),
         maxHelpers, maxAssistMultiplier, pressure);
     MSMarkPressureGate pressureGate(pressure);
-    size_t activeHelpers = markController.HelperTarget();
-    cycleStats_.markMaxHelpers = maxHelpers;
-    cycleStats_.markInitialHelpers = activeHelpers;
-    uint64_t workerStartUs = TimeUtil::MicroSeconds();
-    StartMarkWorkers(maxHelpers, activeHelpers);
-    cycleStats_.markWorkerStartUs =
-        TimeUtil::MicroSeconds() - workerStartUs;
+    StartMarkWorkers(maxHelpers, markController.HelperTarget());
 
-    uint64_t markBudgetNs = CangjieRuntime::GetGCParam().msMarkTimeBudget;
-    uint64_t markBudgetUs = markBudgetNs == 0
+    uint64_t markBudgetUs = CangjieRuntime::GetGCParam().msMarkTimeBudget;
+    markBudgetUs = markBudgetUs == 0
         ? 0
-        : std::max<uint64_t>(1, markBudgetNs / 1000);
+        : std::max<uint64_t>(1, markBudgetUs / 1000);
     size_t preferredRegionShard = GetCurrentMarkReadyShard();
     size_t regionProbeCursor = preferredRegionShard + 1;
     uint64_t mainCompletedWU = 0;
-    uint64_t mainActiveUs = 0;
-    uint64_t mainSlices = 0;
     size_t markControlSlices = 0;
     uint64_t markLoopStartUs = TimeUtil::MicroSeconds();
+
+    // Step 2: GC main scans one bounded scheduler slice at a time. Workers
+    // and mutator assists publish into the same scheduler concurrently.
     for (;;) {
         uint64_t observedProgressEpoch = markWorkEpoch_.Load();
-        uint64_t sliceStartUs = TimeUtil::MicroSeconds();
         MSMarkSliceResult slice = markScheduler_.RunMarkSlice(
             MSMarkWorkerCaps::GCWorker(), preferredRegionShard,
             regionProbeCursor,
@@ -1933,111 +1722,126 @@ void MarkSweepCollector::RunSchedulerMarkLoop(
                 MSTaskLease& lease, MSWorkUnitCounter& work) {
                 RunSchedulerTask(lease, work);
             });
-        uint64_t sliceUs = TimeUtil::MicroSeconds() - sliceStartUs;
-        if (slice.completedTasks != 0) {
-            mainActiveUs = SaturatingMSWUAdd(
-                mainActiveUs, sliceUs);
-            ++mainSlices;
-        }
         mainCompletedWU = SaturatingMSWUAdd(
             mainCompletedWU, slice.completedWU);
 
         uint64_t outstanding = markScheduler_.OutstandingHint();
         MSMarkWorkerControl::Snapshot control =
             markWorkerControl_.GetSnapshot();
-        if (outstanding == 0 &&
-            control.workersInFlight == 0 &&
-            control.assistsInFlight == 0 &&
-            markScheduler_.ReadyEmptyForTermination()) {
-            cycleStats_.markTerminationReason =
-                MSMarkTerminationReason::NATURAL;
-            cycleStats_.markLoopUs =
-                TimeUtil::MicroSeconds() - markLoopStartUs;
-            uint64_t quiesceStartUs = TimeUtil::MicroSeconds();
-            cycleStats_.markQuiesceResidualTasks =
-                QuiesceMarkWorkers();
-            cycleStats_.markQuiesceUs =
-                TimeUtil::MicroSeconds() - quiesceStartUs;
+        if (HasReachedMarkSchedulerQuiescence(
+                outstanding, control,
+                markScheduler_.ReadyEmptyForTermination())) {
+            QuiesceMarkWorkers();
             break;
         }
 
+        // Step 3: periodically adjust helper width and assist pacing from
+        // scheduler backlog; preserve the fixed sampling cadence.
         if (++markControlSlices >= MS_MARK_CONTROL_SLICES_PER_UPDATE) {
             markControlSlices = 0;
             uint64_t outstandingWork =
                 markScheduler_.OutstandingWorkHint();
-            size_t previousHelperTarget =
-                markController.HelperTarget();
-            size_t previousAssistMultiplier =
-                markController.AssistMultiplier();
             uint64_t elapsedMarkUs = std::max<uint64_t>(
                 1, TimeUtil::MicroSeconds() - markLoopStartUs);
-            MSMarkPressure elapsedPressure = ClassifyMSMarkElapsedPressure(
-                elapsedMarkUs, outstanding != 0 || outstandingWork != 0);
-            markController.EscalatePressure(
-                pressureGate.Observe(elapsedPressure), outstanding, outstandingWork);
-
-            markController.Observe(outstanding, outstandingWork);
-            size_t targetHelpers = markController.HelperTarget();
-            if (targetHelpers != control.targetHelpers) {
-                markWorkerControl_.SetTargetHelpers(targetHelpers);
-            }
-
-            size_t targetAssistMultiplier =
-                markController.AssistMultiplier();
-            uint64_t targetAssistRatio = SaturatingMSWUMul(
-                baseAssistRatio, targetAssistMultiplier);
-            uint64_t currentAssistRatio =
-                assistWorkPerByteScaled_.load(std::memory_order_relaxed);
-            if (targetAssistRatio != currentAssistRatio) {
-                assistWorkPerByteScaled_.store(
-                    targetAssistRatio, std::memory_order_release);
-            }
-            if (targetHelpers != previousHelperTarget ||
-                targetAssistMultiplier != previousAssistMultiplier) {
-                VLOG(REPORT,
-                     "[MS-GC] Mark control: tasks=%llu workWords=%llu "
-                     "filteredWorkWords=%llu helpers=%zu->%zu "
-                     "assistMultiplier=%zu->%zu",
-                     static_cast<unsigned long long>(outstanding),
-                     static_cast<unsigned long long>(outstandingWork),
-                     static_cast<unsigned long long>(
-                         markController.FilteredWorkWords()),
-                     previousHelperTarget, targetHelpers,
-                     previousAssistMultiplier, targetAssistMultiplier);
-                if (elapsedPressure != MSMarkPressure::NORMAL) {
-                    VLOG(REPORT,
-                         "[MS-GC] Mark elapsed pressure: elapsed=%lluus "
-                         "elapsedPressure=%u",
-                         static_cast<unsigned long long>(elapsedMarkUs),
-                         static_cast<unsigned int>(elapsedPressure));
-                }
-            }
+            UpdateMarkController(
+                markController, pressureGate, baseAssistRatio,
+                outstanding, outstandingWork, control, elapsedMarkUs);
         }
 
-        if (markBudgetUs != 0 &&
-            TimeUtil::MicroSeconds() - t0 >= markBudgetUs) {
-            cycleStats_.markTerminationReason =
-                MSMarkTerminationReason::TIME_BUDGET;
-            cycleStats_.markLoopUs =
-                TimeUtil::MicroSeconds() - markLoopStartUs;
-            uint64_t quiesceStartUs = TimeUtil::MicroSeconds();
-            cycleStats_.markQuiesceResidualTasks =
-                QuiesceMarkWorkers();
-            cycleStats_.markQuiesceUs =
-                TimeUtil::MicroSeconds() - quiesceStartUs;
+        if (HasReachedMarkTimeBudget(
+                TimeUtil::MicroSeconds() - markLoopStartUs, markBudgetUs)) {
+            QuiesceMarkWorkers();
             break;
         }
 
+        // Step 4: a zero-result slice may race a publisher. Wait for the
+        // progress epoch instead of repeatedly polling an empty scheduler.
         if (slice.completedTasks == 0) {
             (void)markWorkEpoch_.WaitForChange(
                 observedProgressEpoch,
                 std::chrono::microseconds(kMSMarkProgressWaitUs));
         }
     }
-    cycleStats_.markMainWU = mainCompletedWU;
-    cycleStats_.markMainActiveUs = mainActiveUs;
-    cycleStats_.markMainSlices = mainSlices;
-    cycleStats_.markSchedulerUs = TimeUtil::MicroSeconds() - t0;
+    FinishSchedulerMarkLoop(mainCompletedWU, markPoolOwned);
+}
+
+size_t MarkSweepCollector::AcquireMarkWorkerPool(bool& markPoolOwned)
+{
+    markPoolOwned = false;
+    size_t configuredThreads = std::min(
+        static_cast<size_t>(std::max<int32_t>(
+            1, CangjieRuntime::GetGCParam().gcThreads)),
+        CangjieRuntime::GetMSGCThreadCapacity());
+    size_t maxHelpers = configuredThreads > 1 ? configuredThreads - 1 : 0;
+    GCThreadPool* threadPool = GetThreadPool();
+    if (threadPool == nullptr || maxHelpers == 0) {
+        return 0;
+    }
+
+    maxHelpers = std::min(
+        maxHelpers, static_cast<size_t>(threadPool->GetMaxThreadNum()));
+    if (maxHelpers == 0 ||
+        !collectorResources.AcquireMSGCWorkerPoolForMark()) {
+        return 0;
+    }
+    markPoolOwned = true;
+    return maxHelpers;
+}
+
+void MarkSweepCollector::UpdateMarkController(
+    MSMarkControllerState& markController,
+    MSMarkPressureGate& pressureGate,
+    uint64_t baseAssistRatio, uint64_t outstanding,
+    uint64_t outstandingWork,
+    const MSMarkWorkerControl::Snapshot& control,
+    uint64_t elapsedMarkUs)
+{
+    size_t previousHelperTarget = markController.HelperTarget();
+    size_t previousAssistMultiplier = markController.AssistMultiplier();
+    MSMarkPressure elapsedPressure = ClassifyMSMarkElapsedPressure(
+        elapsedMarkUs, outstanding != 0 || outstandingWork != 0);
+    markController.EscalatePressure(
+        pressureGate.Observe(elapsedPressure), outstanding, outstandingWork);
+    markController.Observe(outstanding, outstandingWork);
+
+    size_t targetHelpers = markController.HelperTarget();
+    if (targetHelpers != control.targetHelpers) {
+        markWorkerControl_.SetTargetHelpers(targetHelpers);
+    }
+
+    size_t targetAssistMultiplier = markController.AssistMultiplier();
+    uint64_t targetAssistRatio = SaturatingMSWUMul(
+        baseAssistRatio, targetAssistMultiplier);
+    uint64_t currentAssistRatio =
+        assistWorkPerByteScaled_.load(std::memory_order_relaxed);
+    if (targetAssistRatio != currentAssistRatio) {
+        assistWorkPerByteScaled_.store(
+            targetAssistRatio, std::memory_order_release);
+    }
+
+    if (targetHelpers != previousHelperTarget ||
+        targetAssistMultiplier != previousAssistMultiplier) {
+        VLOG(REPORT,
+             "[MS-GC] Mark control: tasks=%llu workWords=%llu "
+             "filteredWorkWords=%llu helpers=%zu->%zu "
+             "assistMultiplier=%zu->%zu elapsed=%lluus pressure=%u",
+             static_cast<unsigned long long>(outstanding),
+             static_cast<unsigned long long>(outstandingWork),
+             static_cast<unsigned long long>(markController.FilteredWorkWords()),
+             previousHelperTarget, targetHelpers,
+             previousAssistMultiplier, targetAssistMultiplier,
+             static_cast<unsigned long long>(elapsedMarkUs),
+             static_cast<unsigned int>(elapsedPressure));
+    }
+}
+
+void MarkSweepCollector::FinishSchedulerMarkLoop(
+    uint64_t mainCompletedWU, bool markPoolOwned)
+{
+    if (mainCompletedWU != 0) {
+        cycleCompletedMarkWU_.fetch_add(
+            mainCompletedWU, std::memory_order_relaxed);
+    }
     CHECK_DETAIL(!markPoolOwnedForCycle_,
                  "[MS-GC] retained Mark worker-pool ownership across cycles");
     markPoolOwnedForCycle_ = markPoolOwned;
@@ -2046,118 +1850,19 @@ void MarkSweepCollector::RunSchedulerMarkLoop(
 void MarkSweepCollector::FinalizeConcurrentMarkAccounting()
 {
     if (markPoolOwnedForCycle_) {
-        uint64_t poolReleaseStartUs = TimeUtil::MicroSeconds();
         collectorResources.ReleaseMSGCWorkerPool(
             MSGCWorkerPoolOwner::MARK);
-        cycleStats_.markPoolReleaseUs =
-            TimeUtil::MicroSeconds() - poolReleaseStartUs;
         markPoolOwnedForCycle_ = false;
     }
 
-    FoldActiveGCMarkAssistTelemetry();
-    cycleStats_.markAssistWU =
+    FoldActiveGCMarkAssistWork();
+    uint64_t assistCompletedWU =
         markAssistCompletedWU_.load(std::memory_order_relaxed);
-    cycleStats_.markAssistActiveUs =
-        markAssistActiveUs_.load(std::memory_order_relaxed);
-    cycleStats_.markAssistCalls =
-        markAssistCalls_.load(std::memory_order_relaxed);
-    cycleStats_.markAssistNoTaskCalls =
-        markAssistNoTaskCalls_.load(std::memory_order_relaxed);
-    cycleStats_.markAssistAdmissionAccepted =
-        markAssistAdmissionAccepted_.load(std::memory_order_relaxed);
-    cycleStats_.markAssistAdmissionRejectedBacklog =
-        markAssistAdmissionRejectedBacklog_.load(std::memory_order_relaxed);
-    if (cycleStats_.markMainWU != 0) {
+    if (assistCompletedWU != 0) {
         cycleCompletedMarkWU_.fetch_add(
-            cycleStats_.markMainWU, std::memory_order_relaxed);
-    }
-    if (cycleStats_.markAssistWU != 0) {
-        cycleCompletedMarkWU_.fetch_add(
-            cycleStats_.markAssistWU, std::memory_order_relaxed);
+            assistCompletedWU, std::memory_order_relaxed);
     }
 
-    uint64_t totalWU = SaturatingMSWUAdd(
-        SaturatingMSWUAdd(
-            cycleStats_.markMainWU, cycleStats_.markHelperWU),
-        cycleStats_.markAssistWU);
-    uint64_t participantActiveUs = SaturatingMSWUAdd(
-        SaturatingMSWUAdd(
-            cycleStats_.markMainActiveUs,
-            cycleStats_.markHelperActiveUs),
-        cycleStats_.markAssistActiveUs);
-    auto rateAsDouble = [](uint64_t rateQ16) {
-        return static_cast<double>(rateQ16) /
-            static_cast<double>(MS_WU_Q16_ONE);
-    };
-    auto shareAsDouble = [](uint64_t shareBasisPoints) {
-        return static_cast<double>(shareBasisPoints) / 100.0;
-    };
-
-    VLOG(REPORT,
-         "[MS-GC] ConcurrentMark scheduler: time=%sus termination=%s "
-         "quiesceResidual=%zu",
-         Pretty(cycleStats_.markSchedulerUs).Str(),
-         GetMSMarkTerminationReasonName(cycleStats_.markTerminationReason),
-         cycleStats_.markQuiesceResidualTasks);
-    VLOG(REPORT,
-         "[MS-GC] ConcurrentMark stages: total=%sus phaseTransition=%sus "
-         "pacingSetup=%sus poolAcquire=%sus workerStart=%sus "
-         "markLoop=%sus quiesce=%sus poolRelease=%sus",
-         Pretty(cycleStats_.concurrentMarkUs).Str(),
-         Pretty(cycleStats_.markPhaseTransitionUs).Str(),
-         Pretty(cycleStats_.markPacingSetupUs).Str(),
-         Pretty(cycleStats_.markPoolAcquireUs).Str(),
-         Pretty(cycleStats_.markWorkerStartUs).Str(),
-         Pretty(cycleStats_.markLoopUs).Str(),
-         Pretty(cycleStats_.markQuiesceUs).Str(),
-         Pretty(cycleStats_.markPoolReleaseUs).Str());
-    VLOG(REPORT,
-         "[MS-GC] ConcurrentMark throughput: totalWU=%llu wallRate=%.2fWU/us "
-         "participantRate=%.2fWU/us participantActive=%lluus",
-         static_cast<unsigned long long>(totalWU),
-         rateAsDouble(ComputeMSMarkRateQ16(
-             totalWU, cycleStats_.concurrentMarkUs)),
-         rateAsDouble(ComputeMSMarkRateQ16(
-             totalWU, participantActiveUs)),
-         static_cast<unsigned long long>(participantActiveUs));
-    VLOG(REPORT,
-         "[MS-GC] ConcurrentMark workers: "
-         "gcMain={wu=%llu share=%.2f%% active=%lluus rate=%.2fWU/us slices=%llu} "
-         "helper={wu=%llu share=%.2f%% active=%lluus rate=%.2fWU/us slices=%llu "
-         "max=%zu initial=%zu}",
-         static_cast<unsigned long long>(cycleStats_.markMainWU),
-         shareAsDouble(ComputeMSMarkShareBasisPoints(
-             cycleStats_.markMainWU, totalWU)),
-         static_cast<unsigned long long>(cycleStats_.markMainActiveUs),
-         rateAsDouble(ComputeMSMarkRateQ16(
-             cycleStats_.markMainWU, cycleStats_.markMainActiveUs)),
-         static_cast<unsigned long long>(cycleStats_.markMainSlices),
-         static_cast<unsigned long long>(cycleStats_.markHelperWU),
-         shareAsDouble(ComputeMSMarkShareBasisPoints(
-             cycleStats_.markHelperWU, totalWU)),
-         static_cast<unsigned long long>(cycleStats_.markHelperActiveUs),
-         rateAsDouble(ComputeMSMarkRateQ16(
-             cycleStats_.markHelperWU, cycleStats_.markHelperActiveUs)),
-         static_cast<unsigned long long>(cycleStats_.markHelperSlices),
-         cycleStats_.markMaxHelpers,
-         cycleStats_.markInitialHelpers);
-    VLOG(REPORT,
-         "[MS-GC] ConcurrentMark assist: "
-         "wu=%llu share=%.2f%% active=%lluus rate=%.2fWU/us "
-         "productive=%llu empty=%llu admitted=%llu rejectedBacklog=%llu",
-         static_cast<unsigned long long>(cycleStats_.markAssistWU),
-         shareAsDouble(ComputeMSMarkShareBasisPoints(
-             cycleStats_.markAssistWU, totalWU)),
-         static_cast<unsigned long long>(cycleStats_.markAssistActiveUs),
-         rateAsDouble(ComputeMSMarkRateQ16(
-             cycleStats_.markAssistWU, cycleStats_.markAssistActiveUs)),
-         static_cast<unsigned long long>(cycleStats_.markAssistCalls),
-         static_cast<unsigned long long>(
-             cycleStats_.markAssistNoTaskCalls),
-         static_cast<unsigned long long>(
-             cycleStats_.markAssistAdmissionAccepted),
-         static_cast<unsigned long long>(
-             cycleStats_.markAssistAdmissionRejectedBacklog));
 }
 
 
@@ -2165,8 +1870,6 @@ void MarkSweepCollector::StartMarkWorkers(size_t maxHelpers, size_t initialHelpe
 {
     markWorkerCount_ = maxHelpers;
     markWorkerCompletedWU_.assign(maxHelpers, 0);
-    markWorkerActiveUs_.assign(maxHelpers, 0);
-    markWorkerSlices_.assign(maxHelpers, 0);
     markWorkerControl_.SetTargetHelpers(initialHelpers);
     if (maxHelpers == 0) {
         return;
@@ -2189,8 +1892,6 @@ void MarkSweepCollector::RunMarkWorker(size_t workerId)
     size_t preferredRegionShard = GetCurrentMarkReadyShard();
     size_t regionProbeCursor = preferredRegionShard + 1;
     uint64_t helperWU = 0;
-    uint64_t helperActiveUs = 0;
-    uint64_t helperSlices = 0;
     while (markWorkerControl_.WaitUntilEligible(workerId)) {
         if (!markWorkerControl_.TryEnterWorker(workerId)) {
             continue;
@@ -2199,7 +1900,6 @@ void MarkSweepCollector::RunMarkWorker(size_t workerId)
         uint64_t observedProgressEpoch = markWorkEpoch_.Load();
         while (markWorkerControl_.CanContinueWorker(workerId)) {
             observedProgressEpoch = markWorkEpoch_.Load();
-            uint64_t sliceStartUs = TimeUtil::MicroSeconds();
             MSMarkSliceResult slice = markScheduler_.RunMarkSlice(
                 MSMarkWorkerCaps::GCWorker(), preferredRegionShard,
                 regionProbeCursor,
@@ -2209,13 +1909,9 @@ void MarkSweepCollector::RunMarkWorker(size_t workerId)
                     MSTaskLease& lease, MSWorkUnitCounter& work) {
                     RunSchedulerTask(lease, work);
                 });
-            uint64_t sliceUs = TimeUtil::MicroSeconds() - sliceStartUs;
             if (slice.completedTasks == 0) {
                 break;
             }
-            helperActiveUs = SaturatingMSWUAdd(
-                helperActiveUs, sliceUs);
-            ++helperSlices;
             helperWU = SaturatingMSWUAdd(
                 helperWU, slice.completedWU);
         }
@@ -2227,51 +1923,31 @@ void MarkSweepCollector::RunMarkWorker(size_t workerId)
         }
     }
     CHECK_DETAIL(
-        workerId < markWorkerCompletedWU_.size() &&
-        workerId < markWorkerActiveUs_.size() &&
-        workerId < markWorkerSlices_.size(),
+        workerId < markWorkerCompletedWU_.size(),
         "[MS-GC] Mark helper WU slot overflow worker=%zu slots=%zu",
         workerId, markWorkerCompletedWU_.size());
     markWorkerCompletedWU_[workerId] = helperWU;
-    markWorkerActiveUs_[workerId] = helperActiveUs;
-    markWorkerSlices_[workerId] = helperSlices;
     g_msMarkReadyParticipant = kMSInvalidMarkReadyParticipant;
 }
 
-size_t MarkSweepCollector::QuiesceMarkWorkers()
+void MarkSweepCollector::QuiesceMarkWorkers()
 {
     markWorkerControl_.BeginQuiesce();
     markWorkerControl_.WaitForNoInFlight();
-    size_t residualTasks = static_cast<size_t>(
-        std::min<uint64_t>(
-            markScheduler_.OutstandingHint(),
-            std::numeric_limits<size_t>::max()));
     markWorkerControl_.Stop();
     if (markWorkerCount_ != 0) {
         GetThreadPool()->WaitFinish();
     }
     uint64_t helperWU = 0;
-    uint64_t helperActiveUs = 0;
-    uint64_t helperSlices = 0;
     for (size_t i = 0; i < markWorkerCompletedWU_.size(); ++i) {
         helperWU = SaturatingMSWUAdd(
             helperWU, markWorkerCompletedWU_[i]);
-        helperActiveUs = SaturatingMSWUAdd(
-            helperActiveUs, markWorkerActiveUs_[i]);
-        helperSlices = SaturatingMSWUAdd(
-            helperSlices, markWorkerSlices_[i]);
         markWorkerCompletedWU_[i] = 0;
-        markWorkerActiveUs_[i] = 0;
-        markWorkerSlices_[i] = 0;
     }
-    cycleStats_.markHelperWU = helperWU;
-    cycleStats_.markHelperActiveUs = helperActiveUs;
-    cycleStats_.markHelperSlices = helperSlices;
     if (helperWU != 0) {
         cycleCompletedMarkWU_.fetch_add(
             helperWU, std::memory_order_relaxed);
     }
-    return residualTasks;
 }
 
 
@@ -2290,18 +1966,14 @@ size_t MarkSweepCollector::MSMarkAssist(
     uint64_t outstandingWorkWords = markScheduler_.OutstandingWorkHint();
     if (!ShouldAdmitMSMarkAssist(
             outstandingTasks, outstandingWorkWords, control.targetHelpers)) {
-        markAssistAdmissionRejectedBacklog_.fetch_add(
-            1, std::memory_order_relaxed);
         return 0;
     }
-    markAssistAdmissionAccepted_.fetch_add(1, std::memory_order_relaxed);
 
     if (!markWorkerControl_.TryEnterAssist()) {
         return 0;
     }
 
     uint64_t budgetWU = ComputeMSMarkAssistSliceBudget(debtWU);
-    uint64_t assistStartUs = TimeUtil::MicroSeconds();
     MSMarkSliceResult slice = markScheduler_.RunMarkAssistSlice(
         GetCurrentMarkReadyShard(),
         allocBuffer.GetGCMarkAssistProbeCursor(), budgetWU,
@@ -2310,12 +1982,9 @@ size_t MarkSweepCollector::MSMarkAssist(
             MSTaskLease& lease, MSWorkUnitCounter& work) {
             RunSchedulerTask(lease, work);
         });
-    uint64_t assistUs = TimeUtil::MicroSeconds() - assistStartUs;
-
-    allocBuffer.RecordGCMarkAssistSlice(
-        slice.completedWU, assistUs, slice.completedTasks);
-    // Publish owner-local work and telemetry before dropping the in-flight
-    // claim. Quiesce can fold those fields once assistsInFlight reaches zero.
+    allocBuffer.RecordGCMarkAssistWork(slice.completedWU);
+    // Publish owner-local work before dropping the in-flight claim. Quiesce
+    // can fold it once assistsInFlight reaches zero.
     markWorkerControl_.ExitAssist();
     return static_cast<size_t>(
         std::min<uint64_t>(
@@ -2326,203 +1995,85 @@ size_t MarkSweepCollector::MSMarkAssist(
 // Step 2.3: MarkTermination (STW)
 // ============================================================================
 
+void MarkSweepCollector::PublishOrdinaryMarkTasksUnderSTW(
+    CentralRegionPool& centralPool)
+{
+    // The worker and mutator-assist claims have quiesced before this STW
+    // phase. Publish their private barrier entries and every residual small
+    // Region before one ordinary scheduler drain consumes the combined work.
+    FlushAllBarrierMarkBuffersUnderSTW(centralPool);
+    centralPool.VisitMarkPendingRegionsUnderSTW([this](MSRegionInfo* region) {
+        CHECK_DETAIL(region != nullptr &&
+                         region->GetRegionKind() == MSRegionKind::SMALL &&
+                         region->GetScanClass() == MSScanClass::HAS_REF,
+                     "[MS-GC] invalid Region in pending-mark publication");
+        if (region->LoadPendingMarkWordsAcquire() == 0) {
+            return;
+        }
+        MSScanState state = region->GetScanState();
+        CHECK_DETAIL(state != MSScanState::OWNED,
+                     "[MS-GC] owned Region after Mark worker quiescence: idx=%zu",
+                     MSRegionInfoArray::GetRegionIdx(region));
+        if (state == MSScanState::IDLE &&
+            markScheduler_.TryPublishRegion(region, GetCurrentMarkReadyShard())) {
+            markWorkEpoch_.Notify();
+        }
+    });
+}
+
+void MarkSweepCollector::PublishFinalizerResurrectionRootsUnderSTW(
+    MSWorkUnitCounter& resurrectionPublishWork)
+{
+    PrepareFinalizersForResurrection();
+
+    MSMarkWordBatch resurrectionBatch;
+    InitializeGCMarkBatch(resurrectionBatch);
+    MSMarkPublicationContext& resurrectionPublication = resurrectionBatch.Publication();
+    VisitFinalizerRoots([this, &resurrectionBatch, &resurrectionPublication,
+                         &resurrectionPublishWork](ObjectRef& ref) {
+        AddRefToMarkBatch<MSMarkRefSource::DEFENSIVE>(
+            ref.object, resurrectionBatch, resurrectionPublishWork, resurrectionPublication);
+    });
+    FlushMarkBatch(resurrectionBatch, resurrectionPublishWork, resurrectionPublication);
+    cycleCompletedMarkWU_.fetch_add(resurrectionPublishWork.Total(), std::memory_order_relaxed);
+}
+
 void MarkSweepCollector::MarkTermination(bool worldStopped)
 {
-    struct ClosureStats {
-        uint64_t workUnits = 0;
-        uint64_t drainUs = 0;
-        uint64_t reconcileUs = 0;
-        size_t reconcilePasses = 0;
-        size_t reconciledRegions = 0;
-        size_t visitedRegions = 0;
-        MSTerminationDrainStats initialDrain;
-    };
-    struct StageStats {
-        uint64_t stwAcquireUs = 0;
-        uint64_t barrierFlushUs = 0;
-        uint64_t finalizerClassifyUs = 0;
-        uint64_t resurrectionPublishUs = 0;
-        uint64_t weakRefUs = 0;
-        uint64_t verifyUs = 0;
-        uint64_t idleTransitionUs = 0;
-        uint64_t sweepPlanUs = 0;
-        uint64_t stwBodyUs = 0;
-        uint64_t stwResumeUs = 0;
-    } stages;
-
-    uint64_t phaseStartUs = TimeUtil::MicroSeconds();
-    uint64_t stwStartUs = phaseStartUs;
-    uint64_t beforeStwResumeUs = 0;
-    uint64_t entryOutstanding = 0;
-    uint64_t afterBarrierFlushOutstanding = 0;
-    size_t visitedBarrierBuffers = 0;
-    size_t nonEmptyBarrierBuffers = 0;
-    size_t bufferedBarrierEntries = 0;
-    size_t weakRefsCleared = 0;
-    size_t weakRefsPreserved = 0;
-    size_t resurrectionEntries = 0;
     MSWorkUnitCounter resurrectionPublishWork;
-    ClosureStats ordinaryClosure;
-    ClosureStats resurrectionClosure;
-    STWAcquireStats stwAcquireStats;
+    uint64_t stwStartUs = TimeUtil::MicroSeconds();
+    VLOG(REPORT, "[MS-GC] --- MarkTermination begin ---");
 
     auto runUnderSTW = [&]() {
-        uint64_t stwBodyStartUs = TimeUtil::MicroSeconds();
-        stages.stwAcquireUs = worldStopped ? 0 : stwBodyStartUs - stwStartUs;
-
         RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(theAllocator);
         CentralRegionPool* centralPool = space.GetCentralPool();
-        entryOutstanding = markScheduler_.OutstandingHint();
-
-        // Mutators are frozen, so their owner-private entries are now stable.
-        uint64_t stageStartUs = TimeUtil::MicroSeconds();
-        if (centralPool != nullptr) {
-            FlushAllBarrierMarkBuffersUnderSTW(
-                *centralPool, visitedBarrierBuffers,
-                nonEmptyBarrierBuffers, bufferedBarrierEntries);
-        }
-        stages.barrierFlushUs = TimeUtil::MicroSeconds() - stageStartUs;
-        afterBarrierFlushOutstanding = markScheduler_.OutstandingHint();
+        CHECK(centralPool != nullptr);
 
         activeCollector_.store(nullptr, std::memory_order_release);
 
-        // Only the ordinary closure needs the full pending-Region
-        // reconciliation. It closes producer/owner races left by the preceding
-        // concurrent phase. Resurrection is GC-main-only under STW, so its
-        // scheduler drain cannot race a concurrent Region owner.
-        auto drainOrdinaryClosureToFixedPoint =
-            [this, centralPool](ClosureStats& stats) {
-                bool firstDrain = true;
-                for (;;) {
-                    if (firstDrain) {
-                        stats.initialDrain =
-                            DrainOrdinarySchedulerUnderSTW();
-                        stats.workUnits = SaturatingMSWUAdd(
-                            stats.workUnits,
-                            stats.initialDrain.workUnits);
-                        stats.drainUs += stats.initialDrain.totalUs;
-                        firstDrain = false;
-                    } else {
-                        uint64_t drainStartUs =
-                            TimeUtil::MicroSeconds();
-                        stats.workUnits = SaturatingMSWUAdd(
-                            stats.workUnits,
-                            DrainSchedulerUnderSTW());
-                        stats.drainUs +=
-                            TimeUtil::MicroSeconds() - drainStartUs;
-                    }
-                    if (centralPool == nullptr) {
-                        break;
-                    }
+        // 1. Publish every ordinary residual task before the scheduler scans
+        // the combined barrier and Region work to a stable ordinary closure.
+        PublishOrdinaryMarkTasksUnderSTW(*centralPool);
+        (void)DrainSchedulerWithHelpersUnderSTW();
 
-                    size_t passVisited = 0;
-                    size_t passReconciled = 0;
-                    uint64_t reconcileStartUs = TimeUtil::MicroSeconds();
-                    centralPool->VisitMarkPendingRegionsUnderSTW(
-                        [this, &passVisited,
-                         &passReconciled](MSRegionInfo* region) {
-                            CHECK_DETAIL(
-                                region != nullptr &&
-                                region->GetRegionKind() == MSRegionKind::SMALL &&
-                                region->GetScanClass() == MSScanClass::HAS_REF,
-                                "[MS-GC] invalid Region in pending-mark reconciliation");
-                            ++passVisited;
-                            if (region->LoadPendingMarkWordsAcquire() == 0) {
-                                return;
-                            }
-                            CHECK_DETAIL(
-                                region->GetScanState() == MSScanState::IDLE,
-                                "[MS-GC] pending Region not IDLE after STW drain: idx=%zu state=%u",
-                                MSRegionInfoArray::GetRegionIdx(region),
-                                static_cast<unsigned>(region->GetScanState()));
-                            ++passReconciled;
-                            if (markScheduler_.TryPublishRegion(
-                                    region, GetCurrentMarkReadyShard())) {
-                                markWorkEpoch_.Notify();
-                            }
-                        });
-                    stats.reconcileUs +=
-                        TimeUtil::MicroSeconds() - reconcileStartUs;
-                    stats.visitedRegions += passVisited;
-                    stats.reconciledRegions += passReconciled;
-                    if (passReconciled == 0) {
-                        break;
-                    }
-                    ++stats.reconcilePasses;
-                }
-            };
+        // 2. Classify finalizers only after ordinary reachability is stable,
+        // then publish and scan their resurrection closure.
+        PublishFinalizerResurrectionRootsUnderSTW(resurrectionPublishWork);
+        (void)DrainSchedulerWithHelpersUnderSTW();
 
-        // 1. Complete the ordinary closure against the concurrent producers.
-        drainOrdinaryClosureToFixedPoint(ordinaryClosure);
-        stageStartUs = TimeUtil::MicroSeconds();
-        VerifyMarkSchedulerQuiescence("ordinary");
-        stages.verifyUs += TimeUtil::MicroSeconds() - stageStartUs;
+        // 3. Resolve WeakRefs against the final stable bitmap.
+        ClearWeakRefsAfterMark();
 
-        // 2. Classify the registered Finalizer snapshot in one locked pass.
-        stageStartUs = TimeUtil::MicroSeconds();
-        PrepareFinalizersForResurrection();
-        stages.finalizerClassifyUs =
-            TimeUtil::MicroSeconds() - stageStartUs;
-
-        // 3. Mark newly-finalizable roots and drain their strong closure. No
-        // second full Region reconciliation is needed: all producers here run
-        // synchronously on GC main while the world is stopped.
-        stageStartUs = TimeUtil::MicroSeconds();
-        MSMarkWordBatch resurrectionBatch;
-        InitializeGCMarkBatch(resurrectionBatch);
-        MSMarkPublicationContext& resurrectionPublication =
-            resurrectionBatch.Publication();
-        VisitFinalizerRoots(
-            [this, &resurrectionBatch, &resurrectionPublication,
-             &resurrectionPublishWork,
-             &resurrectionEntries](ObjectRef& ref) {
-                ++resurrectionEntries;
-                AddRefToMarkBatch<MSMarkRefSource::DEFENSIVE>(
-                    ref.object, resurrectionBatch, resurrectionPublishWork,
-                    resurrectionPublication);
-            });
-        FlushMarkBatch(
-            resurrectionBatch, resurrectionPublishWork,
-            resurrectionPublication);
-        cycleCompletedMarkWU_.fetch_add(
-            resurrectionPublishWork.Total(), std::memory_order_relaxed);
-        stages.resurrectionPublishUs =
-            TimeUtil::MicroSeconds() - stageStartUs;
-
-        stageStartUs = TimeUtil::MicroSeconds();
-        resurrectionClosure.workUnits = DrainSchedulerUnderSTW();
-        resurrectionClosure.drainUs =
-            TimeUtil::MicroSeconds() - stageStartUs;
-        stageStartUs = TimeUtil::MicroSeconds();
-        VerifyMarkSchedulerQuiescence("resurrection");
-        stages.verifyUs += TimeUtil::MicroSeconds() - stageStartUs;
-
-        // 4. Resolve WeakRefs against the final stable bitmap.
-        stageStartUs = TimeUtil::MicroSeconds();
-        ClearWeakRefsAfterMark(weakRefsCleared, weakRefsPreserved);
-        stages.weakRefUs = TimeUtil::MicroSeconds() - stageStartUs;
-
-        // 5. Optional full-heap mark verification.
-        stageStartUs = TimeUtil::MicroSeconds();
-        VerifyMarkCompleteness();
-        stages.verifyUs += TimeUtil::MicroSeconds() - stageStartUs;
+        // 4. Verify the final bitmap and both scheduler closures only when
+        // the diagnostic gate is enabled for this GC cycle.
+        if (IsVerifyMarkEnabled()) {
+            VerifyMarkCompleteness();
+            VerifyMarkSchedulerQuiescence("ordinary");
+            VerifyMarkSchedulerQuiescence("resurrection");
+        }
 
         // Restore IDLE inside STW so resumed Mutators observe the idle barrier.
-        stageStartUs = TimeUtil::MicroSeconds();
         TransitionToGCPhase(GCPhase::GC_PHASE_IDLE, false);
-        stages.idleTransitionUs =
-            TimeUtil::MicroSeconds() - stageStartUs;
-
-        stageStartUs = TimeUtil::MicroSeconds();
-        MSPostMarkSweepPlan sweepPlan =
-            BuildMSPostMarkSweepPlan(gcReason == GC_REASON_OOM);
-        if (centralPool != nullptr &&
-            sweepPlan.reenableAtMarkTermination) {
-            centralPool->ReenableSweepAdmission();
-        }
-        stages.sweepPlanUs = TimeUtil::MicroSeconds() - stageStartUs;
-        beforeStwResumeUs = TimeUtil::MicroSeconds();
-        stages.stwBodyUs = beforeStwResumeUs - stwBodyStartUs;
     };
 
     if (worldStopped) {
@@ -2532,134 +2083,14 @@ void MarkSweepCollector::MarkTermination(bool worldStopped)
         // between one-way quiesce and this stop-the-world handoff.
         ScopedStopTheWorld stw(
             "MS MarkTermination", true,
-            GCPhase::GC_PHASE_MS_MARK_TERMINATION,
-            &stwAcquireStats);
+            GCPhase::GC_PHASE_MS_MARK_TERMINATION);
         runUnderSTW();
     }
 
-    uint64_t phaseEndUs = TimeUtil::MicroSeconds();
-    stages.stwResumeUs = worldStopped ? 0 : phaseEndUs - beforeStwResumeUs;
-    cycleStats_.markTerminationUs = phaseEndUs - phaseStartUs;
-    uint64_t stwAcquireAccountedUs = stwAcquireStats.syncMutexWaitUs +
-        stwAcquireStats.mutatorLockWaitUs + stwAcquireStats.mutatorCountUs +
-        stwAcquireStats.suspensionBroadcastUs + stwAcquireStats.unstoppedSnapshotUs +
-        stwAcquireStats.safepointWaitUs + stwAcquireStats.phaseTransitionUs;
-    uint64_t stwAcquireOtherUs = stages.stwAcquireUs > stwAcquireAccountedUs
-        ? stages.stwAcquireUs - stwAcquireAccountedUs
-        : 0;
-
-    uint64_t accountedUs = stages.stwAcquireUs +
-        stages.barrierFlushUs + ordinaryClosure.drainUs +
-        ordinaryClosure.reconcileUs + stages.finalizerClassifyUs +
-        stages.resurrectionPublishUs + resurrectionClosure.drainUs +
-        stages.weakRefUs + stages.verifyUs + stages.idleTransitionUs +
-        stages.sweepPlanUs + stages.stwResumeUs;
-    uint64_t otherUs = cycleStats_.markTerminationUs > accountedUs
-        ? cycleStats_.markTerminationUs - accountedUs
-        : 0;
-
-    // REPORT output is deliberately deferred until after StartTheWorld.
-    VLOG(REPORT, "[MS-GC] --- MarkTermination (STW complete) ---");
-    VLOG(REPORT,
-         "[MS-GC] [mark-stw-entry] branch=%s gcReason=%s "
-         "quiesceResidual=%zu outstanding=%llu afterBarrierFlush=%llu",
-         GetMSMarkTerminationReasonName(cycleStats_.markTerminationReason),
-         g_gcRequests[gcReason].name,
-         cycleStats_.markQuiesceResidualTasks,
-         static_cast<unsigned long long>(entryOutstanding),
-         static_cast<unsigned long long>(afterBarrierFlushOutstanding));
-    VLOG(REPORT,
-         "[MS-GC] MarkTermination reconciliation: closure=ordinary "
-         "passes=%zu regions=%zu visited=%zu",
-         ordinaryClosure.reconcilePasses,
-         ordinaryClosure.reconciledRegions,
-         ordinaryClosure.visitedRegions);
-    VLOG(REPORT,
-         "[MS-GC] MarkTermination ordinary drain: "
-         "parallel=%d helpers=%zu startTasks=%zu startWorkWords=%llu "
-         "mainTasks=%zu mainWU=%llu mainActive=%lluus mainWaits=%zu "
-         "helperTasks=%zu helperWU=%llu helperActive=%lluus "
-         "helperWaits=%zu setup=%lluus mainLane=%lluus join=%lluus",
-         ordinaryClosure.initialDrain.parallel,
-         ordinaryClosure.initialDrain.helperCount,
-         ordinaryClosure.initialDrain.startTasks,
-         static_cast<unsigned long long>(
-             ordinaryClosure.initialDrain.startWorkWords),
-         ordinaryClosure.initialDrain.main.completedTasks,
-         static_cast<unsigned long long>(
-             ordinaryClosure.initialDrain.main.workUnits),
-         static_cast<unsigned long long>(
-             ordinaryClosure.initialDrain.main.activeUs),
-         ordinaryClosure.initialDrain.main.waits,
-         ordinaryClosure.initialDrain.helpers.completedTasks,
-         static_cast<unsigned long long>(
-             ordinaryClosure.initialDrain.helpers.workUnits),
-         static_cast<unsigned long long>(
-             ordinaryClosure.initialDrain.helpers.activeUs),
-         ordinaryClosure.initialDrain.helpers.waits,
-         static_cast<unsigned long long>(
-             ordinaryClosure.initialDrain.setupUs),
-         static_cast<unsigned long long>(
-             ordinaryClosure.initialDrain.mainLaneUs),
-         static_cast<unsigned long long>(
-             ordinaryClosure.initialDrain.joinUs));
-    VLOG(REPORT,
-         "[MS-GC] MarkTermination reconciliation: closure=resurrection "
-         "passes=0 regions=0 visited=0 skipped=1");
-    VLOG(REPORT,
-         "[MS-GC] ProcessWeakRefs(STW): cleared=%zu preserved=%zu",
-         weakRefsCleared, weakRefsPreserved);
-    VLOG(REPORT,
-         "[MS-GC] MarkTermination stwAcquire: total=%sus "
-         "syncMutexWait=%sus mutatorLockWait=%sus mutatorCount=%sus "
-         "suspensionBroadcast=%sus unstoppedSnapshot=%sus "
-         "safepointWait=%sus phaseTransition=%sus stwAcquireOther=%sus "
-         "mutators=%zu initialUnstopped=%zu",
-         Pretty(stages.stwAcquireUs).Str(),
-         Pretty(stwAcquireStats.syncMutexWaitUs).Str(),
-         Pretty(stwAcquireStats.mutatorLockWaitUs).Str(),
-         Pretty(stwAcquireStats.mutatorCountUs).Str(),
-         Pretty(stwAcquireStats.suspensionBroadcastUs).Str(),
-         Pretty(stwAcquireStats.unstoppedSnapshotUs).Str(),
-         Pretty(stwAcquireStats.safepointWaitUs).Str(),
-         Pretty(stwAcquireStats.phaseTransitionUs).Str(),
-         Pretty(stwAcquireOtherUs).Str(),
-         stwAcquireStats.mutatorCount,
-         stwAcquireStats.initialUnstoppedMutators);
-    VLOG(REPORT,
-         "[MS-GC] MarkTermination stages: total=%sus stwAcquire=%sus "
-         "barrierFlush=%sus ordinaryDrain=%sus ordinaryReconcile=%sus "
-         "finalizerClassify=%sus resurrectionPublish=%sus "
-         "resurrectionDrain=%sus weakRef=%sus verify=%sus "
-         "idleTransition=%sus sweepPlan=%sus stwResume=%sus other=%sus "
-         "stwBody=%sus buffers=%zu nonEmptyBuffers=%zu bufferedEntries=%zu",
-         Pretty(cycleStats_.markTerminationUs).Str(),
-         Pretty(stages.stwAcquireUs).Str(),
-         Pretty(stages.barrierFlushUs).Str(),
-         Pretty(ordinaryClosure.drainUs).Str(),
-         Pretty(ordinaryClosure.reconcileUs).Str(),
-         Pretty(stages.finalizerClassifyUs).Str(),
-         Pretty(stages.resurrectionPublishUs).Str(),
-         Pretty(resurrectionClosure.drainUs).Str(),
-         Pretty(stages.weakRefUs).Str(),
-         Pretty(stages.verifyUs).Str(),
-         Pretty(stages.idleTransitionUs).Str(),
-         Pretty(stages.sweepPlanUs).Str(),
-         Pretty(stages.stwResumeUs).Str(),
-         Pretty(otherUs).Str(),
-         Pretty(stages.stwBodyUs).Str(),
-         visitedBarrierBuffers, nonEmptyBarrierBuffers,
-         bufferedBarrierEntries);
-    VLOG(REPORT,
-         "[MS-GC] MarkTermination total: %sus ordinaryWU=%llu "
-         "resurrectionRoots=%zu resurrectionPublishWU=%llu "
-         "resurrectionClosureWU=%llu",
-         Pretty(cycleStats_.markTerminationUs).Str(),
-         static_cast<unsigned long long>(ordinaryClosure.workUnits),
-         resurrectionEntries,
-         static_cast<unsigned long long>(
-             resurrectionPublishWork.Total()),
-         static_cast<unsigned long long>(resurrectionClosure.workUnits));
+    cycleStats_.markTerminationStwUs =
+        TimeUtil::MicroSeconds() - stwStartUs;
+    VLOG(REPORT, "[MS-GC] --- MarkTermination end: total=%sus ---",
+         Pretty(cycleStats_.markTerminationStwUs).Str());
 }
 
 
@@ -2675,12 +2106,9 @@ void MarkSweepCollector::PrepareFinalizersForResurrection()
 }
 
 
-void MarkSweepCollector::ClearWeakRefsAfterMark(
-    size_t& cleared, size_t& preserved)
+void MarkSweepCollector::ClearWeakRefsAfterMark()
 {
-    cleared = 0;
-    preserved = 0;
-    WeakRefBuffer::Instance().DrainWeakRefs([this, &cleared, &preserved](BaseObject* weakRef) {
+    WeakRefBuffer::Instance().DrainWeakRefs([this](BaseObject* weakRef) {
         if (!IsTraceableObjectAddress(weakRef) || !weakRef->IsValidObject()) {
             return;
         }
@@ -2696,134 +2124,69 @@ void MarkSweepCollector::ClearWeakRefsAfterMark(
             referent->IsValidObject() && IsMarkedObject(referent);
         if (!referentMarked) {
             MSStoreRawReference(*referentField, nullptr);
-            cleared++;
             return;
         }
-        preserved++;
     });
 }
 
 // ============================================================================
-// Step 2.4: PostMarkTermination (non-STW, concurrent-safe)
+// Step 2.4: PostMarkTermination
+// Normal cycles run after MarkTermination releases STW; OOM cycles retain the
+// outer emergency STW window through this handoff.
 // ============================================================================
 
 void MarkSweepCollector::PostMarkTermination()
 {
-    uint64_t phaseStart = TimeUtil::MicroSeconds();
+    uint64_t startUs = TimeUtil::MicroSeconds();
+    VLOG(REPORT, "[MS-GC] --- PostMarkTermination begin ---");
+
+    // Step 1: retire concurrent-Mark resources and fold completed
+    // mutator-assist work into this cycle's pacing total.
     FinalizeConcurrentMarkAccounting();
-    VLOG(REPORT, "[MS-GC] --- PostMarkTermination ---");
 
-    // Phase transition and WB clear already done in MarkTermination (inside STW).
-    // No need to transition again or clear WB buffers here.
-
-    // Finalizer reachability, resurrection and publication completed under
-    // STW. CollectorResources::NotifyGCFinished wakes the background processor
-    // after its GC-active gate opens; notifying it here would only wake it too
-    // early and then require the same notification again.
-
-    // Publish stable mark statistics and hand Small Region work to background
-    // Sweep. MarkTermination already restored IDLE and installed the idle
-    // barrier before mutators resumed, so this does not change barrier
-    // semantics.
+    // MarkTermination already completed the STW-only semantic closure
+    // (finalizers, WeakRefs, barrier transition). The remaining steps only
+    // consume the immutable collect-set and publish the next Sweep epoch.
     RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(theAllocator);
     CentralRegionPool* centralPool = space.GetCentralPool();
-    MSPostMarkSweepPlan sweepPlan = BuildMSPostMarkSweepPlan(gcReason == GC_REASON_OOM);
-    if (centralPool != nullptr) {
-        GCThreadPool* threadPool = GetThreadPool();
-        size_t availableHelpers = threadPool == nullptr ? 0 : std::min(
-            collectorResources.GetMSGCThreadPoolHelperLimit(),
-            static_cast<size_t>(threadPool->GetMaxThreadNum()));
-        size_t statsHelperCount = gcReason == GC_REASON_OOM
-            ? availableHelpers
-            : ComputeMSPostMarkStatsHelperTarget(
-                centralPool->GetCollectSetBitmapBytes(), availableHelpers);
-        bool statsPoolOwned = statsHelperCount != 0 &&
-            collectorResources.AcquireMSGCWorkerPoolForPostMarkStats();
-        if (!statsPoolOwned) {
-            statsHelperCount = 0;
-        }
+    CHECK(centralPool != nullptr);
 
-        MSMarkedStats markedStats = centralPool->ComputeMarkedStats(
-            threadPool, statsHelperCount);
-        if (statsPoolOwned) {
-            collectorResources.ReleaseMSGCWorkerPool(
-                MSGCWorkerPoolOwner::POST_MARK_STATS);
-        }
-        cycleStats_.trueLiveBytes = markedStats.liveBytes;
-        prevCycleMarkedObjects_.store(markedStats.objectCount, std::memory_order_relaxed);
-        VLOG(REPORT, "[MS-GC] Mark bitmap: objects=%zu liveBytes=%zuB",
-             markedStats.objectCount, markedStats.liveBytes);
+    // Step 2: scan the immutable collect-set once. This small linear
+    // reduction stays serial, avoiding task construction, pool arbitration
+    // and an additional pre-scan solely to split work into chunks.
+    MSMarkedStats markedStats = centralPool->ComputeMarkedStats();
+    cycleStats_.trueLiveBytes = markedStats.liveBytes;
+    cycleStats_.outsideCentralSmallBytes =
+        SaturatingMultiplyMSBytes(
+            centralPool->GetSmallSweptRegionCount(), MS_REGION_SIZE);
+    cycleStats_.outsideLargeBytes =
+        SaturatingMultiplyMSBytes(
+            centralPool->GetLargeNextSupplySpanCount(), MS_REGION_SIZE);
 
-        // Compute the next-cycle allocation base while LARGE next-supply still
-        // contains only objects allocated after the frozen PreEnum boundary.
-        // CollectLargeGarbage() appends frozen LARGE survivors to that vector,
-        // so the outside LARGE span snapshot must precede it.
-        MSGCThresholdBaseDecision thresholdBase =
-            ComputeMSGCThresholdBase(markedStats.liveBytes);
-        cycleStats_.thresholdBaseBytes = thresholdBase.gcBaseBytes;
-        cycleStats_.outsideCentralSmallBytes =
-            SaturatingMultiplyMSBytes(
-                centralPool->GetSmallSweptRegionCount(), MS_REGION_SIZE);
-        cycleStats_.outsideLargeBytes =
-            SaturatingMultiplyMSBytes(
-                centralPool->GetLargeNextSupplySpanCount(), MS_REGION_SIZE);
+    // Step 4: partition the frozen LARGE collect-set after its bitmap
+    // statistics are consumed. Live spans join next supply; dead spans are
+    // returned directly to FreeManager.
+    centralPool->SweepLargeRegions();
 
-        // Partition the frozen LARGE collect-set only after statistics have
-        // consumed it. Survivors are appended to largeNextSupply_; dead spans
-        // are reset and returned directly to FreeManager.
-        CollectLargeGarbage();
+    // Step 5: publish the new heap/scavenge thresholds before Sweep.
+    // Sweep assist derives its initial runway from this threshold, so the
+    // new value must be visible before the epoch becomes claimable.
+    UpdateGCStats();
 
-        // Sweep Assist derives its runway from Heap::GetHeapThresholdBytes().
-        // Install this cycle's live-based threshold before publishing the new
-        // Sweep epoch so its initial assist ratio never observes the old goal.
-        UpdateGCStats();
+    // Step 6: turn the immutable Mark collect-set into the Sweep backlog.
+    // This must follow every bitmap/statistics consumer; regions allocated
+    // after PreEnum remain swept allocation supply for the next cycle.
+    centralPool->PublishCollectSetForSweep();
 
-        // The immutable Mark boundary becomes Sweep work only after the final
-        // bitmap/stats consumers have finished. Regions returned or allocated
-        // after PreEnum remain in swept allocation supply for the next cycle.
-        centralPool->PublishCollectSetForSweep();
-
-    } else {
-        // Preserve collector accounting even if the allocator has no central
-        // pool (initialization/teardown defensive path).
-        UpdateGCStats();
-    }
-
+    // Step 7: request background Sweep and Scavenge after their respective
+    // epochs and thresholds are published. GC completion separately reopens
+    // the background processor's GC-active gate.
     BackgroundProcessor& backgroundProcessor = Heap::GetHeap().GetCollectorResources().GetBackgroundProcessor();
-    if (sweepPlan.notifyBackgroundSweep) {
-        backgroundProcessor.NotifyToSweep(kNoPreferredSweepClass);
-    }
-    cycleStats_.postMarkUs = TimeUtil::MicroSeconds() - phaseStart;
-    VLOG(REPORT, "[MS-GC] PostMark total: %sus",
-         Pretty(cycleStats_.postMarkUs).Str());
-}
-
-void MarkSweepCollector::PrepareCycleRef()
-{
-    std::lock_guard<std::mutex> lg(cycleWorkStackMtx);
-    cycleRefWorkStack.insert(discoveredExternObjects.begin(), discoveredExternObjects.end());
-    discoveredExternObjects.clear();
-}
-
-void MarkSweepCollector::PostResolveCycleTask()
-{
-#if defined(__OHOS__)
-    if (cycleRefWorkStack.empty()) {
-        return;
-    }
-    CJ_MRT_RolveCycleRef();
-#endif
-}
-
-void MarkSweepCollector::CollectLargeGarbage()
-{
-    RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(theAllocator);
-
-    // Tier 1: in-heap large regions — eager sweep unmarked ones
-    CentralRegionPool* centralPool = space.GetCentralPool();
-    if (centralPool != nullptr) {
-        centralPool->SweepLargeRegions();
-    }
+    backgroundProcessor.NotifyToSweep(kNoPreferredSweepClass);
+    backgroundProcessor.NotifyToScavenge();
+    cycleStats_.postMarkTerminationUs = TimeUtil::MicroSeconds() - startUs;
+    VLOG(REPORT, "[MS-GC] --- PostMarkTermination end: total=%sus ---",
+         Pretty(cycleStats_.postMarkTerminationUs).Str());
 }
 
 // ============================================================================
@@ -2832,10 +2195,6 @@ void MarkSweepCollector::CollectLargeGarbage()
 // ============================================================================
 void MarkSweepCollector::VerifyMarkCompleteness()
 {
-    if (!IsVerifyMarkEnabled()) {
-        return;
-    }
-
     RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(theAllocator);
     CentralRegionPool* centralPool = space.GetCentralPool();
     if (centralPool == nullptr) {
@@ -2883,20 +2242,14 @@ void MarkSweepCollector::VerifyMarkCompleteness()
                     VLOG(REPORT,
                          "[MS-GC][VERIFY] stale-ref: referrer=%p type=%s state=0x%zx -> "
                          "target=%p state=0x%zx traceable=%d valid=%d",
-                         static_cast<void*>(obj),
-                         refType,
-                         refState,
-                         static_cast<void*>(target),
-                         tgtState,
-                         static_cast<int>(targetTraceable),
-                         static_cast<int>(targetValid));
+                         static_cast<void*>(obj), refType, refState,
+                         static_cast<void*>(target), tgtState,
+                         static_cast<int>(targetTraceable), static_cast<int>(targetValid));
                     std::string slotDesc = DescribeSlotForDiag(obj, field);
                     std::string refLayout = DescribeTypeLayoutForDiag(obj->GetTypeInfo());
                     VLOG(REPORT,
                          "[MS-GC][VERIFY] stale-ref-detail: referrer=%p %s layout={%s}",
-                         static_cast<void*>(obj),
-                         slotDesc.c_str(),
-                         refLayout.c_str());
+                         static_cast<void*>(obj), slotDesc.c_str(), refLayout.c_str());
                     staleReported++;
                 }
                 return;
@@ -2924,22 +2277,15 @@ void MarkSweepCollector::VerifyMarkCompleteness()
                 VLOG(REPORT,
                      "[MS-GC][VERIFY] missed-mark: referrer=%p type=%s state=0x%zx -> "
                      "target=%p type=%s state=0x%zx traceable=%d valid=%d",
-                     static_cast<void*>(obj),
-                     refType,
-                     refState,
-                     static_cast<void*>(target),
-                     tgtType,
-                     tgtState,
-                     static_cast<int>(targetTraceable),
-                     static_cast<int>(targetValid));
+                     static_cast<void*>(obj), refType, refState,
+                     static_cast<void*>(target), tgtType, tgtState,
+                     static_cast<int>(targetTraceable), static_cast<int>(targetValid));
                 if (UNLIKELY(IsVerifyDetailEnabled() && IsInterestingDiagType(obj))) {
                     std::string slotDesc = DescribeSlotForDiag(obj, field);
                     std::string refLayout = DescribeTypeLayoutForDiag(obj->GetTypeInfo());
                     VLOG(REPORT,
                          "[MS-GC][VERIFY] missed-mark-detail: referrer=%p %s layout={%s}",
-                         static_cast<void*>(obj),
-                         slotDesc.c_str(),
-                         refLayout.c_str());
+                         static_cast<void*>(obj), slotDesc.c_str(), refLayout.c_str());
                 }
             }
             violations++;
@@ -3034,23 +2380,19 @@ RefField<> MarkSweepCollector::GetAndTryTagRefField(BaseObject* obj) const
     return RefField<>(reinterpret_cast<MAddress>(obj));
 }
 
-// ============================================================================
-// DFX Logging Methods (Step 5)
-// ============================================================================
-
-// Block ①: GC Entry — 3 lines
+// One REPORT line is emitted after each GC cycle.
 void MarkSweepCollector::LogGCEntry(uint64_t gcIndex, GCReason reason)
 {
-    uint32_t sweepCycleId = CentralRegionPool::GetSweepCycleId();
+    RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(theAllocator);
+    CentralRegionPool* centralPool = space.GetCentralPool();
+    uint32_t sweepCycleId = centralPool != nullptr ? centralPool->GetSweepCycleId() : 0;
     VLOG(REPORT, "[MS-GC] === GC START cycle=%llu === sweepCycleId=%u reason=%u(%s)",
          static_cast<unsigned long long>(gcCycle_), sweepCycleId,
          static_cast<unsigned>(reason), g_gcRequests[reason].name);
-    RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(theAllocator);
     VLOG(REPORT, "[MS-GC] active-region bytes %s B, threshold %s B, gcIndex=%llu",
         Pretty(space.GetHeapInUseBytes()).Str(),
          Pretty(GetGCStats().GetThreshold()).Str(),
          static_cast<unsigned long long>(gcIndex));
-    CentralRegionPool* centralPool = space.GetCentralPool();
     MSRegionManager* msRegionManager = space.GetMSRegionManager();
     size_t unsweptCount = (centralPool != nullptr) ? centralPool->GetTotalUnsweptCount() : 0;
     size_t emptyCount = (centralPool != nullptr) ? centralPool->GetEmptySweptRegionCount() : 0;
@@ -3060,51 +2402,38 @@ void MarkSweepCollector::LogGCEntry(uint64_t gcIndex, GCReason reason)
         unsweptCount, emptyCount, hotFreeCount);
 }
 
-// Block ⑤: Region Statistics (CentralRegionPool 4-list view)
 void MarkSweepCollector::DumpRegionStatsMS()
 {
     if (!IsMSGCReportEnabled()) {
         return;
     }
-    uint32_t sweepCycleId = CentralRegionPool::GetSweepCycleId();
     RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(theAllocator);
-
+    CentralRegionPool* centralPool = space.GetCentralPool();
+    uint32_t sweepCycleId = centralPool != nullptr ? centralPool->GetSweepCycleId() : 0;
     VLOG(REPORT, "[MS-GC] --- Total ---");
     VLOG(REPORT, "[MS-GC] region statistics when gc ends (sweepCycleId=%u)", sweepCycleId);
-
-    // RegionManager basic stats (total/active units)
     size_t totalSize = space.GetMaxCapacity();
     size_t activeRegionBytes = space.GetHeapInUseBytes();
     size_t trueLiveBytes = cycleStats_.trueLiveBytes;
-    double utilization = (activeRegionBytes == 0)
-        ? 0.0
-        : (static_cast<double>(trueLiveBytes) / static_cast<double>(activeRegionBytes)) * 100.0;
+    double utilization = activeRegionBytes == 0 ? 0.0 :
+        (static_cast<double>(trueLiveBytes) / static_cast<double>(activeRegionBytes)) * 100.0;
     MSRegionManager* msRegionManager = space.GetMSRegionManager();
-    size_t currentHeapSize = (msRegionManager != nullptr) ? msRegionManager->GetCurrentCapacityBytes() : 0;
+    size_t currentHeapSize = msRegionManager != nullptr ? msRegionManager->GetCurrentCapacityBytes() : 0;
     VLOG(REPORT, "[MS-GC]   total capacity: %s B, current heap: %s B",
          Pretty(totalSize).Str(), Pretty(currentHeapSize).Str());
     VLOG(REPORT, "[MS-GC]   active-region bytes: %s B, true live: %s B, true-live utilization: %.2f%%",
          Pretty(activeRegionBytes).Str(), Pretty(trueLiveBytes).Str(), utilization);
     if (msRegionManager != nullptr) {
-        cycleStats_.activeRegionCount = activeRegionBytes / MS_REGION_SIZE;
-        CentralRegionPool* cpForAccounting = space.GetCentralPool();
-        size_t emptyRegionCount = (cpForAccounting != nullptr)
-            ? cpForAccounting->GetEmptySweptRegionCount() : 0;
+        size_t emptyRegionCount = centralPool != nullptr ? centralPool->GetEmptySweptRegionCount() : 0;
         size_t hotFreeRegionCount = msRegionManager->GetHotFreeBytes() / MS_REGION_SIZE;
         VLOG(REPORT,
              "[MS-GC]   region-accounting: active=%zu regions, empty=%zu regions, hotFree=%zu regions",
-             cycleStats_.activeRegionCount,
-             emptyRegionCount,
-             hotFreeRegionCount);
+             activeRegionBytes / MS_REGION_SIZE, emptyRegionCount, hotFreeRegionCount);
     }
-
-    // CentralRegionPool 4-list breakdown
-    CentralRegionPool* centralPool = space.GetCentralPool();
     if (centralPool != nullptr) {
         centralPool->DumpPoolStats();
         uint32_t processorNum = Runtime::CurrentRef() != nullptr
-            ? Runtime::Current().GetConcurrencyModel().GetProcessorNum()
-            : 0;
+            ? Runtime::Current().GetConcurrencyModel().GetProcessorNum() : 0;
         VLOG(REPORT, "[MS-GC]   scheduler P: %u, tl-active regions: %zu, alloc buffers: %zu",
              processorNum, centralPool->CountTLActiveRegions(), centralPool->GetAllocBufferCount());
     }
@@ -3121,17 +2450,14 @@ void MarkSweepCollector::DumpGCStateSnapshot(const char* stage)
         VLOG(REPORT, "[MS-GC] --- %s --- (no central pool)", stage);
         return;
     }
-
     size_t allocBufferCount = centralPool->GetAllocBufferCount();
     size_t bufferActiveRegionCount = centralPool->GetAllAllocBufferActiveRegionCount();
     size_t emptyCacheCount = centralPool->GetEmptySweptRegionCount();
     size_t largeRegionCount = centralPool->GetLargeRegionCount();
-
     VLOG(REPORT, "[MS-GC] --- %s ---", stage);
     VLOG(REPORT, "[MS-GC]   alloc buffers: %zu", allocBufferCount);
     VLOG(REPORT, "[MS-GC]   alloc-buffer active regions: %zu", bufferActiveRegionCount);
     VLOG(REPORT, "[MS-GC]   central pool: empty=%zu large=%zu", emptyCacheCount, largeRegionCount);
-
     for (uint8_t cls = 0; cls < kNumSizeClasses; ++cls) {
         CentralRegionPool::BucketPressure pressure = centralPool->GetBucketPressure(cls);
         size_t clsTotal = pressure.partialSwept + pressure.fullSwept + pressure.unswept;
@@ -3140,30 +2466,29 @@ void MarkSweepCollector::DumpGCStateSnapshot(const char* stage)
         }
         VLOG(REPORT,
              "[MS-GC]     cls=%u partialSwept=%zu fullSwept=%zu unswept=%zu total=%zu",
-             static_cast<unsigned>(cls),
-             pressure.partialSwept, pressure.fullSwept,
+             static_cast<unsigned>(cls), pressure.partialSwept, pressure.fullSwept,
              pressure.unswept, clsTotal);
     }
 }
 
-// Block ⑥: GC Summary — 3 lines
 void MarkSweepCollector::LogGCSummary(uint64_t gcTimeUs)
 {
-    uint64_t accountedUs = cycleStats_.preEnumRootsUs + cycleStats_.markSetupUs +
-                           cycleStats_.concurrentMarkUs + cycleStats_.markTerminationUs +
-                           cycleStats_.postMarkUs + cycleStats_.postGcHookUs;
+    uint64_t accountedUs = cycleStats_.preEnumRootsUs +
+                           cycleStats_.enumRootsUs +
+                           cycleStats_.concurrentMarkUs +
+                           cycleStats_.markTerminationStwUs +
+                           cycleStats_.postMarkTerminationUs;
     uint64_t otherUs = (gcTimeUs > accountedUs) ? (gcTimeUs - accountedUs) : 0;
 
     VLOG(REPORT,
-         "[MS-GC] total gc time: %s us (PreEnum %s + EnumRoots %s + ConcMark %s + "
-         "MarkTerm %s + PostMark %s + PostGC %s + Other %s)",
+         "[MS-GC] GC total=%sus PreEnum=%sus EnumRoots=%sus ConcurrentMark=%sus "
+         "MarkTerminationSTW=%sus PostMarkTermination=%sus Other=%sus",
          Pretty(gcTimeUs).Str(),
          Pretty(cycleStats_.preEnumRootsUs).Str(),
-         Pretty(cycleStats_.markSetupUs).Str(),
+         Pretty(cycleStats_.enumRootsUs).Str(),
          Pretty(cycleStats_.concurrentMarkUs).Str(),
-         Pretty(cycleStats_.markTerminationUs).Str(),
-         Pretty(cycleStats_.postMarkUs).Str(),
-         Pretty(cycleStats_.postGcHookUs).Str(),
+         Pretty(cycleStats_.markTerminationStwUs).Str(),
+         Pretty(cycleStats_.postMarkTerminationUs).Str(),
          Pretty(otherUs).Str());
 }
 
@@ -3171,37 +2496,18 @@ void MarkSweepCollector::LogGCSummary(uint64_t gcTimeUs)
 // MS-GC specific UpdateGCStats: simplified Go-style threshold
 // ============================================================================
 struct MarkSweepCollector::MSHeapThresholdStateUpdate {
-    size_t oldThreshold = 0;
-    size_t oldLastTrueLiveBytes = 0;
-    size_t previousInUseBytes = 0;
     size_t liveBytes = 0;
     size_t inUseBytes = 0;
     size_t maxHeapBytes = 0;
-    size_t baseBytes = 0;
     size_t softLimitBytes = 0;
-    size_t gcThresholdCap = 0;
-    size_t minThreshold = 0;
     size_t newThreshold = 0;
-    double configuredHeapGrowth = 0.0;
-    double maxAdaptiveGrowth = 0.0;
-    uint64_t gcWallUs = 0;
-    uint64_t heuPeriodUs = 0;
-    bool exceptionalBypass = false;
     bool adaptiveEnabled = false;
-    MSHeapThresholdDecision thresholdDecision;
     MSAdaptiveHeapGrowthDecision adaptiveDecision;
 };
 
 struct MarkSweepCollector::MSScavengeWatermarkStateUpdate {
-    size_t oldLowBytes = 0;
-    size_t oldHighBytes = 0;
     size_t newLowBytes = 0;
     size_t newHighBytes = 0;
-    uint64_t highDecayElapsedUs = 0;
-    double configuredScavengeGrowth = 1.0;
-    bool adaptiveEnabled = false;
-    MSScavengeWatermarkDecision scavengeDecision;
-    MSScavengeHighWatermarkDecision highDecision;
 };
 
 MarkSweepCollector::MSHeapThresholdStateUpdate
@@ -3209,81 +2515,72 @@ MarkSweepCollector::UpdateMSHeapThresholdState(
     RegionSpaceMS& space, const GCStats& gcStats, bool exceptionalBypass)
 {
     MSHeapThresholdStateUpdate state;
-    state.oldThreshold = gcStats.GetThreshold();
-    state.oldLastTrueLiveBytes = gcStats.lastTrueLiveBytes;
-    state.previousInUseBytes = gcStats.lastRegionBytes;
+    size_t oldThreshold = gcStats.GetThreshold();
+    size_t oldLastTrueLiveBytes = gcStats.lastTrueLiveBytes;
     state.liveBytes = cycleStats_.trueLiveBytes;
     state.inUseBytes = space.GetHeapInUseBytes();
     state.maxHeapBytes = space.GetMaxCapacity();
-    state.exceptionalBypass = exceptionalBypass;
 
     // The raw MSGC target is marked-live bytes * (1 + heapGrowth).
     // Established normal cycles use an inclusive 10% deadband and symmetric
     // 12.5% transition limits. Bootstrap and OOM cycles establish the
     // target directly.
-    state.baseBytes = cycleStats_.thresholdBaseBytes;
-    if (state.baseBytes == 0) {
-        MSGCThresholdBaseDecision thresholdBase =
-            ComputeMSGCThresholdBase(state.liveBytes);
-        state.baseBytes = thresholdBase.gcBaseBytes;
-        cycleStats_.thresholdBaseBytes = thresholdBase.gcBaseBytes;
-    }
-
-    state.configuredHeapGrowth = CangjieRuntime::GetHeapParam().heapGrowth;
+    size_t baseBytes = cycleStats_.trueLiveBytes;
+    double configuredHeapGrowth = CangjieRuntime::GetHeapParam().heapGrowth;
     state.adaptiveEnabled = CangjieRuntime::GetGCParam().msAdaptiveGrowth != 0;
     state.softLimitBytes = CangjieRuntime::GetMSSoftHeapLimitBytes();
-    state.gcThresholdCap = state.maxHeapBytes != 0
+    size_t gcThresholdCap = state.maxHeapBytes != 0
         ? state.maxHeapBytes
         : CangjieRuntime::GetGCParam().gcThreshold;
     if (state.softLimitBytes != 0) {
         // Preserve a 20% allocation runway beneath the configured heap budget.
-        state.gcThresholdCap = std::min(
-            state.gcThresholdCap,
+        gcThresholdCap = std::min(
+            gcThresholdCap,
             state.softLimitBytes - state.softLimitBytes / 5);
     }
     size_t absoluteMinThreshold =
-        std::min(state.gcThresholdCap, static_cast<size_t>(20) * 1024 * 1024);
-    state.minThreshold = ComputeMSHeapThresholdFloor(
-        absoluteMinThreshold, state.gcThresholdCap);
-    state.maxAdaptiveGrowth = 0.0;
-    if (state.baseBytes != 0 && state.gcThresholdCap > state.baseBytes) {
-        state.maxAdaptiveGrowth = static_cast<double>(state.gcThresholdCap) /
-            static_cast<double>(state.baseBytes) - 1.0;
+        std::min(gcThresholdCap, static_cast<size_t>(20) * 1024 * 1024);
+    size_t minThreshold = ComputeMSHeapThresholdFloor(
+        absoluteMinThreshold, gcThresholdCap);
+    double maxAdaptiveGrowth = 0.0;
+    if (baseBytes != 0 && gcThresholdCap > baseBytes) {
+        maxAdaptiveGrowth = static_cast<double>(gcThresholdCap) /
+            static_cast<double>(baseBytes) - 1.0;
     }
     uint64_t nowUs = TimeUtil::MicroSeconds();
     bool normalHeu = gcStats.reason == GC_REASON_HEU;
+    uint64_t heuPeriodUs = 0;
     if (normalHeu) {
         if (lastHeuGcStartUs_ != 0 && nowUs >= lastHeuGcStartUs_) {
-            state.heuPeriodUs = nowUs - lastHeuGcStartUs_;
+            heuPeriodUs = nowUs - lastHeuGcStartUs_;
         }
         lastHeuGcStartUs_ = nowUs;
-    } else if (state.exceptionalBypass) {
+    } else if (exceptionalBypass) {
         lastHeuGcStartUs_ = 0;
     }
     MSAdaptiveHeapGrowthInput adaptiveInput;
     adaptiveInput.adaptiveEnabled = state.adaptiveEnabled;
-    adaptiveInput.initialGrowth = state.configuredHeapGrowth;
-    adaptiveInput.maxGrowth = state.maxAdaptiveGrowth;
-    adaptiveInput.thresholdBaseBytes = state.baseBytes;
+    adaptiveInput.initialGrowth = configuredHeapGrowth;
+    adaptiveInput.maxGrowth = maxAdaptiveGrowth;
+    adaptiveInput.thresholdBaseBytes = baseBytes;
     adaptiveInput.preSweepInUseBytes = cycleStats_.preSweepInUseBytes;
     adaptiveInput.softLimitBytes = state.softLimitBytes;
-    state.gcWallUs = nowUs >= currentGcStartUs_
+    uint64_t gcWallUs = nowUs >= currentGcStartUs_
         ? nowUs - currentGcStartUs_ : 0;
-    adaptiveInput.gcWallUs = state.gcWallUs;
-    adaptiveInput.gcPeriodUs = state.heuPeriodUs;
+    adaptiveInput.gcWallUs = gcWallUs;
+    adaptiveInput.gcPeriodUs = heuPeriodUs;
     adaptiveInput.nowUs = nowUs;
     adaptiveInput.normalHeu = normalHeu;
-    adaptiveInput.oom = state.exceptionalBypass;
+    adaptiveInput.oom = exceptionalBypass;
     state.adaptiveDecision =
         EvaluateMSAdaptiveHeapGrowth(adaptiveHeapGrowthState_, adaptiveInput);
     bool bypassTransition =
-        state.exceptionalBypass || state.oldLastTrueLiveBytes == 0 ||
+        exceptionalBypass || oldLastTrueLiveBytes == 0 ||
         state.adaptiveDecision.bypassTransition;
-    state.thresholdDecision = EvaluateMSHeapThreshold(
-        state.oldThreshold, state.baseBytes,
-        state.adaptiveDecision.effectiveGrowth, state.minThreshold,
-        state.gcThresholdCap, bypassTransition);
-    state.newThreshold = state.thresholdDecision.threshold;
+    MSHeapThresholdDecision thresholdDecision = EvaluateMSHeapThreshold(
+        oldThreshold, baseBytes, state.adaptiveDecision.effectiveGrowth,
+        minThreshold, gcThresholdCap, bypassTransition);
+    state.newThreshold = thresholdDecision.threshold;
     return state;
 }
 
@@ -3293,10 +2590,10 @@ MarkSweepCollector::UpdateMSScavengeWatermarkState(
     const MSHeapThresholdStateUpdate& heapThresholdState)
 {
     MSScavengeWatermarkStateUpdate state;
-    state.oldLowBytes = gcStats.GetScavengeThreshold();
-    state.oldHighBytes = gcStats.GetScavengeTriggerThreshold();
-    state.adaptiveEnabled = heapThresholdState.adaptiveEnabled;
-    state.configuredScavengeGrowth = CangjieRuntime::GetGCParam().scavengeGrowth;
+    size_t oldHighBytes = gcStats.GetScavengeTriggerThreshold();
+    bool adaptiveEnabled = heapThresholdState.adaptiveEnabled;
+    double configuredScavengeGrowth =
+        CangjieRuntime::GetGCParam().scavengeGrowth;
     size_t scavengeBudgetBytes = heapThresholdState.softLimitBytes != 0
         ? heapThresholdState.softLimitBytes
         : (heapThresholdState.maxHeapBytes != 0
@@ -3306,67 +2603,59 @@ MarkSweepCollector::UpdateMSScavengeWatermarkState(
     size_t segmentBytes = regionManager == nullptr
         ? MS_REGION_SIZE
         : regionManager->GetSegmentSizeBytes();
-    state.scavengeDecision = state.adaptiveEnabled
+    MSScavengeWatermarkDecision scavengeDecision = adaptiveEnabled
         ? EvaluateMSScavengeWatermarks(
             heapThresholdState.newThreshold, cycleStats_.preSweepInUseBytes,
             scavengeBudgetBytes, segmentBytes)
         : EvaluateMSStaticScavengeWatermarks(
             heapThresholdState.newThreshold, cycleStats_.preSweepInUseBytes,
-            scavengeBudgetBytes, state.configuredScavengeGrowth);
-    state.newLowBytes = state.scavengeDecision.retainLowBytes;
-    if (!state.adaptiveEnabled) {
-        state.highDecision.desiredHighBytes = state.scavengeDecision.retainHighBytes;
-        state.highDecision.retainHighBytes = state.scavengeDecision.retainHighBytes;
-        state.newHighBytes = state.scavengeDecision.retainHighBytes;
+            scavengeBudgetBytes, configuredScavengeGrowth);
+    state.newLowBytes = scavengeDecision.retainLowBytes;
+    if (!adaptiveEnabled) {
+        state.newHighBytes = scavengeDecision.retainHighBytes;
         lastScavengeHighDecayUs_ = 0;
         return state;
     }
     uint64_t watermarkNowUs = TimeUtil::MicroSeconds();
+    uint64_t highDecayElapsedUs = 0;
     if (lastScavengeHighDecayUs_ != 0 &&
-        state.scavengeDecision.retainHighBytes < state.oldHighBytes) {
-        state.highDecayElapsedUs = watermarkNowUs - lastScavengeHighDecayUs_;
+        scavengeDecision.retainHighBytes < oldHighBytes) {
+        highDecayElapsedUs = watermarkNowUs - lastScavengeHighDecayUs_;
     }
-    state.highDecision = StabilizeMSScavengeHighWatermark(
-        state.scavengeDecision.retainHighBytes, state.newLowBytes,
-        state.oldHighBytes, state.highDecayElapsedUs, segmentBytes,
-        heapThresholdState.adaptiveDecision.requestHighContraction);
-    state.newHighBytes = state.highDecision.retainHighBytes;
-    if (state.oldHighBytes == 0 ||
-        state.scavengeDecision.retainHighBytes >= state.oldHighBytes) {
+    MSScavengeHighWatermarkDecision highDecision =
+        StabilizeMSScavengeHighWatermark(
+            scavengeDecision.retainHighBytes, state.newLowBytes,
+            oldHighBytes, highDecayElapsedUs, segmentBytes,
+            heapThresholdState.adaptiveDecision.requestHighContraction);
+    state.newHighBytes = highDecision.retainHighBytes;
+    if (oldHighBytes == 0 || scavengeDecision.retainHighBytes >= oldHighBytes) {
         lastScavengeHighDecayUs_ = watermarkNowUs;
-    } else if (state.highDecision.decayIntervals != 0) {
+    } else if (highDecision.decayIntervals != 0) {
         lastScavengeHighDecayUs_ = watermarkNowUs -
-            (state.highDecayElapsedUs % kMSScavengeHighDecayIntervalUs);
+            (highDecayElapsedUs % kMSScavengeHighDecayIntervalUs);
     }
     return state;
 }
 
 void MarkSweepCollector::UpdateGCStats()
 {
-    VLOG(REPORT, "[MS-GC] --- UpdateGCStats ---");
-    uint64_t updateStatsStart = TimeUtil::MicroSeconds();
     RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(theAllocator);
     GCStats& gcStats = GetGCStats();
 
     bool exceptionalBypass = gcStats.reason == GC_REASON_OOM;
+    size_t oldThreshold = gcStats.GetThreshold();
     MSHeapThresholdStateUpdate heapThresholdState =
         UpdateMSHeapThresholdState(space, gcStats, exceptionalBypass);
-    cycleStats_.markEndInUseBytes = heapThresholdState.inUseBytes;
-    cycleStats_.inUseBurstBytes =
+    size_t allocatedMarkBytes =
         heapThresholdState.inUseBytes > cycleStats_.markStartInUseBytes
         ? heapThresholdState.inUseBytes - cycleStats_.markStartInUseBytes
         : 0;
-    cycleStats_.floatingLiveInflated = false;
-    gcStats.lastStableLiveBytes = heapThresholdState.liveBytes;
     gcStats.lastTrueLiveBytes = heapThresholdState.liveBytes;
-    gcStats.lastRegionBytes = heapThresholdState.inUseBytes;
-    gcStats.baselineAllocatedBytes = heapThresholdState.inUseBytes;
 
     MSScavengeWatermarkStateUpdate scavengeWatermarkState =
         UpdateMSScavengeWatermarkState(space, gcStats, heapThresholdState);
     uint64_t completedWU =
         cycleCompletedMarkWU_.load(std::memory_order_relaxed);
-    uint64_t allocatedMarkBytes = cycleStats_.inUseBurstBytes;
     // Publish the one-cycle outside-set correction before the release-store of
     // the GC trigger threshold. Region acquisition reads the threshold first,
     // then pairs it with this snapshot when it computes HEU pressure.
@@ -3376,98 +2665,15 @@ void MarkSweepCollector::UpdateGCStats()
     gcStats.SetScavengeThreshold(scavengeWatermarkState.newLowBytes);
     gcStats.SetScavengeTriggerThreshold(scavengeWatermarkState.newHighBytes);
     gcStats.SetThreshold(heapThresholdState.newThreshold);
-    gcStats.lastSurvivingRegionBytes = heapThresholdState.liveBytes;
-    markPacer_.UpdateFullCycle(
-        completedWU, allocatedMarkBytes, cycleStats_.concurrentMarkUs);
+    markPacer_.UpdateFullCycle(completedWU, allocatedMarkBytes);
+    UpdateMarkAssistPlan();
     VLOG(REPORT,
-         "[MS-GC] mark pacer: completedWU=%llu allocatedBytes=%llu "
-         "concurrentUs=%llu densityQ16=%llu throughputQ16=%llu",
-         static_cast<unsigned long long>(completedWU),
-         static_cast<unsigned long long>(allocatedMarkBytes),
-         static_cast<unsigned long long>(cycleStats_.concurrentMarkUs),
-         static_cast<unsigned long long>(markPacer_.GetWorkDensityQ16()),
-         static_cast<unsigned long long>(markPacer_.GetThroughputQ16()));
-    VLOG(REPORT,
-         "[MS-GC] heapThreshold: old=%zuB new=%zuB prevLive=%zuB trueLive=%zuB "
-         "outsideSmall=%zuB outsideLarge=%zuB base=%zuB "
-         "growth=%.2f configuredGrowth=%.2f minThreshold=%zuB maxHeap=%zuB cap=%zuB",
-         heapThresholdState.oldThreshold, heapThresholdState.newThreshold,
-         heapThresholdState.oldLastTrueLiveBytes, heapThresholdState.liveBytes,
-         cycleStats_.outsideCentralSmallBytes,
-         cycleStats_.outsideLargeBytes,
-         heapThresholdState.baseBytes,
-         1.0 + heapThresholdState.adaptiveDecision.effectiveGrowth,
-         1.0 + heapThresholdState.configuredHeapGrowth,
-         heapThresholdState.minThreshold, heapThresholdState.maxHeapBytes,
-         heapThresholdState.gcThresholdCap);
-    VLOG(REPORT,
-         "[MS-GC] heapAdaptive: enabled=%d action=%s gcWallUs=%llu heuPeriodUs=%llu "
-         "ratio=%.3f ratioEwma=%.3f wallEwmaUs=%.0f preSweepInUse=%zuB "
-         "softLimit=%zuB effectiveGrowth=%.3f maxGrowth=%.3f cooldown=%u "
-         "workingSetStable=%u memoryPressure=%d criticalPressure=%d "
-         "requestHighContraction=%d",
-         static_cast<int>(heapThresholdState.adaptiveEnabled),
-         MSAdaptiveHeapGrowthActionName(heapThresholdState.adaptiveDecision.action),
-         static_cast<unsigned long long>(heapThresholdState.gcWallUs),
-         static_cast<unsigned long long>(heapThresholdState.heuPeriodUs),
-         heapThresholdState.adaptiveDecision.gcRatio,
-         heapThresholdState.adaptiveDecision.gcRatioEwma,
-         heapThresholdState.adaptiveDecision.gcWallEwmaUs,
-         cycleStats_.preSweepInUseBytes, heapThresholdState.softLimitBytes,
-         heapThresholdState.adaptiveDecision.effectiveGrowth,
-         heapThresholdState.maxAdaptiveGrowth,
-         static_cast<unsigned>(heapThresholdState.adaptiveDecision.cooldownCycles),
-         static_cast<unsigned>(heapThresholdState.adaptiveDecision.stableWorkingSetStreak),
-         static_cast<int>(heapThresholdState.adaptiveDecision.memoryPressure),
-         static_cast<int>(heapThresholdState.adaptiveDecision.criticalPressure),
-         static_cast<int>(heapThresholdState.adaptiveDecision.requestHighContraction));
-    VLOG(REPORT,
-         "[MS-GC] heapThreshold stability: rawTarget=%zuB deadbandLower=%zuB "
-         "deadbandUpper=%zuB deadbandHeld=%d fallLimit=%zuB riseLimit=%zuB "
-         "riseLimited=%d fallLimited=%d transitionLimited=%d transitionBypassed=%d "
-         "exceptionalBypass=%d previousInUse=%zuB inUse=%zuB markStart=%zuB markEnd=%zuB burst=%zuB",
-         heapThresholdState.thresholdDecision.rawTarget,
-         heapThresholdState.thresholdDecision.deadbandLower,
-         heapThresholdState.thresholdDecision.deadbandUpper,
-         static_cast<int>(heapThresholdState.thresholdDecision.deadbandHeld),
-         heapThresholdState.thresholdDecision.fallLimit,
-         heapThresholdState.thresholdDecision.riseLimit,
-         static_cast<int>(heapThresholdState.thresholdDecision.riseLimited),
-         static_cast<int>(heapThresholdState.thresholdDecision.fallLimited),
-         static_cast<int>(heapThresholdState.thresholdDecision.transitionLimited),
-         static_cast<int>(heapThresholdState.thresholdDecision.transitionBypassed),
-         static_cast<int>(heapThresholdState.exceptionalBypass),
-         heapThresholdState.previousInUseBytes, heapThresholdState.inUseBytes,
-         cycleStats_.markStartInUseBytes, cycleStats_.markEndInUseBytes,
-         cycleStats_.inUseBurstBytes);
-    VLOG(REPORT,
-         "[MS-GC] scavengeWatermark: enabled=%d configuredGrowth=%.2f "
-         "oldLow=%zuB oldHigh=%zuB low=%zuB "
-         "desiredHigh=%zuB high=%zuB heapGoal=%zuB preSweepInUse=%zuB "
-         "retainBudget=%zuB band=%zuB highDecayElapsedUs=%llu highDecayBytes=%zuB "
-         "highRaised=%d highHeld=%d highDecayed=%d budgetConstrained=%d",
-         static_cast<int>(scavengeWatermarkState.adaptiveEnabled),
-         scavengeWatermarkState.configuredScavengeGrowth,
-         scavengeWatermarkState.oldLowBytes, scavengeWatermarkState.oldHighBytes,
-         scavengeWatermarkState.newLowBytes,
-         scavengeWatermarkState.highDecision.desiredHighBytes,
-         scavengeWatermarkState.newHighBytes,
-         heapThresholdState.newThreshold, cycleStats_.preSweepInUseBytes,
-         scavengeWatermarkState.scavengeDecision.retainBudgetBytes,
-         scavengeWatermarkState.scavengeDecision.releaseBandBytes,
-         static_cast<unsigned long long>(scavengeWatermarkState.highDecayElapsedUs),
-         scavengeWatermarkState.highDecision.decayBytes,
-         static_cast<int>(scavengeWatermarkState.highDecision.highRaised),
-         static_cast<int>(scavengeWatermarkState.highDecision.highHeld),
-         static_cast<int>(scavengeWatermarkState.highDecision.highDecayed),
-         static_cast<int>(scavengeWatermarkState.scavengeDecision.budgetConstrained));
-
-    VLOG(REPORT,
-         "[MS-GC] live bytes %zu, inUseRegionBytes %zu, update gc threshold %zu -> %zu",
+         "[MS-GC] GC threshold: live=%zuB inUse=%zuB heap=%zuB->%zuB "
+         "scavenge=%zuB/%zuB outside=%zuB",
          heapThresholdState.liveBytes, heapThresholdState.inUseBytes,
-         heapThresholdState.oldThreshold, gcStats.GetThreshold());
-    uint64_t updateStatsUs = TimeUtil::MicroSeconds() - updateStatsStart;
-    VLOG(REPORT, "[MS-GC] UpdateGCStats took %lu us", static_cast<unsigned long>(updateStatsUs));
+         oldThreshold, heapThresholdState.newThreshold,
+         scavengeWatermarkState.newLowBytes,
+         scavengeWatermarkState.newHighBytes, outsideMarkBytes);
     TRACE_COUNT("CJRT_post_GC_HeapSize", Heap::GetHeap().GetAllocatedSize());
 }
 

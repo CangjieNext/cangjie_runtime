@@ -536,7 +536,7 @@ void AllocBufferMS::AccumulateSweepDebt(size_t allocatedRegions, uint8_t preferr
         return;
     }
 
-    uint32_t currentGeneration = CentralRegionPool::GetSweepCycleId();
+    uint32_t currentGeneration = central_->GetSweepCycleId();
     uint32_t localGeneration = sweepDebtGen_;
     if (localGeneration != currentGeneration) {
         sweepAssistDebtScaled_ = 0;
@@ -544,7 +544,7 @@ void AllocBufferMS::AccumulateSweepDebt(size_t allocatedRegions, uint8_t preferr
     }
 
     // An emergency OOM force-finish intentionally does not publish
-    // sweepDone_. If the admission is open but no unswept work remains, there
+    // sweep completion. If the admission is open but no unswept work remains, there
     // is nevertheless no debt left for this allocation buffer to repay.
     if (central_->IsSweepDone() || !central_->HasPendingSweepWork()) {
         sweepAssistDebtScaled_ = 0;

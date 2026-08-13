@@ -15,24 +15,6 @@
 
 namespace MapleRuntime {
 
-struct MSPostMarkSweepPlan {
-    bool reenableAtMarkTermination;
-    bool parallelSweepOnceInPostMark;
-    bool flushAllCaches;
-    bool notifyBackgroundSweep;
-};
-
-constexpr MSPostMarkSweepPlan BuildMSPostMarkSweepPlan(bool)
-{
-    return MSPostMarkSweepPlan{true, false, false, true};
-}
-
-constexpr size_t ResolveMSInitialMarkHelpers(bool isOOM, size_t dynamicHelpers,
-                                             size_t maxHelpers)
-{
-    return isOOM ? maxHelpers : dynamicHelpers;
-}
-
 template<typename TryAllocate, typename EmergencyRecovery>
 uintptr_t TryMSAllocationWithEmergencyRetry(bool allowEmergency,
                                             TryAllocate&& tryAllocate,

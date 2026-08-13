@@ -29,63 +29,33 @@ enum class MSGCWorkerPoolOwner : uint8_t {
 // never share one pool cycle.
 class MSGCWorkerPoolController {
 public:
-    bool TryAcquireSweep()
+    bool Acquire(MSGCWorkerPoolOwner owner, bool wait)
     {
-        std::lock_guard<std::mutex> lock(mutex_);
+        if (owner == MSGCWorkerPoolOwner::IDLE ||
+            owner == MSGCWorkerPoolOwner::STOPPING) {
+            return false;
+        }
+        std::unique_lock<std::mutex> lock(mutex_);
+        if (wait) {
+            condition_.wait(lock, [this] {
+                return stopping_ || owner_ == MSGCWorkerPoolOwner::IDLE;
+            });
+        }
         if (stopping_ || owner_ != MSGCWorkerPoolOwner::IDLE) {
             return false;
         }
-        owner_ = MSGCWorkerPoolOwner::SWEEP;
-        return true;
-    }
-
-    bool TryAcquirePreEnum()
-    {
-        std::lock_guard<std::mutex> lock(mutex_);
-        if (stopping_ || owner_ != MSGCWorkerPoolOwner::IDLE) {
-            return false;
-        }
-        owner_ = MSGCWorkerPoolOwner::PRE_ENUM;
+        owner_ = owner;
         return true;
     }
 
     bool AcquireMark()
     {
-        std::unique_lock<std::mutex> lock(mutex_);
-        condition_.wait(lock, [this] {
-            return stopping_ || owner_ == MSGCWorkerPoolOwner::IDLE;
-        });
-        if (stopping_) {
-            return false;
-        }
-        owner_ = MSGCWorkerPoolOwner::MARK;
-        return true;
+        return Acquire(MSGCWorkerPoolOwner::MARK, true);
     }
 
     bool AcquireEnumRoots()
     {
-        std::unique_lock<std::mutex> lock(mutex_);
-        condition_.wait(lock, [this] {
-            return stopping_ || owner_ == MSGCWorkerPoolOwner::IDLE;
-        });
-        if (stopping_) {
-            return false;
-        }
-        owner_ = MSGCWorkerPoolOwner::ENUM_ROOTS;
-        return true;
-    }
-
-    bool AcquirePostMarkStats()
-    {
-        std::unique_lock<std::mutex> lock(mutex_);
-        condition_.wait(lock, [this] {
-            return stopping_ || owner_ == MSGCWorkerPoolOwner::IDLE;
-        });
-        if (stopping_) {
-            return false;
-        }
-        owner_ = MSGCWorkerPoolOwner::POST_MARK_STATS;
-        return true;
+        return Acquire(MSGCWorkerPoolOwner::ENUM_ROOTS, true);
     }
 
     bool Release(MSGCWorkerPoolOwner expectedOwner)

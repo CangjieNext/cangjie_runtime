@@ -6,7 +6,6 @@
 #define MRT_MS_MARK_WORKER_CONTROL_H
 
 #include <atomic>
-#include <chrono>
 #include <condition_variable>
 #include <cstddef>
 #include <mutex>
@@ -63,12 +62,6 @@ public:
             return phase_.load(std::memory_order_acquire) != Phase::RUNNING || IsEligible(workerId);
         });
         return IsEligible(workerId);
-    }
-
-    void BackoffWorker()
-    {
-        std::unique_lock<std::mutex> lock(mutex_);
-        condition_.wait_for(lock, std::chrono::microseconds(50));
     }
 
     bool TryEnterWorker(size_t workerId)
@@ -148,16 +141,6 @@ public:
         if (oldPhase != Phase::STOPPED) {
             NotifyProgress();
         }
-    }
-
-    size_t GetWorkersInFlight() const
-    {
-        return workersInFlight_.load(std::memory_order_acquire);
-    }
-
-    size_t GetAssistsInFlight() const
-    {
-        return assistsInFlight_.load(std::memory_order_acquire);
     }
 
     Snapshot GetSnapshot() const

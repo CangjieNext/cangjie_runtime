@@ -121,10 +121,6 @@ public:
 
     bool HasMarkEpoch() const { return markEpochInitialized_; }
 
-    // Owner-specific diagnostics. Runtime barrier adapters override these;
-    // GC-owned batches intentionally keep them as no-ops.
-    void RecordResolveRejected() const {}
-
     uint32_t GetMarkEpoch() const
     {
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)

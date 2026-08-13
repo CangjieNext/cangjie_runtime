@@ -14,8 +14,6 @@ namespace MapleRuntime {
 
 constexpr size_t kMSPreEnumResetFirstHelperBytes = 1 * 1024 * 1024;
 constexpr size_t kMSEnumRootsFirstHelperMutators = 1000;
-constexpr size_t kMSPostMarkStatsFirstHelperBytes = 2 * 1024 * 1024;
-constexpr size_t kMSPostMarkStatsMaxHelpers = 2;
 
 inline size_t ResolveMSGCThreadCapacity(size_t processorCount,
                                         size_t logicalCpuCount)
@@ -90,19 +88,6 @@ inline size_t ComputeMSEnumRootsHelperTarget(size_t initialMutatorCount,
         ++target;
     }
     return target;
-}
-
-// Marked-statistics scanning is memory-bandwidth bound and runs after mutators
-// have resumed. Keep small collect-sets serial and cap the parallel width at
-// GC main plus two helpers so statistics do not crowd out application work.
-inline size_t ComputeMSPostMarkStatsHelperTarget(size_t bitmapBytes,
-                                                 size_t maxHelpers)
-{
-    if (bitmapBytes < kMSPostMarkStatsFirstHelperBytes || maxHelpers == 0) {
-        return 0;
-    }
-    size_t target = bitmapBytes / kMSPostMarkStatsFirstHelperBytes;
-    return std::min({target, maxHelpers, kMSPostMarkStatsMaxHelpers});
 }
 
 class MSMarkWorkerPolicy {

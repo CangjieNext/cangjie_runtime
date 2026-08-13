@@ -41,12 +41,9 @@ public:
     {
         scavengeTriggerThreshold.store(val, std::memory_order_release);
     }
-    // Snapshots persisted at GC end for pacing / HEU trigger calculations.
-    size_t baselineAllocatedBytes = 0;  // in-use Region bytes snapshot at GC end
-    size_t lastTrueLiveBytes = 0;       // trueLiveBytes from last GC marking
-    size_t lastStableLiveBytes = 0;     // last non-inflated trueLiveBytes sample
-    size_t lastRegionBytes = 0;         // in-use Region bytes snapshot at GC end
-    size_t lastSurvivingRegionBytes = 0;        // predicted surviving region bytes from last GC end
+    // The latest frozen mark sample is used to identify the first normal
+    // threshold update after startup or an exceptional GC.
+    size_t lastTrueLiveBytes = 0;
     // Regions that joined allocation supply after the previous frozen mark
     // boundary. HEU excludes this one-cycle supply from swept pressure.
     size_t GetLastMarkOutsideBytes() const

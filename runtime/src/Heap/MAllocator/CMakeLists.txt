@@ -12,6 +12,7 @@ set(SRC_LIST
     "MSRegionInfo.cpp"
     "MSRegionManager.cpp"
     "MSCentralRegionPool.cpp"
+    "MSSweepEpochCoordinator.cpp"
     "MSAllocBuffer.cpp"
     "MSRegionSpace.cpp"
 )

@@ -561,9 +561,6 @@ void MutatorManager::WaitUntilAllMutatorStopped(STWAcquireStats* stats)
 
 void MutatorManager::EnsurePhaseTransition(GCPhase phase, std::list<Mutator*> &undoneMutators)
 {
-#ifdef MRT_USE_MARK_SWEEP
-    const bool enumAssistPhase = (phase == GCPhase::GC_PHASE_MS_MARK_SETUP);
-#endif
     // Traverse through undoneMutators to select mutators that have not yet completed transition
     // 1. ignore mutators which have completed transition
     // 2. gc compete phase transition with mutators which are in saferegion
@@ -576,24 +573,11 @@ void MutatorManager::EnsurePhaseTransition(GCPhase phase, std::list<Mutator*> &u
                 continue;
             }
             if (mutator->InSaferegion() && mutator->TransitionGCPhase(false)) {
-#ifdef MRT_USE_MARK_SWEEP
-                if (enumAssistPhase) {
-                    enumAssistContext_.gcMainScanned.fetch_add(
-                        1, std::memory_order_relaxed);
-                }
-#endif
                 it = undoneMutators.erase(it);
                 continue;
             }
             ++it;
         }
-#ifdef MRT_USE_MARK_SWEEP
-        if (enumAssistPhase) {
-            UpdateEnumAssistRemaining(phase, undoneMutators.size());
-            enumAssistContext_.readyPolls.fetch_add(
-                1, std::memory_order_relaxed);
-        }
-#endif
     };
 
     // Preserve the low-latency path for Mutators that are already at a
@@ -639,13 +623,18 @@ void MutatorManager::EnsurePhaseTransition(GCPhase phase, std::list<Mutator*> &u
 void MutatorManager::TransitionAllMutatorsToGCPhase(GCPhase phase)
 {
 #ifdef MRT_USE_MARK_SWEEP
-    const bool measureEnumHandshake = (phase == GCPhase::GC_PHASE_MS_MARK_SETUP);
-    const bool enableEnumAssist = measureEnumHandshake && CangjieRuntime::IsMSEnumAssistEnabled();
-    uint64_t enumHandshakeInstallUs = 0;
-    uint64_t enumHandshakeBroadcastUs = 0;
-    uint64_t enumHandshakeWaitUs = 0;
-    uint64_t enumHandshakeAssistUs = 0;
+    TransitionAllMutatorsToMarkSweepGCPhase(phase);
+#else
+    TransitionAllMutatorsToCopyGCPhase(phase);
 #endif
+}
+
+#ifdef MRT_USE_MARK_SWEEP
+void MutatorManager::TransitionAllMutatorsToMarkSweepGCPhase(GCPhase phase)
+{
+    const bool enableEnumAssist =
+        phase == GCPhase::GC_PHASE_MS_MARK_SETUP &&
+        CangjieRuntime::IsMSEnumAssistEnabled();
     // Try to occupy mutatorListLock prevent some mutators from exiting
     bool worldStopped = WorldStopped();
     if (!worldStopped) {
@@ -656,106 +645,80 @@ void MutatorManager::TransitionAllMutatorsToGCPhase(GCPhase phase)
          Collector::GetGCPhaseName(Heap::GetHeap().GetGCPhase()), Heap::GetHeap().GetGCPhase(),
          Collector::GetGCPhaseName(phase), phase);
 
-    // Set global gc phase in the scope of mutatorlist lock
-#ifdef MRT_USE_MARK_SWEEP
-    uint64_t installT0 = TimeUtil::MicroSeconds();
-#endif
+    // Set global gc phase in the scope of mutatorlist lock.
     Heap::GetHeap().InstallBarrier(phase);
     Heap::GetHeap().SetGCPhase(phase);
-#ifdef MRT_USE_MARK_SWEEP
-    if (measureEnumHandshake) {
-        enumHandshakeInstallUs = TimeUtil::MicroSeconds() - installT0;
-    }
-#endif
 
     std::list<Mutator*> undoneMutators;
-#ifdef MRT_USE_MARK_SWEEP
     std::vector<Mutator*> enumAssistCandidates;
-    if (measureEnumHandshake) {
+    if (enableEnumAssist) {
         enumAssistCandidates.reserve(GetMutatorCount());
     }
-#endif
     // Broadcast mutator phase transition signal to all mutators
-#ifdef MRT_USE_MARK_SWEEP
-    uint64_t broadcastT0 = TimeUtil::MicroSeconds();
-#endif
     VisitAllMutators([&](Mutator& mutator) {
         mutator.SetSuspensionFlag(Mutator::SuspensionType::SUSPENSION_FOR_GC_PHASE);
         mutator.SetSafepointActive(true);
-#ifdef MRT_USE_MARK_SWEEP
-        if (measureEnumHandshake) {
+        if (enableEnumAssist) {
             enumAssistCandidates.push_back(&mutator);
         }
-#endif
         undoneMutators.push_back(&mutator);
     });
-#ifdef MRT_USE_MARK_SWEEP
-    if (measureEnumHandshake) {
-        enumHandshakeBroadcastUs = TimeUtil::MicroSeconds() - broadcastT0;
+    if (enableEnumAssist) {
         std::lock_guard<std::mutex> guard(enumAssistContext_.lock);
-        CHECK_DETAIL(!enumAssistContext_.active &&
+        CHECK_DETAIL(enumAssistContext_.phase == GCPhase::GC_PHASE_UNDEF &&
                      enumAssistContext_.inFlight == 0,
                      "preparing an active EnumRoots assist context");
         enumAssistContext_.phase = phase;
-        enumAssistContext_.active = true;
-        enumAssistContext_.assistEnabled = enableEnumAssist;
         enumAssistContext_.claimCursor = 0;
         enumAssistContext_.inFlight = 0;
-        enumAssistContext_.remaining = enumAssistCandidates.size();
         enumAssistContext_.candidates.swap(enumAssistCandidates);
-        enumAssistContext_.gcMainScanned.store(0, std::memory_order_relaxed);
-        enumAssistContext_.mutatorAssistScanned.store(0, std::memory_order_relaxed);
-        enumAssistContext_.readyPolls.store(0, std::memory_order_relaxed);
     }
-#endif
-#ifdef MRT_USE_MARK_SWEEP
-    uint64_t waitT0 = TimeUtil::MicroSeconds();
-#endif
     EnsurePhaseTransition(phase, undoneMutators);
-#ifdef MRT_USE_MARK_SWEEP
-    if (measureEnumHandshake) {
-        size_t initialMutatorCount = enumAssistContext_.candidates.size();
-        size_t gcMainScanned =
-            enumAssistContext_.gcMainScanned.load(std::memory_order_relaxed);
-        size_t mutatorAssistScanned =
-            enumAssistContext_.mutatorAssistScanned.load(std::memory_order_relaxed);
-        size_t selfScanned = initialMutatorCount > gcMainScanned + mutatorAssistScanned
-            ? initialMutatorCount - gcMainScanned - mutatorAssistScanned
-            : 0;
-        VLOG(REPORT,
-             "[MS-GC] EnumRoots transition: helpers=0 selfScanned=%zu gcMainScanned=%zu "
-             "gcWorkerScanned=0 mutatorAssistScanned=%zu readyPolls=%llu "
-             "poolWait=0us initialMutators=%zu",
-             selfScanned, gcMainScanned, mutatorAssistScanned,
-             static_cast<unsigned long long>(
-                 enumAssistContext_.readyPolls.load(std::memory_order_relaxed)),
-             initialMutatorCount);
-        uint64_t assistT0 = TimeUtil::MicroSeconds();
+    if (enableEnumAssist) {
         FinalizeEnumAssistContext(phase);
-        if (enableEnumAssist) {
-            VisitAllMutators([](Mutator& mutator) {
-                mutator.ClearSuspensionFlag(Mutator::SuspensionType::SUSPENSION_FOR_GC_ENUM_ASSIST);
-                if (!mutator.HasAnySuspensionRequest() && !mutator.HasObserver()) {
-                    mutator.SetSafepointActive(false);
-                }
-            });
-        }
-        enumHandshakeAssistUs = TimeUtil::MicroSeconds() - assistT0;
-        enumHandshakeWaitUs = TimeUtil::MicroSeconds() - waitT0;
+        VisitAllMutators([](Mutator& mutator) {
+            mutator.ClearSuspensionFlag(Mutator::SuspensionType::SUSPENSION_FOR_GC_ENUM_ASSIST);
+            if (!mutator.HasAnySuspensionRequest() && !mutator.HasObserver()) {
+                mutator.SetSafepointActive(false);
+            }
+        });
     }
-#endif
-#ifdef MRT_USE_MARK_SWEEP
-    if (measureEnumHandshake) {
-        VLOG(REPORT,
-             "[MS-GC] EnumRoots handshake: install=%sus broadcast=%sus wait=%sus assistDrain=%sus",
-             Pretty(enumHandshakeInstallUs).Str(), Pretty(enumHandshakeBroadcastUs).Str(),
-             Pretty(enumHandshakeWaitUs).Str(), Pretty(enumHandshakeAssistUs).Str());
-    }
-#endif
     if (!worldStopped) {
         MutatorManagementWUnlock();
     }
 }
+
+#else
+void MutatorManager::TransitionAllMutatorsToCopyGCPhase(GCPhase phase)
+{
+    // Try to occupy mutatorListLock prevent some mutators from exiting.
+    bool worldStopped = WorldStopped();
+    if (!worldStopped) {
+        AcquireMutatorManagementWLock();
+    }
+
+    DLOG(GCPHASE, "transition gc: %s(%u) -> %s(%u)",
+         Collector::GetGCPhaseName(Heap::GetHeap().GetGCPhase()), Heap::GetHeap().GetGCPhase(),
+         Collector::GetGCPhaseName(phase), phase);
+
+    // CopyGC has no EnumRoots assist context: install the barrier and let each
+    // mutator perform the ordinary phase transition handshake.
+    Heap::GetHeap().InstallBarrier(phase);
+    Heap::GetHeap().SetGCPhase(phase);
+
+    std::list<Mutator*> undoneMutators;
+    VisitAllMutators([&undoneMutators](Mutator& mutator) {
+        mutator.SetSuspensionFlag(Mutator::SuspensionType::SUSPENSION_FOR_GC_PHASE);
+        mutator.SetSafepointActive(true);
+        undoneMutators.push_back(&mutator);
+    });
+    EnsurePhaseTransition(phase, undoneMutators);
+
+    if (!worldStopped) {
+        MutatorManagementWUnlock();
+    }
+}
+#endif
 
 #ifdef MRT_USE_MARK_SWEEP
 bool MutatorManager::HasPendingEnumAssist(GCPhase phase)
@@ -764,8 +727,8 @@ bool MutatorManager::HasPendingEnumAssist(GCPhase phase)
         return false;
     }
     std::lock_guard<std::mutex> guard(enumAssistContext_.lock);
-    return enumAssistContext_.active && enumAssistContext_.assistEnabled &&
-        enumAssistContext_.phase == phase && enumAssistContext_.remaining != 0;
+    return enumAssistContext_.phase == phase &&
+        enumAssistContext_.claimCursor < enumAssistContext_.candidates.size();
 }
 
 size_t MutatorManager::ClaimEnumAssistBatch(
@@ -777,8 +740,8 @@ size_t MutatorManager::ClaimEnumAssistBatch(
     }
 
     std::lock_guard<std::mutex> guard(enumAssistContext_.lock);
-    if (!enumAssistContext_.active || !enumAssistContext_.assistEnabled ||
-        enumAssistContext_.phase != phase || enumAssistContext_.remaining == 0) {
+    if (enumAssistContext_.phase != phase ||
+        enumAssistContext_.claimCursor == enumAssistContext_.candidates.size()) {
         return 0;
     }
 
@@ -805,17 +768,6 @@ void MutatorManager::FinishEnumAssistBatch(GCPhase phase)
     }
 }
 
-void MutatorManager::UpdateEnumAssistRemaining(GCPhase phase, size_t remaining)
-{
-    if (phase != GCPhase::GC_PHASE_MS_MARK_SETUP) {
-        return;
-    }
-    std::lock_guard<std::mutex> guard(enumAssistContext_.lock);
-    if (enumAssistContext_.active && enumAssistContext_.phase == phase) {
-        enumAssistContext_.remaining = remaining;
-    }
-}
-
 size_t MutatorManager::AssistEnumRoots(
     GCPhase phase, size_t batchSize, Mutator* assistant)
 {
@@ -828,18 +780,13 @@ size_t MutatorManager::AssistEnumRoots(
         return 0;
     }
 
-    size_t transitioned = 0;
     for (Mutator* candidate : claimed) {
         if (candidate == nullptr || candidate == assistant ||
             !candidate->InSaferegion()) {
             continue;
         }
-        if (candidate->TransitionGCPhase(false)) {
-            ++transitioned;
-        }
+        (void)candidate->TransitionGCPhase(false);
     }
-    enumAssistContext_.mutatorAssistScanned.fetch_add(
-        transitioned, std::memory_order_relaxed);
     FinishEnumAssistBatch(phase);
     return claimed.size();
 }
@@ -853,14 +800,11 @@ void MutatorManager::FinalizeEnumAssistContext(GCPhase phase)
     if (enumAssistContext_.phase != phase) {
         return;
     }
-    enumAssistContext_.assistEnabled = false;
-    enumAssistContext_.active = false;
     enumAssistContext_.drained.wait(lock, [this] {
         return enumAssistContext_.inFlight == 0;
     });
     enumAssistContext_.phase = GCPhase::GC_PHASE_UNDEF;
     enumAssistContext_.claimCursor = 0;
-    enumAssistContext_.remaining = 0;
     enumAssistContext_.candidates.clear();
 }
 #endif

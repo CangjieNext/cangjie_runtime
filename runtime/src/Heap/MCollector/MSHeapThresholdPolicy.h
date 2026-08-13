@@ -172,11 +172,6 @@ inline bool IsMSAdaptiveWorkingSetStable(size_t currentBytes, size_t previousByt
     return difference <= previousBytes / 10 + 1;
 }
 
-struct MSGCThresholdBaseDecision {
-    size_t markedLiveBytes = 0;
-    size_t gcBaseBytes = 0;
-};
-
 inline size_t SaturatingAddMSBytes(size_t lhs, size_t rhs)
 {
     if (rhs > std::numeric_limits<size_t>::max() - lhs) {
@@ -499,15 +494,6 @@ inline size_t ComputeMSHeapThresholdFloor(size_t absoluteFloorBytes,
                                          size_t maxThresholdBytes)
 {
     return std::min(absoluteFloorBytes, maxThresholdBytes);
-}
-
-inline MSGCThresholdBaseDecision ComputeMSGCThresholdBase(
-    size_t markedLiveBytes)
-{
-    MSGCThresholdBaseDecision decision;
-    decision.markedLiveBytes = markedLiveBytes;
-    decision.gcBaseBytes = decision.markedLiveBytes;
-    return decision;
 }
 
 inline bool ShouldTriggerMSMark(size_t sweptBytes, size_t heapGoalBytes)

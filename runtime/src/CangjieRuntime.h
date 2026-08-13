@@ -52,6 +52,7 @@ public:
     static size_t GetMSGCThreadCapacity() { return msGCThreadCapacity; }
     static void SetMSGCThreadCapacity(size_t value) { msGCThreadCapacity = value; }
     static bool IsMSEnumAssistEnabled() { return msEnumAssistEnabled; }
+    static bool IsMSAssistDisabled() { return msAssistDisabled; }
 #endif
     RuntimeParam GetRuntimeParam() const override { return param; }
     void SetCommandLinesArgs(int argc, const char* argv[])
@@ -94,6 +95,7 @@ private:
     static MSAllocatorScaleConfig msAllocatorScaleConfig;
     static size_t msGCThreadCapacity;
     static bool msEnumAssistEnabled;
+    static bool msAssistDisabled;
 #endif
 };
 } // namespace MapleRuntime

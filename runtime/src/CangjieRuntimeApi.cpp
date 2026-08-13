@@ -46,6 +46,7 @@
 #include "Heap/MCollector/MSAssistPacing.h"
 #include "Heap/MCollector/MSMemoryLimitPolicy.h"
 #include "Heap/MCollector/MSMarkWorkerPolicy.h"
+#include "Heap/MCollector/MSGCConfig.h"
 #include "Heap/MAllocator/MSShardRouting.h"
 #endif
 
@@ -247,6 +248,22 @@ RTErrorCode InitCJRuntime(const struct RuntimeParam* param)
     MapleRuntime::MSAllocatorScaleConfig scaleConfig =
         MapleRuntime::CangjieRuntime::GetMSAllocatorScaleConfig();
     size_t initHeapSize = ComputeMSInitialHeapSizeKB(scaleConfig.initialSegmentCount);
+    MapleRuntime::MSGCConfigInput msConfigInput;
+    msConfigInput.backgroundSweepMaxTimeNs = param->gcParam.msBackgroundSweepMaxTime;
+    msConfigInput.markTimeBudgetNs = param->gcParam.msMarkTimeBudget;
+    msConfigInput.assistMaxMultiplier = param->gcParam.msAssistMaxMultiplier;
+    msConfigInput.assistSweepMaxRegionsPerCall = param->gcParam.msAssistSweepMaxRegionsPerCall;
+    msConfigInput.enumAssistBatchSize = param->gcParam.msEnumAssistBatchSize;
+    msConfigInput.backgroundSweep = param->gcParam.msBackgroundSweep;
+    msConfigInput.backgroundScavenge = param->gcParam.msBackgroundScavenge;
+    msConfigInput.backgroundShrink = param->gcParam.msBackgroundShrink;
+    msConfigInput.verifyMark = param->gcParam.msVerifyMark;
+    msConfigInput.verifyMarkDetail = param->gcParam.msVerifyMarkDetail;
+    msConfigInput.parallelSweepMaxHelpers = param->gcParam.msParallelSweepMaxHelpers;
+    msConfigInput.parallelSweep = param->gcParam.msParallelSweep;
+    msConfigInput.adaptiveGrowth = param->gcParam.msAdaptiveGrowth;
+    MapleRuntime::MSGCResolvedConfig msConfig = MapleRuntime::ResolveMSGCConfig(
+        msConfigInput, MapleRuntime::MSGCConfigSource::API);
 #else
     size_t initHeapSize = param->heapParam.heapSize == 0 ? 64 * 1024 : param->heapParam.heapSize;
 #endif
@@ -326,35 +343,25 @@ RTErrorCode InitCJRuntime(const struct RuntimeParam* param)
             .scavengeHeapGoalMultiplier = 1.0,
 #endif
 #ifdef MRT_USE_MARK_SWEEP
-            .msBackgroundSweepMaxTime = param->gcParam.msBackgroundSweepMaxTime == 0 ?
-                2 * MapleRuntime::MILLI_SECOND_TO_NANO_SECOND : param->gcParam.msBackgroundSweepMaxTime,
-            .msMarkTimeBudget = param->gcParam.msMarkTimeBudget == 0 ?
-                10 * MapleRuntime::SECOND_TO_NANO_SECOND : param->gcParam.msMarkTimeBudget,
-            .msAssistBaseRatioPercent = param->gcParam.msAssistBaseRatioPercent == 0 ?
-                MapleRuntime::kMSAssistBaseRatioPercentDefault : param->gcParam.msAssistBaseRatioPercent,
-            .msAssistBacklogStepBuffers = param->gcParam.msAssistBacklogStepBuffers == 0 ?
-                16 : param->gcParam.msAssistBacklogStepBuffers,
-            .msAssistMaxMultiplier = param->gcParam.msAssistMaxMultiplier == 0 ?
-                4 : param->gcParam.msAssistMaxMultiplier,
-            .msAssistCreditDecayRounds = param->gcParam.msAssistCreditDecayRounds == 0 ?
-                100 : param->gcParam.msAssistCreditDecayRounds,
-            .msAssistSweepMaxRegionsPerCall = param->gcParam.msAssistSweepMaxRegionsPerCall == 0 ?
-                4 : param->gcParam.msAssistSweepMaxRegionsPerCall,
-            .msEnumAssistBatchSize = param->gcParam.msEnumAssistBatchSize == 0 ?
-                10 : param->gcParam.msEnumAssistBatchSize,
-            .msReleasedBusyRetryLimit = 0,
-            .msScavengeRounds = param->gcParam.msScavengeRounds == 0 ? 8 : param->gcParam.msScavengeRounds,
-            .msBackgroundSweep = static_cast<uint8_t>(
-                param->gcParam.msBackgroundSweep == 0 ? 1 : param->gcParam.msBackgroundSweep),
-            .reservedMSBackgroundFeed = 0,
-            .msBackgroundScavenge = static_cast<uint8_t>(
-                param->gcParam.msBackgroundScavenge == 0 ? 1 : param->gcParam.msBackgroundScavenge),
-            .msBackgroundShrink = static_cast<uint8_t>(param->gcParam.msBackgroundShrink != 0 ? 1U : 0U),
-            .msVerifyMark = param->gcParam.msVerifyMark,
-            .msVerifyMarkDetail = param->gcParam.msVerifyMarkDetail,
-            .msParallelSweepMaxHelpers = param->gcParam.msParallelSweepMaxHelpers,
-            .msParallelSweep = static_cast<uint8_t>(param->gcParam.msParallelSweep != 0 ? 1U : 0U),
-            .msAdaptiveGrowth = static_cast<uint8_t>(param->gcParam.msAdaptiveGrowth != 0 ? 1U : 0U),
+            .msBackgroundSweepMaxTime = msConfig.backgroundSweepMaxTimeNs,
+            .msMarkTimeBudget = msConfig.markTimeBudgetNs,
+            .msAssistBaseRatioPercent = msConfig.assistBaseRatioPercent,
+            .msAssistBacklogStepBuffers = msConfig.assistBacklogStepBuffers,
+            .msAssistMaxMultiplier = msConfig.assistMaxMultiplier,
+            .msAssistCreditDecayRounds = msConfig.assistCreditDecayRounds,
+            .msAssistSweepMaxRegionsPerCall = msConfig.assistSweepMaxRegionsPerCall,
+            .msEnumAssistBatchSize = msConfig.enumAssistBatchSize,
+            .msReleasedBusyRetryLimit = msConfig.releasedBusyRetryLimit,
+            .msScavengeRounds = msConfig.scavengeRounds,
+            .msBackgroundSweep = msConfig.backgroundSweep,
+            .reservedMSBackgroundFeed = msConfig.reservedBackgroundFeed,
+            .msBackgroundScavenge = msConfig.backgroundScavenge,
+            .msBackgroundShrink = msConfig.backgroundShrink,
+            .msVerifyMark = msConfig.verifyMark,
+            .msVerifyMarkDetail = msConfig.verifyMarkDetail,
+            .msParallelSweepMaxHelpers = msConfig.parallelSweepMaxHelpers,
+            .msParallelSweep = msConfig.parallelSweep,
+            .msAdaptiveGrowth = msConfig.adaptiveGrowth,
 #endif
         },
         .logParam = {

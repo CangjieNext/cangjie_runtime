@@ -60,11 +60,12 @@ public:
 #ifdef MRT_USE_MARK_SWEEP
     // Helper capacity of the GCThreadPool instance selected by cjGCThreads.
     size_t GetMSGCThreadPoolHelperLimit() const;
-    bool TryAcquireMSGCWorkerPoolForSweep();
-    bool TryAcquireMSGCWorkerPoolForPreEnum();
     bool AcquireMSGCWorkerPoolForEnumRoots();
     bool AcquireMSGCWorkerPoolForMark();
-    bool AcquireMSGCWorkerPoolForPostMarkStats();
+    // Acquire one complete GCThreadPool task epoch. Short MSGC phases use this
+    // through MSGCWorkerPoolSession so ownership, active-width restoration and
+    // release stay paired even on a serial fallback path.
+    bool AcquireMSGCWorkerPool(MSGCWorkerPoolOwner owner, bool wait);
     void ReleaseMSGCWorkerPool(MSGCWorkerPoolOwner owner);
 #endif
 

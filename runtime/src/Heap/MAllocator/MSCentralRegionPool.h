@@ -11,8 +11,6 @@
 
 #include <atomic>
 #include <array>
-#include <condition_variable>
-#include <mutex>
 #include <cstdint>
 #include <vector>
 #include <algorithm>
@@ -27,6 +25,7 @@
 #include "Heap/MAllocator/MSShardRouting.h"
 #include "Heap/MAllocator/MSSizeClass.h"
 #include "Heap/MAllocator/MSSweepDebtPolicy.h"
+#include "Heap/MAllocator/MSSweepEpochCoordinator.h"
 
 namespace MapleRuntime {
 
@@ -430,14 +429,15 @@ public:
     // OOM PostMark-only sweep pass. All ordinary Sweep admission gates must remain
     // closed, and the caller must join every helper before reopening them. Each
     // worker visits every size class once and exits after observing an empty list;
-    // residual unswept work is allowed and sweepDone_ is intentionally unchanged.
+    // residual unswept work is allowed and the completion state is intentionally unchanged.
     void ParallelSweepOnceForOOM(uint8_t preferredCls);
     // Repay one P's local Sweep debt. Non-assist Sweep work is claimed once from
     // the central credit pool; a remaining full batch is swept directly once.
     MSSweepAssistResult MSSweepAssist(size_t debtRegions, uint8_t preferredCls);
     uint64_t GetSweepAssistRatioScaled() const
     {
-        uint64_t base = sweepRegionsPerAllocScaled_.load(std::memory_order_acquire);
+        uint64_t base =
+            sweepCycleState_.assistRatioScaled.load(std::memory_order_acquire);
         return ScaleMSSweepAssistRatioScaled(base, GetSweepPressureMode());
     }
 
@@ -447,11 +447,13 @@ public:
     void ForceHighSweepPressure();
     SweepPressureMode GetSweepPressureMode() const
     {
-        return static_cast<SweepPressureMode>(sweepPressureMode_.load(std::memory_order_relaxed));
+        return static_cast<SweepPressureMode>(
+            sweepCycleState_.pressureMode.load(std::memory_order_relaxed));
     }
     bool IsSweepPressureForcedHigh() const
     {
-        return forceHighSweepPressure_.load(std::memory_order_acquire);
+        return sweepCycleState_.forceHighPressure.load(
+            std::memory_order_acquire);
     }
 
     bool HasPendingSweepWork() const
@@ -469,10 +471,7 @@ public:
     // Check whether previous-cycle sweep work is globally quiescent.
     bool IsSweepDone() const
     {
-        return !forceFinishSweepRunning_.load(std::memory_order_acquire) &&
-            sweepDone_.load(std::memory_order_acquire) &&
-            (sweepAdmission_.load(std::memory_order_acquire) &
-             kSweepAdmissionActiveMask) == 0;
+        return sweepEpoch_.IsSweepDone();
     }
 
     // Visit every small Region currently owned by the central size-class lists.
@@ -515,9 +514,9 @@ public:
     // Dump CentralRegionPool three-head statistics (block ⑤ in DFX design)
     void DumpPoolStats() const;
 
-    static uint32_t GetSweepCycleId()
+    uint32_t GetSweepCycleId() const
     {
-        return sweepCycleId_.load(std::memory_order_acquire);
+        return sweepEpoch_.GetEpochId();
     }
 
     uint32_t GetCurrentMarkEpoch() const
@@ -525,17 +524,14 @@ public:
         return currentMarkEpoch_.load(std::memory_order_acquire);
     }
 
-    // Compute marked object count and true live bytes from the frozen boundary.
-    // The caller owns the POST_MARK_STATS pool epoch when helperCount != 0.
-    // Must run after marking completes and before Large partition / Small Sweep
-    // publication mutate the collect-set.
-    MSMarkedStats ComputeMarkedStats(GCThreadPool* threadPool,
-                                     size_t helperCount) const;
-    size_t GetCollectSetBitmapBytes() const;
+    // Count the post-Mark live set from the frozen collection boundary.
+    // This is intentionally serial: the scan is a small linear reduction and
+    // must complete before the same collect-set is published to Sweep.
+    MSMarkedStats ComputeMarkedStats() const;
 
     // Diagnostic: visit every currently-marked object (small/medium + large)
-    // by walking markBitmaps. Must be called in the same window as
-    // ComputeMarkedStats (marking complete, no sweep started). Used by the
+    // by walking markBitmaps. Must be called in the same post-Mark window
+    // (marking complete, no sweep started) as ComputeMarkedStats(). Used by the
     // mark-completeness verifier to detect live objects that were missed.
     void VisitMarkedObjects(const std::function<void(BaseObject*)>& func) const;
 
@@ -568,15 +564,14 @@ public:
     // swept supply is moved into collectSet_, so they are traversed once.
     // TLS active Regions stay outside the boundary. The new epoch is published
     // only after every Small, active, and LARGE Region has been reset.
-    // Must be called after StopAndWaitForAllSweep().
-    uint32_t PrepareCollectSetForMarkUnderSTW(bool forceMaxHelpers = false);
+    // Must be called after StopAndWaitForAllSweep(). It also discards every
+    // AllocBufferMS barrier/assist residue before publishing the new epoch.
+    uint32_t PrepareMarkEpochUnderSTW(bool forceMaxHelpers = false);
 
     // After Mark has reached a fixed point, transfer every collect-set chain to
     // the corresponding unswept supply. No Region is reclassified by its old
     // free-slot count before Sweep rebuilds the allocation plane.
     void PublishCollectSetForSweep();
-
-    size_t GetCollectSetRegionCount() const;
 
     // Re-enable ordinary background/assist/helper Sweep after MarkSetup.
     void ReenableSweepAdmission();
@@ -639,8 +634,6 @@ private:
 
         void PublishCollectSetToUnswept(RegionChain& source)
         {
-            size_t moved = source.count;
-            AddAggregate(unsweptRegions_, moved, std::memory_order_release);
             unswept_.PushChain(std::move(source));
         }
 
@@ -750,14 +743,10 @@ private:
                                 size_t& sweptRegions, size_t& emptiedRegions,
                                 size_t& retainedRegions, size_t& freedBytes);
     void ForceFinishAllUnswept();
-    bool TryEnterSweep();
-    void LeaveSweep();
-    void CloseSweepAdmissionAndWait();
-    void OpenSweepAdmission();
     void PublishSweepDoneAfterQuiescence();
     bool IsSweepAdmissionOpen() const
     {
-        return (sweepAdmission_.load(std::memory_order_acquire) & kSweepAdmissionClosed) == 0;
+        return sweepEpoch_.IsAdmissionOpen();
     }
     size_t AssistSweep(size_t targetRegions, uint8_t preferredCls);
     bool SweepOneUnsweptRegionForAssist(
@@ -787,44 +776,43 @@ private:
     void RecordBackgroundSweep(size_t sweptRegions)
     {
         if (sweptRegions != 0) {
-            sweepCredit_.Add(sweptRegions);
+            sweepCycleState_.credit.Add(sweptRegions);
         }
     }
     void RecordHelperSweep(size_t sweptRegions)
     {
         if (sweptRegions != 0) {
-            sweepCredit_.Add(sweptRegions);
+            sweepCycleState_.credit.Add(sweptRegions);
         }
     }
-    static constexpr uint64_t kSweepAdmissionClosed = 1ULL << 63;
-    static constexpr uint64_t kSweepAdmissionActiveMask = ~kSweepAdmissionClosed;
 
-    static std::atomic<uint32_t> sweepCycleId_;
-    std::atomic<bool> sweepDone_{true};
+    // Per-sweep-epoch pacing state. PublishCollectSetForSweep() resets these
+    // values before opening a new epoch; allocation and worker paths then only
+    // update/read their respective atomic or credit-pool member.
+    struct MSSweepCycleState {
+        std::atomic<uint64_t> assistRatioScaled {0};
+        MSSweepCreditPool credit;
+        std::atomic<int> pressureMode {static_cast<int>(SweepPressureMode::LOW)};
+        std::atomic<bool> forceHighPressure {false};
+
+        void ResetForNewEpoch(uint64_t newAssistRatioScaled)
+        {
+            forceHighPressure.store(false, std::memory_order_relaxed);
+            pressureMode.store(
+                static_cast<int>(SweepPressureMode::LOW),
+                std::memory_order_relaxed);
+            credit.Reset();
+            assistRatioScaled.store(newAssistRatioScaled,
+                                    std::memory_order_relaxed);
+        }
+    };
+
     std::atomic<bool> bgSweepRunning_{false};
-    // One atomic word linearizes sweep admission with the active-worker count.
-    // The high bit closes admission; the remaining bits count all admitted
-    // assist/helper/background sweep operations. This avoids a late
-    // counter increment after StopAndWaitForAllSweep has observed quiescence.
-    std::atomic<uint64_t> sweepAdmission_{0};
-    // GC main waits here only after closing Sweep admission. The last admitted
-    // worker notifies when the packed active count reaches zero.
-    std::mutex sweepQuiescenceMtx_;
-    std::condition_variable sweepQuiescenceCV_;
+    MSSweepEpochCoordinator sweepEpoch_;
     std::atomic<bool> stopSweepRequested_{false};
     std::atomic<bool> skipAssistSweep_{false};        // Disable mutator assist sweep before STW
     std::atomic<bool> skipHelperSweep_{false};        // Disable GC-helper pool sweep before STW
-    std::atomic<bool> forceFinishSweepRunning_{false}; // GC main owns ForceFinishAllUnswept
-    // ===== P-local proportional Sweep pacing =====
-    // PostMark publishes one fixed-point ratio for the new sweep cycle.
-    // AllocBufferMS owns allocation progress and debt; central non-assist work is
-    // converted into CAS-consumed credit so a swept Region pays at most one P.
-    std::atomic<uint64_t> sweepRegionsPerAllocScaled_ {0};
-    MSSweepCreditPool sweepCredit_;
-
-    // Unified Sweep pressure snapshot and Notify-forced epoch latch.
-    std::atomic<int> sweepPressureMode_{static_cast<int>(SweepPressureMode::LOW)};
-    std::atomic<bool> forceHighSweepPressure_{false};
+    MSSweepCycleState sweepCycleState_;
 
     std::atomic<size_t> centralSmallActiveRegions_ {0};
     std::atomic<size_t> centralSmallSweptRegions_ {0};

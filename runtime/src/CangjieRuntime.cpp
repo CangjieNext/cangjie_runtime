@@ -48,6 +48,7 @@ size_t CangjieRuntime::msSoftHeapLimitBytes = 0;
 MSAllocatorScaleConfig CangjieRuntime::msAllocatorScaleConfig {};
 size_t CangjieRuntime::msGCThreadCapacity = 1;
 bool CangjieRuntime::msEnumAssistEnabled = true;
+bool CangjieRuntime::msAssistDisabled = false;
 
 void CangjieRuntime::ConfigureMSAllocatorScale(uint32_t processorCount, size_t maxVirtualHeapSizeKB)
 {
@@ -203,10 +204,8 @@ void CangjieRuntime::FiniAndDelete()
 CangjieRuntime::CangjieRuntime(const RuntimeParam& runtimeParam) : param(runtimeParam)
 {
 #ifdef MRT_USE_MARK_SWEEP
-    // Runtime-invariant EnumRoots assist gate. Read it once before mutators and
-    // collector workers are initialized; the helper width is still selected
-    // independently by the EnumRoots initial-mutator policy.
     msEnumAssistEnabled = ReadBoolParameter("cjMSEnumAssist", true);
+    msAssistDisabled = ReadBoolParameter("CJ_MS_DISABLE_ASSIST", false);
 #endif
     SyncGCThresholdWithHeapSize(static_cast<size_t>(param.heapParam.heapSize) * KB);
 }

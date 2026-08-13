@@ -142,36 +142,24 @@ public:
         return gcAssistProbeCursor_;
     }
 
-    void RecordGCMarkAssistSlice(
-        uint64_t completedWU, uint64_t activeUs, size_t completedTasks)
+    void RecordGCMarkAssistWork(uint64_t completedWU)
     {
-        if (completedTasks == 0) {
-            ++gcAssistNoTaskCalls_;
+        if (completedWU == 0) {
             return;
         }
         gcAssistCompletedWU_ = SaturatingMSWUAdd(
             gcAssistCompletedWU_, completedWU);
-        gcAssistActiveUs_ = SaturatingMSWUAdd(
-            gcAssistActiveUs_, activeUs);
-        ++gcAssistProductiveCalls_;
     }
 
-    void DrainGCMarkAssistTelemetry(
-        uint64_t& completedWU, uint64_t& activeUs,
-        uint64_t& productiveCalls, uint64_t& noTaskCalls)
+    uint64_t DrainGCMarkAssistWork()
     {
         while (gcAssistTelemetryDrainLock_.test_and_set(
                    std::memory_order_acquire)) {
         }
-        completedWU = gcAssistCompletedWU_;
-        activeUs = gcAssistActiveUs_;
-        productiveCalls = gcAssistProductiveCalls_;
-        noTaskCalls = gcAssistNoTaskCalls_;
+        uint64_t completedWU = gcAssistCompletedWU_;
         gcAssistCompletedWU_ = 0;
-        gcAssistActiveUs_ = 0;
-        gcAssistProductiveCalls_ = 0;
-        gcAssistNoTaskCalls_ = 0;
         gcAssistTelemetryDrainLock_.clear(std::memory_order_release);
+        return completedWU;
     }
 
     void ResetGCMarkAssistCycleState()
@@ -179,13 +167,7 @@ public:
         gcAssistDebtScaled_ = 0;
         gcAssistCreditWU_ = 0;
         gcAssistProbeCursor_ = 0;
-        uint64_t ignoredCompletedWU;
-        uint64_t ignoredActiveUs;
-        uint64_t ignoredProductiveCalls;
-        uint64_t ignoredNoTaskCalls;
-        DrainGCMarkAssistTelemetry(
-            ignoredCompletedWU, ignoredActiveUs,
-            ignoredProductiveCalls, ignoredNoTaskCalls);
+        (void)DrainGCMarkAssistWork();
     }
 
 private:
@@ -249,12 +231,9 @@ private:
     uint64_t gcAssistCreditWU_ = 0;
     size_t gcAssistProbeCursor_ = 0;
 
-    // Single-owner telemetry. The collector folds these values only after
-    // Assist admission quiesces or while this buffer is exiting.
+    // Single-owner assist work is folded after admission quiesces or while
+    // this buffer exits, then fed into the next cycle's pacing update.
     uint64_t gcAssistCompletedWU_ = 0;
-    uint64_t gcAssistActiveUs_ = 0;
-    uint64_t gcAssistProductiveCalls_ = 0;
-    uint64_t gcAssistNoTaskCalls_ = 0;
     std::atomic_flag gcAssistTelemetryDrainLock_ = ATOMIC_FLAG_INIT;
 
     // Per-P Sweep pacing. Both fields are single-owner and remain outside the

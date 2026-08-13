@@ -298,25 +298,23 @@ struct GCParam {
 
     /*
      * Background sweep slice time budget for MSGC.
-     * Measured in ns. 0 means disable the budget.
+     * Measured in ns. The C API normalizes 0 to the default 2 ms budget.
      */
     uint64_t msBackgroundSweepMaxTime;
 
     /*
      * Concurrent mark wall-clock time budget for MSGC.
-     * Measured in ns. Defaults to 100 ms. 0 selects the runtime default.
+     * Measured in ns. Defaults to 10 s. 0 selects the runtime default.
      */
     uint64_t msMarkTimeBudget;
 
     /*
-     * Percentage applied to the MSGC base assist ratio.
-     * Default to 50. Must be > 0.
+     * Reserved MSGC ABI slot; no runtime control consumes this value.
      */
     uint64_t msAssistBaseRatioPercent;
 
     /*
-     * Number of full global work buffers per MSGC assist-ratio increment.
-     * Default to 16. Must be > 0.
+     * Reserved MSGC ABI slot; no runtime control consumes this value.
      */
     size_t msAssistBacklogStepBuffers;
 
@@ -327,8 +325,7 @@ struct GCParam {
     size_t msAssistMaxMultiplier;
 
     /*
-     * Number of concurrent-mark rounds over which background credit decays.
-     * Default to 100. Must be > 0.
+     * Reserved MSGC ABI slot; no runtime control consumes this value.
      */
     size_t msAssistCreditDecayRounds;
 
@@ -350,8 +347,7 @@ struct GCParam {
     size_t msReleasedBusyRetryLimit;
 
     /*
-     * Number of rounds performed by one background scavenge slice in MSGC.
-     * Must be > 0.
+     * Reserved MSGC ABI slot; no runtime control consumes this value.
      */
     size_t msScavengeRounds;
 

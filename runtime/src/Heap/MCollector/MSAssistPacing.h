@@ -13,7 +13,6 @@
 namespace MapleRuntime {
 
 constexpr uint64_t kMSAssistRatioScale = 65536;
-constexpr uint64_t kMSAssistBaseRatioPercentDefault = 50;
 constexpr uint64_t kMSAssistTargetShareBasisPoints = 8000;
 constexpr uint64_t kMSAssistMaxShareBasisPoints = 9000;
 

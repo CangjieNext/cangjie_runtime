@@ -19,12 +19,10 @@ constexpr uint64_t MS_WU_RESOLVED_REF_COST = 1;
 constexpr uint64_t MS_WU_MARK_WORD_RMW_COST = 8;
 constexpr uint64_t MS_WU_SCAN_WORD_COST = 1;
 constexpr uint64_t MS_WU_INITIAL_DENSITY_Q16 = MS_WU_Q16_ONE / 64;
-constexpr uint64_t MS_WU_INITIAL_THROUGHPUT_Q16 = 32 * MS_WU_Q16_ONE;
 constexpr uint64_t MS_WU_ASSIST_THRESHOLD = 2048;
 constexpr uint64_t MS_WU_MAIN_WALL_BUDGET_US = 100;
 constexpr uint64_t MS_WU_HELPER_WALL_BUDGET_US = 100;
 constexpr uint64_t MS_WU_ASSIST_WALL_BUDGET_US = 100;
-constexpr uint64_t MS_WU_MIN_SLICE_BUDGET = 64;
 constexpr uint64_t MS_WU_UNLIMITED_BUDGET =
     std::numeric_limits<uint64_t>::max();
 constexpr uint64_t MS_MARK_WORK_WORDS_PER_PARTICIPANT = 128;
@@ -112,15 +110,6 @@ inline uint64_t MSWUQ16Divide(uint64_t numerator, uint64_t denominator)
     return quotient > std::numeric_limits<uint64_t>::max()
         ? std::numeric_limits<uint64_t>::max()
         : static_cast<uint64_t>(quotient);
-}
-
-inline uint64_t MSWUQ16MulInteger(uint64_t q16, uint64_t value)
-{
-    __uint128_t product = static_cast<__uint128_t>(q16) * value;
-    product >>= 16;
-    return product > std::numeric_limits<uint64_t>::max()
-        ? std::numeric_limits<uint64_t>::max()
-        : static_cast<uint64_t>(product);
 }
 
 inline uint64_t UpdateMSWUEwmaOneEighth(uint64_t previous, uint64_t sample)
@@ -453,31 +442,6 @@ private:
     uint8_t assistDownWindows_ = 0;
 };
 
-inline uint64_t ComputeMSMarkShareBasisPoints(
-    uint64_t participantWU, uint64_t totalWU)
-{
-    if (totalWU == 0) {
-        return 0;
-    }
-    __uint128_t scaled =
-        static_cast<__uint128_t>(participantWU) * 10000;
-    return static_cast<uint64_t>(scaled / totalWU);
-}
-
-inline uint64_t ComputeMSMarkRateQ16(uint64_t completedWU,
-                                     uint64_t activeUs)
-{
-    return activeUs == 0 ? 0 : MSWUQ16Divide(completedWU, activeUs);
-}
-
-inline uint64_t ComputeMSMarkSliceBudget(
-    uint64_t throughputQ16, uint64_t wallBudgetUs)
-{
-    return std::max(
-        MS_WU_MIN_SLICE_BUDGET,
-        MSWUQ16MulInteger(throughputQ16, wallBudgetUs));
-}
-
 inline uint64_t ComputeMSAssistRatioQ16(
     uint64_t workDensityQ16, MSMarkPressure pressure, uint64_t outstanding)
 {
@@ -495,24 +459,17 @@ inline uint64_t ComputeMSAssistRatioQ16(
 class MSWorkUnitPacer {
 public:
     uint64_t GetWorkDensityQ16() const { return workDensityQ16_; }
-    uint64_t GetThroughputQ16() const { return throughputQ16_; }
 
-    void UpdateFullCycle(
-        uint64_t completedWU, uint64_t allocatedBytes, uint64_t backgroundUs)
+    void UpdateFullCycle(uint64_t completedWU, uint64_t allocatedBytes)
     {
         if (allocatedBytes != 0) {
             workDensityQ16_ = UpdateMSWUEwmaOneEighth(
                 workDensityQ16_, MSWUQ16Divide(completedWU, allocatedBytes));
         }
-        if (backgroundUs != 0) {
-            throughputQ16_ = UpdateMSWUEwmaOneEighth(
-                throughputQ16_, MSWUQ16Divide(completedWU, backgroundUs));
-        }
     }
 
 private:
     uint64_t workDensityQ16_ = MS_WU_INITIAL_DENSITY_Q16;
-    uint64_t throughputQ16_ = MS_WU_INITIAL_THROUGHPUT_Q16;
 };
 
 } // namespace MapleRuntime

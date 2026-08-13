@@ -7,9 +7,6 @@
 #ifdef MRT_USE_MARK_SWEEP
 
 #include "MSMarkBarrier.h"
-#include <atomic>
-#include <cstdio>
-#include <cstdlib>
 #include "Heap/Heap.h"
 #include "Heap/MAllocator/MSAllocBuffer.h"
 #include "Heap/MAllocator/MSRegionInfo.h"
@@ -22,60 +19,6 @@
 #endif
 
 namespace MapleRuntime {
-static constexpr size_t kMSBarrierRuntimeStatCount =
-    static_cast<size_t>(MSBarrierRuntimeStat::COUNT);
-static std::atomic<uint64_t>
-    g_msBarrierRuntimeStats[kMSBarrierRuntimeStatCount];
-
-static const char* GetMSBarrierRuntimeStatName(MSBarrierRuntimeStat stat)
-{
-    static constexpr const char* names[] = {
-        "old_ref_resolve_rejected",
-        "old_ref_threshold_flush",
-        "old_ref_set_conflict_flush",
-    };
-    static_assert(
-        sizeof(names) / sizeof(names[0]) == kMSBarrierRuntimeStatCount,
-        "MSGC barrier stat names are out of sync");
-    return names[static_cast<size_t>(stat)];
-}
-
-static void DumpMSBarrierRuntimeStats()
-{
-    std::fprintf(stderr, "[MSGC_BARRIER_STATS] begin\n");
-    for (size_t i = 0; i < kMSBarrierRuntimeStatCount; ++i) {
-        std::fprintf(
-            stderr, "[MSGC_BARRIER_STATS] %s=%llu\n",
-            GetMSBarrierRuntimeStatName(
-                static_cast<MSBarrierRuntimeStat>(i)),
-            static_cast<unsigned long long>(
-                g_msBarrierRuntimeStats[i].load(std::memory_order_relaxed)));
-    }
-    std::fprintf(stderr, "[MSGC_BARRIER_STATS] end\n");
-}
-
-bool IsMSBarrierRuntimeStatsEnabled()
-{
-    static const bool enabled = []() {
-        const char* value = std::getenv("CJ_MSGC_BARRIER_COUNT");
-        bool on = value == nullptr ||
-            (value[0] != '\0' && !(value[0] == '0' && value[1] == '\0'));
-        if (on) {
-            std::atexit(DumpMSBarrierRuntimeStats);
-        }
-        return on;
-    }();
-    return enabled;
-}
-
-void RecordMSBarrierRuntimeStat(MSBarrierRuntimeStat stat)
-{
-    if (UNLIKELY(IsMSBarrierRuntimeStatsEnabled())) {
-        g_msBarrierRuntimeStats[static_cast<size_t>(stat)].fetch_add(
-            1, std::memory_order_relaxed);
-    }
-}
-
 static inline bool IsMSGCMarkPhase(GCPhase phase)
 {
     static_assert(

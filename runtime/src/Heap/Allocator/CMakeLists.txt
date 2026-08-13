@@ -26,6 +26,7 @@ else()
         "../MAllocator/MSRegionInfo.cpp"
         "../MAllocator/MSRegionManager.cpp"
         "../MAllocator/MSCentralRegionPool.cpp"
+        "../MAllocator/MSSweepEpochCoordinator.cpp"
         "../MAllocator/MSAllocBuffer.cpp"
         "../MAllocator/MSRegionSpace.cpp"
     )

@@ -23,7 +23,6 @@ class MSRootDedupTable {
 public:
     void Reset(size_t expectedRoots)
     {
-        lastResetClearedSlotCount_ = usedSlots_.size();
         for (size_t index : usedSlots_) {
             entries_[index] = 0;
         }
@@ -74,7 +73,6 @@ public:
     size_t Capacity() const { return activeCapacity_; }
     size_t ReservedCapacity() const { return entries_.capacity(); }
     size_t UsedSlotCount() const { return usedSlots_.size(); }
-    size_t LastResetClearedSlotCount() const { return lastResetClearedSlotCount_; }
 
 private:
     static size_t Hash(uintptr_t address)
@@ -90,7 +88,6 @@ private:
     std::vector<size_t> usedSlots_;
     size_t activeCapacity_ = 0;
     size_t mask_ = 0;
-    size_t lastResetClearedSlotCount_ = 0;
 };
 
 } // namespace MapleRuntime

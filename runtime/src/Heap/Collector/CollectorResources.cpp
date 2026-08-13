@@ -104,16 +104,6 @@ void CollectorResources::StopGCWork()
 }
 
 #ifdef MRT_USE_MARK_SWEEP
-bool CollectorResources::TryAcquireMSGCWorkerPoolForSweep()
-{
-    return gcThreadPool != nullptr && msgcWorkerPoolController_.TryAcquireSweep();
-}
-
-bool CollectorResources::TryAcquireMSGCWorkerPoolForPreEnum()
-{
-    return gcThreadPool != nullptr && msgcWorkerPoolController_.TryAcquirePreEnum();
-}
-
 bool CollectorResources::AcquireMSGCWorkerPoolForEnumRoots()
 {
     return gcThreadPool != nullptr && msgcWorkerPoolController_.AcquireEnumRoots();
@@ -124,10 +114,11 @@ bool CollectorResources::AcquireMSGCWorkerPoolForMark()
     return gcThreadPool != nullptr && msgcWorkerPoolController_.AcquireMark();
 }
 
-bool CollectorResources::AcquireMSGCWorkerPoolForPostMarkStats()
+bool CollectorResources::AcquireMSGCWorkerPool(
+    MSGCWorkerPoolOwner owner, bool wait)
 {
     return gcThreadPool != nullptr &&
-        msgcWorkerPoolController_.AcquirePostMarkStats();
+        msgcWorkerPoolController_.Acquire(owner, wait);
 }
 
 void CollectorResources::ReleaseMSGCWorkerPool(MSGCWorkerPoolOwner owner)
