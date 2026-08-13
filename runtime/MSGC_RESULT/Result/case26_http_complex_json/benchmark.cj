@@ -267,20 +267,38 @@ func serializeServerJson(root: JsonObject, requestBytes: Int64): String {
 // 并减少分块次数，避免 ArrayList 在每次请求中反复扩容。
 let BODY_READ_CHUNK_SIZE: Int64 = 64 * 1024
 
-func reserveBodyCapacity(result: ArrayList<UInt8>, bodySize: Option<Int64>): Unit {
-    match (bodySize) {
-        case Some(size) =>
-            if (size > 0) {
-                result.reserve(size)
-            }
-        case None => ()
+// When Content-Length is available, use one exact-size Array as the read
+// destination. Array slices are views, so each read fills the final backing
+// storage directly and avoids the previous ArrayList chunk aggregation and
+// its intermediate growth/copy path.
+func readHttpBodyKnownSize(body: InputStream, bodySize: Int64): Array<Byte> {
+    let result = Array<Byte>(bodySize, repeat: 0)
+    var offset: Int64 = 0
+    while (offset < bodySize) {
+        let remaining = bodySize - offset
+        let readBuffer = result.slice(offset, remaining)
+        let n = body.read(readBuffer)
+        if (n <= 0) {
+            break
+        }
+        offset += n
     }
+    if (offset == bodySize) {
+        return result
+    }
+    // A short stream must not expose the zero-filled tail of the exact-size
+    // allocation to the JSON parser.
+    result.slice(0, offset)
 }
 
 func readHttpBodyBytes(body: InputStream, bodySize: Option<Int64>): Array<Byte> {
+    match (bodySize) {
+        case Some(size) where size > 0 =>
+            return readHttpBodyKnownSize(body, size)
+        case _ => ()
+    }
     let chunk = Array<UInt8>(BODY_READ_CHUNK_SIZE, repeat: 0)
     let result = ArrayList<UInt8>()
-    reserveBodyCapacity(result, bodySize)
     var n = body.read(chunk)
     while (n > 0) {
         result.add(all: chunk[..n])
