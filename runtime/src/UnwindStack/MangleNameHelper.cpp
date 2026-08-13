@@ -14,8 +14,10 @@
 namespace MapleRuntime {
 namespace {
 // 判断 name 是否是合法的仓颉 mangling 名字。
-// 仓颉 mangling 名字以 "_C" 开头（MANGLE_CANGJIE_PREFIX），或属于已知特殊前缀：
-//   - "_CV"  wrapped function
+// 仓颉 mangling 名字以 "_C" 开头（MANGLE_CANGJIE_PREFIX，Mac 上前面会多一个平台前导下划线，
+// 见 CreateNativeDemangler 的 stripUnderscore 逻辑——Mac 下任何以 '_' 开头的符号都会被
+// strip 掉第一个 '_'），或属于已知特殊前缀：
+//   - "_CV"  wrapped function（已被 "_C" 覆盖）
 //   - "$lambda."  lambda 表达式
 //   - 含 "$real" 后缀  C 函数包装（cfuncInCJ$real）
 // 非此类前缀的名字（如运行时入口符号 user.main/cj_entry$/rt$、混淆后的单字符符号等）
@@ -25,14 +27,17 @@ bool IsCangjieManglingName(const CString& name)
     if (name.IsEmpty()) {
         return false;
     }
-    // 标准仓颉 mangling 前缀 "_C"
+    // 标准仓颉 mangling 前缀 "_C"（含 wrapped function 前缀 "_CV"）。
+    // Mac 平台 C 符号会额外加一个前导下划线（如 __CN... = '_' + '_CN...'），
+    // demangler 的 stripUnderscore 会跳过首个 '_'，因此这里也检查去掉首个 '_' 后是否匹配。
     if (name.Find("_C") == 0) {
         return true;
     }
-    // wrapped function 前缀 "_CV"（已被上面的 "_C" 覆盖，这里显式列出以示清晰）
-    if (name.Find("_CV") == 0) {
+#ifdef __APPLE__
+    if (name.Length() > 1 && name[0] == '_' && name.Find("_C", 1) == 1) {
         return true;
     }
+#endif
     // lambda 前缀 "$lambda."
     if (name.Find("$lambda.") != -1) {
         return true;
