@@ -41,7 +41,7 @@ uint64_t MicroSeconds() noexcept { return ClockTime<Us>(CLOCK_MONOTONIC); }
 void SleepForNano(uint64_t ns) { std::this_thread::sleep_for(std::chrono::nanoseconds(ns)); }
 
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
-// yyyy-mm-dd hh:mm::ss format
+yyyymmdd_hhmmss
 static inline CString GetDate(const char* format)
 {
     std::time_t time = std::time(0);
@@ -57,7 +57,7 @@ static inline CString GetDate(const char* format)
     return CString();
 }
 
-// yyymmdd.hhmmss format
+yyyymmdd_hhmmss
 CString GetDigitDate()
 {
     CString date = GetDate("%Y%m%d_%H%M%S");
@@ -67,7 +67,7 @@ CString GetDigitDate()
 
 CString GetTimestamp()
 {
-    // yyyy-mm-dd hh:mm::ss.ms format
+    // yyyy-mm-dd hh:mm:ss.ms
     std::chrono::system_clock::time_point now = std::chrono::system_clock::now();
     std::chrono::microseconds us = std::chrono::duration_cast<std::chrono::microseconds>(now.time_since_epoch());
     constexpr size_t microSecondsPerSecond = 1000000;
