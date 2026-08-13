@@ -192,7 +192,7 @@ extern "C" {
 #define ERRNO_SCHD_CORE_BIND_FAILED ((MID_SCHEDULE) | 0x308)
 
 /**
-* @brief 0x10040304 The callback function of OHOS is nullptr
+* @brief 0x10040309 The callback function of OHOS is nullptr
 */
 #define ERRNO_SCHD_EVENT_HANDLER_FUNC_NULL ((MID_SCHEDULE) | 0x309)
 
@@ -217,7 +217,7 @@ extern "C" {
 #define ERRNO_SCHD_STACKGROW_CNT_INVALID ((MID_SCHEDULE) | 0x404)
 
 /**
-* @brief 0x10040404 kevent failed
+* @brief 0x10040405 kevent failed
 */
 #define ERRNO_SCHD_KEVENT_FAILED ((MID_SCHEDULE) | 0x405)
 
