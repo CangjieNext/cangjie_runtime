@@ -49,17 +49,21 @@ public:
     // record stack roots in allocBuffer so that mutator can concurrently enumerate roots without lock.
     void PushRoot(BaseObject* root) { stackRoots.emplace_back(root); }
 
+    // Roots owned by native runtime frames that are not described by Cangjie stack maps.
+    void AddTemporaryRoot(BaseObject* root) { temporaryRoots.emplace_back(root); }
+    void RemoveTemporaryRoot(BaseObject* root) { temporaryRoots.remove(root); }
+
     // move the stack roots to other container so that other threads can visit them.
     template<class WorkStack>
     inline void MergeRoots(WorkStack& workStack)
     {
-        if (stackRoots.empty()) {
-            return;
-        }
         for (BaseObject* obj : stackRoots) {
             workStack.push_back(obj);
         }
         stackRoots.clear();
+        for (BaseObject* obj : temporaryRoots) {
+            workStack.push_back(obj);
+        }
     }
 
     void FlushRegion();
@@ -81,6 +85,7 @@ private:
     RegionList tlLargeRawPointerRegions;
     // Record stack roots in concurrent enum phase, waiting for GC to merge these roots
     std::list<BaseObject*> stackRoots;
+    std::list<BaseObject*> temporaryRoots;
 };
 } // namespace MapleRuntime
 #endif // MRT_ALLOC_BUFFER_H

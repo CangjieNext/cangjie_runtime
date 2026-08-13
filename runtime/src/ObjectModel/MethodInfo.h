@@ -60,8 +60,10 @@ public:
     ScopedAllocBuffer() {}
     ~ScopedAllocBuffer();
     std::vector<void*>& GetArgBuffers() { return argBuffers; }
+    void AddRoot(BaseObject* obj);
 private:
     std::vector<void*> argBuffers;
+    std::vector<BaseObject*> roots;
 };
 
 class ATTR_PACKED(4) MethodInfo {
@@ -94,10 +96,10 @@ private:
     Value ApplyCJMethodImpl(ArgValue* argValues, void** sretSlot);
     void PrepareSRet(ArgValue *argValues, void**& sretSlot, TypeInfo* retType);
     void PrepareCJMethodActualArgs(ArgValue* argValues, void* actualArgsArray, void *genericArgsArray,
-                                   std::vector<void*>* argBuffers = nullptr);
+                                   ScopedAllocBuffer* allocBuffer = nullptr);
     void PrepareCJMethodGenericArgs(ArgValue* argValues, void *genericArgsArray);
     void AddCJArg(ArgValue* argValues, TypeInfo* argType, ObjRef argObj,
-                  std::vector<void*>* argBuffers = nullptr);
+                  ScopedAllocBuffer* allocBuffer = nullptr);
     bool IsStaticMethod() { return static_cast<bool>(modifier & MODIFIER_STATIC); }
     bool HasSRet();
     bool HasSRetNotGeneric() { return static_cast<bool>(modifier & MODIFIER_HAS_SRET0); }
