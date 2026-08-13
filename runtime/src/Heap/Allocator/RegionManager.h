@@ -299,6 +299,9 @@ public:
                                            RegionInfo::RegionType::RAW_POINTER_PINNED_REGION)) {
             GCPhase phase = Heap::GetHeap().GetGCPhase();
             CHECK(phase != GCPhase::GC_PHASE_FORWARD && phase != GCPhase::GC_PHASE_PREFORWARD);
+            if (phase == GCPhase::GC_PHASE_POST_TRACE) {
+                region->ClearGhostRegionBit();
+            }
             region->ClearGhostRegionBit();
             rawPointerPinnedRegionList.PrependRegion(region, RegionInfo::RegionType::RAW_POINTER_PINNED_REGION);
         } else {
