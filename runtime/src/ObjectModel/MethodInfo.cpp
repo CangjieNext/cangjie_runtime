@@ -13,6 +13,10 @@
 namespace MapleRuntime {
 ScopedAllocBuffer::~ScopedAllocBuffer()
 {
+    for (auto &root : roots) {
+        Heap::GetHeap().RemoveExportObject(root.second);
+        Heap::GetHeap().GetCollector().RemoveRawPointerObject(root.first);
+    }
     AllocBuffer* buffer = AllocBuffer::GetAllocBuffer();
     if (buffer != nullptr) {
         buffer->CommitRawPointerRegions();
@@ -24,6 +28,12 @@ ScopedAllocBuffer::~ScopedAllocBuffer()
         }
     }
     argBuffers.clear();
+}
+
+void ScopedAllocBuffer::AddRoot(BaseObject* obj)
+{
+    Heap::GetHeap().GetCollector().AddRawPointerObject(obj);
+    roots.emplace_back(obj, Heap::GetHeap().RegisterExportRoot(obj));
 }
 
 void* ParameterInfo::GetAnnotations(TypeInfo* arrayTi)
@@ -317,7 +327,7 @@ TypeInfo* MethodInfo::GetActualTypeFromGenericType(GenericTypeInfo* genericTi, v
 }
 
 void MethodInfo::AddCJArg(ArgValue *argValues, TypeInfo *argType, ObjRef argObj,
-                          std::vector<void*>* argBuffers)
+                          ScopedAllocBuffer* allocBuffer)
 {
     I8 type = argType->GetType();
     size_t offset = 8;
@@ -371,10 +381,24 @@ void MethodInfo::AddCJArg(ArgValue *argValues, TypeInfo *argType, ObjRef argObj,
                 argValues->AddInt64(0);
                 break;
             }
-            // Track the buffer so the caller can free it after ApplyCJMethodImpl returns.
-            void* dst = MemoryAlloc(1, typeSize);
-            if (argBuffers != nullptr) {
-                argBuffers->push_back(dst);
+            void* dst = nullptr;
+            if (argType->HasRefField()) {
+                MSize objSize = MRT_ALIGN(typeSize + TYPEINFO_PTR_SIZE, TYPEINFO_PTR_SIZE);
+                ObjRef root = ObjectManager::NewObject(argType, objSize, AllocType::RAW_POINTER_OBJECT);
+                if (root == nullptr) {
+                    ExceptionManager::CheckAndThrowPendingException("failed to allocate reflected struct argument");
+                }
+                AllocBuffer* buffer = AllocBuffer::GetAllocBuffer();
+                if (buffer != nullptr) {
+                    buffer->CommitRawPointerRegions();
+                }
+                allocBuffer->AddRoot(root);
+                dst = reinterpret_cast<void*>(reinterpret_cast<Uptr>(root) + TYPEINFO_PTR_SIZE);
+            } else {
+                dst = MemoryAlloc(1, typeSize);
+                if (allocBuffer != nullptr) {
+                    allocBuffer->GetArgBuffers().push_back(dst);
+                }
             }
             Heap::GetBarrier().ReadStruct(
                 reinterpret_cast<MAddress>(dst),
@@ -391,7 +415,7 @@ void MethodInfo::AddCJArg(ArgValue *argValues, TypeInfo *argType, ObjRef argObj,
 }
 
 void MethodInfo::PrepareCJMethodActualArgs(ArgValue* argValues, void* actualArgsArray, void *genericArgsArray,
-                                           std::vector<void*>* argBuffers)
+                                           ScopedAllocBuffer* allocBuffer)
 {
     // Read rawPtr (ref to CJRawArray) through the GC read barrier instead of a raw
     // cast: if GC concurrently moves the CJRawArray, the raw read would return a
@@ -415,7 +439,7 @@ void MethodInfo::PrepareCJMethodActualArgs(ArgValue* argValues, void* actualArgs
         if (argType->IsVArray()) {
             LOG(RTLOG_FATAL, "not support varray now!!!!\n");
         }
-        AddCJArg(argValues, argType, argObj, argBuffers);
+        AddCJArg(argValues, argType, argObj, allocBuffer);
     }
 }
 
@@ -602,6 +626,14 @@ void* MethodInfo::ApplyCJMethod(ObjRef instanceObj, void* genericArgs, void* act
             U32 size = declaringTi->GetInstanceSize();
             MSize objSize = MRT_ALIGN(size + TYPEINFO_PTR_SIZE, TYPEINFO_PTR_SIZE);
             instanceObj = ObjectManager::NewObject(declaringTi, objSize, AllocType::RAW_POINTER_OBJECT);
+            if (instanceObj == nullptr) {
+                ExceptionManager::CheckAndThrowPendingException("failed to allocate reflected receiver");
+            }
+            AllocBuffer* buffer = AllocBuffer::GetAllocBuffer();
+            if (buffer != nullptr) {
+                buffer->CommitRawPointerRegions();
+            }
+            scopedAllocBuffer.AddRoot(instanceObj);
             argValues.AddReference(instanceObj);
         } else if (IsInitializer() && declaringTi->IsStruct()) {
             instanceObj = reinterpret_cast<ObjRef>(MemoryAlloc(1, declaringTi->GetInstanceSize()));
@@ -611,7 +643,7 @@ void* MethodInfo::ApplyCJMethod(ObjRef instanceObj, void* genericArgs, void* act
     }
 
     if (actualArgs != nullptr) {
-        PrepareCJMethodActualArgs(&argValues, actualArgs, genericArgs, &argBuffers);
+        PrepareCJMethodActualArgs(&argValues, actualArgs, genericArgs, &scopedAllocBuffer);
     }
     if (genericArgs != nullptr) {
         PrepareCJMethodGenericArgs(&argValues, genericArgs);
