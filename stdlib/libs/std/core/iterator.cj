@@ -71,7 +71,7 @@ class MapIterator<T, R> <: Iterator<R> {
     private let it: Iterator<T>
 
     /*
-     * Tranform Iterator to anther type.
+     * Transform Iterator to another type.
      *
      * @param it Iterable.
      * @param transform Transform func.
