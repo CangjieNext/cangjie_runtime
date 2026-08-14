@@ -45,7 +45,7 @@ SECTIONS
     KEEP (*(SORT_NONE(.init)))
   } =0
   .plt            : ALIGN(16) { *(.plt) *(.iplt) }
-  .text           :
+  .text           : ALIGN(64)
   {
     *(.text.unlikely .text.*_unlikely .text.unlikely.*)
     *(.text.exit .text.exit.*)
