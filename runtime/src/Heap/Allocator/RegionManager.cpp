@@ -1316,7 +1316,7 @@ uintptr_t RegionManager::AllocPinnedFromFreeList(size_t size)
     std::lock_guard<std::mutex> lock(freePinnedSlotListMutex);
     GCPhase mutatorPhase = Mutator::GetMutator()->GetMutatorPhase();
     // For preventing missing mark, do not allocate object from slot list when gc phase is post trace.
-    if (mutatorPhase == GCPhase::GC_PHASE_POST_TRACE) {
+    if (mutatorPhase == GCPhase::GC_PHASE_POST_TRACE || mutatorPhase == GCPhase::GC_PHASE_GENERATION_POST_TRACE) {
         return 0;
     }
     uintptr_t allocPtr = freePinnedSlotLists.PopFront(size);
