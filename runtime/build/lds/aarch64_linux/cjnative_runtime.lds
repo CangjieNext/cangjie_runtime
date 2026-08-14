@@ -50,7 +50,7 @@ SECTIONS
     KEEP (*(.cjnative.start))
     g_runtimeDynamicStart = .;
   }
-  .text           :
+  .text           : ALIGN(64)
   {
     *(.text.unlikely .text.*_unlikely .text.unlikely.*)
     *(.text.exit .text.exit.*)

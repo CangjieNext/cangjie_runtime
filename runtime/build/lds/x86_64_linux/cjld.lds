@@ -50,7 +50,7 @@ SECTIONS
   .plt            : { *(.plt) *(.iplt) }
 .plt.got        : { *(.plt.got) }
 .plt.sec        : { *(.plt.sec) }
-  .text           :
+  .text           : ALIGN(64)
   {
     *(.text.unlikely .text.*_unlikely .text.unlikely.*)
     *(.text.exit .text.exit.*)
