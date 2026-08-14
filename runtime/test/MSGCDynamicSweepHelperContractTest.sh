@@ -12,7 +12,7 @@ CANGJIE_HEADER="$ROOT_DIR/src/Cangjie.h"
 SCHEDULER_SOURCE="$ROOT_DIR/src/CjScheduler.cpp"
 RUNTIME_API_SOURCE="$ROOT_DIR/src/CangjieRuntimeApi.cpp"
 
-if ! rg -q 'sweepAdmission_' "$CENTRAL_HEADER" ||
+if ! rg -q 'MSSweepEpochCoordinator sweepEpoch_' "$CENTRAL_HEADER" ||
    rg -q 'activeHelperSweepCount_|helperSweptRegions' "$CENTRAL_HEADER"; then
     echo "parallel Sweep must use unified admission without REPORT-only helper counters" >&2
     exit 1
@@ -23,7 +23,7 @@ if ! rg -q 'void ParallelSweep\(' "$CENTRAL_HEADER"; then
     exit 1
 fi
 
-if ! rg -q 'forceHighSweepPressure_' "$CENTRAL_HEADER" ||
+if ! rg -q 'forceHighPressure' "$CENTRAL_HEADER" ||
    ! rg -q 'void ForceHighSweepPressure\(\)' "$CENTRAL_HEADER"; then
     echo "CentralRegionPool must own the forced-HIGH Sweep epoch latch" >&2
     exit 1
@@ -34,13 +34,13 @@ publish_body="$(awk '
     capture { print }
     capture && /^}/ { exit }
 ' "$CENTRAL_SOURCE")"
-if ! printf '%s\n' "$publish_body" | rg -q 'forceHighSweepPressure_\.store\(false' ||
+if ! printf '%s\n' "$publish_body" | rg -q 'forceHighPressure\.store\(false' ||
    ! printf '%s\n' "$publish_body" | rg -q 'SweepPressureMode::LOW'; then
     echo "only global Sweep completion may clear forced HIGH and publish LOW" >&2
     exit 1
 fi
-publish_done_line="$(printf '%s\n' "$publish_body" | rg -n 'sweepDone_\.store\(true' | sed -n '1s/:.*//p')"
-clear_force_line="$(printf '%s\n' "$publish_body" | rg -n 'forceHighSweepPressure_\.store\(false' | sed -n '1s/:.*//p')"
+publish_done_line="$(printf '%s\n' "$publish_body" | rg -n 'PublishSweepDoneAfterQuiescence\(\)' | sed -n '1s/:.*//p')"
+clear_force_line="$(printf '%s\n' "$publish_body" | rg -n 'forceHighPressure\.store\(false' | sed -n '1s/:.*//p')"
 if [[ -z "$publish_done_line" || -z "$clear_force_line" ||
       "$publish_done_line" -ge "$clear_force_line" ]]; then
     echo "Sweep completion must be published before clearing forced HIGH to close the notifier race" >&2
@@ -108,7 +108,7 @@ background_sweep = section(
 parallel_sweep = section(
     central,
     'void CentralRegionPool::ParallelSweep(',
-    'void CentralRegionPool::ParallelSweepOnceForOOM(',
+    'size_t CentralRegionPool::AssistSweep(',
 )
 assist_sweep = section(
     central,
@@ -165,12 +165,16 @@ if ! rg -q 'NotifyToParallelSweep\(\)' "$REGION_MANAGER_SOURCE" ||
 fi
 
 if ! rg -q 'shouldParallelSweep_' "$BACKGROUND_HEADER" ||
-   ! rg -q 'targetSweepHelperCount_' "$BACKGROUND_HEADER" ||
    ! rg -q 'activeSweepHelperCount_' "$BACKGROUND_HEADER" ||
-   ! rg -q 'TryAcquireMSGCWorkerPoolForSweep' "$BACKGROUND_SOURCE" ||
+   ! rg -q 'MSGCWorkerPoolSession sweepSession' "$BACKGROUND_SOURCE" ||
    rg -q 'TryRequestAsyncGC\(GC_REASON_HEU\)|DeferredHeuOrigin|deferredHeu' \
        "$BACKGROUND_HEADER" "$BACKGROUND_SOURCE"; then
     echo "BackgroundProcessor must coordinate only SWEEP lease work, without HEU retry state" >&2
+    exit 1
+fi
+
+if rg -q 'targetSweepHelperCount_|leaseMiss' "$BACKGROUND_HEADER" "$BACKGROUND_SOURCE"; then
+    echo "BackgroundProcessor must retain only scheduling state that affects Sweep execution" >&2
     exit 1
 fi
 
@@ -183,7 +187,7 @@ if rg -q 'ComputeMSParallelSweepPlan|regionQuantum|msAssistSweepMaxRegionsPerCal
 fi
 
 notify_body="$(awk '
-    /void BackgroundProcessor::NotifyToParallelSweep\(\)/ { capture = 1 }
+    /bool BackgroundProcessor::NotifyToParallelSweep\(\)/ { capture = 1 }
     capture { print }
     capture && /^}/ { exit }
 ' "$BACKGROUND_SOURCE")"
@@ -194,7 +198,7 @@ if [[ -z "$force_line" || -z "$wake_line" || "$force_line" -ge "$wake_line" ]]; 
     exit 1
 fi
 
-if ! rg -q 'AcquireMSGCWorkerPoolForMark' "$MS_COLLECTOR_SOURCE"; then
+if ! rg -Uq 'AcquireMSGCWorkerPool\([[:space:]]*MSGCWorkerPoolOwner::MARK,[[:space:]]*true\)' "$MS_COLLECTOR_SOURCE"; then
     echo "concurrent Mark helpers must own the shared worker pool" >&2
     exit 1
 fi

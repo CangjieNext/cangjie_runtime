@@ -3,6 +3,7 @@
 
 #define MRT_USE_MARK_SWEEP 1
 
+#include "src/Heap/MCollector/MSAssistPacing.h"
 #include "src/Heap/MCollector/MSWorkUnit.h"
 
 namespace {
@@ -27,8 +28,6 @@ void TestFixedIntegerCost()
     work.AddMarkWordRMW(2);
     work.AddScanWords(3);
     Expect(work.Total() == 24, "WorkUnit fixed cost changed");
-    work.Reset();
-    Expect(work.Total() == 0, "WorkUnit reset did not clear weighted total");
 }
 
 void TestAssistSlicePolicyStartsAtTwoKForOneHundredMicroseconds()
@@ -61,76 +60,52 @@ void TestAssistAdmissionRequiresSustainedBacklog()
 
 void TestAssistCreditPaysFutureDebtAndPreservesFraction()
 {
-    constexpr uint64_t scale = 16;
-    uint64_t debtScaled = 4096 * scale + 7;
-    uint64_t creditWU = 1024;
-    ConsumeMSMarkAssistCredit(debtScaled, creditWU, scale);
-    Expect(debtScaled == 3072 * scale + 7,
+    MSMarkAssistDebtState state;
+    state.debtScaled = 4096 * kMSAssistRatioScale + 7;
+    state.creditWU = 1024;
+    state.ConsumeCredit();
+    Expect(state.debtScaled == 3072 * kMSAssistRatioScale + 7,
            "Assist credit must preserve fractional scaled debt");
-    Expect(creditWU == 0,
+    Expect(state.creditWU == 0,
            "consumed Assist credit must not be reused");
 
-    debtScaled = 2048 * scale + 5;
-    creditWU = 0;
-    AccountMSMarkAssistWork(debtScaled, creditWU, 5000, scale);
-    Expect(debtScaled == 5,
+    state.debtScaled = 2048 * kMSAssistRatioScale + 5;
+    state.creditWU = 0;
+    state.AccountCompletedWork(5000);
+    Expect(state.debtScaled == 5,
            "completed Assist work must pay only whole debt WU");
-    Expect(creditWU == 2952,
+    Expect(state.creditWU == 2952,
            "whole-Region overshoot must become future Assist credit");
 
-    debtScaled = 0;
-    creditWU = std::numeric_limits<uint64_t>::max() - 1;
-    AccountMSMarkAssistWork(debtScaled, creditWU, 4, scale);
-    Expect(creditWU == std::numeric_limits<uint64_t>::max(),
+    state.debtScaled = 0;
+    state.creditWU = std::numeric_limits<uint64_t>::max() - 1;
+    state.AccountCompletedWork(4);
+    Expect(state.creditWU == std::numeric_limits<uint64_t>::max(),
            "Assist credit accumulation must saturate");
 }
 
 void TestFullCycleEwma()
 {
-    MSWorkUnitPacer pacer;
-    uint64_t oldDensity = pacer.GetWorkDensityQ16();
-    uint64_t oldThroughput = pacer.GetThroughputQ16();
-    pacer.UpdateFullCycle(1024, 32768, 16);
-    Expect(
-        pacer.GetWorkDensityQ16() ==
-            UpdateMSWUEwmaOneEighth(
-                oldDensity, MSWUQ16Divide(1024, 32768)),
-        "density EWMA mismatch");
-    Expect(
-        pacer.GetThroughputQ16() ==
-            UpdateMSWUEwmaOneEighth(
-                oldThroughput, MSWUQ16Divide(1024, 16)),
-        "throughput EWMA mismatch");
+    MSMarkAssistPacing pacing;
+    pacing.UpdateForCompletedCycle(1024, 32768, 1, false);
+    MSMarkAssistPlan plan =
+        pacing.ActivateForCurrentCycle(MSMarkPressure::NORMAL);
+    uint64_t expectedDensity = UpdateMSWUEwmaOneEighth(
+        MS_WU_INITIAL_DENSITY_Q16, MSWUQ16Divide(1024, 32768));
+    Expect(plan.baseRatio ==
+               ResolveMSMarkBaseAssistRatioQ16(expectedDensity, false),
+           "pacing must retain the density EWMA internally");
 }
 
 void TestAssistRatio()
 {
     Expect(
-        ComputeMSAssistRatioQ16(
-            MS_WU_Q16_ONE, MSMarkPressure::NORMAL, 1) ==
+        ResolveMSMarkBaseAssistRatioQ16(MS_WU_Q16_ONE, false) ==
             MS_WU_Q16_ONE / 4,
         "normal assist ratio mismatch");
     Expect(
-        ComputeMSAssistRatioQ16(
-            MS_WU_Q16_ONE, MSMarkPressure::CRITICAL, 1) ==
-            MS_WU_Q16_ONE,
-        "critical assist ratio mismatch");
-}
-
-void TestMarkTelemetryShareAndRate()
-{
-    Expect(
-        ComputeMSMarkShareBasisPoints(250, 1000) == 2500,
-        "mark work share must use basis points");
-    Expect(
-        ComputeMSMarkShareBasisPoints(1, 0) == 0,
-        "empty mark work must report zero share");
-    Expect(
-        ComputeMSMarkRateQ16(1000, 40) == 25 * MS_WU_Q16_ONE,
-        "mark rate must report WorkUnits per microsecond");
-    Expect(
-        ComputeMSMarkRateQ16(1000, 0) == 0,
-        "zero active time must report zero rate");
+        ResolveMSMarkBaseAssistRatioQ16(MS_WU_Q16_ONE, true) == 0,
+        "disabled assist must publish no allocation charge");
 }
 
 void TestHelperTargetTracksActualWork()
@@ -185,14 +160,14 @@ void TestMarkControllerAppliesHelperHysteresis()
     Expect(controller.AssistMultiplier() == 1,
            "normal mark must start at the base Assist ratio");
 
-    controller.Observe(16, 1024);
+    controller.ObserveSchedulerSample(16, 1024, 0);
     Expect(controller.HelperTarget() == 0,
            "one high-work observation must not wake helpers");
-    controller.Observe(16, 1024);
-    controller.Observe(16, 1024);
+    controller.ObserveSchedulerSample(16, 1024, 0);
+    controller.ObserveSchedulerSample(16, 1024, 0);
     Expect(controller.HelperTarget() == 0,
            "three high-work observations must remain inside up hysteresis");
-    controller.Observe(16, 1024);
+    controller.ObserveSchedulerSample(16, 1024, 0);
     Expect(controller.HelperTarget() == 1,
            "four sustained high-work observations must add only one helper");
 
@@ -201,11 +176,11 @@ void TestMarkControllerAppliesHelperHysteresis()
     Expect(draining.HelperTarget() == 2,
            "normal mark must soft-start at two helpers");
     for (size_t window = 0; window < 6; ++window) {
-        draining.Observe(16, 0);
+        draining.ObserveSchedulerSample(16, 0, 0);
         Expect(draining.HelperTarget() == 2,
                "filtered draining work must not park helpers abruptly");
     }
-    draining.Observe(16, 0);
+    draining.ObserveSchedulerSample(16, 0, 0);
     Expect(draining.HelperTarget() == 1,
            "sustained draining must remove only one helper");
 }
@@ -217,11 +192,11 @@ void TestNormalMarkSoftStartsAndRampsOnSustainedBacklog()
     Expect(controller.HelperTarget() == 2,
            "large normal backlog must not activate all helpers at mark start");
     for (size_t window = 0; window < 3; ++window) {
-        controller.Observe(64, 4096);
+        controller.ObserveSchedulerSample(64, 4096, 0);
         Expect(controller.HelperTarget() == 2,
                "helper growth must require four sustained backlog windows");
     }
-    controller.Observe(64, 4096);
+    controller.ObserveSchedulerSample(64, 4096, 0);
     Expect(controller.HelperTarget() == 3,
            "sustained backlog must grow helper width one step at a time");
 }
@@ -235,23 +210,23 @@ void TestMarkControllerCascadesAssistAfterStableHelpers()
     Expect(controller.AssistMultiplier() == 1,
            "task count must not saturate Assist at mark start");
 
-    controller.Observe(32, 4096);
+    controller.ObserveSchedulerSample(32, 4096, 0);
     Expect(controller.AssistMultiplier() == 1,
            "one non-draining window must not increase Assist");
-    controller.Observe(32, 4096);
+    controller.ObserveSchedulerSample(32, 4096, 0);
     Expect(controller.AssistMultiplier() == 2,
            "two non-draining windows after stable helpers must add one Assist level");
-    controller.Observe(32, 4096);
+    controller.ObserveSchedulerSample(32, 4096, 0);
     Expect(controller.AssistMultiplier() == 2,
            "Assist must not increase on every control window");
-    controller.Observe(32, 4096);
+    controller.ObserveSchedulerSample(32, 4096, 0);
     Expect(controller.AssistMultiplier() == 3,
            "persistent backlog must raise Assist one level at a time");
 
-    controller.Observe(32, 0);
+    controller.ObserveSchedulerSample(32, 0, 0);
     Expect(controller.AssistMultiplier() == 3,
            "one draining window must stay inside Assist down hysteresis");
-    controller.Observe(32, 0);
+    controller.ObserveSchedulerSample(32, 0, 0);
     Expect(controller.AssistMultiplier() == 2,
            "two draining windows must reduce Assist by one level");
 }
@@ -270,27 +245,35 @@ void TestMarkPressureEscalatesOnElapsedTime()
            "elapsed time without mark work must not raise pressure");
 }
 
-void TestMarkPressureRequiresSustainedSignals()
+void TestMarkControllerRequiresSustainedElapsedPressure()
 {
-    MSMarkPressureGate highGate(MSMarkPressure::NORMAL);
-    Expect(highGate.Observe(MSMarkPressure::HIGH) == MSMarkPressure::NORMAL,
+    MSMarkControllerState highController(
+        16, 128, 7, 4, MSMarkPressure::NORMAL);
+    highController.ObserveSchedulerSample(16, 128, 20000);
+    Expect(highController.Pressure() == MSMarkPressure::NORMAL,
            "one high-pressure sample must not expand mark helpers");
-    Expect(highGate.Observe(MSMarkPressure::HIGH) == MSMarkPressure::NORMAL,
+    highController.ObserveSchedulerSample(16, 128, 20000);
+    Expect(highController.Pressure() == MSMarkPressure::NORMAL,
            "two high-pressure samples must remain gated");
-    Expect(highGate.Observe(MSMarkPressure::HIGH) == MSMarkPressure::HIGH,
+    highController.ObserveSchedulerSample(16, 128, 20000);
+    Expect(highController.Pressure() == MSMarkPressure::HIGH,
            "three high-pressure samples must enable high pressure");
 
-    MSMarkPressureGate resetGate(MSMarkPressure::NORMAL);
-    (void)resetGate.Observe(MSMarkPressure::HIGH);
-    Expect(resetGate.Observe(MSMarkPressure::NORMAL) == MSMarkPressure::NORMAL,
-           "normal pressure must reset a partial high-pressure streak");
-    Expect(resetGate.Observe(MSMarkPressure::HIGH) == MSMarkPressure::NORMAL,
-           "a reset high-pressure streak must restart from one sample");
+    MSMarkControllerState resetController(
+        16, 128, 7, 4, MSMarkPressure::NORMAL);
+    resetController.ObserveSchedulerSample(16, 128, 20000);
+    resetController.ObserveSchedulerSample(16, 128, 0);
+    resetController.ObserveSchedulerSample(16, 128, 20000);
+    Expect(resetController.Pressure() == MSMarkPressure::NORMAL,
+           "a normal sample must reset a partial high-pressure streak");
 
-    MSMarkPressureGate criticalGate(MSMarkPressure::NORMAL);
-    Expect(criticalGate.Observe(MSMarkPressure::CRITICAL) == MSMarkPressure::NORMAL,
+    MSMarkControllerState criticalController(
+        64, 4096, 7, 4, MSMarkPressure::NORMAL);
+    criticalController.ObserveSchedulerSample(64, 4096, 100000);
+    Expect(criticalController.Pressure() == MSMarkPressure::NORMAL,
            "one critical-pressure sample must not activate every helper");
-    Expect(criticalGate.Observe(MSMarkPressure::CRITICAL) == MSMarkPressure::CRITICAL,
+    criticalController.ObserveSchedulerSample(64, 4096, 100000);
+    Expect(criticalController.Pressure() == MSMarkPressure::CRITICAL,
            "two critical-pressure samples must activate critical pressure");
 }
 
@@ -298,7 +281,8 @@ void TestMarkControllerEscalatesToCriticalPressure()
 {
     MSMarkControllerState controller(
         64, 4096, 7, 4, MSMarkPressure::NORMAL);
-    controller.EscalatePressure(MSMarkPressure::CRITICAL, 64, 4096);
+    controller.ObserveSchedulerSample(64, 4096, 100000);
+    controller.ObserveSchedulerSample(64, 4096, 100000);
     Expect(controller.HelperTarget() == 7,
            "critical pressure escalation must immediately activate all helpers");
     Expect(controller.AssistMultiplier() == 4,
@@ -325,13 +309,12 @@ int main()
     TestAssistCreditPaysFutureDebtAndPreservesFraction();
     TestFullCycleEwma();
     TestAssistRatio();
-    TestMarkTelemetryShareAndRate();
     TestHelperTargetTracksActualWork();
     TestMarkControllerAppliesHelperHysteresis();
     TestNormalMarkSoftStartsAndRampsOnSustainedBacklog();
     TestMarkControllerCascadesAssistAfterStableHelpers();
     TestMarkPressureEscalatesOnElapsedTime();
-    TestMarkPressureRequiresSustainedSignals();
+    TestMarkControllerRequiresSustainedElapsedPressure();
     TestMarkControllerEscalatesToCriticalPressure();
     TestCriticalMarkControllerBypassesHysteresis();
     return 0;

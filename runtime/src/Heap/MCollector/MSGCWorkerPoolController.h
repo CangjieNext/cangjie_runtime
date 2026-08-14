@@ -17,16 +17,13 @@ enum class MSGCWorkerPoolOwner : uint8_t {
     IDLE,
     SWEEP,
     PRE_ENUM,
-    ENUM_ROOTS,
     MARK,
-    POST_MARK_STATS,
     STOPPING,
 };
 
 // Serializes complete GCThreadPool task epochs. The controller does not protect
 // individual tasks; an owner remains installed from AddWork/Start through
-// WaitFinish so PRE_ENUM, ENUM_ROOTS, MARK, POST_MARK_STATS, and SWEEP work can
-// never share one pool cycle.
+// WaitFinish so PRE_ENUM, MARK, and SWEEP work can never share one pool cycle.
 class MSGCWorkerPoolController {
 public:
     bool Acquire(MSGCWorkerPoolOwner owner, bool wait)
@@ -46,16 +43,6 @@ public:
         }
         owner_ = owner;
         return true;
-    }
-
-    bool AcquireMark()
-    {
-        return Acquire(MSGCWorkerPoolOwner::MARK, true);
-    }
-
-    bool AcquireEnumRoots()
-    {
-        return Acquire(MSGCWorkerPoolOwner::ENUM_ROOTS, true);
     }
 
     bool Release(MSGCWorkerPoolOwner expectedOwner)
@@ -78,12 +65,6 @@ public:
             owner_ = MSGCWorkerPoolOwner::STOPPING;
         }
         condition_.notify_all();
-    }
-
-    MSGCWorkerPoolOwner GetOwner() const
-    {
-        std::lock_guard<std::mutex> lock(mutex_);
-        return owner_;
     }
 
 private:

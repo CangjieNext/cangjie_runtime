@@ -43,7 +43,6 @@
 #include "HeapManager.h"
 #include "HeapManager.inline.h"
 #ifdef MRT_USE_MARK_SWEEP
-#include "Heap/MCollector/MSAssistPacing.h"
 #include "Heap/MCollector/MSMemoryLimitPolicy.h"
 #include "Heap/MCollector/MSMarkWorkerPolicy.h"
 #include "Heap/MCollector/MSGCConfig.h"
@@ -345,16 +344,10 @@ RTErrorCode InitCJRuntime(const struct RuntimeParam* param)
 #ifdef MRT_USE_MARK_SWEEP
             .msBackgroundSweepMaxTime = msConfig.backgroundSweepMaxTimeNs,
             .msMarkTimeBudget = msConfig.markTimeBudgetNs,
-            .msAssistBaseRatioPercent = msConfig.assistBaseRatioPercent,
-            .msAssistBacklogStepBuffers = msConfig.assistBacklogStepBuffers,
             .msAssistMaxMultiplier = msConfig.assistMaxMultiplier,
-            .msAssistCreditDecayRounds = msConfig.assistCreditDecayRounds,
             .msAssistSweepMaxRegionsPerCall = msConfig.assistSweepMaxRegionsPerCall,
             .msEnumAssistBatchSize = msConfig.enumAssistBatchSize,
-            .msReleasedBusyRetryLimit = msConfig.releasedBusyRetryLimit,
-            .msScavengeRounds = msConfig.scavengeRounds,
             .msBackgroundSweep = msConfig.backgroundSweep,
-            .reservedMSBackgroundFeed = msConfig.reservedBackgroundFeed,
             .msBackgroundScavenge = msConfig.backgroundScavenge,
             .msBackgroundShrink = msConfig.backgroundShrink,
             .msVerifyMark = msConfig.verifyMark,

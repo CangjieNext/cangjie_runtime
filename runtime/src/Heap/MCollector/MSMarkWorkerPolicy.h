@@ -13,7 +13,6 @@
 namespace MapleRuntime {
 
 constexpr size_t kMSPreEnumResetFirstHelperBytes = 1 * 1024 * 1024;
-constexpr size_t kMSEnumRootsFirstHelperMutators = 1000;
 
 inline size_t ResolveMSGCThreadCapacity(size_t processorCount,
                                         size_t logicalCpuCount)
@@ -66,57 +65,6 @@ inline size_t ComputeMSPreEnumResetHelperTarget(size_t resetBytes,
     }
     return target;
 }
-
-// EnumRoots fixes its helper width once from the mutator count captured at
-// phase entry: [1000, 2000) -> 1, [2000, 4000) -> 2,
-// [4000, 8000) -> 3, ... . The width does not track the shrinking pending list.
-inline size_t ComputeMSEnumRootsHelperTarget(size_t initialMutatorCount,
-                                             size_t maxHelpers)
-{
-    if (initialMutatorCount < kMSEnumRootsFirstHelperMutators || maxHelpers == 0) {
-        return 0;
-    }
-
-    size_t target = 1;
-    size_t nextBoundary = kMSEnumRootsFirstHelperMutators;
-    while (target < maxHelpers &&
-           nextBoundary <= std::numeric_limits<size_t>::max() / 2) {
-        nextBoundary *= 2;
-        if (initialMutatorCount < nextBoundary) {
-            break;
-        }
-        ++target;
-    }
-    return target;
-}
-
-class MSMarkWorkerPolicy {
-public:
-    explicit MSMarkWorkerPolicy(size_t maxHelpers) : maxHelpers_(maxHelpers) {}
-
-    size_t Update(size_t fullBacklog)
-    {
-        if (maxHelpers_ == 0) {
-            return activeHelpers_;
-        }
-
-        size_t desiredHelpers = fullBacklog / kBacklogPerHelper;
-        if (fullBacklog % kBacklogPerHelper != 0) {
-            ++desiredHelpers;
-        }
-        desiredHelpers = std::max<size_t>(1, std::min(desiredHelpers, maxHelpers_));
-        activeHelpers_ = std::max(activeHelpers_, desiredHelpers);
-        return activeHelpers_;
-    }
-
-    size_t GetActiveHelpers() const { return activeHelpers_; }
-
-private:
-    static constexpr size_t kBacklogPerHelper = 8;
-
-    size_t maxHelpers_ = 0;
-    size_t activeHelpers_ = 0;
-};
 
 } // namespace MapleRuntime
 

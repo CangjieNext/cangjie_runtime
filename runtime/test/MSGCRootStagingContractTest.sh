@@ -6,6 +6,7 @@ HEADER="$ROOT_DIR/src/Heap/MAllocator/MSAllocBuffer.h"
 SOURCE="$ROOT_DIR/src/Heap/MAllocator/MSAllocBuffer.cpp"
 COLLECTOR_HEADER="$ROOT_DIR/src/Heap/MCollector/MarkSweepCollector.h"
 COLLECTOR_SOURCE="$ROOT_DIR/src/Heap/MCollector/MarkSweepCollector.cpp"
+SNAPSHOT_HEADER="$ROOT_DIR/src/Heap/MCollector/MSRootSnapshot.h"
 
 rg -q 'kRootStagingReserve = 256' "$HEADER"
 rg -q 'kRootOverflowChunkCapacity = 128' "$HEADER"
@@ -23,39 +24,23 @@ printf '%s\n' "$push" | rg -q 'stackRoots_\.emplace_back\(root\)'
 printf '%s\n' "$push" | rg -q 'AcquireRootOverflowChunk\(\)'
 printf '%s\n' "$push" | rg -q 'rootOverflowTail_->roots\[rootOverflowTail_->count\+\+\] = root'
 
-merge="$(sed -n '/inline void MergeRoots/,/^    }/p' "$HEADER")"
-printf '%s\n' "$merge" | rg -q 'stackRoots_\.clear\(\)'
-printf '%s\n' "$merge" | rg -q 'chunk->next = rootOverflowFree_'
-printf '%s\n' "$merge" | rg -q 'rootOverflowFree_ = chunk'
+drain="$(sed -n '/void DrainRootsTo/,/^    }/p' "$HEADER")"
+printf '%s\n' "$drain" | rg -q 'stackRoots_\.clear\(\)'
+printf '%s\n' "$drain" | rg -q 'chunk->next = rootOverflowFree_'
+printf '%s\n' "$drain" | rg -q 'rootOverflowFree_ = chunk'
 
-rg -q 'std::vector<BaseObject\*> rootStaging_' "$COLLECTOR_HEADER"
-rg -q 'MSRootDedupTable rootDedupTable_' "$COLLECTOR_HEADER"
+rg -q 'MSRootSnapshot rootSnapshot_' "$COLLECTOR_HEADER"
+rg -q 'class MSRootSnapshot' "$SNAPSHOT_HEADER"
 publish="$(sed -n '/void MarkSweepCollector::PublishRootStaging/,/^}/p' "$COLLECTOR_SOURCE")"
-printf '%s\n' "$publish" | rg -q 'std::vector<BaseObject\*>& roots = rootStaging_'
-if printf '%s\n' "$publish" | rg -q 'std::vector<BaseObject\*> roots'; then
-    echo 'root publication must reuse collector-owned vector storage' >&2
-    exit 1
-fi
-printf '%s\n' "$publish" | rg -q 'rootDedupTable_\.Insert'
-printf '%s\n' "$publish" | rg -q 'Heap::IsHeapAddress\(obj\)'
-dedup_line="$(printf '%s\n' "$publish" | rg -n 'rootDedupTable_\.Insert' | cut -d: -f1)"
-heap_gate_line="$(printf '%s\n' "$publish" | rg -n 'Heap::IsHeapAddress\(obj\)' | cut -d: -f1)"
-resize_line="$(printf '%s\n' "$publish" | rg -n 'roots\.resize\(uniqueRootCount\)' | cut -d: -f1)"
-[[ "$heap_gate_line" -lt "$dedup_line" && "$dedup_line" -lt "$resize_line" ]]
-printf '%s\n' "$publish" | rg -q 'PublishRootRange'
-printf '%s\n' "$publish" | rg -q 'roots\.clear'
+printf '%s\n' "$publish" | rg -q 'rootSnapshot_\.DeduplicateAndPublish'
+printf '%s\n' "$publish" | rg -q 'Heap::IsHeapAddress'
+rg -q 'size_t DeduplicateAndPublish' "$SNAPSHOT_HEADER"
+rg -q 'dedupTable_\.Insert' "$SNAPSHOT_HEADER"
+rg -q 'roots_\.clear' "$SNAPSHOT_HEADER"
 
 range="$(sed -n '/void MarkSweepCollector::PublishRootRange/,/^}/p' "$COLLECTOR_SOURCE")"
 printf '%s\n' "$range" | rg -q 'MSMarkWordBatch batch'
 printf '%s\n' "$range" | rg -Uq 'AddRefToMarkBatch<MSMarkRefSource::TRUSTED_MANAGED>\([[:space:]]*obj, batch, work, publication\)'
 printf '%s\n' "$range" | rg -q 'FlushMarkBatch\(batch, work, publication\)'
-
-publish="$(sed -n '/void MarkSweepCollector::PublishRootStaging/,/^}/p' "$COLLECTOR_SOURCE")"
-heap_line="$(printf '%s\n' "$publish" | rg -n -m1 'Heap::IsHeapAddress' | cut -d: -f1)"
-dedup_line="$(printf '%s\n' "$publish" | rg -n -m1 'rootDedupTable_\.Insert' | cut -d: -f1)"
-if [[ -z "$heap_line" || -z "$dedup_line" || "$heap_line" -ge "$dedup_line" ]]; then
-    echo 'root staging must reject non-heap values before touching the dedup table' >&2
-    exit 1
-fi
 
 echo 'MSGC bounded root staging contract holds'

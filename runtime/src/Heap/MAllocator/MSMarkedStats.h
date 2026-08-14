@@ -10,18 +10,15 @@
 namespace MapleRuntime {
 
 struct MSMarkedStats {
-    size_t objectCount = 0;
     size_t liveBytes = 0;
 
     void AddSlots(size_t markedSlots, size_t slotSize)
     {
-        objectCount += markedSlots;
         liveBytes += markedSlots * slotSize;
     }
 
     void AddLargeObject(size_t objectBytes)
     {
-        ++objectCount;
         liveBytes += objectBytes;
     }
 };

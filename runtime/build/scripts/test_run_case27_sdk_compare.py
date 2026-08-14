@@ -113,11 +113,7 @@ class RunCase27SdkCompareTests(unittest.TestCase):
         )
         copygc, msgc = self.module.build_sdk_specs(args)
 
-        with mock.patch.dict(
-            os.environ,
-            {"cjMSEnumAssist": "0", "cjMSSweepAssist": "0"},
-            clear=False,
-        ):
+        with mock.patch.dict(os.environ, {"cjMSEnumAssist": "0"}, clear=False):
             copy_env = self.module.build_run_environment(
                 args, copygc, pathlib.Path("/tmp/out/copygc/run1"), 19127
             )
@@ -128,11 +124,9 @@ class RunCase27SdkCompareTests(unittest.TestCase):
         self.assertEqual(copy_env["CJC_GC_MODE"], "copygc")
         self.assertEqual(copy_env["BENCH_BINARY"], "benchmark_copygc")
         self.assertNotIn("cjMSEnumAssist", copy_env)
-        self.assertNotIn("cjMSSweepAssist", copy_env)
         self.assertEqual(msgc_env["CJC_GC_MODE"], "marksweep")
         self.assertEqual(msgc_env["BENCH_BINARY"], "benchmark_msgc")
         self.assertEqual(msgc_env["cjMSEnumAssist"], "0")
-        self.assertEqual(msgc_env["cjMSSweepAssist"], "0")
 
     def test_comparison_summary_reports_msgc_relative_to_copygc(self):
         copy_results = [self._result(500), self._result(600, fail=2)]

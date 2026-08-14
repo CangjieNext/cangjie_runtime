@@ -45,6 +45,12 @@ public:
         if (entries_.size() < tableCapacity) {
             entries_.assign(tableCapacity, 0);
         }
+        // Deduplication appends one slot for each accepted root. Reserve that
+        // bounded side list before STW traversal so growing a root snapshot
+        // cannot repeatedly reallocate while roots are being published.
+        if (usedSlots_.capacity() < expectedRoots) {
+            usedSlots_.reserve(expectedRoots);
+        }
         activeCapacity_ = tableCapacity;
         mask_ = tableCapacity - 1;
     }
@@ -69,10 +75,6 @@ public:
             index = (index + 1) & mask_;
         }
     }
-
-    size_t Capacity() const { return activeCapacity_; }
-    size_t ReservedCapacity() const { return entries_.capacity(); }
-    size_t UsedSlotCount() const { return usedSlots_.size(); }
 
 private:
     static size_t Hash(uintptr_t address)

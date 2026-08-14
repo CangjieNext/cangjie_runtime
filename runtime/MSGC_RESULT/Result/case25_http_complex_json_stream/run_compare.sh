@@ -39,8 +39,9 @@
 #     GO_GODEBUG           Go benchmark 的 GODEBUG 默认 gctrace=1
 #     GO_GOGC              可选，透传给 Go side
 #     JAVA_ENABLE          是否加入 Java mirror side 默认 1
-#     JAVA_BIN             Java 命令，默认 java
-#     JAVAC_BIN            javac 命令，默认 javac
+#     JAVA_HOME_DEFAULT    Java 25 安装根目录，默认 /opt/homebrew/opt/openjdk@25
+#     JAVA_BIN             Java 命令，默认 $JAVA_HOME_DEFAULT/bin/java
+#     JAVAC_BIN            javac 命令，默认 $JAVA_HOME_DEFAULT/bin/javac
 #     JAVA_OPTS            可选 Java 运行参数
 #     JAVA_GC_OPTS         可选 Java GC 日志参数；为空时按 JDK 版本自动配置
 #
@@ -103,8 +104,9 @@ GO_GODEBUG="${GO_GODEBUG:-gctrace=1}"
 GO_GOGC="${GO_GOGC:-}"
 GO_GOMEMLIMIT="${GO_GOMEMLIMIT:-16GiB}"
 JAVA_ENABLE="${JAVA_ENABLE:-1}"
-JAVA_BIN="${JAVA_BIN:-java}"
-JAVAC_BIN="${JAVAC_BIN:-javac}"
+JAVA_HOME_DEFAULT="${JAVA_HOME_DEFAULT:-/opt/homebrew/opt/openjdk@25}"
+JAVA_BIN="${JAVA_BIN:-$JAVA_HOME_DEFAULT/bin/java}"
+JAVAC_BIN="${JAVAC_BIN:-$JAVA_HOME_DEFAULT/bin/javac}"
 JACKSON_CORE_JAR="$CASE_DIR/java_benchmark/lib/jackson-core-2.17.2.jar"
 # HotSpot accepts g/m/k suffixes, but not the cjHeapSize-style gb/mb suffixes.
 # Keep an explicitly supplied JAVA_OPTS unchanged; otherwise cap Java with HEAP_SIZE.

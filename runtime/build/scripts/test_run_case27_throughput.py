@@ -158,35 +158,21 @@ class RunCase27ThroughputTests(unittest.TestCase):
         self.assertEqual(env["HEAP_SIZE"], "4gb")
         self.assertEqual(env["RUNTIME_HEAP_GROWTH"], "1")
         self.assertEqual(env["RUNTIME_SCAVENGE_GROWTH"], "10")
-        self.assertEqual(env["cjMSSweepAssist"], "1")
         self.assertEqual(env["cjMSEnumAssist"], "1")
 
     def test_build_run_environment_allows_external_enum_assist_override(self):
         args = self.module.parse_args(
             [
-                "--payload",
-                "100K",
-                "--concurrency",
-                "1000",
-                "--duration-ms",
-                "60000",
-                "--heap-size",
-                "4gb",
-                "--sdk-root",
-                "/tmp/sdk",
-                "--stdx-dir",
-                "/tmp/stdx",
-                "--case-dir",
-                "/tmp/case27",
+                "--payload", "100K", "--concurrency", "1000",
+                "--duration-ms", "60000", "--heap-size", "4gb",
+                "--sdk-root", "/tmp/sdk", "--stdx-dir", "/tmp/stdx",
+                "--case-dir", "/tmp/case27",
             ]
         )
 
         with mock.patch.dict("os.environ", {"cjMSEnumAssist": "0"}, clear=False):
             env = self.module.build_run_environment(
-                args=args,
-                out_dir=pathlib.Path("/tmp/out/run1"),
-                port=19127,
-            )
+                args=args, out_dir=pathlib.Path("/tmp/out/run1"), port=19127)
 
         self.assertEqual(env["cjMSEnumAssist"], "0")
 

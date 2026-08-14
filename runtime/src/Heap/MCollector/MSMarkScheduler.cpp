@@ -15,6 +15,37 @@
 
 namespace MapleRuntime {
 
+namespace {
+
+template<typename T>
+void* AllocateMSCacheLineAlignedArray(size_t size, const char* description)
+{
+    void* storage = nullptr;
+#ifdef _WIN32
+    storage = _aligned_malloc(size, alignof(T));
+#else
+    int result = posix_memalign(&storage, alignof(T), size);
+    CHECK_DETAIL(result == 0,
+                 "[MS-GC] aligned %s allocation failed: %d",
+                 description, result);
+#endif
+    CHECK_DETAIL(storage != nullptr,
+                 "[MS-GC] aligned %s allocation returned null", description);
+    return storage;
+}
+
+template<typename T>
+void FreeMSCacheLineAlignedArray(void* ptr) noexcept
+{
+#ifdef _WIN32
+    _aligned_free(ptr);
+#else
+    std::free(ptr);
+#endif
+}
+
+} // namespace
+
 static_assert(ATOMIC_INT_LOCK_FREE == 2,
               "MSGC requires always-lock-free 32-bit atomics");
 static_assert(ATOMIC_LLONG_LOCK_FREE == 2,
@@ -23,54 +54,24 @@ static_assert(sizeof(uintptr_t) == 8, "MSGC Step62 supports only 64-bit targets"
 
 void* MSMarkReadyStack::operator new[](size_t size)
 {
-    void* storage = nullptr;
-#ifdef _WIN32
-    storage = _aligned_malloc(size, alignof(MSMarkReadyStack));
-#else
-    int result = posix_memalign(
-        &storage, alignof(MSMarkReadyStack), size);
-    CHECK_DETAIL(result == 0,
-                 "[MS-GC] aligned Region ready shard allocation failed: %d",
-                 result);
-#endif
-    CHECK_DETAIL(storage != nullptr,
-                 "[MS-GC] aligned Region ready shard allocation returned null");
-    return storage;
+    return AllocateMSCacheLineAlignedArray<MSMarkReadyStack>(
+        size, "Region ready shard");
 }
 
 void MSMarkReadyStack::operator delete[](void* ptr) noexcept
 {
-#ifdef _WIN32
-    _aligned_free(ptr);
-#else
-    std::free(ptr);
-#endif
+    FreeMSCacheLineAlignedArray<MSMarkReadyStack>(ptr);
 }
 
 void* MSMarkWorkHintShard::operator new[](size_t size)
 {
-    void* storage = nullptr;
-#ifdef _WIN32
-    storage = _aligned_malloc(size, alignof(MSMarkWorkHintShard));
-#else
-    int result = posix_memalign(
-        &storage, alignof(MSMarkWorkHintShard), size);
-    CHECK_DETAIL(result == 0,
-                 "[MS-GC] aligned Mark work-hint allocation failed: %d",
-                 result);
-#endif
-    CHECK_DETAIL(storage != nullptr,
-                 "[MS-GC] aligned Mark work-hint allocation returned null");
-    return storage;
+    return AllocateMSCacheLineAlignedArray<MSMarkWorkHintShard>(
+        size, "Mark work-hint shard");
 }
 
 void MSMarkWorkHintShard::operator delete[](void* ptr) noexcept
 {
-#ifdef _WIN32
-    _aligned_free(ptr);
-#else
-    std::free(ptr);
-#endif
+    FreeMSCacheLineAlignedArray<MSMarkWorkHintShard>(ptr);
 }
 
 bool MSMarkReadyStack::Push(MSRegionInfo* region)
@@ -204,10 +205,7 @@ uint64_t MSMarkScheduler::OutstandingWorkHint() const
 {
     uint64_t total = 0;
     for (size_t i = 0; i < regionReadyShardCount_; ++i) {
-        uint64_t shardWords = workHintShards_[i].LoadHint();
-        total = shardWords > std::numeric_limits<uint64_t>::max() - total
-            ? std::numeric_limits<uint64_t>::max()
-            : total + shardWords;
+        total = SaturatingMSWUAdd(total, workHintShards_[i].LoadHint());
     }
     return total;
 }
@@ -314,21 +312,20 @@ bool MSMarkScheduler::TryClaimAssistRegion(
 }
 
 bool MSMarkScheduler::TryClaim(
-    const MSMarkWorkerCaps& caps, bool preferObject,
+    bool preferObject,
     size_t preferredRegionShard, size_t& regionProbeCursor,
     MSTaskLease& lease)
 {
     CHECK_DETAIL(!lease.IsActive(),
                  "[MS-GC] TryClaim target already holds active lease");
-    if (preferObject && caps.object &&
+    if (preferObject &&
         TryClaimFrom(objectReady_, MSMarkTaskKind::OBJECT, lease)) {
         return true;
     }
-    if (caps.region && TryClaimRegion(
-            preferredRegionShard, regionProbeCursor, lease)) {
+    if (TryClaimRegion(preferredRegionShard, regionProbeCursor, lease)) {
         return true;
     }
-    return !preferObject && caps.object &&
+    return !preferObject &&
         TryClaimFrom(objectReady_, MSMarkTaskKind::OBJECT, lease);
 }
 

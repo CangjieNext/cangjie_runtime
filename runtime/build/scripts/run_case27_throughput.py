@@ -150,7 +150,6 @@ def build_run_environment(
         "HEAP_SIZE": args.heap_size,
         "RUNTIME_HEAP_GROWTH": args.heap_growth,
         "RUNTIME_SCAVENGE_GROWTH": args.scavenge_growth,
-        "cjMSSweepAssist": "1",
         "cjMSEnumAssist": os.environ.get("cjMSEnumAssist", "1"),
     }
 

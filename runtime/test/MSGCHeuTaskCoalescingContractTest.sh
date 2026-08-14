@@ -11,7 +11,7 @@ COLLECTOR_RESOURCES_SOURCE="$ROOT_DIR/src/Heap/Collector/CollectorResources.cpp"
 MS_COLLECTOR_SOURCE="$ROOT_DIR/src/Heap/MCollector/MarkSweepCollector.cpp"
 MS_COLLECTOR_HEADER="$ROOT_DIR/src/Heap/MCollector/MarkSweepCollector.h"
 REGION_MANAGER_SOURCE="$ROOT_DIR/src/Heap/MAllocator/MSRegionManager.cpp"
-SWEEP_POLICY_HEADER="$ROOT_DIR/src/Heap/MAllocator/MSSweepDebtPolicy.h"
+SWEEP_POLICY_HEADER="$ROOT_DIR/src/Heap/MCollector/MSAssistPacing.h"
 BACKGROUND_HEADER="$ROOT_DIR/src/Heap/MCollector/BackgroundProcessor.h"
 BACKGROUND_SOURCE="$ROOT_DIR/src/Heap/MCollector/BackgroundProcessor.cpp"
 
@@ -65,17 +65,17 @@ if printf '%s\n' "$maybe_notify_body" | rg -q 'RefreshSweepDebtSnapshot'; then
     echo "MaybeNotifyMark must consume the published Sweep pressure without refreshing it" >&2
     exit 1
 fi
-threshold_line="$(printf '%s\n' "$maybe_notify_body" | rg -n 'sweptBytes < threshold' | sed -n '1s/:.*//p')"
+threshold_line="$(printf '%s\n' "$maybe_notify_body" | rg -n 'MSMarkTriggerDecision markDecision = EvaluateMSMarkTrigger' | sed -n '1s/:.*//p')"
 mode_line="$(printf '%s\n' "$maybe_notify_body" | rg -n 'pool->GetSweepPressureMode\(\)' | sed -n '1s/:.*//p')"
 pressure_line="$(printf '%s\n' "$maybe_notify_body" | rg -n 'pressureMode != SweepPressureMode::LOW' | sed -n '1s/:.*//p')"
 notify_line="$(printf '%s\n' "$maybe_notify_body" | rg -n 'NotifyToParallelSweep\(\)' | sed -n '1s/:.*//p')"
-request_line="$(printf '%s\n' "$maybe_notify_body" | rg -n 'RequestGC\(GC_REASON_HEU, true\)' | sed -n '1s/:.*//p')"
+request_line="$(printf '%s\n' "$maybe_notify_body" | rg -n 'TryRequestAsyncGC\(GC_REASON_HEU\)' | sed -n '1s/:.*//p')"
 if [[ -z "$threshold_line" || -z "$mode_line" || -z "$pressure_line" ||
       -z "$notify_line" || -z "$request_line" ||
       "$threshold_line" -ge "$mode_line" ||
       "$mode_line" -ge "$pressure_line" || "$pressure_line" -ge "$notify_line" ||
       "$notify_line" -ge "$request_line" ]]; then
-    echo "MaybeNotifyMark must trust one aggregate threshold check, wake pressured Sweep, then submit HEU" >&2
+    echo "MaybeNotifyMark must evaluate one aggregate mark trigger, wake pressured Sweep, then submit HEU" >&2
     exit 1
 fi
 if printf '%s\n' "$maybe_notify_body" |
@@ -84,7 +84,7 @@ if printf '%s\n' "$maybe_notify_body" |
     exit 1
 fi
 
-if ! rg -Uq 'void BackgroundProcessor::NotifyToParallelSweep\(\)[[:space:]]*\{[[:space:][:print:]]*ForceHighSweepPressure\(\)[[:space:][:print:]]*RequestWork\(shouldParallelSweep_\);[[:space:]]*\}' \
+if ! rg -Uq 'bool BackgroundProcessor::NotifyToParallelSweep\(\)[[:space:][:print:]]*\{[[:space:][:print:]]*ForceHighSweepPressure\(\)[[:space:][:print:]]*return RequestWork\(shouldParallelSweep_\);[[:space:]]*\}' \
     "$BACKGROUND_SOURCE"; then
     echo "NotifyToParallelSweep must force HIGH and then perform a pure Sweep wakeup" >&2
     exit 1

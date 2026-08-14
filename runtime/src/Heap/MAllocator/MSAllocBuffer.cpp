@@ -482,96 +482,21 @@ AllocBufferMS* AllocBufferMS::GetOrCreateAllocBufferMS(ThreadLocalData* local)
     return buffer;
 }
 
-// ============================================================================
-// AccumulatePacingDebt — unified pacing debt accumulation
-// Called at region-acquisition time from SlowAlloc() (once per ~MS_REGION_SIZE
-// bytes, covering both compiler fast-path and runtime slow-path), and also
-// directly from large-object paths (TryAllocateOnceMS).
-// Resets gcAssistDebtScaled_ when marking is not active so stale debt from a
-// previous GC cycle does not carry over.
-// ============================================================================
+// Mark debt is charged once per Region refill (or by the large-object path).
+// MSAssistPacing owns the Q16 debt/credit transition and invokes the
+// collector only when the local threshold is reached.
 void AllocBufferMS::AccumulatePacingDebt(size_t size)
 {
-    // Check whether marking is active before accumulating debt.
-    // The previous guard `if (gcAssistDebtScaled_ == 0) return` was wrong:
-    // since the field is zero-initialized and only grows here, the early-exit
-    // prevented debt from ever accumulating, causing assist to never trigger.
-    MarkSweepCollector* collector = MarkSweepCollector::GetActiveCollector();
-    if (collector == nullptr) {
-        gcAssistDebtScaled_ = 0;
-        gcAssistCreditWU_ = 0;
-        return;
-    }
-    uint64_t ratioScaled = collector->GetAssistWorkPerByteScaled();
-    if (ratioScaled == 0) {
-        gcAssistDebtScaled_ = 0;  // Marking not active — clear stale debt
-        gcAssistCreditWU_ = 0;
-        return;
-    }
-    uint64_t deltaDebt = SaturatingMSWUMul(
-        static_cast<uint64_t>(size), ratioScaled);
-    gcAssistDebtScaled_ = SaturatingMSWUAdd(
-        gcAssistDebtScaled_, deltaDebt);
-    const uint64_t ratioScale = MarkSweepCollector::GetAssistRatioScale();
-    ConsumeMSMarkAssistCredit(
-        gcAssistDebtScaled_, gcAssistCreditWU_, ratioScale);
-    size_t debtWU = static_cast<size_t>(gcAssistDebtScaled_ / ratioScale);
-    if (UNLIKELY(debtWU >= MS_WU_ASSIST_THRESHOLD)) {
-        size_t completedWU = collector->MSMarkAssist(*this, debtWU);
-        AccountMSMarkAssistWork(
-            gcAssistDebtScaled_, gcAssistCreditWU_,
-            static_cast<uint64_t>(completedWU), ratioScale);
-    }
+    UpdateMSMarkAssistDebt(markAssistDebt_, *this, size);
 }
 
-// ============================================================================
-// AccumulateSweepDebt — P-local Sweep pacing
-// Called only after a successful Region/span consumption. Background cache fill
-// never reaches this function. A cycle-id mismatch lazily discards the old P's
-// fractional debt and statistics after PostMark publishes the new central ratio.
-// ============================================================================
+// Sweep debt is charged only after a successful Region/span consumption. The
+// pacing module resets stale epoch state, claims central credit, and asks the
+// pool to perform one direct batch only after the local debt reaches it.
 void AllocBufferMS::AccumulateSweepDebt(size_t allocatedRegions, uint8_t preferredCls)
 {
-    if (central_ == nullptr || allocatedRegions == 0) {
-        return;
-    }
-
-    uint32_t currentGeneration = central_->GetSweepCycleId();
-    uint32_t localGeneration = sweepDebtGen_;
-    if (localGeneration != currentGeneration) {
-        sweepAssistDebtScaled_ = 0;
-        sweepDebtGen_ = currentGeneration;
-    }
-
-    // An emergency OOM force-finish intentionally does not publish
-    // sweep completion. If the admission is open but no unswept work remains, there
-    // is nevertheless no debt left for this allocation buffer to repay.
-    if (central_->IsSweepDone() || !central_->HasPendingSweepWork()) {
-        sweepAssistDebtScaled_ = 0;
-        return;
-    }
-
-    uint64_t ratioScaled = central_->GetSweepAssistRatioScaled();
-    if (ratioScaled == 0) {
-        sweepAssistDebtScaled_ = 0;
-        return;
-    }
-
-    sweepAssistDebtScaled_ = AccumulateMSSweepDebtScaled(
-        sweepAssistDebtScaled_, allocatedRegions, ratioScaled);
-
-    size_t debtRegions = static_cast<size_t>(sweepAssistDebtScaled_ / kMSSweepAssistRatioScale);
-    if (debtRegions == 0) {
-        return;
-    }
-
-    MSSweepAssistResult result = central_->MSSweepAssist(debtRegions, preferredCls);
-    if (result.sweepComplete) {
-        sweepAssistDebtScaled_ = 0;
-        return;
-    }
-    sweepAssistDebtScaled_ = PayMSSweepDebtRegions(
-        sweepAssistDebtScaled_, result.TotalPaidRegions());
+    UpdateMSSweepAssistDebt(
+        sweepAssistDebt_, central_, allocatedRegions, preferredCls);
 }
 
 } // namespace MapleRuntime

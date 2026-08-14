@@ -31,21 +31,17 @@ struct MSGCConfigInput {
     size_t parallelSweepMaxHelpers = 0;
     uint8_t parallelSweep = 0;
     uint8_t adaptiveGrowth = 0;
+    uint8_t enumAssistEnabled = 0;
+    uint8_t assistDisabled = 0;
 };
 
 struct MSGCResolvedConfig {
     uint64_t backgroundSweepMaxTimeNs = 0;
     uint64_t markTimeBudgetNs = 0;
-    size_t assistBaseRatioPercent = 0;
-    size_t assistBacklogStepBuffers = 0;
     size_t assistMaxMultiplier = 0;
-    size_t assistCreditDecayRounds = 0;
     size_t assistSweepMaxRegionsPerCall = 0;
     size_t enumAssistBatchSize = 0;
-    size_t releasedBusyRetryLimit = 0;
-    size_t scavengeRounds = 0;
     uint8_t backgroundSweep = 0;
-    uint8_t reservedBackgroundFeed = 0;
     uint8_t backgroundScavenge = 0;
     uint8_t backgroundShrink = 0;
     uint8_t verifyMark = 0;
@@ -53,6 +49,8 @@ struct MSGCResolvedConfig {
     size_t parallelSweepMaxHelpers = 0;
     uint8_t parallelSweep = 0;
     uint8_t adaptiveGrowth = 0;
+    uint8_t enumAssistEnabled = 0;
+    uint8_t assistDisabled = 0;
 };
 
 inline MSGCResolvedConfig ResolveMSGCConfig(const MSGCConfigInput& input,
@@ -76,6 +74,8 @@ inline MSGCResolvedConfig ResolveMSGCConfig(const MSGCConfigInput& input,
     config.parallelSweepMaxHelpers = input.parallelSweepMaxHelpers;
     config.parallelSweep = input.parallelSweep != 0 ? 1 : 0;
     config.adaptiveGrowth = input.adaptiveGrowth != 0 ? 1 : 0;
+    config.enumAssistEnabled = input.enumAssistEnabled != 0 ? 1 : 0;
+    config.assistDisabled = input.assistDisabled != 0 ? 1 : 0;
     return config;
 }
 

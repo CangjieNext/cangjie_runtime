@@ -13,7 +13,7 @@
 #include <cstdint>
 #include <limits>
 
-#include "Heap/MAllocator/MSSweepDebtPolicy.h"
+#include "Heap/MAllocator/MSSweepPressurePolicy.h"
 
 namespace MapleRuntime {
 
@@ -65,14 +65,6 @@ inline std::array<uint8_t, NumClasses> BuildMSSweepPressureClassOrder(
         return lhs < rhs;
     });
     return order;
-}
-
-inline size_t SaturatingMultiply(size_t lhs, size_t rhs)
-{
-    if (lhs != 0 && rhs > std::numeric_limits<size_t>::max() / lhs) {
-        return std::numeric_limits<size_t>::max();
-    }
-    return lhs * rhs;
 }
 
 inline size_t ComputeMSMaxSweepHelpers(size_t gcThreads, size_t configuredMaxHelpers)
@@ -158,16 +150,10 @@ inline size_t ComputeMSActiveSweepHelpers(size_t currentHelpers, size_t targetHe
     return currentHelpers;
 }
 
-inline size_t ComputeMSSweepSliceBudgetUs(size_t baseBudgetUs, SweepPressureMode mode)
+inline uint64_t ComputeMSSweepSliceBudgetUs(uint64_t baseBudgetUs, SweepPressureMode mode)
 {
-    return SaturatingMultiply(baseBudgetUs, SweepTierMultiplier(mode));
-}
-
-inline bool IsMSSweepQuiescent(bool sweepDone, bool backgroundRunning,
-                               size_t activeLazy, size_t activeAssist, size_t activeHelper)
-{
-    return sweepDone && !backgroundRunning && activeLazy == 0 &&
-           activeAssist == 0 && activeHelper == 0;
+    return SaturatingMultiplyMSSweepValue(
+        baseBudgetUs, static_cast<uint64_t>(SweepTierMultiplier(mode)));
 }
 
 } // namespace MapleRuntime

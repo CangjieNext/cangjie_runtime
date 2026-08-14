@@ -36,15 +36,15 @@ assert "targetRegions" in assist, "Assist slice must follow the requested target
 background = block(source, "void CentralRegionPool::BackgroundSweep",
                    "void CentralRegionPool::ParallelSweep")
 parallel = block(source, "void CentralRegionPool::ParallelSweep",
-                 "void CentralRegionPool::ParallelSweepOnceForOOM")
+                 "size_t CentralRegionPool::AssistSweep")
 force = block(source, "void CentralRegionPool::ForceFinishUnsweptList",
               "void CentralRegionPool::ForceFinishAllUnswept")
 common = block(source, "bool CentralRegionPool::SweepUnsweptList",
                "// ===== Monitoring =====")
 assert "bucket.ClaimUnswept()" in common
 assert "PushPartialSwept" in common and "PushFullSwept" in common
-assert "SweepUnsweptList" in background, "Background sweep must use the shared batch loop"
-assert "SweepUnsweptList" in parallel, "Parallel helper must use the shared batch loop"
+assert "SweepClassOrder" in background, "Background sweep must use the shared class-order loop"
+assert "SweepClassOrder" in parallel, "Parallel helper must use the shared class-order loop"
 assert "bucket.ClaimUnswept()" in force
 assert "PushPartialSwept" in force and "PushFullSwept" in force
 

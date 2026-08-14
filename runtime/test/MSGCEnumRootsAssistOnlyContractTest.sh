@@ -11,8 +11,29 @@ rg -q 'std::vector<Mutator\*> candidates' "$HEADER"
 rg -q 'size_t claimCursor = 0' "$HEADER"
 rg -q 'size_t inFlight = 0' "$HEADER"
 rg -q 'std::condition_variable drained' "$HEADER"
+for removed in active assistEnabled remaining gcMainScanned mutatorAssistScanned readyPolls; do
+    if rg -q "enumAssistContext_\.${removed}|\b${removed} =" "$HEADER" "$SOURCE"; then
+        echo "Enum assist retains non-protocol state: ${removed}" >&2
+        exit 1
+    fi
+done
 if rg -q 'EnumTransitionEntry|EnumTransitionState|MSEnumRootsWorkerSession' "$HEADER"; then
     echo 'EnumRoots must not retain the per-entry/GC-helper transition model' >&2
+    exit 1
+fi
+
+for obsolete in \
+    "$ROOT_DIR/src/Heap/MCollector/MSEnumRootsWorkerSession.h" \
+    "$ROOT_DIR/src/Heap/MCollector/MSEnumRootsWorkerSession.cpp"; do
+    [[ ! -e "$obsolete" ]] || {
+        echo "obsolete EnumRoots GC-helper session remains: $obsolete" >&2
+        exit 1
+    }
+done
+
+if rg -q 'ComputeMSEnumRootsHelperTarget|kMSEnumRootsFirstHelperMutators' \
+    "$ROOT_DIR/src/Heap/MCollector/MSMarkWorkerPolicy.h"; then
+    echo 'obsolete EnumRoots GC-helper sizing policy remains' >&2
     exit 1
 fi
 
@@ -31,7 +52,10 @@ printf '%s\n' "$assist" | rg -q 'candidate->TransitionGCPhase\(false\)'
 printf '%s\n' "$assist" | rg -q 'FinishEnumAssistBatch'
 
 ensure="$(sed -n '/void MutatorManager::EnsurePhaseTransition/,/^}/p' "$SOURCE")"
-printf '%s\n' "$ensure" | rg -q 'UpdateEnumAssistRemaining'
+if printf '%s\n' "$ensure" | rg -q 'enumAssistContext_|UpdateEnumAssistRemaining'; then
+    echo 'EnsurePhaseTransition must not maintain enum-assist telemetry' >&2
+    exit 1
+fi
 printf '%s\n' "$ensure" | rg -q 'undoneMutators'
 
 enum_body="$(sed -n '/void MarkSweepCollector::EnumRoots/,/^}/p' "$COLLECTOR")"
@@ -41,7 +65,7 @@ if printf '%s\n' "$enum_body" | rg -q 'enumRootsWorkerSession_|ComputeMSEnumRoot
 fi
 
 publish="$(sed -n '/void MarkSweepCollector::PublishRootStaging/,/^}/p' "$COLLECTOR")"
-printf '%s\n' "$publish" | rg -q 'PublishRootRange\(roots, 0, uniqueRootCount\)'
+printf '%s\n' "$publish" | rg -q 'rootSnapshot_\.Publish'
 if printf '%s\n' "$publish" | rg -q 'RunStage|WaitStage|enumRootsWorkerSession_'; then
     echo 'root publication must be serial in the pure-assist model' >&2
     exit 1

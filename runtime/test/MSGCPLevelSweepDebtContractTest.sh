@@ -10,7 +10,7 @@ REGION_MANAGER_SOURCE="$ROOT_DIR/src/Heap/MAllocator/MSRegionManager.cpp"
 REGION_SPACE_SOURCE="$ROOT_DIR/src/Heap/MAllocator/MSRegionSpace.cpp"
 CANGJIE_HEADER="$ROOT_DIR/src/Cangjie.h"
 SCHEDULER_SOURCE="$ROOT_DIR/src/CjScheduler.cpp"
-RUNTIME_API_SOURCE="$ROOT_DIR/src/CangjieRuntimeApi.cpp"
+MSGC_CONFIG_HEADER="$ROOT_DIR/src/Heap/MCollector/MSGCConfig.h"
 
 extract_function() {
     local file="$1"
@@ -29,12 +29,10 @@ extract_function() {
     ' "$file"
 }
 
-for field in sweepAssistDebtScaled_ sweepDebtGen_; do
-    if ! rg -q "$field" "$ALLOC_HEADER"; then
-        echo "AllocBufferMS must own $field" >&2
-        exit 1
-    fi
-done
+if ! rg -q 'MSSweepAssistDebtState sweepAssistDebt_;' "$ALLOC_HEADER"; then
+    echo "AllocBufferMS must own its P-local Sweep debt state" >&2
+    exit 1
+fi
 
 if rg -q 'sweepAssistStats_|MSSweepAssistAtomicStats|SnapshotSweepAssistStats' \
     "$ALLOC_HEADER" "$ALLOC_SOURCE" "$CENTRAL_HEADER" "$CENTRAL_SOURCE"; then
@@ -58,8 +56,8 @@ if rg -q 'ComputeAssistSweepRegions|AssistSweepForFreshRegions' "$CENTRAL_HEADER
     exit 1
 fi
 
-if ! rg -q 'sweepRegionsPerAllocScaled_' "$CENTRAL_HEADER" ||
-   ! rg -q 'MSSweepCreditPool sweepCredit_' "$CENTRAL_HEADER" ||
+if ! rg -q 'assistRatioScaled' "$CENTRAL_HEADER" ||
+   ! rg -q 'MSSweepCreditPool credit;' "$CENTRAL_HEADER" ||
    ! rg -q 'MSSweepAssistResult MSSweepAssist\(' "$CENTRAL_HEADER"; then
     echo "CentralRegionPool must publish a fixed-point ratio, one-shot credit, and split P payment" >&2
     exit 1
@@ -73,7 +71,7 @@ if [[ -z "$assist_body" ]] ||
     echo "P direct Sweep Assist must run one fixed batch after credit, independent of pressure" >&2
     exit 1
 fi
-credit_line="$(printf '%s\n' "$assist_body" | rg -n 'sweepCredit_\.Take' | sed -n '1s/:.*//p')"
+credit_line="$(printf '%s\n' "$assist_body" | rg -n 'sweepCycleState_\.credit\.Take' | sed -n '1s/:.*//p')"
 batch_line="$(printf '%s\n' "$assist_body" | rg -n 'ComputeMSSweepAssistDirectRegions' | sed -n '1s/:.*//p')"
 direct_line="$(printf '%s\n' "$assist_body" | rg -n 'AssistSweep\(' | sed -n '1s/:.*//p')"
 if [[ -z "$credit_line" || -z "$batch_line" || -z "$direct_line" ||
@@ -83,7 +81,7 @@ if [[ -z "$credit_line" || -z "$batch_line" || -z "$direct_line" ||
 fi
 
 if ! rg -q 'cjMSAssistSweepMaxRegionsPerCall", 4,' "$SCHEDULER_SOURCE" ||
-   ! rg -Uq 'msAssistSweepMaxRegionsPerCall == 0 \?[[:space:]]*4 :' "$RUNTIME_API_SOURCE" ||
+   ! rg -Uq 'assistSweepMaxRegionsPerCall == 0[[:space:]]*\?[[:space:]]*4' "$MSGC_CONFIG_HEADER" ||
    ! rg -Uq 'Maximum regions swept by one MSGC P-level assist-sweep batch\.[[:space:][:print:]]*Default to 4' \
        "$CANGJIE_HEADER"; then
     echo "cjMSAssistSweepMaxRegionsPerCall must default to one four-Region P batch" >&2
@@ -128,8 +126,8 @@ if [[ -z "$large_alloc" ]]; then
     exit 1
 fi
 large_charge_count="$(printf '%s\n' "$large_alloc" | rg -c 'AccumulateSweepDebt\(regionBytes / MS_REGION_SIZE, kNumSizeClasses\)' || true)"
-if [[ "$large_charge_count" -ne 2 ]]; then
-    echo "both successful large-object paths must charge P Sweep debt exactly once" >&2
+if [[ "$large_charge_count" -ne 1 ]]; then
+    echo "the successful large-object path must charge P Sweep debt exactly once" >&2
     exit 1
 fi
 if ! printf '%s\n' "$large_alloc" | awk '
@@ -138,7 +136,7 @@ if ! printf '%s\n' "$large_alloc" | awk '
         charges++
         if (registrations < charges) { invalid = 1 }
     }
-    END { exit !(registrations == 2 && charges == 2 && invalid == 0) }
+    END { exit !(registrations == 1 && charges == 1 && invalid == 0) }
 '; then
     echo "large-object Sweep debt must be charged only after successful registration" >&2
     exit 1

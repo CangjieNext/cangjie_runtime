@@ -5,7 +5,6 @@
 
 #define MRT_USE_MARK_SWEEP 1
 #include "src/Heap/MAllocator/MSParallelSweepPolicy.h"
-#include "src/Heap/MAllocator/MSSweepDebtPolicy.h"
 
 namespace {
 
@@ -16,7 +15,6 @@ using MapleRuntime::ComputeMSMaxSweepHelpers;
 using MapleRuntime::ComputeMSMediumSweepTargetHelpers;
 using MapleRuntime::ComputeMSSweepSliceBudgetUs;
 using MapleRuntime::ComputeMSSweepTargetHelpers;
-using MapleRuntime::IsMSSweepQuiescent;
 using MapleRuntime::MSSweepClassPressure;
 using MapleRuntime::SweepPressureMode;
 
@@ -83,20 +81,6 @@ void TestSliceBudgetUsesPressureMultiplier()
              std::numeric_limits<size_t>::max(), "slice budget saturation");
 }
 
-void TestSweepQuiescenceIncludesEverySource()
-{
-    if (!IsMSSweepQuiescent(true, false, 0, 0, 0)) {
-        std::abort();
-    }
-    if (IsMSSweepQuiescent(false, false, 0, 0, 0) ||
-        IsMSSweepQuiescent(true, true, 0, 0, 0) ||
-        IsMSSweepQuiescent(true, false, 1, 0, 0) ||
-        IsMSSweepQuiescent(true, false, 0, 1, 0) ||
-        IsMSSweepQuiescent(true, false, 0, 0, 1)) {
-        std::abort();
-    }
-}
-
 void TestCyclicClassOrderStartsAtPreferredAndWraps()
 {
     auto order = BuildMSSweepCyclicClassOrder<4>(2);
@@ -141,7 +125,6 @@ int main()
     TestMediumTargetIsProportionalToExcess();
     TestPressureSelectsTargetAndActualHelpers();
     TestSliceBudgetUsesPressureMultiplier();
-    TestSweepQuiescenceIncludesEverySource();
     TestCyclicClassOrderStartsAtPreferredAndWraps();
     TestPressureClassOrderUsesImmutableSnapshot();
     return 0;

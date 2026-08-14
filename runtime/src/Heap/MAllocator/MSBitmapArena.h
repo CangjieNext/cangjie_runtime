@@ -36,8 +36,6 @@ public:
 
     static uint64_t* GetAllocPlane(size_t regionIdx);
     static uint64_t* GetMarkPlane(size_t regionIdx);
-    static uint64_t* GetScanPlane(size_t regionIdx);
-    static uintptr_t GetPlaneBase(MSBitmapPlane plane);
 
 private:
     static size_t GetChunkCountForRegions(size_t regionCount);

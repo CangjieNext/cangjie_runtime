@@ -18,8 +18,8 @@ def section(source: str, start_token: str, end_token: str) -> str:
 source = pathlib.Path(sys.argv[1]).read_text()
 prepare = section(
     source,
-    "uint32_t CentralRegionPool::PrepareCollectSetForMarkUnderSTW()",
-    "size_t CentralRegionPool::GetCollectSetRegionCount() const",
+    "uint32_t CentralRegionPool::PrepareMarkEpochUnderSTW(bool forceMaxHelpers)",
+    "void CentralRegionPool::PublishCollectSetForSweep()",
 )
 
 for forbidden in (
@@ -41,9 +41,6 @@ for required in (
     "largeCollectSet_.swap(largeNextSupply_)",
     "ResetSmallMarkWorkState",
     "ClearMarkedFlag",
-    "collected",
-    "tlSmallCleared",
-    "largeBaseCleared",
 ):
     if required not in prepare:
         raise SystemExit(

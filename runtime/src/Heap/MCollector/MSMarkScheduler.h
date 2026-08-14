@@ -27,14 +27,6 @@ enum class MSMarkTaskKind : uint8_t {
     OBJECT,
 };
 
-struct MSMarkWorkerCaps {
-    bool region = true;
-    bool object = true;
-
-    static MSMarkWorkerCaps GCWorker() { return {true, true}; }
-    static MSMarkWorkerCaps Assist() { return {true, false}; }
-};
-
 class MSTaskLedger {
 public:
     void AddProvisional()
@@ -263,7 +255,7 @@ public:
     bool PublishObject(MSRegionInfo* largePrimary);
 
     bool TryClaim(
-        const MSMarkWorkerCaps& caps, bool preferObject,
+        bool preferObject,
         size_t preferredRegionShard, size_t& regionProbeCursor,
         MSTaskLease& lease);
 
@@ -281,35 +273,23 @@ public:
 
     template<typename Handler>
     MSMarkSliceResult RunMarkSlice(
-        const MSMarkWorkerCaps& caps, size_t preferredRegionShard,
-        size_t& regionProbeCursor,
+        size_t preferredRegionShard, size_t& regionProbeCursor,
         uint64_t wuBudget,
         uint64_t wallBudgetUs, Handler&& handler)
     {
-        MSMarkSliceResult result;
-        uint64_t startUs = TimeUtil::MicroSeconds();
-        bool preferObject = caps.object;
-        while (result.completedWU < wuBudget) {
-            if (result.completedTasks != 0 &&
-                TimeUtil::MicroSeconds() - startUs >= wallBudgetUs) {
-                break;
-            }
-            MSTaskLease lease;
-            if (!TryClaim(
-                    caps, preferObject, preferredRegionShard,
-                    regionProbeCursor, lease)) {
-                break;
-            }
-            preferObject = !preferObject;
-            MSWorkUnitCounter work;
-            handler(lease, work);
-            CHECK_DETAIL(!lease.IsActive(),
-                         "[MS-GC] RunMarkSlice handler retained TaskLease");
-            result.completedWU =
-                SaturatingMSWUAdd(result.completedWU, work.Total());
-            ++result.completedTasks;
-        }
-        return result;
+        bool preferObject = true;
+        return RunSlice(
+            wuBudget, wallBudgetUs,
+            [this, preferredRegionShard, &regionProbeCursor,
+             &preferObject](MSTaskLease& lease) {
+                if (!TryClaim(preferObject, preferredRegionShard,
+                              regionProbeCursor, lease)) {
+                    return false;
+                }
+                preferObject = !preferObject;
+                return true;
+            },
+            std::forward<Handler>(handler), "RunMarkSlice");
     }
 
     template<typename Handler>
@@ -317,6 +297,22 @@ public:
         size_t preferredRegionShard, size_t& regionProbeCursor,
         uint64_t wuBudget, uint64_t wallBudgetUs, Handler&& handler)
     {
+        return RunSlice(
+            wuBudget, wallBudgetUs,
+            [this, preferredRegionShard,
+             &regionProbeCursor](MSTaskLease& lease) {
+                return TryClaimAssist(
+                    preferredRegionShard, regionProbeCursor, lease);
+            },
+            std::forward<Handler>(handler), "RunMarkAssistSlice");
+    }
+
+private:
+    template<typename Claim, typename Handler>
+    MSMarkSliceResult RunSlice(uint64_t wuBudget, uint64_t wallBudgetUs,
+                               Claim&& claim, Handler&& handler,
+                               const char* sliceName)
+    {
         MSMarkSliceResult result;
         uint64_t startUs = TimeUtil::MicroSeconds();
         while (result.completedWU < wuBudget) {
@@ -325,14 +321,13 @@ public:
                 break;
             }
             MSTaskLease lease;
-            if (!TryClaimAssist(
-                    preferredRegionShard, regionProbeCursor, lease)) {
+            if (!claim(lease)) {
                 break;
             }
             MSWorkUnitCounter work;
             handler(lease, work);
             CHECK_DETAIL(!lease.IsActive(),
-                         "[MS-GC] RunMarkAssistSlice handler retained TaskLease");
+                         "[MS-GC] %s handler retained TaskLease", sliceName);
             result.completedWU =
                 SaturatingMSWUAdd(result.completedWU, work.Total());
             ++result.completedTasks;
@@ -340,14 +335,7 @@ public:
         return result;
     }
 
-private:
     MSMarkReadyStack& RegionReadyShard(size_t preferredRegionShard)
-    {
-        return regionReadyShards_[ResolveMSMarkReadyPreferredShard(
-            preferredRegionShard, regionReadyShardCount_)];
-    }
-    const MSMarkReadyStack& RegionReadyShard(
-        size_t preferredRegionShard) const
     {
         return regionReadyShards_[ResolveMSMarkReadyPreferredShard(
             preferredRegionShard, regionReadyShardCount_)];
@@ -357,13 +345,6 @@ private:
         size_t regionIdx = MSRegionInfoArray::GetRegionIdx(region);
         return workHintShards_[regionIdx % regionReadyShardCount_];
     }
-    const MSMarkWorkHintShard& WorkHintShard(
-        const MSRegionInfo* region) const
-    {
-        size_t regionIdx = MSRegionInfoArray::GetRegionIdx(region);
-        return workHintShards_[regionIdx % regionReadyShardCount_];
-    }
-
     bool TryClaimFrom(
         MSMarkReadyStack& ready, MSMarkTaskKind kind, MSTaskLease& lease);
     bool TryClaimRegion(

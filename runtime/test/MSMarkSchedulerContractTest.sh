@@ -8,7 +8,7 @@ COLLECTOR="$ROOT_DIR/src/Heap/MCollector/MarkSweepCollector.cpp"
 
 rg -q 'MSTaskLease\(const MSTaskLease&\) = delete' "$HEADER"
 rg -q 'operator=\(const MSTaskLease&\) = delete' "$HEADER"
-rg -q 'static MSMarkWorkerCaps Assist\(\) \{ return \{true, false\}; \}' "$HEADER"
+rg -q 'bool TryClaimAssist\(' "$HEADER"
 rg -q 'OutstandingForTermination' "$HEADER"
 rg -q 'ReadyEmptyForTermination' "$HEADER"
 rg -q 'bool Push\(MSRegionInfo\* region\)' "$HEADER"
@@ -26,6 +26,15 @@ rg -q 'TryMSMarkReadyAssistShardProbe' "$SOURCE"
 rg -q 'kMSMarkReadyAssistRemoteProbes = 2' "$ROOT_DIR/src/Heap/MCollector/MSMarkReadyShardPolicy.h"
 rg -q 'bool fullFallback = ledger_\.LoadHint\(\) != 0' "$SOURCE"
 rg -q 'RunMarkAssistSlice' "$HEADER" "$COLLECTOR"
+rg -q 'RunSlice' "$HEADER"
+if [[ "$(rg -c 'return RunSlice\(' "$HEADER")" -ne 2 ]]; then
+    echo 'normal and assist slices must share only the common slice loop' >&2
+    exit 1
+fi
+if rg -q 'MSMarkWorkerCaps' "$HEADER" "$SOURCE" "$COLLECTOR"; then
+    echo 'normal Mark path retains redundant capability dispatch' >&2
+    exit 1
+fi
 
 publish="$(sed -n '/bool MSMarkScheduler::TryPublishRegion/,/^}/p' "$SOURCE")"
 idle_fast_reject="$(printf '%s\n' "$publish" |
@@ -101,18 +110,17 @@ if rg -q 'CONTROL_MARK_DIRTY|ClearMarkDirtyForOwner|TryReleaseScanOwnerIfClean' 
     exit 1
 fi
 
-termination="$(sed -n '/void MarkSweepCollector::MarkTermination/,/^}/p' "$COLLECTOR")"
-drain_line="$(printf '%s\n' "$termination" | rg -n 'DrainSchedulerUnderSTW' | head -1 | cut -d: -f1)"
-reconcile_line="$(printf '%s\n' "$termination" |
+ordinary_publish="$(sed -n '/void MarkSweepCollector::PublishOrdinaryMarkTasksUnderSTW/,/^}/p' "$COLLECTOR")"
+reconcile_line="$(printf '%s\n' "$ordinary_publish" |
     rg -n 'VisitMarkPendingRegionsUnderSTW' | cut -d: -f1)"
-republish_line="$(printf '%s\n' "$termination" |
+republish_line="$(printf '%s\n' "$ordinary_publish" |
     rg -n 'markScheduler_\.TryPublishRegion' | cut -d: -f1)"
-if [[ -z "$drain_line" || -z "$reconcile_line" || -z "$republish_line" ||
-      "$drain_line" -ge "$reconcile_line" ||
+if [[ -z "$reconcile_line" || -z "$republish_line" ||
       "$reconcile_line" -ge "$republish_line" ]]; then
-    echo 'MarkTermination does not reconcile stranded pending Region work' >&2
+    echo 'MarkTermination does not publish stranded pending Region work' >&2
     exit 1
 fi
+rg -Uq '(?s)PublishOrdinaryMarkTasksUnderSTW\(\*centralPool\).*DrainSchedulerWithHelpersUnderSTW\(\)' "$COLLECTOR"
 
 object_publish="$(sed -n '/bool MSMarkScheduler::PublishObject/,/^}/p' "$SOURCE")"
 provisional="$(printf '%s\n' "$object_publish" | rg -n 'ledger_\.AddProvisional' | cut -d: -f1)"

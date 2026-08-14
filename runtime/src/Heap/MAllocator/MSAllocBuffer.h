@@ -15,6 +15,7 @@
 #include "Heap/MAllocator/MSScanClass.h"
 #include "Heap/MAllocator/MSSizeClass.h"
 #include "Heap/MBarrier/MSBarrierMarkBuffer.h"
+#include "Heap/MCollector/MSAssistPacing.h"
 #include "Heap/MCollector/MSWorkUnit.h"
 #include "Common/TypeDef.h"
 #include <atomic>
@@ -81,15 +82,14 @@ public:
     // AllocBufferMS across cycles. This is staging, not grey-work production.
     void PushRoot(BaseObject* root);
 
-    // Move buffered stack roots into a temporary root buffer.
+    // Drain buffered stack roots through the collector-owned staging sink.
     // This helper intentionally does not discover/mark/enqueue grey work; the
-    // collector owns the later white->grey transition when it drains the merged
-    // root staging buffer into MarkWordBatch.
-    template<class WorkStack>
-    inline void MergeRoots(WorkStack& workStack)
+    // collector owns the later white->grey transition after staging completes.
+    template<typename RootSink>
+    void DrainRootsTo(RootSink&& rootSink)
     {
         for (BaseObject* obj : stackRoots_) {
-            workStack.push_back(obj);
+            rootSink(obj);
         }
         stackRoots_.clear();
 
@@ -98,7 +98,7 @@ public:
         rootOverflowTail_ = nullptr;
         while (chunk != nullptr) {
             for (size_t i = 0; i < chunk->count; ++i) {
-                workStack.push_back(chunk->roots[i]);
+                rootSink(chunk->roots[i]);
             }
             RootOverflowChunk* next = chunk->next;
             chunk->count = 0;
@@ -108,9 +108,12 @@ public:
         }
     }
 
-    bool IsRootStagingEmpty() const
+    template<class WorkStack>
+    void MergeRoots(WorkStack& workStack)
     {
-        return stackRoots_.empty() && rootOverflowHead_ == nullptr;
+        DrainRootsTo([&workStack](BaseObject* root) {
+            workStack.push_back(root);
+        });
     }
 
     // Get active Region for a given size class (for GC iteration)
@@ -139,7 +142,7 @@ public:
 
     size_t& GetGCMarkAssistProbeCursor()
     {
-        return gcAssistProbeCursor_;
+        return markAssistDebt_.probeCursor;
     }
 
     void RecordGCMarkAssistWork(uint64_t completedWU)
@@ -153,20 +156,14 @@ public:
 
     uint64_t DrainGCMarkAssistWork()
     {
-        while (gcAssistTelemetryDrainLock_.test_and_set(
-                   std::memory_order_acquire)) {
-        }
         uint64_t completedWU = gcAssistCompletedWU_;
         gcAssistCompletedWU_ = 0;
-        gcAssistTelemetryDrainLock_.clear(std::memory_order_release);
         return completedWU;
     }
 
     void ResetGCMarkAssistCycleState()
     {
-        gcAssistDebtScaled_ = 0;
-        gcAssistCreditWU_ = 0;
-        gcAssistProbeCursor_ = 0;
+        markAssistDebt_.Reset();
         (void)DrainGCMarkAssistWork();
     }
 
@@ -225,21 +222,15 @@ private:
     RootOverflowChunk* rootOverflowTail_ = nullptr;
     RootOverflowChunk* rootOverflowFree_ = nullptr;
 
-    // Mutator assist debt in fixed-point WorkUnit units.
-    // debtScaled / AssistRatioScale = debtWU.
-    uint64_t gcAssistDebtScaled_ = 0;
-    uint64_t gcAssistCreditWU_ = 0;
-    size_t gcAssistProbeCursor_ = 0;
+    // Both assist state machines are P-local and live after the
+    // compiler-visible allocation fast-path prefix.
+    MSMarkAssistDebtState markAssistDebt_;
+    MSSweepAssistDebtState sweepAssistDebt_;
 
     // Single-owner assist work is folded after admission quiesces or while
-    // this buffer exits, then fed into the next cycle's pacing update.
+    // this buffer exits, then fed into the next cycle's pacing update. The
+    // phase protocol guarantees that draining never races the owning mutator.
     uint64_t gcAssistCompletedWU_ = 0;
-    std::atomic_flag gcAssistTelemetryDrainLock_ = ATOMIC_FLAG_INIT;
-
-    // Per-P Sweep pacing. Both fields are single-owner and remain outside the
-    // compiler-visible fixed ABI prefix.
-    uint64_t sweepAssistDebtScaled_ = 0;
-    uint32_t sweepDebtGen_ = 0;
 
 };
 

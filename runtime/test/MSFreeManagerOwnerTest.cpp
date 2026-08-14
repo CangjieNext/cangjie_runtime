@@ -260,8 +260,10 @@ void TestShrinkKeepsOneOwnedSegmentPerShard()
                  "shrink should keep one segment per shard committed");
     ExpectEqSize(manager.GetOwnedSegmentCount(0), 1, "shard0 should keep one owned segment after shrink");
     ExpectEqSize(manager.GetOwnedSegmentCount(1), 1, "shard1 should keep one owned segment after shrink");
-    ExpectEqSize(manager.shards_[0].ownedSegments_.front(), 0, "shard0 should keep the first segment");
-    ExpectEqSize(manager.shards_[1].ownedSegments_.front(), 1, "shard1 should keep the first local segment");
+    ExpectEqSize(manager.shards_[0].ownedViews_.front().segmentIdx_, 0,
+                 "shard0 should keep the first segment");
+    ExpectEqSize(manager.shards_[1].ownedViews_.front().segmentIdx_, 1,
+                 "shard1 should keep the first local segment");
     ExpectEqSize(manager.shards_[0].takeCursor_, 0, "shard0 take cursor stays on remaining local segment");
     ExpectEqSize(manager.shards_[1].takeCursor_,
                  kRegionsPerSegment,

@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 ALLOC_HEADER="$ROOT_DIR/src/Heap/MAllocator/MSAllocBuffer.h"
 ALLOC_SOURCE="$ROOT_DIR/src/Heap/MAllocator/MSAllocBuffer.cpp"
-SWEEP_POLICY="$ROOT_DIR/src/Heap/MAllocator/MSSweepDebtPolicy.h"
+SWEEP_POLICY="$ROOT_DIR/src/Heap/MCollector/MSAssistPacing.h"
 CENTRAL_HEADER="$ROOT_DIR/src/Heap/MAllocator/MSCentralRegionPool.h"
 CENTRAL_SOURCE="$ROOT_DIR/src/Heap/MAllocator/MSCentralRegionPool.cpp"
 FREE_HEADER="$ROOT_DIR/src/Heap/MAllocator/MSFreeManager.h"
@@ -23,9 +23,8 @@ if rg -q 'MSSweepAssistAtomicStats|MSSweepAssistStats|sweepAssistStats_|Snapshot
     exit 1
 fi
 
-if ! rg -q 'uint32_t sweepDebtGen_' "$ALLOC_HEADER" ||
-   rg -q 'std::atomic<uint32_t> sweepDebtGen_' "$ALLOC_HEADER"; then
-    echo "Sweep debt generation must remain as P-local non-atomic state" >&2
+if ! rg -q 'MSSweepAssistDebtState sweepAssistDebt_;' "$ALLOC_HEADER"; then
+    echo "Sweep debt state must remain P-local in AllocBufferMS" >&2
     exit 1
 fi
 
@@ -35,8 +34,8 @@ if rg -q 'MSSweepCounts|backgroundSweptRegions_|lazySweptRegions_|assistSweptReg
     exit 1
 fi
 
-if ! rg -q 'sweepCredit_\.Add' "$CENTRAL_HEADER" ||
-   ! rg -q 'sweepAdmission_' "$CENTRAL_HEADER"; then
+if ! rg -q 'sweepCycleState_\.credit\.Add' "$CENTRAL_HEADER" ||
+   ! rg -q 'MSSweepEpochCoordinator sweepEpoch_' "$CENTRAL_HEADER"; then
     echo "functional Sweep credit and unified admission state must remain" >&2
     exit 1
 fi
@@ -89,15 +88,17 @@ if [[ -e "$RUNTIME_STATS_HEADER" ]]; then
     exit 1
 fi
 
-for function_name in DumpGCStateSnapshot DumpRegionStatsMS; do
-    if ! rg -Uq "void MarkSweepCollector::${function_name}[^}]+IsMSGCReportEnabled" "$MARK_SOURCE"; then
-        echo "${function_name} must short-circuit when MSGC REPORT logging is disabled" >&2
-        exit 1
-    fi
-done
+if rg -q 'DumpGCStateSnapshot|DumpRegionStatsMS' "$MARK_HEADER" "$MARK_SOURCE"; then
+    echo 'obsolete multi-format Region dump helpers must be removed' >&2
+    exit 1
+fi
+if ! rg -Uq 'void MarkSweepCollector::LogRegionSummary[^}]+IsMSGCReportEnabled' "$MARK_SOURCE"; then
+    echo 'the unified Region summary must short-circuit when MSGC REPORT logging is disabled' >&2
+    exit 1
+fi
 
-if ! rg -q 'trueLiveBytes' "$MARK_HEADER" ||
-   rg -q 'gcMainCompletedTasks|helperCompletedWU|assistCompletedWU' "$MARK_HEADER" "$MARK_SOURCE"; then
+if ! rg -q 'trueLiveBytes' "$MARK_HEADER" "$MARK_SOURCE" ||
+   rg -q 'gcMainCompletedTasks|helperCompletedWU' "$MARK_HEADER" "$MARK_SOURCE"; then
     echo "functional live-byte accounting must remain without REPORT-only mark totals" >&2
     exit 1
 fi

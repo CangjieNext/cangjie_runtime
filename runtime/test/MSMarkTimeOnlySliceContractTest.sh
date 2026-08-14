@@ -4,15 +4,16 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 COLLECTOR="$ROOT_DIR/src/Heap/MCollector/MarkSweepCollector.cpp"
 WORK_UNIT="$ROOT_DIR/src/Heap/MCollector/MSWorkUnit.h"
+ASSIST_PACING="$ROOT_DIR/src/Heap/MCollector/MSAssistPacing.h"
 
 rg -q 'MS_WU_MAIN_WALL_BUDGET_US = 100' "$WORK_UNIT"
 rg -q 'MS_WU_HELPER_WALL_BUDGET_US = 100' "$WORK_UNIT"
-rg -q 'MS_WU_ASSIST_THRESHOLD = 2048' "$WORK_UNIT"
-rg -q 'MS_WU_ASSIST_WALL_BUDGET_US = 100' "$WORK_UNIT"
+rg -q 'MS_WU_ASSIST_THRESHOLD = 2048' "$ASSIST_PACING"
+rg -q 'MS_WU_ASSIST_WALL_BUDGET_US = 100' "$ASSIST_PACING"
 rg -q 'MS_WU_UNLIMITED_BUDGET' "$WORK_UNIT"
 
 main_loop="$(sed -n '/void MarkSweepCollector::RunSchedulerMarkLoop/,/void MarkSweepCollector::StartMarkWorkers/p' "$COLLECTOR")"
-helper_loop="$(sed -n '/void MarkSweepCollector::RunMarkWorker/,/size_t MarkSweepCollector::QuiesceMarkWorkers/p' "$COLLECTOR")"
+helper_loop="$(sed -n '/void MarkSweepCollector::RunMarkWorker/,/void MarkSweepCollector::QuiesceMarkWorkers/p' "$COLLECTOR")"
 assist_loop="$(sed -n '/size_t MarkSweepCollector::MSMarkAssist/,/void MarkSweepCollector::MarkTermination/p' "$COLLECTOR")"
 region_task="$(sed -n '/void MarkSweepCollector::RunRegionTask/,/void MarkSweepCollector::RunObjectTask/p' "$COLLECTOR")"
 
@@ -28,13 +29,11 @@ printf '%s\n' "$main_loop" | rg -q 'MS_WU_UNLIMITED_BUDGET'
 printf '%s\n' "$helper_loop" | rg -q 'MS_WU_UNLIMITED_BUDGET'
 printf '%s\n' "$assist_loop" | rg -q 'MS_WU_ASSIST_WALL_BUDGET_US'
 printf '%s\n' "$main_loop" | rg -q 'mainCompletedWU = SaturatingMSWUAdd'
-if [[ "$(printf '%s\n' "$main_loop" | rg -c 'cycleCompletedMarkWU_\.fetch_add')" -ne 2 ]]; then
-    echo 'GC main and folded Assist WU must each merge only once per Mark loop' >&2
-    exit 1
-fi
-printf '%s\n' "$main_loop" | rg -Uq '(?s)cycleStats_\.markAssistWU.*cycleCompletedMarkWU_\.fetch_add'
-if printf '%s\n' "$helper_loop" | rg -q 'cycleCompletedMarkWU_\.fetch_add'; then
-    echo 'GC helper still updates the shared WU counter per slice' >&2
+printf '%s\n' "$main_loop" | rg -q 'AccountCycleCompletedMarkWork\(mainCompletedWU\)'
+printf '%s\n' "$main_loop" | rg -Uq \
+    '(?s)FoldActiveGCMarkAssistWork\(\).*markAssistPacing_\.DrainCompletedAssistWork\(\).*AccountCycleCompletedMarkWork'
+if printf '%s\n' "$helper_loop" | rg -q 'cycleCompletedMarkWU_|AccountCycleCompletedMarkWork'; then
+    echo 'GC helper still updates the shared WU counter per slice instead of folding it at completion' >&2
     exit 1
 fi
 printf '%s\n' "$helper_loop" | rg -q 'markWorkerCompletedWU_\[workerId\] = helperWU'

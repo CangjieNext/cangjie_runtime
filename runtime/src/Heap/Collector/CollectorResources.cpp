@@ -104,16 +104,6 @@ void CollectorResources::StopGCWork()
 }
 
 #ifdef MRT_USE_MARK_SWEEP
-bool CollectorResources::AcquireMSGCWorkerPoolForEnumRoots()
-{
-    return gcThreadPool != nullptr && msgcWorkerPoolController_.AcquireEnumRoots();
-}
-
-bool CollectorResources::AcquireMSGCWorkerPoolForMark()
-{
-    return gcThreadPool != nullptr && msgcWorkerPoolController_.AcquireMark();
-}
-
 bool CollectorResources::AcquireMSGCWorkerPool(
     MSGCWorkerPoolOwner owner, bool wait)
 {
@@ -124,9 +114,8 @@ bool CollectorResources::AcquireMSGCWorkerPool(
 void CollectorResources::ReleaseMSGCWorkerPool(MSGCWorkerPoolOwner owner)
 {
     bool released = msgcWorkerPoolController_.Release(owner);
-    CHECK_DETAIL(released, "invalid MSGC worker-pool owner release: expected=%u actual=%u",
-                 static_cast<unsigned>(owner),
-                 static_cast<unsigned>(msgcWorkerPoolController_.GetOwner()));
+    CHECK_DETAIL(released, "invalid MSGC worker-pool owner release: expected=%u",
+                 static_cast<unsigned>(owner));
 }
 #endif
 

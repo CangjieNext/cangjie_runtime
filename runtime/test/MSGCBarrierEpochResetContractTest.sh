@@ -3,23 +3,23 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 COLLECTOR="$ROOT_DIR/src/Heap/MCollector/MarkSweepCollector.cpp"
+CENTRAL="$ROOT_DIR/src/Heap/MAllocator/MSCentralRegionPool.cpp"
 ALLOC_BUFFER="$ROOT_DIR/src/Heap/MAllocator/MSAllocBuffer.cpp"
 
-prepare_block="$(
-    sed -n \
-        '/void MarkSweepCollector::PrepareBarrierMarkBuffersForNewEpochUnderSTW/,/^}/p' \
-        "$COLLECTOR"
-)"
+python3 - "$CENTRAL" <<'PY'
+import pathlib
+import sys
 
-if ! rg -q 'ResetMSBarrierMarkBuffer\(markBuffer\)' <<<"$prepare_block"; then
-    echo 'PreEnum must reset every owner buffer before publishing a new mark epoch' >&2
-    exit 1
-fi
-
-if rg -q 'CHECK|FlushBarrierMarkBuffer' <<<"$prepare_block"; then
-    echo 'PreEnum must discard prior-epoch buffer state instead of asserting or publishing it into the new epoch' >&2
-    exit 1
-fi
+source = pathlib.Path(sys.argv[1]).read_text()
+start = source.index("uint32_t CentralRegionPool::PrepareMarkEpochUnderSTW")
+end = source.index("void CentralRegionPool::PublishCollectSetForSweep()", start)
+prepare = source[start:end]
+assert "ResetMSBarrierMarkBuffer(buffer.GetBarrierMarkBuffer())" in prepare, (
+    "Central epoch preparation must reset every owner buffer before publishing a new mark epoch")
+assert "ResetGCMarkAssistCycleState" in prepare
+assert "FlushBarrierMarkBuffer" not in prepare, (
+    "Central epoch preparation must discard prior-epoch buffer state")
+PY
 
 fini_block="$(
     sed -n '/void AllocBufferMS::Fini()/,/^}/p' "$ALLOC_BUFFER"
@@ -40,7 +40,7 @@ import pathlib
 import sys
 
 collector = pathlib.Path(sys.argv[1]).read_text()
-start = collector.index("void MarkSweepCollector::PreEnumRoots()")
+start = collector.index("void MarkSweepCollector::PreEnumRoots(bool worldStopped)")
 end = collector.index("void MarkSweepCollector::EnumRoots()", start)
 pre_enum = collector[start:end]
 

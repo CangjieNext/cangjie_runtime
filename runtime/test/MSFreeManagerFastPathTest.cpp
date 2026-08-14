@@ -243,8 +243,8 @@ void TestAllocationPrefersHotFreeBeforeScavengedFree()
     }
     ExpectTake(manager, 0, 0,
                "allocator may reuse a scavenged Region after hot-free supply is exhausted");
-    ExpectEq(manager.GetReusedScavengedRegionCount(), 1,
-             "only the final cold fallback should count as scavenged reuse");
+    ExpectEq(manager.GetScavengedRegionCount(0), 0,
+             "the final cold fallback must clear its scavenged bit");
 
     std::free(heap);
 }
@@ -285,8 +285,8 @@ void TestAllocationPrefersRemoteHotBeforeLocalScavenged()
 
     ExpectTake(manager, 0, kRegionsPerSegment,
                "remote hot-free must win before home-shard scavenged-free");
-    ExpectEq(manager.GetReusedScavengedRegionCount(), 0,
-             "global hot supply must avoid cold reuse");
+    ExpectEq(manager.GetScavengedRegionCount(0), 1,
+             "global hot supply must leave the local scavenged Region untouched");
 
     std::free(heap);
 }

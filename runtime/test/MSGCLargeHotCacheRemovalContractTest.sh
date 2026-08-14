@@ -31,6 +31,13 @@ for forbidden in (
 
 pool_source = sources[root / "src/Heap/MAllocator/MSCentralRegionPool.cpp"]
 sweep_start = pool_source.index("void CentralRegionPool::SweepLargeRegions()")
+sweep_end = pool_source.index("// ============================================================================\n// Per-thread AllocBufferMS registry", sweep_start)
+sweep = pool_source[sweep_start:sweep_end]
+for token in ("uint64_t startUs = TimeUtil::MicroSeconds();",
+              "releasedLargeRegions", "reclaimedBytes",
+              "SweepLargeRegions: releasedLargeRegions=%zu reclaimedBytes=%zu total=%sus"):
+    if token not in sweep:
+        raise SystemExit(f"SweepLargeRegions missing release timing accounting: {token}")
 sweep_end = pool_source.index(
     "// ============================================================================\n"
     "// Per-thread AllocBufferMS registry",

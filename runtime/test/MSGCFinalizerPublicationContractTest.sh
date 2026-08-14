@@ -33,13 +33,16 @@ if [[ -z "$publish_line" || -z "$erase_line" || "$publish_line" -ge "$erase_line
 fi
 
 termination="$(sed -n '/void MarkSweepCollector::MarkTermination/,/^}/p' "$COLLECTOR_SOURCE")"
-ordinary_line="$(printf '%s\n' "$termination" | rg -n 'drainOrdinaryClosureToFixedPoint\(ordinaryClosure\)' | cut -d: -f1)"
-prepare_line="$(printf '%s\n' "$termination" | rg -n 'PrepareFinalizersForResurrection' | cut -d: -f1)"
-roots_line="$(printf '%s\n' "$termination" | rg -n 'VisitFinalizerRoots' | cut -d: -f1)"
-closure_line="$(printf '%s\n' "$termination" | rg -n 'resurrectionClosure\.workUnits = DrainSchedulerUnderSTW' | cut -d: -f1)"
+ordinary_publish_line="$(printf '%s\n' "$termination" | rg -n 'PublishOrdinaryMarkTasksUnderSTW' | cut -d: -f1)"
+ordinary_drain_line="$(printf '%s\n' "$termination" | rg -n 'DrainSchedulerWithHelpersUnderSTW' | head -n 1 | cut -d: -f1)"
+roots_line="$(printf '%s\n' "$termination" | rg -n 'PublishFinalizerResurrectionRootsUnderSTW' | cut -d: -f1)"
+closure_line="$(printf '%s\n' "$termination" | rg -n 'DrainSchedulerWithHelpersUnderSTW' | tail -n 1 | cut -d: -f1)"
 weak_line="$(printf '%s\n' "$termination" | rg -n 'ClearWeakRefsAfterMark' | cut -d: -f1)"
-if [[ "$ordinary_line" -ge "$prepare_line" ||
-      "$prepare_line" -ge "$roots_line" ||
+finalizer_publish="$(sed -n '/void MarkSweepCollector::PublishFinalizerResurrectionRootsUnderSTW/,/^}/p' "$COLLECTOR_SOURCE")"
+prepare_line="$(printf '%s\n' "$finalizer_publish" | rg -n 'PrepareFinalizersForResurrection' | cut -d: -f1)"
+if [[ -z "$prepare_line" ||
+      "$ordinary_publish_line" -ge "$ordinary_drain_line" ||
+      "$ordinary_drain_line" -ge "$roots_line" ||
       "$roots_line" -ge "$closure_line" ||
       "$closure_line" -ge "$weak_line" ]]; then
     echo 'MarkTermination finalizer/weak ordering is invalid' >&2

@@ -35,6 +35,7 @@
 #ifndef MRT_USE_MARK_SWEEP
 #include "Heap/Allocator/RegionSpace.h"
 #else
+#include "Heap/MCollector/MSGCConfig.h"
 #include "Heap/MCollector/MSMarkWorkerPolicy.h"
 #endif
 #ifdef CANGJIE_GWPASAN_SUPPORT
@@ -204,8 +205,15 @@ void CangjieRuntime::FiniAndDelete()
 CangjieRuntime::CangjieRuntime(const RuntimeParam& runtimeParam) : param(runtimeParam)
 {
 #ifdef MRT_USE_MARK_SWEEP
-    msEnumAssistEnabled = ReadBoolParameter("cjMSEnumAssist", true);
-    msAssistDisabled = ReadBoolParameter("CJ_MS_DISABLE_ASSIST", false);
+    MSGCConfigInput configInput;
+    configInput.enumAssistEnabled =
+        ReadBoolParameter("cjMSEnumAssist", true);
+    configInput.assistDisabled =
+        ReadBoolParameter("CJ_MS_DISABLE_ASSIST", false);
+    MSGCResolvedConfig config = ResolveMSGCConfig(
+        configInput, MSGCConfigSource::ENVIRONMENT);
+    msEnumAssistEnabled = config.enumAssistEnabled != 0;
+    msAssistDisabled = config.assistDisabled != 0;
 #endif
     SyncGCThresholdWithHeapSize(static_cast<size_t>(param.heapParam.heapSize) * KB);
 }
@@ -257,6 +265,39 @@ void CangjieRuntime::Init()
     exceptionManager = NewAndInit<ExceptionManager>();
 
     LOG(RTLOG_INFO, "Cangjie runtime started.");
+    // MSGC has a separate policy surface from CopyGC. Report only effective
+    // MSGC controls here; RuntimeParam keeps its ABI-reserved fields but they
+    // are intentionally not presented as active tuning knobs.
+#ifdef MRT_USE_MARK_SWEEP
+    const GCParam& gcParam = param.gcParam;
+    MSAllocatorScaleConfig scale = GetMSAllocatorScaleConfig();
+    VLOG(REPORT,
+         "[MS-GC] config: heap=%.2fMB region=%.2fMB gcThreads=%d P=%d "
+         "markBudget=%lluus sweepSlice=%lluus",
+         static_cast<double>(param.heapParam.heapSize) / 1024.0,
+         static_cast<double>(param.heapParam.regionSize) / 1024.0,
+         gcParam.gcThreads, param.coParam.processorNum,
+         static_cast<unsigned long long>(gcParam.msMarkTimeBudget / 1000ULL),
+         static_cast<unsigned long long>(gcParam.msBackgroundSweepMaxTime / 1000ULL));
+    VLOG(REPORT,
+         "[MS-GC] config: markAssist=%d enumAssist=%d enumBatch=%zu "
+         "assistMaxMultiplier=%zu sweepAssistMaxRegions=%zu "
+         "background(sweep=%u parallel=%u helpers=%zu scavenge=%u shrink=%u) "
+         "verify=%u/%u adaptiveGrowth=%u softLimit=%.2fMB allocator(shards=%u processorsPerShard=%u initialSegments=%zu)",
+         static_cast<int>(!IsMSAssistDisabled()),
+         static_cast<int>(IsMSEnumAssistEnabled()), gcParam.msEnumAssistBatchSize,
+         gcParam.msAssistMaxMultiplier, gcParam.msAssistSweepMaxRegionsPerCall,
+         static_cast<unsigned>(gcParam.msBackgroundSweep),
+         static_cast<unsigned>(gcParam.msParallelSweep),
+         gcParam.msParallelSweepMaxHelpers,
+         static_cast<unsigned>(gcParam.msBackgroundScavenge),
+         static_cast<unsigned>(gcParam.msBackgroundShrink),
+         static_cast<unsigned>(gcParam.msVerifyMark),
+         static_cast<unsigned>(gcParam.msVerifyMarkDetail),
+         static_cast<unsigned>(gcParam.msAdaptiveGrowth),
+         static_cast<double>(GetMSSoftHeapLimitBytes()) / (1024.0 * 1024.0),
+         scale.shardCount, scale.processorsPerShard, scale.initialSegmentCount);
+#else
     // Record runtime parameter to report. heap growth value needs to plus 1.
 #if not defined(__EULER__)
     VLOG(REPORT,
@@ -272,7 +313,6 @@ void CangjieRuntime::Init()
         static_cast<int>(param.logParam.logLevel), param.coParam.thStackSize,
         param.coParam.coStackSize, param.coParam.processorNum);
 #else
-#ifndef MRT_USE_MARK_SWEEP
     VLOG(REPORT,
         "Runtime parameter:\n\tHeap size: %zu(KB)\n\tRegion size: %zu(KB)\n\tExemption threshold: %.2f\n\t"
         "Heap utilization: %.2f\n\tCache Ratio: %.2f\n\tHeap growth: %.2f\n\tAllocation rate: %.2f(MB/s)\n\t"
@@ -287,22 +327,8 @@ void CangjieRuntime::Init()
         param.gcParam.gcInterval / MILLI_SECOND_TO_NANO_SECOND, param.gcParam.backupGCInterval / SECOND_TO_NANO_SECOND,
         static_cast<int>(param.logParam.logLevel), param.coParam.thStackSize,
         param.coParam.coStackSize, param.coParam.processorNum);
-#else
-    VLOG(REPORT,
-        "Runtime parameter:\n\tHeap size: %zu(KB)\n\tRegion size: %zu(KB)\n\tExemption threshold: %.2f\n\t"
-        "Heap utilization: %.2f\n\tHeap growth: %.2f\n\tAllocation rate: %.2f(MB/s)\n\t"
-        "Allocation wait time: %zuns\n\tGC Threshold: %zu(KB)\n\t"
-        "Garbage threshold: %.2f\n\tGC interval: %zums\n\tBackup GC interval: %zus\n\t"
-        "Log level: %d\n\tThread stack size: %zu(KB)\n\tCangjie stack size: %zu(KB)\n\tProcessor number: %d",
-        param.heapParam.heapSize, param.heapParam.regionSize, param.heapParam.exemptionThreshold,
-        param.heapParam.heapUtilization, 1 + param.heapParam.heapGrowth,
-        param.heapParam.allocationRate, param.heapParam.allocationWaitTime,
-        param.gcParam.gcThreshold / KB, param.gcParam.garbageThreshold,
-        param.gcParam.gcInterval / MILLI_SECOND_TO_NANO_SECOND, param.gcParam.backupGCInterval / SECOND_TO_NANO_SECOND,
-        static_cast<int>(param.logParam.logLevel), param.coParam.thStackSize,
-        param.coParam.coStackSize, param.coParam.processorNum);
-#endif // MRT_USE_MARK_SWEEP
 #endif
+#endif // MRT_USE_MARK_SWEEP
 }
 
 void* CangjieRuntime::CreateSubSchedulerAndInit(ScheduleType type)

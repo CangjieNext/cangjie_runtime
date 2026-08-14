@@ -58,12 +58,6 @@ uint64_t* MSBitmapArena::GetMarkPlane(size_t regionIdx)
         regionIdx * kPlaneStrideBytes);
 }
 
-uint64_t* MSBitmapArena::GetScanPlane(size_t regionIdx)
-{
-    return reinterpret_cast<uint64_t*>(
-        CJ_MRT_MSGCFastPathState.scanPlaneBase +
-        regionIdx * kPlaneStrideBytes);
-}
 } // namespace MapleRuntime
 
 #include "src/Heap/MAllocator/MSRegionInfo.cpp"

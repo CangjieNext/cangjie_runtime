@@ -5,9 +5,6 @@
 
 namespace {
 
-using MapleRuntime::MSMarkWorkerPolicy;
-using MapleRuntime::ComputeMSEnumRootsHelperTarget;
-using MapleRuntime::ComputeMSPostMarkStatsHelperTarget;
 using MapleRuntime::ComputeMSPreEnumResetHelperTarget;
 using MapleRuntime::ResolveMSGCThreadCapacity;
 using MapleRuntime::ResolveMSMarkTotalThreads;
@@ -17,25 +14,6 @@ void ExpectEq(size_t actual, size_t expected, const char* message)
     if (actual != expected) {
         std::fprintf(stderr, "%s: expected=%zu actual=%zu\n", message, expected, actual);
         std::abort();
-    }
-}
-
-void TestBacklogMapsDirectlyToHelperWidth()
-{
-    MSMarkWorkerPolicy policy(15);
-    ExpectEq(policy.Update(0), 1, "parallel mark should start one helper");
-    ExpectEq(policy.Update(8), 1, "eight buffers should need one helper");
-    ExpectEq(policy.Update(9), 2, "ninth buffer should activate second helper");
-    ExpectEq(policy.Update(64), 8, "backlog should map proportionally");
-    ExpectEq(policy.Update(120), 15, "backlog should reach helper cap");
-}
-
-void TestHelpersStayActiveUntilCycleQuiesces()
-{
-    MSMarkWorkerPolicy policy(15);
-    (void)policy.Update(120);
-    for (size_t i = 0; i < 64; ++i) {
-        ExpectEq(policy.Update(0), 15, "active helpers must not scale down within a mark cycle");
     }
 }
 
@@ -81,54 +59,11 @@ void TestPreEnumResetHelperSteps()
              "reset helpers are capped by runtime capacity");
 }
 
-void TestEnumRootsHelperStepsFromInitialMutatorCount()
-{
-    ExpectEq(ComputeMSEnumRootsHelperTarget(0, 7), 0,
-             "empty EnumRoots stays serial");
-    ExpectEq(ComputeMSEnumRootsHelperTarget(999, 7), 0,
-             "sub-1000 initial mutators stay serial");
-    ExpectEq(ComputeMSEnumRootsHelperTarget(1000, 7), 1,
-             "1000 initial mutators start one helper");
-    ExpectEq(ComputeMSEnumRootsHelperTarget(1999, 7), 1,
-             "below 2000 keeps one helper");
-    ExpectEq(ComputeMSEnumRootsHelperTarget(2000, 7), 2,
-             "2000 initial mutators start two helpers");
-    ExpectEq(ComputeMSEnumRootsHelperTarget(3999, 7), 2,
-             "below 4000 keeps two helpers");
-    ExpectEq(ComputeMSEnumRootsHelperTarget(4000, 7), 3,
-             "4000 initial mutators start three helpers");
-    ExpectEq(ComputeMSEnumRootsHelperTarget(7999, 7), 3,
-             "below 8000 keeps three helpers");
-    ExpectEq(ComputeMSEnumRootsHelperTarget(8000, 3), 3,
-             "EnumRoots helpers are capped by GCThreadPool capacity");
-}
-
-void TestPostMarkStatsHelpersAreReservedForLargeBitmapSets()
-{
-    constexpr size_t kMiB = 1024 * 1024;
-    ExpectEq(ComputeMSPostMarkStatsHelperTarget(2 * kMiB - 1, 7), 0,
-             "small bitmap statistics stay serial");
-    ExpectEq(ComputeMSPostMarkStatsHelperTarget(2 * kMiB, 7), 1,
-             "2MiB bitmap statistics start one helper");
-    ExpectEq(ComputeMSPostMarkStatsHelperTarget(4 * kMiB, 7), 2,
-             "4MiB bitmap statistics start two helpers");
-    ExpectEq(ComputeMSPostMarkStatsHelperTarget(64 * kMiB, 7), 2,
-             "bitmap statistics cap helpers to protect mutator bandwidth");
-    ExpectEq(ComputeMSPostMarkStatsHelperTarget(64 * kMiB, 1), 1,
-             "bitmap statistics respect pool capacity");
-    ExpectEq(ComputeMSPostMarkStatsHelperTarget(64 * kMiB, 0), 0,
-             "bitmap statistics stay serial without helpers");
-}
-
 } // namespace
 
 int main()
 {
-    TestBacklogMapsDirectlyToHelperWidth();
-    TestHelpersStayActiveUntilCycleQuiesces();
     TestThreadCountResolution();
     TestPreEnumResetHelperSteps();
-    TestEnumRootsHelperStepsFromInitialMutatorCount();
-    TestPostMarkStatsHelpersAreReservedForLargeBitmapSets();
     return 0;
 }

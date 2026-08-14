@@ -13,14 +13,13 @@ if rg -n 'restartOnLateWork|resumeHelpers|markWorkerControl_\.Resume|void Resume
     exit 1
 fi
 
-rg -q 'size_t QuiesceMarkWorkers\(\)' "$HEADER"
+rg -q 'void QuiesceMarkWorkers\(\)' "$HEADER"
 rg -Uq '(?s)markWorkerControl_\.BeginQuiesce\(\);.*WaitForNoInFlight\(\);.*markWorkerControl_\.Stop\(\);' "$SOURCE"
 rg -q 'markWorkEpoch_\.WaitForChange' "$SOURCE"
 rg -Uq '(?s)outstanding == 0.*workersInFlight == 0.*assistsInFlight == 0.*ReadyEmptyForTermination\(\).*QuiesceMarkWorkers\(\);.*break;' "$SOURCE"
-rg -q '\[mark-stw-entry\] branch=%s gcReason=%s outstanding=%llu' "$SOURCE"
-rg -Uq '(?s)while \(markScheduler_\.OutstandingForTermination\(\) != 0\).*TryClaim\(.*MSMarkWorkerCaps::GCWorker\(\)' "$SOURCE"
-rg -q 'static MSMarkWorkerCaps Assist\(\) \{ return \{true, false\}; \}' "$SCHED"
-rg -q 'replacement must be published before' "$SCHED"
+rg -Uq '(?s)PublishOrdinaryMarkTasksUnderSTW\(\*centralPool\).*DrainSchedulerWithHelpersUnderSTW\(\).*PublishFinalizerResurrectionRootsUnderSTW.*DrainSchedulerWithHelpersUnderSTW\(\)' "$SOURCE"
+rg -Uq '(?s)while \(markScheduler_\.OutstandingForTermination\(\) != 0\).*TryClaim\(.*true,' "$SOURCE"
+rg -q 'bool TryClaimAssist\(' "$SCHED"
 
 if rg -n 'DRAINING_VERIFY|BeginDrain\(|WaitForNoAssists\(|PublicationEpoch\(|stableEmptyEpoch|kMSMarkDrainStableUs' \
     "$SOURCE" "$CONTROL" "$SCHED"; then

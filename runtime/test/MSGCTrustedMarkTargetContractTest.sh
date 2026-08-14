@@ -3,7 +3,6 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 COLLECTOR="$ROOT_DIR/src/Heap/MCollector/MarkSweepCollector.cpp"
-BARRIER="$ROOT_DIR/src/Heap/MBarrier/MSMarkBarrier.cpp"
 
 source_text="$(<"$COLLECTOR")"
 
@@ -57,13 +56,6 @@ require_absent "$flush_word" 'markEpoch != MSRegionInfo::NO_COLLECT_EPOCH' \
     'active flush must rely on the nonzero mark-epoch invariant'
 require_absent "$flush_word" 'PublishPendingMarkWord\(' \
     'each bitmap word must not publish the scheduler summary independently'
-
-record_stats="$(sed -n '/void RecordMSBarrierRuntimeStat/,/^}/p' "$BARRIER")"
-if ! rg -q 'if \(UNLIKELY\(IsMSBarrierRuntimeStatsEnabled\(\)\)\)' \
-    <<<"$record_stats"; then
-    echo 'barrier diagnostics must be gated by the stats enable flag' >&2
-    exit 1
-fi
 
 pre_enum="$(sed -n '/void MarkSweepCollector::PreEnumRoots/,/^}/p' "$COLLECTOR")"
 require_absent "$pre_enum" 'else \{[[:space:]]*// A RegionSpaceMS normally always has its central pool' \

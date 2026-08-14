@@ -234,12 +234,6 @@ void MSBitmapArena::ShrinkToCommittedRegionCount(size_t committedRegionCount)
     }
 }
 
-uintptr_t MSBitmapArena::GetPlaneBase(MSBitmapPlane plane)
-{
-    const MSBitmapPlaneState& state = GetPlaneState(plane);
-    return state.base;
-}
-
 namespace {
 uint64_t* GetRegionPlane(MSBitmapPlane plane, size_t regionIdx)
 {
@@ -260,11 +254,6 @@ uint64_t* MSBitmapArena::GetAllocPlane(size_t regionIdx)
 uint64_t* MSBitmapArena::GetMarkPlane(size_t regionIdx)
 {
     return GetRegionPlane(MSBitmapPlane::MARK, regionIdx);
-}
-
-uint64_t* MSBitmapArena::GetScanPlane(size_t regionIdx)
-{
-    return GetRegionPlane(MSBitmapPlane::SCAN, regionIdx);
 }
 
 } // namespace MapleRuntime

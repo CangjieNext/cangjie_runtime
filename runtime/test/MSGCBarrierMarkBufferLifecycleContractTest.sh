@@ -74,19 +74,23 @@ require_present "$COLLECTOR_SOURCE" \
     'FlushAllBarrierMarkBuffersUnderSTW' \
     'MarkTermination needs an explicit all-buffer STW drain'
 termination="$(sed -n \
-    '/void MarkSweepCollector::MarkTermination()/,/void MarkSweepCollector::PrepareFinalizersForResurrection()/p' \
+    '/void MarkSweepCollector::MarkTermination(bool worldStopped)/,/void MarkSweepCollector::PrepareFinalizersForResurrection()/p' \
     "$COLLECTOR_SOURCE")"
 require_text_order "$termination" \
+    'activeCollector_\.store\(nullptr' \
+    'PublishOrdinaryMarkTasksUnderSTW' \
+    'ordinary task publication must run after the collector gate closes'
+
+ordinary_publish="$(sed -n \
+    '/void MarkSweepCollector::PublishOrdinaryMarkTasksUnderSTW/,/^}/p' \
+    "$COLLECTOR_SOURCE")"
+require_text_order "$ordinary_publish" \
     'FlushAllBarrierMarkBuffersUnderSTW' \
-    'activeCollector_\.store\(nullptr' \
-    'MarkTermination must drain TLS buffers before clearing activeCollector'
-require_text_order "$termination" \
-    'activeCollector_\.store\(nullptr' \
-    'drainMarkClosureToFixedPoint\(\"ordinary\"\)' \
-    'ordinary closure must run after the barrier buffer drain and collector gate close'
-require_present "$COLLECTOR_SOURCE" \
-    'PrepareBarrierMarkBuffersForNewEpochUnderSTW' \
-    'PreEnum must assert/reset empty barrier buffers before the new epoch'
+    'VisitMarkPendingRegionsUnderSTW' \
+    'ordinary task publication must flush TLS buffers before reconciling Regions'
+require_present "$ROOT_DIR/src/Heap/MAllocator/MSCentralRegionPool.cpp" \
+    'PrepareMarkEpochUnderSTW' \
+    'CentralPool must reset barrier buffers before publishing the new epoch'
 
 require_present "$MARK_BARRIER_SOURCE" \
     'GetThreadLocalData\(\)->encodedGCPhase' \

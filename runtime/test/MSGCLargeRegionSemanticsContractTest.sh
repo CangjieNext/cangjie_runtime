@@ -29,7 +29,7 @@ required_central = (
     'largeCollectSet_.swap(largeNextSupply_)',
     'largeLiveObjectBytes_.fetch_add(region->LargeObjectSize()',
     'largeLiveObjectBytes_.fetch_sub(',
-    'stats.AddLargeObject(region->LargeSpanBytes())',
+    'result.AddLargeObject(region->LargeSpanBytes())',
     'reinterpret_cast<BaseObject*>(region->LargeObjectStart())',
 )
 for token in required_central:

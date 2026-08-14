@@ -17,11 +17,11 @@ require_pattern() {
 
 collector_text="$(tr '\n' ' ' < "$COLLECTOR_SOURCE")"
 
-require_pattern "$COLLECTOR_SOURCE" 'size_t baseBytes = cycleStats_\.thresholdBaseBytes;' \
-    "the next MSGC heap goal must use the completed marked-live base"
+require_pattern "$COLLECTOR_SOURCE" 'size_t baseBytes = cycleStats_\.trueLiveBytes;' \
+    "the next MSGC heap goal must use the completed marked-live sample directly"
 require_pattern "$COLLECTOR_SOURCE" \
-    'ComputeMSGCThresholdBase\([[:space:]]*markedStats\.liveBytes\)' \
-    "the GC base must be computed from the frozen marked-live bytes"
+    'cycleStats_\.trueLiveBytes = markedStats\.liveBytes;' \
+    "the GC base must be the frozen marked-live bytes"
 require_pattern "$COLLECTOR_SOURCE" \
     'GetSmallSweptRegionCount' \
     "central outside Small supply must be snapshotted separately from the GC base"
@@ -41,7 +41,7 @@ if printf '%s\n' "$collector_text" | rg -q 'EvaluateMSStableLive\('; then
 fi
 
 if ! printf '%s\n' "$collector_text" |
-    rg -q 'bool bypassTransition =[[:space:]]*exceptionalBypass \|\| oldLastTrueLiveBytes == 0;'; then
+    rg -q 'bool bypassTransition =[[:space:]]*exceptionalBypass \|\| oldLastTrueLiveBytes == 0 \|\|'; then
     echo "first accepted and OOM cycles must bypass normal threshold smoothing" >&2
     exit 1
 fi
@@ -52,29 +52,26 @@ if ! printf '%s\n' "$collector_text" |
     exit 1
 fi
 
-for field in \
-    'outsideSmall=%zuB' \
-    'outsideLarge=%zuB' \
-    'deadbandLower=%zuB' \
-    'deadbandUpper=%zuB' \
-    'deadbandHeld=%d' \
-    'fallLimit=%zuB' \
-    'transitionLimited=%d' \
-    'transitionBypassed=%d' \
-    'exceptionalBypass=%d'; do
-    require_pattern "$COLLECTOR_SOURCE" "$field" \
-        "heapThreshold REPORT must expose $field"
-done
-
-if ! printf '%s\n' "$collector_text" |
-    rg -q 'EvaluateMSScavengeThreshold\([^;]*newThreshold,[[:space:]]*scavengeCap,[[:space:]]*scavengeGrowth'; then
-    echo "Scavenge threshold must use only the completed GC goal and its heap/soft-limit cap" >&2
+if printf '%s\n' "$collector_text" |
+    rg -q 'ComputeMSGCThresholdBase|cycleStats_\.thresholdBaseBytes|EvaluateMSScavengeWatermarks\([^;]*outsideCentralSmallBytes|EvaluateMSScavengeWatermarks\([^;]*outsideLargeBytes'; then
+    echo "outside allocation supply must not inflate the GC or Scavenge threshold base" >&2
     exit 1
 fi
 
-if printf '%s\n' "$collector_text" |
-    rg -q 'ComputeMSGCThresholdBase\([^;]*GetSmallSweptRegionCount|EvaluateMSScavengeThreshold\([^;]*outsideCentralSmallBytes|EvaluateMSScavengeThreshold\([^;]*outsideLargeBytes'; then
-    echo "outside allocation supply must not inflate the GC or Scavenge threshold base" >&2
+update_gc_stats="$(sed -n '/void MarkSweepCollector::UpdateGCStats()/,/^}/p' "$COLLECTOR_SOURCE")"
+if [[ "$(printf '%s\n' "$update_gc_stats" | rg -c 'VLOG\(REPORT')" != "1" ]]; then
+    echo "UpdateGCStats must emit one concise REPORT log" >&2
+    exit 1
+fi
+
+if ! printf '%s\n' "$update_gc_stats" | rg -q '\[MS-GC\] GC threshold:'; then
+    echo "UpdateGCStats must report the resulting GC thresholds" >&2
+    exit 1
+fi
+
+if printf '%s\n' "$update_gc_stats" |
+    rg -q 'UpdateGCStats took|heapAdaptive:|heapThreshold stability:|scavengeWatermark:|markEndInUseBytes|inUseBurstBytes'; then
+    echo "UpdateGCStats must not retain detailed diagnostic state or timing logs" >&2
     exit 1
 fi
 

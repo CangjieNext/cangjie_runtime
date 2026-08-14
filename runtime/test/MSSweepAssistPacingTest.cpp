@@ -8,20 +8,20 @@
 #include <vector>
 
 #define MRT_USE_MARK_SWEEP
-#include "src/Heap/MAllocator/MSSweepDebtPolicy.h"
+#include "src/Heap/MAllocator/MSSweepPressurePolicy.h"
+#include "src/Heap/MCollector/MSAssistPacing.h"
 
 namespace {
 
-using MapleRuntime::AccumulateMSSweepDebtScaled;
 using MapleRuntime::ComputeMSSweepAssistRatioScaled;
 using MapleRuntime::ComputeMSSweepAssistDirectRegions;
 using MapleRuntime::ComputeMSSweepRunwayBytes;
 using MapleRuntime::EvaluateSweepPressure;
 using MapleRuntime::MSSweepAssistResult;
 using MapleRuntime::MSSweepCreditPool;
-using MapleRuntime::PayMSSweepDebtRegions;
 using MapleRuntime::ScaleMSSweepAssistRatioScaled;
 using MapleRuntime::SweepPressureMode;
+using MapleRuntime::MSSweepAssistDebtState;
 using MapleRuntime::kMSSweepAssistRatioScale;
 
 void ExpectEqual(uint64_t actual, uint64_t expected, const char* message)
@@ -159,18 +159,40 @@ void TestDirectAssistRunsOneWholeBatch()
 
 void TestDebtAccumulatesPaysAndSaturates()
 {
-    uint64_t debt = 0;
-    debt = AccumulateMSSweepDebtScaled(debt, 3, kMSSweepAssistRatioScale / 2);
-    ExpectEqual(debt, kMSSweepAssistRatioScale + kMSSweepAssistRatioScale / 2,
+    MSSweepAssistDebtState debt;
+    debt.Accumulate(3, kMSSweepAssistRatioScale / 2);
+    ExpectEqual(debt.debtScaled,
+                kMSSweepAssistRatioScale + kMSSweepAssistRatioScale / 2,
                 "fractional P debt accumulation");
-    ExpectEqual(PayMSSweepDebtRegions(debt, 1), kMSSweepAssistRatioScale / 2,
+    debt.AccountPaidRegions(1);
+    ExpectEqual(debt.debtScaled, kMSSweepAssistRatioScale / 2,
                 "whole-region debt payment preserves remainder");
-    ExpectEqual(PayMSSweepDebtRegions(debt, 2), 0,
+    debt.AccountPaidRegions(2);
+    ExpectEqual(debt.debtScaled, 0,
                 "payment cannot underflow P debt");
-    ExpectEqual(AccumulateMSSweepDebtScaled(std::numeric_limits<uint64_t>::max() - 1,
-                                            2, kMSSweepAssistRatioScale),
-                std::numeric_limits<uint64_t>::max(),
+    debt.debtScaled = std::numeric_limits<uint64_t>::max() - 1;
+    debt.Accumulate(2, kMSSweepAssistRatioScale);
+    ExpectEqual(debt.debtScaled, std::numeric_limits<uint64_t>::max(),
                 "P debt saturation");
+}
+
+void TestDebtConsumesWholeSweepResult()
+{
+    MSSweepAssistDebtState debt;
+    debt.debtScaled = 4 * kMSSweepAssistRatioScale;
+
+    MSSweepAssistResult result;
+    result.creditPaidRegions = 1;
+    result.assistPaidRegions = 2;
+    debt.AccountSweepResult(result);
+    ExpectEqual(debt.debtScaled, kMSSweepAssistRatioScale,
+                "credit and direct Sweep work must repay one combined debt");
+
+    debt.debtScaled = kMSSweepAssistRatioScale / 2;
+    result.sweepComplete = true;
+    debt.AccountSweepResult(result);
+    ExpectEqual(debt.debtScaled, 0,
+                "completed Sweep epoch must discard fractional P debt");
 }
 
 void TestCreditIsClaimedOnlyOnceAndSaturates()
@@ -184,7 +206,8 @@ void TestCreditIsClaimedOnlyOnceAndSaturates()
     pool.Reset();
     pool.Add(std::numeric_limits<size_t>::max() - 1);
     pool.Add(10);
-    ExpectEqual(pool.Load(), std::numeric_limits<size_t>::max(),
+    ExpectEqual(pool.Take(std::numeric_limits<size_t>::max()),
+                std::numeric_limits<size_t>::max(),
                 "credit saturation");
 }
 
@@ -212,7 +235,7 @@ void TestConcurrentCreditClaimsNeverExceedSupply()
     }
     ExpectEqual(claimed.load(std::memory_order_relaxed), kCredits,
                 "concurrent claims equal supplied credit");
-    ExpectEqual(pool.Load(), 0, "concurrent credit pool drained");
+    ExpectEqual(pool.Take(1), 0, "concurrent credit pool drained");
 }
 
 void TestAssistResultSeparatesCreditAndDirectWork()
@@ -233,6 +256,7 @@ int main()
     TestPressureUsesRemainingRunwayAndHysteresis();
     TestDirectAssistRunsOneWholeBatch();
     TestDebtAccumulatesPaysAndSaturates();
+    TestDebtConsumesWholeSweepResult();
     TestCreditIsClaimedOnlyOnceAndSaturates();
     TestConcurrentCreditClaimsNeverExceedSupply();
     TestAssistResultSeparatesCreditAndDirectWork();

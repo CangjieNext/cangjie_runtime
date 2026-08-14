@@ -17,7 +17,6 @@ int main()
     stats.AddLargeObject(32768);
     stats.AddLargeObject(65536);
 
-    assert(stats.objectCount == 10);
     assert(stats.liveBytes == 5 * 16 + 3 * 64 + 32768 + 65536);
     return 0;
 }

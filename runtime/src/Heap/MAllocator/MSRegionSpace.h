@@ -67,23 +67,6 @@ public:
     // MS-specific accessors
     CentralRegionPool* GetCentralPool() const { return msCentralPool_; }
     MSRegionManager* GetMSRegionManager() const { return msRegionManager_; }
-    // Scavenge-related queries (used by BackgroundScavengeLoop).
-    // heapInUse = committed - FreeManager free - emptySwept.
-    // This includes TLS-owned small Regions and is intentionally a slow-path snapshot.
-    // heapRetained = active + emptySwept + hotFree.
-    size_t GetHeapInUseBytes() const;
-    // Swept-retained heap bytes = GetSweptMSRegionCount() * MS_REGION_SIZE.
-    size_t GetSweptHeapBytes() const;
-    size_t GetSweptHeapBytesReference() const;
-    // Central-pool cache bytes = emptySwept.
-    size_t GetCentralCacheBytes() const;
-    size_t GetHeapRetainedBytes() const;
-    size_t GetHeapRetainedBytesReference() const;
-    size_t GetHeapThresholdBytes() const;
-    size_t GetScavengeThresholdBytes() const;
-    size_t GetHotFreeBytes() const;
-    size_t GetHotFreeBytesReference() const;
-    bool HasEmptySweptRegions() const;
     // On-demand flush of the empty-swept cache → FreeManager hot-free supply.
     // Flush policy is centralized here; the actual transfer is delegated to
     // msCentralPool_->ReclaimEmptyRegion().
@@ -98,12 +81,6 @@ public:
     // Release one fully-idle segment worth of pages while keeping the current
     // committed/owned-segment topology intact. Returns newly released bytes.
     size_t BackgroundShrinkOneSegment();
-    // Releasable bytes once retained heap crosses the published high
-    // watermark, released toward max(low watermark, current in-use bytes).
-    size_t GetScavengeReleaseTargetBytes() const;
-    // True when retained heap is above high watermark and can release toward
-    // the effective low target.
-    bool HasPendingScavengeWork() const;
     // True when at least one segment has no in-use regions and still holds
     // unreleased physical pages or central-pool cached regions.
     bool HasPendingShrinkWork() const;

@@ -24,8 +24,8 @@
 #include "Heap/MAllocator/MSRegionInfo.h"
 #include "Heap/MAllocator/MSShardRouting.h"
 #include "Heap/MAllocator/MSSizeClass.h"
-#include "Heap/MAllocator/MSSweepDebtPolicy.h"
 #include "Heap/MAllocator/MSSweepEpochCoordinator.h"
+#include "Heap/MCollector/MSAssistPacing.h"
 
 namespace MapleRuntime {
 
@@ -119,14 +119,6 @@ public:
         return head;
     }
 
-    MSRegionInfo* PeekHead() const
-    {
-        if (headIdx_ == MSRegionInfo::INVALID_IDX) {
-            return nullptr;
-        }
-        return MSRegionInfoArray::GetRegionInfoByIdx(headIdx_);
-    }
-
     void Remove(MSRegionInfo* region)
     {
         int32_t targetIdx = static_cast<int32_t>(MSRegionInfoArray::GetRegionIdx(region));
@@ -152,33 +144,11 @@ public:
     bool IsEmpty() const { return headIdx_ == MSRegionInfo::INVALID_IDX; }
     size_t Count() const { return count_.load(std::memory_order_relaxed); }
 
-    void Swap(MSRegionList& other)
-    {
-        std::swap(headIdx_, other.headIdx_);
-        size_t thisCount = count_.load(std::memory_order_relaxed);
-        size_t otherCount = other.count_.load(std::memory_order_relaxed);
-        count_.store(otherCount, std::memory_order_relaxed);
-        other.count_.store(thisCount, std::memory_order_relaxed);
-    }
-
     // O(1) accept a single-linked centralNextRegionIdx chain.
     void AcceptSingleLinkedChain(int32_t headIdx, size_t count)
     {
         headIdx_ = headIdx;
         count_.store(count, std::memory_order_relaxed);
-    }
-
-    // O(1) prepend of a GC-private chain. Caller owns both containers.
-    void PrependChain(RegionChain&& chain)
-    {
-        if (chain.IsEmpty()) {
-            return;
-        }
-        MSRegionInfoArray::GetRegionInfoByIdx(chain.tailIdx)->SetCentralNextRegionIdx(
-            static_cast<uint32_t>(headIdx_));
-        headIdx_ = chain.headIdx;
-        count_.fetch_add(chain.count, std::memory_order_relaxed);
-        chain.Reset();
     }
 
     RegionChain StealChain()
@@ -306,18 +276,6 @@ public:
     }
     size_t Count() const { return count_.load(std::memory_order_relaxed); }
 
-    // O(1) transfer entire chain to MSRegionList. Must be called during STW.
-    // Destination MUST be empty. Prev pointers are NOT fixed — safe when
-    // consumers only use TakeHead (which fixes prev lazily).
-    void StealChainTo(MSRegionList& dest)
-    {
-        uint64_t v = taggedHead_.load(std::memory_order_relaxed);
-        size_t cnt = count_.load(std::memory_order_relaxed);
-        taggedHead_.store(Pack(MSRegionInfo::INVALID_IDX, TagOf(v) + 1), std::memory_order_relaxed);
-        count_.store(0, std::memory_order_relaxed);
-        dest.AcceptSingleLinkedChain(IdxOf(v), cnt);
-    }
-
     // STW/quiescent ownership transfer to the GC-private collect-set.
     RegionChain StealChain()
     {
@@ -426,11 +384,6 @@ public:
     // Thread-safe (CAS ownership). Called by gc-helper thread.
     void BackgroundSweep(uint8_t preferredCls, uint64_t deadlineUs);
     void ParallelSweep(uint8_t preferredCls, uint64_t deadlineUs);
-    // OOM PostMark-only sweep pass. All ordinary Sweep admission gates must remain
-    // closed, and the caller must join every helper before reopening them. Each
-    // worker visits every size class once and exits after observing an empty list;
-    // residual unswept work is allowed and the completion state is intentionally unchanged.
-    void ParallelSweepOnceForOOM(uint8_t preferredCls);
     // Repay one P's local Sweep debt. Non-assist Sweep work is claimed once from
     // the central credit pool; a remaining full batch is swept directly once.
     MSSweepAssistResult MSSweepAssist(size_t debtRegions, uint8_t preferredCls);
@@ -447,8 +400,7 @@ public:
     void ForceHighSweepPressure();
     SweepPressureMode GetSweepPressureMode() const
     {
-        return static_cast<SweepPressureMode>(
-            sweepCycleState_.pressureMode.load(std::memory_order_relaxed));
+        return sweepCycleState_.pressureMode.load(std::memory_order_relaxed);
     }
     bool IsSweepPressureForcedHigh() const
     {
@@ -494,8 +446,6 @@ public:
     size_t GetLargeRegionCount() const;
     size_t GetSmallSweptRegionCount() const;
     size_t GetLargeNextSupplySpanCount() const;
-    size_t CountTLActiveRegions() const;
-    size_t GetAllocBufferCount() const;
     size_t GetAllAllocBufferActiveRegionCount() const;
     BucketPressure GetBucketPressure(uint8_t cls) const;
     // Swept-retained region count: partialSwept + fullSwept buckets + large region spans.
@@ -503,20 +453,23 @@ public:
     // post-sweep live footprint rather than the transient active-region total.
     size_t GetSweptMSRegionCount() const;
     size_t GetActiveMSRegionCount() const;
-    size_t GetSweptMSRegionCountReference() const;
-    size_t GetActiveMSRegionCountReference() const;
     size_t GetEmptySweptRegionCount() const;
+    size_t GetLargeLiveSpanCount() const
+    {
+        return largeLiveSpanCount_.load(std::memory_order_acquire);
+    }
     size_t GetLargeObjectBytes() const
     {
         return largeLiveObjectBytes_.load(std::memory_order_acquire);
     }
 
-    // Dump CentralRegionPool three-head statistics (block ⑤ in DFX design)
-    void DumpPoolStats() const;
-
     uint32_t GetSweepCycleId() const
     {
         return sweepEpoch_.GetEpochId();
+    }
+    size_t GetSweepEpochInitialUnsweptRegions() const
+    {
+        return sweepEpochInitialUnsweptRegions_.load(std::memory_order_acquire);
     }
 
     uint32_t GetCurrentMarkEpoch() const
@@ -553,11 +506,6 @@ public:
     // remain closed through Mark and must be reopened by ReenableSweepAdmission().
     // Must finish before clearing markBitmaps to avoid racing SweepRegion reads.
     void StopAndWaitForAllSweep();
-
-    // OOM-only diagnostic serial closure. The regular OOM path uses
-    // ParallelSweepOnceForOOM and does not require the unswept backlog to reach
-    // zero. Keep this entry for explicit diagnostics and invariant checks.
-    void ForceFinishAllUnsweptForOOM();
 
     // Under PreEnum STW, build the immutable collection boundary and reset all
     // per-cycle mark work state. Sealed Small Regions are reset while their
@@ -738,7 +686,7 @@ private:
 
     void PushEmptySweptRegion(MSRegionInfo* region);
     MSRegionInfo* TakeGlobalEmptyRegion();
-    size_t DrainEmptySweptGlobal(size_t maxRegions, std::vector<MSRegionInfo*>& drained);
+    size_t DrainEmptySweptBatch(size_t maxRegions, std::vector<MSRegionInfo*>& drained);
     void ForceFinishUnsweptList(SizeClassBucket& bucket,
                                 size_t& sweptRegions, size_t& emptiedRegions,
                                 size_t& retainedRegions, size_t& freedBytes);
@@ -773,17 +721,25 @@ private:
             }
         }
     }
-    void RecordBackgroundSweep(size_t sweptRegions)
+    void RecordNonAssistSweep(size_t sweptRegions)
     {
         if (sweptRegions != 0) {
             sweepCycleState_.credit.Add(sweptRegions);
         }
     }
-    void RecordHelperSweep(size_t sweptRegions)
+    template<typename ClassOrder>
+    bool SweepClassOrder(const ClassOrder& classOrder, size_t& sweptInSlice,
+                         uint64_t deadlineUs)
     {
-        if (sweptRegions != 0) {
-            sweepCycleState_.credit.Add(sweptRegions);
+        for (uint8_t cls : classOrder) {
+            for (uint8_t scan = 0; scan < kMSScanClassCount; ++scan) {
+                if (!SweepUnsweptList(buckets_[cls][scan], sweptInSlice,
+                                      SIZE_MAX, deadlineUs)) {
+                    return false;
+                }
+            }
         }
+        return true;
     }
 
     // Per-sweep-epoch pacing state. PublishCollectSetForSweep() resets these
@@ -792,15 +748,14 @@ private:
     struct MSSweepCycleState {
         std::atomic<uint64_t> assistRatioScaled {0};
         MSSweepCreditPool credit;
-        std::atomic<int> pressureMode {static_cast<int>(SweepPressureMode::LOW)};
+        std::atomic<SweepPressureMode> pressureMode {SweepPressureMode::LOW};
         std::atomic<bool> forceHighPressure {false};
 
         void ResetForNewEpoch(uint64_t newAssistRatioScaled)
         {
             forceHighPressure.store(false, std::memory_order_relaxed);
-            pressureMode.store(
-                static_cast<int>(SweepPressureMode::LOW),
-                std::memory_order_relaxed);
+            pressureMode.store(SweepPressureMode::LOW,
+                               std::memory_order_relaxed);
             credit.Reset();
             assistRatioScaled.store(newAssistRatioScaled,
                                     std::memory_order_relaxed);
@@ -813,6 +768,14 @@ private:
     std::atomic<bool> skipAssistSweep_{false};        // Disable mutator assist sweep before STW
     std::atomic<bool> skipHelperSweep_{false};        // Disable GC-helper pool sweep before STW
     MSSweepCycleState sweepCycleState_;
+    // Published with the sweep epoch for round-level REPORT accounting. It is
+    // not a per-executor counter: one value identifies the complete backlog
+    // handed off by PostMarkTermination.
+    std::atomic<size_t> sweepEpochInitialUnsweptRegions_ {0};
+    // StopAndWaitForAllSweep() owns this STW-local aggregate. Keeping the two
+    // mandatory drain passes behind one counter lets REPORT emit one concise
+    // forced-finish result without changing the sweep protocol itself.
+    size_t forceFinishedSweepRegions_ = 0;
 
     std::atomic<size_t> centralSmallActiveRegions_ {0};
     std::atomic<size_t> centralSmallSweptRegions_ {0};

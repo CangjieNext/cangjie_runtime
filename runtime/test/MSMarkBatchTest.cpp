@@ -43,7 +43,6 @@ void TestCoalescesSameBitmapWord()
 
     batch.Add(7, 3, 1ULL << 1, flush);
     batch.Add(7, 3, 1ULL << 9, flush);
-    Expect(batch.Size() == 1, "same word must share one batch entry");
 
     uint64_t observedMask = 0;
     batch.FlushAll([&](const MSMarkWordBatchEntry& entry) {
@@ -73,8 +72,6 @@ void TestEvictsOneEntryAtCapacity()
     batch.Add(static_cast<uint32_t>(MSMarkWordBatch::kCapacity), 0, 2, flush);
     Expect(flushed.size() == 1,
            "full batch must evict exactly one set-local victim");
-    Expect(batch.Size() == MSMarkWordBatch::kCapacity,
-           "eviction must replace instead of growing the batch");
 
     batch.FlushAll(flush);
     Expect(flushed.size() == MSMarkWordBatch::kCapacity + 1,
@@ -120,35 +117,25 @@ void TestFourWaySetDoesNotEvictEarly()
     batch.Add(16, 0, 1, flush);
     batch.Add(32, 0, 1, flush);
     batch.Add(48, 0, 1, flush);
-    Expect(flushes == 0 && batch.Size() == 4,
+    Expect(flushes == 0,
            "four entries in one set must not trigger an early flush");
     batch.Add(64, 0, 1, flush);
-    Expect(flushes == 1 && batch.Size() == 4,
+    Expect(flushes == 1,
            "the fifth entry in one set must replace exactly one resident");
     batch.FlushAll(flush);
+    Expect(flushes == 5 && batch.IsEmpty(),
+           "four resident entries must remain after one set-local eviction");
 }
 
-void TestCachesOneMarkEpochForBatchLifetime()
+void TestCachesSharedBitmapContextForBatchLifetime()
 {
-    MSMarkWordBatch batch;
-    Expect(!batch.HasMarkEpoch(), "new batch must not expose an uninitialized mark epoch");
-    batch.SetMarkEpoch(17);
-    Expect(batch.HasMarkEpoch() && batch.GetMarkEpoch() == 17,
-           "batch did not retain its mark epoch");
-
-    batch.Add(1, 0, 1, [](const MSMarkWordBatchEntry&) {});
-    batch.FlushAll([](const MSMarkWordBatchEntry&) {});
-    Expect(batch.HasMarkEpoch() && batch.GetMarkEpoch() == 17,
-           "flushing entries must not invalidate the batch-local cycle epoch");
-}
-
-void TestCachesBitmapPlaneBases()
-{
-    MSMarkWordBatch batch;
     uintptr_t allocBase = 0x100000;
     uintptr_t markBase = 0x200000;
-    batch.SetBitmapPlaneBases(allocBase, markBase);
-    Expect(batch.HasBitmapPlaneBases(), "batch did not retain bitmap plane bases");
+    MapleRuntime::MSMarkBitmapContext context {17, allocBase, markBase};
+    MSMarkWordBatch batch;
+    batch.SetBitmapContext(context);
+    Expect(batch.GetMarkEpoch() == context.markEpoch,
+           "batch did not retain its mark epoch");
 
     constexpr uint32_t regionIdx = 3;
     constexpr size_t wordIdx = 5;
@@ -162,8 +149,32 @@ void TestCachesBitmapPlaneBases()
     Expect(
         reinterpret_cast<uintptr_t>(
             batch.GetMarkBitmap(regionIdx) + wordIdx) ==
-            markBase + regionOffset + wordIdx * sizeof(uint64_t),
+        markBase + regionOffset + wordIdx * sizeof(uint64_t),
         "batch mark-plane address calculation mismatch");
+
+    batch.Add(1, 0, 1, [](const MSMarkWordBatchEntry&) {});
+    batch.FlushAll([](const MSMarkWordBatchEntry&) {});
+    Expect(batch.GetMarkEpoch() == context.markEpoch,
+           "flushing entries must not invalidate the batch-local context");
+}
+
+void TestInitializesBatchFromSharedBitmapContext()
+{
+    MSMarkWordBatch batch;
+    MapleRuntime::MSMarkBitmapContext context {
+        17, 0x100000, 0x200000};
+    batch.SetBitmapContext(context);
+
+    Expect(batch.GetMarkEpoch() == context.markEpoch,
+           "batch did not retain the shared mark epoch");
+    Expect(reinterpret_cast<uintptr_t>(batch.GetAllocBitmap(3)) ==
+               context.allocPlaneBase +
+                   3 * MapleRuntime::MSBitmapArena::kPlaneStrideBytes,
+           "batch alloc bitmap did not use the shared context");
+    Expect(reinterpret_cast<uintptr_t>(batch.GetMarkBitmap(3)) ==
+               context.markPlaneBase +
+                   3 * MapleRuntime::MSBitmapArena::kPlaneStrideBytes,
+           "batch mark bitmap did not use the shared context");
 }
 
 void TestPendingRegionBatchMergesBitmapWords()
@@ -178,8 +189,6 @@ void TestPendingRegionBatchMergesBitmapWords()
            "another word in the same Region must merge");
     Expect(pending.TryAdd(&second, 5),
            "second pending Region must fit");
-    Expect(pending.Size() == 2,
-           "same-Region words must consume one publication entry");
 
     size_t publications = 0;
     pending.FlushAll([&](MSRegionInfo* info, uint64_t wordMask) {
@@ -205,8 +214,6 @@ void TestPendingRegionBatchReportsCapacityWithoutMutation()
     Expect(pending.TryAdd(&first, 1), "first pending Region must fit");
     Expect(!pending.TryAdd(&second, 2),
            "a distinct Region beyond capacity must request a drain");
-    Expect(pending.Size() == 1,
-           "failed pending insertion must not mutate the batch");
 
     MSRegionInfo* observed = nullptr;
     uint64_t observedMask = 0;
@@ -227,8 +234,8 @@ int main()
     TestFourWaySetDoesNotEvictEarly();
     TestEvictsOneEntryAtCapacity();
     TestSparseBatchReuseVisitsOnlyCurrentResidents();
-    TestCachesOneMarkEpochForBatchLifetime();
-    TestCachesBitmapPlaneBases();
+    TestCachesSharedBitmapContextForBatchLifetime();
+    TestInitializesBatchFromSharedBitmapContext();
     TestPendingRegionBatchMergesBitmapWords();
     TestPendingRegionBatchReportsCapacityWithoutMutation();
     return 0;

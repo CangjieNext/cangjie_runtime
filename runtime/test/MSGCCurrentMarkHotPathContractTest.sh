@@ -21,10 +21,13 @@ rg -q 'FlushMarkPublication' "$COLLECTOR_HEADER" "$COLLECTOR"
 rg -q 'MSMarkPublicationContext publication_' "$BATCH"
 rg -q 'batch\.Publication\(\)' "$COLLECTOR"
 
-rg -q 'markBatchEpoch_' "$COLLECTOR_HEADER" "$COLLECTOR"
-rg -q 'markBatchAllocPlaneBase_' "$COLLECTOR_HEADER" "$COLLECTOR"
-rg -q 'markBatchMarkPlaneBase_' "$COLLECTOR_HEADER" "$COLLECTOR"
+if rg -q 'markBatchEpoch_|markBatchAllocPlaneBase_|markBatchMarkPlaneBase_' \
+    "$COLLECTOR_HEADER" "$COLLECTOR"; then
+    echo 'collector still caches the published MarkWordBatch bitmap context' >&2
+    exit 1
+fi
 rg -q 'InitializeGCMarkBatch' "$COLLECTOR_HEADER" "$COLLECTOR"
+rg -q 'CJ_MRT_MSGCFastPathState.currentMarkEpoch' "$COLLECTOR"
 
 region_task="$(sed -n '/void MarkSweepCollector::RunRegionTask/,/void MarkSweepCollector::RunObjectTask/p' "$COLLECTOR")"
 object_task="$(sed -n '/void MarkSweepCollector::RunObjectTask/,/void MarkSweepCollector::RunSchedulerTask/p' "$COLLECTOR")"
@@ -43,10 +46,37 @@ fi
 
 rg -q 'OutstandingWorkHint' "$SCHEDULER_HEADER" "$SCHEDULER" "$COLLECTOR"
 rg -q 'MSMarkControllerState markController' "$COLLECTOR"
+rg -q 'AcquireMarkWorkerPool' "$COLLECTOR_HEADER" "$COLLECTOR"
+rg -q 'UpdateMarkController' "$COLLECTOR_HEADER" "$COLLECTOR"
+rg -q 'FinishSchedulerMarkLoop' "$COLLECTOR_HEADER" "$COLLECTOR"
 rg -q 'MS_MARK_CONTROL_SLICES_PER_UPDATE' "$COLLECTOR"
 rg -q 'markController\.Observe\(' "$COLLECTOR"
 rg -q 'markController\.HelperTarget\(\)' "$COLLECTOR"
 rg -q 'markController\.AssistMultiplier\(\)' "$COLLECTOR"
+
+mark_loop="$(sed -n '/void MarkSweepCollector::RunSchedulerMarkLoop/,/size_t MarkSweepCollector::AcquireMarkWorkerPool/p' "$COLLECTOR")"
+for token in HasReachedMarkSchedulerQuiescence HasReachedMarkTimeBudget; do
+    if ! printf '%s\n' "$mark_loop" | rg -q "$token"; then
+        echo "RunSchedulerMarkLoop must use the named $token exit predicate" >&2
+        exit 1
+    fi
+done
+for token in initialOutstanding initialOutstandingWork activeHelpers; do
+    if printf '%s\n' "$mark_loop" | rg -q "$token"; then
+        echo "RunSchedulerMarkLoop retains one-use setup variable: $token" >&2
+        exit 1
+    fi
+done
+
+mark_controller="$(sed -n '/void MarkSweepCollector::UpdateMarkController/,/void MarkSweepCollector::FinishSchedulerMarkLoop/p' "$COLLECTOR")"
+if printf '%s\n' "$mark_controller" | rg -q 'Mark elapsed pressure:'; then
+    echo 'Mark controller must combine pressure details into its one control log' >&2
+    exit 1
+fi
+if [[ "$(printf '%s\n' "$mark_controller" | rg -c 'VLOG\(REPORT')" -ne 1 ]]; then
+    echo 'Mark controller must emit one log when control changes' >&2
+    exit 1
+fi
 if rg -q 'ComputeMSMarkDynamicAssistRatioQ16\(' "$COLLECTOR"; then
     echo 'CurrentMark still derives Assist directly from instantaneous task count' >&2
     exit 1

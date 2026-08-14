@@ -6,7 +6,8 @@ HEADER="$ROOT_DIR/src/Heap/MCollector/MarkSweepCollector.h"
 SOURCE="$ROOT_DIR/src/Heap/MCollector/MarkSweepCollector.cpp"
 
 rg -q 'void PublishRootStaging\(\);' "$HEADER"
-rg -Uq '(?s)void MarkSweepCollector::PublishRootStaging\(\).*Heap::IsHeapAddress\(obj\).*rootDedupTable_\.Insert.*PublishRootRange.*roots\.clear' "$SOURCE"
+rg -q 'MSRootSnapshot rootSnapshot_' "$HEADER"
+rg -Uq '(?s)void MarkSweepCollector::PublishRootStaging\(\).*rootSnapshot_\.Deduplicate.*Heap::IsHeapAddress.*rootSnapshot_\.Publish.*PublishRootRange' "$SOURCE"
 rg -Uq '(?s)void MarkSweepCollector::PublishRootRange\(.*MSMarkWordBatch batch.*publication = batch\.Publication\(\).*AddRefToMarkBatch<MSMarkRefSource::TRUSTED_MANAGED>\(.*obj, batch, work, publication\).*FlushMarkBatch\(batch, work, publication\)' "$SOURCE"
 if rg -q 'DrainMarkWorkStack|RunConcurrentMarkLoop|TraceObjectRefFieldsToGCWork' \
     "$HEADER" "$SOURCE"; then

@@ -44,7 +44,6 @@ public:
 
     U32 VisitFinalizers(const RootVisitor& visitor) { return finalizerWorkList.VisitFinalizers(visitor); }
     void VisitGCRoots(const RootVisitor& visitor) { finalizerWorkList.VisitGCRoots(visitor); }
-    void VisitRawPointers(const RootVisitor& visitor) { finalizerWorkList.VisitRawPointers(visitor); }
     U32 EnqueueFinalizables(const std::function<bool(BaseObject*)>& finalizable, U32 countLimit = UINT_MAX)
     {
         return finalizerWorkList.EnqueueFinalizables(finalizable, countLimit);
@@ -52,32 +51,55 @@ public:
     void RegisterFinalizer(BaseObject* obj) { finalizerWorkList.RegisterFinalizer(obj); }
     void NotifyFinalizerWork() { Notify(); }
 
-    void NotifyToSweep(uint8_t cls = kNoPreferredSweepClass);
-    void NotifyToParallelSweep();
-    void NotifyToScavenge();
+    // Returns true only when this call changes an idle work flag to requested
+    // and wakes the background thread. Duplicate notifications remain silent.
+    bool NotifyToSweep(uint8_t cls = kNoPreferredSweepClass);
+    bool NotifyToParallelSweep();
+    bool NotifyToScavenge();
 private:
     void Notify();
     void NotifyStarted();
     void Wait(U32 timeoutMilliSeconds);
     void WaitForActiveBackoff(U32 timeoutMilliSeconds);
 
-    void RequestWork(std::atomic<bool>& flag);
+    bool RequestWork(std::atomic<bool>& flag);
     void MaybeSchedulePeriodicWork();
     bool ShouldStartPeriodicSweep() const;
     bool ShouldStartPeriodicScavenge() const;
     bool ShouldStartPeriodicShrink() const;
     bool HasPendingWakeWork() const;
-    bool HasPendingSweepWork();    // check pending sweep work; updates pressure state and shouldBackgroundSweep_
-    bool HasPendingShrinkWork();
-    size_t RefreshSweepHelperControl(CentralRegionPool& pool, RegionSpaceMS& space,
+    // A sweep completion observes the remaining backlog and publishes the
+    // next serial/parallel dispatch mode before reporting whether work remains.
+    bool RefreshSweepDispatch();
+    bool CompleteSweepSlice(RegionSpaceMS& space, size_t thresholdBytes);
+    size_t RefreshSweepHelperControl(CentralRegionPool& pool,
                                      CollectorResources& resources, bool advanceHelpers);
     void ResetSweepHelperControl(uint32_t sweepGeneration);
     bool BackgroundSweepLoop();
     bool ParallelSweepLoop();
     bool ParallelSweepLoop(size_t helperCount);
-    bool FinishSweepSlice();
-    bool BackgroundScavengeLoop(); // scavengeThreshold-based: Step A (flush emptySwept) + Step B (scavenge)
-    bool BackgroundShrinkLoop();   // segment-level shrink: release fully idle segments without changing heap topology
+    bool BackgroundScavengeLoop();
+    bool BackgroundShrinkLoop();
+    void BeginSweepRoundLog(CentralRegionPool& pool);
+    void FinishSweepRoundLog(CentralRegionPool* pool);
+    void BeginScavengeRoundLog(size_t targetBytes);
+    void FinishScavengeRoundLog();
+
+    struct MSSweepRoundLog {
+        bool active = false;
+        uint32_t epoch = 0;
+        uint64_t startUs = 0;
+        size_t initialUnsweptRegions = 0;
+        size_t sliceCount = 0;
+    };
+
+    struct MSScavengeRoundLog {
+        bool active = false;
+        uint64_t startUs = 0;
+        size_t targetBytes = 0;
+        size_t releasedBytes = 0;
+        size_t sliceCount = 0;
+    };
 
     std::mutex wakeLock;
     std::condition_variable wakeCondition;
@@ -94,9 +116,10 @@ private:
     std::atomic<bool> shouldScavengeHeap_{false};
     std::atomic<bool> shouldShrinkHeap_{false};
     std::atomic<uint8_t> preferredSweepCls_{kNoPreferredSweepClass};
-    std::atomic<size_t> targetSweepHelperCount_{0};
     std::atomic<size_t> activeSweepHelperCount_{0};
     std::atomic<uint32_t> observedSweepGeneration_{0};
+    MSSweepRoundLog sweepRoundLog_;
+    MSScavengeRoundLog scavengeRoundLog_;
     FinalizerWorkList finalizerWorkList;
     uint32_t tid = 0;
     pthread_t threadHandle = 0;

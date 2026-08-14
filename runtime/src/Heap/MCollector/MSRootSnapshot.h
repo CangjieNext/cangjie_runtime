@@ -7,6 +7,7 @@
 
 #ifdef MRT_USE_MARK_SWEEP
 
+#include <utility>
 #include <vector>
 
 #include "Heap/MCollector/MSRootDedupTable.h"
@@ -21,10 +22,25 @@ class MSRootSnapshot {
 public:
     void Clear() { roots_.clear(); }
     void Append(BaseObject* root) { roots_.push_back(root); }
-    std::vector<BaseObject*>& Roots() { return roots_; }
-    size_t Size() const { return roots_.size(); }
-    bool Empty() const { return roots_.empty(); }
 
+    // Root staging has one completion boundary: validate and deduplicate every
+    // collected source, then hand the immutable range to its publisher and
+    // clear the staging buffer for the next epoch.
+    template<typename IsValidRoot, typename Publisher>
+    size_t DeduplicateAndPublish(IsValidRoot&& isValidRoot,
+                                 Publisher&& publisher,
+                                 size_t* collectedCount = nullptr)
+    {
+        if (collectedCount != nullptr) {
+            *collectedCount = roots_.size();
+        }
+        size_t uniqueCount = Deduplicate(std::forward<IsValidRoot>(isValidRoot));
+        publisher(roots_);
+        roots_.clear();
+        return uniqueCount;
+    }
+
+private:
     template<typename IsValidRoot>
     size_t Deduplicate(IsValidRoot&& isValidRoot)
     {
@@ -44,14 +60,6 @@ public:
         return uniqueCount;
     }
 
-    template<typename Publisher>
-    void Publish(Publisher&& publisher)
-    {
-        publisher(roots_);
-        roots_.clear();
-    }
-
-private:
     std::vector<BaseObject*> roots_;
     MSRootDedupTable dedupTable_;
 };

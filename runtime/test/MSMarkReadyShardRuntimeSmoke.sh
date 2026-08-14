@@ -30,7 +30,8 @@ MRT_REPORT="$WORK_DIR/gc.log" cjGCThreads="${cjGCThreads:-8}" \
 
 rg -q 'MSMarkReadyShardRuntimeSmoke PASS' "$WORK_DIR/stdout.txt"
 rg -q '\[MS-GC\] Mark ready shards: .*shards=' "$WORK_DIR/gc.log"
-rg -q 'ConcurrentMark scheduler: .*termination=natural outstanding=0' "$WORK_DIR/gc.log"
+rg -q '\[MS-GC\] --- ConcurrentMark begin ---' "$WORK_DIR/gc.log"
+rg -q '\[MS-GC\] --- ConcurrentMark end: total=[0-9]+us ---' "$WORK_DIR/gc.log"
 
 cat "$WORK_DIR/stdout.txt"
-rg '\[MS-GC\] Mark ready shards:|ConcurrentMark scheduler:' "$WORK_DIR/gc.log"
+rg '\[MS-GC\] Mark ready shards:|--- ConcurrentMark (begin|end):' "$WORK_DIR/gc.log"

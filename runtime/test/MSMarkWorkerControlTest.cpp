@@ -34,8 +34,9 @@ void TestQuiesceClosesClaimsAndWaitsForExistingWork()
     control.Start(2);
     ExpectTrue(control.TryEnterWorker(0), "active helper should enter");
     ExpectTrue(control.TryEnterAssist(), "assist should enter while running");
-    ExpectEq(control.GetWorkersInFlight(), 1, "one helper in flight");
-    ExpectEq(control.GetAssistsInFlight(), 1, "one assist in flight");
+    MSMarkWorkerControl::Snapshot active = control.GetSnapshot();
+    ExpectEq(active.workersInFlight, 1, "one helper in flight");
+    ExpectEq(active.assistsInFlight, 1, "one assist in flight");
 
     control.BeginQuiesce();
     ExpectTrue(!control.TryEnterWorker(1), "quiesce should reject new helper");
@@ -44,8 +45,9 @@ void TestQuiesceClosesClaimsAndWaitsForExistingWork()
     control.ExitWorker();
     control.ExitAssist();
     control.WaitForNoInFlight();
-    ExpectEq(control.GetWorkersInFlight(), 0, "helpers should drain");
-    ExpectEq(control.GetAssistsInFlight(), 0, "assists should drain");
+    MSMarkWorkerControl::Snapshot drained = control.GetSnapshot();
+    ExpectEq(drained.workersInFlight, 0, "helpers should drain");
+    ExpectEq(drained.assistsInFlight, 0, "assists should drain");
 }
 
 void TestQuiesceThenStopKeepsClaimsClosed()
@@ -58,7 +60,7 @@ void TestQuiesceThenStopKeepsClaimsClosed()
     ExpectTrue(!control.TryEnterAssist(), "stopped epoch should reject assists");
 }
 
-void TestSnapshotReturnsOneControlView()
+void TestSnapshotReturnsSchedulingAndInFlightState()
 {
     MSMarkWorkerControl control;
     control.Start(2);
@@ -66,8 +68,6 @@ void TestSnapshotReturnsOneControlView()
     ExpectTrue(control.TryEnterAssist(), "assist should enter before snapshot");
 
     MSMarkWorkerControl::Snapshot snapshot = control.GetSnapshot();
-    ExpectTrue(snapshot.phase == MSMarkWorkerControl::Phase::RUNNING,
-               "snapshot should report running phase");
     ExpectEq(snapshot.targetHelpers, 2, "snapshot should report helper target");
     ExpectEq(snapshot.workersInFlight, 1, "snapshot should report worker in flight");
     ExpectEq(snapshot.assistsInFlight, 1, "snapshot should report assist in flight");
@@ -193,7 +193,7 @@ int main()
 {
     TestQuiesceClosesClaimsAndWaitsForExistingWork();
     TestQuiesceThenStopKeepsClaimsClosed();
-    TestSnapshotReturnsOneControlView();
+    TestSnapshotReturnsSchedulingAndInFlightState();
     TestTargetGrowthWakesParkedWorker();
     TestWaitForNoInFlightWaitsForBothKindsOfClaim();
     TestLastClaimExitNotifiesProgressEpoch();

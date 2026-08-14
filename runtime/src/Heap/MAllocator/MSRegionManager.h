@@ -42,8 +42,8 @@ class CentralRegionPool;
 // Each MSRegionInfo is 64 bytes, exactly one cache line.
 // MetadataSize = ceil(regionCount * 64, PAGE_SIZE).
 //
-// CartesianTree operates in REGION indexes (each Index = one MS_REGION_SIZE region).
-// FreeManager owns released-span page return; MSRegionManager keeps only ClearUnits locally.
+// FreeManager owns Region-index allocation metadata and released-span page
+// return; MSRegionManager keeps only MSRegionInfo initialization/reset local.
 //
 class MSRegionManager : private FreeManager::HeapRangeHandler {
     using UnitIndex = FreeManager::UnitIndex;
@@ -54,10 +54,6 @@ public:
     MSRegionManager() = default;
     ~MSRegionManager();
 
-    // Calculate total mmap size needed for the maximum virtual reservation.
-    // This is the size passed to MemMap::MapMemory as reqSize.
-    static size_t GetVirtualReserveSize(size_t maxVirtualHeapSize);
-
     // Checked form used by runtime initialization. Validates heap alignment,
     // RegionIndex capacity, metadata multiplication/alignment and final sum.
     static bool TryComputeVirtualReserveLayout(size_t heapSize,
@@ -65,29 +61,17 @@ public:
                                                size_t& metadataSize,
                                                size_t& totalSize);
 
-    // Calculate total mmap size needed: metadata (MSRegionInfo[]) + heap.
-    // (Legacy helper — used for the initial committed segment sizing.)
-    static size_t GetHeapMemorySize(size_t heapSize);
-
-    // Calculate metadata size for MSRegionInfo array.
-    static size_t GetMetadataSize(size_t heapSize);
-
-    // Calculate the number of MS regions that fit in given heap size.
-    static size_t GetRegionCount(size_t heapSize);
-
-    // Compute the maximum virtual heap size given the initial committed heap size
-    // and the user-requested virtual reservation.
-    static size_t ComputeMaxVirtualHeapSize(size_t heapSize, size_t requestedVirtualHeapSize);
-
     // Initialize MSRegionManager with virtual reservation.
-    // mmapBase is the start of the whole mmap area (size = GetVirtualReserveSize).
+    // mmapBase is the start of the whole mmap area (size = totalSize returned
+    // by TryComputeVirtualReserveLayout).
     // maxVirtualHeapSize is the total virtual heap capacity.
     void Initialize(uintptr_t mmapBase, size_t maxVirtualHeapSize);
 
     // Take one MS Region for mutator fresh allocation.
     MSRegionInfo* TakeRegion(uint16_t homeShardId = kMSInvalidShardId);
 
-    // Take N units for large object (Tier 1, > threshold but <= 4MB).
+    // Take N units for a large object. Every allocation above the small-object
+    // region threshold uses this contiguous-Region path.
     // unitCount = ceil(allocSize, UNIT_SIZE).
     // Returns pair: (MSRegionInfo* baseInfo, uintptr_t regionStart), or (nullptr, 0).
     MSRegionInfo* TakeRegionForLarge(size_t unitCount, uintptr_t& regionStart,
@@ -96,17 +80,12 @@ public:
     // Reclaim a large Region spanning regionBytes.
     // regionStart is the actual start address of the allocation (from TakeRegionForLarge).
     void ReclaimRegionLarge(uintptr_t regionStart, size_t regionBytes);
-    // Move a classless empty-cache region to FreeManager as hot-free supply.
-    // Physical pages are released later by BackgroundScavengeLoop Step B.
-    void ReclaimEmptyRegionToHotFree(MSRegionInfo* region);
     void ReclaimReleasedRegionsToHotFreeBatch(const std::vector<FreeManager::RegionSpan>& spans);
 
     // Try to grow the committed heap by one segment.
     // The heap-top state is managed by FreeManager; this method delegates to it.
     // Returns true if growth succeeded, false if already at max.
     bool GrowOneSegment();
-    size_t ScavengeFreeRegions(bool releaseAll);
-
     // Scavenge up to maxBytes of hot-free regions (pages returned to OS).
     // Used by BackgroundScavengeLoop for per-quantum budget control.
     size_t ScavengeFreeRegionsUpTo(size_t maxBytes);
@@ -119,13 +98,6 @@ public:
     bool HasPendingShrinkWork(const CentralRegionPool* centralPool) const;
     size_t ShrinkOneIdleSegment(CentralRegionPool* centralPool);
 
-    // O(1) address → MSRegionInfo lookup (region index = (addr - heapStart) / MS_REGION_SIZE).
-    MSRegionInfo* GetRegionInfoAt(uintptr_t addr) const
-    {
-        size_t regionIdx = (addr - heapStart_) / MS_REGION_SIZE;
-        return &array_[regionIdx];
-    }
-
     uintptr_t GetHeapStart() const { return heapStart_; }
     uintptr_t GetHeapEnd() const { return freeManager_.GetCommittedEnd(); }
     uintptr_t GetMaxHeapEnd() const { return freeManager_.GetMaxHeapEnd(); }
@@ -136,15 +108,6 @@ public:
 
     // Get the base pointer to the MSRegionInfo array (at mmap front).
     MSRegionInfo* GetArrayBase() const { return array_; }
-
-    // Shard-related queries (delegated to FreeManager).
-    size_t GetOwnedSegmentCount(uint16_t ownerShardId) const { return freeManager_.GetOwnedSegmentCount(ownerShardId); }
-    size_t GetOwnedTotalRegionCount(uint16_t ownerShardId) const { return freeManager_.GetOwnedTotalRegionCount(ownerShardId); }
-    size_t GetOwnedFreeRegionCount(uint16_t ownerShardId) const { return freeManager_.GetOwnedFreeRegionCount(ownerShardId); }
-    size_t GetScavengedRegionCount(uint16_t ownerShardId) const { return freeManager_.GetScavengedRegionCount(ownerShardId); }
-    size_t GetReusedScavengedRegionCount() const { return freeManager_.GetReusedScavengedRegionCount(); }
-    size_t GetHotFreeRegionCount(uint16_t ownerShardId) const { return freeManager_.GetHotFreeRegionCount(ownerShardId); }
-    size_t GetBorrowedRegionCount(uint16_t ownerShardId) const { return freeManager_.GetBorrowedRegionCount(ownerShardId); }
 
     // O(1) compute unit address from unit index.
     uintptr_t GetUnitAddress(UnitIndex idx) const
@@ -159,11 +122,6 @@ public:
     {
         return static_cast<uint32_t>(freeManager_.GetFreeUnitCount());
     }
-    FreeManager::RegionUsageSnapshot GetRegionUsageSnapshot() const
-    {
-        return freeManager_.GetRegionUsageSnapshot();
-    }
-
     // Unified layer-1 HEU trigger entry. MSGC now only keeps the TAKE_REGIONS path.
     void MaybeNotifyMark();
 

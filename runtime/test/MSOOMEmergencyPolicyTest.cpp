@@ -8,8 +8,6 @@
 
 namespace {
 
-using MapleRuntime::BuildMSPostMarkSweepPlan;
-using MapleRuntime::ResolveMSInitialMarkHelpers;
 using MapleRuntime::TryMSAllocationWithEmergencyRetry;
 
 void Expect(bool condition, const char* message)
@@ -18,34 +16,6 @@ void Expect(bool condition, const char* message)
         std::fprintf(stderr, "%s\n", message);
         std::abort();
     }
-}
-
-void TestNormalGCUsesConcurrentSweepHandoff()
-{
-    auto plan = BuildMSPostMarkSweepPlan(false);
-    Expect(plan.reenableAtMarkTermination, "normal GC must reopen sweep at MarkTermination");
-    Expect(!plan.parallelSweepOnceInPostMark, "normal GC must not run the OOM parallel sweep");
-    Expect(!plan.flushAllCaches, "normal GC must retain normal cache policy");
-    Expect(plan.notifyBackgroundSweep, "normal GC must notify background sweep");
-}
-
-void TestOOMGCUsesSynchronousParallelSweepOnce()
-{
-    auto plan = BuildMSPostMarkSweepPlan(true);
-    Expect(!plan.reenableAtMarkTermination, "OOM GC must keep sweep admission closed");
-    Expect(plan.parallelSweepOnceInPostMark, "OOM GC must run one synchronous parallel sweep pass");
-    Expect(plan.flushAllCaches, "OOM GC must flush all reclaimable caches");
-    Expect(!plan.notifyBackgroundSweep, "OOM GC must not schedule redundant background sweep");
-}
-
-void TestOOMMarkStartsAllConfiguredHelpers()
-{
-    Expect(ResolveMSInitialMarkHelpers(false, 2, 7) == 2,
-           "normal GC must retain the dynamically selected helper width");
-    Expect(ResolveMSInitialMarkHelpers(true, 2, 7) == 7,
-           "OOM GC must start every configured mark helper");
-    Expect(ResolveMSInitialMarkHelpers(true, 0, 0) == 0,
-           "serial OOM marking must remain valid when no helper exists");
 }
 
 void TestAllocationSuccessDoesNotRunEmergencyRecovery()
@@ -120,9 +90,6 @@ void TestGCThreadFailureDoesNotRunEmergencyRecovery()
 
 int main()
 {
-    TestNormalGCUsesConcurrentSweepHandoff();
-    TestOOMGCUsesSynchronousParallelSweepOnce();
-    TestOOMMarkStartsAllConfiguredHelpers();
     TestAllocationSuccessDoesNotRunEmergencyRecovery();
     TestAllocationRunsOneRecoveryAndOneRetry();
     TestFailedRetryDoesNotLoop();

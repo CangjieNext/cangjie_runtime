@@ -2,9 +2,9 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-SPACE_SOURCE="$ROOT_DIR/src/Heap/MAllocator/MSRegionSpace.cpp"
+ACCOUNTING_SOURCE="$ROOT_DIR/src/Heap/MCollector/MSHeapAccounting.cpp"
 
-python3 - "$SPACE_SOURCE" <<'PY'
+python3 - "$ACCOUNTING_SOURCE" <<'PY'
 from pathlib import Path
 import sys
 
@@ -24,26 +24,25 @@ def extract_function(source: str, signature: str) -> str:
 
 
 source = Path(sys.argv[1]).read_text(encoding="utf-8")
-heap_in_use = extract_function(
+retention_capture = extract_function(
     source,
-    "size_t RegionSpaceMS::GetHeapInUseBytes() const",
+    "MSHeapRetentionSnapshot CaptureMSHeapRetentionSnapshotImpl",
 )
 
-if "return GetUsedPageSize();" not in heap_in_use:
+if "GetActiveMSRegionCount()" not in retention_capture:
     raise SystemExit(
-        "GetHeapInUseBytes must reuse the incremental active-Region snapshot"
+        "retention capture must reuse the incremental active-Region aggregate"
     )
 
 for forbidden in (
     "GetRegionUsageSnapshot",
-    "GetEmptySweptRegionCount",
     "GetLargeHotCacheRegionCount",
 ):
-    if forbidden in heap_in_use:
+    if forbidden in retention_capture:
         raise SystemExit(
-            "GetHeapInUseBytes must not compute a synchronous Region snapshot: "
+            "retention capture must not compute a synchronous Region snapshot: "
             f"{forbidden}"
         )
 PY
 
-echo "MSGC heap-in-use fast-path contract holds"
+echo "MSGC heap-retention fast-path contract holds"

@@ -29,8 +29,8 @@ public:
 
     size_t GetThreshold() const { return heapThreshold.load(std::memory_order_acquire); }
     void SetThreshold(size_t val) { heapThreshold.store(val, std::memory_order_release); }
-    // Scavenge uses a low release target and a high wakeup watermark. The
-    // former is retained for compatibility with existing RegionSpace readers.
+    // Scavenge uses a low release target and a high wakeup watermark. Both
+    // values are sampled by the MSGC heap-accounting policy readers.
     size_t GetScavengeThreshold() const { return scavengeThreshold.load(std::memory_order_acquire); }
     void SetScavengeThreshold(size_t val) { scavengeThreshold.store(val, std::memory_order_release); }
     size_t GetScavengeTriggerThreshold() const

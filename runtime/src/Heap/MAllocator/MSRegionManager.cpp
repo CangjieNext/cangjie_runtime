@@ -19,8 +19,7 @@
 #include "Heap/MAllocator/MSBitmapArena.h"
 #include "Heap/MAllocator/MSCentralRegionPool.h"
 #include "Heap/MAllocator/MSRegionSpace.h"
-#include "Heap/MCollector/MSMemoryLimitPolicy.h"
-#include "Heap/MCollector/MSHeapThresholdPolicy.h"
+#include "Heap/MCollector/MSHeapAccounting.h"
 #include "Concurrency/ConcurrencyModel.h"
 #include "CangjieRuntime.h"
 #include "Base/SysCall.h"
@@ -73,30 +72,6 @@ MSRegionManager::~MSRegionManager()
     MSBitmapArena::Cleanup();
 }
 
-// ============================================================================
-// Static helpers
-// ============================================================================
-
-size_t MSRegionManager::GetRegionCount(size_t heapSize)
-{
-    size_t heapAligned = 0;
-    CHECK_DETAIL(TryRoundUpSize(heapSize, MS_REGION_SIZE, heapAligned),
-                 "[MS-GC] heap size cannot be Region-aligned safely: %zu", heapSize);
-    return heapAligned / MS_REGION_SIZE;
-}
-
-size_t MSRegionManager::GetMetadataSize(size_t heapSize)
-{
-    size_t heapAligned = 0;
-    size_t metadataSize = 0;
-    size_t totalSize = 0;
-    CHECK_DETAIL(TryComputeVirtualReserveLayout(heapSize, heapAligned, metadataSize, totalSize),
-                 "[MS-GC] virtual reserve layout overflows: heapSize=%zu", heapSize);
-    (void)heapAligned;
-    (void)totalSize;
-    return metadataSize;
-}
-
 bool MSRegionManager::TryComputeVirtualReserveLayout(size_t heapSize,
                                                      size_t& heapAligned,
                                                      size_t& metadataSize,
@@ -125,38 +100,6 @@ bool MSRegionManager::TryComputeVirtualReserveLayout(size_t heapSize,
     return true;
 }
 
-size_t MSRegionManager::GetHeapMemorySize(size_t heapSize)
-{
-    size_t heapAligned = 0;
-    size_t metadataSize = 0;
-    size_t totalSize = 0;
-    CHECK_DETAIL(TryComputeVirtualReserveLayout(heapSize, heapAligned, metadataSize, totalSize),
-                 "[MS-GC] heap memory layout overflows: heapSize=%zu", heapSize);
-    return totalSize;
-}
-
-size_t MSRegionManager::ComputeMaxVirtualHeapSize(size_t heapSize, size_t requestedVirtualHeapSize)
-{
-    size_t minVirtualHeapSize = 0;
-    size_t configuredVirtualHeapSize = 0;
-    CHECK_DETAIL(TryRoundUpSize(heapSize, MS_REGION_SIZE, minVirtualHeapSize) &&
-                     TryRoundUpSize(requestedVirtualHeapSize, MS_REGION_SIZE, configuredVirtualHeapSize),
-                 "[MS-GC] max virtual heap alignment overflows: initial=%zu configured=%zu",
-                 heapSize, requestedVirtualHeapSize);
-    return std::max(minVirtualHeapSize, configuredVirtualHeapSize);
-}
-
-size_t MSRegionManager::GetVirtualReserveSize(size_t maxVirtualHeapSize)
-{
-    size_t heapAligned = 0;
-    size_t metadataSize = 0;
-    size_t totalSize = 0;
-    CHECK_DETAIL(TryComputeVirtualReserveLayout(
-                     maxVirtualHeapSize, heapAligned, metadataSize, totalSize),
-                 "[MS-GC] virtual reserve layout overflows: maxVirtual=%zu", maxVirtualHeapSize);
-    return totalSize;
-}
-
 // ============================================================================
 // Initialize — virtual reservation + initial committed segment
 // ============================================================================
@@ -178,7 +121,6 @@ void MSRegionManager::Initialize(uintptr_t mmapBase, size_t maxVirtualHeapSize)
                  maxVirtualHeapSize);
     (void)totalReserveSize;
     size_t maxVirtualRegionCount = maxHeapAligned / MS_REGION_SIZE;
-    size_t maxVirtualUnitCount = maxHeapAligned / unitSize_;
 
     // --- Initial committed heap: independently configured 64MB segments ---
     size_t segmentSize = RoundUp<size_t>(kMSShardSegmentBytes, MS_REGION_SIZE);
@@ -193,7 +135,6 @@ void MSRegionManager::Initialize(uintptr_t mmapBase, size_t maxVirtualHeapSize)
                  "initialSegmentCount=%zu",
                  committedHeapSize, maxHeapAligned, scaleConfig.initialSegmentCount);
     size_t committedRegionCount = committedHeapSize / MS_REGION_SIZE;
-    size_t committedUnitCount = committedHeapSize / unitSize_;
 
     // Memory layout: [MSRegionInfo[maxVirtualRegionCount] | Heap[maxHeapAligned]]
     //                ^mmapBase                            ^heapStart             ^maxHeapEnd
@@ -215,17 +156,12 @@ void MSRegionManager::Initialize(uintptr_t mmapBase, size_t maxVirtualHeapSize)
                             heapStart_, committedEnd, maxHeapEnd, segmentSize, shardCount);
     MSBitmapArena::Init(maxVirtualRegionCount);
 
-    VLOG(REPORT, "[MS-GC] MSRegionManager initialized (virtual reserve): mmapBase=0x%zx, "
-        "maxMetadata=%zuKB, heapStart=0x%zx, committedEnd=0x%zx, maxHeapEnd=0x%zx, "
-        "committedRegions=%zu, maxVirtualRegions=%zu, shardCount=%u, processorsPerShard=%u, "
-        "initialSegmentCount=%zu, segmentSize=%zuMB, "
-        "committedUnits=%zu, maxVirtualUnits=%zu, unitsPerMSRegion=%zu",
-        mmapBase, maxMetadataSize / 1024,
-        heapStart_, committedEnd, maxHeapEnd,
-        committedRegionCount, maxVirtualRegionCount, shardCount, scaleConfig.processorsPerShard,
-        scaleConfig.initialSegmentCount,
-        segmentSize / (1024 * 1024),
-        committedUnitCount, maxVirtualUnitCount, unitsPerMSRegion_);
+    VLOG(REPORT,
+         "[MS-GC] heap initialized: committedRegions=%zu committed=%.2fMB maxVirtualRegions=%zu "
+         "segment=%.2fMB shards=%u processorsPerShard=%u heap=[0x%zx,0x%zx)",
+         committedRegionCount, MSBytesToMB(committedHeapSize), maxVirtualRegionCount,
+         MSBytesToMB(segmentSize), shardCount, scaleConfig.processorsPerShard,
+         heapStart_, maxHeapEnd);
 }
 
 void MSRegionManager::InitializeFreshRegions(RegionIndex startIdx, RegionCount count)
@@ -276,20 +212,18 @@ void MSRegionManager::MaybeNotifyScavenge()
 
     Collector& collector = Heap::GetHeap().GetCollector();
     const GCStats& gcStats = collector.GetGCStats();
-    size_t scavengeThreshold = gcStats.GetScavengeThreshold();
-    size_t scavengeTriggerThreshold = gcStats.GetScavengeTriggerThreshold();
-    if (scavengeThreshold == 0 || scavengeTriggerThreshold == 0) {
-        return;
-    }
-
     const RegionSpaceMS& space = static_cast<RegionSpaceMS&>(Heap::GetHeap().GetAllocator());
     const CentralRegionPool* pool = space.GetCentralPool();
     if (pool == nullptr) {
         return;
     }
 
-    size_t heapRetained = space.GetHeapRetainedBytes();
-    if (heapRetained <= scavengeTriggerThreshold) {
+    MSHeapRetentionSnapshot retention = CaptureMSHeapRetentionSnapshot(space);
+    MSHeapPolicySnapshot policy = LoadMSHeapPolicySnapshot(gcStats);
+    if (policy.scavengeLowBytes == 0 || policy.scavengeHighBytes == 0) {
+        return;
+    }
+    if (retention.RetainedBytes() <= policy.scavengeHighBytes) {
         return;
     }
     bool expectedProbe = false;
@@ -297,16 +231,27 @@ void MSRegionManager::MaybeNotifyScavenge()
             expectedProbe, true, std::memory_order_acquire, std::memory_order_relaxed)) {
         return;
     }
-    // Aggregate counters keep the Region acquisition path O(1). Confirm only
-    // a threshold crossing with the retained reference scan so a transient
-    // cross-counter transfer cannot cause a spurious wakeup.
-    if (!space.HasPendingScavengeWork()) {
+    // Aggregate counters keep the Region acquisition path O(1). Re-sample the
+    // Scavenge release target after winning the probe so a concurrent cache
+    // transfer cannot cause a stale wakeup.
+    retention = CaptureMSHeapRetentionSnapshot(space);
+    policy = LoadMSHeapPolicySnapshot(gcStats);
+    size_t releaseTargetBytes = ComputeMSScavengeReleaseTarget(retention, policy);
+    if (releaseTargetBytes == 0) {
         scavengePressureProbeInProgress_.store(false, std::memory_order_release);
         return;
     }
 
     BackgroundProcessor& bp = Heap::GetHeap().GetCollectorResources().GetBackgroundProcessor();
-    bp.NotifyToScavenge();
+    if (bp.NotifyToScavenge()) {
+        VLOG(REPORT,
+             "[MS-GC] Scavenge notify accepted: source=allocation-pressure "
+             "retained=%.2fMB reclaimable=%.2fMB low=%.2fMB high=%.2fMB target=%.2fMB",
+             MSBytesToMB(retention.RetainedBytes()),
+             MSBytesToMB(retention.ReclaimableBytes()),
+             MSBytesToMB(policy.scavengeLowBytes),
+             MSBytesToMB(policy.scavengeHighBytes), MSBytesToMB(releaseTargetBytes));
+    }
     scavengePressureProbeInProgress_.store(false, std::memory_order_release);
 }
 
@@ -328,25 +273,16 @@ void MSRegionManager::MaybeNotifyMark()
     // (partialSwept + fullSwept + large region spans). A configured soft limit
     // uses retained physical-heap policy bytes so hot-free pages can request a
     // synchronous recovery before virtual allocation fails.
-    size_t sweptBytes = space.GetSweptHeapBytes();
-    size_t lastMarkOutsideBytes = gcStats.GetLastMarkOutsideBytes();
-    size_t effectiveSweptBytes = SaturatingSubtractMSBytes(sweptBytes, lastMarkOutsideBytes);
-    size_t threshold = gcStats.GetThreshold();
-    size_t retainedBytes = space.GetHeapRetainedBytesReference();
-    MSMarkTrigger trigger = ResolveMSMarkTrigger(
-        retainedBytes, effectiveSweptBytes, threshold,
-        CangjieRuntime::GetMSSoftHeapLimitBytes());
+    MSHeapRetentionSnapshot retention = CaptureMSHeapRetentionSnapshot(space);
+    MSSweepProgressSnapshot sweep = CaptureMSSweepProgressSnapshot(*pool);
+    MSHeapPolicySnapshot policy = LoadMSHeapPolicySnapshot(gcStats);
+    MSMarkTriggerDecision markDecision = EvaluateMSMarkTrigger(retention, sweep, policy);
 
-    if (trigger == MSMarkTrigger::NONE) {
+    if (markDecision.trigger == MSMarkTrigger::NONE) {
         return;
     }
 
-    if (trigger == MSMarkTrigger::OOM) {
-        VLOG(REPORT,
-             "[MS-GC] soft-limit OOM trigger (take-regions): retained=%zuB "
-             "swept=%zuB heapThreshold=%zuB softLimit=%zuB",
-             retainedBytes, sweptBytes, threshold,
-             CangjieRuntime::GetMSSoftHeapLimitBytes());
+    if (markDecision.trigger == MSMarkTrigger::OOM) {
         collector.RequestGC(GC_REASON_OOM, false);
         return;
     }
@@ -361,21 +297,31 @@ void MSRegionManager::MaybeNotifyMark()
     if (pressureMode != SweepPressureMode::LOW) {
         BackgroundProcessor& backgroundProcessor =
             Heap::GetHeap().GetCollectorResources().GetBackgroundProcessor();
-        backgroundProcessor.NotifyToParallelSweep();
-        VLOG(REPORT,
-             "[MS-GC] HEU waking parallel Sweep: swept=%zuB outsideMark=%zuB "
-             "effectiveSwept=%zuB threshold=%zuB mode=%d",
-             sweptBytes, lastMarkOutsideBytes, effectiveSweptBytes,
-             threshold, static_cast<int>(pressureMode));
+        if (backgroundProcessor.NotifyToParallelSweep()) {
+            VLOG(REPORT,
+                 "[MS-GC] Sweep notify accepted: source=mark-pressure epoch=%u "
+                 "pressure=%u unsweptRegions=%zu unswept=%.2fMB swept=%.2fMB threshold=%.2fMB",
+                 sweep.epochId, static_cast<unsigned>(pressureMode),
+                 sweep.unsweptRegions, MSBytesToMB(sweep.unsweptBytes),
+                 MSBytesToMB(sweep.sweptBytes), MSBytesToMB(policy.markThresholdBytes));
+        }
     }
 
-    collector.RequestGC(GC_REASON_HEU, true);
-    VLOG(REPORT,
-         "[MS-GC] HEU trigger (take-regions): swept=%zuB outsideMark=%zuB "
-         "effectiveSwept=%zuB heapThreshold=%zuB retained=%zuB softLimit=%zuB "
-         "reason=GC_REASON_HEU",
-         sweptBytes, lastMarkOutsideBytes, effectiveSweptBytes, threshold, retainedBytes,
-         CangjieRuntime::GetMSSoftHeapLimitBytes());
+    CollectorResources& resources = Heap::GetHeap().GetCollectorResources();
+    if (resources.TryRequestAsyncGC(GC_REASON_HEU) ==
+        AsyncGCEnqueueResult::ACCEPTED) {
+        VLOG(REPORT,
+             "[MS-GC] Mark notify accepted: reason=heuristic trigger=%u epoch=%u "
+             "retained=%.2fMB swept=%.2fMB outsideMark=%.2fMB "
+             "effectiveSwept=%.2fMB threshold=%.2fMB softLimit=%.2fMB",
+             static_cast<unsigned>(markDecision.trigger), sweep.epochId,
+             MSBytesToMB(markDecision.retainedBytes),
+             MSBytesToMB(markDecision.sweptBytes),
+             MSBytesToMB(markDecision.outsideMarkBytes),
+             MSBytesToMB(markDecision.effectiveSweptBytes),
+             MSBytesToMB(markDecision.thresholdBytes),
+             MSBytesToMB(markDecision.softLimitBytes));
+    }
 }
 
 // ============================================================================
@@ -488,27 +434,9 @@ void MSRegionManager::ReclaimRegionLarge(uintptr_t regionStart, size_t regionByt
     freeManager_.ReclaimRegionsReleased(regionIdx, regionCount);
 }
 
-void MSRegionManager::ReclaimEmptyRegionToHotFree(MSRegionInfo* region)
-{
-    size_t regionIdx = static_cast<size_t>(region - array_);
-    CHECK_DETAIL(region->IsFreeRegion(),
-                 "[MS-GC] ReclaimEmptyRegionToHotFree: bad regionType=%u idx=%zu",
-                 static_cast<unsigned>(region->GetRegionType()), regionIdx);
-
-    region->Reset();
-    DLOG(REGION, "[MS-GC] ReclaimEmptyRegionToHotFree: regionIdx=%zu ownerShard=%u",
-         regionIdx, freeManager_.ResolveOwnerShardId(static_cast<RegionIndex>(regionIdx)));
-    freeManager_.ReclaimRegionsReleased(static_cast<RegionIndex>(regionIdx), 1);
-}
-
 void MSRegionManager::ReclaimReleasedRegionsToHotFreeBatch(const std::vector<FreeManager::RegionSpan>& spans)
 {
     freeManager_.ReclaimRegionsReleasedBatch(spans);
-}
-
-size_t MSRegionManager::ScavengeFreeRegions(bool releaseAll)
-{
-    return freeManager_.ScavengeFreeRegions(releaseAll);
 }
 
 size_t MSRegionManager::ScavengeFreeRegionsUpTo(size_t maxBytes)
@@ -634,10 +562,12 @@ size_t MSRegionManager::ShrinkOneIdleSegment(CentralRegionPool* centralPool)
         size_t released = freeManager_.ReleaseCompletelyFreeSegment(segmentIdx);
         if (released != 0) {
             VLOG(REPORT,
-                 "[MS-GC] shrink segment: seg=%zu regions=%zu released=%zuB",
+                 "[MS-GC] segment release: condition=idle+all-free+hot-free seg=%zu "
+                 "regions=%zu released=%.2fMB committedRegions=%zu capacity=%.2fMB",
                  segmentIdx,
                  snapshot.validRegions,
-                 released);
+                 MSBytesToMB(released), freeManager_.GetCommittedRegionCount(),
+                 MSBytesToMB(freeManager_.GetCurrentCapacityBytes()));
             return released;
         }
     }

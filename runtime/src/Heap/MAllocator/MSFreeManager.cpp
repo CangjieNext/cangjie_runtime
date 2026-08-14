@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <cerrno>
 #include <cstring>
+#include <sstream>
 #include <thread>
 
 #ifndef _WIN64
@@ -21,6 +22,7 @@
 
 #include "Base/Log.h"
 #include "Base/MemUtils.h"
+#include "Heap/MCollector/MSHeapAccounting.h"
 #include "Heap/MCollector/MSMemoryLimitPolicy.h"
 
 namespace MapleRuntime {
@@ -103,7 +105,11 @@ FreeManager::OwnedSegmentView FreeManager::BuildOwnedSegmentView(size_t segmentI
 
 void FreeManager::AttachOwnedSegmentLocked(FreeManagerShard& shard, size_t segmentIdx, RegionCount regionCount)
 {
-    shard.ownedSegments_.push_back(segmentIdx);
+    CHECK_DETAIL(shard.ownedViews_.empty() ||
+                     shard.ownedViews_.back().segmentIdx_ < segmentIdx,
+                 "[MS-GC] owned segment views must be appended in segment order: previous=%zu current=%zu",
+                 shard.ownedViews_.empty() ? 0 : shard.ownedViews_.back().segmentIdx_,
+                 segmentIdx);
     OwnedSegmentView view = BuildOwnedSegmentView(segmentIdx, regionCount);
     shard.freeRegionCount_ += regionCount;
     shard.ownedViews_.push_back(view);
@@ -115,11 +121,10 @@ void FreeManager::AttachOwnedSegmentLocked(FreeManagerShard& shard, size_t segme
 
 void FreeManager::DetachOwnedSegmentLocked(FreeManagerShard& shard)
 {
-    if (shard.ownedSegments_.empty() || shard.ownedViews_.empty()) {
+    if (shard.ownedViews_.empty()) {
         return;
     }
 
-    shard.ownedSegments_.pop_back();
     shard.ownedViews_.pop_back();
     shard.fastTakeHintValid_ = false;
     if (shard.ownedViews_.empty()) {
@@ -144,6 +149,39 @@ const FreeManager::FreeManagerShard& FreeManager::GetShard(uint16_t ownerShardId
     CHECK_DETAIL(!shards_.empty(), "[MS-GC] shard state is not initialized");
     ownerShardId = static_cast<uint16_t>(static_cast<uint32_t>(ownerShardId) % shardCount_);
     return shards_[ownerShardId];
+}
+
+void FreeManager::PublishCommittedTopology(size_t committedRegionCount, uintptr_t committedEnd)
+{
+    // Region views and their owner table entries must be initialized before a
+    // reader can observe this boundary. Publish the count last so readers that
+    // acquire it also observe the preceding topology writes.
+    committedEnd_.store(committedEnd, std::memory_order_release);
+    committedRegionCount_.store(committedRegionCount, std::memory_order_release);
+}
+
+std::string FreeManager::DescribeCommittedShardSegmentsLocked(
+    size_t committedSegmentCount) const
+{
+    std::vector<size_t> shardSegments(shardCount_, 0);
+    size_t segmentLimit = std::min(committedSegmentCount, segmentOwnerShard_.size());
+    for (size_t segmentIdx = 0; segmentIdx < segmentLimit; ++segmentIdx) {
+        uint16_t ownerShardId = segmentOwnerShard_[segmentIdx];
+        if (ownerShardId < shardSegments.size()) {
+            ++shardSegments[ownerShardId];
+        }
+    }
+
+    std::ostringstream stream;
+    stream << '[';
+    for (size_t shardIdx = 0; shardIdx < shardSegments.size(); ++shardIdx) {
+        if (shardIdx != 0) {
+            stream << ',';
+        }
+        stream << shardIdx << ':' << shardSegments[shardIdx];
+    }
+    stream << ']';
+    return stream.str();
 }
 
 bool FreeManager::FindNonEmptyShardInRange(uint16_t receiverShardId,
@@ -249,9 +287,9 @@ void FreeManager::Initialize(size_t unitSize, size_t unitsPerRegion, RegionCount
     unitSize_ = unitSize;
     unitsPerRegion_ = unitsPerRegion;
     heapStart_ = heapStart;
-    committedEnd_ = committedEnd;
+    committedEnd_.store(committedEnd, std::memory_order_relaxed);
     maxHeapEnd_ = maxHeapEnd;
-    committedRegionCount_ = static_cast<size_t>(committedRegionCount);
+    committedRegionCount_.store(static_cast<size_t>(committedRegionCount), std::memory_order_relaxed);
     maxVirtualRegionCount_ = static_cast<size_t>(maxVirtualRegionCount);
     segmentSize_ = segmentSize;
     shardCount_ = NormalizeMSShardCount(shardCount);
@@ -260,7 +298,6 @@ void FreeManager::Initialize(size_t unitSize, size_t unitsPerRegion, RegionCount
                  "[MS-GC] FreeManager segmentRegionCount must not be zero, segmentSize=%zu regionSize=%zu",
                  segmentSize_, GetRegionSizeBytes());
     totalHotFreeRegions_.store(0, std::memory_order_relaxed);
-    reusedScavengedRegionCount_.store(0, std::memory_order_relaxed);
     availabilityGeneration_.store(0, std::memory_order_relaxed);
     scavengeEpoch_.store(1, std::memory_order_relaxed);
     shards_.clear();
@@ -469,6 +506,10 @@ bool FreeManager::GrowOneSegmentLocked(uint16_t ownerShardId, HeapRangeHandler& 
     RegionIndex oldRegionCount = static_cast<RegionIndex>(committedRegionCount_);
     size_t newCommittedRegionCount = committedRegionCount_ + static_cast<size_t>(growRegions);
     size_t oldCommittedRegionCount = committedRegionCount_;
+    size_t oldCommittedSegmentCount =
+        (oldCommittedRegionCount + segmentRegionCount_ - 1) / segmentRegionCount_;
+    size_t newCommittedSegmentCount =
+        (newCommittedRegionCount + segmentRegionCount_ - 1) / segmentRegionCount_;
     ownerShardId = static_cast<uint16_t>(static_cast<uint32_t>(ownerShardId) % shardCount_);
 
     handler.InitializeFreshRegions(oldRegionCount, growRegions);
@@ -485,8 +526,6 @@ bool FreeManager::GrowOneSegmentLocked(uint16_t ownerShardId, HeapRangeHandler& 
             std::this_thread::yield();
             continue;
         }
-        committedRegionCount_ = newCommittedRegionCount;
-        committedEnd_ = oldCommittedEnd + growBytes;
         size_t growStartSegmentIdx = static_cast<size_t>(oldRegionCount) / segmentRegionCount_;
         size_t growEndRegion = oldCommittedRegionCount + static_cast<size_t>(growRegions);
         size_t growEndSegmentIdx = (growEndRegion + segmentRegionCount_ - 1) / segmentRegionCount_;
@@ -507,6 +546,7 @@ bool FreeManager::GrowOneSegmentLocked(uint16_t ownerShardId, HeapRangeHandler& 
                 }
             }
         }
+        PublishCommittedTopology(newCommittedRegionCount, oldCommittedEnd + growBytes);
         if (shardState.ownedViews_.size() == 1) {
             shardState.takeCursor_ = oldRegionCount;
         } else {
@@ -518,7 +558,18 @@ bool FreeManager::GrowOneSegmentLocked(uint16_t ownerShardId, HeapRangeHandler& 
         break;
     }
 
-    handler.OnCommittedHeapExtended(committedEnd_);
+    handler.OnCommittedHeapExtended(oldCommittedEnd + growBytes);
+    std::string shardSegments =
+        DescribeCommittedShardSegmentsLocked(newCommittedSegmentCount);
+    VLOG(REPORT,
+         "[MS-GC] heap grow: condition=one-segment-demand requestRegions=%u ownerShard=%u "
+         "segments=%zu->%zu shardSegments=%s committedRegions=%zu->%zu "
+         "capacity=%.2fMB->%.2fMB",
+         static_cast<unsigned>(growRegions), static_cast<unsigned>(ownerShardId),
+         oldCommittedSegmentCount, newCommittedSegmentCount, shardSegments.c_str(),
+         oldCommittedRegionCount, newCommittedRegionCount,
+         MSBytesToMB(static_cast<size_t>(oldCommittedEnd - heapStart_)),
+         MSBytesToMB(static_cast<size_t>(oldCommittedEnd + growBytes - heapStart_)));
     return true;
 }
 
@@ -527,19 +578,20 @@ bool FreeManager::GrowAndTakeRegionsLocked(RegionCount numRegions,
                                            RegionIndex& idx,
                                            HeapRangeHandler& handler)
 {
-    if (numRegions == 0 || committedEnd_ >= maxHeapEnd_) {
+    uintptr_t oldCommittedEnd = committedEnd_.load(std::memory_order_acquire);
+    if (numRegions == 0 || oldCommittedEnd >= maxHeapEnd_) {
         return false;
     }
 
     size_t regionSize = GetRegionSizeBytes();
-    size_t remainingRegions = (maxHeapEnd_ - committedEnd_) / regionSize;
+    size_t remainingRegions = (maxHeapEnd_ - oldCommittedEnd) / regionSize;
     if (static_cast<size_t>(numRegions) > remainingRegions) {
         return false;
     }
 
     size_t growSegmentCount =
         (static_cast<size_t>(numRegions) + segmentRegionCount_ - 1) / segmentRegionCount_;
-    size_t remainingBytes = maxHeapEnd_ - committedEnd_;
+    size_t remainingBytes = maxHeapEnd_ - oldCommittedEnd;
     size_t growBytes = std::min(growSegmentCount * segmentSize_, remainingBytes);
     RegionCount growRegions = static_cast<RegionCount>(growBytes / regionSize);
     if (growRegions < numRegions) {
@@ -553,7 +605,11 @@ bool FreeManager::GrowAndTakeRegionsLocked(RegionCount numRegions,
                  oldRegionCount, segmentRegionCount_);
     size_t oldCommittedRegionCount = committedRegionCount_;
     size_t newCommittedRegionCount = oldCommittedRegionCount + static_cast<size_t>(growRegions);
-    uintptr_t newCommittedEnd = committedEnd_ + growBytes;
+    size_t oldCommittedSegmentCount =
+        (oldCommittedRegionCount + segmentRegionCount_ - 1) / segmentRegionCount_;
+    size_t newCommittedSegmentCount =
+        (newCommittedRegionCount + segmentRegionCount_ - 1) / segmentRegionCount_;
+    uintptr_t newCommittedEnd = oldCommittedEnd + growBytes;
     ownerShardId = static_cast<uint16_t>(static_cast<uint32_t>(ownerShardId) % shardCount_);
 
     handler.InitializeFreshRegions(oldRegionCount, growRegions);
@@ -568,8 +624,6 @@ bool FreeManager::GrowAndTakeRegionsLocked(RegionCount numRegions,
             continue;
         }
 
-        committedRegionCount_ = newCommittedRegionCount;
-        committedEnd_ = newCommittedEnd;
         size_t growStartSegmentIdx = oldCommittedRegionCount / segmentRegionCount_;
         size_t growEndSegmentIdx =
             (newCommittedRegionCount + segmentRegionCount_ - 1) / segmentRegionCount_;
@@ -589,6 +643,7 @@ bool FreeManager::GrowAndTakeRegionsLocked(RegionCount numRegions,
             }
         }
 
+        PublishCommittedTopology(newCommittedRegionCount, newCommittedEnd);
         bool reusedScavenged = false;
         MarkAllocatedLocked(shardState, oldRegionCount, numRegions, reusedScavenged);
         CHECK_DETAIL(!reusedScavenged, "[MS-GC] freshly grown Regions must not be scavenged");
@@ -603,7 +658,18 @@ bool FreeManager::GrowAndTakeRegionsLocked(RegionCount numRegions,
         break;
     }
 
-    handler.OnCommittedHeapExtended(committedEnd_);
+    handler.OnCommittedHeapExtended(newCommittedEnd);
+    std::string shardSegments =
+        DescribeCommittedShardSegmentsLocked(newCommittedSegmentCount);
+    VLOG(REPORT,
+         "[MS-GC] heap grow: condition=stable-no-free-supply requestRegions=%u ownerShard=%u "
+         "segments=%zu->%zu shardSegments=%s committedRegions=%zu->%zu "
+         "capacity=%.2fMB->%.2fMB",
+         static_cast<unsigned>(numRegions), static_cast<unsigned>(ownerShardId),
+         oldCommittedSegmentCount, newCommittedSegmentCount, shardSegments.c_str(),
+         oldCommittedRegionCount, newCommittedRegionCount,
+         MSBytesToMB(static_cast<size_t>(oldCommittedEnd - heapStart_)),
+         MSBytesToMB(static_cast<size_t>(newCommittedEnd - heapStart_)));
     return true;
 }
 
@@ -643,25 +709,6 @@ bool FreeManager::TryTakeOrGrowRegions(RegionCount num,
     return GrowAndTakeRegionsLocked(num, homeShardId, idx, handler);
 }
 
-// GrowForRegions — grow enough segments to hold numRegions contiguous regions,
-// all assigned to ownerShardId, under a single growMutex_ acquisition so that
-// the resulting segments are physically adjacent in the heap.
-bool FreeManager::GrowForRegions(RegionCount numRegions, uint16_t ownerShardId, HeapRangeHandler& handler)
-{
-    size_t numSegments = (segmentRegionCount_ > 0)
-        ? (static_cast<size_t>(numRegions) + segmentRegionCount_ - 1) / segmentRegionCount_
-        : 1;
-    std::lock_guard<std::mutex> growLock(growMutex_);
-    bool grew = false;
-    for (size_t i = 0; i < numSegments; ++i) {
-        if (!GrowOneSegmentLocked(ownerShardId, handler)) {
-            break;
-        }
-        grew = true;
-    }
-    return grew;
-}
-
 void FreeManager::ShrinkHeap()
 {
     std::lock_guard<std::mutex> growLock(growMutex_);
@@ -684,7 +731,7 @@ void FreeManager::ShrinkHeap()
     for (uint32_t shardIdx = 0; shardIdx < shardCount_; ++shardIdx) {
         FreeManagerShard& shard = GetShard(static_cast<uint16_t>(shardIdx));
         std::lock_guard<std::mutex> shardLock(shard.shardMutex_);
-        shardOwnedCounts[shardIdx] = shard.ownedSegments_.size();
+        shardOwnedCounts[shardIdx] = shard.ownedViews_.size();
         if (shardOwnedCounts[shardIdx] != 0) {
             ++shardsWithOwnedSegments;
         }
@@ -722,6 +769,10 @@ void FreeManager::ShrinkHeap()
     size_t shrinkRegions = shrinkSegments * segmentRegionCount_;
     RegionIndex shrinkStart = static_cast<RegionIndex>(committedRegionCount_ - shrinkRegions);
     size_t shrinkStartSegmentIdx = committedSegmentCount - shrinkSegments;
+    size_t newCommittedRegionCount =
+        committedRegionCount_.load(std::memory_order_relaxed) - shrinkRegions;
+    uintptr_t newCommittedEnd =
+        committedEnd_.load(std::memory_order_relaxed) - shrinkBytes;
 
     if (!ReleaseUnits(RegionToUnitIdx(shrinkStart),
                       RegionCountToUnitCount(static_cast<RegionCount>(shrinkRegions)))) {
@@ -729,7 +780,7 @@ void FreeManager::ShrinkHeap()
     }
 
     // Process each segment from highest index to lowest so that when each segment is processed,
-    // it is still at back() of its owning shard's ownedSegments_ (higher segments have already
+    // it is still at back() of its owning shard's ownedViews_ (higher segments have already
     // been detached).  This allows DetachOwnedSegmentLocked to remove the correct entry even
     // when the shrink range spans segments owned by different shards.
     for (size_t segIdx = shrinkStartSegmentIdx + shrinkSegments; segIdx-- > shrinkStartSegmentIdx; ) {
@@ -740,9 +791,6 @@ void FreeManager::ShrinkHeap()
         MarkUnavailableLocked(shard, segStart, static_cast<RegionCount>(segmentRegionCount_));
         DetachOwnedSegmentLocked(shard);
     }
-
-    committedRegionCount_ -= shrinkRegions;
-    committedEnd_ -= shrinkBytes;
 
     // Fix up cursors for every shard that lost at least one segment.
     std::vector<bool> shardVisited(shardCount_, false);
@@ -756,28 +804,21 @@ void FreeManager::ShrinkHeap()
         }
         FreeManagerShard& shard = GetShard(shardId);
         std::lock_guard<std::mutex> shardLock(shard.shardMutex_);
-        if (shard.ownedSegments_.empty()) {
-            shard.takeCursor_ = static_cast<RegionIndex>(committedRegionCount_);
-            shard.reclaimCursor_ = static_cast<RegionIndex>(committedRegionCount_);
+        if (shard.ownedViews_.empty()) {
+            shard.takeCursor_ = static_cast<RegionIndex>(newCommittedRegionCount);
+            shard.reclaimCursor_ = static_cast<RegionIndex>(newCommittedRegionCount);
         } else {
-            if (shard.takeCursor_ >= committedRegionCount_) {
-                shard.takeCursor_ = FindNextOwnedFreeRegionLocked(shard, 0);
+            if (shard.takeCursor_ >= newCommittedRegionCount) {
+                shard.takeCursor_ = std::min(
+                    FindNextOwnedFreeRegionLocked(shard, 0),
+                    static_cast<RegionIndex>(newCommittedRegionCount));
             }
             shard.reclaimCursor_ = std::min(shard.reclaimCursor_,
-                                             static_cast<RegionIndex>(committedRegionCount_));
+                                             static_cast<RegionIndex>(newCommittedRegionCount));
         }
         RefreshRegionSnapshotsLocked(shard);
     }
-}
-
-size_t FreeManager::ScavengeFreeRegions(bool releaseAll)
-{
-    if (committedRegionCount_ == 0) {
-        return 0;
-    }
-
-    size_t regionBudget = releaseAll ? committedRegionCount_ : std::max<size_t>(1, segmentSize_ / GetRegionSizeBytes());
-    return ScavengeFreeRegionsByRegionBudget(regionBudget) * GetRegionSizeBytes();
+    PublishCommittedTopology(newCommittedRegionCount, newCommittedEnd);
 }
 
 size_t FreeManager::ScavengeFreeRegionsByRegionBudget(size_t regionBudget)
@@ -835,25 +876,6 @@ FreeManager::UnitCount FreeManager::GetFreeUnitCount() const
     return static_cast<UnitCount>(totalFreeRegions * unitsPerRegion_);
 }
 
-FreeManager::RegionUsageSnapshot FreeManager::GetRegionUsageSnapshot() const
-{
-    RegionUsageSnapshot snapshot;
-    // Keep the committed boundary stable while the per-shard free counts are
-    // sampled. Region allocation/reclaim may still move individual counts
-    // during this slow-path snapshot, so callers must use saturating subtraction.
-    // A Region claimed by OS Scavenge is still logically free even though it is
-    // temporarily removed from freeRegionCount_ until the release completes.
-    std::lock_guard<std::mutex> growLock(growMutex_);
-    snapshot.committedRegions = committedRegionCount_;
-    for (uint32_t shardIdx = 0; shardIdx < shardCount_; ++shardIdx) {
-        const FreeManagerShard& shardState = GetShard(static_cast<uint16_t>(shardIdx));
-        std::lock_guard<std::mutex> shardLock(shardState.shardMutex_);
-        snapshot.freeRegions +=
-            shardState.freeRegionCount_ + shardState.scavengingRegionCount_;
-    }
-    return snapshot;
-}
-
 size_t FreeManager::GetOwnedFreeRegionCount(uint16_t ownerShardId) const
 {
     const FreeManagerShard& shardState = GetShard(ownerShardId);
@@ -874,29 +896,11 @@ size_t FreeManager::GetHotFreeRegionCount(uint16_t ownerShardId) const
     return shardState.snapHotFreeRegions_.load(std::memory_order_relaxed);
 }
 
-size_t FreeManager::GetBorrowedRegionCount(uint16_t receiverShardId) const
-{
-    const FreeManagerShard& shardState = GetShard(receiverShardId);
-    std::lock_guard<std::mutex> lg(shardState.shardMutex_);
-    return shardState.borrowedRegionCount_;
-}
-
 size_t FreeManager::GetOwnedSegmentCount(uint16_t ownerShardId) const
 {
     const FreeManagerShard& shardState = GetShard(ownerShardId);
     std::lock_guard<std::mutex> lg(shardState.shardMutex_);
-    return shardState.ownedSegments_.size();
-}
-
-size_t FreeManager::GetOwnedTotalRegionCount(uint16_t ownerShardId) const
-{
-    const FreeManagerShard& shardState = GetShard(ownerShardId);
-    std::lock_guard<std::mutex> lg(shardState.shardMutex_);
-    size_t total = 0;
-    for (const OwnedSegmentView& view : shardState.ownedViews_) {
-        total += static_cast<size_t>(view.regionEnd_ - view.regionStart_);
-    }
-    return total;
+    return shardState.ownedViews_.size();
 }
 
 size_t FreeManager::GetHotFreeBytes() const
@@ -1197,30 +1201,6 @@ uint16_t FreeManager::ResolveOwnerShardIdLocked(RegionIndex idx) const
     return segmentOwnerShard_[segmentIdx];
 }
 
-FreeManager::RegionIndex FreeManager::FindNextFreeRegionLocked(RegionIndex start) const
-{
-    if (start >= committedRegionCount_) {
-        return static_cast<RegionIndex>(committedRegionCount_);
-    }
-
-    size_t startSegmentIdx = static_cast<size_t>(start) / segmentRegionCount_;
-    size_t committedSegmentCount = (committedRegionCount_ + segmentRegionCount_ - 1) / segmentRegionCount_;
-    for (size_t segmentIdx = startSegmentIdx; segmentIdx < committedSegmentCount; ++segmentIdx) {
-        uint16_t ownerShardId = segmentOwnerShard_[segmentIdx];
-        const FreeManagerShard& shardState = GetShard(ownerShardId);
-        const OwnedSegmentView* view = FindOwnedSegmentViewBySegmentIdxLocked(shardState, segmentIdx);
-        if (view == nullptr) {
-            continue;
-        }
-        RegionIndex probeStart = std::max(start, view->regionStart_);
-        RegionIndex candidate = FindFirstFreeRegionInViewLocked(*view, probeStart);
-        if (candidate < std::min(view->regionEnd_, static_cast<RegionIndex>(committedRegionCount_))) {
-            return candidate;
-        }
-    }
-    return static_cast<RegionIndex>(committedRegionCount_);
-}
-
 FreeManager::RegionIndex FreeManager::FindNextOwnedFreeRegionLocked(const FreeManagerShard& shard, RegionIndex start) const
 {
     if (shard.ownedViews_.empty()) {
@@ -1461,44 +1441,6 @@ bool FreeManager::TryTakeBorrowedRegionLocked(FreeManagerShard& shard, RegionInd
     return false;
 }
 
-bool FreeManager::TryTakeOneRegionFromOwnedViewsLocked(FreeManagerShard& shard,
-                                                       size_t startViewIdx,
-                                                       RegionIndex startRegion,
-                                                       RegionIndex& idx,
-                                                       bool& reusedScavenged)
-{
-    size_t viewCount = shard.ownedViews_.size();
-    if (viewCount == 0) {
-        return false;
-    }
-
-    for (size_t offset = 0; offset < viewCount; ++offset) {
-        size_t viewIdx = (startViewIdx + offset) % viewCount;
-        OwnedSegmentView& view = shard.ownedViews_[viewIdx];
-        RegionIndex probeStart = (offset == 0) ? startRegion : view.regionStart_;
-        RegionIndex candidate = FindFirstFreeRegionInViewLocked(view, probeStart);
-        if (candidate >= std::min(view.regionEnd_, static_cast<RegionIndex>(committedRegionCount_))) {
-            continue;
-        }
-
-        MarkAllocatedOneLocked(shard, view, static_cast<size_t>(candidate - view.regionStart_), reusedScavenged);
-        if (candidate >= shard.takeCursor_) {
-            shard.takeCursor_ = FindNextOwnedFreeRegionLocked(shard, candidate + 1);
-        }
-        if (candidate == shard.reclaimCursor_) {
-            shard.reclaimCursor_ = FindNextOwnedFreeRegionLocked(shard, candidate + 1);
-        }
-
-        shard.fastTakeHintValid_ = true;
-        shard.fastTakeViewIdx_ = viewIdx;
-        shard.fastTakeWordOffset_ = static_cast<size_t>(candidate - view.regionStart_) / kChunkBits;
-        idx = candidate;
-        return true;
-    }
-
-    return false;
-}
-
 bool FreeManager::TryTakeOneRegionFastLocked(FreeManagerShard& shard, RegionIndex& idx, bool& reusedScavenged)
 {
     if (shard.ownedViews_.empty()) {
@@ -1551,7 +1493,6 @@ void FreeManager::MarkAllocatedOneLocked(FreeManagerShard& shard,
     if (wasScavenged) {
         --shard.scavengedRegionCount_;
         ClearBit(view.scavengedBits_.data(), localIdx);
-        reusedScavengedRegionCount_.fetch_add(1, std::memory_order_relaxed);
     }
     if (wasFree) {
         --shard.freeRegionCount_;
@@ -1584,27 +1525,6 @@ bool FreeManager::FindFreeRunInRangeLocked(RegionIndex start, RegionIndex end, R
     return false;
 }
 
-bool FreeManager::FindFreeRunLocked(RegionIndex cursor, RegionCount num, RegionIndex& idx) const
-{
-    if (num == 0 || num > committedRegionCount_) {
-        return false;
-    }
-
-    cursor = std::min(cursor, static_cast<RegionIndex>(committedRegionCount_));
-    for (RegionIndex probe = cursor; probe < committedRegionCount_;) {
-        RegionIndex candidate = FindNextFreeRegionLocked(probe);
-        if (candidate >= committedRegionCount_ || candidate + num > committedRegionCount_) {
-            break;
-        }
-        if (PreciseFitFromLocked(candidate, num)) {
-            idx = candidate;
-            return true;
-        }
-        probe = candidate + 1;
-    }
-    return false;
-}
-
 bool FreeManager::FindOwnedFreeRunLocked(const FreeManagerShard& shard,
                                          RegionIndex cursor,
                                          RegionCount num,
@@ -1613,8 +1533,8 @@ bool FreeManager::FindOwnedFreeRunLocked(const FreeManagerShard& shard,
     if (num == 0 || num > committedRegionCount_ || shard.freeRegionCount_ < num) {
         return false;
     }
-    if (segmentRegionCount_ == 0 || shard.ownedViews_.empty()) {
-        return FindFreeRunLocked(cursor, num, idx);
+    if (shard.ownedViews_.empty()) {
+        return false;
     }
 
     cursor = std::min(cursor, static_cast<RegionIndex>(committedRegionCount_));
@@ -2016,70 +1936,27 @@ size_t FreeManager::ClaimScavengeSpansInViewLocked(FreeManagerShard& shard,
 
     size_t wordCount = (committedLocal + kChunkBits - 1) / kChunkBits;
     size_t claimedRegions = 0;
-    size_t firstNewSpan = spans.size();
 
-    // Scan words backward; hotFree = free AND not-already-scavenged.
-    // Keep a pending run across word boundaries to minimize OS release calls.
-    static constexpr size_t kNoPending = static_cast<size_t>(-1);
-    size_t pendingStart = kNoPending;
-    size_t pendingEnd = 0;
-
-    auto flushPending = [&]() {
-        if (pendingStart == kNoPending || claimedRegions >= regionBudget) {
-            pendingStart = kNoPending;
-            return;
+    // Use the same state transition as budgeted and aged scavenging.  The
+    // helper also coalesces adjacent word runs, so this retains the old
+    // whole-segment release granularity without a second bitmap protocol.
+    for (size_t wordIdx = wordCount;
+         wordIdx-- > 0 && claimedRegions < regionBudget;) {
+        uint64_t hotFree = HotFreeMaskForWord(view, wordIdx, committedLocal);
+        size_t remainingBudget = regionBudget - claimedRegions;
+        uint64_t claimMask = 0;
+        while (hotFree != 0 && remainingBudget != 0) {
+            size_t bit = static_cast<size_t>(63 - __builtin_clzll(hotFree));
+            claimMask |= 1ULL << bit;
+            hotFree &= ~(1ULL << bit);
+            --remainingBudget;
         }
-        size_t allowed = std::min(pendingEnd - pendingStart, regionBudget - claimedRegions);
-        pendingStart = pendingEnd - allowed;
-        RegionCount run = static_cast<RegionCount>(allowed);
-        RegionIndex regionStart = view.regionStart_ + static_cast<RegionIndex>(pendingStart);
-        spans.push_back({ regionStart, run, false });
-        claimedRegions += run;
-        pendingStart = kNoPending;
-    };
-
-    for (size_t wi = wordCount; wi-- > 0 && claimedRegions < regionBudget; ) {
-        size_t wordBase = wi * kChunkBits;
-        size_t wordBits = std::min(committedLocal - wordBase, kChunkBits);
-        uint64_t hot = (~view.allocBits_[wi]) & (~view.scavengedBits_[wi]);
-        if (wordBits < kChunkBits) {
-            hot &= (1ULL << wordBits) - 1;
-        }
-        if (hot == 0) {
-            flushPending();
-            continue;
-        }
-
-        while (hot != 0 && claimedRegions < regionBudget) {
-            int hi = 63 - __builtin_clzll(hot);
-            uint64_t gaps = (~hot) &
-                ((static_cast<size_t>(hi) > 0) ? ((1ULL << hi) - 1) : 0);
-            int lo = (gaps == 0) ? 0 : (63 - __builtin_clzll(gaps) + 1);
-
-            size_t runEnd = wordBase + static_cast<size_t>(hi) + 1;
-            size_t runStart = wordBase + static_cast<size_t>(lo);
-            if (pendingStart != kNoPending && runEnd == pendingStart) {
-                pendingStart = runStart;
-            } else {
-                flushPending();
-                if (claimedRegions >= regionBudget) {
-                    break;
-                }
-                pendingStart = runStart;
-                pendingEnd = runEnd;
-            }
-
-            int runLen = hi - lo + 1;
-            uint64_t clearMask = (runLen < 64)
-                ? (((1ULL << runLen) - 1) << lo)
-                : ~0ULL;
-            hot &= ~clearMask;
-        }
+        claimedRegions += ClaimScavengeWordMaskLocked(
+            shard, view, wordIdx, claimMask, spans);
     }
-    flushPending();
-
-    for (size_t i = firstNewSpan; i < spans.size(); ++i) {
-        MarkScavengingLocked(shard, spans[i].idx, spans[i].num);
+    if (claimedRegions != 0) {
+        view.maxFreeRun_ = ComputeMaxFreeRunInViewLocked(view);
+        RefreshRegionSnapshotsLocked(shard);
     }
     return claimedRegions;
 }
@@ -2103,7 +1980,8 @@ void FreeManager::AppendGroupedOwnerSpansLocked(std::vector<std::vector<RegionSp
     while (remaining != 0 && cursor < committedLimit) {
         size_t segmentIdx = static_cast<size_t>(cursor) / segmentRegionCount_;
         RegionIndex segmentEnd = static_cast<RegionIndex>(
-            std::min(committedRegionCount_, (segmentIdx + 1) * segmentRegionCount_));
+            std::min(committedRegionCount_.load(std::memory_order_acquire),
+                     (segmentIdx + 1) * segmentRegionCount_));
         if (segmentEnd <= cursor) {
             break;
         }
@@ -2378,9 +2256,6 @@ void FreeManager::MarkAllocatedLocked(FreeManagerShard& shard,
             SetBit(view->allocBits_.data(), localIdx);
             ClearBit(view->scavengedBits_.data(), localIdx);
             view->freeEpochs_[localIdx] = kNoFreeEpoch;
-        }
-        if (scavengedCount != 0) {
-            reusedScavengedRegionCount_.fetch_add(scavengedCount, std::memory_order_relaxed);
         }
         UpdateChunkSummaryRangeLocked(*view, localStart, chunk);  // also refreshes view.maxFreeRun_
         size_t committedLocal = static_cast<size_t>(

@@ -180,7 +180,6 @@ def build_run_environment(
         "RUNTIME_SCAVENGE_GROWTH": args.scavenge_growth,
     }
     if spec.label == "msgc":
-        env["cjMSSweepAssist"] = os.environ.get("cjMSSweepAssist", "1")
         env["cjMSEnumAssist"] = os.environ.get("cjMSEnumAssist", "1")
     return env
 

@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 HEADER="$ROOT_DIR/src/Heap/MAllocator/MSCentralRegionPool.h"
 SOURCE="$ROOT_DIR/src/Heap/MAllocator/MSCentralRegionPool.cpp"
 COLLECTOR="$ROOT_DIR/src/Heap/MCollector/MarkSweepCollector.cpp"
+WORKER_POLICY="$ROOT_DIR/src/Heap/MCollector/MSMarkWorkerPolicy.h"
 
 rg -q 'std::vector<uint32_t> largeNextSupply_' "$HEADER"
 rg -q 'std::vector<uint32_t> largeCollectSet_' "$HEADER"
@@ -14,7 +15,7 @@ if rg -q 'largeRegionList_' "$HEADER" "$SOURCE"; then
     exit 1
 fi
 
-build="$(sed -n '/uint32_t CentralRegionPool::PrepareCollectSetForMarkUnderSTW/,/^}/p' "$SOURCE")"
+build="$(sed -n '/uint32_t CentralRegionPool::PrepareMarkEpochUnderSTW/,/^}/p' "$SOURCE")"
 printf '%s\n' "$build" | rg -q 'largeCollectSet_\.swap\(largeNextSupply_\)'
 printf '%s\n' "$build" | rg -q 'region->collectEpoch = epoch'
 
@@ -26,26 +27,53 @@ printf '%s\n' "$partition" | rg -q 'for \(uint32_t idx : largeCollectSet_\)'
 printf '%s\n' "$partition" | rg -q 'largeNextSupply_\.push_back\(idx\)'
 printf '%s\n' "$partition" | rg -q 'largeCollectSet_\.clear\(\)'
 
-stats="$(sed -n '/MSMarkedStats CentralRegionPool::ComputeMarkedStats/,/^}/p' "$SOURCE")"
-printf '%s\n' "$stats" | rg -q 'collectSet_\[cls\]\[scan\]\.ForEach'
+stats="$(python3 - "$SOURCE" <<'PY'
+from pathlib import Path
+import sys
+
+source = Path(sys.argv[1]).read_text(encoding="utf-8")
+start = source.index("MSMarkedStats CentralRegionPool::ComputeMarkedStats() const")
+brace = source.index("{", start)
+depth = 0
+for end in range(brace, len(source)):
+    if source[end] == "{":
+        depth += 1
+    elif source[end] == "}":
+        depth -= 1
+        if depth == 0:
+            print(source[start:end + 1])
+            break
+else:
+    raise SystemExit("unterminated ComputeMarkedStats")
+PY
+)"
+printf '%s\n' "$stats" | rg -q 'chain\.ForEach'
 printf '%s\n' "$stats" | rg -q 'VisitLargeCollectSetLocked'
 printf '%s\n' "$stats" | rg -q 'ClassToBitmapWords'
-printf '%s\n' "$stats" | rg -q 'kMSPostMarkStatsRegionsPerChunk'
-printf '%s\n' "$stats" | rg -q 'nextChunk\.fetch_add'
+printf '%s\n' "$stats" | rg -q 'uint64_t startUs = TimeUtil::MicroSeconds\(\);'
+printf '%s\n' "$stats" | rg -q 'PostMarkStats: .*total=%sus'
+if printf '%s\n' "$stats" | rg -q 'nextChunk|MSGCShortTask|MSPostMarkStatsWork'; then
+    echo 'Post-Mark statistics must remain a direct serial collect-set scan' >&2
+    exit 1
+fi
+if rg -q 'ComputeMSPostMarkStatsHelperTarget|kMSPostMarkStats' "$WORKER_POLICY"; then
+    echo 'serial Post-Mark statistics retain obsolete helper policy' >&2
+    exit 1
+fi
 if printf '%s\n' "$stats" | rg -q 'GetTotalSlotCount\(\)|GetBitmapWordCount\(\)'; then
-    echo 'ComputeMarkedStats still queries per-Region Small bitmap metadata' >&2
+    echo 'Post-Mark statistics still queries per-Region Small bitmap metadata' >&2
     exit 1
 fi
 if printf '%s\n' "$stats" |
    rg -q 'VisitAllocBufferMS|VisitPartialSweptUnsafe|VisitNonPartialUnsafe|VisitLargeRegionsLocked'; then
-    echo 'ComputeMarkedStats escapes the frozen collect-set' >&2
+    echo 'Post-Mark statistics task escapes the frozen collect-set' >&2
     exit 1
 fi
 
 postmark="$(sed -n '/void MarkSweepCollector::PostMarkTermination/,/^}/p' "$COLLECTOR")"
-stats_line="$(printf '%s\n' "$postmark" | rg -n 'centralPool->ComputeMarkedStats' | head -1 | cut -d: -f1)"
+stats_line="$(printf '%s\n' "$postmark" | rg -n 'centralPool->ComputeMarkedStats\(\)' | head -1 | cut -d: -f1)"
 outside_large_line="$(printf '%s\n' "$postmark" | rg -n 'centralPool->GetLargeNextSupplySpanCount' | head -1 | cut -d: -f1)"
-large_line="$(printf '%s\n' "$postmark" | rg -n '^ *CollectLargeGarbage\(\);' | head -1 | cut -d: -f1)"
+large_line="$(printf '%s\n' "$postmark" | rg -n '^ *centralPool->SweepLargeRegions\(\);' | head -1 | cut -d: -f1)"
 publish_line="$(printf '%s\n' "$postmark" | rg -n 'PublishCollectSetForSweep' | cut -d: -f1)"
 threshold_line="$(printf '%s\n' "$postmark" | rg -n '^ *UpdateGCStats\(\);' | head -1 | cut -d: -f1)"
 if [[ "$stats_line" -ge "$outside_large_line" || "$outside_large_line" -ge "$large_line" ||

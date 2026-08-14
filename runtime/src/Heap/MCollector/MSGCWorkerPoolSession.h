@@ -1,8 +1,6 @@
 // Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
 // This source file is part of the Cangjie project, licensed under Apache-2.0
 // with Runtime Library Exception.
-//
-// See https://cangjie-lang.cn/pages/LICENSE for license information.
 
 #ifndef MRT_MSGC_WORKER_POOL_SESSION_H
 #define MRT_MSGC_WORKER_POOL_SESSION_H
@@ -12,8 +10,75 @@
 #include "Base/Log.h"
 #include "Heap/Collector/CollectorResources.h"
 #include "Heap/HeapWork.h"
+#include "Heap/MCollector/MSGCWorkerPoolController.h"
+#include <cstddef>
+#include <new>
 
 namespace MapleRuntime {
+
+// Owns a fully staged task set until a phase transfers each task to the
+// GCThreadPool. The pointer array uses nothrow allocation so a phase can keep
+// its documented serial fallback when task staging cannot obtain memory.
+class MSGCWorkerTaskBatch {
+public:
+    explicit MSGCWorkerTaskBatch(size_t capacity)
+        : capacity_(capacity), tasks_(capacity == 0
+            ? nullptr : new (std::nothrow) HeapWork*[capacity]())
+    {
+    }
+
+    ~MSGCWorkerTaskBatch()
+    {
+        Clear();
+        delete[] tasks_;
+    }
+
+    MSGCWorkerTaskBatch(const MSGCWorkerTaskBatch&) = delete;
+    MSGCWorkerTaskBatch& operator=(const MSGCWorkerTaskBatch&) = delete;
+
+    bool IsReady() const
+    {
+        return capacity_ == 0 || tasks_ != nullptr;
+    }
+
+    bool Add(HeapWork* task)
+    {
+        if (!IsReady() || task == nullptr || count_ == capacity_) {
+            return false;
+        }
+        tasks_[count_++] = task;
+        return true;
+    }
+
+    HeapWork* Release(size_t index)
+    {
+        if (index >= count_ || tasks_ == nullptr) {
+            return nullptr;
+        }
+        HeapWork* task = tasks_[index];
+        tasks_[index] = nullptr;
+        return task;
+    }
+
+    size_t GetCount() const
+    {
+        return count_;
+    }
+
+private:
+    void Clear()
+    {
+        for (size_t i = 0; i < count_; ++i) {
+            delete tasks_[i];
+            tasks_[i] = nullptr;
+        }
+        count_ = 0;
+    }
+
+    size_t capacity_ = 0;
+    HeapWork** tasks_ = nullptr;
+    size_t count_ = 0;
+};
 
 // Owns one short-lived GCThreadPool epoch. It deliberately does not create
 // work: each phase retains its own task partitioning and serial fallback. The
@@ -49,11 +114,6 @@ public:
         return threadPool_ != nullptr;
     }
 
-    GCThreadPool* GetThreadPool() const
-    {
-        return threadPool_;
-    }
-
     void AddWork(HeapWork* work)
     {
         CHECK_DETAIL(acquired_ && !started_ && work != nullptr,
@@ -61,7 +121,7 @@ public:
         threadPool_->AddWork(work);
     }
 
-    bool Start(size_t helperCount)
+    void Start(size_t helperCount)
     {
         CHECK_DETAIL(
             acquired_ && !started_ && helperCount != 0,
@@ -70,7 +130,6 @@ public:
         threadPool_->SetMaxActiveThreadNum(static_cast<int32_t>(helperCount));
         threadPool_->Start();
         started_ = true;
-        return true;
     }
 
     void Finish()

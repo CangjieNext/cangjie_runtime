@@ -127,14 +127,13 @@ for signature in [
     if "ForEachRefField" in weak_branch or "AddRefToMarkBatch" in weak_branch:
         raise SystemExit("a WeakRef referent must not be traced as a strong edge")
 
-termination = extract_function(source, "void MarkSweepCollector::MarkTermination()")
+termination = extract_function(source, "void MarkSweepCollector::MarkTermination(bool worldStopped)")
 ordered = [
-    "drainOrdinaryClosureToFixedPoint(ordinaryClosure);",
-    "PrepareFinalizersForResurrection();",
-    "VisitFinalizerRoots(",
-    "FlushMarkBatch(",
-    "resurrectionClosure.workUnits = DrainSchedulerUnderSTW();",
-    "ClearWeakRefsAfterMark(weakRefsCleared, weakRefsPreserved);",
+    "PublishOrdinaryMarkTasksUnderSTW(*centralPool);",
+    "DrainSchedulerWithHelpersUnderSTW();",
+    "PublishFinalizerResurrectionRootsUnderSTW(",
+    "DrainSchedulerWithHelpersUnderSTW();",
+    "ClearWeakRefsAfterMark();",
     "VerifyMarkCompleteness();",
     "TransitionToGCPhase(GCPhase::GC_PHASE_IDLE, false);",
 ]
@@ -144,6 +143,11 @@ for token in ordered:
     if found < 0:
         raise SystemExit(f"MarkTermination missing ordered post-mark semantic step: {token}")
     cursor = found + len(token)
+
+finalizer_publish = extract_function(
+    source, "void MarkSweepCollector::PublishFinalizerResurrectionRootsUnderSTW(")
+if "PrepareFinalizersForResurrection();" not in finalizer_publish:
+    raise SystemExit("finalizer classification must precede resurrection-root publication")
 
 prepare_finalizers = extract_function(source, "void MarkSweepCollector::PrepareFinalizersForResurrection()")
 enqueue = prepare_finalizers.find("collectorResources.EnqueueFinalizables")

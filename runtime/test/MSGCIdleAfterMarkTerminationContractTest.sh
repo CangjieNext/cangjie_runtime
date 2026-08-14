@@ -30,7 +30,7 @@ def extract_function(source: str, signature: str) -> str:
 collector_header, collector_source, heap_source, mark_header, mark_source = [
     Path(path).read_text(encoding="utf-8") for path in sys.argv[1:]
 ]
-mark_termination = extract_function(mark_source, "void MarkSweepCollector::MarkTermination()")
+mark_termination = extract_function(mark_source, "void MarkSweepCollector::MarkTermination(bool worldStopped)")
 post_gc = extract_function(mark_source, "void MarkSweepCollector::PostGarbageCollection(uint64_t gcIndex)")
 
 if "TransitionToGCPhase(GCPhase::GC_PHASE_IDLE, false);" not in mark_termination:

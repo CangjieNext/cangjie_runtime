@@ -44,12 +44,6 @@ enum class MSRegionType : uint8_t {
     MS_REGION_EMPTY_CACHE = 7, // Empty small-region shell cached in CentralRegionPool
 };
 
-inline bool IsLargeRegionEntryType(MSRegionType type)
-{
-    return type == MSRegionType::MS_REGION_LARGE ||
-           type == MSRegionType::MS_REGION_SPAN;
-}
-
 enum class MSRegionKind : uint8_t {
     FREE = 0,
     SMALL = 1,
@@ -156,11 +150,6 @@ struct alignas(64) MSRegionInfo {
     {
         return sizeClass < kNumSizeClasses ? SizeClassInfo::ClassToValidTailMask(sizeClass) : 0;
     }
-    uint32_t GetDivMagic() const
-    {
-        return sizeClass < kNumSizeClasses ? SizeClassInfo::ClassToDivMagic(sizeClass) : 0;
-    }
-
     size_t GetRegionIndex() const
     {
         uintptr_t arrayBase = static_cast<uintptr_t>(
@@ -256,17 +245,6 @@ struct alignas(64) MSRegionInfo {
                 return true;
             }
         }
-    }
-    void StoreScanStateRelaxed(MSScanState state)
-    {
-        uint32_t old = __atomic_load_n(&control, __ATOMIC_RELAXED);
-        uint32_t desired;
-        do {
-            desired = (old & ~CONTROL_SCAN_STATE_MASK) |
-                static_cast<uint32_t>(state);
-        } while (!__atomic_compare_exchange_n(
-            &control, &old, desired, true,
-            __ATOMIC_RELAXED, __ATOMIC_RELAXED));
     }
     uint64_t PublishPendingMarkWord(size_t wordIdx)
     {
@@ -450,17 +428,6 @@ struct alignas(64) MSRegionInfo {
     // Trusted-coordinate variant for a ResolvedMarkTarget or validated bulk
     // marker. Returns only bits newly set by this call.
     uint64_t MarkBitmapWordResolved(size_t wordIdx, uint64_t mask);
-    // Clear markBitmap for next GC cycle. Called by FlushAll during MarkSetup STW
-    // to clear mark-at-alloc dirty bits on TL regions before returning to pool.
-    void ClearMarkBitmap()
-    {
-        if (GetRegionKind() == MSRegionKind::SMALL && GetTotalSlotCount() > 0) {
-            uint64_t* markBitmap = GetMarkBitmap();
-            size_t bitmapWords = GetBitmapWordCount();
-            memset(markBitmap, 0, bitmapWords * sizeof(uint64_t));
-        }
-    }
-
     // STW/quiescent cycle initialization. ALLOC is intentionally untouched:
     // collect-set ALLOC is the sealed allocation snapshot, while ACTIVE ALLOC
     // may still be a non-materialized BUMP view owned by its mutator.

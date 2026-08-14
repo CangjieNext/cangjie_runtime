@@ -13,9 +13,6 @@ manager_h = (root / "src/Mutator/MutatorManager.h").read_text()
 worker_policy = (root / "src/Heap/MCollector/MSMarkWorkerPolicy.h").read_text()
 mutator = (root / "src/Mutator/Mutator.cpp").read_text()
 mutator_h = (root / "src/Mutator/Mutator.h").read_text()
-controller = (root / "src/Heap/Collector/MSGCWorkerPoolController.h").read_text()
-resources_h = (root / "src/Heap/Collector/CollectorResources.h").read_text()
-resources = (root / "src/Heap/Collector/CollectorResources.cpp").read_text()
 scheduler = (root / "src/CjScheduler.cpp").read_text()
 collector = (root / "src/Heap/MCollector/MarkSweepCollector.cpp").read_text()
 enum_roots = collector[
@@ -23,10 +20,11 @@ enum_roots = collector[
     collector.index("bool MarkSweepCollector::MarkObject")
 ]
 
-for token in ("ENUM_ROOTS", "AcquireEnumRoots"):
-    assert token in controller, f"worker-pool controller missing {token}"
-assert "AcquireMSGCWorkerPoolForEnumRoots" in resources_h
-assert "AcquireMSGCWorkerPoolForEnumRoots" in resources
+controller = (root / "src/Heap/MCollector/MSGCWorkerPoolController.h").read_text()
+resources_h = (root / "src/Heap/Collector/CollectorResources.h").read_text()
+resources = (root / "src/Heap/Collector/CollectorResources.cpp").read_text()
+for token in ("ENUM_ROOTS", "AcquireEnumRoots", "AcquireMSGCWorkerPoolForEnumRoots"):
+    assert token not in controller + resources_h + resources, f"obsolete EnumRoots worker-pool path remains: {token}"
 
 assert "enumRootsWorkerSession_" not in enum_roots
 assert "ComputeMSEnumRootsHelperTarget" not in enum_roots
@@ -48,9 +46,16 @@ assert "cjMSEnumAssistBatchSize" in scheduler, "enum-assist batch-size setting i
 assert "TransitionGCPhase(true)" in mutator, "mutator self-scanning transition must remain"
 
 assert "ClaimEnumAssistBatch" in manager
-assert "UpdateEnumAssistRemaining" in manager
+for removed in (
+    "UpdateEnumAssistRemaining",
+    "gcMainScanned",
+    "mutatorAssistScanned",
+    "readyPolls",
+    "enumHandshakeInstallUs",
+):
+    assert removed not in manager, f"enum-assist diagnostic state remains: {removed}"
 assert "EnsurePhaseTransition(GCPhase phase, std::list<Mutator*> &undoneMutators)" in manager
 assert "EnumTransitionEntry" not in manager_h
 
-print("MSGC transition uses GC main plus monotonic mutator assist without GC helpers")
+print("MSGC transition uses GC main plus monotonic mutator assist without a worker-pool epoch")
 PY

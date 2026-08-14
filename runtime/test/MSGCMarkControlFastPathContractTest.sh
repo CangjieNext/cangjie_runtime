@@ -11,7 +11,7 @@ rg -q 'MSMarkScheduler markScheduler_;' "$HEADER"
 rg -q 'WorkEpoch markWorkEpoch_;' "$HEADER"
 rg -q 'MSMarkWorkerControl markWorkerControl_\{&markWorkEpoch_\};' "$HEADER"
 rg -q 'RunMarkSlice\(' "$SCHED_HEADER"
-rg -q 'MSMarkWorkerCaps::GCWorker\(\)' "$SOURCE"
+rg -q 'markScheduler_\.RunMarkSlice\(' "$SOURCE"
 rg -q 'RunMarkAssistSlice\(' "$SOURCE"
 CONTROL_HEADER="$ROOT_DIR/src/Heap/MCollector/MSMarkWorkerControl.h"
 WORK_UNIT_HEADER="$ROOT_DIR/src/Heap/MCollector/MSWorkUnit.h"
@@ -31,8 +31,8 @@ if printf '%s\n' "$mark_assist" | rg -q 'GetMSGCThreadCapacity'; then
     echo 'MSMarkAssist still reads machine-core capacity' >&2
     exit 1
 fi
-rg -q 'gcAssistCreditWU_' "$ROOT_DIR/src/Heap/MAllocator/MSAllocBuffer.h"
-rg -q 'gcAssistProbeCursor_' "$ROOT_DIR/src/Heap/MAllocator/MSAllocBuffer.h"
+rg -q 'MSMarkAssistDebtState markAssistDebt_;' "$ROOT_DIR/src/Heap/MAllocator/MSAllocBuffer.h"
+rg -q 'markAssistDebt_\.probeCursor' "$ROOT_DIR/src/Heap/MAllocator/MSAllocBuffer.h"
 rg -q 'markWorkEpoch_\.WaitForChange' "$SOURCE"
 rg -Uq '(?s)outstanding == 0.*workersInFlight == 0.*assistsInFlight == 0.*ReadyEmptyForTermination\(\)' "$SOURCE"
 

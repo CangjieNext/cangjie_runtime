@@ -16,6 +16,7 @@
 #include <limits>
 #include <memory>
 #include <mutex>
+#include <string>
 #include <vector>
 
 #include "Base/Panic.h"
@@ -30,19 +31,9 @@ public:
     using RegionIndex = uint32_t;
     using RegionCount = uint32_t;
 
-    struct UnitSpan {
-        UnitIndex idx = 0;
-        UnitCount num = 0;
-    };
-
     struct RegionSpan {
         RegionIndex idx = 0;
         RegionCount num = 0;
-    };
-
-    struct RegionUsageSnapshot {
-        size_t committedRegions = 0;
-        size_t freeRegions = 0;
     };
 
     struct BorrowedSpan {
@@ -86,23 +77,16 @@ public:
     void ReclaimRegionsReleased(RegionIndex idx, RegionCount num);
     void ReclaimRegionsReleasedBatch(const std::vector<RegionSpan>& spans);
     bool GrowOneSegment(uint16_t ownerShardId, HeapRangeHandler& handler);
-    bool GrowForRegions(RegionCount numRegions, uint16_t ownerShardId, HeapRangeHandler& handler);
+    // Legacy topology-shrink API; it is not part of the background scavenger
+    // lifecycle.
     void ShrinkHeap();
-    size_t ScavengeFreeRegions(bool releaseAll);
 
     uint32_t GetShardCount() const { return shardCount_; }
     UnitCount GetFreeUnitCount() const;
-    RegionUsageSnapshot GetRegionUsageSnapshot() const;
     size_t GetOwnedFreeRegionCount(uint16_t ownerShardId) const;
     size_t GetScavengedRegionCount(uint16_t ownerShardId) const;
-    size_t GetReusedScavengedRegionCount() const
-    {
-        return reusedScavengedRegionCount_.load(std::memory_order_relaxed);
-    }
     size_t GetHotFreeRegionCount(uint16_t ownerShardId) const;
-    size_t GetBorrowedRegionCount(uint16_t receiverShardId) const;
     size_t GetOwnedSegmentCount(uint16_t ownerShardId) const;
-    size_t GetOwnedTotalRegionCount(uint16_t ownerShardId) const;
     // Return bytes in free regions whose physical pages have NOT been returned
     // to the OS yet (hotFree = freeRegions - scavengedRegions).
     size_t GetHotFreeBytes() const;
@@ -118,11 +102,14 @@ public:
     size_t ScavengeAgedRegionsUpTo(size_t maxBytes);
     void AdvanceScavengeEpoch(uint32_t epoch);
 
-    uintptr_t GetCommittedEnd() const { return committedEnd_; }
+    uintptr_t GetCommittedEnd() const { return committedEnd_.load(std::memory_order_acquire); }
     uintptr_t GetMaxHeapEnd() const { return maxHeapEnd_; }
-    uintptr_t GetInactiveZone() const { return committedEnd_; }
-    size_t GetCurrentCapacityBytes() const { return committedEnd_ - heapStart_; }
-    size_t GetCommittedRegionCount() const { return committedRegionCount_; }
+    uintptr_t GetInactiveZone() const { return GetCommittedEnd(); }
+    size_t GetCurrentCapacityBytes() const { return GetCommittedEnd() - heapStart_; }
+    size_t GetCommittedRegionCount() const
+    {
+        return committedRegionCount_.load(std::memory_order_acquire);
+    }
     uint64_t GetAvailabilityGeneration() const
     {
         return availabilityGeneration_.load(std::memory_order_acquire);
@@ -133,7 +120,9 @@ public:
     size_t GetSegmentSizeBytes() const { return segmentSize_; }
     size_t GetCommittedSegmentCount() const
     {
-        return segmentRegionCount_ == 0 ? 0 : (committedRegionCount_ + segmentRegionCount_ - 1) / segmentRegionCount_;
+        size_t committedRegions = GetCommittedRegionCount();
+        return segmentRegionCount_ == 0 ? 0 :
+            (committedRegions + segmentRegionCount_ - 1) / segmentRegionCount_;
     }
     SegmentFreeSnapshot GetSegmentFreeSnapshot(size_t segmentIdx) const;
     size_t ReleaseCompletelyFreeSegment(size_t segmentIdx);
@@ -151,6 +140,9 @@ private:
     };
 
     struct OwnedSegmentView {
+        // Views are appended in increasing segmentIdx_ order and removed only
+        // from the tail.  segmentIdx_ is therefore the single source of
+        // segment identity; a parallel segment-index vector is redundant.
         size_t segmentIdx_ = 0;
         RegionIndex regionStart_ = 0;
         RegionIndex regionEnd_ = 0;
@@ -158,6 +150,9 @@ private:
         size_t summaryChunkCount_ = 0;
         uint32_t maxFreeRun_ = 0;  // Opt3: max contiguous free run; skip segment when < num
         uint64_t hotWordMask_ = 0;
+        // allocBits_: unavailable to allocation (allocated or temporarily
+        // reserved for an OS-release transition). scavengedBits_: free but
+        // physically released. scavengingBits_: release is in flight.
         std::vector<uint64_t> allocBits_;
         std::vector<uint64_t> scavengedBits_;
         std::vector<uint64_t> scavengingBits_;
@@ -181,7 +176,6 @@ private:
         RegionIndex reclaimCursor_ = 0;
         std::atomic<uint16_t> nextStealDonorShard_{0};
         size_t borrowedRegionCount_ = 0;
-        std::vector<size_t> ownedSegments_;
         std::vector<OwnedSegmentView> ownedViews_;
         std::deque<BorrowedSpan> borrowedSpans_;
         std::atomic<uint32_t> snapHotFreeRegions_{0};
@@ -241,14 +235,12 @@ private:
     const OwnedSegmentView* FindOwnedSegmentViewByRegionLocked(const FreeManagerShard& shard, RegionIndex idx) const;
     bool IsRegionFreeLocked(RegionIndex idx) const;
     uint16_t ResolveOwnerShardIdLocked(RegionIndex idx) const;
-    RegionIndex FindNextFreeRegionLocked(RegionIndex start) const;
     RegionIndex FindNextOwnedFreeRegionLocked(const FreeManagerShard& shard, RegionIndex start) const;
     RegionIndex FindFirstFreeRegionInViewLocked(const OwnedSegmentView& view, RegionIndex start) const;
     RegionIndex FindFirstHotFreeRegionInViewLocked(const OwnedSegmentView& view, RegionIndex start) const;
     bool PreciseFitFromLocked(RegionIndex start, RegionCount num) const;
     bool TryTakeBorrowedRegionLocked(FreeManagerShard& shard, RegionIndex& idx);
     bool FindFreeRunInRangeLocked(RegionIndex start, RegionIndex end, RegionCount num, RegionIndex& idx) const;
-    bool FindFreeRunLocked(RegionIndex cursor, RegionCount num, RegionIndex& idx) const;
     bool FindOwnedFreeRunLocked(const FreeManagerShard& shard, RegionIndex cursor, RegionCount num, RegionIndex& idx) const;
     bool FindOwnedHotFreeRunLocked(const FreeManagerShard& shard, RegionIndex cursor,
                                    RegionCount num, RegionIndex& idx) const;
@@ -302,11 +294,6 @@ private:
                                       RegionIndex& idx);
     bool TryTakeLocalRegionsLocked(FreeManagerShard& shard, RegionCount num, RegionIndex& idx, bool& reusedScavenged);
     bool TryTakeOneRegionFastLocked(FreeManagerShard& shard, RegionIndex& idx, bool& reusedScavenged);
-    bool TryTakeOneRegionFromOwnedViewsLocked(FreeManagerShard& shard,
-                                              size_t startViewIdx,
-                                              RegionIndex startRegion,
-                                              RegionIndex& idx,
-                                              bool& reusedScavenged);
     void MarkAllocatedOneLocked(FreeManagerShard& shard,
                                 OwnedSegmentView& view,
                                 size_t localIdx,
@@ -361,6 +348,9 @@ private:
                                        uint32_t currentEpoch,
                                        uint32_t minimumAge,
                                        std::vector<PendingScavengeSpan>& spans);
+    void PublishCommittedTopology(size_t committedRegionCount, uintptr_t committedEnd);
+    std::string DescribeCommittedShardSegmentsLocked(
+        size_t committedSegmentCount) const;
 
     mutable std::mutex pageHeapMutex_;
     mutable std::mutex growMutex_;
@@ -368,8 +358,11 @@ private:
     size_t unitsPerRegion_ = 0;
     uintptr_t heapStart_ = 0;
     uintptr_t maxHeapEnd_ = 0;
-    uintptr_t committedEnd_ = 0;
-    size_t committedRegionCount_ = 0;
+    // The committed boundary is read by allocator/threshold paths without the
+    // topology locks. Grow publishes fully initialized views before the
+    // release store; readers acquire the boundary before using it.
+    std::atomic<uintptr_t> committedEnd_ {0};
+    std::atomic<size_t> committedRegionCount_ {0};
     size_t maxVirtualRegionCount_ = 0;
     size_t segmentSize_ = 0;
     uint32_t shardCount_ = 1;
@@ -378,7 +371,6 @@ private:
     std::unique_ptr<std::atomic<uint64_t>[]> nonEmptyShardWords_;
     size_t nonEmptyShardWordCount_ = 0;
     std::atomic<size_t> totalHotFreeRegions_ {0};
-    std::atomic<size_t> reusedScavengedRegionCount_ {0};
     std::atomic<uint64_t> availabilityGeneration_ {0};
     std::atomic<uint32_t> scavengeEpoch_ {1};
     std::vector<uint16_t> segmentOwnerShard_;

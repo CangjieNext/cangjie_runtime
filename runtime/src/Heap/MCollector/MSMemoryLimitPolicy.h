@@ -39,11 +39,6 @@ inline size_t ResolveMSSoftHeapLimitKB(size_t hostMemoryBytes, size_t configured
     return std::max(hostMemoryBytes / static_cast<size_t>(1024), kMSSoftHeapLimitMinKB);
 }
 
-inline size_t ResolveMSScavengeTarget(size_t normalTargetBytes, size_t softLimitBytes)
-{
-    return softLimitBytes == 0 ? normalTargetBytes : std::min(normalTargetBytes, softLimitBytes);
-}
-
 inline size_t ComputeMSReleaseGap(size_t retainedBytes, size_t reclaimableBytes, size_t targetBytes)
 {
     size_t releaseGap = retainedBytes > targetBytes ? retainedBytes - targetBytes : 0;

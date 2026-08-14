@@ -469,7 +469,7 @@ void TestScavengeRotatesAcrossOwnerShards()
     FreeHeap(heap, kHeapBytes);
 }
 
-void TestColdReuseCounterTracksClearedScavengedBitsOnce()
+void TestColdReuseClearsScavengedBits()
 {
     constexpr size_t kPageSize = 16 * 1024;
     constexpr size_t kRegionSize = 256 * 1024;
@@ -490,8 +490,6 @@ void TestColdReuseCounterTracksClearedScavengedBitsOnce()
         kHeapBytes,
         1);
 
-    ExpectEq(manager.GetReusedScavengedRegionCount(), 0,
-             "fresh FreeManager must have no cold Region reuse");
     ExpectEq(manager.ScavengeFreeRegionsUpTo(kHeapBytes), kHeapBytes,
              "all test Regions should become scavenged");
     ExpectEq(manager.GetScavengedRegionCount(0), kRegionCount,
@@ -499,19 +497,19 @@ void TestColdReuseCounterTracksClearedScavengedBitsOnce()
 
     ExpectTake(manager, 2, 0, 0,
                "contiguous allocation should reuse the first two scavenged Regions");
-    ExpectEq(manager.GetReusedScavengedRegionCount(), 2,
-             "contiguous cold reuse must add its exact scavenged count");
+    ExpectEq(manager.GetScavengedRegionCount(0), 1,
+             "contiguous cold reuse must clear its two scavenged bits");
 
     ExpectTake(manager, 1, 0, 2,
                "single allocation should reuse the remaining scavenged Region");
-    ExpectEq(manager.GetReusedScavengedRegionCount(), 3,
-             "single cold reuse must add one after clearing its scavenged bit");
+    ExpectEq(manager.GetScavengedRegionCount(0), 0,
+             "single cold reuse must clear the remaining scavenged bit");
 
     manager.ReclaimRegionsReleased(0, kRegionCount);
     ExpectTake(manager, 1, 0, 0,
                "hot Region reuse should remain allocatable after reclaim");
-    ExpectEq(manager.GetReusedScavengedRegionCount(), 3,
-             "hot Region reuse must not increment the cold reuse counter again");
+    ExpectEq(manager.GetScavengedRegionCount(0), 0,
+             "hot Region reuse must not recreate a scavenged bit");
 
     FreeHeap(heap, kHeapBytes);
 }
@@ -867,7 +865,7 @@ int main()
     TestHotWordSummaryFixedSeedStateMachine();
     TestPerShardCountsTrackOwnerAndBorrowedBatchConsumption();
     TestScavengeRotatesAcrossOwnerShards();
-    TestColdReuseCounterTracksClearedScavengedBitsOnce();
+    TestColdReuseClearsScavengedBits();
     TestScavengeSkipsBusyShardWithTryLock();
     TestScavengeReleasesOutsideShardLock();
     TestAppleReleaseRemapsZeroPagesWithoutPreZero();

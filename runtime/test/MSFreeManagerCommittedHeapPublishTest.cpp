@@ -5,6 +5,7 @@
 #include <cstring>
 #include <deque>
 #include <mutex>
+#include <type_traits>
 #include <vector>
 
 #define MRT_USE_MARK_SWEEP 1
@@ -133,10 +134,19 @@ void TestGrowPublishesCommittedHeapEnd()
     std::free(heap);
 }
 
+void TestCommittedTopologyBoundaryIsAtomicallyPublished()
+{
+    static_assert(std::is_same<decltype(FreeManager::committedEnd_), std::atomic<uintptr_t>>::value,
+                  "committed heap end must be atomically published");
+    static_assert(std::is_same<decltype(FreeManager::committedRegionCount_), std::atomic<size_t>>::value,
+                  "committed Region count must be atomically published");
+}
+
 } // namespace
 
 int main()
 {
+    TestCommittedTopologyBoundaryIsAtomicallyPublished();
     TestGrowPublishesCommittedHeapEnd();
     return 0;
 }

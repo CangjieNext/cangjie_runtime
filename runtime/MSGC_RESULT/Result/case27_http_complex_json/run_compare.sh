@@ -19,6 +19,8 @@
 #     MSGC_HEAP_GROWTH     仅传给 MSGC 的 cjHeapGrowth，默认 1
 #     MSGC_SCAVENGE_GROWTH 仅传给 MSGC 的 cjScavengeGrowth，默认 5
 #     MSGC_MIN_GC_THRESHOLD 仅传给 MSGC 的 cjMSMinGCThreshold，默认 20mb；0 表示关闭地板
+#     cjMSAdaptiveGrowth    MSGC HeapGrow/Scavenge 自适应开关；默认不设置（静态），1 表示开启
+#     CJ_MSGC_BARRIER_COUNT Runtime 入口统计开关；默认 1，0 关闭
 #     COPYGC_GC_INTERVAL   仅传给 CopyGC 的 cjGCInterval，默认不设置（如 150ms）
 #     MSGC_GC_INTERVAL     仅传给 MSGC 的 cjGCInterval，默认不设置（如 5ms）
 #     cjGCBGSweepMaxTime   仅透传给 MSGC 后台 sweep 单 slice 时间预算（如 2ms）
@@ -36,8 +38,9 @@
 #     GO_GODEBUG           Go benchmark 的 GODEBUG 默认 gctrace=1
 #     GO_GOGC              可选，透传给 Go side
 #     JAVA_ENABLE          是否加入 Java mirror side 默认 1
-#     JAVA_BIN             Java 命令，默认 java
-#     JAVAC_BIN            javac 命令，默认 javac
+#     JAVA_HOME_DEFAULT    Java 25 安装根目录，默认 /opt/homebrew/opt/openjdk@25
+#     JAVA_BIN             Java 命令，默认 $JAVA_HOME_DEFAULT/bin/java
+#     JAVAC_BIN            javac 命令，默认 $JAVA_HOME_DEFAULT/bin/javac
 #     JAVA_OPTS            可选 Java 运行参数；未设置时使用 -Xmx$HEAP_SIZE
 #     JAVA_GC_OPTS         可选 Java GC 日志参数；为空时按 JDK 版本自动配置
 #     CASE27_SAMPLE_DURATION_SECONDS  macOS sample 时长（秒），0 表示关闭，默认 0
@@ -92,8 +95,9 @@ GO_ENABLE="${GO_ENABLE:-1}"
 GO_GODEBUG="${GO_GODEBUG:-gctrace=1}"
 GO_GOGC="${GO_GOGC:-}"
 JAVA_ENABLE="${JAVA_ENABLE:-1}"
-JAVA_BIN="${JAVA_BIN:-java}"
-JAVAC_BIN="${JAVAC_BIN:-javac}"
+JAVA_HOME_DEFAULT="${JAVA_HOME_DEFAULT:-/opt/homebrew/opt/openjdk@25}"
+JAVA_BIN="${JAVA_BIN:-$JAVA_HOME_DEFAULT/bin/java}"
+JAVAC_BIN="${JAVAC_BIN:-$JAVA_HOME_DEFAULT/bin/javac}"
 # HotSpot accepts g/m/k suffixes, but not the cjHeapSize-style gb/mb suffixes.
 # Keep an explicitly supplied JAVA_OPTS unchanged; otherwise cap Java with HEAP_SIZE.
 JAVA_HEAP_SIZE=$(printf '%s' "$HEAP_SIZE" | tr '[:upper:]' '[:lower:]')
@@ -204,6 +208,8 @@ run_side() {
         echo "heap_size=$HEAP_SIZE"
         echo "cj_heap_growth=${runtime_heap_growth:-}"
         echo "cj_scavenge_growth=${runtime_scavenge_growth:-}"
+        echo "cj_ms_adaptive_growth=${cjMSAdaptiveGrowth:-}"
+        echo "cj_msgc_barrier_count=${CJ_MSGC_BARRIER_COUNT:-1}"
         echo "cj_gc_interval=${runtime_gc_interval:-}"
         echo "cj_ms_min_gc_threshold=${runtime_min_gc_threshold:-}"
         echo "procs=${PROCS:-}"
@@ -275,6 +281,8 @@ run_side() {
         CJ_MS_VERIFY_MARK \
         CJ_MS_VERIFY_MARK_DETAIL \
         CJ_MS_VERIFY_ROOTS \
+        CJ_MSGC_BARRIER_COUNT \
+        cjMSAdaptiveGrowth \
         cjGCBGSweepMaxTime; do
         optional_value="${!optional_var-}"
         if [[ -n "$optional_value" ]]; then
@@ -300,6 +308,8 @@ run_side() {
             echo "[$LABEL] CJ_MS_VERIFY_ROOTS=${CJ_MS_VERIFY_ROOTS:-<default>}"
             echo "[$LABEL] cjGCBGSweepMaxTime=${cjGCBGSweepMaxTime:-<default>}"
             echo "[$LABEL] cjScavengeGrowth=${RUNTIME_SCAVENGE_GROWTH:-<default>}"
+            echo "[$LABEL] cjMSAdaptiveGrowth=${cjMSAdaptiveGrowth:-0}"
+            echo "[$LABEL] CJ_MSGC_BARRIER_COUNT=${CJ_MSGC_BARRIER_COUNT:-1}"
             echo "[$LABEL] cjMSMinGCThreshold=${RUNTIME_MIN_GC_THRESHOLD:-<default>}"
             echo "[$LABEL] CASE27_BODY_DIAG=${CASE27_BODY_DIAG:-<default>}"
             echo "[$LABEL] CASE27_DUMP_BAD_BODY=${CASE27_DUMP_BAD_BODY:-<default>}"

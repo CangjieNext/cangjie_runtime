@@ -30,6 +30,21 @@ struct MSMarkWordBatchEntry {
     }
 };
 
+// Immutable bitmap coordinates for one Mark epoch. GC-owned batches load this
+// once from the fast-path state, while the barrier-buffer view receives the
+// same value from its compiler-visible caller. Keeping it as a value avoids
+// independent epoch/plane loads drifting apart at call sites.
+struct MSMarkBitmapContext {
+    uint32_t markEpoch = MSRegionInfo::NO_COLLECT_EPOCH;
+    uintptr_t allocPlaneBase = 0;
+    uintptr_t markPlaneBase = 0;
+};
+
+// This is scheduler-publication coalescing capacity, not MarkWordBatch cache
+// capacity. It bounds the number of Regions whose new bitmap words are merged
+// before one scheduler admission pass.
+constexpr size_t kMSMarkPublicationRegionBatchCapacity = 8;
+
 // Allocation-free staging for Region scheduler publication after MARK words
 // have been updated. Multiple newly won bitmap words in one Region collapse
 // into one pendingWordSummary RMW and one scheduler admission attempt.
@@ -73,7 +88,6 @@ public:
     }
 
     bool IsEmpty() const { return size_ == 0; }
-    size_t Size() const { return size_; }
 
 private:
     struct Entry {
@@ -86,7 +100,7 @@ private:
 };
 
 struct MSMarkPublicationContext {
-    MSPendingMarkRegionBatch<8> pending;
+    MSPendingMarkRegionBatch<kMSMarkPublicationRegionBatchCapacity> pending;
     bool readyPublished = false;
 };
 
@@ -119,8 +133,6 @@ public:
             "[MS-GC] destroying MarkWordBatch with pending publication");
     }
 
-    bool HasMarkEpoch() const { return markEpochInitialized_; }
-
     uint32_t GetMarkEpoch() const
     {
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
@@ -130,25 +142,20 @@ public:
         return markEpoch_;
     }
 
-    void SetMarkEpoch(uint32_t markEpoch)
+    void SetBitmapContext(const MSMarkBitmapContext& context)
     {
-        CHECK_DETAIL(!markEpochInitialized_ || markEpoch_ == markEpoch,
+        CHECK_DETAIL(!markEpochInitialized_ || markEpoch_ == context.markEpoch,
                      "[MS-GC] MarkWordBatch crossed mark epochs old=%u new=%u",
-                     markEpoch_, markEpoch);
-        markEpoch_ = markEpoch;
-        markEpochInitialized_ = true;
-    }
-
-    bool HasBitmapPlaneBases() const { return bitmapPlaneBasesInitialized_; }
-
-    void SetBitmapPlaneBases(uintptr_t allocPlaneBase, uintptr_t markPlaneBase)
-    {
+                     markEpoch_, context.markEpoch);
         CHECK_DETAIL(
             !bitmapPlaneBasesInitialized_ ||
-            (allocPlaneBase_ == allocPlaneBase && markPlaneBase_ == markPlaneBase),
+            (allocPlaneBase_ == context.allocPlaneBase &&
+             markPlaneBase_ == context.markPlaneBase),
             "[MS-GC] MarkWordBatch bitmap planes changed");
-        allocPlaneBase_ = allocPlaneBase;
-        markPlaneBase_ = markPlaneBase;
+        markEpoch_ = context.markEpoch;
+        allocPlaneBase_ = context.allocPlaneBase;
+        markPlaneBase_ = context.markPlaneBase;
+        markEpochInitialized_ = true;
         bitmapPlaneBasesInitialized_ = true;
     }
 
@@ -254,7 +261,6 @@ public:
     }
 
     bool IsEmpty() const { return size_ == 0; }
-    size_t Size() const { return size_; }
     MSMarkPublicationContext& Publication() { return publication_; }
 
 private:

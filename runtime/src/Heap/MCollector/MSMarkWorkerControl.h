@@ -23,7 +23,6 @@ public:
     };
 
     struct Snapshot {
-        Phase phase;
         size_t targetHelpers;
         size_t workersInFlight;
         size_t assistsInFlight;
@@ -50,6 +49,13 @@ public:
             condition_.notify_all();
             NotifyProgress();
         }
+    }
+
+    // Assist admission only needs this value. Keep the full snapshot for
+    // quiescence diagnostics, where all three counters are semantically used.
+    size_t GetTargetHelpers() const
+    {
+        return targetHelpers_.load(std::memory_order_acquire);
     }
 
     bool WaitUntilEligible(size_t workerId)
@@ -146,7 +152,6 @@ public:
     Snapshot GetSnapshot() const
     {
         return Snapshot {
-            phase_.load(std::memory_order_acquire),
             targetHelpers_.load(std::memory_order_acquire),
             workersInFlight_.load(std::memory_order_acquire),
             assistsInFlight_.load(std::memory_order_acquire),

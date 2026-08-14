@@ -12,7 +12,8 @@
 #include "Heap/MAllocator/MSAllocBuffer.h"
 #include "Heap/MAllocator/MSCentralRegionPool.h"
 #include "Heap/MAllocator/MSOOMEmergencyPolicy.h"
-#include "Heap/MCollector/MSMemoryLimitPolicy.h"
+#include "Heap/MAllocator/MSSweepPressurePolicy.h"
+#include "Heap/MCollector/MSHeapAccounting.h"
 #include "Heap/MAllocator/MSRegionInfo.h"
 #include "Heap/MAllocator/MSRegionManager.h"
 #include "Heap/MAllocator/MSSizeClass.h"
@@ -168,92 +169,6 @@ size_t RegionSpaceMS::LargeObjectBytes() const
     return msCentralPool_->GetLargeObjectBytes();
 }
 
-// ---------------------------------------------------------------------------
-// Scavenge-related queries
-// ---------------------------------------------------------------------------
-
-size_t RegionSpaceMS::GetHeapInUseBytes() const
-{
-    return GetUsedPageSize();
-}
-
-size_t RegionSpaceMS::GetSweptHeapBytes() const
-{
-    if (msCentralPool_ == nullptr) {
-        return 0;
-    }
-    return msCentralPool_->GetSweptMSRegionCount() * MS_REGION_SIZE;
-}
-
-size_t RegionSpaceMS::GetSweptHeapBytesReference() const
-{
-    if (msCentralPool_ == nullptr) {
-        return 0;
-    }
-    return msCentralPool_->GetSweptMSRegionCountReference() * MS_REGION_SIZE;
-}
-
-size_t RegionSpaceMS::GetCentralCacheBytes() const
-{
-    if (msCentralPool_ == nullptr) {
-        return 0;
-    }
-    return msCentralPool_->GetEmptySweptRegionCount() * MS_REGION_SIZE;
-}
-
-size_t RegionSpaceMS::GetHeapRetainedBytes() const
-{
-    if (msCentralPool_ == nullptr || msRegionManager_ == nullptr) {
-        return 0;
-    }
-    size_t active = msCentralPool_->GetActiveMSRegionCount() * MS_REGION_SIZE;
-    size_t empty = msCentralPool_->GetEmptySweptRegionCount() * MS_REGION_SIZE;
-    size_t hotFree = msRegionManager_->GetHotFreeBytes();
-    return active + empty + hotFree;
-}
-
-size_t RegionSpaceMS::GetHeapRetainedBytesReference() const
-{
-    if (msCentralPool_ == nullptr || msRegionManager_ == nullptr) {
-        return 0;
-    }
-    size_t active = GetHeapInUseBytes();
-    size_t empty = msCentralPool_->GetEmptySweptRegionCount() * MS_REGION_SIZE;
-    size_t hotFree = msRegionManager_->GetHotFreeBytesReference();
-    return active + empty + hotFree;
-}
-
-size_t RegionSpaceMS::GetHeapThresholdBytes() const
-{
-    return Heap::GetHeap().GetCollector().GetGCStats().GetThreshold();
-}
-
-size_t RegionSpaceMS::GetScavengeThresholdBytes() const
-{
-    return Heap::GetHeap().GetCollector().GetGCStats().GetScavengeThreshold();
-}
-
-size_t RegionSpaceMS::GetHotFreeBytes() const
-{
-    if (msRegionManager_ == nullptr) {
-        return 0;
-    }
-    return msRegionManager_->GetHotFreeBytes();
-}
-
-size_t RegionSpaceMS::GetHotFreeBytesReference() const
-{
-    if (msRegionManager_ == nullptr) {
-        return 0;
-    }
-    return msRegionManager_->GetHotFreeBytesReference();
-}
-
-bool RegionSpaceMS::HasEmptySweptRegions() const
-{
-    return msCentralPool_ != nullptr && msCentralPool_->GetEmptySweptRegionCount() > 0;
-}
-
 size_t RegionSpaceMS::FlushAllEmptySweptToHotFree()
 {
     if (msCentralPool_ == nullptr) {
@@ -276,7 +191,7 @@ size_t RegionSpaceMS::FlushCentralCacheToThreshold(size_t thresholdBytes)
         return 0;
     }
 
-    size_t cacheBytes = GetCentralCacheBytes();
+    size_t cacheBytes = CaptureMSHeapRetentionSnapshot(*this).emptyCacheBytes;
     if (cacheBytes <= thresholdBytes) {
         return 0;
     }
@@ -285,7 +200,8 @@ size_t RegionSpaceMS::FlushCentralCacheToThreshold(size_t thresholdBytes)
     if (cacheBytes <= bytesToFlush) {
         return FlushAllEmptySweptToHotFree();
     }
-    return FlushEmptySweptToHotFree((bytesToFlush + MS_REGION_SIZE - 1) / MS_REGION_SIZE);
+    return FlushEmptySweptToHotFree(CeilDivideMSSweepValue(
+        bytesToFlush, MS_REGION_SIZE));
 }
 
 size_t RegionSpaceMS::BackgroundScavenge(size_t quantumBytes)
@@ -302,34 +218,6 @@ size_t RegionSpaceMS::BackgroundShrinkOneSegment()
         return 0;
     }
     return msRegionManager_->ShrinkOneIdleSegment(msCentralPool_);
-}
-
-bool RegionSpaceMS::HasPendingScavengeWork() const
-{
-    return GetScavengeReleaseTargetBytes() != 0;
-}
-
-size_t RegionSpaceMS::GetScavengeReleaseTargetBytes() const
-{
-    if (msCentralPool_ == nullptr || msRegionManager_ == nullptr) {
-        return 0;
-    }
-    size_t scavengeThreshold = GetScavengeThresholdBytes();
-    size_t scavengeTriggerThreshold =
-        Heap::GetHeap().GetCollector().GetGCStats().GetScavengeTriggerThreshold();
-    if (scavengeThreshold == 0 || scavengeTriggerThreshold == 0) {
-        return 0;
-    }
-
-    size_t inUseBytes = GetHeapInUseBytes();
-    size_t reclaimableBytes =
-        msCentralPool_->GetEmptySweptRegionCount() * MS_REGION_SIZE +
-        msRegionManager_->GetHotFreeBytes();
-    size_t effectiveLowTarget = std::max(scavengeThreshold, inUseBytes);
-    size_t retainedBytes = inUseBytes + reclaimableBytes;
-    return ComputeMSScavengeWatermarkReleaseGap(
-        retainedBytes, reclaimableBytes,
-        effectiveLowTarget, scavengeTriggerThreshold);
 }
 
 bool RegionSpaceMS::HasPendingShrinkWork() const
@@ -498,10 +386,6 @@ void RegionSpaceMS::Init(const HeapParam& vmHeapParam)
     msCentralPool_ = new (std::nothrow) CentralRegionPool(msRegionManager_);
     CHECK_DETAIL(msCentralPool_ != nullptr, "failed to create CentralRegionPool");
 
-    VLOG(REPORT, "[MS-GC] MS subsystem initialized: committedRegions=%zu, maxVirtualRegions=%zu, "
-         "committedHeapRange=[0x%zx, 0x%zx), reservedHeapRange=[0x%zx, 0x%zx)",
-         msRegionManager_->GetMaxRegionCount(), maxVirtualRegionCount,
-         reservedStart, reservedEnd, reservedStart, reservedLimit);
 }
 
 bool Allocator::MarkObject(const BaseObject* obj)

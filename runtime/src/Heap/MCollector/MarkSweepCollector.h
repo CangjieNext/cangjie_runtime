@@ -10,15 +10,16 @@
 #ifdef MRT_USE_MARK_SWEEP
 
 #include <atomic>
+#include <memory>
 #include "Heap/Collector/TracingCollector.h"
+#include "Heap/MCollector/MSAdaptiveHeapGrowthPolicy.h"
 #include "Heap/MCollector/MSAssistPacing.h"
 #include "Heap/MCollector/MSHeapThresholdPolicy.h"
 #include "Heap/MCollector/MSMarkBatch.h"
 #include "Heap/MCollector/MSRootSnapshot.h"
+#include "Heap/MCollector/MSScavengeWatermarkPolicy.h"
 #include "Heap/MCollector/MSMarkScheduler.h"
-#include "Heap/MCollector/MSMarkTerminationPolicy.h"
 #include "Heap/MCollector/MSMarkWorkerControl.h"
-#include "Heap/MCollector/MSMarkWorkerPolicy.h"
 #include "Heap/MCollector/MSWorkUnit.h"
 
 namespace MapleRuntime {
@@ -85,9 +86,8 @@ public:
     size_t MSMarkAssist(AllocBufferMS& allocBuffer, size_t debtWU);
     uint64_t GetAssistWorkPerByteScaled() const
     {
-        return assistWorkPerByteScaled_.load(std::memory_order_acquire);
+        return markAssistPacing_.GetPublishedRateScaled();
     }
-    static constexpr uint64_t GetAssistRatioScale() { return kMSAssistRatioScale; }
     static MarkSweepCollector* GetActiveCollector()
     {
         return activeCollector_.load(std::memory_order_acquire);
@@ -143,9 +143,79 @@ public:
     }
     void UpdateGCStats() override;
 private:
+    struct MSMarkWorkSnapshot {
+        uint64_t mainWU = 0;
+        uint64_t helperWU = 0;
+        uint64_t assistWU = 0;
+
+        uint64_t TotalWU() const
+        {
+            return SaturatingMSWUAdd(
+                SaturatingMSWUAdd(mainWU, helperWU), assistWU);
+        }
+    };
+
+    // Concurrent Mark has three independently executing producers. Keep the
+    // WU accounting next to the phase owner so its one end-of-phase REPORT
+    // line does not need task counters or a second scheduler traversal.
+    struct MSConcurrentMarkWork {
+        std::atomic<uint64_t> mainWU {0};
+        std::atomic<uint64_t> helperWU {0};
+        std::atomic<uint64_t> assistWU {0};
+
+        void Reset()
+        {
+            mainWU.store(0, std::memory_order_relaxed);
+            helperWU.store(0, std::memory_order_relaxed);
+            assistWU.store(0, std::memory_order_relaxed);
+        }
+
+        void AccountMain(uint64_t completedWU)
+        {
+            mainWU.fetch_add(completedWU, std::memory_order_relaxed);
+        }
+
+        void AccountHelper(uint64_t completedWU)
+        {
+            helperWU.fetch_add(completedWU, std::memory_order_relaxed);
+        }
+
+        void AccountAssist(uint64_t completedWU)
+        {
+            assistWU.fetch_add(completedWU, std::memory_order_relaxed);
+        }
+
+        MSMarkWorkSnapshot Snapshot() const
+        {
+            return {mainWU.load(std::memory_order_acquire),
+                    helperWU.load(std::memory_order_acquire),
+                    assistWU.load(std::memory_order_acquire)};
+        }
+    };
+
+    // The two STW closures reuse the same drain routine. This last-result
+    // value is written and consumed only by the GC main thread while stopped.
+    struct MSMarkDrainWork {
+        uint64_t mainWU = 0;
+        uint64_t helperWU = 0;
+        size_t helperCount = 0;
+
+        uint64_t TotalWU() const
+        {
+            return SaturatingMSWUAdd(mainWU, helperWU);
+        }
+    };
+
+    struct MSHeapPolicyRuntimeState {
+        MSAdaptiveHeapGrowthState adaptiveGrowth;
+        uint64_t lastHeuGcStartUs = 0;
+        // High is intentionally sticky across short GC-cycle fluctuations.
+        // Low is recomputed directly from the current pre-sweep footprint.
+        uint64_t lastScavengeHighDecayUs = 0;
+    };
+
     struct MSHeapThresholdStateUpdate;
     struct MSScavengeWatermarkStateUpdate;
-    struct MSMarkAssistPlan;
 
     MSHeapThresholdStateUpdate UpdateMSHeapThresholdState(
         RegionSpaceMS& space, const GCStats& gcStats, bool exceptionalBypass);
@@ -200,6 +270,7 @@ private:
     template<typename MarkBatch, typename WorkCounter>
     void FlushMarkBatch(MarkBatch& batch, WorkCounter& work,
                         MSMarkPublicationContext& publication);
+    MSMarkBitmapContext LoadCurrentMSMarkBitmapContext() const;
     void InitializeGCMarkBatch(MSMarkWordBatch& batch) const;
     void FlushAllBarrierMarkBuffersUnderSTW(CentralRegionPool& central);
     void FoldGCMarkAssistWork(AllocBufferMS& allocBuffer);
@@ -207,27 +278,25 @@ private:
     void PublishRootStaging();
     void PublishRootRange(const std::vector<BaseObject*>& roots,
                           size_t begin, size_t end);
-    void RunSchedulerMarkLoop(uint64_t baseAssistRatio,
-                              size_t maxAssistMultiplier,
+    void RunSchedulerMarkLoop(const MSMarkAssistPlan& assistPlan,
                               MSMarkPressure pressure);
     size_t AcquireMarkWorkerPool(bool& markPoolOwned);
     void UpdateMarkController(
         MSMarkControllerState& markController,
-        MSMarkPressureGate& pressureGate,
-        uint64_t baseAssistRatio, uint64_t outstanding,
+        const MSMarkAssistPlan& assistPlan, uint64_t outstanding,
         uint64_t outstandingWork,
         const MSMarkWorkerControl::Snapshot& control,
         uint64_t elapsedMarkUs);
     void FinishSchedulerMarkLoop(uint64_t mainCompletedWU,
                                  bool markPoolOwned);
-    void UpdateMarkAssistPlan();
-    MSMarkPressure ActivateMarkAssistForCurrentCycle(
-        MSMarkAssistPlan& assistPlan);
     void FinalizeConcurrentMarkAccounting();
+    void ResetCycleCompletedMarkWork();
+    void AccountCycleCompletedMarkWork(uint64_t completedWU);
+    uint64_t GetCycleCompletedMarkWork() const;
     void RunSchedulerTask(MSTaskLease& lease, MSWorkUnitCounter& work);
     void RunRegionTask(MSTaskLease& lease, MSWorkUnitCounter& work);
     void RunObjectTask(MSTaskLease& lease, MSWorkUnitCounter& work);
-    uint64_t DrainSchedulerSeriallyUnderSTW();
+    void DrainSchedulerSeriallyUnderSTW();
     void VerifyMarkSchedulerQuiescence(const char* closureName);
     size_t GetCurrentMarkReadyShard() const;
     // Bitmap-only discovery. MSGC derives cycle object counts from a post-mark
@@ -240,22 +309,14 @@ private:
     void VerifyMarkCompleteness();
 
     // ── Step 2.2 internals ──
-    void StartMarkWorkers(size_t maxHelpers, size_t initialHelpers);
+    bool StartMarkWorkers(size_t maxHelpers);
     void RunMarkWorker(size_t workerId);
     void QuiesceMarkWorkers();
 
     // ── Step 2.3 internals ──
-    struct MSTerminationDrainLaneStats {
-        uint64_t workUnits = 0;
-    };
-    struct MSTerminationDrainStats {
-        uint64_t workUnits = 0;
-        MSTerminationDrainLaneStats main;
-        MSTerminationDrainLaneStats helpers;
-    };
     void RunTerminationDrainLaneUnderSTW(
-        size_t participant, MSTerminationDrainLaneStats& stats);
-    MSTerminationDrainStats DrainSchedulerWithHelpersUnderSTW();
+        size_t participant, uint64_t& completedWU);
+    void DrainSchedulerWithHelpersUnderSTW();
     void PublishOrdinaryMarkTasksUnderSTW(CentralRegionPool& centralPool);
     void PublishFinalizerResurrectionRootsUnderSTW(MSWorkUnitCounter& resurrectionPublishWork);
     void PrepareFinalizersForResurrection();
@@ -271,56 +332,48 @@ private:
     std::atomic<uint64_t> cycleCompletedMarkWU_{0};
 
     // ── Mark assist pacing and publication state ──
-    // markPacer_ is an EWMA fed at UpdateGCStats() by this cycle's completed
-    // mark WorkUnits and allocation burst. Its next density sample is
-    // converted into nextMarkAssistPlan_ for the next GC:
-    // baseRatio is normal-pressure WU/allocated-byte debt, and maxMultiplier
-    // is the normalized RuntimeParam cap. CJ_MS_DISABLE_ASSIST zeroes the
-    // cached base ratio once during Runtime initialization.
+    // markAssistPacing_ owns the cross-cycle EWMA, next-cycle plan, pressure
+    // gates, and all Mark assist rate/multiplier calculations. The collector
+    // supplies measured work and normalized RuntimeParam values, then only
+    // publishes the returned current-cycle rate to allocation buffers.
     //
-    // ConcurrentMark copies that plan, applies the current OOM/pressure
-    // multiplier, and release-publishes the resulting ratio through
-    // assistWorkPerByteScaled_. AllocBufferMS reads it with acquire semantics
+    // AllocBufferMS reads the pacing-owned published rate with acquire semantics
     // while allocating and may call MSMarkAssist(). The ratio is reset to zero
     // before the phase ends, so mutators cannot assist outside concurrent mark.
     //
     // Assist work is first recorded in its owner AllocBufferMS; after assist
-    // participants have quiesced, markAssistCompletedWU_ folds that work into
-    // the cycle-wide WorkUnit total. activeCollector_ is the acquire/release
+    // participants have quiesced, MSAssistPacing folds that work into the
+    // cycle-wide WorkUnit total. activeCollector_ is the acquire/release
     // gateway that makes this collector reachable from the allocation path
     // only between PreEnumRoots setup and MarkTermination.
-    struct MSMarkAssistPlan {
-        uint64_t baseRatio = 0;
-        size_t maxMultiplier = 1;
-    };
-
-    MSWorkUnitPacer markPacer_;
-    MSMarkAssistPlan nextMarkAssistPlan_;
-    std::atomic<uint64_t> assistWorkPerByteScaled_{0};
-    std::atomic<uint64_t> markAssistCompletedWU_{0};
+    MSMarkAssistPacing markAssistPacing_;
     static std::atomic<MarkSweepCollector*> activeCollector_;
 
     // Scheduler progress epoch and helper control.
     WorkEpoch markWorkEpoch_;
-    size_t markWorkerCount_ = 0;
-    std::vector<uint64_t> markWorkerCompletedWU_;
+    std::unique_ptr<uint64_t[]> markWorkerCompletedWU_;
+    size_t markWorkerCompletedCapacity_ = 0;
+    size_t markWorkerCompletedCount_ = 0;
     bool markPoolOwnedForCycle_ = false;
     MSMarkWorkerControl markWorkerControl_{&markWorkEpoch_};
+    MSConcurrentMarkWork concurrentMarkWork_;
+    MSMarkDrainWork lastSTWDrainWork_;
+
+    // EnumRoots is serial after the mutator handshake. These values describe
+    // the single staging/publication boundary logged at phase end.
+    size_t enumRootsRawCount_ = 0;
+    size_t enumRootsUniqueCount_ = 0;
+    size_t enumRootsScannedStackCount_ = 0;
+    uint64_t enumRootsPublishedWU_ = 0;
 
     // ── Per-cycle accounting ──
     MSGCCycleStats cycleStats_;
-    uint64_t gcCycle_ = 0;  // Monotonic GC cycle counter
-    MSAdaptiveHeapGrowthState adaptiveHeapGrowthState_;
+    MSHeapPolicyRuntimeState heapPolicyState_;
     uint64_t currentGcStartUs_ = 0;
-    uint64_t lastHeuGcStartUs_ = 0;
-    // High is intentionally sticky across short GC-cycle fluctuations. Low is
-    // still recomputed directly from the current pre-sweep footprint.
-    uint64_t lastScavengeHighDecayUs_ = 0;
 
-    void LogGCEntry(uint64_t gcIndex, GCReason reason);
-    void DumpRegionStatsMS();
+    void LogGCEntry(GCReason reason);
     void LogGCSummary(uint64_t gcTimeUs);
-    void DumpGCStateSnapshot(const char* stage);
+    void LogRegionSummary(const char* stage) const;
 };
 
 } // namespace MapleRuntime
