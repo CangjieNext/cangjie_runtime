@@ -549,13 +549,18 @@ sealed abstract class TypeInfo <: Equatable<TypeInfo> & Hashable & ToString {
                 case None =>
                     let num = getNumOfInterface(_info)
                     let interfaceList = ArrayList<InterfaceTypeInfo>()
+                    let selfName = qualifiedName
                     for (index in 0..num) {
                         let pointer = getInterface(_info, UInt32(index))
                         if (pointer == _info) {
                             continue
                         }
+                        let superInfo = getOrCreate(pointer)
+                        if (superInfo.qualifiedName == selfName) {
+                            continue
+                        }
                         interfaceList.add(
-                            (getOrCreate(pointer) as InterfaceTypeInfo) ?? throw MisMatchException(
+                            (superInfo as InterfaceTypeInfo) ?? throw MisMatchException(
                                 "Super interface info of '${qualifiedName}' can not cast to InterfaceTypeInfo."))
                     }
                     let anyType = (TypeInfo.of<Any>() as InterfaceTypeInfo).getOrThrow()
@@ -565,7 +570,7 @@ sealed abstract class TypeInfo <: Equatable<TypeInfo> & Hashable & ToString {
                             hasAny = true
                         }
                     }
-                    if (!hasAny) {
+                    if (!hasAny && selfName != anyType.qualifiedName) {
                         interfaceList.add(anyType)
                     }
                     let infos = interfaceList.toArray()
