@@ -40,6 +40,11 @@ struct ThreadLocalData {
     uint8_t reserved1;
     void* threadCache;
     AllocBufferMS* msAllocBuffer;
+    // MSGC scalar write barriers read these immutable-after-heap-init values
+    // directly from the current OS thread's TLS.
+    uintptr_t msgcHeapReservedStart;
+    uintptr_t msgcHeapReservedEnd;
+    uintptr_t msgcRegionInfoArray;
 };
 
 struct CleanThreadLocalData {
@@ -56,6 +61,8 @@ public:
     }
 
     static void SetMutator(Mutator* newMutator);
+
+    static void RefreshMSGCFastPathState();
 
     static Mutator* GetMutator() { return GetThreadLocalData()->mutator; }
 

@@ -369,6 +369,9 @@ public:
 
     __attribute__((always_inline)) inline void SetMutatorPhase(const GCPhase newPhase)
     {
+        // Publish the scalar write-barrier inputs before exposing a phase in
+        // which generated code may consume them.
+        ThreadLocal::RefreshMSGCFastPathState();
         mutatorPhase.store(newPhase, std::memory_order_release);
         PublishThreadLocalGCPhase(newPhase);
     }

@@ -15,6 +15,7 @@
 #include <type_traits>
 
 #ifdef MRT_USE_MARK_SWEEP
+#include "Heap/MSGCFastPath.h"
 #include "Heap/MAllocator/MSRegionInfo.h"
 #endif
 
@@ -32,9 +33,23 @@ RwLock ThreadLocal::tlEnableLock;
 MRT_EXPORT thread_local uint64_t threadLocalData[sizeof(ThreadLocalData) / sizeof(uint64_t)];
 thread_local CleanThreadLocalData cleaner;
 
+void ThreadLocal::RefreshMSGCFastPathState()
+{
+#ifdef MRT_USE_MARK_SWEEP
+    ThreadLocalData* local = GetThreadLocalData();
+    local->msgcHeapReservedStart = __atomic_load_n(
+        &CJ_MRT_MSGCFastPathState.heapReservedStart, __ATOMIC_ACQUIRE);
+    local->msgcHeapReservedEnd = __atomic_load_n(
+        &CJ_MRT_MSGCFastPathState.heapReservedEnd, __ATOMIC_ACQUIRE);
+    local->msgcRegionInfoArray = __atomic_load_n(
+        &CJ_MRT_MSGCFastPathState.regionInfoArray, __ATOMIC_ACQUIRE);
+#endif
+}
+
 void ThreadLocal::SetMutator(Mutator* newMutator)
 {
     ThreadLocalData* local = GetThreadLocalData();
+    RefreshMSGCFastPathState();
     local->mutator = newMutator;
     GCPhase phase = newMutator != nullptr ? newMutator->GetMutatorPhase() : GCPhase::GC_PHASE_IDLE;
     local->encodedGCPhase = EncodeThreadLocalGCPhaseByte(phase);
@@ -93,7 +108,13 @@ extern "C" void MCC_CheckThreadLocalDataOffset()
                   "need to modify the offset of this value in llvm-project at the same time");
     static_assert(offsetof(ThreadLocalData, msAllocBuffer) == 88,
                   "compiler ABI: AArch64/X86 ThreadLocalData::msAllocBuffer");
-    static_assert(sizeof(ThreadLocalData) == sizeof(void*) * 12,
+    static_assert(offsetof(ThreadLocalData, msgcHeapReservedStart) == 96,
+                  "compiler ABI: AArch64/X86 ThreadLocalData::msgcHeapReservedStart");
+    static_assert(offsetof(ThreadLocalData, msgcHeapReservedEnd) == 104,
+                  "compiler ABI: AArch64/X86 ThreadLocalData::msgcHeapReservedEnd");
+    static_assert(offsetof(ThreadLocalData, msgcRegionInfoArray) == 112,
+                  "compiler ABI: AArch64/X86 ThreadLocalData::msgcRegionInfoArray");
+    static_assert(sizeof(ThreadLocalData) == sizeof(void*) * 15,
                   "need to modify the offset of this value in llvm-project and cjthread at the same time");
 #endif
 

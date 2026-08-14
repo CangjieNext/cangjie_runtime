@@ -2421,3 +2421,294 @@ PASS dom_json_utf8_validate_copy
 case26 的 JSON 解析、DOM 构造、字段 HashMap、业务修改、序列化、HTTP 和 GC 仍占主要端到端成本；且 case26
 调用点/API 未变化。因此后续 case26 验证应使用已安装 SDK 进行同配置的 10 秒 MSGC-only 吞吐或 CPU/request
 复测，只把稳定的端到端差异归因给本项。
+
+## 35. Linux MSGC 最新热点复核与后续优化方案（2026-08-13）
+
+### 35.1 对比基线与采样方法
+
+本节记录 2026-08-13 对最近一次 Linux 对比结果的复核，以及与前文历史优化的对应关系。
+
+最新对比使用 100K payload、100 sync workers、60 s、512 MiB persistent/8 workers、P=8、
+`cjHeapSize=20gb`、`cjHeapGrowth=1`、`cjScavengeGrowth=2` 和 `cjMSMinGCThreshold=20mb`：
+
+| 指标 | MSGC | Java | Java 相对 MSGC |
+| --- | ---: | ---: | ---: |
+| 成功请求 | 69,415 | 83,164 | +19.8% |
+| 吞吐 | 1,153 req/s | 1,384 req/s | **+20.0%** |
+| 平均 CPU | 808.03% | 740.41% | -8.4% |
+| 平均 RSS | 1,768.63 MiB | 4,633.33 MiB | +162.0% |
+| GC 次数（MSGC） | 352 | — | — |
+| MSGC GC 总时间 | 12.444 s | — | — |
+
+结果目录为
+`MSGC_RESULT/Result/case26_http_complex_json/result/20260813_512M_c100_100k_HeapGrow1_Scavenge2_Procs8_compare`。
+这是一轮完整 HTTP/DOM 协议的端到端结果；Java 使用更多 RSS 但平均 CPU 更低，因此不能仅通过增加
+MSGC 线程数或堆上限解释差距。
+
+本机 `kernel.perf_event_paranoid=4`，当前用户没有 `CAP_PERFMON`，`perf record -e cpu-clock` 被内核拒绝。
+因此改用由 GDB 启动 benchmark 的替代方法：相同 MSGC SDK 重新编译 case26，在 8 s 预热后向被调试子进程
+发送 `SIGSTOP`，每 400 ms 执行一次 `thread apply all bt 12`，连续 25 次，采样窗口共 10 s。`SIGSTOP`
+由 GDB 截获而不会传递为业务终止信号，benchmark 最终以 exit code 0 结束。
+
+采样固定参数与上述对比一致，但为限制采样任务使用 `CASE26_DURATION_MS=20000`；产物为：
+
+`MSGC_RESULT/Result/case26_http_complex_json/result/20260813_151028_msgc_gdb_cpu_stacks_c100_100K_Procs8`
+
+该方法得到 25 个时点、共 350 个线程栈。它是 wall-time 栈快照，不是 perf 的周期采样：等待栈不能视为
+CPU 热点，计数只用于确认持续活跃的调用链和排定优化顺序。
+
+### 35.2 采样热点
+
+将 350 个线程栈按状态归类：142 个包含 JSON 调用链，25 个为 HTTP client 发包路径，25 个为大 body
+分配/清零，25 个为 GC background sweep；另有 106 个为 futex 等待和 27 个为 `epoll_wait`。后两类不属于
+CPU 热点。
+
+每个采样时点持续出现的活跃 top frame 与调用链为：
+
+| 路径 | 25 个时点中的出现次数 | 代码含义 |
+| --- | ---: | --- |
+| `parseJsonObject` | 25 | object 语法解析、递归 value 解析、`HashMap.put` |
+| `parseJsonNumberSlow` | 25 | 浮点/慢数字 token 扫描和 `CJ_JSON_ParseFloat64` |
+| `String(Array<Byte>)` / `parseJsonStringValue` | 25 | key/value 的无转义字符串构造 |
+| `WriteBuffer.appendEscapeSmall` | 25 | 短 key/value 的逐 byte escape 扫描与写出 |
+| `JsonObject.writeCompactTo` | 17 top-frame，50 条完整写出链 | object/array 递归序列化 |
+| `TryAllocateLargeObjectOnce -> memset` | 25 | 约 100 KiB HTTP body/array 的 large-object 清零 |
+| `SweepRegion -> memset` | 25 | GC helper 对已回收 region 清零 |
+| `HttpHeaders.set` | 25 | client request header 建立；次于 JSON 路径 |
+
+服务端路径为 `readHttpBodyBytes -> JsonValue.fromUtf8Bytes -> parseServerJson -> mutateRequestJson ->
+serializeServerJson`；客户端还会对完整响应运行 `parseClientJson`，仅为读取 `server_ok`。采样显示 JSON
+parse 与 write 同时占满多个 `schd-worker`，不是只有主线程热点。
+
+采样期间产生 55 个 GC 周期，GC 日志总计 2.179 s，平均 39.62 ms、最大 73.62 ms。最后一个周期的
+concurrent-mark assist 为 1,118,200 work units（39.94% mark work）；同时 `gc-main-thread` 和
+`gc-pool-t*` 大多数快照位于 `TaskQueue::Dequeue` / futex 等待。因而 GC 和 sweep 有真实成本，
+但现有证据不支持把等待的 GC 线程或 `schmon` 的 `epoll_wait` 误判为首要 CPU 优化目标。
+
+### 35.3 已完成的相似优化
+
+本轮源码核对表明，以下方向在前文已经实施，不能再次作为“尚未做过”的优化提出：
+
+| 方向 | 已有章节/实现 | 当前判断 |
+| --- | --- | --- |
+| `toString()` 容量全树预扫描 | §7、§26-§28；`toStringWithCapacity` | 已完成；case26 使用输入大小驱动容量，当前不应回退到 `toString()`。 |
+| 浮点 Ryu 直接写 buffer | §7 | 已完成；采样中不再把 `__dtoa` 作为当前首要热点。 |
+| 浮点 raw token 保留 | §7、§29 | 已完成；未修改浮点避免重新格式化，修改后的 score/credits 清除 raw token。 |
+| JSON 数字 token 融合扫描 | §29 | 已完成标准十进制路径；`parseJsonNumberSlow` 仍会出现，主要代表剩余浮点/慢路径。 |
+| 短无转义字符串 native 扫描 | §20、§22、§30 | 已完成若干快路径；当前仍能看到 `parseJsonStringValue` 和 `appendEscapeSmall`，说明 DOM String 构造和 writer 复制仍有剩余成本。 |
+| compact writer 虚分派/短字符串 writer fast path | §16、§20、§22 | 已完成部分优化；不能把 `WriteBuffer` 热点解释为完全未经优化的旧实现。 |
+| JSON null/boolean 单例 | §31 | 已完成；不再优先针对 null/boolean 对象分配。 |
+| JsonInt/JsonFloat/JsonString setter | §32 | 已完成并验证；主要减少 case26 修改字段时的标量替换分配，不是当前最大热点。 |
+| `fromUtf8Bytes(Array<Byte>)` 安全入口 | §33 | 已完成；输入会复制到私有 parser backing，保持 DOM 生命周期安全。 |
+| UTF-8 校验与私有复制融合 | §34 | 已完成；校验+复制只做一次线性访问。 |
+| case26 body reader/response String 直传 | §8、§33 | 已完成若干中间 Array/String 拷贝消除；但当前采样仍见 100 KiB large-array 清零，说明“完全零分配”尚未实现。 |
+
+特别是“把 `fromUtf8Bytes` 改为直接借用 HTTP body”不能直接覆盖现有安全 API：当前实现明确保证调用方修改
+或释放输入后，DOM 中的字符串和数字仍有效。若要借用，必须新增显式 owned/borrowed API，并限制生命周期，
+不能改变 `fromUtf8Bytes` 的默认所有权语义。
+
+### 35.4 仍未解决的优化点
+
+1. **P0：HTTP body 直接读入精确大小 Array。** 当前 [benchmark.cj:280](../../MSGC_RESULT/Result/case26_http_complex_json/benchmark.cj#L280)
+   仍以 64 KiB chunk 读入 `ArrayList<UInt8>`；即使预留了 body size，最终解析仍需要私有 parser backing。
+   对已知 `Content-Length`，可以让 HTTP reader 直接填充精确大小的目标 Array，消除 chunk slice/ArrayList
+   中间路径。这个改动不会改变 JSON API 安全语义，属于 case26 用例侧低风险 A/B。
+
+2. **P0/P1：增加显式 borrowed parser API（仅受控生命周期）。** `fromUtf8Bytes` 的安全复制必须保留；可另增
+   `fromUtf8BytesBorrowed` 或内部 parser mode，让 server 在确认 body backing 只读且存活到请求结束时跳过
+   100 KiB clone。需要同时验证 HTTP body buffer 是否在 `processRequest` 返回前稳定、client/server 是否复用
+   该 buffer，以及异常路径是否仍能构造独立错误信息。此项直接对应 `TryAllocateLargeObjectOnce` 和两侧
+   parser 输入复制，但所有权风险明显高于精确读入。
+
+3. **P0：String token 延迟物化 / raw span。** 当前 `parseJsonStringValue` 的无转义路径最终仍构造
+   `String`；object key 必须立即物化用于 HashMap，但 JSON value 可以保存 `(data, offset, length,
+   escaped)`，在业务读取时才构造 String，在 writer 中直接 range-copy 未修改 raw span。这样可减少
+   8,354 个字符串的构造与 rawData acquire/release，并避免对未转义字符串执行不必要的 escape 检查。
+   需要处理 `JsonString.getValue()`、`setValue()`、DOM 生命周期和被业务读取后的缓存策略。
+
+4. **P1：合并 escape 的扫描与写入。** 当前 `appendEscapeSmall` 对短字符串在 Cangjie 层逐字节扫描；长
+   字符串走 `CJ_JSON_StringEscapeCharNumGet` 预扫描后再进行第二次复制。可以增加 native
+   `CJ_JSON_AppendEscapedString`，一次扫描完成“检测 + 拷贝 + 转义”，同时传入目标 buffer 和当前 offset。
+   这项应在 raw span 方案之后评估，避免重复设计两套 String 表示。
+
+5. **P1：按结构估算 object/array 初始容量。** 当前 parser 固定使用 `JsonObject(8)` / `JsonArray(8)`；
+   本 payload 有 1,364 个 object（平均 4.44 字段，最大 12）和 851 个 array（平均 2.89 元素，最大 85）。
+   可仅对小范围候选容量做 A/B（object 8/12/16、array 8/16/32），观察 HashMap rehash、ArrayList grow、
+   RSS 与 CPU/request；不要直接把所有容器初始容量改大，否则小对象会增加常驻清零和 RSS。
+
+6. **P1：减少 writer 递归通用开销。** `jsonWriteWithoutFormat` 在每个节点检查 depth 并进行虚分派；可
+   拆成一次入口检查 + 内部递归函数，标量节点不重复检查深度，并批量写入逗号/括号。需要覆盖空容器、深度异常、
+   HTML-safe escape 和 raw float 输出。
+
+7. **P2：大对象/region zeroing 状态。** `TryAllocateLargeObjectOnce` 对约 100 KiB body 做整块 `memset`，
+   `MSRegionInfo::SweepRegion` 对空 region 清零；采样中二者各在 25 个时点出现。可研究 zeroed-region 状态、
+   page 粒度 `madvise(MADV_DONTNEED)` 或延迟清零，但这属于 runtime/GC 高风险改动，必须证明不会泄露旧对象
+   内容、绕过仓颉数组零初始化、破坏并发 sweep、或影响 ASAN/GWPASAN。当前不建议把它作为第一项实现。
+
+8. **不优先：TLS/futex/epoll 微优化。** `MRT_GetThreadLocalData` 是 JSON/runtime 边界支撑函数；GC pool
+   和 schmon 大多在等待。除非后续 perf 或定向 microbenchmark 证明其 self CPU 占比，否则不要从这些栈帧
+   单独推导优化收益。
+
+### 35.5 优先级与验证计划
+
+建议实施顺序：
+
+1. case26 已知长度 body 的精确目标 Array 读取，先做 MSGC-only 10 s A/B；
+2. 在不改变 `fromUtf8Bytes` 安全语义的前提下，设计并单测 borrowed parser 的所有权边界；
+3. 先做 JSON value raw span/延迟 String，再评估 native fused escape，避免两次修改同一表示层；
+4. 对 object/array 容量做小矩阵 A/B；
+5. 最后单独设计 runtime zeroing 优化，不与 JSON 改动混测。
+
+每轮只修改一个组件或一个明确路径，替换 SDK runtime/stdx 后必须用当前 SDK 重新编译 `.cj` 用例。主指标
+继续使用累计 CPU 秒 / 成功请求数；热点复核在 Linux 无 perf 权限时使用本节的 GDB 全线程 SIGSTOP 方法，
+并保留产物、SDK compiler/runtime/stdlib 来源和退出码。任何优化都至少做两轮相同配置复测，不能把单次吞吐
+波动当作收益。
+
+### 35.6 P0 精确 body Array 实现与单次 MSGC 验证（2026-08-13）
+
+#### 实现
+
+在 `MSGC_RESULT/Result/case26_http_complex_json/benchmark.cj` 中新增 `readHttpBodyKnownSize`：当 HTTP
+`Content-Length` 已知且大于零时，一次分配等长 `Array<Byte>`，对其 `slice(offset, remaining)` 视图循环
+读取，直接填充最终 backing storage；短读返回有效前缀，未知长度继续使用原有 chunk/ArrayList 兼容路径。
+这移除了 `chunk -> ArrayList` 聚合及其扩容/中间复制，但 `JsonValue.fromUtf8Bytes` 的安全 backing clone
+仍保留。
+
+#### 构建与运行
+
+- compiler：`/home/lipeisheng/cangjie/cangjie_compiler_CMSGC/output/msgc` 的 `cjc`。
+- stdx：`/home/lipeisheng/cangjie/cangjie_stdx_CMSGC`，执行 `build.py clean`、Release `build`（`--gc-mode=marksweep`）和 `install --prefix .../target`，再同步到 MSGC SDK 的 `linux_x86_64_cjnative`。
+- runtime：使用 MSGC SDK 原有 `runtime/lib/linux_x86_64_cjnative/libcangjie-runtime.so`，本轮没有重编或替换 runtime。
+- 用例重新编译为 `result/20260813_172731_body_precise_array_msgc/benchmark`，单独运行 MSGC。注意：首次验证命令把 `CASE26_PERSISTENT_BYTES=512mb` 直接传给了只接受纯整数的 benchmark，解析失败后实际回退到默认 **5 GiB**（stdout 已记录 `persistent_bytes=5368709120`），因此该轮不能作为 512 MiB 基线的有效 A/B；退出码为 0，66,134/66,134 成功。
+
+#### 结果与判断
+
+| 指标 | 最近基线 | 精确 Array 单次 | 变化 |
+|---|---:|---:|---:|
+| 指标 | 512 MiB 基线 | 本次（实际 5 GiB） | 说明 |
+|---|---:|---:|---|
+| 吞吐 | 1,153 req/s | 1,098 req/s | 不同持久堆，不能归因于 body 优化 |
+| 成功请求 | 69,415 | 66,134 | 不同持久堆，不能直接比较 |
+| GC 周期 | 352 | 61 | 更大的保留堆使 HEU 阈值/可用空间显著增大 |
+| 累计 GC 时间 | 12.44 s | 16.15 s | 单轮扫描的 live heap 更大 |
+| runtime allocation_total | 7,473,056 | 7,128,834 | 同样受请求数和配置差异影响 |
+
+这轮由于持久堆配置错误，不能证明精确目标 Array 对吞吐或 GC 的真实收益。日志中优化轮首次 GC 的 current
+heap 已为 805 MiB，而 512 MiB 基线仅 128 MiB；后续优化轮 heap 继续增长到 14 GiB，故 GC 虽只有 61 个周期，
+单轮 GC 时间反而更长。必须用纯整数 `CASE26_PERSISTENT_BYTES=536870912` 重新跑相同配置后，才能评价该优化；
+下一项更直接的 P0 仍是在严格生命周期约束下为 `fromUtf8Bytes` 设计 borrowed parser 入口。
+
+### 35.7 修正 512 MiB 配置后的有效复测（2026-08-13）
+
+使用同一编译产物、同一 MSGC runtime/stdx，修正 `CASE26_PERSISTENT_BYTES=536870912` 后重新运行：
+
+- 产物目录：`result/20260813_174706_body_precise_array_msgc_512M`
+- 配置：100K、并发 100、60 s、persistent 512 MiB、workers 8、heap 20 GiB、P=8、heapGrowth=1、scavengeGrowth=2、MSGC min threshold 20 MiB
+- 退出码：0；成功 68,409/68,409；实际 stdout 确认 `persistent_bytes=536870912`
+
+| 指标 | 基线 | 精确 Array（修正配置） | 变化 |
+|---|---:|---:|---:|
+| 吞吐 | 1,153 req/s | 1,136 req/s | -1.5%（单次运行） |
+| GC 周期 | 352 | 334 | -5.1% |
+| 累计 GC 时间 | 12.44 s | 13.93 s | +12.0% |
+| runtime allocation_total | 7,473,056 | 7,251,460 | -3.0% |
+| `new_array_1` | 138,870 | 0 | body 精确 Array 路径消除了该类数组入口 |
+
+有效复测确认：此前 GC 周期降至 61 的根因是 5 GiB 默认持久堆回退，并非优化本身。精确 Array 确实减少了
+数组分配入口和约 3% 总 runtime allocation，但单次端到端吞吐仍未提升，需至少再做同配置重复轮次后再决定
+是否保留；剩余主要复制点仍是 JSON parser 的 backing clone。
+
+### 35.8 P1 融合数字解析路径验证（2026-08-13）
+
+#### 实现
+
+在 `cangjie_stdx_CMSGC/src/stdx/encoding/json/native.cj` 中新增
+`tryParseJsonDecimalNumber`。标准十进制数字现在一次扫描整数部分、小数部分和指数部分，记录 token 起止
+位置、浮点标志和整数累积值：纯十进制整数直接构造 `JsonInt`，浮点复用既有
+`CJ_JSON_ParseFloat64`，并把同一次扫描得到的 token range 保存到 `JsonFloat`。扩展进制（`0x/0o/0b/0d`）、
+整数溢出和慢路径格式恢复 offset 后继续走原 `parseJsonNumberSlow`，没有改变扩展数字语义。
+
+stdx 已执行 clean、Release build/install，并同步到 MSGC SDK；未重编 compiler、LLVM 或 runtime。case26
+使用新 stdx 重新编译后，只运行 MSGC 一次，配置为 100K/c100、60 s、512 MiB persistent、8 workers、
+P=8、20 GiB heap、HeapGrowth=1、ScavengeGrowth=2、最小 GC 阈值 20 MiB；退出码为 0，71,054/71,054 成功。
+
+#### 结果
+
+结果目录：`result/20260813_181730_fused_number_msgc_512M`
+
+| 指标 | 原基线 | 精确 Array 版本 | 融合数字版本 |
+|---|---:|---:|---:|
+| 吞吐 | 1,153 req/s | 1,136 req/s | **1,179 req/s** |
+| GC 周期 | 352 | 334 | 342 |
+| GC 总时间 | 12.44 s | 13.93 s | 11.85 s |
+| runtime allocation_total | 7,473,056 | 7,251,460 | 7,032,539 |
+
+本次单轮相对原基线约提升 2.3%，相对精确 Array 版本提升 3.8%；同时 GC 总时间下降。但单轮结果仍可能受
+GC 时序和机器负载影响，不能单独宣称稳定收益。下一步应使用同一机器负载进行至少 3 轮交错 A/B，并结合
+`tryParseJsonDecimalNumber` / `parseJsonNumberSlow` 的采样占比确认收益确实来自重复扫描消除。
+
+### 35.9 P1 降低 DOM 递归与虚调用开销验证（2026-08-13）
+
+#### 实现
+
+本轮在 stdx JSON DOM 中做了两项低风险改动：
+
+1. `native.cj` 删除 `parseNestedJson` 的闭包包装；对象和数组在 `parseJson` 中直接递增、检查并递归解析
+   `parseJsonObject` / `parseJsonArray`，正常路径不再创建闭包或经过 `try/finally`。
+2. `write_buffer.cj` 去掉每个节点的通用 `checkJsonWriteDepth`；`json_object.cj` 改为仅在
+   `JsonObject` / `JsonArray` 容器 writer 入口检查深度，标量仍保留现有 `writeCompactTo` 虚分派。
+
+未恢复旧的全量 `match(JsonValue)` 分派链，避免重新引入 subtype 检查。最大解析/写出深度语义保持不变。
+
+#### 验证
+
+stdx Release build/install 成功，使用 MSGC SDK 的 compiler/runtime 和本轮新安装的 stdx 重新编译
+`benchmark_dom_recursion_p1`。第一次手工运行漏传 `cjHeapSize` 和 `cjProcessorNum`，结果不具备可比性；随后按
+`run_compare.sh` 实际透传方式补齐 `cjHeapSize=20gb`、`cjProcessorNum=8`，完成等价 MSGC-only 复测。
+
+结果目录：`result/20260813_184300_dom_recursion_p1_msgc_512M`
+
+| 指标 | 融合数字路径 | 本轮递归优化 |
+|---|---:|---:|
+| 成功请求 | 71,054 | 70,967 |
+| 吞吐 | 1,179 req/s | 1,179 req/s |
+| GC 周期 | 342 | 369 |
+| GC 总时间 | 11.85 s | 12.21 s |
+
+本轮单次结果显示吞吐持平，未观察到稳定端到端收益；GC 时序有约 3% 波动。说明这两项优化的收益低于当前
+case26 单轮噪声，后续应做至少 3 轮交错 A/B，并配合 10 秒 CPU 采样确认 `parseJson` 和
+`GetMethodOuterTI` 是否真正下降。
+
+### 35.10 P1 字符串 raw span / 延迟物化验证（2026-08-13）
+
+#### 实现
+
+本轮未增加统计埋点，直接实现第一阶段 raw span：
+
+- `JsonString` 同时支持 materialized `String` 和 parser backing 的 `(Array<Byte>, offset, length)`；
+- 无转义 JSON value 解析后只保存 raw span，`getValue()` 首次调用时才创建 `String`；
+- compact writer 对没有 HTML 不安全字符的 raw span 直接 range-copy，跳过 String escape；
+- object key 仍立即物化，带反斜杠的 escaped string 仍走原解码路径；
+- `setValue()` 清除 raw span，保持修改后写出语义不变；
+- `fromUtf8Bytes` 仍保留私有 backing copy，没有改变所有权安全语义。
+
+#### 验证结果
+
+stdx Release build/install 成功，使用 MSGC SDK 的 compiler/runtime 和新安装的 stdx 重新编译
+`benchmark_raw_span_p1`，并按 100K/c100、60 s、512 MiB persistent、8 workers、`cjHeapSize=20gb`、
+`cjProcessorNum=8`、HeapGrowth=1、ScavengeGrowth=2、最小 GC 阈值 20 MiB 运行 MSGC-only。
+
+结果目录：`result/20260813_205000_raw_span_p1_msgc_512M`
+
+| 指标 | 前一版本 | raw span 版本 | 变化 |
+|---|---:|---:|---:|
+| 成功请求 | 70,967 | 66,535 | -6.2% |
+| 吞吐 | 1,179 req/s | 1,103 req/s | -6.4% |
+| GC 周期 | 369 | 383 | +3.8% |
+| GC 总时间 | 12.21 s | 13.91 s | +13.9% |
+| allocation_total | — | 7,290,397 | — |
+
+所有 66,535 个请求均成功，说明基本解析/序列化语义没有被破坏；但本轮没有性能收益，反而出现明显回退。
+可能原因是每个 `JsonString` 增加 raw span、`Option` 和 HTML 标记字段后对象布局变大，增加了 DOM 对象扫描和
+GC 成本；单次运行还不能区分对象布局开销与机器噪声。当前不建议继续扩展 escaped string raw span，下一步应
+先做对象布局更紧凑的实现或回退该版本，再进行至少两轮交错 A/B。
