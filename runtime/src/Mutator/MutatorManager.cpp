@@ -7,7 +7,10 @@
 
 #include "MutatorManager.h"
 
+#include <cstdlib>
+#include <csignal>
 #include <thread>
+#include "Base/SysCall.h"
 #include "Base/TimeUtils.h"
 #include "Common/Runtime.h"
 #include "Concurrency/ConcurrencyModel.h"
@@ -218,7 +221,14 @@ void MutatorManager::AcquireMutatorManagementWLock()
         acquired = TryAcquireMutatorManagementWLock();
         uint64_t now = TimeUtil::NanoSeconds();
         if (!acquired && ((now - start) / SECOND_TO_NANO_SECOND > WAIT_LOCK_TIMEOUT)) {
-            LOG(RTLOG_FATAL, "Wait mutator list lock timeout");
+            pid_t ownerTid = mutatorManagementRWLock.GetOwnerTid();
+            LOG(RTLOG_ERROR, "Wait mutator list lock timeout, write lock owner tid: %d, current tid: %d, lockCount: %d",
+                static_cast<int>(ownerTid), static_cast<int>(MapleRuntime::GetTid()),
+                mutatorManagementRWLock.GetLockCount());
+            // Crash the thread that holds the write lock so a core dump can be captured for diagnosis.
+            if (ownerTid != 0) {
+                SendThreadSignal(ownerTid, SIGABRT);
+            }
         }
     }
 }
@@ -232,7 +242,14 @@ bool MutatorManager::AcquireMutatorManagementWLockForCpuProfile()
         acquired = TryAcquireMutatorManagementWLock();
         uint64_t now = TimeUtil::NanoSeconds();
         if (!acquired && ((now - start) / SECOND_TO_NANO_SECOND > WAIT_LOCK_TIMEOUT)) {
-            LOG(RTLOG_FATAL, "Wait mutator list lock timeout");
+            pid_t ownerTid = mutatorManagementRWLock.GetOwnerTid();
+            LOG(RTLOG_ERROR, "Wait mutator list lock timeout, write lock owner tid: %d, current tid: %d, lockCount: %d",
+                static_cast<int>(ownerTid), static_cast<int>(MapleRuntime::GetTid()),
+                mutatorManagementRWLock.GetLockCount());
+            // Crash the thread that holds the write lock so a core dump can be captured for diagnosis.
+            if (ownerTid != 0) {
+                SendThreadSignal(ownerTid, SIGABRT);
+            }
         }
         if (!CpuProfiler::GetInstance().GetGenerator().GetIsStart()) {
             break;
