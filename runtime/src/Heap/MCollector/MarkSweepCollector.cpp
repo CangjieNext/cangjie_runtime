@@ -2175,12 +2175,6 @@ void MarkSweepCollector::PostMarkTermination()
     // and an additional pre-scan solely to split work into chunks.
     MSMarkedStats markedStats = centralPool->ComputeMarkedStats();
     cycleStats_.trueLiveBytes = markedStats.liveBytes;
-    cycleStats_.outsideCentralSmallBytes =
-        SaturatingMultiplyMSBytes(
-            centralPool->GetSmallSweptRegionCount(), MS_REGION_SIZE);
-    cycleStats_.outsideLargeBytes =
-        SaturatingMultiplyMSBytes(
-            centralPool->GetLargeNextSupplySpanCount(), MS_REGION_SIZE);
 
     // Step 4: partition the frozen LARGE collect-set after its bitmap
     // statistics are consumed. Live spans join next supply; dead spans are
@@ -2429,22 +2423,26 @@ void MarkSweepCollector::LogGCEntry(GCReason reason)
     RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(theAllocator);
     CentralRegionPool* centralPool = space.GetCentralPool();
     MSHeapRetentionSnapshot retention = CaptureMSHeapRetentionSnapshot(space);
-    MSSweepProgressSnapshot sweep;
+    MSMarkTriggerSnapshot markTrigger;
+    uint32_t sweepEpoch = 0;
     if (centralPool != nullptr) {
-        sweep = CaptureMSSweepProgressSnapshot(*centralPool);
+        markTrigger = CaptureMSMarkTriggerSnapshot(*centralPool);
+        sweepEpoch = centralPool->GetSweepCycleId();
     }
     MSMarkTriggerDecision decision = EvaluateMSMarkTrigger(
-        retention, sweep, LoadMSHeapPolicySnapshot(GetGCStats()));
+        retention, markTrigger, LoadMSHeapPolicySnapshot(GetGCStats()));
     WriteLog(false, REPORT, "");
     VLOG(REPORT,
          "[MS-GC] === GC begin: cycle=%zu reason=%u(%s) trigger=%u sweepEpoch=%u "
-         "retained=%.2fMB swept=%.2fMB outsideMark=%.2fMB effectiveSwept=%.2fMB "
+         "retained=%.2fMB triggerUsed=%.2fMB mutatorReturnedSweptRegions=%zu "
+         "largeLiveSpans=%zu "
          "threshold=%.2fMB softLimit=%.2fMB ===",
          g_gcCount + 1, static_cast<unsigned>(reason),
          g_gcRequests[reason].name, static_cast<unsigned>(decision.trigger),
-         sweep.epochId, MSBytesToMB(decision.retainedBytes),
-         MSBytesToMB(decision.sweptBytes), MSBytesToMB(decision.outsideMarkBytes),
-         MSBytesToMB(decision.effectiveSweptBytes),
+         sweepEpoch, MSBytesToMB(decision.retainedBytes),
+         MSBytesToMB(decision.triggerBytes),
+         decision.mutatorReturnedSweptRegions,
+         decision.largeLiveSpanRegions,
          MSBytesToMB(decision.thresholdBytes), MSBytesToMB(decision.softLimitBytes));
 }
 
@@ -2457,10 +2455,10 @@ void MarkSweepCollector::LogRegionSummary(const char* stage) const
         reinterpret_cast<const RegionSpaceMS&>(theAllocator);
     MSGCRegionSummary summary = CaptureMSGCRegionSummary(space);
     VLOG(REPORT,
-         "[MS-GC] Region summary(%s): P=%zu allocBufferActive=%zu "
+         "[MS-GC] Region summary(%s): P=%zu allocBuffers=%zu allocBufferActive=%zu "
          "centralClasses=%zu/%zu centralRegions=%zu sweptRegions=%zu unsweptRegions=%zu empty=%zu "
          "largeObjects=%zu largeSpans=%zu hotFree=%zu committed=%zu(%.2fMB)",
-         stage, summary.processorCount, summary.allocBufferActiveRegions,
+         stage, summary.processorCount, summary.allocBufferCount, summary.allocBufferActiveRegions,
          summary.centralNonEmptySizeClasses, summary.centralSizeClasses,
          summary.centralSmallRegions, summary.sweptRegions, summary.unsweptRegions,
          summary.emptyRegions,
@@ -2656,12 +2654,6 @@ void MarkSweepCollector::UpdateGCStats()
     MSScavengeWatermarkStateUpdate scavengeWatermarkState =
         UpdateMSScavengeWatermarkState(space, gcStats, heapThresholdState);
     uint64_t completedWU = GetCycleCompletedMarkWork();
-    // Publish the one-cycle outside-set correction before the release-store of
-    // the GC trigger threshold. Region acquisition reads the threshold first,
-    // then pairs it with this snapshot when it computes HEU pressure.
-    size_t outsideMarkBytes = SaturatingAddMSBytes(
-        cycleStats_.outsideCentralSmallBytes, cycleStats_.outsideLargeBytes);
-    gcStats.SetLastMarkOutsideBytes(outsideMarkBytes);
     gcStats.SetScavengeThreshold(scavengeWatermarkState.newLowBytes);
     gcStats.SetScavengeTriggerThreshold(scavengeWatermarkState.newHighBytes);
     gcStats.SetThreshold(heapThresholdState.newThreshold);
@@ -2671,13 +2663,12 @@ void MarkSweepCollector::UpdateGCStats()
         CangjieRuntime::IsMSAssistDisabled());
     VLOG(REPORT,
          "[MS-GC]   GC threshold: live=%.2fMB inUse=%.2fMB threshold=%.2fMB->%.2fMB "
-         "scavenge=%.2fMB/%.2fMB outside=%.2fMB",
+         "scavenge=%.2fMB/%.2fMB",
          MSBytesToMB(heapThresholdState.liveBytes),
          MSBytesToMB(heapThresholdState.inUseBytes),
          MSBytesToMB(oldThreshold), MSBytesToMB(heapThresholdState.newThreshold),
          MSBytesToMB(scavengeWatermarkState.newLowBytes),
-         MSBytesToMB(scavengeWatermarkState.newHighBytes),
-         MSBytesToMB(outsideMarkBytes));
+         MSBytesToMB(scavengeWatermarkState.newHighBytes));
     TRACE_COUNT("CJRT_post_GC_HeapSize", Heap::GetHeap().GetAllocatedSize());
 }
 

@@ -92,6 +92,13 @@ MSRegionInfo* CentralRegionPool::TakePartialSweptRegion(uint8_t cls, MSScanClass
     if (region == nullptr) {
         return nullptr;
     }
+    if (region->IsMutatorReturnedSwept()) {
+        region->ClearMutatorReturnedSwept();
+        size_t previous = centralSmallMutatorReturnedSweptRegions_.fetch_sub(
+            1, std::memory_order_acq_rel);
+        CHECK_DETAIL(previous != 0,
+                     "[MS-GC] mutator-returned swept Region count underflow");
+    }
 
     size_t ridx = MSRegionInfoArray::GetRegionIdx(region);
     uintptr_t expectedEnd = MSRegionInfoArray::GetRegionAddress(ridx) + MS_REGION_SIZE;
@@ -166,6 +173,28 @@ uint16_t CentralRegionPool::ResolveHomeShardId(uint16_t shardHint) const
 // ============================================================================
 // Return / Release — Region return from thread-local cache
 // ============================================================================
+
+void CentralRegionPool::ReturnMutatorPartialRegion(MSRegionInfo* region, uint8_t cls)
+{
+    CHECK_DETAIL(region != nullptr, "ReturnMutatorPartialRegion with null region");
+    CHECK_DETAIL(!region->IsMutatorReturnedSwept(),
+                 "ReturnMutatorPartialRegion with already-accounted region");
+    // Publish provenance and its aggregate before the Region becomes visible
+    // on the lock-free central list.
+    region->MarkMutatorReturnedSwept();
+    centralSmallMutatorReturnedSweptRegions_.fetch_add(1, std::memory_order_release);
+    ReturnPartialRegion(region, cls);
+}
+
+void CentralRegionPool::ReturnMutatorFullRegion(MSRegionInfo* region, uint8_t cls)
+{
+    CHECK_DETAIL(region != nullptr, "ReturnMutatorFullRegion with null region");
+    CHECK_DETAIL(!region->IsMutatorReturnedSwept(),
+                 "ReturnMutatorFullRegion with already-accounted region");
+    region->MarkMutatorReturnedSwept();
+    centralSmallMutatorReturnedSweptRegions_.fetch_add(1, std::memory_order_release);
+    ReturnFullRegion(region, cls);
+}
 
 void CentralRegionPool::ReturnPartialRegion(MSRegionInfo* region, uint8_t cls)
 {
@@ -523,6 +552,11 @@ uint32_t CentralRegionPool::PrepareMarkEpochUnderSTW(bool forceMaxHelpers)
         resetSession.Finish();
     }
 
+    // Every swept small Region has now moved into this cycle's immutable
+    // collect-set. Reset the corresponding central-supply provenance before
+    // mutators resume; regions Sweep later returns are deliberately untagged.
+    centralSmallMutatorReturnedSweptRegions_.store(0, std::memory_order_release);
+
     // Step 5: publish the completed epoch after every reset worker has exited.
     // Purpose: the release stores form the single visibility boundary: a
     // mutator can observe this epoch only after all Small, LARGE, and active
@@ -552,10 +586,13 @@ void CentralRegionPool::PublishCollectSetForSweep()
     RegionSpaceMS& space = static_cast<RegionSpaceMS&>(Heap::GetHeap().GetAllocator());
     MSHeapPolicySnapshot policy = LoadMSHeapPolicySnapshot(
         Heap::GetHeap().GetCollector().GetGCStats());
-    MSSweepProgressSnapshot sweep = CaptureMSSweepProgressSnapshot(*this);
+    // The epoch's base assist ratio is paced against actual allocation
+    // ownership, not sweep-list membership. Sweep progress remains the input
+    // to executor pressure decisions after this epoch is opened.
+    MSMarkTriggerSnapshot markTrigger = CaptureMSMarkTriggerSnapshot(*this);
     size_t runwayRegions = CeilDivideMSSweepValue(
         ComputeMSSweepRunwayBytes(
-            policy.markThresholdBytes, sweep.sweptBytes),
+            policy.markThresholdBytes, markTrigger.triggerBytes),
         MS_REGION_SIZE);
     bool disableAssist = CangjieRuntime::IsMSAssistDisabled();
     uint64_t sweepAssistRatio = disableAssist
@@ -841,6 +878,11 @@ size_t CentralRegionPool::GetSmallSweptRegionCount() const
     return centralSmallSweptRegions_.load(std::memory_order_acquire);
 }
 
+size_t CentralRegionPool::GetMutatorReturnedSweptRegionCount() const
+{
+    return centralSmallMutatorReturnedSweptRegions_.load(std::memory_order_acquire);
+}
+
 size_t CentralRegionPool::GetLargeNextSupplySpanCount() const
 {
     size_t spanCount = 0;
@@ -918,6 +960,12 @@ size_t CentralRegionPool::GetAllAllocBufferActiveRegionCount() const
         }
     }
     return total;
+}
+
+size_t CentralRegionPool::GetAllocBufferCount() const
+{
+    std::lock_guard<std::mutex> lg(const_cast<std::mutex&>(msAllocBufferLock_));
+    return msAllocBuffers_.size();
 }
 
 size_t CentralRegionPool::GetSweptMSRegionCount() const

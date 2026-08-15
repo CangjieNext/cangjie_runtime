@@ -88,6 +88,17 @@ MSSweepProgressSnapshot CaptureMSSweepProgressSnapshot(const CentralRegionPool& 
     return snapshot;
 }
 
+MSMarkTriggerSnapshot CaptureMSMarkTriggerSnapshot(const CentralRegionPool& pool)
+{
+    MSMarkTriggerSnapshot snapshot;
+    snapshot.mutatorReturnedSweptRegions =
+        pool.GetMutatorReturnedSweptRegionCount();
+    snapshot.largeLiveSpanRegions = pool.GetLargeLiveSpanCount();
+    snapshot.triggerBytes = MSRegionsToBytes(SaturatingAddMSAccountingBytes(
+        snapshot.mutatorReturnedSweptRegions, snapshot.largeLiveSpanRegions));
+    return snapshot;
+}
+
 MSGCRegionSummary CaptureMSGCRegionSummary(const RegionSpaceMS& space)
 {
     MSGCRegionSummary summary;
@@ -98,6 +109,7 @@ MSGCRegionSummary CaptureMSGCRegionSummary(const RegionSpaceMS& space)
 
     const CentralRegionPool* centralPool = space.GetCentralPool();
     if (centralPool != nullptr) {
+        summary.allocBufferCount = centralPool->GetAllocBufferCount();
         summary.allocBufferActiveRegions =
             centralPool->GetAllAllocBufferActiveRegionCount();
         summary.centralSizeClasses = kNumSizeClasses;
@@ -115,7 +127,7 @@ MSGCRegionSummary CaptureMSGCRegionSummary(const RegionSpaceMS& space)
         summary.centralSmallRegions = SaturatingAddMSAccountingBytes(
             centralPool->GetSmallSweptRegionCount(),
             centralPool->GetTotalUnsweptCount());
-        summary.sweptRegions = centralPool->GetSweptMSRegionCount();
+        summary.sweptRegions = centralPool->GetSmallSweptRegionCount();
         summary.unsweptRegions = centralPool->GetTotalUnsweptCount();
         summary.emptyRegions = centralPool->GetEmptySweptRegionCount();
         summary.largeObjects = centralPool->GetLargeRegionCount();
@@ -136,7 +148,6 @@ MSHeapPolicySnapshot LoadMSHeapPolicySnapshot(const GCStats& gcStats)
 {
     MSHeapPolicySnapshot snapshot;
     snapshot.markThresholdBytes = gcStats.GetThreshold();
-    snapshot.lastMarkOutsideBytes = gcStats.GetLastMarkOutsideBytes();
     snapshot.scavengeLowBytes = gcStats.GetScavengeThreshold();
     snapshot.scavengeHighBytes = gcStats.GetScavengeTriggerThreshold();
     snapshot.softLimitBytes = CangjieRuntime::GetMSSoftHeapLimitBytes();
@@ -156,19 +167,19 @@ size_t ComputeMSScavengeReleaseTarget(const MSHeapRetentionSnapshot& retention,
 }
 
 MSMarkTriggerDecision EvaluateMSMarkTrigger(const MSHeapRetentionSnapshot& retention,
-                                            const MSSweepProgressSnapshot& sweep,
+                                            const MSMarkTriggerSnapshot& markTrigger,
                                             const MSHeapPolicySnapshot& policy)
 {
     MSMarkTriggerDecision decision;
     decision.retainedBytes = retention.RetainedBytes();
-    decision.sweptBytes = sweep.sweptBytes;
-    decision.outsideMarkBytes = policy.lastMarkOutsideBytes;
-    decision.effectiveSweptBytes = SaturatingSubtractMSBytes(
-        decision.sweptBytes, decision.outsideMarkBytes);
+    decision.triggerBytes = markTrigger.triggerBytes;
+    decision.mutatorReturnedSweptRegions =
+        markTrigger.mutatorReturnedSweptRegions;
+    decision.largeLiveSpanRegions = markTrigger.largeLiveSpanRegions;
     decision.thresholdBytes = policy.markThresholdBytes;
     decision.softLimitBytes = policy.softLimitBytes;
     decision.trigger = ResolveMSMarkTrigger(
-        decision.retainedBytes, decision.effectiveSweptBytes,
+        decision.retainedBytes, decision.triggerBytes,
         decision.thresholdBytes, decision.softLimitBytes);
     return decision;
 }

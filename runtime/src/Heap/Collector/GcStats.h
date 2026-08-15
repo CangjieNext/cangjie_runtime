@@ -44,17 +44,6 @@ public:
     // The latest frozen mark sample is used to identify the first normal
     // threshold update after startup or an exceptional GC.
     size_t lastTrueLiveBytes = 0;
-    // Regions that joined allocation supply after the previous frozen mark
-    // boundary. HEU excludes this one-cycle supply from swept pressure.
-    size_t GetLastMarkOutsideBytes() const
-    {
-        return lastMarkOutsideBytes.load(std::memory_order_acquire);
-    }
-    void SetLastMarkOutsideBytes(size_t value)
-    {
-        lastMarkOutsideBytes.store(value, std::memory_order_release);
-    }
-
     void Dump() const;
 
     static uint64_t GetPrevGCStartTime() { return prevGcStartTime; }
@@ -97,7 +86,6 @@ private:
     std::atomic<size_t> heapThreshold{0};
     std::atomic<size_t> scavengeThreshold{0};
     std::atomic<size_t> scavengeTriggerThreshold{0};
-    std::atomic<size_t> lastMarkOutsideBytes{0};
 };
 extern size_t g_gcCount;
 extern uint64_t g_gcTotalTimeUs;

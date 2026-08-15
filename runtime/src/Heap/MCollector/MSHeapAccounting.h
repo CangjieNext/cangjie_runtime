@@ -47,15 +47,27 @@ struct MSSweepProgressSnapshot {
     uint32_t epochId = 0;
 };
 
+// The Mark-trigger usage sample is deliberately distinct from Sweep progress.
+// It measures only central small Regions returned after real mutator use plus
+// currently-live LARGE spans; background Sweep promotion cannot inflate it.
+struct MSMarkTriggerSnapshot {
+    size_t mutatorReturnedSweptRegions = 0;
+    size_t largeLiveSpanRegions = 0;
+    size_t triggerBytes = 0;
+};
+
 // A best-effort Region topology sample for REPORT logging.  It deliberately
 // reuses the allocator's published aggregates instead of making every GC log
 // site walk per-size-class lists or FreeManager shards independently.
 struct MSGCRegionSummary {
     size_t processorCount = 0;
+    size_t allocBufferCount = 0;
     size_t allocBufferActiveRegions = 0;
     size_t centralSizeClasses = 0;
     size_t centralNonEmptySizeClasses = 0;
     size_t centralSmallRegions = 0;
+    // Region-summary value: swept small Regions in central-pool supply only.
+    // Large-object occupancy is reported separately as largeSpanRegions.
     size_t sweptRegions = 0;
     size_t unsweptRegions = 0;
     size_t emptyRegions = 0;
@@ -71,21 +83,20 @@ struct MSGCRegionSummary {
 // image, and remain policy inputs for the next allocation/Scavenge interval.
 struct MSHeapPolicySnapshot {
     size_t markThresholdBytes = 0;
-    size_t lastMarkOutsideBytes = 0;
     size_t scavengeLowBytes = 0;
     size_t scavengeHighBytes = 0;
     size_t softLimitBytes = 0;
 };
 
 // One mark-trigger evaluation and the exact values that produced it. Keeping
-// them together prevents the allocation path from recomputing a different
-// effective-swept value solely for diagnostics.
+// them together prevents the allocation path from recomputing trigger usage
+// solely for diagnostics.
 struct MSMarkTriggerDecision {
     MSMarkTrigger trigger = MSMarkTrigger::NONE;
     size_t retainedBytes = 0;
-    size_t sweptBytes = 0;
-    size_t outsideMarkBytes = 0;
-    size_t effectiveSweptBytes = 0;
+    size_t triggerBytes = 0;
+    size_t mutatorReturnedSweptRegions = 0;
+    size_t largeLiveSpanRegions = 0;
     size_t thresholdBytes = 0;
     size_t softLimitBytes = 0;
 };
@@ -102,6 +113,10 @@ MSHeapRetentionSnapshot CaptureMSHeapRetentionDiagnosticSnapshot(const RegionSpa
 // Capture Sweep progress from CentralRegionPool's published aggregate counters.
 MSSweepProgressSnapshot CaptureMSSweepProgressSnapshot(const CentralRegionPool& pool);
 
+// Capture the allocation-ownership sample used to decide whether to start the
+// next Mark. This remains O(1) and does not walk central size-class lists.
+MSMarkTriggerSnapshot CaptureMSMarkTriggerSnapshot(const CentralRegionPool& pool);
+
 // Capture the stable, compact Region summary shared by GC-begin and GC-end
 // REPORT logs. This is diagnostic-only and may race mutator allocation outside
 // STW; each field remains an independently published point-in-time value.
@@ -115,7 +130,7 @@ MSHeapPolicySnapshot LoadMSHeapPolicySnapshot(const GCStats& gcStats);
 size_t ComputeMSScavengeReleaseTarget(const MSHeapRetentionSnapshot& retention,
                                       const MSHeapPolicySnapshot& policy);
 MSMarkTriggerDecision EvaluateMSMarkTrigger(const MSHeapRetentionSnapshot& retention,
-                                            const MSSweepProgressSnapshot& sweep,
+                                            const MSMarkTriggerSnapshot& markTrigger,
                                             const MSHeapPolicySnapshot& policy);
 
 } // namespace MapleRuntime

@@ -41,7 +41,6 @@ void GCStats::Init()
     liveBytesBeforeGC = 0;
     liveBytesAfterGC = 0;
     lastTrueLiveBytes = 0;
-    lastMarkOutsideBytes.store(0, std::memory_order_relaxed);
 
     garbageRatio = 0.0;
     collectionRate = 0.0;

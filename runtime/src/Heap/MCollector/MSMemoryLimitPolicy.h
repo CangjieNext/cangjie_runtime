@@ -66,18 +66,13 @@ inline bool HasMSScavengeEpochAge(uint32_t currentEpoch, uint32_t freeEpoch,
     return static_cast<uint32_t>(currentEpoch - freeEpoch) >= minimumAge;
 }
 
-inline size_t SaturatingSubtractMSBytes(size_t value, size_t subtract)
-{
-    return value > subtract ? value - subtract : 0;
-}
-
-inline MSMarkTrigger ResolveMSMarkTrigger(size_t retainedBytes, size_t effectiveSweptBytes,
+inline MSMarkTrigger ResolveMSMarkTrigger(size_t retainedBytes, size_t markTriggerBytes,
                                           size_t gcThresholdBytes, size_t softLimitBytes)
 {
     if (softLimitBytes != 0 && retainedBytes >= softLimitBytes) {
         return MSMarkTrigger::OOM;
     }
-    return effectiveSweptBytes >= gcThresholdBytes ? MSMarkTrigger::HEU : MSMarkTrigger::NONE;
+    return markTriggerBytes >= gcThresholdBytes ? MSMarkTrigger::HEU : MSMarkTrigger::NONE;
 }
 
 } // namespace MapleRuntime

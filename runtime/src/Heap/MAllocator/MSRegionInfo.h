@@ -120,6 +120,10 @@ struct alignas(64) MSRegionInfo {
     static constexpr uint8_t LAYOUT_SCAN_CLASS_MASK = 0x08;
     static constexpr uint32_t CONTROL_SCAN_STATE_MASK = 0x03;
     static constexpr uint32_t CONTROL_LARGE_MARKED = 0x04;
+    // Small Region currently parked in central swept supply after a real
+    // mutator return.  This provenance is kept in the existing control word,
+    // preserving the fixed MSRegionInfo ABI and leaving reserved32 untouched.
+    static constexpr uint32_t CONTROL_MUTATOR_RETURNED_SWEPT = 0x08;
 
     uint32_t GetCentralNextRegionIdx() const
     {
@@ -191,6 +195,21 @@ struct alignas(64) MSRegionInfo {
     void ClearMarkedFlag()
     {
         __atomic_fetch_and(&control, ~CONTROL_LARGE_MARKED, __ATOMIC_RELAXED);
+    }
+    bool IsMutatorReturnedSwept() const
+    {
+        return (__atomic_load_n(&control, __ATOMIC_ACQUIRE) &
+            CONTROL_MUTATOR_RETURNED_SWEPT) != 0;
+    }
+    void MarkMutatorReturnedSwept()
+    {
+        __atomic_fetch_or(&control, CONTROL_MUTATOR_RETURNED_SWEPT,
+                          __ATOMIC_RELEASE);
+    }
+    void ClearMutatorReturnedSwept()
+    {
+        __atomic_fetch_and(&control, ~CONTROL_MUTATOR_RETURNED_SWEPT,
+                           __ATOMIC_RELEASE);
     }
 
     MSRegionKind GetRegionKind() const

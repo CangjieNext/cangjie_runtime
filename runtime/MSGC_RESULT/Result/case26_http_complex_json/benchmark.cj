@@ -225,10 +225,10 @@ func elapsedUs(start: DateTime): Int64 {
 
 func parseServerJson(body: Array<Byte>): JsonValue {
     if (!JSON_PROFILE_ENABLED) {
-        return JsonValue.fromUtf8Bytes(body)
+        return JsonValue.fromStr(String.fromUtf8(body))
     }
     let start = DateTime.now()
-    let value = JsonValue.fromUtf8Bytes(body)
+    let value = JsonValue.fromStr(String.fromUtf8(body))
     JSON_PROFILE_STATS.serverParseUs.fetchAdd(elapsedUs(start))
     JSON_PROFILE_STATS.serverCalls.fetchAdd(1)
     return value
@@ -236,27 +236,24 @@ func parseServerJson(body: Array<Byte>): JsonValue {
 
 func parseClientJson(body: Array<Byte>): JsonValue {
     if (!JSON_PROFILE_ENABLED) {
-        return JsonValue.fromUtf8Bytes(body)
+        return JsonValue.fromStr(String.fromUtf8(body))
     }
     let start = DateTime.now()
-    let value = JsonValue.fromUtf8Bytes(body)
+    let value = JsonValue.fromStr(String.fromUtf8(body))
     JSON_PROFILE_STATS.clientParseUs.fetchAdd(elapsedUs(start))
     JSON_PROFILE_STATS.clientCalls.fetchAdd(1)
     return value
 }
 
-func responseJsonCapacity(requestBytes: Int64): Int64 {
-    // case26 只为原 JSON 增加少量 marker/product id。预留 12.5% 余量，
-    // 避免 JsonValue.toString() 为估算容量而先完整遍历一次对象树。
-    return requestBytes + requestBytes / 8 + 1024
-}
-
-func serializeServerJson(root: JsonObject, requestBytes: Int64): String {
+// Use the common stdx JSON APIs so the exact same workload compiles with the
+// CopyGC and MSGC SDKs. The CopyGC baseline does not expose the newer byte
+// parser or capacity-aware serializer APIs.
+func serializeServerJson(root: JsonObject): String {
     if (!JSON_PROFILE_ENABLED) {
-        return root.toStringWithCapacity(responseJsonCapacity(requestBytes))
+        return root.toString()
     }
     let start = DateTime.now()
-    let value = root.toStringWithCapacity(responseJsonCapacity(requestBytes))
+    let value = root.toString()
     JSON_PROFILE_STATS.serverSerializeUs.fetchAdd(elapsedUs(start))
     return value
 }
@@ -536,8 +533,8 @@ func mutateRequestJson(root: JsonObject, seq: Int64): Unit {
             let co = c.asObject()
             let inValue = co.get("in").getOrThrow().asInt()
             let okValue = co.get("ok").getOrThrow().asInt()
-            inValue.setValue(inValue.getValue() + 1)
-            okValue.setValue(okValue.getValue() + 1)
+            co.put("in", JsonInt(inValue.getValue() + 1))
+            co.put("ok", JsonInt(okValue.getValue() + 1))
         case None => ()
     }
 
@@ -556,14 +553,14 @@ func mutateRequestJson(root: JsonObject, seq: Int64): Unit {
                 match (item.get("seq")) {
                     case Some(s) =>
                         let value = s.asInt()
-                        value.setValue(value.getValue() + 1)
+                        item.put("seq", JsonInt(value.getValue() + 1))
                     case None => ()
                 }
                 // score *= 2.0
                 match (item.get("score")) {
                     case Some(s) =>
                         let value = s.asFloat()
-                        value.setValue(value.getValue() * 2.0)
+                        item.put("score", JsonFloat(value.getValue() * 2.0))
                     case None => ()
                 }
                 // user.attrs.credits *= 2.0
@@ -576,7 +573,7 @@ func mutateRequestJson(root: JsonObject, seq: Int64): Unit {
                                 match (ao.get("credits")) {
                                     case Some(cv) =>
                                         let value = cv.asFloat()
-                                        value.setValue(value.getValue() * 2.0)
+                                        ao.put("credits", JsonFloat(value.getValue() * 2.0))
                                     case None => ()
                                 }
                             case None => ()
@@ -612,7 +609,7 @@ func processRequest(body: Array<Byte>, seq: Int64, reqId: String): String {
         mutateRequestJson(root, seq)
     }
     printJsonGraphDiagBeforeString(reqId, seq, root)
-    serializeServerJson(root, body.size)
+    serializeServerJson(root)
 }
 
 // ---------- Client ----------

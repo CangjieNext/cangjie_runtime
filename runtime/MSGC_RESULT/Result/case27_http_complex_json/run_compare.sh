@@ -34,6 +34,8 @@
 #     CASE27_CLIENT_MODE   sync|async             默认 sync
 #     CASE27_SEND_INTERVAL_MS async 发射间隔 (ms)  默认 1
 #     CASE27_MAX_INFLIGHT  async 最大在途请求数    默认 32
+#     COPYGC_ENABLE       是否执行 CopyGC side     默认 1
+#     MSGC_ENABLE         是否执行 MSGC side       默认 1
 #     GO_ENABLE            是否加入 Go mirror side 默认 1
 #     GO_GODEBUG           Go benchmark 的 GODEBUG 默认 gctrace=1
 #     GO_GOGC              可选，透传给 Go side
@@ -91,6 +93,8 @@ MSGC_GC_INTERVAL="${MSGC_GC_INTERVAL:-}"
 CLIENT_MODE="${CASE27_CLIENT_MODE:-sync}"
 SEND_INTERVAL_MS="${CASE27_SEND_INTERVAL_MS:-1}"
 MAX_INFLIGHT="${CASE27_MAX_INFLIGHT:-32}"
+COPYGC_ENABLE="${COPYGC_ENABLE:-1}"
+MSGC_ENABLE="${MSGC_ENABLE:-1}"
 GO_ENABLE="${GO_ENABLE:-1}"
 GO_GODEBUG="${GO_GODEBUG:-gctrace=1}"
 GO_GOGC="${GO_GOGC:-}"
@@ -106,6 +110,19 @@ JAVA_OPTS="${JAVA_OPTS:--Xmx${JAVA_HEAP_SIZE}}"
 JAVA_GC_OPTS="${JAVA_GC_OPTS:-}"
 CASE27_SAMPLE_DURATION_SECONDS="${CASE27_SAMPLE_DURATION_SECONDS:-0}"
 CASE27_SAMPLE_DELAY_SECONDS="${CASE27_SAMPLE_DELAY_SECONDS:-8}"
+
+for enable_name in COPYGC_ENABLE MSGC_ENABLE GO_ENABLE JAVA_ENABLE; do
+    enable_value="${!enable_name}"
+    if [[ "$enable_value" != "0" && "$enable_value" != "1" ]]; then
+        echo "[ERROR] $enable_name must be 0 or 1, got '$enable_value'" >&2
+        exit 1
+    fi
+done
+ENABLED_SIDE_COUNT=$((COPYGC_ENABLE + MSGC_ENABLE + GO_ENABLE + JAVA_ENABLE))
+if [[ "$ENABLED_SIDE_COUNT" -eq 0 ]]; then
+    echo "[ERROR] at least one of COPYGC_ENABLE, MSGC_ENABLE, GO_ENABLE, or JAVA_ENABLE must be 1" >&2
+    exit 1
+fi
 
 if [[ ! -f "$CASE_DIR/payloads/${PAYLOAD}.json" ]]; then
     echo "[ERROR] payloads/${PAYLOAD}.json not found" >&2
@@ -143,7 +160,12 @@ MSGC_DIR="$COMPARE_DIR/msgc"
 GO_DIR="$COMPARE_DIR/go"
 JAVA_DIR="$COMPARE_DIR/java"
 MPLCONFIG_DIR="$SHARED_MPLCONFIG_DIR"
-mkdir -p "$COPYGC_DIR" "$MSGC_DIR"
+if [[ "$COPYGC_ENABLE" != "0" ]]; then
+    mkdir -p "$COPYGC_DIR"
+fi
+if [[ "$MSGC_ENABLE" != "0" ]]; then
+    mkdir -p "$MSGC_DIR"
+fi
 if [[ "$GO_ENABLE" != "0" ]]; then
     mkdir -p "$GO_DIR"
 fi
@@ -153,6 +175,7 @@ fi
 mkdir -p "$MPLCONFIG_DIR"
 echo "[INFO] compare dir: $COMPARE_DIR"
 echo "[INFO] config: payload=$PAYLOAD concurrency=$CONC duration=${DUR}ms heap=$HEAP_SIZE proc=${PROCS:-auto} mode=$CLIENT_MODE msgcMinGCThreshold=$MSGC_MIN_GC_THRESHOLD"
+echo "[INFO] enabled: copygc=$COPYGC_ENABLE msgc=$MSGC_ENABLE go=$GO_ENABLE java=$JAVA_ENABLE"
 
 run_side() {
     local label="$1"
@@ -755,15 +778,24 @@ run_java_side() {
     return $rc
 }
 
-# 先跑 CopyGC 基线，再跑 MSGC
-run_side "CopyGC" "$COPYGC_DIR" "$COPYGC_SDK" "$COPYGC_STDX" 18226 "" "" "$COPYGC_GC_INTERVAL" "" ""
-COPYGC_RC=$?
+COPYGC_RC=0
+if [[ "$COPYGC_ENABLE" != "0" ]]; then
+    run_side "CopyGC" "$COPYGC_DIR" "$COPYGC_SDK" "$COPYGC_STDX" 18226 "" "" "$COPYGC_GC_INTERVAL" "" ""
+    COPYGC_RC=$?
+    echo "[INFO] CopyGC rc=$COPYGC_RC"
+else
+    echo "[INFO] ===== CopyGC skipped (COPYGC_ENABLE=0) ====="
+fi
 
-run_side "MSGC" "$MSGC_DIR" "$MSGC_SDK" "$MSGC_STDX" 18230 \
-    "$MSGC_HEAP_GROWTH" "$MSGC_SCAVENGE_GROWTH" "$MSGC_GC_INTERVAL" "$MSGC_MIN_GC_THRESHOLD" "marksweep"
-MSGC_RC=$?
-
-echo "[INFO] CopyGC rc=$COPYGC_RC  MSGC rc=$MSGC_RC"
+MSGC_RC=0
+if [[ "$MSGC_ENABLE" != "0" ]]; then
+    run_side "MSGC" "$MSGC_DIR" "$MSGC_SDK" "$MSGC_STDX" 18230 \
+        "$MSGC_HEAP_GROWTH" "$MSGC_SCAVENGE_GROWTH" "$MSGC_GC_INTERVAL" "$MSGC_MIN_GC_THRESHOLD" "marksweep"
+    MSGC_RC=$?
+    echo "[INFO] MSGC rc=$MSGC_RC"
+else
+    echo "[INFO] ===== MSGC skipped (MSGC_ENABLE=0) ====="
+fi
 GO_RC=0
 if [[ "$GO_ENABLE" != "0" ]]; then
     run_go_side "Go" "$GO_DIR" 18234
@@ -777,22 +809,31 @@ if [[ "$JAVA_ENABLE" != "0" ]]; then
     echo "[INFO] Java rc=$JAVA_RC"
 fi
 
-compare_args=(
-    --run "CopyGC=$COPYGC_DIR"
-    --run "MSGC=$MSGC_DIR"
-)
+compare_args=()
+if [[ "$COPYGC_ENABLE" != "0" ]]; then
+    compare_args+=(--run "CopyGC=$COPYGC_DIR")
+fi
+if [[ "$MSGC_ENABLE" != "0" ]]; then
+    compare_args+=(--run "MSGC=$MSGC_DIR")
+fi
 if [[ "$GO_ENABLE" != "0" ]]; then
     compare_args+=(--run "Go=$GO_DIR")
 fi
 if [[ "$JAVA_ENABLE" != "0" ]]; then
     compare_args+=(--run "Java=$JAVA_DIR")
 fi
-MPLCONFIGDIR="$MPLCONFIG_DIR" "$PYTHON_BIN" "$SCRIPT_DIR/compare_results.py" \
-    "${compare_args[@]}" \
-    --output "$COMPARE_DIR/compare_report.md" \
-    || echo "[WARN] compare_results.py failed (non-fatal)"
+if [[ "$ENABLED_SIDE_COUNT" -ge 2 ]]; then
+    MPLCONFIGDIR="$MPLCONFIG_DIR" "$PYTHON_BIN" "$SCRIPT_DIR/compare_results.py" \
+        "${compare_args[@]}" \
+        --output "$COMPARE_DIR/compare_report.md" \
+        || echo "[WARN] compare_results.py failed (non-fatal)"
+else
+    echo "[INFO] compare report skipped: at least two enabled sides are required"
+fi
 
 echo "[DONE] compare_dir=$COMPARE_DIR"
-if [[ "$JAVA_RC" -ne 0 ]]; then
-    exit "$JAVA_RC"
-fi
+for side_rc in "$COPYGC_RC" "$MSGC_RC" "$GO_RC" "$JAVA_RC"; do
+    if [[ "$side_rc" -ne 0 ]]; then
+        exit "$side_rc"
+    fi
+done

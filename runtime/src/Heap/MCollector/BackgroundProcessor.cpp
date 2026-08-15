@@ -583,6 +583,12 @@ bool BackgroundProcessor::ParallelSweepLoop(size_t helperCount)
         return false;
     }
 
+    // The slice completion path uses the current GC threshold to trim excess
+    // central-cache supply after sweep. It is independent from the obsolete
+    // swept-bytes/runway diagnostics removed from this loop.
+    MSHeapPolicySnapshot policy = LoadMSHeapPolicySnapshot(
+        Heap::GetHeap().GetCollector().GetGCStats());
+    size_t thresholdBytes = policy.markThresholdBytes;
     MSSweepProgressSnapshot sweep = CaptureMSSweepProgressSnapshot(*centralPool);
     size_t unsweptRegions = sweep.unsweptRegions;
     if (unsweptRegions == 0) {
@@ -592,15 +598,6 @@ bool BackgroundProcessor::ParallelSweepLoop(size_t helperCount)
     }
     SweepPressureMode mode = centralPool->GetSweepPressureMode();
     MSSweepSliceWindow slice = BuildMSSweepSliceWindow(mode);
-    MSHeapPolicySnapshot policy = LoadMSHeapPolicySnapshot(
-        Heap::GetHeap().GetCollector().GetGCStats());
-    size_t sweptBytes = sweep.sweptBytes;
-    size_t unsweptBytes = sweep.unsweptBytes;
-    size_t thresholdBytes = policy.markThresholdBytes;
-    size_t runwayBytes = ComputeMSSweepRunwayBytes(thresholdBytes, sweptBytes);
-
-    (void)unsweptBytes;
-    (void)runwayBytes;
     BeginSweepRoundLog(*centralPool);
 
     uint64_t startClassCursor = parallelSweepRoundRobin_.fetch_add(

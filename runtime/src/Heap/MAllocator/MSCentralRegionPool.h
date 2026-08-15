@@ -374,6 +374,11 @@ public:
 
     // ===== Thread-local Region return =====
 
+    // These two paths record only Regions actually returned by a mutator after
+    // allocation.  Failed refill hand-backs and Sweep-produced supply use the
+    // generic paths below and must not contribute to Mark trigger usage.
+    void ReturnMutatorPartialRegion(MSRegionInfo* region, uint8_t cls);
+    void ReturnMutatorFullRegion(MSRegionInfo* region, uint8_t cls);
     void ReturnPartialRegion(MSRegionInfo* region, uint8_t cls);
     void ReturnFullRegion(MSRegionInfo* region, uint8_t cls);
     void ReturnEmptyRegion(MSRegionInfo* region);
@@ -445,7 +450,11 @@ public:
     size_t GetTotalUnsweptBytes() const;
     size_t GetLargeRegionCount() const;
     size_t GetSmallSweptRegionCount() const;
+    // Current central small-Region supply that a mutator previously used and
+    // returned.  It intentionally excludes Sweep-produced partial/full lists.
+    size_t GetMutatorReturnedSweptRegionCount() const;
     size_t GetLargeNextSupplySpanCount() const;
+    size_t GetAllocBufferCount() const;
     size_t GetAllAllocBufferActiveRegionCount() const;
     BucketPressure GetBucketPressure(uint8_t cls) const;
     // Swept-retained region count: partialSwept + fullSwept buckets + large region spans.
@@ -780,6 +789,7 @@ private:
     std::atomic<size_t> centralSmallActiveRegions_ {0};
     std::atomic<size_t> centralSmallSweptRegions_ {0};
     std::atomic<size_t> centralSmallUnsweptRegions_ {0};
+    std::atomic<size_t> centralSmallMutatorReturnedSweptRegions_ {0};
     SizeClassBucket buckets_[kNumSizeClasses][kMSScanClassCount];
     RegionChain collectSet_[kNumSizeClasses][kMSScanClassCount];
     std::atomic<uint32_t> currentMarkEpoch_{0};

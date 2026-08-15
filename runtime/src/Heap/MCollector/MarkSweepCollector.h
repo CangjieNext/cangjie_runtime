@@ -49,8 +49,6 @@ struct MSGCCycleStats {
     // finish. It records the just-used Region footprint used to retain a
     // reusable cache after that Sweep makes dead Regions reclaimable.
     size_t preSweepInUseBytes = 0;
-    size_t outsideCentralSmallBytes = 0;
-    size_t outsideLargeBytes = 0;
 
     void Reset() { *this = MSGCCycleStats{}; }
 };

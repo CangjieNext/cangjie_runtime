@@ -402,10 +402,10 @@ void AllocBufferMS::ReturnRegionToCentral(MSRegionInfo* region, uint8_t cls)
             central_->ReturnEmptyRegion(region);
             return;
         case MSCentralReturnKind::PARTIAL:
-            central_->ReturnPartialRegion(region, decision.bucketSizeClass);
+            central_->ReturnMutatorPartialRegion(region, decision.bucketSizeClass);
             return;
         case MSCentralReturnKind::FULL:
-            central_->ReturnFullRegion(region, decision.bucketSizeClass);
+            central_->ReturnMutatorFullRegion(region, decision.bucketSizeClass);
             return;
     }
     MRT_ASSERT(false, "unexpected central return kind");

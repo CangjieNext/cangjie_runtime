@@ -33,9 +33,9 @@ from typing import Optional
 
 # === Regex: MSGC ===
 MSGC_START_RE = re.compile(
-    r"^(?P<ts>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{6}).*?\[MS-GC\] === GC START cycle=(?P<cycle>\d+) === .*?reason=(?P<reason_code>\d+)\((?P<reason_name>[^)]+)\)"
+    r"^(?P<ts>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{6}).*?\[MS-GC\] === GC (?:START|begin:)\s+cycle=(?P<cycle>\d+)\b"
 )
-MSGC_TOTAL_RE = re.compile(r"total gc time:\s*([\d,]+)\s*us")
+MSGC_TOTAL_RE = re.compile(r"(?:total gc time:\s*|GC total=)([\d,]+)\s*us\b")
 
 # === Regex: CopyGC ===
 COPYGC_START_RE = re.compile(
@@ -51,7 +51,8 @@ JAVA8_GC_RE = re.compile(
     r",\s*(?P<seconds>[0-9]+(?:\.[0-9]+)?)\s+secs\]\s*(?:\[Times:|$)"
 )
 JAVA_UNIFIED_GC_RE = re.compile(
-    r"\bPause\b.*?\s(?P<duration>[0-9]+(?:\.[0-9]+)?)(?P<unit>ms|s)\s*$"
+    r"\bPause\b.*?\s(?P<duration>[0-9]+(?:\.[0-9]+)?)(?P<unit>ms|s)\s*$",
+    re.MULTILINE,
 )
 
 # === Regex: 通用 ===

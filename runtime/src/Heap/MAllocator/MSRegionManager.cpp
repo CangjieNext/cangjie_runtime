@@ -269,14 +269,13 @@ void MSRegionManager::MaybeNotifyMark()
         return;
     }
 
-    // The normal HEU path remains gated on the swept-retained footprint
-    // (partialSwept + fullSwept + large region spans). A configured soft limit
-    // uses retained physical-heap policy bytes so hot-free pages can request a
-    // synchronous recovery before virtual allocation fails.
+    // The normal HEU path counts only central small Regions returned after
+    // mutator use plus live LARGE spans. Sweep promotion alone cannot advance
+    // this trigger. A configured soft limit still uses retained physical bytes.
     MSHeapRetentionSnapshot retention = CaptureMSHeapRetentionSnapshot(space);
-    MSSweepProgressSnapshot sweep = CaptureMSSweepProgressSnapshot(*pool);
+    MSMarkTriggerSnapshot markTrigger = CaptureMSMarkTriggerSnapshot(*pool);
     MSHeapPolicySnapshot policy = LoadMSHeapPolicySnapshot(gcStats);
-    MSMarkTriggerDecision markDecision = EvaluateMSMarkTrigger(retention, sweep, policy);
+    MSMarkTriggerDecision markDecision = EvaluateMSMarkTrigger(retention, markTrigger, policy);
 
     if (markDecision.trigger == MSMarkTrigger::NONE) {
         return;
@@ -295,6 +294,7 @@ void MSRegionManager::MaybeNotifyMark()
     // gates the HEU request. If Mark wins the race, PreEnumRoots joins the same
     // claim path and closes all in-flight Sweep work before clearing bitmaps.
     if (pressureMode != SweepPressureMode::LOW) {
+        MSSweepProgressSnapshot sweep = CaptureMSSweepProgressSnapshot(*pool);
         BackgroundProcessor& backgroundProcessor =
             Heap::GetHeap().GetCollectorResources().GetBackgroundProcessor();
         if (backgroundProcessor.NotifyToParallelSweep()) {
@@ -312,13 +312,13 @@ void MSRegionManager::MaybeNotifyMark()
         AsyncGCEnqueueResult::ACCEPTED) {
         VLOG(REPORT,
              "[MS-GC] Mark notify accepted: reason=heuristic trigger=%u epoch=%u "
-             "retained=%.2fMB swept=%.2fMB outsideMark=%.2fMB "
-             "effectiveSwept=%.2fMB threshold=%.2fMB softLimit=%.2fMB",
-             static_cast<unsigned>(markDecision.trigger), sweep.epochId,
+             "retained=%.2fMB triggerUsed=%.2fMB mutatorReturnedSweptRegions=%zu "
+             "largeLiveSpans=%zu threshold=%.2fMB softLimit=%.2fMB",
+             static_cast<unsigned>(markDecision.trigger), pool->GetSweepCycleId(),
              MSBytesToMB(markDecision.retainedBytes),
-             MSBytesToMB(markDecision.sweptBytes),
-             MSBytesToMB(markDecision.outsideMarkBytes),
-             MSBytesToMB(markDecision.effectiveSweptBytes),
+             MSBytesToMB(markDecision.triggerBytes),
+             markDecision.mutatorReturnedSweptRegions,
+             markDecision.largeLiveSpanRegions,
              MSBytesToMB(markDecision.thresholdBytes),
              MSBytesToMB(markDecision.softLimitBytes));
     }
