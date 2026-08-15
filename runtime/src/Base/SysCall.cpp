@@ -12,6 +12,7 @@
 #if defined(_WIN64)
 #include <processthreadsapi.h>
 #elif defined(__APPLE__)
+#include <signal.h>
 #include "sys/syscall.h"
 #else
 #include "linux/futex.h"
@@ -21,6 +22,10 @@
 namespace MapleRuntime {
 #ifndef SYS_futex
 #define SYS_futex __NR_futex
+#endif
+
+#ifndef SYS_tgkill
+#define SYS_tgkill __NR_tgkill
 #endif
 
 #if defined(__linux__) || defined(hongmeng)
@@ -54,6 +59,27 @@ int GetPid()
     return GetCurrentProcessId();
 #else
     return syscall(SYS_getpid);
+#endif
+}
+
+int SendThreadSignal(pid_t tid, int sig)
+{
+#if defined(__linux__) || defined(hongmeng)
+    // tgkill sends signal to a specific thread within the current process.
+    return syscall(SYS_tgkill, GetPid(), tid, sig);
+#elif defined(__APPLE__)
+    // macOS has no tgkill equivalent, send the signal to the whole process.
+    // For SIGABRT this still crashes the process and produces a core dump
+    // that contains the stack of the thread holding the write lock.
+    (void)tid;
+    return kill(GetPid(), sig);
+#else
+    // Platforms without tgkill/kill (e.g. Windows), abort the process to produce
+    // a crash dump that contains the stack of the thread holding the write lock.
+    (void)tid;
+    (void)sig;
+    std::abort();
+    return -1; // unreachable, keeps the compiler happy
 #endif
 }
 } // namespace MapleRuntime

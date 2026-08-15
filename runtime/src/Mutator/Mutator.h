@@ -438,6 +438,8 @@ public:
         if (UNLIKELY(tlData->buffer == nullptr)) {
             (void)AllocBuffer::GetOrCreateAllocBuffer();
         }
+        // Record tid on cjthread scheduling so that a timeout holder can be identified.
+        InitTid();
         DoLeaveSaferegion();
         SetSafepointStatePtr(&tlData->safepointState);
         SetSafepointActive(false);

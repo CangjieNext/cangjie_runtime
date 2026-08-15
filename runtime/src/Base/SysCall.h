@@ -29,6 +29,10 @@ pid_t GetTid();
 
 int GetPid();
 
+// Send a signal to a specific thread identified by tid.
+// Returns 0 on success, -1 on failure (e.g. unsupported platform or invalid tid).
+int SendThreadSignal(pid_t tid, int sig);
+
 #if defined(__linux__) || defined(hongmeng)
 #ifndef PR_SET_VMA
 #define PR_SET_VMA 0x53564d41

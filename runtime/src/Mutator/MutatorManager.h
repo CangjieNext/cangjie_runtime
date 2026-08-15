@@ -17,6 +17,7 @@
 #include "Base/Globals.h"
 #include "Base/Panic.h"
 #include "Base/RwLock.h"
+#include "Base/SysCall.h"
 #include "Common/PageAllocator.h"
 #include "Mutator.h"
 #if defined(__linux__) || defined(hongmeng) || defined(__APPLE__)
@@ -85,7 +86,11 @@ public:
 
     bool TryAcquireMutatorManagementWLock()
     {
-        return mutatorManagementRWLock.TryLockWrite();
+        if (mutatorManagementRWLock.TryLockWrite()) {
+            writeOwnerTid.store(static_cast<uint32_t>(MapleRuntime::GetTid()), std::memory_order_release);
+            return true;
+        }
+        return false;
     }
 
     bool TryAcquireMutatorManagementRLock()
@@ -96,6 +101,11 @@ public:
     void AcquireMutatorManagementWLock();
 
     bool AcquireMutatorManagementWLockForCpuProfile();
+
+    uint32_t GetMutatorManagementWriteOwnerTid() const
+    {
+        return writeOwnerTid.load(std::memory_order_acquire);
+    }
 
     static void VisitMuatorHelper(void* argPtr, void* handle)
     {
@@ -219,9 +229,17 @@ public:
 
     void MutatorManagementRUnlock() { mutatorManagementRWLock.UnlockRead(); }
 
-    void MutatorManagementWLock() { mutatorManagementRWLock.LockWrite(); }
+    void MutatorManagementWLock()
+    {
+        mutatorManagementRWLock.LockWrite();
+        writeOwnerTid.store(static_cast<uint32_t>(MapleRuntime::GetTid()), std::memory_order_release);
+    }
 
-    void MutatorManagementWUnlock() { mutatorManagementRWLock.UnlockWrite(); }
+    void MutatorManagementWUnlock()
+    {
+        writeOwnerTid.store(0, std::memory_order_release);
+        mutatorManagementRWLock.UnlockWrite();
+    }
 
     void DestroyExpiredMutators();
 
@@ -238,6 +256,9 @@ private:
 
     // guard mutator set for stop-the-world/light-sync
     RwLock mutatorManagementRWLock;
+    // tid of the thread currently holding the mutator management write lock, 0 when unlocked.
+    // used to identify the lock owner when AcquireMutatorManagementWLock times out.
+    std::atomic<uint32_t> writeOwnerTid { 0 };
 
     // count of mutators need to be suspended for stw/lsync.
     // this field is also used as futex wait/wakeup word for stw/lsync.
