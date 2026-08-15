@@ -43,6 +43,13 @@
 Go 版本为了尽量贴近 `JsonValue` 树的大量堆对象行为，优先使用
 `map[string]any` + `[]any` 的通用 JSON 树，而不是预定义 struct。
 
+Linux 的 `run_compare_linux.sh` 会根据 `uname -m` 选择
+`linux_x86_64_cjnative` 或 `linux_aarch64_cjnative`，并按架构探测 CopyGC 包：
+x86_64 优先 `/home/lipeisheng/cangjie-pkg/260723`，aarch64 优先
+`/home/lipeisheng/cangjie-pkg/main/260723`。CopyGC、MSGC、Go、Java 的依赖检查彼此
+独立，缺失时只跳过对应实现；至少两项可用时才生成对比报告。可使用
+`COPYGC_PACKAGE_ROOT`、`COPYGC_SDK_ROOT`、`COPYGC_STDX_ROOT` 等变量覆盖默认路径。
+
 ## 这个用例测试了什么
 
 case27 不是单纯的“HTTP 能不能通”，而是把下面几条路径叠在一起压：

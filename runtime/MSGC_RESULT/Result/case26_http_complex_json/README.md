@@ -18,11 +18,9 @@ Linux 主入口是 `run_compare_linux.sh`，MSGC 默认 SDK 统一为：
 /home/lipeisheng/cangjie/cangjie_compiler_CMSGC/output/msgc
 ```
 
-CopyGC 默认 SDK 为：
-
-```text
-/home/lipeisheng/cangjie-pkg/main/260723/cangjie
-```
+CopyGC 包按宿主架构自动选择：x86_64 优先使用
+`/home/lipeisheng/cangjie-pkg/260723`，aarch64 优先使用
+`/home/lipeisheng/cangjie-pkg/main/260723`，并检查对应架构的 stdx 与 runtime。
 
 标准执行方式：
 
@@ -31,8 +29,9 @@ cd MSGC_RESULT/Result/case26_http_complex_json
 bash ./run_compare_linux.sh
 ```
 
-所有 SDK 路径仍可由 `MSGC_SDK_ROOT`、`MSGC_STDX_ROOT`、`COPYGC_SDK_ROOT`
-和 `COPYGC_STDX_ROOT` 覆盖。macOS 的 `run_compare.sh` 保持使用
+所有 SDK 路径仍可由 `MSGC_SDK_ROOT`、`MSGC_STDX_ROOT`、`COPYGC_PACKAGE_ROOT`、
+`COPYGC_SDK_ROOT` 和 `COPYGC_STDX_ROOT` 覆盖。某个 SDK 或 Go/Java 工具缺失时，
+Linux runner 只跳过对应实现，继续运行其他可用实现。macOS 的 `run_compare.sh` 保持使用
 `cangjie_compiler_region_mark/output/msgc`，与 Linux SDK 路径分开。
 
 `run_compare_portsafe.sh` 是低并发、便于端口受限环境排查的入口，默认
@@ -58,9 +57,9 @@ bash ./run_compare_linux.sh
 | fd soft limit | `65535` |
 
 Go 默认开启并使用 `GODEBUG=gctrace=1`、`GO_GOMEMLIMIT=16GiB`。
-Java 默认开启，堆上限随 `HEAP_SIZE` 设置（默认 `-Xmx16g`）。Linux 主入口
-固定执行 MSGC 和 CopyGC；Go 与 Java 可通过 `GO_ENABLE=0`、`JAVA_ENABLE=0`
-跳过。
+Java 默认开启，堆上限随 `HEAP_SIZE` 设置（默认 `-Xmx16g`）。Linux 主入口会运行
+所有依赖可用的实现；缺失项可通过 `COPYGC_ENABLE=0`、`MSGC_ENABLE=0`、
+`GO_ENABLE=0`、`JAVA_ENABLE=0` 跳过。
 
 ## 常用命令
 

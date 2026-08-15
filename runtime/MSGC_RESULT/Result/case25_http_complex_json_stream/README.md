@@ -86,9 +86,13 @@ CASE25_PAYLOAD=10K CASE25_CONCURRENCY=8 CASE25_DURATION_MS=60000 \
 HEAP_SIZE=2gb ./run_compare.sh
 ```
 
-Linux 使用独立脚本 `run_compare_linux.sh`，默认使用本机 MSGC SDK
-`/home/lipeisheng/cangjie/cangjie_compiler_CMSGC/output/msgc`、CopyGC SDK
-`/home/lipeisheng/cangjie-pkg/main/260723/cangjie`、Go 1.26 和 Java 25：
+Linux 使用独立脚本 `run_compare_linux.sh`。脚本根据 `uname -m` 选择
+`linux_x86_64_cjnative` 或 `linux_aarch64_cjnative`，并为 x86_64/aarch64
+分别选择 Java `amd64`/`arm64` 路径。CopyGC 包也按架构选择候选位置：x86_64
+优先 `/home/lipeisheng/cangjie-pkg/260723`，aarch64 优先
+`/home/lipeisheng/cangjie-pkg/main/260723`，并验证 envsetup、stdx 和 runtime
+均存在后才使用。默认 MSGC SDK 为
+`/home/lipeisheng/cangjie/cangjie_compiler_CMSGC/output/msgc`，同时使用 Go 1.26 和 Java 25：
 
 ```bash
 CASE25_PAYLOAD=100K CASE25_CONCURRENCY=100 CASE25_DURATION_MS=60000 \
@@ -102,9 +106,14 @@ Go 通过 `GO_BIN`（默认取当前 shell 中的 Go，避免清理 PATH 后误�
 并将 `PROCS` 映射为 `GOMAXPROCS`。Java 的编译器和运行时可以分别用
 `JAVAC_BIN`、`JAVA_BIN` 覆盖。
 
-`run_compare.sh` 会在本目录 `result/` 下生成一个时间戳结果目录，依次运行 MSGC、
-CopyGC、Go、Java，并由相邻的 `script/compare_results.py` 输出汇总。`throughput`
-始终按成功请求数 `ok` 计算。
+四个实现的依赖检查彼此独立。某个 SDK、Go 或 Java 工具不存在时，脚本会输出
+`[WARN] skipping ...` 并只跳过对应实现，继续执行其他可用实现；只有所有实现都
+不可用时才退出。也可以用 `COPYGC_ENABLE=0`、`GO_ENABLE=0` 或 `JAVA_ENABLE=0`
+显式关闭不需要的实现。
+
+`run_compare_linux.sh` 会在本目录 `result/` 下生成一个时间戳结果目录，运行依赖可用的
+MSGC、CopyGC、Go、Java；成功运行至少两项时，由相邻的 `script/compare_results.py`
+输出汇总。`throughput` 始终按成功请求数 `ok` 计算。
 
 默认 `CASE25_PERSISTENT_BYTES=0`，四侧都不初始化持久对象；显式设为正数时才启用，
 `CASE25_PERSISTENT_WORKERS` 默认为 `8`，且 bytes 必须是 `workers * 256` 的整数倍。

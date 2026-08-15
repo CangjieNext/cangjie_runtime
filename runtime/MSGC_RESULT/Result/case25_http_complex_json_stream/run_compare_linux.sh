@@ -6,24 +6,53 @@ set -uo pipefail
 CASE_DIR="$(cd "$(dirname "$0")" && pwd)"
 SCRIPT_DIR="$CASE_DIR/script"
 PYTHON_BIN="${PYTHON_BIN:-python3}"
-CJ_ARCH="${CJ_ARCH:-$(uname -m)}"
-PLATFORM_DIR="linux_${CJ_ARCH}_cjnative"
-
-if [[ "$CJ_ARCH" != "aarch64" && "$CJ_ARCH" != "x86_64" ]]; then
-    echo "[ERROR] unsupported Linux architecture: $CJ_ARCH" >&2
-    exit 1
-fi
-
-case "$CJ_ARCH" in
-    x86_64) JAVA_PACKAGE_ARCH="amd64" ;;
-    aarch64) JAVA_PACKAGE_ARCH="arm64" ;;
+HOST_ARCH="$(uname -m)"
+case "$HOST_ARCH" in
+    x86_64|amd64)
+        CJ_ARCH="x86_64"
+        JAVA_PACKAGE_ARCH="amd64"
+        ;;
+    aarch64|arm64)
+        CJ_ARCH="aarch64"
+        JAVA_PACKAGE_ARCH="arm64"
+        ;;
+    *)
+        echo "[ERROR] unsupported Linux architecture: $HOST_ARCH" >&2
+        exit 1
+        ;;
 esac
+PLATFORM_DIR="linux_${CJ_ARCH}_cjnative"
 JAVA_HOME_DEFAULT="/usr/lib/jvm/java-25-openjdk-${JAVA_PACKAGE_ARCH}"
 
 MSGC_SDK_ROOT="${MSGC_SDK_ROOT:-/home/lipeisheng/cangjie/cangjie_compiler_CMSGC/output/msgc}"
 MSGC_STDX_ROOT="${MSGC_STDX_ROOT:-$MSGC_SDK_ROOT/$PLATFORM_DIR}"
-COPYGC_SDK_ROOT="${COPYGC_SDK_ROOT:-/home/lipeisheng/cangjie-pkg/main/260723/cangjie}"
-COPYGC_STDX_ROOT="${COPYGC_STDX_ROOT:-/home/lipeisheng/cangjie-pkg/main/260723/$PLATFORM_DIR}"
+if [[ -z "${COPYGC_PACKAGE_ROOT:-}" ]]; then
+    case "$CJ_ARCH" in
+        x86_64)
+            copygc_package_candidates=(
+                "/home/lipeisheng/cangjie-pkg/260723"
+                "/home/lipeisheng/cangjie-pkg/main/260723"
+            )
+            ;;
+        aarch64)
+            copygc_package_candidates=(
+                "/home/lipeisheng/cangjie-pkg/main/260723"
+                "/home/lipeisheng/cangjie-pkg/260723"
+            )
+            ;;
+    esac
+    COPYGC_PACKAGE_ROOT="${copygc_package_candidates[0]}"
+    for candidate in "${copygc_package_candidates[@]}"; do
+        if [[ -f "$candidate/cangjie/envsetup.sh" &&
+              -f "$candidate/$PLATFORM_DIR/dynamic/stdx/libstdx.net.http.so" &&
+              -f "$candidate/cangjie/runtime/lib/$PLATFORM_DIR/libcangjie-runtime.so" ]]; then
+            COPYGC_PACKAGE_ROOT="$candidate"
+            break
+        fi
+    done
+fi
+COPYGC_SDK_ROOT="${COPYGC_SDK_ROOT:-$COPYGC_PACKAGE_ROOT/cangjie}"
+COPYGC_STDX_ROOT="${COPYGC_STDX_ROOT:-$COPYGC_PACKAGE_ROOT/$PLATFORM_DIR}"
 MSGC_STDX="$MSGC_STDX_ROOT/dynamic/stdx"
 COPYGC_STDX="$COPYGC_STDX_ROOT/dynamic/stdx"
 
@@ -73,41 +102,63 @@ if [[ ! -f "$CASE_DIR/payloads/${PAYLOAD}.json" ]]; then
     echo "[ERROR] payloads/${PAYLOAD}.json not found" >&2
     exit 1
 fi
-dependency_paths=(
-    "$MSGC_SDK_ROOT/envsetup.sh"
-    "$MSGC_STDX/libstdx.net.http.so"
-)
-if [[ "$COPYGC_ENABLE" == 1 ]]; then
-    dependency_paths+=(
-        "$COPYGC_SDK_ROOT/envsetup.sh"
-        "$COPYGC_STDX/libstdx.net.http.so"
-    )
-fi
-for path in "${dependency_paths[@]}"; do
-    if [[ ! -e "$path" ]]; then
-        echo "[ERROR] Linux case25 dependency not found: $path" >&2
-        exit 1
+check_cangjie_sdk() {
+    local label="$1" sdk="$2" stdx_root="$3"
+    local stdx="$stdx_root/dynamic/stdx"
+    local missing=()
+    [[ -f "$sdk/envsetup.sh" ]] || missing+=("$sdk/envsetup.sh")
+    [[ -f "$stdx/libstdx.net.http.so" ]] || missing+=("$stdx/libstdx.net.http.so")
+    [[ -f "$stdx/libstdx.encoding.json.so" ]] || missing+=("$stdx/libstdx.encoding.json.so")
+    [[ -f "$stdx/libstdx.encoding.json.stream.so" ]] || missing+=("$stdx/libstdx.encoding.json.stream.so")
+    [[ -f "$sdk/runtime/lib/$PLATFORM_DIR/libcangjie-runtime.so" ]] || \
+        missing+=("$sdk/runtime/lib/$PLATFORM_DIR/libcangjie-runtime.so")
+    if ((${#missing[@]} > 0)); then
+        echo "[WARN] skipping $label: SDK dependency unavailable for arch=$CJ_ARCH" >&2
+        printf '       missing: %s\n' "${missing[@]}" >&2
+        return 1
     fi
-done
+    return 0
+}
+
+check_java_tool() {
+    local tool="$1"
+    if [[ "$tool" == */* ]]; then
+        [[ -x "$tool" ]]
+    else
+        command -v "$tool" >/dev/null 2>&1
+    fi
+}
+
+# Each side is optional.  A missing SDK/tool disables only that side so that
+# the other available implementations can still be compared.
+if [[ "$COPYGC_ENABLE" == 1 ]] && ! check_cangjie_sdk CopyGC "$COPYGC_SDK_ROOT" "$COPYGC_STDX_ROOT"; then
+    COPYGC_ENABLE=0
+fi
+if [[ "$MSGC_ENABLE" == 1 ]] && ! check_cangjie_sdk MSGC "$MSGC_SDK_ROOT" "$MSGC_STDX_ROOT"; then
+    MSGC_ENABLE=0
+fi
 if [[ "$GO_ENABLE" == 1 && ! -x "$GO_BIN" ]]; then
-    echo "[ERROR] GO_BIN is unavailable or not executable: $GO_BIN" >&2
-    exit 1
+    echo "[WARN] skipping Go: GO_BIN is unavailable or not executable: $GO_BIN" >&2
+    GO_ENABLE=0
 fi
 if [[ "$JAVA_ENABLE" == 1 ]]; then
-    command -v "$JAVA_BIN" >/dev/null 2>&1 || true
-    command -v "$JAVAC_BIN" >/dev/null 2>&1 || true
-    if [[ -n "$JAVA_CPUSET" ]] && ! command -v taskset >/dev/null 2>&1; then
-        echo "[ERROR] Java CPU affinity requires taskset, but taskset is unavailable" >&2
-        exit 1
+    if ! check_java_tool "$JAVA_BIN"; then
+        echo "[WARN] skipping Java: JAVA_BIN is unavailable or not executable: $JAVA_BIN" >&2
+        JAVA_ENABLE=0
+    elif ! check_java_tool "$JAVAC_BIN"; then
+        echo "[WARN] skipping Java: JAVAC_BIN is unavailable or not executable: $JAVAC_BIN" >&2
+        JAVA_ENABLE=0
+    elif [[ -n "$JAVA_CPUSET" ]] && ! command -v taskset >/dev/null 2>&1; then
+        echo "[WARN] skipping Java: Java CPU affinity requires taskset, but taskset is unavailable" >&2
+        JAVA_ENABLE=0
+    elif [[ ! -f "$JACKSON_CORE_JAR" ]]; then
+        echo "[WARN] skipping Java: Jackson Core jar is unavailable: $JACKSON_CORE_JAR" >&2
+        JAVA_ENABLE=0
     fi
-    for tool in "$JAVA_BIN" "$JAVAC_BIN"; do
-        if [[ "$tool" == */* ]]; then
-            [[ -x "$tool" ]] || { echo "[ERROR] Java tool is unavailable or not executable: $tool" >&2; exit 1; }
-        elif ! command -v "$tool" >/dev/null 2>&1; then
-            echo "[ERROR] Java tool is unavailable or not executable: $tool" >&2
-            exit 1
-        fi
-    done
+fi
+if [[ "$COPYGC_ENABLE" != 1 && "$MSGC_ENABLE" != 1 && "$GO_ENABLE" != 1 && "$JAVA_ENABLE" != 1 ]]; then
+    echo "[ERROR] no runnable implementation remains after dependency checks" >&2
+    exit 1
 fi
 
 TS="$(date +%Y%m%d)"
@@ -354,7 +405,7 @@ compare_args=()
 [[ "$MSGC_ENABLE" == 1 ]] && compare_args+=(--run "MSGC=$MSGC_DIR")
 [[ "$GO_ENABLE" == 1 ]] && compare_args+=(--run "Go=$GO_DIR")
 [[ "$JAVA_ENABLE" == 1 ]] && compare_args+=(--run "Java=$JAVA_DIR")
-if ((${#compare_args[@]} >= 4)); then
+if ((${#compare_args[@]} >= 2)); then
     MPLCONFIGDIR="$CASE_DIR/result/.mplconfig" "$PYTHON_BIN" "$SCRIPT_DIR/compare_results.py" \
         "${compare_args[@]}" --output "$COMPARE_DIR/compare_report.md" || true
 fi
