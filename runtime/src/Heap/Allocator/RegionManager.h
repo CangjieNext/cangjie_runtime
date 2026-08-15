@@ -386,7 +386,7 @@ public:
         return oldLargeRegionList.GetAllocatedSize() + recentLargeRegionList.GetAllocatedSize();
     }
 
-    size_t GetAllocatedSize() const
+    virtual size_t GetAllocatedSize() const
     {
         size_t threadLocalSize = 0;
         AllocBufferVisitor visitor = [&threadLocalSize](AllocBuffer& regionBuffer) {
@@ -418,7 +418,7 @@ public:
     void ClearFreePinnedSlots() { freePinnedSlotLists.Clear(); }
 
     // wait for a period of time to allocate region which will avoid harm to gc
-    void RequestForRegion(size_t size);
+    virtual void RequestForRegion(size_t size);
 
     void MergeRawPointerRegions(RegionList& smallSizeRegionList, RegionList& largeSizeRegionList)
     {

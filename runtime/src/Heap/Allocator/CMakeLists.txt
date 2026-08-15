@@ -7,7 +7,7 @@
 set(SRC_LIST
     "Allocator.cpp"
     "MemMap.cpp"
-    "RegionFreeSlot.cpp"
+    "RegionFreeSlotList.cpp"
     "RegionSpace.cpp"
     "RegionManager.cpp"
     "CartesianTree.cpp"

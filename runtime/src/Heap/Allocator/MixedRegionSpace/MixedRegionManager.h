@@ -118,7 +118,51 @@ public:
             PrepareYoungFromRegionList();
         }
     }
+    void RequestForRegion(size_t size) override
+    {
+        if (IsGcThread()) {
+            return;
+        }
+        Heap& heap = Heap::GetHeap();
+        if (!heap.IsGcStarted()) {
+            size_t maxCapacity = heap.GetMaxCapacity();
+            size_t youngGenSize = maxCapacity / 3;
+            size_t youngAllocated = GetRecentAllocatedSize();
+            size_t totalAllocated = GetAllocatedSize();
+            if (youngAllocated >= youngGenSize * 2 / 3) {
+                heap.GetCollector().RequestGC(GC_REASON_HEU, true);
+            } else if (totalAllocated >= maxCapacity / 2) {
+                heap.GetCollector().RequestGC(GC_REASON_FORCE, true);
+            }
+        }
+        RegionManager::RequestForRegion(size);
+    }
+    size_t GetAllocatedSize() const override
+    {
+        size_t total = RegionManager::GetAllocatedSize();
+        total += sweepableYoungRegionList.GetAllocatedSize();
+        total += sweepableOldRegionList.GetAllocatedSize();
+        total += sweptYoungRegionList.GetAllocatedSize();
+        total -= GetFreeSlotTotalSize(sweptYoungRegionList);
+        total += oldSweptRegionList.GetAllocatedSize();
+        total -= GetFreeSlotTotalSize(oldSweptRegionList);
+        total += oldRegionList.GetAllocatedSize();
+        total += oldFromRegionList.GetAllocatedSize();
+        total += promptRegionList.GetAllocatedSize();
+        return total;
+    }
 private:
+    static size_t GetFreeSlotTotalSize(const RegionList& list)
+    {
+        size_t total = 0;
+        for (RegionInfo* region = list.GetHeadRegion(); region != nullptr; region = region->GetNextRegion()) {
+            RegionFreeSlotList* fsl = region->GetFreeSlotList();
+            if (fsl != nullptr) {
+                total += fsl->GetTotalSlotSize();
+            }
+        }
+        return total;
+    }
     static constexpr uint8_t PROMPT_AGE = 15;
     void PromptRegionImpl(RegionInfo* fromRegion);
     // TODO: parameters tuning.
