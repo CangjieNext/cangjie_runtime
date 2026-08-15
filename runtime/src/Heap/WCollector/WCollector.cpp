@@ -19,12 +19,13 @@ bool WCollector::IsUnmovableFromObject(BaseObject* obj) const
     }
 
     RegionInfo* regionInfo = nullptr;
-    if (RegionInfo::InGhostFromRegion(obj)) {
-        regionInfo = RegionInfo::GetGhostFromRegionAt(reinterpret_cast<uintptr_t>(obj));
-    } else {
-        regionInfo = RegionInfo::GetRegionInfoAt(reinterpret_cast<uintptr_t>(obj));
-    }
-    return regionInfo->IsUnmovableFromRegion();
+    // if (RegionInfo::InGhostFromRegion(obj)) {
+    //     regionInfo = RegionInfo::GetGhostFromRegionAt(reinterpret_cast<uintptr_t>(obj));
+    // } else {
+    //     regionInfo = RegionInfo::GetRegionInfoAt(reinterpret_cast<uintptr_t>(obj));
+    // }
+    // return regionInfo->IsUnmovableFromRegion();
+    return !RegionInfo::InGhostFromRegion(obj);
 }
 
 bool WCollector::MarkObject(BaseObject* obj) const
