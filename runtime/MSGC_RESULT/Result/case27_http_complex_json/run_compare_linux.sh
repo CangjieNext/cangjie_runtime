@@ -138,6 +138,7 @@ DUR="${CASE27_DURATION_MS:-60000}"
 CASE27_NOFILE_LIMIT="${CASE27_NOFILE_LIMIT:-65535}"
 HEAP_SIZE="${HEAP_SIZE:-16gb}"
 PROCS="${PROCS:-}"
+JAVA_CPUSET="${JAVA_CPUSET:-}"
 MSGC_HEAP_GROWTH="${MSGC_HEAP_GROWTH:-1}"
 MSGC_SCAVENGE_GROWTH="${MSGC_SCAVENGE_GROWTH:-5}"
 MSGC_MIN_GC_THRESHOLD="${MSGC_MIN_GC_THRESHOLD:-20mb}"
@@ -161,6 +162,19 @@ JAVA_HEAP_SIZE=$(printf '%s' "$HEAP_SIZE" | tr '[:upper:]' '[:lower:]')
 JAVA_HEAP_SIZE="${JAVA_HEAP_SIZE%b}"
 JAVA_OPTS="${JAVA_OPTS:--Xmx${JAVA_HEAP_SIZE}}"
 JAVA_GC_OPTS="${JAVA_GC_OPTS:-}"
+
+if [[ -n "$PROCS" && -z "$JAVA_CPUSET" ]]; then
+    if ! [[ "$PROCS" =~ ^[1-9][0-9]*$ ]]; then
+        echo "[ERROR] PROCS must be a positive integer when set, got: $PROCS" >&2
+        exit 1
+    fi
+    ONLINE_CPUS="$(getconf _NPROCESSORS_ONLN)"
+    if ((PROCS > ONLINE_CPUS)); then
+        echo "[ERROR] PROCS=$PROCS exceeds online CPUs=$ONLINE_CPUS" >&2
+        exit 1
+    fi
+    JAVA_CPUSET="0-$((PROCS - 1))"
+fi
 
 configure_nofile_limit() {
     local requested="$1"
@@ -327,6 +341,7 @@ mkdir -p "$MPLCONFIG_DIR"
 echo "[INFO] compare dir: $COMPARE_DIR"
 echo "[INFO] platform_dir: $PLATFORM_DIR (arch=$CJ_ARCH)"
 echo "[INFO] config: payload=$PAYLOAD concurrency=$CONC duration=${DUR}ms heap=$HEAP_SIZE proc=${PROCS:-auto} mode=$CLIENT_MODE nofile=$CASE27_NOFILE_EFFECTIVE msgcMinGCThreshold=$MSGC_MIN_GC_THRESHOLD"
+[[ -n "$JAVA_CPUSET" ]] && echo "[INFO] Java CPU affinity=$JAVA_CPUSET"
 
 # Linux 下计算 dylib md5（md5sum 输出 "hash  file"）
 dylib_md5() {
@@ -349,6 +364,10 @@ run_side() {
     local runtime_gc_interval="${8:-}"
     local runtime_min_gc_threshold="${9:-}"
     local cjc_gc_mode="${10}"
+    local bench_src="$CASE_DIR/benchmark.cj"
+    if [[ "$cjc_gc_mode" == "marksweep" ]]; then
+        bench_src="$CASE_DIR/benchmark_msgc.cj"
+    fi
     local orig_port=$port
     local max_tries=10
     local tries=0
@@ -375,6 +394,7 @@ run_side() {
         echo "sdk_root=$sdk_root"
         echo "stdx_dir=$stdx_dir"
         echo "cjc_gc_mode=$cjc_gc_mode"
+        echo "benchmark_source=$(basename "$bench_src")"
         echo "payload=$PAYLOAD"
         echo "concurrency=$CONC"
         echo "duration_ms=$DUR"
@@ -411,7 +431,7 @@ run_side() {
         echo "timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
         echo "runtime_dylib_md5=$(dylib_md5 "$sdk_root"/runtime/lib/$PLATFORM_DIR/libcangjie-runtime.so)"
     } > "$out_dir/run_metadata.env"
-    cp "$CASE_DIR/benchmark.cj" "$out_dir/benchmark.cj.snapshot"
+    cp "$bench_src" "$out_dir/benchmark.cj.snapshot"
     cp "$CASE_DIR/payloads/${PAYLOAD}.json" "$out_dir/payload.snapshot.json"
 
     local -a child_env=(
@@ -429,7 +449,7 @@ run_side() {
         "RUNTIME_GC_INTERVAL=$runtime_gc_interval"
         "RUNTIME_MIN_GC_THRESHOLD=$runtime_min_gc_threshold"
         "CJC_GC_MODE=$cjc_gc_mode"
-        "BENCH_SRC=$CASE_DIR/benchmark.cj"
+        "BENCH_SRC=$bench_src"
         "PAYLOAD_DIR=$CASE_DIR/payloads"
         "CASE27_PAYLOAD=$PAYLOAD"
         "CASE27_CONCURRENCY=$CONC"
@@ -761,8 +781,9 @@ run_java_side() {
         echo "server_port=$port"
         echo "original_port=$orig_port"
         echo "heap_size=N/A"
-        echo "procs=unlimited"
-        echo "java_active_processor_count=unlimited"
+        echo "procs=${PROCS:-host-default}"
+        echo "java_active_processor_count=${PROCS:-host-default}"
+        echo "java_cpuset=${JAVA_CPUSET:-unrestricted}"
         echo "java_bin=$JAVA_BIN"
         echo "javac_bin=$JAVAC_BIN"
         echo "java_opts=$JAVA_OPTS"
@@ -787,6 +808,8 @@ run_java_side() {
         "JAVAC_BIN=$JAVAC_BIN"
         "JAVA_OPTS=$JAVA_OPTS"
         "JAVA_GC_OPTS=$JAVA_GC_OPTS"
+        "PROCS=$PROCS"
+        "JAVA_CPUSET=$JAVA_CPUSET"
         "CASE27_PAYLOAD=$PAYLOAD"
         "CASE27_CONCURRENCY=$CONC"
         "CASE27_DURATION_MS=$DUR"
@@ -839,11 +862,17 @@ run_java_side() {
                     -XX:+PrintGCTimeStamps
                 )
             fi
+            cpu_opts=()
+            [[ -n "$PROCS" ]] && cpu_opts=(-XX:ActiveProcessorCount="$PROCS")
+            java_cmd=("$JAVA_BIN")
+            [[ -n "$JAVA_CPUSET" ]] && java_cmd=(taskset -c "$JAVA_CPUSET" "${java_cmd[@]}")
             {
                 echo "java_major=$java_major"
                 printf "module_opts="; printf "%q " "${module_opts[@]}"; echo
                 printf "java_opts="; printf "%q " "${java_opts[@]}"; echo
                 printf "java_gc_opts="; printf "%q " "${gc_opts[@]}"; echo
+                printf "java_cpu_opts="; printf "%q " "${cpu_opts[@]}"; echo
+                printf "java_command="; printf "%q " "${java_cmd[@]}"; echo
             } > "$OUT_DIR/java_command.env"
 
             "$JAVAC_BIN" \
@@ -858,7 +887,7 @@ run_java_side() {
                 exit "$compile_rc"
             fi
 
-            "$JAVA_BIN" "${module_opts[@]}" "${java_opts[@]}" \
+            "${java_cmd[@]}" "${module_opts[@]}" "${java_opts[@]}" "${cpu_opts[@]}" \
                 -cp "$OUT_DIR/classes" Case27HttpComplexJsonBenchmarkTest \
                 > "$OUT_DIR/test.stdout.txt" 2> "$OUT_DIR/test.stderr.txt"
             test_rc=$?
@@ -869,7 +898,7 @@ run_java_side() {
             fi
 
             : > "$OUT_DIR/gc.log"
-            "$JAVA_BIN" "${module_opts[@]}" "${java_opts[@]}" "${gc_opts[@]}" \
+            "${java_cmd[@]}" "${module_opts[@]}" "${java_opts[@]}" "${cpu_opts[@]}" "${gc_opts[@]}" \
                 -cp "$OUT_DIR/classes" Case27HttpComplexJsonBenchmark \
                 > "$OUT_DIR/stdout.txt" 2> "$OUT_DIR/stderr.txt" &
             BENCH_PID=$!

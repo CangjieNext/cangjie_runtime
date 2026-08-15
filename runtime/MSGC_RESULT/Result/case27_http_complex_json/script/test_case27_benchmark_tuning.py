@@ -66,6 +66,15 @@ class Case27BenchmarkTuningTests(unittest.TestCase):
         )
         self.assertIn('"$MSGC_MIN_GC_THRESHOLD" "marksweep"', text)
 
+    def test_linux_msgc_uses_optimized_benchmark_source(self) -> None:
+        text = RUN_COMPARE_LINUX.read_text()
+        self.assertIn('local bench_src="$CASE_DIR/benchmark.cj"', text)
+        self.assertIn('if [[ "$cjc_gc_mode" == "marksweep" ]]; then', text)
+        self.assertIn('bench_src="$CASE_DIR/benchmark_msgc.cj"', text)
+        self.assertIn('echo "benchmark_source=$(basename "$bench_src")"', text)
+        self.assertIn('cp "$bench_src" "$out_dir/benchmark.cj.snapshot"', text)
+        self.assertIn('"BENCH_SRC=$bench_src"', text)
+
     def test_all_cangjie_launchers_compile_at_o2(self) -> None:
         for script in (RUN_COMPARE, RUN_COMPARE_LINUX, RUN_COMPARE_PORTSAFE):
             with self.subTest(script=script.name):
@@ -100,6 +109,14 @@ class Case27BenchmarkTuningTests(unittest.TestCase):
                 self.assertIn('JAVA_HEAP_SIZE=$(printf \'%s\' "$HEAP_SIZE" | tr \'[:upper:]\' \'[:lower:]\')', text)
                 self.assertIn('JAVA_HEAP_SIZE="${JAVA_HEAP_SIZE%b}"', text)
                 self.assertIn('JAVA_OPTS="${JAVA_OPTS:--Xmx${JAVA_HEAP_SIZE}}"', text)
+
+    def test_linux_java_honors_processor_limit_and_cpuset(self) -> None:
+        text = RUN_COMPARE_LINUX.read_text()
+        self.assertIn('JAVA_CPUSET="${JAVA_CPUSET:-}"', text)
+        self.assertIn('JAVA_CPUSET="0-$((PROCS - 1))"', text)
+        self.assertIn('cpu_opts=(-XX:ActiveProcessorCount="$PROCS")', text)
+        self.assertIn('java_cmd=(taskset -c "$JAVA_CPUSET" "${java_cmd[@]}")', text)
+        self.assertIn('"${java_cmd[@]}" "${module_opts[@]}" "${java_opts[@]}" "${cpu_opts[@]}"', text)
 
     def test_macos_defaults_use_region_scan_msgc_and_20260507_copygc(self) -> None:
         text = RUN_COMPARE.read_text()
