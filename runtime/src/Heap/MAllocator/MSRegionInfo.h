@@ -238,15 +238,6 @@ struct alignas(64) MSRegionInfo {
         return static_cast<MSScanState>(
             __atomic_load_n(&control, __ATOMIC_ACQUIRE) & CONTROL_SCAN_STATE_MASK);
     }
-    void SetScanState(MSScanState state)
-    {
-        uint32_t old = __atomic_load_n(&control, __ATOMIC_RELAXED);
-        uint32_t desired;
-        do {
-            desired = (old & ~CONTROL_SCAN_STATE_MASK) | static_cast<uint32_t>(state);
-        } while (!__atomic_compare_exchange_n(
-            &control, &old, desired, true, __ATOMIC_RELEASE, __ATOMIC_RELAXED));
-    }
     bool CasScanState(MSScanState expectedState, MSScanState desiredState)
     {
         uint32_t old = __atomic_load_n(&control, __ATOMIC_ACQUIRE);
@@ -264,22 +255,6 @@ struct alignas(64) MSRegionInfo {
                 return true;
             }
         }
-    }
-    uint64_t PublishPendingMarkWord(size_t wordIdx)
-    {
-        CHECK_DETAIL(wordIdx < 64,
-                     "[MS-GC] pending mark word index overflow: %zu", wordIdx);
-        // The pending summary is the producer-to-owner publication record.
-        // Release makes the preceding MARK update visible to a Region owner
-        // that consumes the summary with TakePendingMarkWords().  A producer
-        // that races OWNED -> IDLE can leave this bit behind; the owner does a
-        // post-release republish and MarkTermination performs a final STW
-        // reconciliation, so no per-publication state-word DIRTY handshake is
-        // needed on this hot path.
-        uint64_t wordMask = UINT64_C(1) << wordIdx;
-        uint64_t old = __atomic_fetch_or(
-            &pendingWordSummary, wordMask, __ATOMIC_RELEASE);
-        return wordMask & ~old;
     }
     uint64_t PublishPendingMarkWords(uint64_t wordMask)
     {
@@ -557,12 +532,6 @@ public:
         regionOffset = heapOffset & (MS_REGION_SIZE - 1);
         regionIdx = heapOffset >> 15;
         return &array_[regionIdx];
-    }
-
-    static inline MSRegionInfo* GetRegionInfoDirect(uintptr_t addr, size_t& regionOffset)
-    {
-        size_t regionIdx = 0;
-        return GetRegionInfoDirect(addr, regionOffset, regionIdx);
     }
 
     // Resolve a LARGE base entry from either the base itself or one of its

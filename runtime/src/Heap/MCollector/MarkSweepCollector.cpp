@@ -2204,7 +2204,9 @@ void MarkSweepCollector::PostMarkTermination()
         CaptureMSSweepProgressSnapshot(*centralPool);
     MSHeapRetentionSnapshot retention = CaptureMSHeapRetentionSnapshot(space);
     MSHeapPolicySnapshot policy = LoadMSHeapPolicySnapshot(GetGCStats());
-    if (backgroundProcessor.NotifyToSweep(kNoPreferredSweepClass)) {
+    if (!centralPool->IsSTWSweepDiagnosticEnabled() &&
+        publishedSweep.unsweptRegions != 0 &&
+        backgroundProcessor.NotifyToSweep(kNoPreferredSweepClass)) {
         VLOG(REPORT,
              "[MS-GC] Sweep notify accepted: source=post-mark epoch=%u "
              "unsweptRegions=%zu unswept=%.2fMB assistRatio=%llu",
@@ -2214,7 +2216,7 @@ void MarkSweepCollector::PostMarkTermination()
                  centralPool->GetSweepAssistRatioScaled()));
     }
     size_t scavengeTargetBytes = ComputeMSScavengeReleaseTarget(retention, policy);
-    if (backgroundProcessor.NotifyToScavenge() && scavengeTargetBytes != 0) {
+    if (scavengeTargetBytes != 0 && backgroundProcessor.NotifyToScavenge()) {
         VLOG(REPORT,
              "[MS-GC] Scavenge notify accepted: source=post-mark "
              "retained=%.2fMB reclaimable=%.2fMB low=%.2fMB high=%.2fMB target=%.2fMB",

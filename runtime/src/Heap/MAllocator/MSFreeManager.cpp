@@ -709,118 +709,6 @@ bool FreeManager::TryTakeOrGrowRegions(RegionCount num,
     return GrowAndTakeRegionsLocked(num, homeShardId, idx, handler);
 }
 
-void FreeManager::ShrinkHeap()
-{
-    std::lock_guard<std::mutex> growLock(growMutex_);
-    std::lock_guard<std::mutex> pageLock(pageHeapMutex_);
-
-    size_t trailingFree = CountTrailingFreeRegionsLocked();
-    if (trailingFree == 0) {
-        return;
-    }
-
-    size_t trailingBytes = trailingFree * GetRegionSizeBytes();
-    size_t shrinkSegments = trailingBytes / segmentSize_;
-    if (shrinkSegments == 0) {
-        return;
-    }
-
-    size_t committedSegmentCount = (committedRegionCount_ + segmentRegionCount_ - 1) / segmentRegionCount_;
-    std::vector<size_t> shardOwnedCounts(shardCount_, 0);
-    size_t shardsWithOwnedSegments = 0;
-    for (uint32_t shardIdx = 0; shardIdx < shardCount_; ++shardIdx) {
-        FreeManagerShard& shard = GetShard(static_cast<uint16_t>(shardIdx));
-        std::lock_guard<std::mutex> shardLock(shard.shardMutex_);
-        shardOwnedCounts[shardIdx] = shard.ownedViews_.size();
-        if (shardOwnedCounts[shardIdx] != 0) {
-            ++shardsWithOwnedSegments;
-        }
-    }
-
-    size_t minCommittedSegments = std::max<size_t>(1, shardsWithOwnedSegments);
-    if (committedSegmentCount <= minCommittedSegments) {
-        return;
-    }
-
-    shrinkSegments = std::min(shrinkSegments, committedSegmentCount - minCommittedSegments);
-    if (shrinkSegments == 0) {
-        return;
-    }
-
-    size_t removableTailSegments = 0;
-    size_t candidateStartSegmentIdx = committedSegmentCount - shrinkSegments;
-    // Only reclaim a tail segment when its owner still keeps another local segment.
-    for (size_t segIdx = committedSegmentCount; segIdx-- > candidateStartSegmentIdx; ) {
-        uint16_t shardId = (segIdx < segmentOwnerShard_.size()) ? segmentOwnerShard_[segIdx] : 0;
-        size_t ownerIdx = static_cast<size_t>(shardId) % shardOwnedCounts.size();
-        if (shardOwnedCounts[ownerIdx] <= 1) {
-            break;
-        }
-        --shardOwnedCounts[ownerIdx];
-        ++removableTailSegments;
-    }
-
-    shrinkSegments = removableTailSegments;
-    if (shrinkSegments == 0) {
-        return;
-    }
-
-    size_t shrinkBytes = shrinkSegments * segmentSize_;
-    size_t shrinkRegions = shrinkSegments * segmentRegionCount_;
-    RegionIndex shrinkStart = static_cast<RegionIndex>(committedRegionCount_ - shrinkRegions);
-    size_t shrinkStartSegmentIdx = committedSegmentCount - shrinkSegments;
-    size_t newCommittedRegionCount =
-        committedRegionCount_.load(std::memory_order_relaxed) - shrinkRegions;
-    uintptr_t newCommittedEnd =
-        committedEnd_.load(std::memory_order_relaxed) - shrinkBytes;
-
-    if (!ReleaseUnits(RegionToUnitIdx(shrinkStart),
-                      RegionCountToUnitCount(static_cast<RegionCount>(shrinkRegions)))) {
-        return;
-    }
-
-    // Process each segment from highest index to lowest so that when each segment is processed,
-    // it is still at back() of its owning shard's ownedViews_ (higher segments have already
-    // been detached).  This allows DetachOwnedSegmentLocked to remove the correct entry even
-    // when the shrink range spans segments owned by different shards.
-    for (size_t segIdx = shrinkStartSegmentIdx + shrinkSegments; segIdx-- > shrinkStartSegmentIdx; ) {
-        uint16_t shardId = (segIdx < segmentOwnerShard_.size()) ? segmentOwnerShard_[segIdx] : 0;
-        FreeManagerShard& shard = GetShard(shardId);
-        std::lock_guard<std::mutex> shardLock(shard.shardMutex_);
-        RegionIndex segStart = static_cast<RegionIndex>(segIdx * segmentRegionCount_);
-        MarkUnavailableLocked(shard, segStart, static_cast<RegionCount>(segmentRegionCount_));
-        DetachOwnedSegmentLocked(shard);
-    }
-
-    // Fix up cursors for every shard that lost at least one segment.
-    std::vector<bool> shardVisited(shardCount_, false);
-    for (size_t segIdx = shrinkStartSegmentIdx + shrinkSegments; segIdx-- > shrinkStartSegmentIdx; ) {
-        uint16_t shardId = (segIdx < segmentOwnerShard_.size()) ? segmentOwnerShard_[segIdx] : 0;
-        if (shardId < shardCount_ && shardVisited[shardId]) {
-            continue;
-        }
-        if (shardId < shardCount_) {
-            shardVisited[shardId] = true;
-        }
-        FreeManagerShard& shard = GetShard(shardId);
-        std::lock_guard<std::mutex> shardLock(shard.shardMutex_);
-        if (shard.ownedViews_.empty()) {
-            shard.takeCursor_ = static_cast<RegionIndex>(newCommittedRegionCount);
-            shard.reclaimCursor_ = static_cast<RegionIndex>(newCommittedRegionCount);
-        } else {
-            if (shard.takeCursor_ >= newCommittedRegionCount) {
-                shard.takeCursor_ = std::min(
-                    FindNextOwnedFreeRegionLocked(shard, 0),
-                    static_cast<RegionIndex>(newCommittedRegionCount));
-            }
-            shard.reclaimCursor_ = std::min(shard.reclaimCursor_,
-                                             static_cast<RegionIndex>(newCommittedRegionCount));
-        }
-        RefreshRegionSnapshotsLocked(shard);
-    }
-    PublishCommittedTopology(newCommittedRegionCount, newCommittedEnd);
-}
-
 size_t FreeManager::ScavengeFreeRegionsByRegionBudget(size_t regionBudget)
 {
     if (regionBudget == 0 || committedRegionCount_ == 0) {
@@ -906,15 +794,6 @@ size_t FreeManager::GetOwnedSegmentCount(uint16_t ownerShardId) const
 size_t FreeManager::GetHotFreeBytes() const
 {
     return totalHotFreeRegions_.load(std::memory_order_relaxed) * GetRegionSizeBytes();
-}
-
-size_t FreeManager::GetHotFreeBytesReference() const
-{
-    size_t totalHotFreeRegions = 0;
-    for (uint32_t shardIdx = 0; shardIdx < shardCount_; ++shardIdx) {
-        totalHotFreeRegions += GetHotFreeRegionCount(static_cast<uint16_t>(shardIdx));
-    }
-    return totalHotFreeRegions * GetRegionSizeBytes();
 }
 
 FreeManager::SegmentFreeSnapshot FreeManager::GetSegmentFreeSnapshot(size_t segmentIdx) const

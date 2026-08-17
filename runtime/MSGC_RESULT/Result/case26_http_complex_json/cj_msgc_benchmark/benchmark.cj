@@ -225,10 +225,10 @@ func elapsedUs(start: DateTime): Int64 {
 
 func parseServerJson(body: Array<Byte>): JsonValue {
     if (!JSON_PROFILE_ENABLED) {
-        return JsonValue.fromUtf8Bytes(body)
+        return JsonValue.fromOwnedUtf8Bytes(body)
     }
     let start = DateTime.now()
-    let value = JsonValue.fromUtf8Bytes(body)
+    let value = JsonValue.fromOwnedUtf8Bytes(body)
     JSON_PROFILE_STATS.serverParseUs.fetchAdd(elapsedUs(start))
     JSON_PROFILE_STATS.serverCalls.fetchAdd(1)
     return value
@@ -236,10 +236,10 @@ func parseServerJson(body: Array<Byte>): JsonValue {
 
 func parseClientJson(body: Array<Byte>): JsonValue {
     if (!JSON_PROFILE_ENABLED) {
-        return JsonValue.fromUtf8Bytes(body)
+        return JsonValue.fromOwnedUtf8Bytes(body)
     }
     let start = DateTime.now()
-    let value = JsonValue.fromUtf8Bytes(body)
+    let value = JsonValue.fromOwnedUtf8Bytes(body)
     JSON_PROFILE_STATS.clientParseUs.fetchAdd(elapsedUs(start))
     JSON_PROFILE_STATS.clientCalls.fetchAdd(1)
     return value
@@ -307,8 +307,8 @@ func readHttpBodyBytes(body: InputStream, bodySize: Option<Int64>): Array<Byte> 
         result.add(all: chunk[..n])
         n = body.read(chunk)
     }
-    // slice() avoids the ArrayList -> Array copy. JsonValue.fromUtf8Bytes
-    // clones this view before parsing, so the DOM never borrows HTTP storage.
+    // slice() avoids the ArrayList -> Array copy. The owned DOM parser retains
+    // this view's backing storage, which is not modified after this return.
     return unsafe { result.getRawArray().slice(0, result.size) }
 }
 
@@ -539,8 +539,8 @@ func mutateRequestJson(root: JsonObject, seq: Int64): Unit {
             let co = c.asObject()
             let inValue = co.get("in").getOrThrow().asInt()
             let okValue = co.get("ok").getOrThrow().asInt()
-            co.put("in", JsonInt(inValue.getValue() + 1))
-            co.put("ok", JsonInt(okValue.getValue() + 1))
+            inValue.setValue(inValue.getValue() + 1)
+            okValue.setValue(okValue.getValue() + 1)
         case None => ()
     }
 
@@ -559,14 +559,14 @@ func mutateRequestJson(root: JsonObject, seq: Int64): Unit {
                 match (item.get("seq")) {
                     case Some(s) =>
                         let value = s.asInt()
-                        item.put("seq", JsonInt(value.getValue() + 1))
+                        value.setValue(value.getValue() + 1)
                     case None => ()
                 }
                 // score *= 2.0
                 match (item.get("score")) {
                     case Some(s) =>
                         let value = s.asFloat()
-                        item.put("score", JsonFloat(value.getValue() * 2.0))
+                        value.setValue(value.getValue() * 2.0)
                     case None => ()
                 }
                 // user.attrs.credits *= 2.0
@@ -579,7 +579,7 @@ func mutateRequestJson(root: JsonObject, seq: Int64): Unit {
                                 match (ao.get("credits")) {
                                     case Some(cv) =>
                                         let value = cv.asFloat()
-                                        ao.put("credits", JsonFloat(value.getValue() * 2.0))
+                                        value.setValue(value.getValue() * 2.0)
                                     case None => ()
                                 }
                             case None => ()

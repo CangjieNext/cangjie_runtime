@@ -98,7 +98,7 @@ public:
         uintptr_t markPlaneBase);
     void FlushBarrierMarkBuffer(MSBarrierMarkBuffer& buffer);
     void NotifyAllocBufferExit(AllocBufferMS& allocBuffer);
-    // ── CopyGC-specific overrides: safe no-ops ──
+    // ── Moving-collector compatibility overrides: MSGC is non-moving ──
     BaseObject* ForwardObject(BaseObject*) override { return nullptr; }
     bool IsFromObject(BaseObject*) const override { return false; }
     bool IsGhostFromObject(BaseObject*) const override { return false; }
@@ -303,7 +303,9 @@ private:
     // reclaims anything), walk all marked objects and report any ref edge that
     // points to an unmarked target. Such a target will be wrongly swept while
     // still reachable from a live object — the classic missed-mark UAF.
-    // Gated by env cjMSVerifyMark; logs the first N violations only.
+    // Gated by normalized RuntimeParam::msVerifyMark; logs the first N
+    // violations only. The value may come from environment initialization or
+    // the public runtime API.
     void VerifyMarkCompleteness();
 
     // ── Step 2.2 internals ──

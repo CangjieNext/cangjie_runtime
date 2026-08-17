@@ -208,32 +208,6 @@ void MSBitmapArena::EnsurePlaneRangeCommitted(
     state.committedChunkCount = requiredChunkCount;
 }
 
-void MSBitmapArena::ShrinkToCommittedRegionCount(size_t committedRegionCount)
-{
-    std::lock_guard<std::mutex> lg(g_bitmapArenaLock);
-
-    if (g_bitmapPlanes[0].map == nullptr) {
-        return;
-    }
-
-    size_t requiredChunkCount = GetChunkCountForRegions(committedRegionCount);
-    CHECK_DETAIL(requiredChunkCount <= g_bitmapArenaChunkCount,
-                 "[MS-GC] bitmap arena shrink overflow: required=%zu, max=%zu",
-                 requiredChunkCount, g_bitmapArenaChunkCount);
-    for (MSBitmapPlaneState& state : g_bitmapPlanes) {
-        if (requiredChunkCount >= state.committedChunkCount) {
-            continue;
-        }
-
-        size_t deactivateChunkStart = requiredChunkCount;
-        size_t deactivateChunkCount = state.committedChunkCount - requiredChunkCount;
-        CHECK_DETAIL(RemapChunkRange(state, deactivateChunkStart, deactivateChunkCount, false),
-                     "[MS-GC] failed to deactivate %s chunk range: start=%zu, count=%zu",
-                     state.tag, deactivateChunkStart, deactivateChunkCount);
-        state.committedChunkCount = requiredChunkCount;
-    }
-}
-
 namespace {
 uint64_t* GetRegionPlane(MSBitmapPlane plane, size_t regionIdx)
 {

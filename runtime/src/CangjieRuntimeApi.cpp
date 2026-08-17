@@ -261,8 +261,8 @@ RTErrorCode InitCJRuntime(const struct RuntimeParam* param)
     msConfigInput.parallelSweepMaxHelpers = param->gcParam.msParallelSweepMaxHelpers;
     msConfigInput.parallelSweep = param->gcParam.msParallelSweep;
     msConfigInput.adaptiveGrowth = param->gcParam.msAdaptiveGrowth;
-    MapleRuntime::MSGCResolvedConfig msConfig = MapleRuntime::ResolveMSGCConfig(
-        msConfigInput, MapleRuntime::MSGCConfigSource::API);
+    MapleRuntime::MSGCResolvedConfig msConfig =
+        MapleRuntime::ResolveMSGCConfig(msConfigInput);
 #else
     size_t initHeapSize = param->heapParam.heapSize == 0 ? 64 * 1024 : param->heapParam.heapSize;
 #endif

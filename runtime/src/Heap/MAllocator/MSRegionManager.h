@@ -92,9 +92,6 @@ public:
     void AdvanceScavengeEpoch(uint32_t epoch) { freeManager_.AdvanceScavengeEpoch(epoch); }
     size_t GetSegmentSizeBytes() const { return freeManager_.GetSegmentSizeBytes(); }
 
-    // Shrink the committed heap after background reclaim/scavenge has exposed trailing hot-free space.
-    // The actual trailing-tail reclaim and committed-end update are managed by FreeManager.
-    void ShrinkHeap();
     bool HasPendingShrinkWork(const CentralRegionPool* centralPool) const;
     size_t ShrinkOneIdleSegment(CentralRegionPool* centralPool);
 
@@ -131,7 +128,6 @@ public:
 
     // Return bytes in hot-free regions (free but pages not yet returned to OS).
     size_t GetHotFreeBytes() const;
-    size_t GetHotFreeBytesReference() const;
     uint16_t ResolveHomeShardId(uint16_t shardHint = kMSInvalidShardId) const;
 
 private:

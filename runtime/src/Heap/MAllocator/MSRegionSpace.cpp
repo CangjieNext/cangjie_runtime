@@ -169,22 +169,6 @@ size_t RegionSpaceMS::LargeObjectBytes() const
     return msCentralPool_->GetLargeObjectBytes();
 }
 
-size_t RegionSpaceMS::FlushAllEmptySweptToHotFree()
-{
-    if (msCentralPool_ == nullptr) {
-        return 0;
-    }
-    return msCentralPool_->ReclaimEmptyRegion(std::numeric_limits<size_t>::max());
-}
-
-size_t RegionSpaceMS::FlushEmptySweptToHotFree(size_t maxRegions)
-{
-    if (msCentralPool_ == nullptr || maxRegions == 0) {
-        return 0;
-    }
-    return msCentralPool_->ReclaimEmptyRegion(maxRegions);
-}
-
 size_t RegionSpaceMS::FlushCentralCacheToThreshold(size_t thresholdBytes)
 {
     if (msCentralPool_ == nullptr) {
@@ -197,11 +181,10 @@ size_t RegionSpaceMS::FlushCentralCacheToThreshold(size_t thresholdBytes)
     }
 
     size_t bytesToFlush = cacheBytes - thresholdBytes;
-    if (cacheBytes <= bytesToFlush) {
-        return FlushAllEmptySweptToHotFree();
-    }
-    return FlushEmptySweptToHotFree(CeilDivideMSSweepValue(
-        bytesToFlush, MS_REGION_SIZE));
+    size_t regionsToFlush = thresholdBytes == 0
+        ? std::numeric_limits<size_t>::max()
+        : CeilDivideMSSweepValue(bytesToFlush, MS_REGION_SIZE);
+    return msCentralPool_->ReclaimEmptyRegion(regionsToFlush);
 }
 
 size_t RegionSpaceMS::BackgroundScavenge(size_t quantumBytes)
@@ -226,13 +209,6 @@ bool RegionSpaceMS::HasPendingShrinkWork() const
         return false;
     }
     return msRegionManager_->HasPendingShrinkWork(msCentralPool_);
-}
-
-void RegionSpaceMS::MaybeNotifyScavenge()
-{
-    if (msRegionManager_ != nullptr) {
-        msRegionManager_->MaybeNotifyScavenge();
-    }
 }
 
 bool RegionSpaceMS::ForEachObj(const std::function<void(BaseObject*)>& visitor, bool safe) const

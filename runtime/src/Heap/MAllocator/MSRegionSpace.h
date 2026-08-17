@@ -67,12 +67,6 @@ public:
     // MS-specific accessors
     CentralRegionPool* GetCentralPool() const { return msCentralPool_; }
     MSRegionManager* GetMSRegionManager() const { return msRegionManager_; }
-    // On-demand flush of the empty-swept cache → FreeManager hot-free supply.
-    // Flush policy is centralized here; the actual transfer is delegated to
-    // msCentralPool_->ReclaimEmptyRegion().
-    size_t FlushAllEmptySweptToHotFree();
-    // Flush up to maxRegions empty-swept regions into FreeManager hot-free supply.
-    size_t FlushEmptySweptToHotFree(size_t maxRegions);
     // Batch-flush the empty-swept cache into hot-free until the remaining cache
     // footprint is <= thresholdBytes.
     size_t FlushCentralCacheToThreshold(size_t thresholdBytes);
@@ -84,15 +78,6 @@ public:
     // True when at least one segment has no in-use regions and still holds
     // unreleased physical pages or central-pool cached regions.
     bool HasPendingShrinkWork() const;
-    // Trigger Scavenge when heapRetained exceeds the high watermark.
-    void MaybeNotifyScavenge();
-
-    inline size_t GetTargetSize() const
-    {
-        double heapUtilization = CangjieRuntime::GetHeapParam().heapUtilization;
-        return static_cast<size_t>(GetUsedPageSize() / heapUtilization);
-    }
-
     friend class Allocator;
 
 private:

@@ -170,9 +170,9 @@ void MSRegionManager::InitializeFreshRegions(RegionIndex startIdx, RegionCount c
     size_t regionCount = static_cast<size_t>(count);
     for (size_t i = 0; i < regionCount; ++i) {
         size_t regionIdx = startRegionIdx + i;
-        // A grown segment can reuse a previously shrunk virtual range. Reset the
-        // whole region entry, including the tracked location/owner side tables,
-        // so stale CENTRAL_* state cannot survive into the next fresh take.
+        // A grown segment can reuse a released virtual range. Reset the whole
+        // region entry, including its tracked location/owner side tables, so
+        // stale CENTRAL_* state cannot survive into the next fresh take.
         array_[regionIdx].Reset();
     }
 }
@@ -185,11 +185,6 @@ void MSRegionManager::OnCommittedHeapExtended(uintptr_t newCommittedEnd)
 size_t MSRegionManager::GetHotFreeBytes() const
 {
     return freeManager_.GetHotFreeBytes();
-}
-
-size_t MSRegionManager::GetHotFreeBytesReference() const
-{
-    return freeManager_.GetHotFreeBytesReference();
 }
 
 uint16_t MSRegionManager::ResolveHomeShardId(uint16_t shardHint) const
@@ -457,20 +452,6 @@ bool MSRegionManager::GrowOneSegment()
         ? buf->GetCachedHomeShardId()
         : static_cast<uint16_t>(static_cast<uint32_t>(GetTid()) % freeManager_.GetShardCount());
     return freeManager_.GrowOneSegment(shardId, *this);
-}
-
-// ============================================================================
-// ShrinkHeap — delegate trailing-tail reclaim and committed-heap shrink to FreeManager.
-// ============================================================================
-
-void MSRegionManager::ShrinkHeap()
-{
-    size_t oldCommittedRegionCount = freeManager_.GetCommittedRegionCount();
-    freeManager_.ShrinkHeap();
-    size_t newCommittedRegionCount = freeManager_.GetCommittedRegionCount();
-    if (newCommittedRegionCount < oldCommittedRegionCount) {
-        MSBitmapArena::ShrinkToCommittedRegionCount(newCommittedRegionCount);
-    }
 }
 
 bool MSRegionManager::HasPendingShrinkWork(const CentralRegionPool* centralPool) const

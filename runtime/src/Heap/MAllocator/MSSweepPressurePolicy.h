@@ -36,18 +36,6 @@ inline uint64_t SaturatingMultiplyMSSweepValue(uint64_t lhs, uint64_t rhs)
     return lhs > max / rhs ? max : lhs * rhs;
 }
 
-// Sweep scheduling uses native-size byte and time budgets. Keep its overflow
-// rule next to the other sweep arithmetic rather than duplicating it in each
-// policy consumer.
-inline size_t SaturatingMultiplyMSSweepBytes(size_t lhs, size_t rhs)
-{
-    constexpr size_t max = std::numeric_limits<size_t>::max();
-    if (lhs == 0 || rhs == 0) {
-        return 0;
-    }
-    return lhs > max / rhs ? max : lhs * rhs;
-}
-
 inline size_t ComputeMSSweepRunwayBytes(size_t thresholdBytes, size_t sweptBytes)
 {
     return thresholdBytes > sweptBytes ? thresholdBytes - sweptBytes : 0;

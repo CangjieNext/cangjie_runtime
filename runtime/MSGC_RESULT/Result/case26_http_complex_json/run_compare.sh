@@ -49,6 +49,11 @@
 #     JAVAC_BIN            javac 命令，默认 $JAVA_HOME_DEFAULT/bin/javac
 #     JAVA_OPTS            可选 Java 运行参数
 #     JAVA_GC_OPTS         可选 Java GC 日志参数；为空时按 JDK 版本自动配置
+#     JAVA_BENCHMARK_SOURCE Java 基准源码；默认 java_benchmark/Case27HttpComplexJsonBenchmark.java
+#     JAVA_BENCHMARK_TEST_SOURCE 可选 Java 测试源码；设为空时跳过测试编译
+#     JAVA_BENCHMARK_MAIN  Java 基准主类；默认 Case27HttpComplexJsonBenchmark
+#     JAVA_BENCHMARK_TEST_MAIN 可选 Java 测试主类；设为空时跳过测试运行
+#     JAVA_BENCHMARK_CLASSPATH Java 基准依赖 classpath；默认空
 #
 #   用法示例：
 #     MSGC_SDK_ROOT=/path/to/msgc/sdk \
@@ -120,6 +125,11 @@ JAVA_HEAP_SIZE=$(printf '%s' "$HEAP_SIZE" | tr '[:upper:]' '[:lower:]')
 JAVA_HEAP_SIZE="${JAVA_HEAP_SIZE%b}"
 JAVA_OPTS="${JAVA_OPTS:--Xmx${JAVA_HEAP_SIZE}}"
 JAVA_GC_OPTS="${JAVA_GC_OPTS:-}"
+JAVA_BENCHMARK_SOURCE="${JAVA_BENCHMARK_SOURCE-$CASE_DIR/java_benchmark/Case27HttpComplexJsonBenchmark.java}"
+JAVA_BENCHMARK_TEST_SOURCE="${JAVA_BENCHMARK_TEST_SOURCE-$CASE_DIR/java_benchmark/Case27HttpComplexJsonBenchmarkTest.java}"
+JAVA_BENCHMARK_MAIN="${JAVA_BENCHMARK_MAIN-Case27HttpComplexJsonBenchmark}"
+JAVA_BENCHMARK_TEST_MAIN="${JAVA_BENCHMARK_TEST_MAIN-Case27HttpComplexJsonBenchmarkTest}"
+JAVA_BENCHMARK_CLASSPATH="${JAVA_BENCHMARK_CLASSPATH-}"
 CASE26_SAMPLE_DURATION_SECONDS="${CASE26_SAMPLE_DURATION_SECONDS:-0}"
 CASE26_SAMPLE_DELAY_SECONDS="${CASE26_SAMPLE_DELAY_SECONDS:-8}"
 
@@ -159,9 +169,17 @@ if [[ "$JAVA_ENABLE" != "0" ]]; then
     fi
     JAVA_BIN="$(command -v "$JAVA_BIN")"
     JAVAC_BIN="$(command -v "$JAVAC_BIN")"
-    if [[ ! -f "$CASE_DIR/java_benchmark/Case27HttpComplexJsonBenchmark.java" ]] ||
-       [[ ! -f "$CASE_DIR/java_benchmark/Case27HttpComplexJsonBenchmarkTest.java" ]]; then
-        echo "[ERROR] Java benchmark sources are incomplete under $CASE_DIR/java_benchmark" >&2
+    if [[ ! -f "$JAVA_BENCHMARK_SOURCE" ]]; then
+        echo "[ERROR] Java benchmark source not found: $JAVA_BENCHMARK_SOURCE" >&2
+        exit 1
+    fi
+    if [[ -n "$JAVA_BENCHMARK_TEST_SOURCE" && ! -f "$JAVA_BENCHMARK_TEST_SOURCE" ]]; then
+        echo "[ERROR] Java benchmark test source not found: $JAVA_BENCHMARK_TEST_SOURCE" >&2
+        exit 1
+    fi
+    if [[ -n "$JAVA_BENCHMARK_TEST_SOURCE" && -z "$JAVA_BENCHMARK_TEST_MAIN" ]] ||
+       [[ -z "$JAVA_BENCHMARK_TEST_SOURCE" && -n "$JAVA_BENCHMARK_TEST_MAIN" ]]; then
+        echo "[ERROR] JAVA_BENCHMARK_TEST_SOURCE and JAVA_BENCHMARK_TEST_MAIN must be set together" >&2
         exit 1
     fi
 fi
@@ -645,13 +663,20 @@ run_java_side() {
         echo "javac_bin=$JAVAC_BIN"
         echo "java_opts=$JAVA_OPTS"
         echo "java_gc_opts=$JAVA_GC_OPTS"
+        echo "java_benchmark_source=$JAVA_BENCHMARK_SOURCE"
+        echo "java_benchmark_test_source=$JAVA_BENCHMARK_TEST_SOURCE"
+        echo "java_benchmark_main=$JAVA_BENCHMARK_MAIN"
+        echo "java_benchmark_test_main=$JAVA_BENCHMARK_TEST_MAIN"
+        echo "java_benchmark_classpath=$JAVA_BENCHMARK_CLASSPATH"
         echo "java_version=$("$JAVA_BIN" -version 2>&1 | sed -n '1p')"
         echo "timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
     } > "$out_dir/run_metadata.env"
-    cp "$CASE_DIR/java_benchmark/Case27HttpComplexJsonBenchmark.java" \
-        "$out_dir/Case27HttpComplexJsonBenchmark.java.snapshot"
-    cp "$CASE_DIR/java_benchmark/Case27HttpComplexJsonBenchmarkTest.java" \
-        "$out_dir/Case27HttpComplexJsonBenchmarkTest.java.snapshot"
+    cp "$JAVA_BENCHMARK_SOURCE" \
+        "$out_dir/$(basename "$JAVA_BENCHMARK_SOURCE").snapshot"
+    if [[ -n "$JAVA_BENCHMARK_TEST_SOURCE" ]]; then
+        cp "$JAVA_BENCHMARK_TEST_SOURCE" \
+            "$out_dir/$(basename "$JAVA_BENCHMARK_TEST_SOURCE").snapshot"
+    fi
     cp "$CASE_DIR/payloads/${PAYLOAD}.json" "$out_dir/payload.snapshot.json"
 
     local -a child_env=(
@@ -665,6 +690,11 @@ run_java_side() {
         "JAVAC_BIN=$JAVAC_BIN"
         "JAVA_OPTS=$JAVA_OPTS"
         "JAVA_GC_OPTS=$JAVA_GC_OPTS"
+        "JAVA_BENCHMARK_SOURCE=$JAVA_BENCHMARK_SOURCE"
+        "JAVA_BENCHMARK_TEST_SOURCE=$JAVA_BENCHMARK_TEST_SOURCE"
+        "JAVA_BENCHMARK_MAIN=$JAVA_BENCHMARK_MAIN"
+        "JAVA_BENCHMARK_TEST_MAIN=$JAVA_BENCHMARK_TEST_MAIN"
+        "JAVA_BENCHMARK_CLASSPATH=$JAVA_BENCHMARK_CLASSPATH"
         "CASE26_PAYLOAD=$PAYLOAD"
         "CASE26_CONCURRENCY=$CONC"
         "CASE26_DURATION_MS=$DUR"
@@ -726,12 +756,23 @@ run_java_side() {
                 printf "module_opts="; printf "%q " "${module_opts[@]}"; echo
                 printf "java_opts="; printf "%q " "${java_opts[@]}"; echo
                 printf "java_gc_opts="; printf "%q " "${gc_opts[@]}"; echo
+                echo "java_benchmark_source=$JAVA_BENCHMARK_SOURCE"
+                echo "java_benchmark_test_source=$JAVA_BENCHMARK_TEST_SOURCE"
+                echo "java_benchmark_main=$JAVA_BENCHMARK_MAIN"
+                echo "java_benchmark_test_main=$JAVA_BENCHMARK_TEST_MAIN"
+                echo "java_benchmark_classpath=$JAVA_BENCHMARK_CLASSPATH"
             } > "$OUT_DIR/java_command.env"
 
-            "$JAVAC_BIN" "${module_opts[@]}" \
-                -d "$OUT_DIR/classes" \
-                "$CASE_DIR/java_benchmark/Case27HttpComplexJsonBenchmark.java" \
-                "$CASE_DIR/java_benchmark/Case27HttpComplexJsonBenchmarkTest.java" \
+            compile_sources=("$JAVA_BENCHMARK_SOURCE")
+            if [[ -n "$JAVA_BENCHMARK_TEST_SOURCE" ]]; then
+                compile_sources+=("$JAVA_BENCHMARK_TEST_SOURCE")
+            fi
+            compile_classpath=()
+            if [[ -n "$JAVA_BENCHMARK_CLASSPATH" ]]; then
+                compile_classpath=(-cp "$JAVA_BENCHMARK_CLASSPATH")
+            fi
+            "$JAVAC_BIN" "${module_opts[@]}" "${compile_classpath[@]}" \
+                -d "$OUT_DIR/classes" "${compile_sources[@]}" \
                 > "$OUT_DIR/compile.stdout.txt" 2> "$OUT_DIR/compile.stderr.txt"
             compile_rc=$?
             echo "$compile_rc" > "$OUT_DIR/compile.exitcode"
@@ -740,10 +781,19 @@ run_java_side() {
                 exit "$compile_rc"
             fi
 
-            "$JAVA_BIN" "${module_opts[@]}" "${java_opts[@]}" \
-                -cp "$OUT_DIR/classes" Case27HttpComplexJsonBenchmarkTest \
-                > "$OUT_DIR/test.stdout.txt" 2> "$OUT_DIR/test.stderr.txt"
-            test_rc=$?
+            runtime_classpath="$OUT_DIR/classes"
+            if [[ -n "$JAVA_BENCHMARK_CLASSPATH" ]]; then
+                runtime_classpath="$runtime_classpath:$JAVA_BENCHMARK_CLASSPATH"
+            fi
+            test_rc=0
+            : > "$OUT_DIR/test.stdout.txt"
+            : > "$OUT_DIR/test.stderr.txt"
+            if [[ -n "$JAVA_BENCHMARK_TEST_SOURCE" && -n "$JAVA_BENCHMARK_TEST_MAIN" ]]; then
+                "$JAVA_BIN" "${module_opts[@]}" "${java_opts[@]}" \
+                    -cp "$runtime_classpath" "$JAVA_BENCHMARK_TEST_MAIN" \
+                    > "$OUT_DIR/test.stdout.txt" 2> "$OUT_DIR/test.stderr.txt"
+                test_rc=$?
+            fi
             echo "$test_rc" > "$OUT_DIR/test.exitcode"
             if ((test_rc != 0)); then
                 echo "[$LABEL] Java benchmark test failed (rc=$test_rc)" >&2
@@ -752,7 +802,7 @@ run_java_side() {
 
             : > "$OUT_DIR/gc.log"
             "$JAVA_BIN" "${module_opts[@]}" "${java_opts[@]}" "${gc_opts[@]}" \
-                -cp "$OUT_DIR/classes" Case27HttpComplexJsonBenchmark \
+                -cp "$runtime_classpath" "$JAVA_BENCHMARK_MAIN" \
                 > "$OUT_DIR/stdout.txt" 2> "$OUT_DIR/stderr.txt" &
             BENCH_PID=$!
 

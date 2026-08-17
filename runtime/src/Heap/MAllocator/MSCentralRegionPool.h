@@ -453,13 +453,12 @@ public:
     // Current central small-Region supply that a mutator previously used and
     // returned.  It intentionally excludes Sweep-produced partial/full lists.
     size_t GetMutatorReturnedSweptRegionCount() const;
-    size_t GetLargeNextSupplySpanCount() const;
     size_t GetAllocBufferCount() const;
     size_t GetAllAllocBufferActiveRegionCount() const;
     BucketPressure GetBucketPressure(uint8_t cls) const;
-    // Swept-retained region count: partialSwept + fullSwept buckets + large region spans.
-    // Excludes unswept regions; used by MaybeNotifyMark to gate the next GC on the
-    // post-sweep live footprint rather than the transient active-region total.
+    // Swept-supply region count: partialSwept + fullSwept buckets + live LARGE spans.
+    // Excludes the unswept backlog. Snapshot users use it for sweep pressure and
+    // helper-width policy; it is not the Mark-trigger metric.
     size_t GetSweptMSRegionCount() const;
     size_t GetActiveMSRegionCount() const;
     size_t GetEmptySweptRegionCount() const;
@@ -515,6 +514,10 @@ public:
     // remain closed through Mark and must be reopened by ReenableSweepAdmission().
     // Must finish before clearing markBitmaps to avoid racing SweepRegion reads.
     void StopAndWaitForAllSweep();
+    // Diagnostic-only environment gate. CJ_MS_STW_SWEEP=1 disables concurrent
+    // Sweep for the epoch and drains its backlog serially in the next PreEnum
+    // STW. It intentionally does not occupy a RuntimeParam ABI field.
+    static bool IsSTWSweepDiagnosticEnabled();
 
     // Under PreEnum STW, build the immutable collection boundary and reset all
     // per-cycle mark work state. Sealed Small Regions are reset while their

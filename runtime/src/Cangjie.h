@@ -352,7 +352,7 @@ struct GCParam {
     size_t msScavengeRounds;
 
     /*
-     * MSGC background sweep switch. 0 = off, 1 = on.
+     * MSGC background sweep switch. 0 = off (关闭), 1 = on (开启).
      */
     uint8_t msBackgroundSweep;
 
@@ -362,7 +362,7 @@ struct GCParam {
     uint8_t reservedMSBackgroundFeed;
 
     /*
-     * MSGC background scavenge switch. 0 = off, 1 = on.
+     * MSGC background scavenge switch. 0 = off (关闭), 1 = on (开启).
      */
     uint8_t msBackgroundScavenge;
 

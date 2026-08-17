@@ -210,8 +210,7 @@ CangjieRuntime::CangjieRuntime(const RuntimeParam& runtimeParam) : param(runtime
         ReadBoolParameter("cjMSEnumAssist", true);
     configInput.assistDisabled =
         ReadBoolParameter("CJ_MS_DISABLE_ASSIST", false);
-    MSGCResolvedConfig config = ResolveMSGCConfig(
-        configInput, MSGCConfigSource::ENVIRONMENT);
+    MSGCResolvedConfig config = ResolveMSGCConfig(configInput);
     msEnumAssistEnabled = config.enumAssistEnabled != 0;
     msAssistDisabled = config.assistDisabled != 0;
 #endif

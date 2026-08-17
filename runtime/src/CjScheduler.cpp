@@ -493,7 +493,7 @@ static RuntimeParam InitRuntimeParam()
         "cjMSParallelSweepMaxHelpers", 0, 0, EnvBoundKind::CLOSED);
     msConfigInput.parallelSweep = static_cast<uint8_t>(ReadBoolParameter("cjMSParallelSweep", true));
     msConfigInput.adaptiveGrowth = static_cast<uint8_t>(ReadBoolParameter("cjMSAdaptiveGrowth", false));
-    MSGCResolvedConfig msConfig = ResolveMSGCConfig(msConfigInput, MSGCConfigSource::ENVIRONMENT);
+    MSGCResolvedConfig msConfig = ResolveMSGCConfig(msConfigInput);
 #endif
     RuntimeParam param = {
         .heapParam = {

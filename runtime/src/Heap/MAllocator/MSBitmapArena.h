@@ -32,7 +32,6 @@ public:
 
     static void EnsurePlaneRangeCommitted(
         MSBitmapPlane plane, size_t startRegionIdx, size_t regionCount);
-    static void ShrinkToCommittedRegionCount(size_t committedRegionCount);
 
     static uint64_t* GetAllocPlane(size_t regionIdx);
     static uint64_t* GetMarkPlane(size_t regionIdx);

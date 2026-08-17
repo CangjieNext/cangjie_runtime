@@ -47,8 +47,7 @@ size_t MSHeapRetentionSnapshot::ReclaimableBytes() const
 
 namespace {
 
-MSHeapRetentionSnapshot CaptureMSHeapRetentionSnapshotImpl(
-    const RegionSpaceMS& space, bool referenceHotFree)
+MSHeapRetentionSnapshot CaptureMSHeapRetentionSnapshotImpl(const RegionSpaceMS& space)
 {
     MSHeapRetentionSnapshot snapshot;
     const CentralRegionPool* centralPool = space.GetCentralPool();
@@ -59,9 +58,7 @@ MSHeapRetentionSnapshot CaptureMSHeapRetentionSnapshotImpl(
 
     const MSRegionManager* regionManager = space.GetMSRegionManager();
     if (regionManager != nullptr) {
-        snapshot.hotFreeBytes = referenceHotFree
-            ? regionManager->GetHotFreeBytesReference()
-            : regionManager->GetHotFreeBytes();
+        snapshot.hotFreeBytes = regionManager->GetHotFreeBytes();
     }
     return snapshot;
 }
@@ -70,12 +67,7 @@ MSHeapRetentionSnapshot CaptureMSHeapRetentionSnapshotImpl(
 
 MSHeapRetentionSnapshot CaptureMSHeapRetentionSnapshot(const RegionSpaceMS& space)
 {
-    return CaptureMSHeapRetentionSnapshotImpl(space, false);
-}
-
-MSHeapRetentionSnapshot CaptureMSHeapRetentionDiagnosticSnapshot(const RegionSpaceMS& space)
-{
-    return CaptureMSHeapRetentionSnapshotImpl(space, true);
+    return CaptureMSHeapRetentionSnapshotImpl(space);
 }
 
 MSSweepProgressSnapshot CaptureMSSweepProgressSnapshot(const CentralRegionPool& pool)

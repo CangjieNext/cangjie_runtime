@@ -15,8 +15,8 @@ namespace MapleRuntime {
 constexpr uint64_t kMSGCDefaultBackgroundSweepMaxTimeNs = 2ULL * 1000ULL * 1000ULL;
 constexpr uint64_t kMSGCDefaultMarkTimeBudgetNs = 10ULL * 1000ULL * 1000ULL * 1000ULL;
 
-enum class MSGCConfigSource : uint8_t { ENVIRONMENT, API };
-
+// Every MSGC control byte has one contract across environment and RuntimeParam:
+// 0 disables it; any non-zero value enables it and is normalized to 1.
 struct MSGCConfigInput {
     uint64_t backgroundSweepMaxTimeNs = 0;
     uint64_t markTimeBudgetNs = 0;
@@ -53,10 +53,8 @@ struct MSGCResolvedConfig {
     uint8_t assistDisabled = 0;
 };
 
-inline MSGCResolvedConfig ResolveMSGCConfig(const MSGCConfigInput& input,
-                                            MSGCConfigSource source)
+inline MSGCResolvedConfig ResolveMSGCConfig(const MSGCConfigInput& input)
 {
-    const bool api = source == MSGCConfigSource::API;
     MSGCResolvedConfig config;
     config.backgroundSweepMaxTimeNs = input.backgroundSweepMaxTimeNs == 0
         ? kMSGCDefaultBackgroundSweepMaxTimeNs : input.backgroundSweepMaxTimeNs;
@@ -66,11 +64,11 @@ inline MSGCResolvedConfig ResolveMSGCConfig(const MSGCConfigInput& input,
     config.assistSweepMaxRegionsPerCall = input.assistSweepMaxRegionsPerCall == 0
         ? 4 : input.assistSweepMaxRegionsPerCall;
     config.enumAssistBatchSize = input.enumAssistBatchSize == 0 ? 10 : input.enumAssistBatchSize;
-    config.backgroundSweep = api && input.backgroundSweep == 0 ? 1 : input.backgroundSweep;
-    config.backgroundScavenge = api && input.backgroundScavenge == 0 ? 1 : input.backgroundScavenge;
+    config.backgroundSweep = input.backgroundSweep != 0 ? 1 : 0;
+    config.backgroundScavenge = input.backgroundScavenge != 0 ? 1 : 0;
     config.backgroundShrink = input.backgroundShrink != 0 ? 1 : 0;
-    config.verifyMark = input.verifyMark;
-    config.verifyMarkDetail = input.verifyMarkDetail;
+    config.verifyMark = input.verifyMark != 0 ? 1 : 0;
+    config.verifyMarkDetail = input.verifyMarkDetail != 0 ? 1 : 0;
     config.parallelSweepMaxHelpers = input.parallelSweepMaxHelpers;
     config.parallelSweep = input.parallelSweep != 0 ? 1 : 0;
     config.adaptiveGrowth = input.adaptiveGrowth != 0 ? 1 : 0;

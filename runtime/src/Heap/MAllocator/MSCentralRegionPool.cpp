@@ -15,6 +15,7 @@
 #include "Heap/MCollector/MSGCWorkerPoolSession.h"
 #include "Common/BaseObject.h"
 #include "Base/CString.h"
+#include "Base/EnvParam.h"
 #include "Base/Log.h"
 #include "Base/LogFile.h"
 #include "Base/SysCall.h"
@@ -36,6 +37,13 @@ namespace MapleRuntime {
 namespace {
 constexpr size_t kSweepDeadlineCheckInterval = 4;
 constexpr size_t kEmptyDrainBatchSize = 64;
+
+bool IsSTWSweepDiagnosticEnabledImpl()
+{
+    static const bool enabled = ReadBoolParameter("CJ_MS_STW_SWEEP", false);
+    return enabled;
+}
+
 void ClearSmallRegionPayload(uintptr_t regionStart)
 {
     memset(reinterpret_cast<void*>(regionStart), 0, MS_REGION_SIZE);
@@ -53,6 +61,11 @@ CentralRegionPool::CentralRegionPool(MSRegionManager* msRegionManager)
                                                       &centralSmallUnsweptRegions_);
         }
     }
+}
+
+bool CentralRegionPool::IsSTWSweepDiagnosticEnabled()
+{
+    return IsSTWSweepDiagnosticEnabledImpl();
 }
 
 void CentralRegionPool::PublishSweepDoneAfterQuiescence()
@@ -594,8 +607,9 @@ void CentralRegionPool::PublishCollectSetForSweep()
         ComputeMSSweepRunwayBytes(
             policy.markThresholdBytes, markTrigger.triggerBytes),
         MS_REGION_SIZE);
+    bool stwSweepDiagnostic = IsSTWSweepDiagnosticEnabled();
     bool disableAssist = CangjieRuntime::IsMSAssistDisabled();
-    uint64_t sweepAssistRatio = disableAssist
+    uint64_t sweepAssistRatio = disableAssist || stwSweepDiagnostic
         ? 0
         : ComputeMSSweepAssistRatioScaled(totalUnswept, runwayRegions);
     sweepCycleState_.ResetForNewEpoch(sweepAssistRatio);
@@ -608,8 +622,15 @@ void CentralRegionPool::PublishCollectSetForSweep()
     }
 
     // Publish the complete Sweep epoch before any background, helper, or
-    // mutator-assist claimant may enter it.
-    ReenableSweepAdmission();
+    // mutator-assist claimant may enter it. The diagnostic mode keeps the
+    // admission gate closed so PreEnumRoots() owns the sole serial drain.
+    if (stwSweepDiagnostic) {
+        stopSweepRequested_.store(true, std::memory_order_release);
+        skipAssistSweep_.store(true, std::memory_order_release);
+        skipHelperSweep_.store(true, std::memory_order_release);
+    } else {
+        ReenableSweepAdmission();
+    }
 
     VLOG(REPORT,
          "[MS-GC]   Publish sweep: epoch=%u unsweptRegions=%zu assistRatio=%llu",
@@ -881,24 +902,6 @@ size_t CentralRegionPool::GetSmallSweptRegionCount() const
 size_t CentralRegionPool::GetMutatorReturnedSweptRegionCount() const
 {
     return centralSmallMutatorReturnedSweptRegions_.load(std::memory_order_acquire);
-}
-
-size_t CentralRegionPool::GetLargeNextSupplySpanCount() const
-{
-    size_t spanCount = 0;
-    std::lock_guard<std::mutex> lg(const_cast<std::mutex&>(largeLock_));
-    for (uint32_t idx : largeNextSupply_) {
-        MSRegionInfo* region = MSRegionInfoArray::GetRegionInfoByIdx(idx);
-        CHECK_DETAIL(
-            region != nullptr && region->GetRegionKind() == MSRegionKind::LARGE,
-            "[MS-GC] GetLargeNextSupplySpanCount: invalid LARGE primary idx=%u",
-            idx);
-        size_t regionSpanCount = region->LargeSpanCount();
-        spanCount = regionSpanCount > std::numeric_limits<size_t>::max() - spanCount
-            ? std::numeric_limits<size_t>::max()
-            : spanCount + regionSpanCount;
-    }
-    return spanCount;
 }
 
 void CentralRegionPool::ForceFinishUnsweptList(
@@ -1247,12 +1250,13 @@ void CentralRegionPool::StopAndWaitForAllSweep()
     sweepEpoch_.SetForceFinishRunning(true);
     forceFinishedSweepRegions_ = 0;
 
-    // 1. Join the still-open Sweep epoch as another claimant. Every Sweep
-    // source uses ClaimUnsweptHeadForSweep(), so the GC thread can drain
-    // different Regions concurrently with background/assist/helper work.
-    // This pass deliberately does not publish completion: claimed Regions may
-    // still be inside SweepRegion on another thread.
-    ForceFinishAllUnswept();
+    // 1. Join the still-open Sweep epoch as another claimant unless the STW
+    // diagnostic gate deliberately left all work for this serial closure.
+    // This pass does not publish completion: claimed Regions may still be
+    // inside SweepRegion on another thread.
+    if (!IsSTWSweepDiagnosticEnabled()) {
+        ForceFinishAllUnswept();
+    }
 
     // 2. Close all Sweep admission paths before establishing quiescence. The
     // unified admission word makes closing and active-count accounting one

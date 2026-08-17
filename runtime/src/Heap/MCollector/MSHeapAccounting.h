@@ -26,9 +26,9 @@ inline double MSBytesToMB(size_t bytes)
     return static_cast<double>(bytes) / kBytesPerMB;
 }
 
-// A best-effort physical-heap sample. Its counters are independently published
-// by the allocator, so it is deliberately a point-in-time policy input rather
-// than a globally cached, transactionally consistent heap image.
+// A best-effort allocator-retention sample. Its counters are independently
+// published by the allocator, so it is deliberately a point-in-time policy
+// input rather than a globally cached, transactionally consistent heap image.
 struct MSHeapRetentionSnapshot {
     size_t activeBytes = 0;
     size_t emptyCacheBytes = 0;
@@ -104,11 +104,6 @@ struct MSMarkTriggerDecision {
 // Capture the O(1) aggregate counters used on allocation and background-work
 // paths. The returned value can be reused by one caller without re-sampling.
 MSHeapRetentionSnapshot CaptureMSHeapRetentionSnapshot(const RegionSpaceMS& space);
-
-// Capture retention for detailed diagnostics. Only hot-free bytes use the
-// per-shard FreeManager scan; active and empty-cache bytes already come from
-// their O(1) central-pool aggregates.
-MSHeapRetentionSnapshot CaptureMSHeapRetentionDiagnosticSnapshot(const RegionSpaceMS& space);
 
 // Capture Sweep progress from CentralRegionPool's published aggregate counters.
 MSSweepProgressSnapshot CaptureMSSweepProgressSnapshot(const CentralRegionPool& pool);

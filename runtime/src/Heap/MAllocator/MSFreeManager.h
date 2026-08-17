@@ -77,9 +77,6 @@ public:
     void ReclaimRegionsReleased(RegionIndex idx, RegionCount num);
     void ReclaimRegionsReleasedBatch(const std::vector<RegionSpan>& spans);
     bool GrowOneSegment(uint16_t ownerShardId, HeapRangeHandler& handler);
-    // Legacy topology-shrink API; it is not part of the background scavenger
-    // lifecycle.
-    void ShrinkHeap();
 
     uint32_t GetShardCount() const { return shardCount_; }
     UnitCount GetFreeUnitCount() const;
@@ -90,9 +87,6 @@ public:
     // Return bytes in free regions whose physical pages have NOT been returned
     // to the OS yet (hotFree = freeRegions - scavengedRegions).
     size_t GetHotFreeBytes() const;
-    // Slow/reference scan used for threshold confirmation and aggregate
-    // diagnostics. Normal Region acquisition must use GetHotFreeBytes().
-    size_t GetHotFreeBytesReference() const;
 
     // Like ScavengeFreeRegions, but caps the work at maxBytes.
     // Returns actual bytes released (madvise'd).
