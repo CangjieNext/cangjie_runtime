@@ -44,17 +44,19 @@ protected:
     void RefineFromSpace() override;
     virtual void ConcurrentSweep();
     virtual bool IsTargetAddress(BaseObject* obj) const { return IsYoungHeapAddress(obj); }
+    void Preforward() override;
     virtual void AssembleCandidates()
     {
         reinterpret_cast<MixedRegionSpace&>(theAllocator).AssembleYoungCandidates();
     }
+    bool ShouldPrompt(uint8_t age) const;
+    void TagPromptRegion(RegionInfo* regionInfo) const;
 
 private:
     static constexpr uint8_t OLD_AGE = 15;
     bool IsYoungHeapAddress(BaseObject* obj) const;
-    bool ShouldPrompt(uint8_t age) const;
-    void TagPromptRegion(RegionInfo* regionInfo) const;
     void EnumRememberedRoots(RootSet& rootSet) const;
+    void PreforwardRememberedRoots();
 };
 
 } // namespace MapleRuntime

@@ -280,9 +280,11 @@ bool MixedRegionManager::IsYoungSpaceHeavy() const
 void MixedRegionManager::MigrateGhostRegionRSet()
 {
     ghostFromRegionList.VisitAllGhostRegions([](RegionInfo* region) {
+        if (!region->IsGhostFromRegion()) { return; }
         RememberSet::Instance().MigrateGhostRegionSlots(region);
     });
     ghostPromptRegionList.VisitAllGhostRegions([](RegionInfo* region) {
+        if (!region->IsGhostFromRegion()) { return; }
         RememberSet::Instance().MigrateGhostRegionSlots(region);
     });
 }

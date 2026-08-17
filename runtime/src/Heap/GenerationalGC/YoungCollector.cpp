@@ -33,12 +33,36 @@ void YoungCollector::TraceHeap()
         ProcessFinalizers();
     }
 }
+
+void YoungCollector::Preforward()
+{
+    ScopedEntryTrace trace("CJRT_GC_PREFORWARD");
+    MRT_PHASE_TIMER("Preforward");
+    {
+        ScopedLightSync scopedLightSync("Preforward", true, GCPhase::GC_PHASE_GENERATION_PREFORWARD);
+    }
+
+    GCThreadPool* threadPool = GetThreadPool();
+    MRT_ASSERT(threadPool != nullptr, "thread pool is null");
+    // forward and fix cj future objects
+    threadPool->AddWork(new (std::nothrow) LambdaWork([this](size_t) { PreforwardConcurrencyModelRoots(); }));
+
+    // forward and fix finalizer roots.
+    threadPool->AddWork(new (std::nothrow) LambdaWork([this](size_t) { PreforwardFinalizerProcessorRoots(); }));
+    threadPool->AddWork(new (std::nothrow) LambdaWork([this](size_t) { PreforwardAllExportFromRoots(); }));
+    threadPool->AddWork(new (std::nothrow) LambdaWork([this](size_t) { PreforwardDiscoveredExternObjects(); }));
+    threadPool->AddWork(new (std::nothrow) LambdaWork([this](size_t) { PreforwardAllResurrectExportFromObjects(); }));
+    // This may be not necessary.
+    threadPool->AddWork(new (std::nothrow) LambdaWork([this](size_t) { PreforwardRememberedRoots(); }));
+    threadPool->Start();
+    threadPool->WaitFinish();
+}
 void YoungCollector::DoGarbageCollection()
 {
     TraceHeap();
     PostTrace();
     ConcurrentSweep();
-    Preforward(GCPhase::GC_PHASE_GENERATION_PREFORWARD);
+    Preforward();
 
     ForwardFromSpace();
 
@@ -187,6 +211,14 @@ void YoungCollector::EnumRememberedRoots(RootSet& rootSet) const
             return;
         }
         EnumRefFieldRoot(*field, rootSet);
+    });
+}
+
+void YoungCollector::PreforwardRememberedRoots()
+{
+    RememberSet::Instance().VisitAllYoungSlots([this](uintptr_t slotAddr) {
+        auto* field = reinterpret_cast<ObjectRef*>(slotAddr);
+        ForwardUpdateRawRef(*field);
     });
 }
 

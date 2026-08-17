@@ -192,7 +192,12 @@ protected:
 protected:
     virtual void TraceHeap();
     virtual void PostTrace();
-    void Preforward(GCPhase phase);
+    virtual void Preforward();
+    void PreforwardConcurrencyModelRoots();
+    void PreforwardAllExportFromRoots();
+    void PreforwardFinalizerProcessorRoots();
+    void PreforwardDiscoveredExternObjects();
+    void PreforwardAllResurrectExportFromObjects();
     // gc index 0 or 1 is used to distinguish previous gc and current gc.
     uint16_t currentTagID = 0;
     RegionForwardTable fwdTable;
@@ -200,11 +205,6 @@ protected:
 private:
     template<bool forward>
     bool TryUpdateRefFieldImpl(BaseObject* obj, RefField<>& ref, BaseObject*& oldRef, BaseObject*& newRef) const;
-    void PreforwardConcurrencyModelRoots();
-    void PreforwardAllExportFromRoots();
-    void PreforwardFinalizerProcessorRoots();
-    void PreforwardDiscoveredExternObjects();
-    void PreforwardAllResurrectExportFromObjects();
     CrossRefHandler GetCrossRefHandler(BaseObject* foreignProxy);
 };
 } // namespace MapleRuntime

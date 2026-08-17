@@ -151,6 +151,40 @@ public:
         total += promptRegionList.GetAllocatedSize();
         return total;
     }
+    void AddRawPointerObject(BaseObject* obj) override
+    {
+        RegionInfo* region = RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(obj));
+        region->IncRawPointerObjectCount();
+        if (region->IsFromRegion()) {
+            if (region->IsOldRegion()) {
+                if (oldFromRegionList.TryDeleteRegion(region, RegionInfo::RegionType::FROM_REGION,
+                                                      RegionInfo::RegionType::SWEEP_REGION)) {
+                    GCPhase phase = Heap::GetHeap().GetGCPhase();
+                    CHECK(phase != GCPhase::GC_PHASE_FORWARD && phase != GCPhase::GC_PHASE_PREFORWARD);
+                    if (phase == GCPhase::GC_PHASE_POST_TRACE || phase == GCPhase::GC_PHASE_GENERATION_POST_TRACE) {
+                        region->ClearGhostRegionBit();
+                    }
+                    sweepableOldRegionList.PrependRegion(region, RegionInfo::RegionType::RAW_POINTER_PINNED_REGION);
+                }
+            } else {
+                bool needRemove = region->IsPrompted() ? promptRegionList.TryDeleteRegion(region,
+                    RegionInfo::RegionType::FROM_REGION, RegionInfo::RegionType::SWEEP_REGION) :
+                    fromRegionList.TryDeleteRegion(region, RegionInfo::RegionType::FROM_REGION,
+                    RegionInfo::RegionType::SWEEP_REGION);
+                if (needRemove) {
+                    GCPhase phase = Heap::GetHeap().GetGCPhase();
+                    CHECK(phase != GCPhase::GC_PHASE_FORWARD && phase != GCPhase::GC_PHASE_PREFORWARD);
+                    if (phase == GCPhase::GC_PHASE_POST_TRACE || phase == GCPhase::GC_PHASE_GENERATION_POST_TRACE) {
+                        region->ClearGhostRegionBit();
+                    }
+                    sweepableYoungRegionList.PrependRegion(region, RegionInfo::RegionType::RAW_POINTER_PINNED_REGION);
+                }
+            }
+        } else {
+            CHECK(region->GetRegionType() != RegionInfo::RegionType::LONE_FROM_REGION);
+        }
+    }
+    
 private:
     static size_t GetFreeSlotTotalSize(const RegionList& list)
     {

@@ -14,23 +14,61 @@
 
 namespace MapleRuntime {
 
-void MixedCollector::DoGarbageCollection() {}
-
-// TODO: override
-bool MixedCollector::MarkObject(BaseObject* obj) const
+void MixedCollector::DoGarbageCollection()
 {
-    RegionInfo* region = RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(obj));
-    size_t objectSize = obj->GetSize();
-    bool marked = region->MarkObject(obj, objectSize);
-    if (!marked) {
-        region->AddLiveByteCount(objectSize);
-        DLOG(TRACE, "mark obj %p<%p>(%zu) in region %p(%u)@%#zx, live %u", obj, obj->GetTypeInfo(), objectSize,
-             region, region->GetRegionType(), region->GetRegionStart(), region->GetLiveByteCount());
-    }
-    return marked;
+    TraceHeap();
+    PostTrace();
+    ConcurrentSweep();
+    Preforward();
+
+    ForwardFromSpace();
+
+    TransitionToGCPhase(GCPhase::GC_PHASE_GENERATION_IDLE, true);
+    MergeResurrectExportObjects();
+    PostResolveCycleTask();
+    FlipTagID();
+    ForwardDataManager::GetForwardDataManager().SetTagID(currentTagID);
+
+    CollectSmallSpace();
+    ForwardDataManager::GetForwardDataManager().UnbindPreviousLiveInfo();
 }
 
-void MixedCollector::EnumRefFieldRoot(RefField<>& ref, RootSet& rootSet) const {}
+void MixedCollector::EnumRefFieldRoot(RefField<>& field, RootSet& rootSet) const
+{
+    RefField<> oldField(field);
+    // if field is already tagged currently, it is also already enumerated.
+    if (IsCurrentPointer(oldField)) {
+        rootSet.push_back(oldField.GetTargetObject());
+        return;
+    }
+
+    BaseObject* latest = nullptr;
+    if (IsOldPointer(oldField)) {
+        BaseObject* targetObj = oldField.GetTargetObject();
+        latest = FindLatestVersion(targetObj);
+    } else {
+        latest = field.GetTargetObject();
+    }
+
+    // target object could be null or non-heap for some static variable.
+    if (!IsTargetAddress(latest)) {
+        DLOG(ENUM, "skip invalid mixed field ref %p: %#zx -> %p", &field, oldField.GetFieldValue(), latest);
+        return;
+    }
+    CHECK_DETAIL(latest->IsValidObject(), "Enum static root %p(%p) encounters invalid object", latest, &field);
+    RefField<> newField = GetAndTryTagRefField(latest);
+    if (oldField.GetFieldValue() == newField.GetFieldValue()) {
+        DLOG(ENUM, "enum mixed static ref@%p: %#zx -> %p<%p>(%zu)", &field, oldField.GetFieldValue(), latest,
+             latest->GetTypeInfo(), latest->GetSize());
+    } else if (field.CompareExchange(oldField.GetFieldValue(), newField.GetFieldValue())) {
+        DLOG(ENUM, "enum mixed static ref@%p: %#zx=>%#zx -> %p<%p>(%zu)", &field, oldField.GetFieldValue(),
+             newField.GetFieldValue(), latest, latest->GetTypeInfo(), latest->GetSize());
+    } else {
+        DLOG(ENUM, "enum mixed static ref@%p: %#zx -> %p<%p>(%zu)", &field, oldField.GetFieldValue(), latest,
+             latest->GetTypeInfo(), latest->GetSize());
+    }
+    rootSet.push_back(latest);
+}
 
 // TODO: override
 void MixedCollector::EnumAndTagRawRoot(ObjectRef& ref, RootSet& rootSet) const
@@ -122,12 +160,33 @@ void MixedCollector::ConcurrentSweep()
     MixedRegionManager& manager = MixedRegionSpace::CastDown(space.GetRegionManager());
     threadPool->AddWork(new (std::nothrow) OldSweepTask(manager.GetSweepableOldRegionList(),
                                                        manager.GetOldSweptRegionList(), threadPool));
-    threadPool->WaitFinish();
 }
 
 void MixedCollector::ResetForwardingData()
 {
     fwdTable.PrepareForwardTable(true);
+}
+
+void MixedCollector::Preforward()
+{
+    ScopedEntryTrace trace("CJRT_GC_PREFORWARD");
+    MRT_PHASE_TIMER("Preforward");
+    {
+        ScopedLightSync scopedLightSync("Preforward", true, GCPhase::GC_PHASE_GENERATION_PREFORWARD);
+    }
+
+    GCThreadPool* threadPool = GetThreadPool();
+    MRT_ASSERT(threadPool != nullptr, "thread pool is null");
+    // forward and fix cj future objects
+    threadPool->AddWork(new (std::nothrow) LambdaWork([this](size_t) { PreforwardConcurrencyModelRoots(); }));
+
+    // forward and fix finalizer roots.
+    threadPool->AddWork(new (std::nothrow) LambdaWork([this](size_t) { PreforwardFinalizerProcessorRoots(); }));
+    threadPool->AddWork(new (std::nothrow) LambdaWork([this](size_t) { PreforwardAllExportFromRoots(); }));
+    threadPool->AddWork(new (std::nothrow) LambdaWork([this](size_t) { PreforwardDiscoveredExternObjects(); }));
+    threadPool->AddWork(new (std::nothrow) LambdaWork([this](size_t) { PreforwardAllResurrectExportFromObjects(); }));
+    threadPool->Start();
+    threadPool->WaitFinish();
 }
 
 } // namespace MapleRuntime
