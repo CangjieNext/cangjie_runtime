@@ -5,6 +5,8 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+export COPYGC_BENCHMARK_SOURCE="${COPYGC_BENCHMARK_SOURCE:-$SCRIPT_DIR/cj_copygc_benchmark/benchmark.cj}"
+export MSGC_BENCHMARK_SOURCE="${MSGC_BENCHMARK_SOURCE:-$SCRIPT_DIR/cj_msgc_benchmark/benchmark.cj}"
 export JAVA_BENCHMARK_SOURCE="$SCRIPT_DIR/java_new_benchmark/Case27Benchmark.java"
 export JAVA_BENCHMARK_TEST_SOURCE=""
 export JAVA_BENCHMARK_MAIN="Case27Benchmark"

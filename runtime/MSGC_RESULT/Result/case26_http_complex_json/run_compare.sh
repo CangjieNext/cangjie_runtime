@@ -64,6 +64,8 @@ CASE_DIR="$(cd "$(dirname "$0")" && pwd)"
 SCRIPT_DIR="$CASE_DIR/script"
 PYTHON_BIN="${PYTHON_BIN:-python3}"
 SHARED_MPLCONFIG_DIR="$CASE_DIR/result/.mplconfig"
+COPYGC_BENCHMARK_SOURCE="${COPYGC_BENCHMARK_SOURCE:-$CASE_DIR/cj_copygc_benchmark/benchmark.cj}"
+MSGC_BENCHMARK_SOURCE="${MSGC_BENCHMARK_SOURCE:-$CASE_DIR/cj_msgc_benchmark/benchmark.cj}"
 if [[ ! -f "$SCRIPT_DIR/compare_results.py" ]]; then
     echo "[ERROR] local compare script not found: $SCRIPT_DIR/compare_results.py" >&2
     exit 1
@@ -138,6 +140,14 @@ if [[ ! -f "$CASE_DIR/payloads/${PAYLOAD}.json" ]]; then
     echo "[ERROR] payloads/${PAYLOAD}.json not found" >&2
     exit 1
 fi
+if [[ "$COPYGC_ENABLE" != "0" && ! -f "$COPYGC_BENCHMARK_SOURCE" ]]; then
+    echo "[ERROR] CopyGC benchmark source not found: $COPYGC_BENCHMARK_SOURCE" >&2
+    exit 1
+fi
+if [[ "$MSGC_ENABLE" != "0" && ! -f "$MSGC_BENCHMARK_SOURCE" ]]; then
+    echo "[ERROR] MSGC benchmark source not found: $MSGC_BENCHMARK_SOURCE" >&2
+    exit 1
+fi
 if [[ "$JAVA_ENABLE" != "0" ]]; then
     if ! command -v "$JAVA_BIN" >/dev/null 2>&1; then
         echo "[ERROR] Java enabled but JAVA_BIN is unavailable: $JAVA_BIN" >&2
@@ -199,6 +209,7 @@ run_side() {
     local runtime_gc_interval="${8:-}"
     local runtime_min_gc_threshold="${9:-}"
     local cjc_gc_mode="${10}"
+    local benchmark_source="${11}"
     local orig_port=$port
     local max_tries=10
     local tries=0
@@ -225,6 +236,7 @@ run_side() {
         echo "sdk_root=$sdk_root"
         echo "stdx_dir=$stdx_dir"
         echo "cjc_gc_mode=$cjc_gc_mode"
+        echo "benchmark_source=$benchmark_source"
         echo "payload=$PAYLOAD"
         echo "concurrency=$CONC"
         echo "duration_ms=$DUR"
@@ -261,7 +273,7 @@ run_side() {
         echo "timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
         echo "runtime_dylib_md5=$(md5 -q "$sdk_root"/runtime/lib/darwin_aarch64_cjnative/libcangjie-runtime.dylib 2>/dev/null || echo 'N/A')"
     } > "$out_dir/run_metadata.env"
-    cp "$CASE_DIR/benchmark.cj" "$out_dir/benchmark.cj.snapshot"
+    cp "$benchmark_source" "$out_dir/benchmark.cj.snapshot"
     cp "$CASE_DIR/payloads/${PAYLOAD}.json" "$out_dir/payload.snapshot.json"
 
     local -a child_env=(
@@ -279,7 +291,7 @@ run_side() {
         "RUNTIME_GC_INTERVAL=$runtime_gc_interval"
         "RUNTIME_MIN_GC_THRESHOLD=$runtime_min_gc_threshold"
         "CJC_GC_MODE=$cjc_gc_mode"
-        "BENCH_SRC=$CASE_DIR/benchmark.cj"
+        "BENCH_SRC=$benchmark_source"
         "PAYLOAD_DIR=$CASE_DIR/payloads"
         "CASE26_PAYLOAD=$PAYLOAD"
         "CASE26_CONCURRENCY=$CONC"
@@ -797,7 +809,7 @@ run_java_side() {
 
 COPYGC_RC=0
 if [[ "$COPYGC_ENABLE" != "0" ]]; then
-    run_side "CopyGC" "$COPYGC_DIR" "$COPYGC_SDK" "$COPYGC_STDX" 18226 "" "" "$COPYGC_GC_INTERVAL" "" ""
+    run_side "CopyGC" "$COPYGC_DIR" "$COPYGC_SDK" "$COPYGC_STDX" 18226 "" "" "$COPYGC_GC_INTERVAL" "" "" "$COPYGC_BENCHMARK_SOURCE"
     COPYGC_RC=$?
     echo "[INFO] CopyGC rc=$COPYGC_RC"
 else
@@ -807,7 +819,7 @@ fi
 MSGC_RC=0
 if [[ "$MSGC_ENABLE" != "0" ]]; then
     run_side "MSGC" "$MSGC_DIR" "$MSGC_SDK" "$MSGC_STDX" 18230 \
-        "$MSGC_HEAP_GROWTH" "$MSGC_SCAVENGE_GROWTH" "$MSGC_GC_INTERVAL" "$MSGC_MIN_GC_THRESHOLD" "marksweep"
+        "$MSGC_HEAP_GROWTH" "$MSGC_SCAVENGE_GROWTH" "$MSGC_GC_INTERVAL" "$MSGC_MIN_GC_THRESHOLD" "marksweep" "$MSGC_BENCHMARK_SOURCE"
     MSGC_RC=$?
     echo "[INFO] MSGC rc=$MSGC_RC"
 else
