@@ -406,12 +406,12 @@ void WCollector::PostTrace()
     fwdTable.PrepareForwardTable();
 }
 
-void WCollector::Preforward(GCPhase phase)
+void WCollector::Preforward()
 {
     ScopedEntryTrace trace("CJRT_GC_PREFORWARD");
     MRT_PHASE_TIMER("Preforward");
     {
-        ScopedLightSync scopedLightSync("Preforward", true, phase);
+        ScopedLightSync scopedLightSync("Preforward", true, GCPhase::GC_PHASE_PREFORWARD);
     }
 
     GCThreadPool* threadPool = GetThreadPool();
@@ -526,7 +526,7 @@ void WCollector::DoGarbageCollection()
     TraceHeap();
     PostTrace();
 
-    Preforward(GCPhase::GC_PHASE_PREFORWARD);
+    Preforward();
 
     ForwardFromSpace();
 

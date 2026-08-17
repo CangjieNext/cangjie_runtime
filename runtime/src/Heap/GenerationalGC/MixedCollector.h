@@ -22,11 +22,11 @@ public:
     ~MixedCollector() override = default;
 
     void DoGarbageCollection() override;
+    void Preforward() override;
     void EnumRefFieldRoot(RefField<>& ref, RootSet& rootSet) const override;
     void EnumAndTagRawRoot(ObjectRef& ref, RootSet& rootSet) const override;
     RefField<> GetAndTryTagRefField(BaseObject* target) const override;
     BaseObject* ForwardObject(BaseObject* fromVersion) override;
-    bool MarkObject(BaseObject* obj) const override;
     bool IsTargetAddress(BaseObject* obj) const override;
     void AssembleCandidates() override;
     void ConcurrentSweep() override;

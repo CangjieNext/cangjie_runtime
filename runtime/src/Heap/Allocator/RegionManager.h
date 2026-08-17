@@ -299,7 +299,7 @@ public:
         }
     }
 
-    void AddRawPointerObject(BaseObject* obj)
+    virtual void AddRawPointerObject(BaseObject* obj)
     {
         RegionInfo* region = RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(obj));
         region->IncRawPointerObjectCount();
