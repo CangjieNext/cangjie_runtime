@@ -416,8 +416,8 @@ public class ConcurrentTestCase {
         name: String,
         scenario!: ConcurrentScenario<S>,
         configuration!: Configuration = Configuration()
-    ): ConcurrentTestCase {
-        createParameterized<Unit, S>(name, noArgsProcessor(), body: { _: Unit => scenario })
+    ): ConcurrentTestCase where S <: Any {
+        createParameterized<Unit, S>(name, noArgsProcessor(), body: { _: Unit => scenario }, configuration: configuration)
     }
 
     public static func createFromBuilder<S>(

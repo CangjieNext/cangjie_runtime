@@ -29,11 +29,8 @@ public func execResultOf<T>(f: () -> T): EquatableObj where T <: Equatable<T> {
 
 
 class EqProxy<T> <: EquatableObj {
-    private let repr: Option<String>
 
-    EqProxy(let value: T) {
-        repr = (value as ToString).map { value => value.toString() }
-    }
+    EqProxy(let value: T) {}
 
     public func eq(other: Any): Bool {
         if (let Some(other) <- (other as EqProxy<T>)) {

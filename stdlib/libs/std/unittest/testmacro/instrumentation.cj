@@ -574,15 +574,15 @@ class InstrumentedClass {
     }
 
     private func buildScenarios(tb: TokensBuilder): TokensBuilder {
-        // FIXME: move parameters to OperationsManager probably
+        // FIXME: move parameters to ScenariosGenerator probably
         tb.append(quote(private func scenarios(
-            minActors!: Int64 = 2,
-            maxActors!: Int64 = 3,
-            minOperationPerActor!: Int64 = 2,
-            maxOperationPerActor!: Int64 = 10,
+            minActors!: ?Int64 = None,
+            maxActors!: ?Int64 = None,
+            minOperationPerActor!: ?Int64 = None,
+            maxOperationPerActor!: ?Int64 = None,
         ): DataStrategy<ScenarioBuilder<$concurrentTestStateClassName>>)).curlyBraces { tb => 
             tb.append(quote(
-                let operationsManager = createOperationsManager()
+                let operationsManager = createScenariosGenerator()
                 operationsManager.scenarios(
                     minActors: minActors,
                     maxActors: maxActors,
@@ -606,10 +606,10 @@ class InstrumentedClass {
         return tb
     }
 
-    private func buildCreateOperationsManager(tb: TokensBuilder): TokensBuilder {
-        tb.append(quote(private func createOperationsManager(): OperationsManager<$concurrentTestStateClassName>)).curlyBraces { tb => 
+    private func buildCreateScenariosGenerator(tb: TokensBuilder): TokensBuilder {
+        tb.append(quote(private func createScenariosGenerator(): ScenariosGenerator<$concurrentTestStateClassName>)).curlyBraces { tb => 
             tb.append(quote(
-                let opManager = OperationsManager<$concurrentTestStateClassName>(
+                let opManager = ScenariosGenerator<$concurrentTestStateClassName>(
                     { => ScenarioBuilder<$concurrentTestStateClassName>()
                             .withState { => $concurrentTestStateClassName() }
                     }
@@ -749,7 +749,7 @@ class InstrumentedClass {
             let numConstructors = Box(0)
 
             if (isConcurrentTest) {
-                buildCreateOperationsManager(tb)
+                buildCreateScenariosGenerator(tb)
                 buildScenarios(tb)
             }
 

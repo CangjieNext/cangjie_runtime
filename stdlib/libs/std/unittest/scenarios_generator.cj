@@ -4,7 +4,7 @@ import std.unittest.concurrent.*
 import std.unittest.prop_test.RandomSource
 import std.collection.*
 
-class OperationDesc<S> {
+private class OperationDesc<S> {
     OperationDesc(
         let group!: Option<String>,
         let name!: String,
@@ -12,7 +12,7 @@ class OperationDesc<S> {
     ) {}
 }
 
-class ScenarioParams<S> {
+private class ScenarioParams<S> {
     ScenarioParams(
         let minActors!: Int64,
         let maxActors!: Int64,
@@ -22,11 +22,10 @@ class ScenarioParams<S> {
     ) {}    
 }
 
-// FIXME: rename?
-public class OperationsManager<S> {
-    let operations = ArrayList<OperationDesc<S>>()
+public class ScenariosGenerator<S> {
+    private let operations = ArrayList<OperationDesc<S>>()
 
-    public OperationsManager(let scenarioBase: () -> ScenarioBuilder<S>) {}
+    public ScenariosGenerator(let scenarioBase: () -> ScenarioBuilder<S>) {}
 
     private func formatOperationName(name: String, inputs: Array<InputParameter>): String {
         let sb = StringBuilder()
@@ -71,32 +70,32 @@ public class OperationsManager<S> {
     }
 
     public func scenarios(
-        minActors!: Int64 = 2,
-        maxActors!: Int64 = 3,
-        minOperationPerActor!: Int64 = 2,
-        maxOperationPerActor!: Int64 = 10,
+        minActors!: ?Int64 = None,
+        maxActors!: ?Int64 = None,
+        minOperationPerActor!: ?Int64 = None,
+        maxOperationPerActor!: ?Int64 = None,
     ): DataStrategy<ScenarioBuilder<S>> {
         ScenarioDataStrategy(
             operations.toArray(),
             ScenarioParams(
-                minActors: minActors,
-                maxActors: maxActors,
-                minOperationPerActor: minOperationPerActor,
-                maxOperationPerActor: maxOperationPerActor,
+                minActors: minActors ?? 2,
+                maxActors: maxActors ?? 3,
+                minOperationPerActor: minOperationPerActor ?? 2,
+                maxOperationPerActor: maxOperationPerActor ?? 10,
                 scenarioBase: scenarioBase,
             ),
         )
     }
 }
 
-class ScenarioIterator<S> <: Iterator<ScenarioBuilder<S>> {
-    let operationIterators: Array<Iterator<Operation<S>>>
-    let random: RandomSource
+private class ScenarioIterator<S> <: Iterator<ScenarioBuilder<S>> {
+    private let operationIterators: Array<Iterator<Operation<S>>>
+    private let random: RandomSource
 
     ScenarioIterator(
-        let configuration: Configuration,
-        let operations: Array<OperationDesc<S>>,
-        let scenarioParams: ScenarioParams<S>,
+        private let configuration: Configuration,
+        private let operations: Array<OperationDesc<S>>,
+        private let scenarioParams: ScenarioParams<S>,
     ) {
         random = configuration.get<RandomSource>(KeyRandom.random) ??
             throw IllegalArgumentException("RandomDataProvider initialized without configured random generator instance")
@@ -200,34 +199,26 @@ class ScenarioIterator<S> <: Iterator<ScenarioBuilder<S>> {
     }
 }
 
-class ScenarioGenerator<S> <: Iterable<ScenarioBuilder<S>> {
-    ScenarioGenerator(
-        let configuration: Configuration,
-        let operations: Array<OperationDesc<S>>,
-        let scenarioParams: ScenarioParams<S>,
+private class ScenarioDataProvider<S> <: DataProvider<ScenarioBuilder<S>> & Iterable<ScenarioBuilder<S>> {
+    ScenarioDataProvider(
+        private let configuration: Configuration,
+        private let operations: Array<OperationDesc<S>>,
+        private let scenarioParams: ScenarioParams<S>,
     ) {}
+
+    public override func provide(): Iterable<ScenarioBuilder<S>> {
+        this
+    }
 
     public override func iterator(): Iterator<ScenarioBuilder<S>> {
         ScenarioIterator(configuration, operations, scenarioParams)
     }
 }
 
-class ScenarioDataProvider<S> <: DataProvider<ScenarioBuilder<S>> {
-    ScenarioDataProvider(
-        let configuration: Configuration,
-        let operations: Array<OperationDesc<S>>,
-        let scenarioParams: ScenarioParams<S>,
-    ) {}
-
-    public override func provide(): Iterable<ScenarioBuilder<S>> {
-        ScenarioGenerator(configuration, operations, scenarioParams)
-    }
-}
-
-class ScenarioDataStrategy<S> <: DataStrategy<ScenarioBuilder<S>> {
+private class ScenarioDataStrategy<S> <: DataStrategy<ScenarioBuilder<S>> {
     ScenarioDataStrategy(
-        let operations: Array<OperationDesc<S>>,
-        let scenarioParams: ScenarioParams<S>,
+        private let operations: Array<OperationDesc<S>>,
+        private let scenarioParams: ScenarioParams<S>,
     ) {}
 
     public override func provider(configuration: Configuration): DataProvider<ScenarioBuilder<S>> {
