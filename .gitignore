@@ -1,0 +1,5 @@
+# Workspace-local metadata and sibling stdlib artifacts.
+.DS_Store
+.vscode/
+stdlib/.github/
+stdlib/AGENTS.md

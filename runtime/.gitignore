@@ -10,3 +10,26 @@ test/
 docs/assist/
 build/
 MSGC_RESULT/Result/
+
+# Local Runtime workspace artifacts and notes.
+.DS_Store
+.cache/
+.github/
+.superpowers/
+.tmp/
+.vscode/
+MSGC/
+MSGC_RESULT/bugfix/15_Case27_RunRegionTask_GCTib空指针修复.md
+MSGC_RESULT/bugfix/20260802_case27_stw_mutator_arrival_cv_fix.md
+MSGC_RESULT/doc/
+MSGC_RESULT/implement/04_case25_MSGC_CPU未打满问题记录.md
+MSGC_RESULT/temp/
+__pycache__/
+cases_without_level.txt
+config.toml
+default.cjo
+default.cjo.flag
+docs/
+runtime.code-workspace
+third_party/third_party_bounds_checking_function/
+tmp/
