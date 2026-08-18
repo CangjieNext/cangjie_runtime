@@ -6,6 +6,7 @@
 
 #include "RSetUpdateBarrier.h"
 #include "Allocator/RegionInfo.h"
+#include "Mutator/Mutator.h"
 
 namespace MapleRuntime {
 
@@ -15,8 +16,10 @@ void RSetUpdateBarrier::WriteReference(BaseObject* obj, RefField<>* field, BaseO
     RegionInfo* objRegion = RegionInfo::GetRegionInfoAt(reinterpret_cast<uintptr_t>(obj));
     RegionInfo* refRegion = RegionInfo::GetRegionInfoAt(reinterpret_cast<uintptr_t>(target));
     if (objRegion->IsOldRegion() && !refRegion->IsOldRegion()) {
-        RegionInfo* targetRegion = RegionInfo::GetRegionInfoAt(reinterpret_cast<uintptr_t>(target));
-        rset_.Record(targetRegion, reinterpret_cast<uintptr_t>(field));
+        Mutator* mutator = Mutator::GetMutator();
+        if (mutator != nullptr) {
+            mutator->RecordLocalRSetSlot(refRegion, reinterpret_cast<uintptr_t>(field));
+        }
     }
 }
 

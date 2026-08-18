@@ -16,6 +16,7 @@
 #include "Concurrency/ConcurrencyModel.h"
 #include "Heap/Collector/FinalizerProcessor.h"
 #include "Heap/WCollector/WCollector.h"
+#include "Heap/GenerationalGC/RememberSet.h"
 #include "ObjectModel/RefField.inline.h"
 #include "MutatorManager.h"
 #include "StackManager.h"
@@ -174,6 +175,9 @@ void Mutator::ResetMutator()
     }
     if (!localFinalizers.empty()) {
         Heap::GetHeap().GetFinalizerProcessor().RegisterFinalizers(localFinalizers);
+    }
+    if (!localRSetSlots.empty()) {
+        RememberSet::Instance().MergeFrom(std::move(localRSetSlots));
     }
     uwContext.Reset();
     exceptionWrapper.ClearInfo();
@@ -590,6 +594,20 @@ inline void Mutator::GcPhaseEnum(GCPhase newPhase)
         }
     };
     VisitMutatorRoots(visitor);
+
+    // Add local RSet slots as roots: read referenced objects via barrier and push as roots
+    for (auto& [target, slots] : localRSetSlots) {
+        for (auto& [src, slotIdx] : slots) {
+            if (!src->IsRSetSlotMarked(slotIdx)) { continue; }
+            uintptr_t slotAddr = src->GetRegionStart() + slotIdx * RegionInfo::RSET_SLOT_SIZE;
+            RefField<>* field = reinterpret_cast<RefField<>*>(slotAddr);
+            BaseObject* root = Heap::GetHeap().GetBarrier().ReadReference(nullptr, *field);
+            if (root != nullptr && Heap::IsHeapAddress(root)) {
+                AllocBuffer* buffer = AllocBuffer::GetOrCreateAllocBuffer();
+                buffer->PushRoot(root);
+            }
+        }
+    }
 }
 
 inline void Mutator::ForwardLocalFinalizers(Collector& collector)
@@ -599,6 +617,15 @@ inline void Mutator::ForwardLocalFinalizers(Collector& collector)
     for (BaseObject*& obj : localFinalizers) {
         visitor(reinterpret_cast<ObjectRef&>(obj));
     }
+}
+
+void Mutator::RecordLocalRSetSlot(RegionInfo* target, uintptr_t slotAddr)
+{
+    RegionInfo* src = RegionInfo::GetRegionInfoAt(slotAddr);
+    if (src == nullptr) { return; }
+    size_t slotIdx = (slotAddr - src->GetRegionStart()) / RegionInfo::RSET_SLOT_SIZE;
+    src->MarkRSetSlot(slotIdx);
+    localRSetSlots[target].insert({src, slotIdx});
 }
 
 inline void Mutator::GCPhasePreForward(GCPhase newPhase)
@@ -650,6 +677,10 @@ inline void Mutator::GCPhasePreForward(GCPhase newPhase)
     };
     VisitHeapReferences(visitor, derivedPtrVisitor);
     ForwardLocalFinalizers(collector);
+
+    // Merge local RSet into global RememberSet
+    RememberSet::Instance().MergeFrom(std::move(localRSetSlots));
+    localRSetSlots.clear();
 }
 
 inline void Mutator::HandleGCPhase(GCPhase newPhase)

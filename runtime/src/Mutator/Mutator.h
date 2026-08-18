@@ -23,6 +23,7 @@
 #include "Interpreter/Options.h"
 #include "Interpreter/RTInterface.h"
 #include "ObjectModel/RefField.h"
+#include "Heap/GenerationalGC/RSetTypes.h"
 
 
 namespace MapleRuntime {
@@ -556,6 +557,11 @@ private:
 
     ManagedList<BaseObject*> localFinalizers;
 
+    RSetLocalSlots localRSetSlots;
+public:
+    RSetLocalSlots& GetLocalRSetSlots() { return localRSetSlots; }
+    void RecordLocalRSetSlot(RegionInfo* target, uintptr_t slotAddr);
+private:
     SatbBuffer::Node* satbNode = nullptr;
 #if defined(GCINFO_DEBUG) && GCINFO_DEBUG
     GCInfos gcInfos;
