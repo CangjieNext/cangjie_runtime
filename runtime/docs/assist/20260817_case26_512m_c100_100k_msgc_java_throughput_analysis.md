@@ -1413,3 +1413,66 @@ partial write、EAGAIN、空段、超过 iovec 上限、多 backend fallback 和
 建议直接使用 segmented API；若未来要改成 HTTP 默认策略，应在空闲、固定系统负载下补一组
 100 KB/1 MB/4 MB body-size matrix，并以 CPU/request、峰值 RSS、p95/p99 latency 和实际
 sendmsg 次数共同判定，而不是只看一次总吞吐。
+
+## 12. 2026-08-18 恢复 small JsonArray flat storage 与 parser slab arena
+
+### 12.1 代码恢复范围
+
+对当前 stdx 源码复核后确认，文档第 8、9 节记录的 small `JsonArray` flat storage 和 parser
+slab arena 已不在生产源码中。本轮只恢复这两项，不恢复 segmented writer、compact document 或
+structural scan，也不修改 compiler、runtime、stdlib 和 benchmark。
+
+- `JsonArray` 以 8 为 small-mode 阈值，直接使用 `Array<JsonValue> + flatSize`；第 9 个元素或
+  `getItems()` 暴露可变列表时提升为 `ArrayList`。compact/formatted writer、容量估算和
+  `DataModel` 转换直接读取当前 storage，只读路径不会触发提升；`ArrayList` 构造仍保留调用方
+  列表的别名语义。
+- `ParsedFlatStorageArena` 分别为 object field 和 array item 分配 256 槽 slab，每个解析出的
+  small container 获得互不重叠的 8 槽 slice。parser reset 会换新 arena，已返回 DOM 不会被后续
+  parse 覆盖；第 9 个 field/item 仍按原规则提升为 `HashMap`/`ArrayList`。
+
+新增/恢复的测试覆盖 8/9 元素边界、负数和越界索引、两种 writer、公开 mutable alias、跨
+32-container slab 边界、兄弟 slice 隔离、object/array promotion 及序列化后重新解析。源码结构
+检查先在缺失实现上失败，恢复后 flat array、flat object、parser slab、escape cache 四项结构检查
+均通过；使用安装后 SDK 和 `--gc-mode=marksweep` 重新编译运行的 6 个 JSON 用例全部 PASS：
+flat array、parser slab、flat object、escape classification、owned UTF-8 validation 和 delimiter
+state machine。动态库探针确认加载的是当前 SDK 的 JSON dylib 与 MSGC runtime。
+
+### 12.2 构建安装与产物
+
+本轮只执行 stdx 的 release/marksweep 构建和安装，安装目标为
+`cangjie_compiler_region_mark/output/msgc`。SDK 三件套来源为：compiler、runtime、stdlib 均保持
+该 SDK 原有产物，只有 stdx 来自 `cangjie_stdx_region_mark`；没有替换 runtime。build 目录与
+SDK 中的 `libstdx.encoding.json.dylib` SHA-256 均为
+`35d6b7cae2e0cf459a37214fbce3b231d41de6c226314e6c2f352df537dee8a2`，codesign 校验通过。
+本轮 runtime SHA-256 为
+`8c0bd1739f0198fdbec70498905b86d110c638674db084c517305e88e2cf1437`，MD5 为
+`d158f936f2d2cb5b7814c9cb0b55c223`。
+
+### 12.3 60 秒 MSGC-only 吞吐验证
+
+验证配置为 100K/c100/60s、512 MiB persistent、P10、HeapGrowth=3、ScavengeGrowth=4、
+`cjMSMinGCThreshold=20mb`、`HEAP_SIZE=20gb`，仅执行 MSGC。脚本在隔离环境中用当前 SDK 和
+`--gc-mode=marksweep` 重新编译 `benchmark.cj`；CopyGC、Go、Java 均未运行。结果位于
+`result/20260818_512M_c100_100k_HeapGrow3_Scavenge4_compare_23/msgc`。
+
+| 指标 | 本轮恢复后结果 |
+| --- | ---: |
+| 总请求 / 成功 / 失败 | 153,326 / 153,326 / 0 |
+| 整体吞吐 | 2,548 req/s |
+| 前约 30 秒平均吞吐 | 2,477.28 req/s |
+| 后约 30 秒平均吞吐 | 2,619.20 req/s |
+| CPU 时间/成功请求 | 2.0186 ms |
+| 平均 / 峰值 / P95 RSS | 3,517.35 / 3,701.52 / 3,660.48 MiB |
+| GC 次数 / 总耗时 | 160 / 5,369.50 ms |
+| GC 平均 / 最大 / P95 | 33.56 / 134.18 / 47.14 ms |
+
+当前 runtime MD5 与第 9 节 slab 验证及 `compare_20` 的 `d41e...` 不同，而且恢复前没有同一
+`d158...` runtime 下的 c100/同配置结果，因此本轮按要求只做单次 MSGC 验证，不能给出两项改动
+自身的严格 A/B 增幅。仅作历史趋势参考：相对同为连续输出的 `compare_20`，整体吞吐
+2,541 -> 2,548 req/s（+0.28%），后 30 秒 2,563.30 -> 2,619.20 req/s（+2.18%），平均 RSS
+下降 7.7%，GC 总耗时下降 21.9%；这些差异同时包含 runtime/SDK 状态变化，不能全部归因于 flat
+array 或 slab。相对旧 runtime 下第 9 节的 3,572 req/s 则低 28.67%，同样不具备代码归因意义。
+
+因此本轮可以确认的是：两项实现已重新进入生产源码和安装 SDK，功能及 60 秒稳定性通过，当前
+环境吞吐为 2,548 req/s、后 30 秒约 2,619 req/s；若要定量证明增益，需要在当前 `d158...`
+runtime 上保存无 flat array/slab 的基线，再做同机相邻 A/B，多轮统计后再下结论。
