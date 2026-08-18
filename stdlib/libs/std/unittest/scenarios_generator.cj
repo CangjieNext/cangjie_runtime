@@ -22,11 +22,10 @@ class ScenarioParams<S> {
     ) {}    
 }
 
-// FIXME: rename?
-public class OperationsManager<S> {
+public class ScenariosGenerator<S> {
     let operations = ArrayList<OperationDesc<S>>()
 
-    public OperationsManager(let scenarioBase: () -> ScenarioBuilder<S>) {}
+    public ScenariosGenerator(let scenarioBase: () -> ScenarioBuilder<S>) {}
 
     private func formatOperationName(name: String, inputs: Array<InputParameter>): String {
         let sb = StringBuilder()

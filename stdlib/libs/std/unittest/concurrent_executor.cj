@@ -9,7 +9,9 @@
 package std.unittest
 
 import std.unittest.common.*
-import std.unittest.concurrent.*
+import std.unittest.concurrent.ScenarioRunner
+import std.unittest.concurrent.ScenarioIterationResult
+import std.unittest.concurrent.ConcurrentScenario
 import std.collection.*
 import std.time.DateTime
 
@@ -30,7 +32,7 @@ class ConcurrentExecutor<T, S> <: Executor where S <: Any {
 
     public func execute(
         suiteInfo: TestSuiteReportInfo,
-        result: TestCaseResult,
+        tcase: TestCaseResult,
         configuration: Configuration
     ): Unit {
         var generationStep = 0
@@ -45,38 +47,23 @@ class ConcurrentExecutor<T, S> <: Executor where S <: Any {
             let start = DateTime.now()
             let (scenario, failures) = try {
                 let scenario = body(arg)
-                let failures = executeScenario(suiteInfo, result, configuration, scenario)
+                let failures = executeScenario(suiteInfo, tcase, configuration, scenario)
                 (scenario, failures)
             } catch (e: Exception) {
-                result.add(strategyErrorAsResult(e, argDescription(None, [], input, configuration, generationStep)))
+                tcase.add(strategyErrorAsResult(e, argDescription(None, [], input, configuration, generationStep)))
                 return
             }
             let stepKind = CaseStep(argDescription(scenario, failures, input, configuration, generationStep))
             if (failures.isEmpty()) {
-                result.add(RunStepResult(scenario.iterations, start, stepKind, Test(scenario.iterations)));
+                tcase.add(RunStepResult(scenario.iterations, start, stepKind, Test(scenario.iterations)));
             } else {
-                let failures = failures |> map<ScenarioIterationResult, CheckResult> { result => 
-                    ConcurrentTestCheckResult(result)
+                let failures = failures |> take(1) |> map<ScenarioIterationResult, CheckResult> { tcase => 
+                    ConcurrentTestCheckResult(tcase)
                 } |> collectArray
-                result.add(RunStepResult(scenario.iterations - failures.size, start, stepKind, Failure(failures)));
+                tcase.add(RunStepResult(scenario.iterations - failures.size, start, stepKind, Failure(failures)));
                 return
             }
         }
-    }
-
-    static func formatScenario(
-        sb: PrettyText,
-        scenario: ConcurrentScenario<S>,
-        failures: Array<ScenarioIterationResult>,
-    ) {
-        sb.appendLine("Scenario: ${scenario.name}") 
-        let mismatchTables = failures |> filterMap { result => result.consistencyValidation.flatMap({ cv => cv.getMismatchTable() }) } |> collectArray
-        // if (mismatchTables.size > 1) {
-        //     sb.appendLine("Displaying only one failure case of ${mismatchTables.size}")
-        // }
-        // if (let Some(mismatchTable) <- (mismatchTables |> first)) {
-        //     sb.appendLine(mismatchTable)
-        // }
     }
 
     // FIXME: Currently scenario argument expected to be the first one
@@ -90,7 +77,7 @@ class ConcurrentExecutor<T, S> <: Executor where S <: Any {
         }
         let sb = PrettyText()
         if (let Some(scenario) <- scenario) {
-            formatScenario(sb, scenario, failures)
+            sb.appendLine("Scenario: ${scenario.name}") 
         }
         for (param in inputs.iterator().skip(1)) {
             sb.append(param.name)
