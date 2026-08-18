@@ -1283,3 +1283,133 @@ runtime 校验和完全相同，任务新增生产改动已全部退出构建，
 所以没有把负收益实现留在最终 SDK。compare_19 如实保留为受污染的最终执行记录，不把其 -52.8%
 归因于 JSON 代码，也不宣称它代表回退后稳定吞吐。需要可比较的最终数值时，应在系统负载恢复后
 只重跑一次相同 60 秒 MSGC 用例，无需再次修改或重编代码。
+
+## 11. 2026-08-18 通用大 JSON/HTTP segmented gather 完整实现
+
+### 11.1 落地范围与设计
+
+第 10.1 节原型的负收益来自“13 个 segment 对应 13 次 socket write”，而不是 segmented JSON
+本身必然更慢。本轮以建设通用能力为目标，把缺失的 gather I/O 补齐，链路如下：
+
+`JsonValue.toSegmentedBytes()` → `JsonByteSegments` → `HttpSegmentedBody` →
+`BufferedConn.writeGathered()` → `StreamingSocket.writeGathered()` →
+`CJ_MRT_SockWritevNonBlock()` → `sendmsg()`。
+
+具体改动分三层：
+
+- runtime 新增 `SockWritevNonBlock`。Unix TCP/domain socket 使用最多 64 个 `iovec` 调用一次
+  `sendmsg`，处理 `EINTR`，并把 `EAGAIN/EWOULDBLOCK` 映射回调度层；Windows 保持不支持，交给
+  上层顺序 write fallback。
+- stdlib `StreamingSocket` 增加 gather API。Dopra TCP 路径 pin 每个源 segment，正确推进
+  `(segmentIndex, segmentOffset)` 以处理 partial write 和空段；超过 64 段时循环多个 sendmsg batch，
+  `EAGAIN` 时进入原有 writable wait。指针、长度和 pin handle 的 64 槽 scratch array 挂在 socket
+  实例上复用，不再每个响应分配四组临时数组；现有 `SocketHolder.write` 单 writer 约束保证该 scratch
+  不会被并发写者覆盖。其他 socket/backend 使用默认顺序 write，API 不破坏跨平台可用性。
+- stdx JSON writer 以固定 8192 B segment 输出，HTTP request/response builder 接受
+  `Array<Array<UInt8>>` 并保留精确 Content-Length；server/client 的已知长度 body 走 gather。
+  原连续 writer 保持独立且没有新增 mode branch。长字符串先调用已有 native escape classifier：确认
+  无需转义后直接跨 segment 复制，只有含 escape 的字符串才回退逐字节路径。
+
+case26 新增 `CASE26_HTTP_OUTPUT_MODE=contiguous|segmented`，默认仍为 `contiguous`。这使通用能力可以
+按 workload 显式启用，同时不会把实验结果自动变成所有 HTTP 服务的默认行为。
+
+### 11.2 构建安装与功能验证
+
+构建安装严格使用同一 Region-mark MSGC SDK：
+
+- compiler：`cangjie_compiler_region_mark/output/msgc` 原有 compiler；
+- runtime：本仓 `cangjie_runtime_region_mark/runtime`，通过固定脚本
+  `build/scripts/rebuild_msgc_runtime_output.py` 构建并安装；
+- stdlib：`cangjie_runtime_region_mark/stdlib`，以 `marksweep` 模式构建并安装；
+- stdx：`cangjie_stdx_region_mark`，以 `marksweep` 模式构建并安装。
+
+runtime 替换后，所有验证用 `.cj` 都重新使用该 SDK 和 `--gc-mode=marksweep` 编译，没有复用旧
+binary。功能/契约验证包括：
+
+1. runtime/stdlib 源码契约检查：导出符号、Unix `sendmsg`、64 iovec 上限、partial/EAGAIN 游标、
+   per-socket scratch 复用以及默认 fallback 均存在；
+2. 100 KB JSON 的 segmented bytes 与连续 writer 逐字节完全一致，覆盖跨段 escape、UTF-8、
+   Int64.Min、Float、空 object/array；每段非空且不超过配置大小；
+3. `HttpSegmentedBody` 的 Content-Length、跨段 read、seek/rewind 后再次读取均正确；
+4. 真实 localhost TCP gather 覆盖 80 个以上非空段、夹杂空段和约 1.38 MB body，强制跨过 64
+   iovec 单次上限并执行多轮 sendmsg，接收端结果逐字节一致；
+5. case26 以 1K payload/c2/2s 做实际 HTTP smoke：26,693 成功、0 失败、12,662 req/s；
+6. 动态库探针确认进程实际加载当前 SDK 中的 `libcangjie-runtime.dylib`、
+   `libstdx.encoding.json.dylib`、`libstdx.net.http.dylib`。
+
+最终安装产物均通过 codesign 校验；`CJ_MRT_SockWritevNonBlock` 在 SDK 的
+`libcangjie-std-net.dylib` 中为全局 text symbol。SHA-256 为：runtime
+`473b1895d41e863c06a17510be359b17689c07d8e73c071a3ec5bcd33fb3f677`，std.net
+`a7ea1ea98d9dfba18012eea80211ea4fe92e581ba16a2a38ce4023d1028b737a`，stdx JSON
+`d030d899fb0ccfaf552a5a44b6825aa53366ccd3ba3590912bb61a0e8fcccd23`，stdx HTTP
+`0236c0454aa66bf7e56c7c19fb79c382bcf767a05a5a12d977b8975ea730519b`。
+
+首次扩展多 batch 测试时出现的 `Abort trap` 已定位为验证命令遗漏 stdx 的
+`DYLD_LIBRARY_PATH`，dyld 明确报 `Library not loaded: @rpath/libstdx.encoding.json.dylib`；补齐
+隔离环境中的 stdx 动态库路径后同一测试通过，因此它不是 gather 实现或大 body 的运行时崩溃。
+
+### 11.3 60 秒 MSGC 验证结果
+
+固定配置为 100K/c100/60s、512 MiB persistent、20 GiB soft heap、P10、HeapGrowth3、
+ScavengeGrowth4，仅运行 MSGC。`compare_20` 与 `compare_21` 使用同一套已安装的
+runtime/stdlib/stdx 和同一 benchmark snapshot，唯一模式差异是
+`CASE26_HTTP_OUTPUT_MODE=contiguous|segmented`，因此是本轮最稳定的直接 A/B：
+
+| 指标 | contiguous compare_20 | segmented gather compare_21 | 变化 |
+|---|---:|---:|---:|
+| 总吞吐 | 2,541 req/s | 2,439 req/s | -4.0% |
+| 前约 30 秒平均吞吐 | 2,524.96 req/s | 2,372.96 req/s | -6.0% |
+| 后约 30 秒平均吞吐 | 2,563.30 req/s | 2,511.26 req/s | -2.0% |
+| 成功/失败请求 | 152,900 / 0 | 146,762 / 0 | 均无功能失败 |
+| CPU/request | 2.0212 ms | 2.1292 ms | +5.35% |
+| 平均 RSS | 3,809.49 MiB | 3,703.31 MiB | -2.8% |
+| 峰值 RSS | 4,006.00 MiB | 3,882.45 MiB | -3.1% |
+| GC 次数 | 147 | 146 | -0.7% |
+| GC 总耗时 | 6,873.97 ms | 6,106.74 ms | -11.2% |
+| GC 平均/最大/p95 | 46.76 / 226.46 / 79.59 ms | 41.83 / 151.08 / 68.08 ms | 均下降 |
+
+这说明完整 `sendmsg` gather 已把第 10.1 节的 13 次 socket write 灾难消除：稳态差距从
+-65.84% 收敛到约 -2.0%。它同时保留了 segmented 输出在 RSS、峰值内存和 GC pause 上的收益；
+剩余成本主要是每响应 13 个 managed segment 的遍历、pin/unpin、FFI 以及跨段 writer 边界。
+完整 A/B 图表见
+`result/20260818_512M_c100_100k_HeapGrow3_Scavenge4_compare_21/segmented_gather_ab_report.md`。
+
+随后在 stdx 加入“长且无需 escape 的字符串 native 分类后直接 span copy”并重新构建安装，最终
+segmented run 位于 `compare_22`：
+
+| 指标 | contiguous compare_20 | fast-path segmented compare_22 | 变化/判读 |
+|---|---:|---:|---:|
+| 总吞吐 | 2,541 req/s | 2,176 req/s | -14.4%，受后半程 CPU 可用量下降污染 |
+| 前约 30 秒平均吞吐 | 2,524.96 req/s | 2,519.18 req/s | -0.23% |
+| 后约 30 秒平均吞吐 | 2,563.30 req/s | 1,838.42 req/s | -28.3%，不具备同负载可比性 |
+| CPU/request | 2.0212 ms | 2.0448 ms | +1.17% |
+| 成功/失败请求 | 152,900 / 0 | 130,940 / 0 | 均无功能失败 |
+| 平均/峰值 RSS | 3,809.49 / 4,006.00 MiB | 3,797.60 / 4,079.81 MiB | -0.3% / +1.8% |
+| GC 次数/总耗时 | 147 / 6,873.97 ms | 128 / 5,571.57 ms | 请求量不同，不单独归因 |
+
+`compare_22` 前 30 秒与连续输出基本持平，CPU/request 差距也由 +5.35% 收窄到 +1.17%，证明
+字符串 fast path 命中了预期成本；但约 36 秒后每 2 秒请求数持续下降，最后窗口仅 2,060，而进程
+平均 CPU 从基线 508.88% 降到 442.82%。测试后系统 load average 为 7.90/9.33/9.24，存在持续的
+WindowServer、音频及桌面应用负载。因同一 run 内前后段 CPU 供给明显变化，不能把总吞吐 -14.4%
+全部归因于最终代码，也不能用这次受污染运行宣称吞吐已提升。完整图表见
+`result/20260818_512M_c100_100k_HeapGrow3_Scavenge4_compare_22/segmented_gather_final_report.md`。
+
+### 11.4 结论与使用建议
+
+本轮已经完成“通用大 JSON/HTTP 输出能力”，而不是只做一个会把 body 拆成多次 write 的原型：
+JSON 不需要最终连续大数组，HTTP 保留 Content-Length，socket 使用真正 gather write，并完整处理
+partial write、EAGAIN、空段、超过 iovec 上限、多 backend fallback 和源数组 pin 生命周期。
+
+性能结论应采用两层口径：
+
+- 稳定直接 A/B 显示：完整 gather 后段吞吐约 -2.0%、CPU/request +5.35%，但平均/峰值 RSS
+  -2.8%/-3.1%，GC pause 指标改善；适合更重视峰值内存、GC 抖动或更大 body 的场景。
+- 最终 long-safe-string fast path 在未受污染的前 30 秒与连续输出只差 -0.23%，整段
+  CPU/request 只差 +1.17%；它基本消除了 Cangjie 逐字节字符串扫描成本。后半段外部负载使本次
+  60 秒总吞吐不可作为最终稳定门禁，结果如实保留但不做过度结论。
+
+因此当前默认保持 `contiguous`，避免在 100 KB case 上自动承担小幅 CPU 成本；通用能力通过
+`CASE26_HTTP_OUTPUT_MODE=segmented` 显式启用。对于数百 KB 到数 MB 的响应、RSS/GC 受限服务，
+建议直接使用 segmented API；若未来要改成 HTTP 默认策略，应在空闲、固定系统负载下补一组
+100 KB/1 MB/4 MB body-size matrix，并以 CPU/request、峰值 RSS、p95/p99 latency 和实际
+sendmsg 次数共同判定，而不是只看一次总吞吐。
