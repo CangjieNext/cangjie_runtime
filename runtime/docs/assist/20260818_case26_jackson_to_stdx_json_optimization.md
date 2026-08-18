@@ -55,38 +55,28 @@ Jackson 中值得借鉴的机制：
 
 ## 4. 建议落地的优化
 
-### P0：解析器本地字段名缓存
+### 已验证且不采用：解析器字段名 canonicalization
 
-`native.cj` 当前 `parseJsonObjectKey` 在未转义字段名场景下直接构造 `String` slice。对于 case26 的重复 JSON 字段，这会反复产生字段名对象。
+case26 的 `100K.json` 虽然有 6,055 次字段名出现、其中 5,968 次重复（98.6%），但这项优化的前提不适用于当前 stdx 路径：未转义字段名由 `parseJsonObjectKey` 通过 `String.withRawData(parser.data[start..offset])` 构造。`withRawData` 不复制底层字节，数组范围切片也引用原数组，因此原路径并不存在 Jackson `ByteQuadsCanonicalizer` 所针对的“重复复制字段名字节”成本。
 
-建议增加 parser-local、容量有上限的字段名缓存：
+曾实现 parser-local 的有界缓存：扫描时计算 hash，按 hash、长度和逐字节比较命中，缓存首个字段名的 `String` slice；第一版采用 `HashMap + ArrayList`，第二版改为固定 257 桶和 128 条目以降低容器分配。两版均已回退，不能合入。
 
-- 使用 hash、长度和字节内容做匹配，避免只按 hash 判断。
-- 缓存挂在单次请求的 `JsonParser` 上，`reset/reinit` 时清理或重新使用。
-- 只缓存字段名，不缓存所有字符串值，避免大字符串和高基数值把缓存撑大。
-- 缓存容量固定或有上限，达到上限后采用简单淘汰策略。
-- `fromOwnedUtf8Bytes` 下的 slice 不能脱离输入 buffer 生命周期；若缓存跨请求复用，必须复制到独立存储，不能直接保存短生命周期 slice。
+每个字段名在该缓存中新增了 hash 计算、桶查找和命中后的逐字节比较；同时每个解析器仍需分配缓存表和条目。它没有消除字段名的字节复制，反而增加了热路径 CPU 工作。跨请求全局 intern 更不可取：`fromOwnedUtf8Bytes` 的字段名 slice 指向请求 body，会让缓存长期持有旧请求数据；若复制键以解除该生命周期约束，成本会更高。
 
-这是最接近 Jackson canonicalizer、且对 DOM 语义没有改变的优化，优先用 case26 的重复字段 JSON 做 A/B 测试。
+#### 实测结果（case26 MSGC-only）
 
-#### case26 落地设计与收益预估
+统一配置：`payload=100K`、`concurrency=1000`、`duration=60s`、`heap=20gb`、`PROCS=10`、`cjHeapGrowth=1`、`cjScavengeGrowth=2`、`cjMSMinGCThreshold=20mb`。
 
-case26 的 `100K.json` 有 6,055 次字段名出现、只有 87 种不同字段名；其中 5,968 次为重复字段名，单个请求内的理论命中率为 98.6%。字段名文本总计约 33.3KB，其中约 32.8KB 来自重复项。当前路径的 `String.withRawData` 不会完整复制这些文本，收益主要来自减少 String/slice 对象和后续 GC，而不是节省 32.8KB 的输入数据。
+| 版本 | 吞吐 (req/s) | 成功 / 失败 | 结论 |
+| --- | ---: | --- | --- |
+| 无缓存历史基线 | 1391 | 84811 / 0 | 基线 |
+| 缓存首版（`HashMap + ArrayList`） | 1296 | 78551 / 0 | 明显回退 |
+| 缓存简化版（固定桶/固定条目） | 1331 | 82022 / 0 | 仍无收益 |
+| 回退缓存后重新构建安装 | 1388 | 84515 / 0 | 与基线差 0.2%，属测试波动 |
 
-第一版应只做 parser-local canonicalization：
+最后一项已重新构建 stdx 并同步到 MSGC SDK，target 与 SDK 的 `libstdx.encoding.json.so` 哈希一致。60 秒单次结果不能精确定义 0.2% 差异，但足以确认回退恢复了缓存版约 4.3% 的吞吐损失，且该方案没有正向证据。
 
-1. 在 `JsonParser` 增加有界 `JsonFieldNameCache`，容量先取 128 或 256，只缓存未转义且长度不超过 64 bytes 的字段名。
-2. 在 `parseJsonObjectKey` 已有的扫描循环中顺带累计 64-bit hash，避免为查缓存再次扫描字段名。
-3. 缓存用 `hash -> entry list` 组织；命中时必须比较 hash、长度和每个字节，不能只按 hash 返回结果。
-4. miss 时才创建 `String.withRawData(...)` 并写入缓存；hit 时直接返回此前创建的 canonical String。
-5. 缓存随 `JsonParser` 销毁。首次保存的 String 是当前请求 body 的 slice，而当前 DOM 本来就持有该 body，因此不会额外延长该请求 buffer 的生命周期。
-6. 第一版可以跳过转义字段名；后续如需覆盖 `"a"` 与 `"\\u0061"` 等同值 key，可在解码完成后按解码字节进行同样的查找。
-
-不要把请求字段名直接放入跨请求的全局 intern：`fromOwnedUtf8Bytes` 的 DOM 会保留输入 array 的 slice，全局缓存会让旧请求 body 被长期持有。现有 `stdx.string_intern.InternStringPool` 也不适合直接复用：它是带锁的通用缓存，且按 hash 取得缓存项，JSON 解析器必须自行做碰撞内容比较。
-
-建议在 `CASE26_JSON_PROFILE` 下增加 `key_total`、`key_hit`、`key_miss` 和 `key_escaped_bypass` 计数，先确认实际命中率与缓存开销。完整请求包含服务端和客户端各一次 DOM 解析，因此理论上每个请求往返可避免约 1.2 万个重复字段名对象。
-
-历史 phase profile 显示，服务端解析约 3.30ms、客户端解析约 3.16ms、服务端序列化约 10.59ms。字段名 canonicalization 只优化解析和小对象分配，预计 JSON 解析 CPU 降低 10%-25%，端到端吞吐提升约 3%-8%；以当前 1,391 req/s 计算，对应约 1,430-1,500 req/s，较好情况约 1,530 req/s。它不能独立消除 MSGC 与 Java 的吞吐差距，仍需配合 DOM 直接 UTF-8 输出和 WriteBuffer 回收。
+**结论：不要再将字段名 canonicalization / parser-local field-name cache 列为 case26 或当前 stdx DOM JSON 的优化项。** 只有在字段名解析路径改为实际复制 UTF-8 内容、且 profile 证实该复制是主要分配来源时，才重新评估；重新评估前必须以同一构建做至少三轮 A/B/A 对照。
 
 ### P0：增加 DOM 直接 UTF-8 输出接口
 
@@ -139,15 +129,15 @@ ao.put("credits", JsonFloat(...))
 
 - **不要直接复制 Jackson 的小整数缓存**：Jackson 的 `IntNode` 是不可变对象；stdx 的 `JsonInt` 可通过 `setValue` 修改，共享后会发生数据串改。
 - **不要用无界全局 String intern**：请求字段和值的基数可能很高，会导致缓存长期持有内存。字段名缓存应限制在 parser 或 worker 生命周期内。
+- **不要为当前 DOM 字段名增加 parser-local canonicalization**：已在 case26 验证为无收益且会回退吞吐，详见上一节。
 - **不要因为 Jackson 使用 map 就移除 flat storage**：case26 中大量对象字段数较少，stdx 当前 flat storage 对小对象更合适。
 - **不要把 case26 改成 JsonReader/JsonWriter 流式处理**：这会改变对比模型；流式优化应继续放在 case25。
 
 ## 6. 推荐实施顺序
 
-1. 先实现 parser-local 有界字段名缓存，使用相同输入、相同并发和相同 GC 参数做 A/B。
-2. 再增加 DOM 直接 UTF-8 输出，并让 HTTP 层明确接管输出 buffer，避免 `String.toArray()` 复制。
-3. 增加 `WriteBuffer`/parser 的 worker-local 回收，分别测量分配速率、GC 时间和 RSS。
-4. 修改 case26 benchmark 的字段更新方式，优先使用 `setValue`。
-5. 每一步记录吞吐、成功数、平均 CPU、GC 次数/暂停和响应校验结果，确保性能提升没有改变 DOM 语义。
+1. 增加 DOM 直接 UTF-8 输出，并让 HTTP 层明确接管输出 buffer，避免 `String.toArray()` 复制。
+2. 增加 `WriteBuffer`/parser 的 worker-local 回收，分别测量分配速率、GC 时间和 RSS。
+3. 修改 case26 benchmark 的字段更新方式，优先使用 `setValue`。
+4. 每一步记录吞吐、成功数、平均 CPU、GC 次数/暂停和响应校验结果，确保性能提升没有改变 DOM 语义。
 
-当前最值得优先验证的是“字段名缓存 + DOM 直接 UTF-8 输出”。这两项分别对应 Jackson 的 canonicalizer 和 generator 路径，预期能减少 case26 的对象分配与 String/bytes 往返，同时保持 case26 与 Java 的 DOM 对比公平。
+当前最值得优先验证的是 DOM 直接 UTF-8 输出，其次是 `WriteBuffer` 回收。这两项可减少仍然真实存在的输出 buffer 分配和 String/bytes 往返，同时保持 case26 与 Java 的 DOM 对比公平。
