@@ -69,6 +69,25 @@ Jackson 中值得借鉴的机制：
 
 这是最接近 Jackson canonicalizer、且对 DOM 语义没有改变的优化，优先用 case26 的重复字段 JSON 做 A/B 测试。
 
+#### case26 落地设计与收益预估
+
+case26 的 `100K.json` 有 6,055 次字段名出现、只有 87 种不同字段名；其中 5,968 次为重复字段名，单个请求内的理论命中率为 98.6%。字段名文本总计约 33.3KB，其中约 32.8KB 来自重复项。当前路径的 `String.withRawData` 不会完整复制这些文本，收益主要来自减少 String/slice 对象和后续 GC，而不是节省 32.8KB 的输入数据。
+
+第一版应只做 parser-local canonicalization：
+
+1. 在 `JsonParser` 增加有界 `JsonFieldNameCache`，容量先取 128 或 256，只缓存未转义且长度不超过 64 bytes 的字段名。
+2. 在 `parseJsonObjectKey` 已有的扫描循环中顺带累计 64-bit hash，避免为查缓存再次扫描字段名。
+3. 缓存用 `hash -> entry list` 组织；命中时必须比较 hash、长度和每个字节，不能只按 hash 返回结果。
+4. miss 时才创建 `String.withRawData(...)` 并写入缓存；hit 时直接返回此前创建的 canonical String。
+5. 缓存随 `JsonParser` 销毁。首次保存的 String 是当前请求 body 的 slice，而当前 DOM 本来就持有该 body，因此不会额外延长该请求 buffer 的生命周期。
+6. 第一版可以跳过转义字段名；后续如需覆盖 `"a"` 与 `"\\u0061"` 等同值 key，可在解码完成后按解码字节进行同样的查找。
+
+不要把请求字段名直接放入跨请求的全局 intern：`fromOwnedUtf8Bytes` 的 DOM 会保留输入 array 的 slice，全局缓存会让旧请求 body 被长期持有。现有 `stdx.string_intern.InternStringPool` 也不适合直接复用：它是带锁的通用缓存，且按 hash 取得缓存项，JSON 解析器必须自行做碰撞内容比较。
+
+建议在 `CASE26_JSON_PROFILE` 下增加 `key_total`、`key_hit`、`key_miss` 和 `key_escaped_bypass` 计数，先确认实际命中率与缓存开销。完整请求包含服务端和客户端各一次 DOM 解析，因此理论上每个请求往返可避免约 1.2 万个重复字段名对象。
+
+历史 phase profile 显示，服务端解析约 3.30ms、客户端解析约 3.16ms、服务端序列化约 10.59ms。字段名 canonicalization 只优化解析和小对象分配，预计 JSON 解析 CPU 降低 10%-25%，端到端吞吐提升约 3%-8%；以当前 1,391 req/s 计算，对应约 1,430-1,500 req/s，较好情况约 1,530 req/s。它不能独立消除 MSGC 与 Java 的吞吐差距，仍需配合 DOM 直接 UTF-8 输出和 WriteBuffer 回收。
+
 ### P0：增加 DOM 直接 UTF-8 输出接口
 
 当前 case26 MSGC 路径仍然是：
