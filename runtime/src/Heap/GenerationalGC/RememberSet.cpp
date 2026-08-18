@@ -24,7 +24,7 @@ void RememberSet::Record(RegionInfo* target, uintptr_t slotAddr)
     size_t slotIdx = (slotAddr - src->GetRegionStart()) / RegionInfo::RSET_SLOT_SIZE;
     std::lock_guard<std::mutex> lock(mtx_);
     src->MarkRSetSlot(slotIdx);
-    rememberedSlots[target].emplace_back(src, slotIdx);
+    rememberedSlots[target].insert({src, slotIdx});
 }
 
 void RememberSet::Clear(RegionInfo* target)
@@ -62,7 +62,18 @@ void RememberSet::MigrateGhostRegionSlots(RegionInfo* oldRegion)
         }
         RegionInfo* newRegion = RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(target));
         if (newRegion != nullptr && newRegion != oldRegion) {
-            rememberedSlots[newRegion].emplace_back(src, slotIdx);
+            rememberedSlots[newRegion].insert({src, slotIdx});
+        }
+    }
+}
+
+void RememberSet::MergeFrom(RSetLocalSlots&& local)
+{
+    std::lock_guard<std::mutex> lock(mtx_);
+    for (auto& [target, slots] : local) {
+        auto& globalSlots = rememberedSlots[target];
+        for (auto& entry : slots) {
+            globalSlots.insert(entry);
         }
     }
 }

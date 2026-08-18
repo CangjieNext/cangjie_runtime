@@ -12,9 +12,9 @@
 #include <mutex>
 #include <unordered_map>
 #include <utility>
-#include <vector>
 
 #include "Allocator/RegionInfo.h"
+#include "RSetTypes.h"
 
 namespace MapleRuntime {
 
@@ -26,6 +26,8 @@ namespace MapleRuntime {
 // card table (RegionInfo::rsetCardTable, 1 bit/slot) that is reset when the
 // region is freed by InitFreeRegion; during visit, entries whose source card
 // table bit has been reset are skipped lazily.
+using RSetLocalSlots = std::unordered_map<RegionInfo*, std::unordered_set<std::pair<RegionInfo*, size_t>, RSetSlotHash>>;
+
 class RememberSet {
 public:
     static RememberSet& Instance() noexcept;
@@ -74,6 +76,7 @@ public:
     void Clear(RegionInfo* target);
     void ClearAll();
     void MigrateGhostRegionSlots(RegionInfo* oldRegion);
+    void MergeFrom(RSetLocalSlots&& local);
 
     RememberSet(const RememberSet&) = delete;
     RememberSet& operator=(const RememberSet&) = delete;
@@ -82,7 +85,7 @@ private:
     RememberSet() = default;
     ~RememberSet() = default;
 
-    std::unordered_map<RegionInfo*, std::vector<std::pair<RegionInfo*, size_t>>> rememberedSlots;
+    RSetLocalSlots rememberedSlots;
     std::mutex mtx_;
 };
 

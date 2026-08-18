@@ -12,11 +12,9 @@
 
 namespace MapleRuntime {
 
-class BaseObject;
-
 class RSetUpdateBarrier {
 public:
-    RSetUpdateBarrier() : rset_(RememberSet::Instance()) {}
+    RSetUpdateBarrier() = default;
     ~RSetUpdateBarrier() = default;
 
     void WriteReference(BaseObject* obj, RefField<>* field, BaseObject* target);
@@ -24,9 +22,6 @@ public:
     {
         WriteReference(obj, reinterpret_cast<RefField<>*>(field), target);
     }
-
-private:
-    RememberSet& rset_;
 };
 
 } // namespace MapleRuntime

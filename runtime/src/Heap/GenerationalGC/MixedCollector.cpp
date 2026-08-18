@@ -22,7 +22,6 @@ void MixedCollector::DoGarbageCollection()
     Preforward();
 
     ForwardFromSpace();
-
     TransitionToGCPhase(GCPhase::GC_PHASE_GENERATION_IDLE, true);
     MergeResurrectExportObjects();
     PostResolveCycleTask();
