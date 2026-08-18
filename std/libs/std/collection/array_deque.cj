@@ -95,7 +95,6 @@ public class ArrayDeque<T> <: Deque<T> {
         incModCount()
     }
 
-    @Frozen
     @OverflowWrapping
     public func addLast(element: T): Unit {
         let tail = _tail
@@ -150,7 +149,6 @@ public class ArrayDeque<T> <: Deque<T> {
         return res
     }
 
-    @Frozen
     private func grow(minCapacity: Int64, full!: Bool = false): Unit {
         let oldData = _data
         let oldHead = _head
