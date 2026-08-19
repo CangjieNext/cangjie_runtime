@@ -191,6 +191,48 @@ public class ByteBuffer <: IOStream & Seekable {
         }
     }
 
+    /**
+     * Returns the append region of this buffer after reserving space for
+     * `pending + additional` bytes. `pending` is the number of bytes already
+     * written into the returned region but not yet committed.
+     *
+     * This low-level API lets an encoder write directly into ByteBuffer's
+     * storage and then call [commitWrite] exactly once. A subsequent call with
+     * a nonzero `pending` preserves those uncommitted bytes when growth is
+     * required.
+     */
+    @OverflowWrapping
+    public func writableRegion(pending: Int64, additional: Int64): Array<Byte> {
+        if (pending < 0 || additional < 0) {
+            throw IllegalArgumentException("The pending and additional sizes must be greater than or equal to 0.")
+        }
+
+        let writeStart = start + _length
+        let available = myData.size - writeStart
+        if (pending > available) {
+            throw IllegalArgumentException("The pending size exceeds the writable region.")
+        }
+
+        let required = pending + additional
+        if (available < required) {
+            growWritable(required, pending)
+        }
+        return myData.slice(writeStart, myData.size - writeStart)
+    }
+
+    /**
+     * Commits bytes written through the most recently obtained writable
+     * region. The bytes become visible to normal ByteBuffer readers only after
+     * this call.
+     */
+    @OverflowWrapping
+    public func commitWrite(length: Int64): Unit {
+        if (length < 0 || length > myData.size - start - _length) {
+            throw IllegalArgumentException("The committed size is out of the writable region.")
+        }
+        _length += length
+    }
+
     public func setLength(length: Int64): Unit {
         if (length < 0) {
             throw IllegalArgumentException("The length must be greater than or equal to 0.")
@@ -277,6 +319,21 @@ public class ByteBuffer <: IOStream & Seekable {
 
         let itemData = Array<Byte>(newCapacity, repeat: 0)
         myData.copyTo(itemData, 0, 0, start + _length)
+        myData = itemData
+    }
+
+    /** Grow while retaining the uncommitted bytes in the current write region. */
+    private func growWritable(required: Int64, pending: Int64): Unit {
+        let oldCapacity = myData.size
+        let writeStart = start + _length
+        var newCapacity = checkGrowSize(oldCapacity, oldCapacity >> 1)
+        let minimumCapacity = writeStart + required
+        if (newCapacity < minimumCapacity) {
+            newCapacity = minimumCapacity
+        }
+
+        let itemData = Array<Byte>(newCapacity, repeat: 0)
+        myData.copyTo(itemData, 0, 0, writeStart + pending)
         myData = itemData
     }
 
