@@ -176,8 +176,9 @@ void Mutator::ResetMutator()
     if (!localFinalizers.empty()) {
         Heap::GetHeap().GetFinalizerProcessor().RegisterFinalizers(localFinalizers);
     }
-    if (!localRSetSlots.empty()) {
-        RememberSet::Instance().MergeFrom(std::move(localRSetSlots));
+    if (!localRSetRegions.empty()) {
+        RememberSet::Instance().MergeFrom(std::move(localRSetRegions));
+        localRSetRegions.clear();
     }
     uwContext.Reset();
     exceptionWrapper.ClearInfo();
@@ -597,13 +598,20 @@ inline void Mutator::GcPhaseEnum(GCPhase newPhase)
 
     if (newPhase == GCPhase::GC_PHASE_GENERATION_ENUM) {
         // Add local RSet slots as roots: read referenced objects via barrier and push as roots
-        for (auto& [target, slots] : localRSetSlots) {
-            for (auto& [src, slotIdx] : slots) {
+        for (RegionInfo* src : localRSetRegions) {
+            for (size_t slotIdx = 0; slotIdx < src->GetRSetSlotCount(); ++slotIdx) {
                 if (!src->IsRSetSlotMarked(slotIdx)) { continue; }
                 uintptr_t slotAddr = src->GetRegionStart() + slotIdx * RegionInfo::RSET_SLOT_SIZE;
                 RefField<>* field = reinterpret_cast<RefField<>*>(slotAddr);
                 BaseObject* root = Heap::GetHeap().GetBarrier().ReadReference(nullptr, *field);
                 if (root != nullptr && Heap::IsHeapAddress(root)) {
+                    RegionInfo* targetRegion = RegionInfo::GetGhostFromRegionAt(reinterpret_cast<MAddress>(root));
+                    if (targetRegion == nullptr) {
+                        targetRegion = RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(root));
+                    }
+                    if (targetRegion == nullptr || targetRegion->IsOldRegion()) {
+                        continue;
+                    }
                     AllocBuffer* buffer = AllocBuffer::GetOrCreateAllocBuffer();
                     buffer->PushRoot(root);
                 }
@@ -621,13 +629,15 @@ inline void Mutator::ForwardLocalFinalizers(Collector& collector)
     }
 }
 
-void Mutator::RecordLocalRSetSlot(RegionInfo* target, uintptr_t slotAddr)
+void Mutator::RecordLocalRSetSlot(RegionInfo* source, uintptr_t slotAddr)
 {
-    RegionInfo* src = RegionInfo::GetRegionInfoAt(slotAddr);
-    if (src == nullptr) { return; }
-    size_t slotIdx = (slotAddr - src->GetRegionStart()) / RegionInfo::RSET_SLOT_SIZE;
-    src->MarkRSetSlot(slotIdx);
-    localRSetSlots[target].insert({src, slotIdx});
+    if (source == nullptr || !source->IsOldRegion() || slotAddr < source->GetRegionStart() ||
+        slotAddr >= source->GetRegionEnd()) {
+        return;
+    }
+    size_t slotIdx = (slotAddr - source->GetRegionStart()) / RegionInfo::RSET_SLOT_SIZE;
+    source->MarkRSetSlot(slotIdx);
+    localRSetRegions.insert(source);
 }
 
 inline void Mutator::GCPhasePreForward(GCPhase newPhase)
@@ -682,8 +692,8 @@ inline void Mutator::GCPhasePreForward(GCPhase newPhase)
 
     if (newPhase == GCPhase::GC_PHASE_GENERATION_PREFORWARD) {
         // Merge local RSet into global RememberSet
-        RememberSet::Instance().MergeFrom(std::move(localRSetSlots));
-        localRSetSlots.clear();
+        RememberSet::Instance().MergeFrom(std::move(localRSetRegions));
+        localRSetRegions.clear();
     }
 }
 

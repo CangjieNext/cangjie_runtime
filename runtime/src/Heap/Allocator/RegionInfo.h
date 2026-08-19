@@ -361,8 +361,7 @@ public:
 
     // ---- Per-old-region remembered-set card table ----
     // Each old region owns a bitmap (1 bit per pointer-sized slot) used by RememberSet
-    // to record which slots hold cross-generational references and to lazily skip
-    // stale entries after the region is freed and reset by InitFreeRegion.
+    // to record which slots may hold old-to-young references.
     static constexpr size_t RSET_SLOT_SIZE = sizeof(uintptr_t); // == sizeof(RefField<>)
 
     // Sentinel value published in rsetCardTable while a thread is allocating it,
@@ -1257,8 +1256,6 @@ private:
         RwLock rwLock;
 
         // Per-old-region remembered-set slot bitmap (1 bit per pointer-sized slot).
-        // A set bit marks a slot whose entry in RememberSet is still valid; resetting
-        // (freeing) the table on InitFreeRegion invalidates stale entries lazily.
         uint8_t* rsetCardTable = nullptr;
     };
 

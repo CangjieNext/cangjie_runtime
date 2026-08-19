@@ -18,7 +18,7 @@ void RSetUpdateBarrier::WriteReference(BaseObject* obj, RefField<>* field, BaseO
     if (objRegion->IsOldRegion() && !refRegion->IsOldRegion()) {
         Mutator* mutator = Mutator::GetMutator();
         if (mutator != nullptr) {
-            mutator->RecordLocalRSetSlot(refRegion, reinterpret_cast<uintptr_t>(field));
+            mutator->RecordLocalRSetSlot(objRegion, reinterpret_cast<uintptr_t>(field));
         }
     }
 }

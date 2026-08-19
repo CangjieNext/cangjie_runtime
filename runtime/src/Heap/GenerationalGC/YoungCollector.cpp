@@ -204,10 +204,17 @@ bool YoungCollector::ShouldPrompt(uint8_t age) const {
 
 void YoungCollector::EnumRememberedRoots(RootSet& rootSet) const
 {
-    RememberSet::Instance().VisitAllYoungSlots([this, &rootSet](uintptr_t slotAddr) {
+    RememberSet::Instance().VisitRememberedSlots([this, &rootSet](uintptr_t slotAddr) {
         RefField<>* field = reinterpret_cast<RefField<>*>(slotAddr);
         BaseObject* oldTarget = field->GetTargetObject();
         if (!Heap::IsHeapAddress(oldTarget)) {
+            return;
+        }
+        RegionInfo* targetRegion = RegionInfo::GetGhostFromRegionAt(reinterpret_cast<MAddress>(oldTarget));
+        if (targetRegion == nullptr) {
+            targetRegion = RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(oldTarget));
+        }
+        if (targetRegion == nullptr || targetRegion->IsOldRegion()) {
             return;
         }
         EnumRefFieldRoot(*field, rootSet);
@@ -216,8 +223,19 @@ void YoungCollector::EnumRememberedRoots(RootSet& rootSet) const
 
 void YoungCollector::PreforwardRememberedRoots()
 {
-    RememberSet::Instance().VisitAllYoungSlots([this](uintptr_t slotAddr) {
+    RememberSet::Instance().VisitRememberedSlots([this](uintptr_t slotAddr) {
         auto* field = reinterpret_cast<ObjectRef*>(slotAddr);
+        BaseObject* target = field->object;
+        if (!Heap::IsHeapAddress(target)) {
+            return;
+        }
+        RegionInfo* targetRegion = RegionInfo::GetGhostFromRegionAt(reinterpret_cast<MAddress>(target));
+        if (targetRegion == nullptr) {
+            targetRegion = RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(target));
+        }
+        if (targetRegion == nullptr || targetRegion->IsOldRegion()) {
+            return;
+        }
         ForwardUpdateRawRef(*field);
     });
 }
@@ -266,15 +284,8 @@ void YoungCollector::PostTrace()
     PrepareCycleRef();
 
     RefineFromSpace();
-    // Before ResetForwardingData dispels ghost from regions, migrate RememberSet
-    // slots from old ghost regions to new regions. At this point, slot values
-    // have already been updated to forwarded addresses by the previous GC's
-    // PromptRegionImpl, so reading the slot gives the new target whose region
-    // the slot should be re-associated with.
     CollectPinnedGarbage();
     CollectLargeGarbage();
-    MixedRegionSpace& mspace = static_cast<MixedRegionSpace&>(theAllocator);
-    MixedRegionSpace::CastDown(mspace.GetRegionManager()).MigrateGhostRegionRSet();
     ResetForwardingData();
 }
 
@@ -296,7 +307,6 @@ public:
                 return;
             }
             if (region->GetLiveByteCount() == 0) {
-                rememberSet.MigrateGhostRegionSlots(region);
                 regionManager.CollectRegion(region);
                 continue;
             }

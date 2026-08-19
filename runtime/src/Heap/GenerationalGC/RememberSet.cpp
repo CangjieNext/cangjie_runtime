@@ -5,7 +5,6 @@
 // See https://cangjie-lang.cn/pages/LICENSE for license information
 
 #include "RememberSet.h"
-#include "ObjectModel/RefField.inline.h"
 
 namespace MapleRuntime {
 
@@ -15,67 +14,28 @@ RememberSet& RememberSet::Instance() noexcept
     return instance;
 }
 
-void RememberSet::Record(RegionInfo* target, uintptr_t slotAddr)
+void RememberSet::Record(RegionInfo* source, uintptr_t slotAddr)
 {
-    RegionInfo* src = RegionInfo::GetRegionInfoAt(slotAddr);
-    if (src == nullptr) {
+    if (source == nullptr || !source->IsOldRegion() || slotAddr < source->GetRegionStart() ||
+        slotAddr >= source->GetRegionEnd()) {
         return;
     }
-    size_t slotIdx = (slotAddr - src->GetRegionStart()) / RegionInfo::RSET_SLOT_SIZE;
+    size_t slotIdx = (slotAddr - source->GetRegionStart()) / RegionInfo::RSET_SLOT_SIZE;
     std::lock_guard<std::mutex> lock(mtx_);
-    src->MarkRSetSlot(slotIdx);
-    rememberedSlots[target].insert({src, slotIdx});
-}
-
-void RememberSet::Clear(RegionInfo* target)
-{
-    std::lock_guard<std::mutex> lock(mtx_);
-    rememberedSlots.erase(target);
+    source->MarkRSetSlot(slotIdx);
+    rememberedRegions.insert(source);
 }
 
 void RememberSet::ClearAll()
 {
     std::lock_guard<std::mutex> lock(mtx_);
-    rememberedSlots.clear();
+    rememberedRegions.clear();
 }
 
-void RememberSet::MigrateGhostRegionSlots(RegionInfo* oldRegion)
+void RememberSet::MergeFrom(RSetRegions&& local)
 {
     std::lock_guard<std::mutex> lock(mtx_);
-    auto it = rememberedSlots.find(oldRegion);
-    if (it == rememberedSlots.end()) {
-        return;
-    }
-    auto entries = std::move(it->second);
-    rememberedSlots.erase(it);
-    // At this point, slot values have already been updated to forwarded
-    // addresses by PromptRegionImpl. Read the new target and find its
-    // region to migrate the slot into the correct region's slot list.
-    for (auto& entry : entries) {
-        RegionInfo* src = entry.first;
-        size_t slotIdx = entry.second;
-        uintptr_t slotAddr = src->GetRegionStart() + slotIdx * RegionInfo::RSET_SLOT_SIZE;
-        RefField<>* field = reinterpret_cast<RefField<>*>(slotAddr);
-        BaseObject* target = field->GetTargetObject();
-        if (target == nullptr) {
-            continue;
-        }
-        RegionInfo* newRegion = RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(target));
-        if (newRegion != nullptr && newRegion != oldRegion) {
-            rememberedSlots[newRegion].insert({src, slotIdx});
-        }
-    }
-}
-
-void RememberSet::MergeFrom(RSetLocalSlots&& local)
-{
-    std::lock_guard<std::mutex> lock(mtx_);
-    for (auto& [target, slots] : local) {
-        auto& globalSlots = rememberedSlots[target];
-        for (auto& entry : slots) {
-            globalSlots.insert(entry);
-        }
-    }
+    rememberedRegions.insert(local.begin(), local.end());
 }
 
 } // namespace MapleRuntime

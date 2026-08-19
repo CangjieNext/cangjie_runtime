@@ -10,7 +10,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <mutex>
-#include <unordered_map>
+#include <unordered_set>
 #include <utility>
 
 #include "Allocator/RegionInfo.h"
@@ -18,65 +18,33 @@
 
 namespace MapleRuntime {
 
-// RememberSet is a multi-level table recording cross-generational references.
-// Top level (key): the young target region that is pointed into.
-// Value: a list of (source old region, slot index) pairs. The slot index is
-// (slotAddr - source.GetRegionStart()) / RSET_SLOT_SIZE, i.e. an exact pointer-
-// sized slot within the source region. Each old region carries a per-region
-// card table (RegionInfo::rsetCardTable, 1 bit/slot) that is reset when the
-// region is freed by InitFreeRegion; during visit, entries whose source card
-// table bit has been reset are skipped lazily.
-using RSetLocalSlots = std::unordered_map<RegionInfo*, std::unordered_set<std::pair<RegionInfo*, size_t>, RSetSlotHash>>;
+// RememberSet stores only old regions. Each old region owns the card table
+// that identifies its slots containing old-to-young references.
 
 class RememberSet {
 public:
     static RememberSet& Instance() noexcept;
 
-    void Record(RegionInfo* target, uintptr_t slotAddr);
+    void Record(RegionInfo* source, uintptr_t slotAddr);
 
     template <typename Func>
-    void VisitRememberedSlots(RegionInfo* target, Func&& func)
+    void VisitRememberedSlots(Func&& func)
     {
-        std::lock_guard<std::mutex> lock(mtx_);
-        auto it = rememberedSlots.find(target);
-        if (it == rememberedSlots.end()) {
-            return;
+        RSetRegions regions;
+        {
+            std::lock_guard<std::mutex> lock(mtx_);
+            regions = rememberedRegions;
         }
-        for (auto& entry : it->second) {
-            RegionInfo* src = entry.first;
-            size_t slotIdx = entry.second;
-            if (!src->IsRSetSlotMarked(slotIdx)) {
+        for (RegionInfo* source : regions) {
+            if (!source->IsOldRegion()) {
                 continue;
             }
-            uintptr_t slotAddr = src->GetRegionStart() + slotIdx * RegionInfo::RSET_SLOT_SIZE;
-            func(slotAddr);
+            VisitRegionSlots(source, func);
         }
     }
 
-    template <typename Func>
-    void VisitAllYoungSlots(Func&& func)
-    {
-        std::lock_guard<std::mutex> lock(mtx_);
-        for (auto& pair : rememberedSlots) {
-            if (pair.first->IsOldRegion()) {
-                continue;
-            }
-            for (auto& entry : pair.second) {
-                RegionInfo* src = entry.first;
-                size_t slotIdx = entry.second;
-                if (!src->IsRSetSlotMarked(slotIdx)) {
-                    continue;
-                }
-                uintptr_t slotAddr = src->GetRegionStart() + slotIdx * RegionInfo::RSET_SLOT_SIZE;
-                func(slotAddr);
-            }
-        }
-    }
-
-    void Clear(RegionInfo* target);
     void ClearAll();
-    void MigrateGhostRegionSlots(RegionInfo* oldRegion);
-    void MergeFrom(RSetLocalSlots&& local);
+    void MergeFrom(RSetRegions&& local);
 
     RememberSet(const RememberSet&) = delete;
     RememberSet& operator=(const RememberSet&) = delete;
@@ -85,7 +53,17 @@ private:
     RememberSet() = default;
     ~RememberSet() = default;
 
-    RSetLocalSlots rememberedSlots;
+    template <typename Func>
+    static void VisitRegionSlots(RegionInfo* source, Func&& func)
+    {
+        for (size_t slotIdx = 0; slotIdx < source->GetRSetSlotCount(); ++slotIdx) {
+            if (source->IsRSetSlotMarked(slotIdx)) {
+                func(source->GetRegionStart() + slotIdx * RegionInfo::RSET_SLOT_SIZE);
+            }
+        }
+    }
+
+    RSetRegions rememberedRegions;
     std::mutex mtx_;
 };
 

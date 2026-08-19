@@ -557,10 +557,9 @@ private:
 
     ManagedList<BaseObject*> localFinalizers;
 
-    RSetLocalSlots localRSetSlots;
+    RSetRegions localRSetRegions;
 public:
-    RSetLocalSlots& GetLocalRSetSlots() { return localRSetSlots; }
-    void RecordLocalRSetSlot(RegionInfo* target, uintptr_t slotAddr);
+    void RecordLocalRSetSlot(RegionInfo* source, uintptr_t slotAddr);
 private:
     SatbBuffer::Node* satbNode = nullptr;
 #if defined(GCINFO_DEBUG) && GCINFO_DEBUG
