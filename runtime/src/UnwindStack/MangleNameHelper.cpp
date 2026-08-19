@@ -45,8 +45,20 @@ void MangleNameHelper::Demangle()
     if (mangleName.EndsWith(POSTFIX_WITHOUT_TI)) {
         mangleName.Truncate(mangleName.Length() - strlen(POSTFIX_WITHOUT_TI));
     }
+    if (IsNeedFilt()) {
+        methodName = mangleName;
+        className = "";
+        demangleName = mangleName;
+        return;
+    }
     auto demangler = CreateNativeDemangler(mangleName.Str(), "::", genericTypefilter);
     auto functionDemangleInfo = demangler.Demangle();
+    if (!functionDemangleInfo.IsValid()) {
+        methodName = mangleName;
+        className = "";
+        demangleName = mangleName;
+        return;
+    }
     methodName = functionDemangleInfo.GetFullName(demangler.ScopeResolution());
     className = functionDemangleInfo.GetPkgName();
     demangleName = className + (className.Length() > 0 ? "." : "") + methodName;
