@@ -178,11 +178,6 @@ void MixedRegionManager::PromptRegionImpl(RegionInfo* fromRegion)
     MAddress regionStart = fromRegion->GetRegionStart();
     MAddress regionLimit = fromRegion->GetRegionAllocPtr();
     CopyCollector& collector = reinterpret_cast<CopyCollector&>(Heap::GetHeap().GetCollector());
-    // TODO: young objects moving target address.
-    RegionInfo* youngRegion = AllocateThreadLocalRegion();
-    // TODO: prompt objects moving target address.
-    RegionInfo* oldRegion = AllocateThreadLocalRegion();
-    oldRegion->SetOldRegionFlag(1);
     ObjectForwardingTable* fwdTable = fromRegion->GetForwardingTable();
     if (fwdTable == nullptr) {
         fwdTable = new ObjectForwardingTable();
