@@ -62,41 +62,6 @@ size_t MixedRegionManager::ClassifyYoungRegions()
     return newFromBytes - forwardBytes;
 }
 
-class RSetForwardTask : public HeapWork {
-public:
-    explicit RSetForwardTask(RegionInfo* region) : fromRegion(region) {}
-    ~RSetForwardTask() override = default;
-
-    void Execute(size_t) override
-    {
-        ObjectForwardingTable* fwdTable = fromRegion->GetForwardingTable();
-        if (fwdTable == nullptr) {
-            return;
-        }
-        RememberSet::Instance().VisitRememberedSlots(fromRegion, [fwdTable](uintptr_t slotAddr) {
-            // TODO: should read reffield and compareAndExchange
-            RefField<>* field = reinterpret_cast<RefField<>*>(slotAddr);
-            BaseObject* oldTarget = field->GetTargetObject();
-            BaseObject* newTarget = fwdTable->GetRoute(oldTarget);
-            if (newTarget == nullptr) {
-                return;
-            }
-            field->SetTargetObject(newTarget);
-            // After forwarding, the slot may now point to a young-region object
-            // (if the from-region object was prompted to young). Record this
-            // new cross-generational reference so next Young GC can update it.
-            RegionInfo* slotRegion = RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(field));
-            RegionInfo* targetRegion = RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(newTarget));
-            if (slotRegion->IsOldRegion() && !targetRegion->IsOldRegion()) {
-                RememberSet::Instance().Record(targetRegion, slotAddr);
-            }
-        });
-    }
-
-private:
-    RegionInfo* fromRegion;
-};
-
 class ForwardFromSpaceTask : public HeapWork {
 public:
     ForwardFromSpaceTask(RegionManager& mgr, RegionList& from, GCThreadPool* pool)
@@ -175,15 +140,13 @@ void MixedRegionManager::PromptRegionImpl(RegionInfo* fromRegion)
 {
     CHECK(fromRegion->IsRoutingState());
     DLOG(PROMPT, "promt region %p [%p, %p]", fromRegion, fromRegion->GetRegionStart(), fromRegion->GetRegionEnd());
-    MAddress regionStart = fromRegion->GetRegionStart();
-    MAddress regionLimit = fromRegion->GetRegionAllocPtr();
     CopyCollector& collector = reinterpret_cast<CopyCollector&>(Heap::GetHeap().GetCollector());
     ObjectForwardingTable* fwdTable = fromRegion->GetForwardingTable();
     if (fwdTable == nullptr) {
         fwdTable = new ObjectForwardingTable();
         fromRegion->SetForwardingTable(fwdTable);
     }
-    fromRegion->VisitLiveObjectsUntilFalse([fromRegion, this, &collector, &fwdTable](BaseObject* currentObj) {
+    fromRegion->VisitLiveObjectsUntilFalse([fromRegion, &collector, &fwdTable](BaseObject* currentObj) {
         StateWord oldWord = currentObj->GetStateWord();
         if (currentObj->IsForwarded()) {
             return true;
@@ -201,44 +164,39 @@ void MixedRegionManager::PromptRegionImpl(RegionInfo* fromRegion)
         collector.CopyObject(*currentObj, *toObj, allocSize);
         toObj->SetStateCode(ObjectState::NORMAL);
         if (needPrompt) {
-            toObj->ForEachRefField([&fwdTable, fromRegion](RefField<>& field) {
-            // If target was in the prompted from-region, update to forwarded address.
-            RefField<> tmp(field);
-            BaseObject* target = field.GetTargetObject();
-            if (!Heap::IsHeapAddress(target)) {
-                return true;
-            }
-            bool isTagged = tmp.IsTagged();
-            RegionInfo* refRegion = nullptr;
-            bool isOld = false;
-            if (isTagged) {
-                refRegion = RegionInfo::GetGhostFromRegionAt(target);
-                if (refRegion != nullptr) {
-                    isOld = refRegion->IsOld0();
+            RegionInfo* sourceRegion = RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(toObj));
+            toObj->ForEachRefField([sourceRegion](RefField<>& field) {
+                RefField<> tmp(field);
+                BaseObject* target = field.GetTargetObject();
+                if (!Heap::IsHeapAddress(target)) {
+                    return true;
+                }
+                bool isTagged = tmp.IsTagged();
+                RegionInfo* refRegion = nullptr;
+                bool isOld = false;
+                if (isTagged) {
+                    refRegion = RegionInfo::GetGhostFromRegionAt(target);
+                    if (refRegion != nullptr) {
+                        isOld = refRegion->IsOld0();
+                    } else {
+                        refRegion = RegionInfo::GetRegionInfoAt(target);
+                        isOld = refRegion->IsOldRegion();
+                    }
                 } else {
                     refRegion = RegionInfo::GetRegionInfoAt(target);
                     isOld = refRegion->IsOldRegion();
                 }
-            } else {
-                refRegion = RegionInfo::GetRegionInfoAt(target);
-                isOld = refRegion->IsOldRegion();
-            }
-            if (!isOld) {
-                RememberSet::Instance().Record(refRegion, reinterpret_cast<uintptr_t>(&field));
-            }
-        });
+                if (!isOld) {
+                    RememberSet::Instance().Record(sourceRegion, reinterpret_cast<uintptr_t>(&field));
+                }
+                return true;
+            });
         }
         currentObj->SetStateCode(ObjectState::FORWARDED);
         fwdTable->SetForwardingAddr(currentObj, toObj);
         return true;
     });
 
-    // GCThreadPool* threadPool = reinterpret_cast<TracingCollector&>(Heap::GetHeap().GetCollector()).GetThreadPool();
-    // if (threadPool != nullptr) {
-    //     threadPool->Start();
-    //     threadPool->AddWork(new (std::nothrow) RSetForwardTask(fromRegion));
-    //     threadPool->WaitFinish();
-    // }
 }
 
 void MixedRegionManager::ForwardFromSpace(GCThreadPool* threadPool)
@@ -270,18 +228,6 @@ void MixedRegionManager::ForwardFromSpace(GCThreadPool* threadPool)
 bool MixedRegionManager::IsYoungSpaceHeavy() const
 {
     return Heap::GetHeap().IsGcStarted();
-}
-
-void MixedRegionManager::MigrateGhostRegionRSet()
-{
-    ghostFromRegionList.VisitAllGhostRegions([](RegionInfo* region) {
-        if (!region->IsGhostFromRegion()) { return; }
-        RememberSet::Instance().MigrateGhostRegionSlots(region);
-    });
-    ghostPromptRegionList.VisitAllGhostRegions([](RegionInfo* region) {
-        if (!region->IsGhostFromRegion()) { return; }
-        RememberSet::Instance().MigrateGhostRegionSlots(region);
-    });
 }
 
 BaseObject* MixedRegionManager::PromptObject(BaseObject* fromObj, RegionInfo* fromRegion)

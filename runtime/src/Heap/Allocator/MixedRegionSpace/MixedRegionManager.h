@@ -52,14 +52,11 @@ public:
     RegionList& GetOldSweptRegionList() { return oldSweptRegionList; }
     bool IsYoungSpaceHeavy() const;
     BaseObject* PromptObject(BaseObject* fromObj, RegionInfo* ghostFromRegion);
-    void MigrateGhostRegionRSet();
     void PrepareYoungFromRegionList()
     {
-        auto& rememberSet = RememberSet::Instance();
-        ghostFromRegionList.VisitAllGhostRegions([&rememberSet](RegionInfo* region) {
+        ghostFromRegionList.VisitAllGhostRegions([](RegionInfo* region) {
             DLOG(REGION, "dispel ghost from region %p@[%#zx, %#zx)", region, region->GetRegionStart(),
                  region->GetRegionEnd());
-            rememberSet.MigrateGhostRegionSlots(region);
             region->DispelGhostFromRegion();
         });
 
@@ -71,10 +68,9 @@ public:
 
         fromRegionList.CopyListTo(ghostFromRegionList);
 
-        ghostPromptRegionList.VisitAllGhostRegions([&rememberSet](RegionInfo* region) {
+        ghostPromptRegionList.VisitAllGhostRegions([](RegionInfo* region) {
             DLOG(REGION, "dispel ghost prompt region %p@[%#zx, %#zx)", region, region->GetRegionStart(),
                  region->GetRegionEnd());
-            rememberSet.MigrateGhostRegionSlots(region);
             region->DispelGhostFromRegion();
         });
         promptRegionList.VisitAllRegions([](RegionInfo* region) {

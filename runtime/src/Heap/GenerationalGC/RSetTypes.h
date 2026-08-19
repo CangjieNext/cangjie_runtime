@@ -9,25 +9,13 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <functional>
-#include <unordered_map>
 #include <unordered_set>
-#include <utility>
 
 namespace MapleRuntime {
 
 class RegionInfo;
 
-struct RSetSlotHash {
-    size_t operator()(const std::pair<RegionInfo*, size_t>& p) const noexcept
-    {
-        size_t h1 = std::hash<RegionInfo*>{}(p.first);
-        size_t h2 = std::hash<size_t>{}(p.second);
-        return h1 ^ (h2 + 0x9e3779b9 + (h1 << 6) + (h1 >> 2));
-    }
-};
-
-using RSetLocalSlots = std::unordered_map<RegionInfo*, std::unordered_set<std::pair<RegionInfo*, size_t>, RSetSlotHash>>;
+using RSetRegions = std::unordered_set<RegionInfo*>;
 
 } // namespace MapleRuntime
 
