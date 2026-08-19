@@ -595,16 +595,18 @@ inline void Mutator::GcPhaseEnum(GCPhase newPhase)
     };
     VisitMutatorRoots(visitor);
 
-    // Add local RSet slots as roots: read referenced objects via barrier and push as roots
-    for (auto& [target, slots] : localRSetSlots) {
-        for (auto& [src, slotIdx] : slots) {
-            if (!src->IsRSetSlotMarked(slotIdx)) { continue; }
-            uintptr_t slotAddr = src->GetRegionStart() + slotIdx * RegionInfo::RSET_SLOT_SIZE;
-            RefField<>* field = reinterpret_cast<RefField<>*>(slotAddr);
-            BaseObject* root = Heap::GetHeap().GetBarrier().ReadReference(nullptr, *field);
-            if (root != nullptr && Heap::IsHeapAddress(root)) {
-                AllocBuffer* buffer = AllocBuffer::GetOrCreateAllocBuffer();
-                buffer->PushRoot(root);
+    if (newPhase == GCPhase::GC_PHASE_GENERATION_ENUM) {
+        // Add local RSet slots as roots: read referenced objects via barrier and push as roots
+        for (auto& [target, slots] : localRSetSlots) {
+            for (auto& [src, slotIdx] : slots) {
+                if (!src->IsRSetSlotMarked(slotIdx)) { continue; }
+                uintptr_t slotAddr = src->GetRegionStart() + slotIdx * RegionInfo::RSET_SLOT_SIZE;
+                RefField<>* field = reinterpret_cast<RefField<>*>(slotAddr);
+                BaseObject* root = Heap::GetHeap().GetBarrier().ReadReference(nullptr, *field);
+                if (root != nullptr && Heap::IsHeapAddress(root)) {
+                    AllocBuffer* buffer = AllocBuffer::GetOrCreateAllocBuffer();
+                    buffer->PushRoot(root);
+                }
             }
         }
     }
@@ -678,35 +680,53 @@ inline void Mutator::GCPhasePreForward(GCPhase newPhase)
     VisitHeapReferences(visitor, derivedPtrVisitor);
     ForwardLocalFinalizers(collector);
 
-    // Merge local RSet into global RememberSet
-    RememberSet::Instance().MergeFrom(std::move(localRSetSlots));
-    localRSetSlots.clear();
+    if (newPhase == GCPhase::GC_PHASE_GENERATION_PREFORWARD) {
+        // Merge local RSet into global RememberSet
+        RememberSet::Instance().MergeFrom(std::move(localRSetSlots));
+        localRSetSlots.clear();
+    }
 }
 
 inline void Mutator::HandleGCPhase(GCPhase newPhase)
 {
-    if (newPhase == GCPhase::GC_PHASE_FINISH || newPhase == GCPhase::GC_PHASE_FORWARD ||
-        newPhase == GCPhase::GC_PHASE_GENERATION_FORWARD) {
-        std::lock_guard<std::mutex> lg(mutatorLock);
-        if (satbNode != nullptr) {
-            satbNode->Clear();
+    switch (newPhase) {
+        case GCPhase::GC_PHASE_FINISH:
+        case GCPhase::GC_PHASE_FORWARD:
+        case GCPhase::GC_PHASE_GENERATION_FORWARD: {
+            std::lock_guard<std::mutex> lg(mutatorLock);
+            if (satbNode != nullptr) {
+                satbNode->Clear();
+            }
+            break;
         }
-    } else if (newPhase == GCPhase::GC_PHASE_ENUM || newPhase == GCPhase::GC_PHASE_GENERATION_ENUM) {
-        auto& localFins = GetLocalFinalizers();
-        if (!localFins.empty()) {
-            Heap::GetHeap().GetFinalizerProcessor().RegisterFinalizers(localFins);
+        case GCPhase::GC_PHASE_ENUM:
+        case GCPhase::GC_PHASE_GENERATION_ENUM: {
+            auto& localFins = GetLocalFinalizers();
+            if (!localFins.empty()) {
+                Heap::GetHeap().GetFinalizerProcessor().RegisterFinalizers(localFins);
+            }
+            GcPhaseEnum(newPhase);
+            break;
         }
-        GcPhaseEnum(newPhase);
-    } else if (newPhase == GCPhase::GC_PHASE_PREFORWARD || newPhase == GCPhase::GC_PHASE_GENERATION_PREFORWARD) {
-        GCPhasePreForward(newPhase);
-    } else if (newPhase == GCPhase::GC_PHASE_CLEAR_SATB_BUFFER || newPhase == GCPhase::GC_PHASE_RECLAIM_SATB_NODE) {
-        std::lock_guard<std::mutex> lg(mutatorLock);
-        if (satbNode != nullptr) {
-            SatbBuffer::Instance().RetireNode(satbNode);
-            satbNode = nullptr;
+        case GCPhase::GC_PHASE_PREFORWARD:
+        case GCPhase::GC_PHASE_GENERATION_PREFORWARD:
+            GCPhasePreForward(newPhase);
+            break;
+        case GCPhase::GC_PHASE_CLEAR_SATB_BUFFER:
+        case GCPhase::GC_PHASE_RECLAIM_SATB_NODE: {
+            std::lock_guard<std::mutex> lg(mutatorLock);
+            if (satbNode != nullptr) {
+                SatbBuffer::Instance().RetireNode(satbNode);
+                satbNode = nullptr;
+            }
+            break;
         }
-    } else if (newPhase == GCPhase::GC_PHASE_IDLE || newPhase == GCPhase::GC_PHASE_GENERATION_IDLE) {
-        HandleGCPhaseIDLE();
+        case GCPhase::GC_PHASE_IDLE:
+        case GCPhase::GC_PHASE_GENERATION_IDLE:
+            HandleGCPhaseIDLE();
+            break;
+        default:
+            break;
     }
 }
 

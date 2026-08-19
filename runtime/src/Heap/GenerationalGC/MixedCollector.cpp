@@ -108,7 +108,7 @@ RefField<> MixedCollector::GetAndTryTagRefField(BaseObject* target) const
 
 BaseObject* MixedCollector::ForwardObject(BaseObject* fromVersion)
 {
-    return nullptr;
+    return WCollector::ForwardObject(fromVersion);
 }
 
 bool MixedCollector::IsTargetAddress(BaseObject* obj) const
