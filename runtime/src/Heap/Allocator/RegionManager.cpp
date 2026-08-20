@@ -177,6 +177,9 @@ void RegionInfo::SweepRegion()
     size_t regionSize = GetRegionSize();
     if (IsLargeRegion()) {
         if (!IsSurvivedObject(0)) {
+            if (IsOldRegion()) {
+                ClearRSetSlots(GetRegionStart(), regionSize);
+            }
             freeSlotList->AddSlot(0, static_cast<uint32_t>(regionSize));
         }
         return;
@@ -201,10 +204,15 @@ void RegionInfo::SweepRegion()
                 }
                 inFreeRun = false;
             }
-        } else if (!inFreeRun) {
-            freeStartOff = off;
-            freeStart = position;
-            inFreeRun = true;
+        } else {
+            if (IsOldRegion()) {
+                ClearRSetSlots(position, allocSize);
+            }
+            if (!inFreeRun) {
+                freeStartOff = off;
+                freeStart = position;
+                inFreeRun = true;
+            }
         }
         position += allocSize;
         off += allocSize;

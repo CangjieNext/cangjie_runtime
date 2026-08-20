@@ -22,7 +22,6 @@ public:
     ~MixedCollector() override = default;
 
     void DoGarbageCollection() override;
-    void Preforward() override;
     void EnumRefFieldRoot(RefField<>& ref, RootSet& rootSet) const override;
     void EnumAndTagRawRoot(ObjectRef& ref, RootSet& rootSet) const override;
     RefField<> GetAndTryTagRefField(BaseObject* target) const override;
@@ -32,6 +31,7 @@ public:
     void ConcurrentSweep() override;
 protected:
     void ResetForwardingData() override;
+    bool IsTargetRegion(const RegionInfo*) const override { return true; }
 };
 
 } // namespace MapleRuntime

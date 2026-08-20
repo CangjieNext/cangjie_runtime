@@ -428,6 +428,31 @@ public:
         return (byte >> (slotIdx & 7)) & 1u;
     }
 
+    void ClearRSetSlots(uintptr_t startAddr, size_t size)
+    {
+        uint8_t* table = __atomic_load_n(&metadata.rsetCardTable, std::memory_order_acquire);
+        if (table == nullptr || reinterpret_cast<uintptr_t>(table) == RSET_CARD_TABLE_TEMPORARY || size == 0) {
+            return;
+        }
+        CHECK_DETAIL(startAddr >= GetRegionStart() && startAddr + size <= GetRegionEnd(),
+                     "clear rset slots [%#zx, %#zx) outside region [%#zx, %#zx)", startAddr, startAddr + size,
+                     GetRegionStart(), GetRegionEnd());
+        size_t firstSlot = (startAddr - GetRegionStart()) / RSET_SLOT_SIZE;
+        size_t lastSlot = (startAddr + size - 1 - GetRegionStart()) / RSET_SLOT_SIZE;
+        for (size_t slotIdx = firstSlot; slotIdx <= lastSlot; ++slotIdx) {
+            __atomic_fetch_and(&table[slotIdx >> 3], static_cast<uint8_t>(~(1u << (slotIdx & 7))),
+                               __ATOMIC_SEQ_CST);
+        }
+    }
+
+    void ResetRSetCardTable()
+    {
+        uint8_t* table = __atomic_exchange_n(&metadata.rsetCardTable, nullptr, __ATOMIC_SEQ_CST);
+        if (table != nullptr && reinterpret_cast<uintptr_t>(table) != RSET_CARD_TABLE_TEMPORARY) {
+            delete[] table;
+        }
+    }
+
     bool MarkObject(const BaseObject* obj)
     {
         if (IsLargeRegion()) {
@@ -1392,11 +1417,7 @@ private:
 
         // Reset (free) the remembered-set card table atomically. RememberSet entries
         // still referencing this region will be skipped lazily via IsRSetSlotMarked==false.
-        uint8_t* oldRSetCardTable = __atomic_exchange_n(&metadata.rsetCardTable, nullptr, __ATOMIC_SEQ_CST);
-        if (oldRSetCardTable != nullptr &&
-            reinterpret_cast<uintptr_t>(oldRSetCardTable) != RSET_CARD_TABLE_TEMPORARY) {
-            delete[] oldRSetCardTable;
-        }
+        ResetRSetCardTable();
 
         metadata.allocPtr = GetRegionStart();
         metadata.regionEnd = metadata.allocPtr + nUnit * RegionInfo::UNIT_SIZE;

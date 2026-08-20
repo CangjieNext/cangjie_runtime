@@ -186,6 +186,7 @@ void MixedRegionManager::PromptRegionImpl(RegionInfo* fromRegion)
                     refRegion = RegionInfo::GetRegionInfoAt(target);
                     isOld = refRegion->IsOldRegion();
                 }
+                // The object that being prompted in current gc is also recorded, since we need to fix pointer.
                 if (!isOld) {
                     RememberSet::Instance().Record(sourceRegion, reinterpret_cast<uintptr_t>(&field));
                 }
