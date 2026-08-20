@@ -355,6 +355,8 @@ class InstrumentedClass {
         let measurements: Array<Expr>,
         let memberVariables: Array<VarDecl>,
         let concurrentOperations: Array<FuncDecl>,
+        let concurrentVerify: Option<Token>,
+        let concurrentAfter: Option<Token>,
         let isConcurrentTest: Bool,
     ) {}
 
@@ -364,6 +366,8 @@ class InstrumentedClass {
         this.measurements = loadMeasurements(original)
         this.memberVariables = collectMemberVariables(original)
         this.concurrentOperations = collectConcurrentOperations(original)
+        this.concurrentVerify = findConcurrentVerify(original)
+        this.concurrentAfter = findConcurrentAfter(original)
         this.isConcurrentTest = original.has(CONCURRENT_TEST_MACRO)
 
         this.testFunctions = ArrayList()
@@ -382,6 +386,8 @@ class InstrumentedClass {
         this.original = fakeClass
         this.memberVariables = []
         this.concurrentOperations = []
+        this.concurrentVerify = None
+        this.concurrentAfter = None
         this.isConcurrentTest = false
 
         this.configuration = loadFuncConfiguration(original)
@@ -593,28 +599,22 @@ class InstrumentedClass {
         }
     }
 
-    private func buildConcurrentStateClass(tb: TokensBuilder): TokensBuilder {
-        tb.append(quote(public class $concurrentTestStateClassName)).curlyBraces { tb => 
-            for (varDecl in memberVariables) {
-                tb.append(varDecl.toTokens())
-            }
-
-            for (operation in concurrentOperations) {
-                tb.append(operation.toTokens())
-            }
-        }
-        return tb
-    }
-
     private func buildCreateScenariosGenerator(tb: TokensBuilder): TokensBuilder {
         tb.append(quote(private func createScenariosGenerator(): ScenariosGenerator<$concurrentTestStateClassName>)).curlyBraces { tb => 
+            tb.append(quote(let opManager = ScenariosGenerator<$concurrentTestStateClassName>)).append(Token(TokenKind.LPAREN))
             tb.append(quote(
-                let opManager = ScenariosGenerator<$concurrentTestStateClassName>(
                     { => ScenarioBuilder<$concurrentTestStateClassName>()
                             .withState { => $concurrentTestStateClassName() }
-                    }
-                )
             ))
+            if (let Some(verifyIdent) <- concurrentVerify) {
+                tb.append(quote(.verify { s => s.$verifyIdent() }))
+            }
+            if (let Some(afterIdent) <- concurrentAfter) {
+                tb.append(quote(.after { s => s.$afterIdent() }))
+            }
+            tb.append(quote(
+                    }
+            )).append(Token(TokenKind.RPAREN))
 
             for (operationFunc in concurrentOperations) {
                 let groupLitTokens = if (let Some(tokens) <- operationFunc.loadSingle(GROUP_MACRO)) {
@@ -726,10 +726,6 @@ class InstrumentedClass {
         let hasDefaultConstructor = Box(false)
 
         MacroStorage.markTestGenerated(tb)
-
-        if (isConcurrentTest) {
-            // buildConcurrentStateClass(tb)
-        }
 
         tb.append(modifiers).append(quote(class)).append(ident)
         if (this.typeParameters.size != 0) {
@@ -853,6 +849,33 @@ private func collectConcurrentOperations(concurrentTest: ClassDecl): Array<FuncD
     }
 
     return operations.toArray()
+}
+
+private func findConcurrentVerify(concurrentTest: ClassDecl): Option<Token> {
+    for (decl in concurrentTest.body.decls) {
+        if (decl.has(VERIFY_MACRO)) {
+            match (decl) {
+                case funcDecl : FuncDecl => return funcDecl.identifier
+                case _ => throw MacroException("Only function declarations can be marked with @Verify")
+            }
+        }
+    }
+
+    return None
+}
+
+// FIXME: Coypasta
+private func findConcurrentAfter(concurrentTest: ClassDecl): Option<Token> {
+    for (decl in concurrentTest.body.decls) {
+        if (decl.has(AFTER_MACRO)) {
+            match (decl) {
+                case funcDecl : FuncDecl => return funcDecl.identifier
+                case _ => throw MacroException("Only function declarations can be marked with @After")
+            }
+        }
+    }
+
+    return None
 }
 
 func loadClassConfiguration(original: Decl): Array<(Token, Expr)> {

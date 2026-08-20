@@ -34,8 +34,10 @@ let TEST_TEMPLATE_MACRO = MacroKey.create("@TestTemplate", Class, TestEntity, co
 // ```
 let CONCURRENT_TEST_MACRO = MacroKey.create("@ConcurrentTest", Class, TestEntity, placement: TopLevel, conflicts: [TEST_MACRO])
 // FIXME: What's right kind for these?
-let OPERATION_MACRO = MacroKey.create("@Operation", Function, Lifecycle, placement: InsideParent([CONCURRENT_TEST_MACRO]), conflicts: [])
-let GROUP_MACRO = MacroKey.create("@Group", Function, Lifecycle, placement: InsideParent([CONCURRENT_TEST_MACRO]), conflicts: [])
+let OPERATION_MACRO = MacroKey.create("@Operation", Function, Concurrent, placement: InsideParent([CONCURRENT_TEST_MACRO]), conflicts: [])
+let GROUP_MACRO = MacroKey.create("@Group", Function, Concurrent, placement: InsideParent([CONCURRENT_TEST_MACRO]), conflicts: [])
+let VERIFY_MACRO = MacroKey.create("@Verify", Function, Concurrent, placement: InsideParent([CONCURRENT_TEST_MACRO]), conflicts: [])
+let AFTER_MACRO = MacroKey.create("@After", Function, Concurrent, placement: InsideParent([CONCURRENT_TEST_MACRO]), conflicts: [])
 
 // actual keys that are written to @Attribute section
 let SKIP_MACRO = MacroKey.create("@Skip", ClassOrFunction, Configuration)
