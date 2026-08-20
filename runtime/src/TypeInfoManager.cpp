@@ -316,10 +316,26 @@ TypeInfoManager::GenericTiDesc* TypeInfoManager::GenericTiDescHashMap::GetGeneri
     // before releasing its own node, so writer N is ordered after writer N-1
     // and, by induction, after all of them. A reader that acquires the head
     // published by the newest writer therefore has every node below it fully
-    // constructed. Published nodes are immutable and never freed while the
-    // process runs, so the rest of the walk needs no ordering. A concurrent
-    // insertion may be missed, which is harmless: the caller falls through to
-    // InsertGenericTiDesc, which rescans under the write lock.
+    // constructed.
+    //
+    // The rest of the walk then needs no ordering at all, for two reasons.
+    //
+    // Every field it touches -- hash, tt, argSize, argsVector and next -- is
+    // written either by the copy constructor or by the link step, both of
+    // which run before the release store, and none of them is ever written
+    // again; operator= is deleted, and insertion is at the head, so an
+    // existing node's next is never rewritten either. The fields that do
+    // change after publication, typeInfo and status, are deliberately not read
+    // here: they are the caller's business and carry their own ordering. Do
+    // not add a check on them to this loop without revisiting that.
+    //
+    // And nodes are never freed: TypeInfoManager is held in an
+    // ImmortalWrapper, whose destructor does not run ~T(), so the map's own
+    // destructor never executes and no chain node is reclaimed while the
+    // process lives. A lock free reader needs no hazard pointers or RCU.
+    //
+    // A concurrent insertion may be missed, which is harmless: the caller
+    // falls through to InsertGenericTiDesc, which rescans under the write lock.
     for (GenericTiDesc* cur = bucket.head.load(std::memory_order_acquire); cur != nullptr;
          cur = cur->next.load(std::memory_order_relaxed)) {
         // operator== compares the hash first, but it is out of line, so reject
