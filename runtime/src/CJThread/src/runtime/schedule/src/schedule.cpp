@@ -6,8 +6,10 @@
 
 
 #include <cstring>
+#include <cstdio>
 #include <unistd.h>
 #include <cstdlib>
+#include <stddef.h>
 #include "schedule_impl.h"
 #include "log.h"
 #include "schmon.h"
@@ -528,6 +530,27 @@ int ScheduleManagerInit(void)
     g_scheduleManager.cjthreadIdGen = 1;
     g_scheduleManager.processorIdGen = 1;
     g_scheduleManager.initFlag = true;
+    fprintf(stderr, "CJThreadLayoutOffsets for aarch64:\n");
+    fprintf(stderr, "  offset_of_ScheduleManager_dot_allCJThreadList = %zu\n",
+            offsetof(struct ScheduleManager, allCJThreadList));
+    fprintf(stderr, "  offset_of_CJThread_dot_allCJThreadDulink = %zu\n",
+            offsetof(struct CJThread, allCJThreadDulink));
+    fprintf(stderr, "  offset_of_CJThread_dot_context = %zu\n",
+            offsetof(struct CJThread, context));
+    fprintf(stderr, "  offset_of_CJThread_dot_thread = %zu\n",
+            offsetof(struct CJThread, thread));
+    fprintf(stderr, "  offset_of_CJThread_dot_state = %zu\n",
+            offsetof(struct CJThread, state));
+    fprintf(stderr, "  offset_of_CJThread_dot_id = %zu\n",
+            offsetof(struct CJThread, id));
+    fprintf(stderr, "  offset_of_CJThread_dot_name = %zu\n",
+            offsetof(struct CJThread, name));
+    fprintf(stderr, "  offset_of_Thread_dot_tid = %zu\n",
+            offsetof(struct Thread, tid));
+    fprintf(stderr, "  offset_of_CJThread_dot_boundThread = %zu\n",
+            offsetof(struct CJThread, boundThread));
+    fprintf(stderr, "  offset_of_Thread_dot_boundCJThread = %zu\n",
+            offsetof(struct Thread, boundCJThread));
     memset_s(&g_scheduleManager.trace, sizeof(struct Trace), 0, sizeof(struct Trace));
     // Init SchdfdManager
     struct SchdfdManager *schdfdManager = SchdfdManagerInit();
