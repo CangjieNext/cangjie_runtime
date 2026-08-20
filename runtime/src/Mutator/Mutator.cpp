@@ -598,25 +598,9 @@ inline void Mutator::GcPhaseEnum(GCPhase newPhase)
 
     if (newPhase == GCPhase::GC_PHASE_GENERATION_ENUM) {
         // Add local RSet slots as roots: read referenced objects via barrier and push as roots
-        for (RegionInfo* src : localRSetRegions) {
-            for (size_t slotIdx = 0; slotIdx < src->GetRSetSlotCount(); ++slotIdx) {
-                if (!src->IsRSetSlotMarked(slotIdx)) { continue; }
-                uintptr_t slotAddr = src->GetRegionStart() + slotIdx * RegionInfo::RSET_SLOT_SIZE;
-                RefField<>* field = reinterpret_cast<RefField<>*>(slotAddr);
-                BaseObject* root = Heap::GetHeap().GetBarrier().ReadReference(nullptr, *field);
-                if (root != nullptr && Heap::IsHeapAddress(root)) {
-                    RegionInfo* targetRegion = RegionInfo::GetGhostFromRegionAt(reinterpret_cast<MAddress>(root));
-                    if (targetRegion == nullptr) {
-                        targetRegion = RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(root));
-                    }
-                    if (targetRegion == nullptr || targetRegion->IsOldRegion()) {
-                        continue;
-                    }
-                    AllocBuffer* buffer = AllocBuffer::GetOrCreateAllocBuffer();
-                    buffer->PushRoot(root);
-                }
-            }
-        }
+        // Merge local RSet into global RememberSet
+        RememberSet::Instance().MergeFrom(std::move(localRSetRegions));
+        localRSetRegions.clear();
     }
 }
 

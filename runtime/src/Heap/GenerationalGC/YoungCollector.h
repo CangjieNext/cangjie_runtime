@@ -44,6 +44,7 @@ protected:
     void RefineFromSpace() override;
     virtual void ConcurrentSweep();
     virtual bool IsTargetAddress(BaseObject* obj) const { return IsYoungHeapAddress(obj); }
+    virtual bool IsTargetRegion(const RegionInfo* region) const { return !region->IsOldRegion(); }
     void Preforward() override;
     virtual void AssembleCandidates()
     {

@@ -123,8 +123,8 @@ void MixedCollector::AssembleCandidates()
 
 class OldSweepTask : public HeapWork {
 public:
-    OldSweepTask(RegionList& sweepable, RegionList& swept, GCThreadPool* pool)
-        : sweepableRegionList(sweepable), sweptRegionList(swept), threadPool(pool) {}
+    OldSweepTask(RegionList& sweepable, RegionList& swept, GCThreadPool* pool, RegionManager& manager)
+        : sweepableRegionList(sweepable), sweptRegionList(swept), threadPool(pool), regionManager(manager) {}
 
     ~OldSweepTask() override = default;
 
@@ -136,16 +136,23 @@ public:
             if (region == nullptr) {
                 return;
             }
+            if (region->GetLiveByteCount() == 0) {
+                region->ResetRSetCardTable();
+                regionManager.CollectRegion(region);
+                continue;
+            }
             region->SweepRegion();
             sweptRegionList.PrependRegion(region, RegionInfo::RegionType::SWEEP_REGION);
         }
-        threadPool->AddWork(new (std::nothrow) OldSweepTask(sweepableRegionList, sweptRegionList, threadPool));
+        threadPool->AddWork(new (std::nothrow) OldSweepTask(sweepableRegionList, sweptRegionList, threadPool,
+                                                           regionManager));
     }
 
 private:
     RegionList& sweepableRegionList;
     RegionList& sweptRegionList;
     GCThreadPool* threadPool;
+    RegionManager& regionManager;
 };
 
 void MixedCollector::ConcurrentSweep()
@@ -158,34 +165,12 @@ void MixedCollector::ConcurrentSweep()
     MixedRegionSpace& space = static_cast<MixedRegionSpace&>(theAllocator);
     MixedRegionManager& manager = MixedRegionSpace::CastDown(space.GetRegionManager());
     threadPool->AddWork(new (std::nothrow) OldSweepTask(manager.GetSweepableOldRegionList(),
-                                                       manager.GetOldSweptRegionList(), threadPool));
+                                                       manager.GetOldSweptRegionList(), threadPool, manager));
 }
 
 void MixedCollector::ResetForwardingData()
 {
     fwdTable.PrepareForwardTable(true);
-}
-
-void MixedCollector::Preforward()
-{
-    ScopedEntryTrace trace("CJRT_GC_PREFORWARD");
-    MRT_PHASE_TIMER("Preforward");
-    {
-        ScopedLightSync scopedLightSync("Preforward", true, GCPhase::GC_PHASE_GENERATION_PREFORWARD);
-    }
-
-    GCThreadPool* threadPool = GetThreadPool();
-    MRT_ASSERT(threadPool != nullptr, "thread pool is null");
-    // forward and fix cj future objects
-    threadPool->AddWork(new (std::nothrow) LambdaWork([this](size_t) { PreforwardConcurrencyModelRoots(); }));
-
-    // forward and fix finalizer roots.
-    threadPool->AddWork(new (std::nothrow) LambdaWork([this](size_t) { PreforwardFinalizerProcessorRoots(); }));
-    threadPool->AddWork(new (std::nothrow) LambdaWork([this](size_t) { PreforwardAllExportFromRoots(); }));
-    threadPool->AddWork(new (std::nothrow) LambdaWork([this](size_t) { PreforwardDiscoveredExternObjects(); }));
-    threadPool->AddWork(new (std::nothrow) LambdaWork([this](size_t) { PreforwardAllResurrectExportFromObjects(); }));
-    threadPool->Start();
-    threadPool->WaitFinish();
 }
 
 } // namespace MapleRuntime

@@ -198,12 +198,12 @@ private:
     // TODO: parameters tuning.
     bool ShouldSplit(size_t unitCount) const
     {
-        return unitCount < 400;
+        return unitCount < 4000;
     }
     // TODO: parameters tuning.
     size_t GetMovableThreshold() const
     {
-        return 400;
+        return 4000;
     }
     void AssembleOldRegions()
     {

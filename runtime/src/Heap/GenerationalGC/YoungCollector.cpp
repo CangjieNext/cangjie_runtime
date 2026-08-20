@@ -85,18 +85,28 @@ void YoungCollector::EnumRefFieldRoot(RefField<>& field, RootSet& rootSet) const
     }
 
     BaseObject* latest = nullptr;
-    if (IsOldPointer(oldField)) {
+    bool isOldPtr = IsOldPointer(oldField);
+    if (isOldPtr) {
         BaseObject* targetObj = oldField.GetTargetObject();
         latest = FindLatestVersion(targetObj);
     } else {
         latest = field.GetTargetObject();
     }
 
-    // target object could be null or non-heap for some static variable.
-    if (!IsTargetAddress(latest)) {
+    // The target could be null or non-heap for some static variable. Check the
+    // heap range only once, then use its region to determine whether Young GC
+    // should trace it.
+    if (!Heap::IsHeapAddress(latest)) {
         DLOG(ENUM, "skip invalid young field ref %p: %#zx -> %p", &field, oldField.GetFieldValue(), latest);
         return;
     }
+    RegionInfo* latestRegion = RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(latest));
+    bool isTargetAddress = IsTargetRegion(latestRegion);
+    // If the pointer is old pointer, we must fix it in case of it's a prompted object in last gc.
+    if (!isTargetAddress && !isOldPtr) {
+        return;
+    }
+
     CHECK_DETAIL(latest->IsValidObject(), "Enum static root %p(%p) encounters invalid object", latest, &field);
     RefField<> newField = GetAndTryTagRefField(latest);
     if (oldField.GetFieldValue() == newField.GetFieldValue()) {
@@ -109,7 +119,9 @@ void YoungCollector::EnumRefFieldRoot(RefField<>& field, RootSet& rootSet) const
         DLOG(ENUM, "enum young static ref@%p: %#zx -> %p<%p>(%zu)", &field, oldField.GetFieldValue(), latest,
              latest->GetTypeInfo(), latest->GetSize());
     }
-    rootSet.push_back(latest);
+    if (isTargetAddress) {
+        rootSet.push_back(latest);
+    }
 }
 
 // TODO: override
@@ -210,11 +222,15 @@ void YoungCollector::EnumRememberedRoots(RootSet& rootSet) const
         if (!Heap::IsHeapAddress(oldTarget)) {
             return;
         }
+        bool isOld = false;
         RegionInfo* targetRegion = RegionInfo::GetGhostFromRegionAt(reinterpret_cast<MAddress>(oldTarget));
         if (targetRegion == nullptr) {
             targetRegion = RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(oldTarget));
+            isOld = targetRegion != nullptr ? targetRegion->IsOldRegion() : isOld;
+        } else {
+            isOld = targetRegion->IsOld0();
         }
-        if (targetRegion == nullptr || targetRegion->IsOldRegion()) {
+        if (targetRegion == nullptr || isOld) {
             return;
         }
         EnumRefFieldRoot(*field, rootSet);
@@ -225,17 +241,6 @@ void YoungCollector::PreforwardRememberedRoots()
 {
     RememberSet::Instance().VisitRememberedSlots([this](uintptr_t slotAddr) {
         auto* field = reinterpret_cast<ObjectRef*>(slotAddr);
-        BaseObject* target = field->object;
-        if (!Heap::IsHeapAddress(target)) {
-            return;
-        }
-        RegionInfo* targetRegion = RegionInfo::GetGhostFromRegionAt(reinterpret_cast<MAddress>(target));
-        if (targetRegion == nullptr) {
-            targetRegion = RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(target));
-        }
-        if (targetRegion == nullptr || targetRegion->IsOldRegion()) {
-            return;
-        }
         ForwardUpdateRawRef(*field);
     });
 }
