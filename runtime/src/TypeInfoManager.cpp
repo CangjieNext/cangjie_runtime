@@ -310,17 +310,40 @@ TypeInfoManager::GenericTiDesc* TypeInfoManager::GenericTiDescHashMap::GetGeneri
     const U32 h = desc.GetHash();
     const size_t bucketIdx = h % buckets.size();
     auto &bucket = buckets[bucketIdx];
-    bucket.rwLock.LockRead();
-    auto it = bucket.maps.find(h);
-    if (it != bucket.maps.end()) {
-        for (auto descIt = it->second.begin(); descIt != it->second.end(); ++descIt) {
-            if (**descIt == desc) {
-                bucket.rwLock.UnlockRead();
-                return *descIt;
-            }
+    // Lock free. The acquire load of head pairs with the release store in
+    // InsertGenericTiDesc, and that one pairing covers the whole chain, not
+    // just the head: each writer acquires the head it is about to link onto
+    // before releasing its own node, so writer N is ordered after writer N-1
+    // and, by induction, after all of them. A reader that acquires the head
+    // published by the newest writer therefore has every node below it fully
+    // constructed.
+    //
+    // The rest of the walk then needs no ordering at all, for two reasons.
+    //
+    // Every field it touches -- hash, tt, argSize, argsVector and next -- is
+    // written either by the copy constructor or by the link step, both of
+    // which run before the release store, and none of them is ever written
+    // again; operator= is deleted, and insertion is at the head, so an
+    // existing node's next is never rewritten either. The fields that do
+    // change after publication, typeInfo and status, are deliberately not read
+    // here: they are the caller's business and carry their own ordering. Do
+    // not add a check on them to this loop without revisiting that.
+    //
+    // And nodes are never freed: TypeInfoManager is held in an
+    // ImmortalWrapper, whose destructor does not run ~T(), so the map's own
+    // destructor never executes and no chain node is reclaimed while the
+    // process lives. A lock free reader needs no hazard pointers or RCU.
+    //
+    // A concurrent insertion may be missed, which is harmless: the caller
+    // falls through to InsertGenericTiDesc, which rescans under the write lock.
+    for (GenericTiDesc* cur = bucket.head.load(std::memory_order_acquire); cur != nullptr;
+         cur = cur->next.load(std::memory_order_relaxed)) {
+        // operator== compares the hash first, but it is out of line, so reject
+        // on the integer here to keep the common miss down to one compare.
+        if (cur->GetHash() == h && *cur == desc) {
+            return cur;
         }
     }
-    bucket.rwLock.UnlockRead();
     return nullptr;
 }
 
@@ -330,18 +353,28 @@ TypeInfoManager::GenericTiDesc* TypeInfoManager::GenericTiDescHashMap::InsertGen
     const size_t bucketIdx = h % buckets.size();
     auto &bucket = buckets[bucketIdx];
     bucket.rwLock.LockWrite();
-    auto it = bucket.maps.find(h);
-    if (it != bucket.maps.end()) {
-        for (auto descIt = it->second.begin(); descIt != it->second.end(); ++descIt) {
-            if (**descIt == desc) {
-                bucket.rwLock.UnlockWrite();
-                return *descIt;
-            }
+    // Acquire, not relaxed, even though this runs under the write lock. It is
+    // this load, not the lock, that orders this writer after every writer
+    // before it: RwLock::LockWrite's compare_exchange is release-only, so its
+    // load half is relaxed and taking the lock does not synchronise-with the
+    // previous holder's UnlockWrite. Pairing this acquire with the release
+    // store below chains the writers to each other, which is what extends the
+    // reader's single acquire on head to nodes two or more links deep.
+    for (GenericTiDesc* cur = bucket.head.load(std::memory_order_acquire); cur != nullptr;
+         cur = cur->next.load(std::memory_order_relaxed)) {
+        if (cur->GetHash() == h && *cur == desc) {
+            bucket.rwLock.UnlockWrite();
+            return cur;
         }
     }
     GenericTiDesc* tiDesc = new (std::nothrow) GenericTiDesc(desc);
     CHECK_DETAIL(tiDesc != nullptr, "fail to allocate GenericTiDesc");
-    bucket.maps[h].push_back(tiDesc);
+    // Link first, publish second. The release store is the point at which the
+    // node becomes visible to lock free readers, so everything it must carry --
+    // its own fields and its next pointer -- has to be in place before it.
+    // Acquire on the head read for the same reason as the rescan above.
+    tiDesc->next.store(bucket.head.load(std::memory_order_acquire), std::memory_order_relaxed);
+    bucket.head.store(tiDesc, std::memory_order_release);
     bucket.rwLock.UnlockWrite();
     return tiDesc;
 }

@@ -111,6 +111,11 @@ private:
         U32 argSize;
         TypeInfo** args;
         U32 hash;
+        // Link to the next entry of the bucket this desc was inserted into.
+        // Written once, under the bucket write lock, before the desc is
+        // published; never modified afterwards. The copy constructor above
+        // deliberately leaves it null: a copy is always a fresh, unlinked node.
+        std::atomic<GenericTiDesc*> next { nullptr };
     private:
         std::vector<TypeInfo*> argsVector = { };
         std::atomic<TypeInfoStatus> status { TypeInfoStatus::TYPEINFO_NOT_CREATED };
@@ -122,20 +127,34 @@ private:
         ~GenericTiDescHashMap()
         {
             for (auto &bucket : buckets) {
-                for (auto &vec : bucket.maps) {
-                    for (auto desc : vec.second) {
-                        delete desc;
-                        desc = nullptr;
-                    }
+                GenericTiDesc* desc = bucket.head.load(std::memory_order_relaxed);
+                while (desc != nullptr) {
+                    GenericTiDesc* next = desc->next.load(std::memory_order_relaxed);
+                    delete desc;
+                    desc = next;
                 }
+                bucket.head.store(nullptr, std::memory_order_relaxed);
             }
             buckets.clear();
         }
         GenericTiDesc* InsertGenericTiDesc(GenericTiDesc& desc);
         GenericTiDesc* GetGenericTiDesc(GenericTiDesc& desc);
     private:
+        // Separate-chaining hash table with a fixed bucket count. Fixed is the
+        // point: nothing is ever rehashed, no chain node is ever moved or
+        // freed while the process runs, so a lookup needs no lock and no
+        // shared-memory write of any kind -- it is a walk over immutable
+        // nodes. rwLock therefore serialises writers against each other only;
+        // readers never touch it.
+        //
+        // The previous shape was an unordered_map per bucket keyed on the same
+        // hash the bucket index is derived from, i.e. the key was hashed twice,
+        // and every lookup had to announce itself on the bucket's lock so that
+        // a rehash could not pull the table out from under it. Insertions stop
+        // after warmup, so that announcement was a per-lookup contended atomic
+        // guarding against a writer that never arrives.
         struct Bucket {
-            std::unordered_map<U32, std::vector<GenericTiDesc*>> maps;
+            std::atomic<GenericTiDesc*> head { nullptr };
             RwLock rwLock;
         };
 
