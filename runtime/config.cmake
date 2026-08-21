@@ -312,9 +312,16 @@ elseif (WINDOWS_FLAG MATCHES 1)
         -fno-rtti -Wall -fstack-protector-strong -Wno-inconsistent-dllimport -fno-strict-aliasing -fno-common")
 elseif (ANDROID_FLAG MATCHES 1 OR ANDROID_FLAG MATCHES 2)
     message("android toolchain, clang version=${CLANG_VERSION_STRING}")
+    # A CJThread may park on one pthread and resume on another.  Android 6
+    # keeps the default stack-protector guard in pthread TLS, so use libc's
+    # process-wide guard for the API 23 runtime.
+    set(ANDROID_STACK_PROTECTOR_GUARD "")
+    if (ANDROID_TARGET_API MATCHES "android23")
+        set(ANDROID_STACK_PROTECTOR_GUARD "-mstack-protector-guard=global")
+    endif ()
     set(CMAKE_INIT_FLAGS "-Wno-unused-command-line-argument -fno-omit-frame-pointer \
     -fvisibility=hidden -fno-exceptions -fno-rtti -ffunction-sections -Wall \
-        -fstack-protector-strong -fPIC -fno-strict-aliasing -fno-common ${ANDROID_INCLUDE}"
+        -fstack-protector-strong ${ANDROID_STACK_PROTECTOR_GUARD} -fPIC -fno-strict-aliasing -fno-common ${ANDROID_INCLUDE}"
     )
 elseif (ANDROID_FLAG MATCHES 3)
     message("android toolchain, clang version=${CLANG_VERSION_STRING}")

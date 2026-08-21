@@ -81,6 +81,13 @@ set(CMAKE_CXX_FLAGS
     -pipe"
 )
 
+# CJThread stack frames may be resumed by a different pthread. Android 6's
+# default TLS guard is therefore unsuitable for these movable frames.
+if (ANDROID_TARGET_API STREQUAL "android23")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -mstack-protector-guard=global")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mstack-protector-guard=global")
+endif ()
+
 add_compile_definitions(
     "_LARGEFILE_SOURCE"
     "_FILE_OFFSET_BITS=64"
