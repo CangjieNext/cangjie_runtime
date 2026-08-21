@@ -416,7 +416,7 @@ public class ConcurrentTestCase {
         name: String,
         scenario!: ConcurrentScenario<S>,
         configuration!: Configuration = Configuration()
-    ): ConcurrentTestCase where S <: Any {
+    ): ConcurrentTestCase {
         let executor = ConcurrentExecutor<S>(scenario: scenario)
         ConcurrentTestCase(name, configuration, executor)
     }
@@ -425,25 +425,9 @@ public class ConcurrentTestCase {
         name: String,
         builder!: ScenarioBuilder<S>,
         configuration!: Configuration = Configuration()
-    ): ConcurrentTestCase where S <: Any {
+    ): ConcurrentTestCase {
         create(name, scenario: builder.build(), configuration: configuration)
     }
-}
-
-public func concurrentTest<S>(
-    name: String,
-    scenario!: ConcurrentScenario<S>,
-    configuration!: Configuration = Configuration()
-): ConcurrentTestCase where S <: Any {
-    ConcurrentTestCase.create(name, scenario: scenario, configuration: configuration)
-}
-
-public func concurrentTest<S>(
-    name: String,
-    builder!: ScenarioBuilder<S>,
-    configuration!: Configuration = Configuration()
-): ConcurrentTestCase where S <: Any {
-    ConcurrentTestCase.createFromBuilder(name, builder: builder, configuration: configuration)
 }
 
 public struct TestCaseInfo {

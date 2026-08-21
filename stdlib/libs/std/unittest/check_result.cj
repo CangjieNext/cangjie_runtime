@@ -373,9 +373,9 @@ class ConcurrentTestCheckResult <: CheckResult {
         match (iterationResult.consistencyValidation) {
             case Some(consResult) =>
                 if (!consResult.isConsistent) {
-                    var details = consResult.report() + "\n"
+                    var details = consResult.report().toString() + "\n"
                     if (let Some(mismatchTable) <- consResult.getMismatchTable()) {
-                        details = details + mismatchTable
+                        details = details + mismatchTable.toString()
                     } else {
                         details = details + consResult.getOperationHistory()
                     }
