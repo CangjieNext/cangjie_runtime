@@ -25,9 +25,9 @@ size_t MixedRegionManager::ClassifyYoungRegions()
     double exempt = exemptedRegionThreshold;
     auto visitor = [this, exempt, &floatingGarbage](RegionInfo* fromRegion) {
         long rawPtrCnt = fromRegion->GetRawPointerObjectCount();
-        if (rawPtrCnt == 0 && fromRegion->IsPrompted()) {
+        if (rawPtrCnt == 0 && fromRegion->IsPromoted()) {
             RemoveRegionLocked(&fromRegionList, fromRegion);
-            promptRegionList.PrependRegion(fromRegion, RegionInfo::RegionType::FROM_PROMPT_REGION);
+            promoteRegionList.PrependRegion(fromRegion, RegionInfo::RegionType::FROM_PROMOTE_REGION);
             return;
         }
         size_t threshold = static_cast<size_t>(exempt * fromRegion->GetRegionSize());
@@ -46,14 +46,14 @@ size_t MixedRegionManager::ClassifyYoungRegions()
     };
     fromRegionList.VisitAllRegions(visitor);
 
-    auto promptSweepVisitor = [this](RegionInfo* region) {
+    auto promoteSweepVisitor = [this](RegionInfo* region) {
         long rawPtrCnt = region->GetRawPointerObjectCount();
-        if (rawPtrCnt == 0 && region->IsPrompted()) {
+        if (rawPtrCnt == 0 && region->IsPromoted()) {
             RemoveRegionLocked(&sweepableYoungRegionList, region);
             recentFullRegionList.PrependRegion(region, RegionInfo::RegionType::RECENT_FULL_REGION);
         }
     };
-    sweepableYoungRegionList.VisitAllRegions(promptSweepVisitor);
+    sweepableYoungRegionList.VisitAllRegions(promoteSweepVisitor);
 
     size_t newFromBytes = fromRegionList.GetUnitCount() * RegionInfo::UNIT_SIZE;
     size_t exemptedFromBytes = unmovableFromRegionList.GetUnitCount() * RegionInfo::UNIT_SIZE;
@@ -88,58 +88,58 @@ private:
     GCThreadPool* threadPool;
 };
 
-class PromptRegionsTask : public HeapWork {
+class PromoteRegionsTask : public HeapWork {
 public:
-    PromptRegionsTask(MixedRegionManager& mgr, RegionList& promptList, GCThreadPool* pool)
-        : mixedManager(mgr), promptRegionList(promptList), threadPool(pool) {}
+    PromoteRegionsTask(MixedRegionManager& mgr, RegionList& promoteList, GCThreadPool* pool)
+        : mixedManager(mgr), promoteRegionList(promoteList), threadPool(pool) {}
 
-    ~PromptRegionsTask() override = default;
+    ~PromoteRegionsTask() override = default;
 
     void Execute(size_t) override
     {
         constexpr size_t BATCH = 10;
         for (size_t i = 0; i < BATCH; i++) {
-            RegionInfo* region = promptRegionList.TakeHeadRegion();
+            RegionInfo* region = promoteRegionList.TakeHeadRegion();
             if (region == nullptr) {
                 return;
             }
-            mixedManager.PromptRegion(region);
+            mixedManager.PromoteRegion(region);
         }
-        threadPool->AddWork(new (std::nothrow) PromptRegionsTask(mixedManager, promptRegionList, threadPool));
+        threadPool->AddWork(new (std::nothrow) PromoteRegionsTask(mixedManager, promoteRegionList, threadPool));
     }
 
 private:
     MixedRegionManager& mixedManager;
-    RegionList& promptRegionList;
+    RegionList& promoteRegionList;
     GCThreadPool* threadPool;
 };
 
-bool MixedRegionManager::PromptRegion(RegionInfo* fromRegion)
+bool MixedRegionManager::PromoteRegion(RegionInfo* fromRegion)
 {
     do {
         RegionInfo::RouteState oldState = fromRegion->GetRouteState();
-        if (oldState == RegionInfo::RouteState::PROMPTED) {
+        if (oldState == RegionInfo::RouteState::PROMOTED) {
             return true;
         }
         if (oldState == RegionInfo::RouteState::ROUTED || oldState == RegionInfo::RouteState::COMPACTED) {
-            LOG(RTLOG_FATAL, "prompt a wrong from region");
+            LOG(RTLOG_FATAL, "promote a wrong from region");
         }
         if (oldState == RegionInfo::RouteState::ROUTING) {
             sched_yield();
             continue;
         }
         if (fromRegion->TryLockRouting(oldState)) {
-            PromptRegionImpl(fromRegion);
-            fromRegion->SetRouteState(RegionInfo::RouteState::PROMPTED);
+            PromoteRegionImpl(fromRegion);
+            fromRegion->SetRouteState(RegionInfo::RouteState::PROMOTED);
             return true;
         }
     } while (true);
 }
 
-void MixedRegionManager::PromptRegionImpl(RegionInfo* fromRegion)
+void MixedRegionManager::PromoteRegionImpl(RegionInfo* fromRegion)
 {
     CHECK(fromRegion->IsRoutingState());
-    DLOG(PROMPT, "promt region %p [%p, %p]", fromRegion, fromRegion->GetRegionStart(), fromRegion->GetRegionEnd());
+    DLOG(PROMOTE, "promote region %p [%p, %p]", fromRegion, fromRegion->GetRegionStart(), fromRegion->GetRegionEnd());
     CopyCollector& collector = reinterpret_cast<CopyCollector&>(Heap::GetHeap().GetCollector());
     ObjectForwardingTable* fwdTable = fromRegion->GetForwardingTable();
     if (fwdTable == nullptr) {
@@ -158,12 +158,14 @@ void MixedRegionManager::PromptRegionImpl(RegionInfo* fromRegion)
         uint8_t age = fromRegion->GetObjectAge(currentObj);
         GenerationAllocBuffer* buffer = GenerationAllocBuffer::GetGenerationAllocBuffer();
         size_t allocSize = RegionSpace::GetAllocSize(*currentObj);
-        bool needPrompt = age >= PROMPT_AGE;
-        MAddress toAddress = needPrompt ? buffer->AllocateOld(allocSize) : buffer->AllocateYoung(allocSize);
+        bool needPromote = age >= PROMOTE_AGE;
+        MAddress toAddress = needPromote ? buffer->AllocateOld(allocSize) : buffer->AllocateYoung(allocSize);
         BaseObject* toObj = reinterpret_cast<BaseObject*>(toAddress);
+        DLOG(FORWARD, "promote obj %s %p<%p>(%zu) to %s %p", currentObj, currentObj->GetTypeInfo(), allocSize,
+             needPromote ? "to young" : "to old", toObj);
         collector.CopyObject(*currentObj, *toObj, allocSize);
         toObj->SetStateCode(ObjectState::NORMAL);
-        if (needPrompt) {
+        if (needPromote) {
             RegionInfo* sourceRegion = RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(toObj));
             toObj->ForEachRefField([sourceRegion](RefField<>& field) {
                 RefField<> tmp(field);
@@ -186,7 +188,7 @@ void MixedRegionManager::PromptRegionImpl(RegionInfo* fromRegion)
                     refRegion = RegionInfo::GetRegionInfoAt(target);
                     isOld = refRegion->IsOldRegion();
                 }
-                // The object that being prompted in current gc is also recorded, since we need to fix pointer.
+                // The object that is being promoted in current gc is also recorded, since we need to fix its pointer.
                 if (!isOld) {
                     RememberSet::Instance().Record(sourceRegion, reinterpret_cast<uintptr_t>(&field));
                 }
@@ -205,17 +207,17 @@ void MixedRegionManager::ForwardFromSpace(GCThreadPool* threadPool)
     if (threadPool == nullptr) {
         ForwardFromRegions();
         while (true) {
-            RegionInfo* region = promptRegionList.TakeHeadRegion();
+            RegionInfo* region = promoteRegionList.TakeHeadRegion();
             if (region == nullptr) {
                 break;
             }
-            PromptRegion(region);
+            PromoteRegion(region);
         }
         return;
     }
     threadPool->Start();
     threadPool->AddWork(new (std::nothrow) ForwardFromSpaceTask(*this, fromRegionList, threadPool));
-    threadPool->AddWork(new (std::nothrow) PromptRegionsTask(*this, promptRegionList, threadPool));
+    threadPool->AddWork(new (std::nothrow) PromoteRegionsTask(*this, promoteRegionList, threadPool));
     threadPool->WaitFinish();
 
     Heap::GetHeap().GetAllocator().VisitAllocBuffers([this](AllocBuffer& buffer) {
@@ -231,10 +233,10 @@ bool MixedRegionManager::IsYoungSpaceHeavy() const
     return Heap::GetHeap().IsGcStarted();
 }
 
-BaseObject* MixedRegionManager::PromptObject(BaseObject* fromObj, RegionInfo* fromRegion)
+BaseObject* MixedRegionManager::PromoteObject(BaseObject* fromObj, RegionInfo* fromRegion)
 {
-    CHECK(fromRegion->IsPrompted0());
-    PromptRegion(fromRegion);
+    CHECK(fromRegion->IsPromoted0());
+    PromoteRegion(fromRegion);
     ObjectForwardingTable* fwdTable = fromRegion->GetForwardingTable();
     return fwdTable->GetRoute(fromObj);
 }

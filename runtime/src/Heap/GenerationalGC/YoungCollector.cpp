@@ -102,7 +102,7 @@ void YoungCollector::EnumRefFieldRoot(RefField<>& field, RootSet& rootSet) const
     }
     RegionInfo* latestRegion = RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(latest));
     bool isTargetAddress = IsTargetRegion(latestRegion);
-    // If the pointer is old pointer, we must fix it in case of it's a prompted object in last gc.
+    // If the pointer is old pointer, we must fix it in case of it's a promoted object in last gc.
     if (!isTargetAddress && !isOldPtr) {
         return;
     }
@@ -132,6 +132,7 @@ void YoungCollector::EnumAndTagRawRoot(ObjectRef& ref, RootSet& rootSet) const
     CHECK_DETAIL(!IsOldPointer(oldField), "EnumAndTagRawRoot failed: Invalid root: %zx", oldField.GetFieldValue());
     if (IsCurrentPointer(oldField)) {
         rootSet.push_back(oldField.GetTargetObject());
+        DLOG(ENUM, "[YOUNG] enum raw root @%p: %#zx %p(%zu)", &ref, oldField.GetFieldValue(), oldField.GetTargetObject());
         return;
     }
     BaseObject* root = oldField.GetTargetObject();
@@ -139,17 +140,17 @@ void YoungCollector::EnumAndTagRawRoot(ObjectRef& ref, RootSet& rootSet) const
         CHECK_DETAIL(root->IsValidObject(), "Enum and tag runtime root %p(%p) encounters invalid object", root, &ref);
         RefField<> newField = GetAndTryTagRefField(root);
         if (oldField.GetFieldValue() == newField.GetFieldValue()) {
-            DLOG(ENUM, "enum young raw root @%p: %p(%zu)", &ref, root, root->GetSize());
+            DLOG(ENUM, "[YOUNG] enum young raw root @%p: %p(%zu)", &ref, root, root->GetSize());
         } else if (refField.CompareExchange(oldField.GetFieldValue(), newField.GetFieldValue())) {
-            DLOG(ENUM, "enum young static ref@%p: %#zx=>%#zx -> %p<%p>(%zu)", &refField, oldField.GetFieldValue(),
+            DLOG(ENUM, "[YOUNG] enum young static ref@%p: %#zx=>%#zx -> %p<%p>(%zu)", &refField, oldField.GetFieldValue(),
                  newField.GetFieldValue(), root, root->GetTypeInfo(), root->GetSize());
         } else {
-            DLOG(ENUM, "enum young static ref@%p: %#zx -> %p<%p>(%zu)", &refField, oldField.GetFieldValue(), root,
+            DLOG(ENUM, "[YOUNG] enum young static ref@%p: %#zx -> %p<%p>(%zu)", &refField, oldField.GetFieldValue(), root,
                  root->GetTypeInfo(), root->GetSize());
         }
         rootSet.push_back(root);
     } else {
-        DLOG(ENUM, "skip young invalid ref@%p: %#zx -> %p", &refField, oldField.GetFieldValue(), root);
+        DLOG(ENUM, "[YOUNG] skip young invalid ref@%p: %#zx -> %p", &refField, oldField.GetFieldValue(), root);
     }
 }
 
@@ -174,7 +175,10 @@ bool YoungCollector::IsYoungHeapAddress(BaseObject* obj) const
 
 bool YoungCollector::MarkObject(BaseObject* obj) const
 {
-    if (!IsTargetAddress(obj)) { return true; }
+    if (!IsTargetAddress(obj)) {
+        DLOG(TRACE, "[YOUNG] trace skip non-target object %p", obj);
+        return true;
+    }
 
     RegionInfo* region = RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(obj));
     size_t objectSize = obj->GetSize();
@@ -183,11 +187,12 @@ bool YoungCollector::MarkObject(BaseObject* obj) const
         // TODO: can be aggregated in MarkObject.
         region->AddLiveByteCount(objectSize);
         uint8_t age = region->IncObjectAge(obj);
-        if (!region->IsOldRegion() && ShouldPrompt(age)) {
-            TagPromptRegion(region);
+        if (!region->IsOldRegion() && ShouldPromote(age)) {
+            DLOG(PROMOTE, "[YOUNG] found a long liveness object %p to be promoted");
+            TagPromoteRegion(region);
         }
         (void)region;
-        DLOG(TRACE, "mark obj %p<%p>(%zu) in region %p(%u)@%#zx, live %u", obj, obj->GetTypeInfo(), objectSize,
+        DLOG(TRACE, "[YOUNG] mark obj %p<%p>(%zu) in region %p(%u)@%#zx, live %u", obj, obj->GetTypeInfo(), objectSize,
              region, region->GetRegionType(), region->GetRegionStart(), region->GetLiveByteCount());
     }
     return marked;
@@ -201,16 +206,16 @@ BaseObject* YoungCollector::TryForwardObject(BaseObject* fromVersion)
         DLOG(FORWARD, "object %p is not in from region", fromVersion);
         return nullptr;
     }
-    if (!fromRegion->IsPrompted0()) {
+    if (!fromRegion->IsPromoted0()) {
         return WCollector::TryForwardObject(fromVersion);
     }
 
     MixedRegionSpace& space = static_cast<MixedRegionSpace&>(theAllocator);
     MixedRegionManager& manager = MixedRegionSpace::CastDown(space.GetRegionManager());
-    return manager.PromptObject(fromVersion, fromRegion);
+    return manager.PromoteObject(fromVersion, fromRegion);
 }
 
-bool YoungCollector::ShouldPrompt(uint8_t age) const {
+bool YoungCollector::ShouldPromote(uint8_t age) const {
     return age >= OLD_AGE;
 }
 
@@ -244,9 +249,9 @@ void YoungCollector::ForwardFromSpace()
     space.ForwardFromSpace(GetThreadPool());
 }
 
-void YoungCollector::TagPromptRegion(RegionInfo* regionInfo) const
+void YoungCollector::TagPromoteRegion(RegionInfo* regionInfo) const
 {
-    regionInfo->SetPromptedFlag(1);
+    regionInfo->SetPromotedFlag(1);
 }
 
 void YoungCollector::RefineFromSpace()
@@ -340,7 +345,7 @@ bool YoungCollector::TryUpdateRefField(BaseObject* obj, RefField<>& field, BaseO
     }
     RegionInfo* region = RegionInfo::GetGhostFromRegionAt(reinterpret_cast<uintptr_t>(fromObj));
 
-    if (region == nullptr || (region->IsGhostFromRegion() && !region->IsPrompted0())) {
+    if (region == nullptr || (region->IsGhostFromRegion() && !region->IsPromoted0())) {
         return WCollector::TryUpdateRefField(obj, field, newRef);
     }
     ObjectForwardingTable* fwdTable = region->GetForwardingTable();
@@ -366,12 +371,12 @@ bool YoungCollector::TryForwardRefField(BaseObject* obj, RefField<>& field, Base
         return WCollector::TryForwardRefField(obj, field, newRef);
     }
     RegionInfo* region = RegionInfo::GetGhostFromRegionAt(reinterpret_cast<uintptr_t>(fromObj));
-    if (region == nullptr || (region->IsGhostFromRegion() && !region->IsPrompted0())) {
+    if (region == nullptr || (region->IsGhostFromRegion() && !region->IsPromoted0())) {
         return WCollector::TryForwardRefField(obj, field, newRef);
     }
     MixedRegionSpace& space = static_cast<MixedRegionSpace&>(theAllocator);
     MixedRegionManager& manager = MixedRegionSpace::CastDown(space.GetRegionManager());
-    BaseObject* newObj = manager.PromptObject(fromObj, region);
+    BaseObject* newObj = manager.PromoteObject(fromObj, region);
     if (newObj != nullptr) {
         RefField<> newField(newObj);
         if (field.CompareExchange(oldRef.GetFieldValue(), newField.GetFieldValue())) {

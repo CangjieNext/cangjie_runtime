@@ -17,7 +17,7 @@ public:
         sweepableYoungRegionList("sweepable young region list"), oldSweptRegionList("old swept region list"),
         sweepableOldRegionList("sweepable old region list"), oldRegionList("old region list"),
         oldFromRegionList("old from region list"), ghostOldFromRegionList("ghost old from region list"),
-        promptRegionList("prompt region list"), ghostPromptRegionList("ghost prompt region list") {}
+        promoteRegionList("promote region list"), ghostPromoteRegionList("ghost promote region list") {}
     ~MixedRegionManager() = default;
     void AssembleYoungRegions()
     {
@@ -39,7 +39,7 @@ public:
 
     }
     size_t ClassifyYoungRegions();
-    bool PromptRegion(RegionInfo* fromRegion);
+    bool PromoteRegion(RegionInfo* fromRegion);
     void ForwardFromSpace(GCThreadPool* threadPool) override;
     void EnlistOldRegionList(RegionInfo* region) noexcept
     {
@@ -51,7 +51,7 @@ public:
     RegionList& GetSweptRegionList() { return sweptYoungRegionList; }
     RegionList& GetOldSweptRegionList() { return oldSweptRegionList; }
     bool IsYoungSpaceHeavy() const;
-    BaseObject* PromptObject(BaseObject* fromObj, RegionInfo* ghostFromRegion);
+    BaseObject* PromoteObject(BaseObject* fromObj, RegionInfo* ghostFromRegion);
     void PrepareYoungFromRegionList()
     {
         ghostFromRegionList.VisitAllGhostRegions([](RegionInfo* region) {
@@ -68,32 +68,32 @@ public:
 
         fromRegionList.CopyListTo(ghostFromRegionList);
 
-        ghostPromptRegionList.VisitAllGhostRegions([](RegionInfo* region) {
-            DLOG(REGION, "dispel ghost prompt region %p@[%#zx, %#zx)", region, region->GetRegionStart(),
+        ghostPromoteRegionList.VisitAllGhostRegions([](RegionInfo* region) {
+            DLOG(REGION, "dispel ghost promote region %p@[%#zx, %#zx)", region, region->GetRegionStart(),
                  region->GetRegionEnd());
             region->DispelGhostFromRegion();
         });
-        promptRegionList.VisitAllRegions([](RegionInfo* region) {
-            DLOG(REGION, "prepare promt region %p@[%#zx+%zu, %#zx)", region, region->GetRegionStart(),
+        promoteRegionList.VisitAllRegions([](RegionInfo* region) {
+            DLOG(REGION, "prepare promote region %p@[%#zx+%zu, %#zx)", region, region->GetRegionStart(),
                  region->GetLiveByteCount(), region->GetRegionEnd());
             region->PrepareForwardableRegion();
         });
-        promptRegionList.CopyListTo(ghostPromptRegionList);
+        promoteRegionList.CopyListTo(ghostPromoteRegionList);
     }
     void PrepareMixedFromRegionList()
     {
         RegionManager::PrepareFromRegionList(true);
-        ghostPromptRegionList.VisitAllGhostRegions([](RegionInfo* region) {
-            DLOG(REGION, "dispel ghost prompt region %p@[%#zx, %#zx)", region, region->GetRegionStart(),
+        ghostPromoteRegionList.VisitAllGhostRegions([](RegionInfo* region) {
+            DLOG(REGION, "dispel ghost promote region %p@[%#zx, %#zx)", region, region->GetRegionStart(),
                  region->GetRegionEnd());
             region->DispelGhostFromRegion();
         });
-        promptRegionList.VisitAllRegions([](RegionInfo* region) {
-            DLOG(REGION, "prepare promt region %p@[%#zx+%zu, %#zx)", region, region->GetRegionStart(),
+        promoteRegionList.VisitAllRegions([](RegionInfo* region) {
+            DLOG(REGION, "prepare promote region %p@[%#zx+%zu, %#zx)", region, region->GetRegionStart(),
                  region->GetLiveByteCount(), region->GetRegionEnd());
             region->PrepareForwardableRegion();
         });
-        promptRegionList.CopyListTo(ghostPromptRegionList);
+        promoteRegionList.CopyListTo(ghostPromoteRegionList);
         ghostOldFromRegionList.VisitAllGhostRegions([](RegionInfo* region) {
             DLOG(REGION, "dispel ghost old region %p@[%#zx, %#zx)", region, region->GetRegionStart(),
                  region->GetRegionEnd());
@@ -144,7 +144,7 @@ public:
         total -= GetFreeSlotTotalSize(oldSweptRegionList);
         total += oldRegionList.GetAllocatedSize();
         total += oldFromRegionList.GetAllocatedSize();
-        total += promptRegionList.GetAllocatedSize();
+        total += promoteRegionList.GetAllocatedSize();
         return total;
     }
     void AddRawPointerObject(BaseObject* obj) override
@@ -180,9 +180,9 @@ public:
         } else {
             CHECK(region->GetRegionType() != RegionInfo::RegionType::LONE_FROM_REGION);
         }
-        // Region may be moved from from region list to prompt region list, so it must be double checked after from region
-        if (region->IsFromPromptRegion() && promptRegionList.TryDeleteRegion(region,
-            RegionInfo::RegionType::FROM_PROMPT_REGION, RegionInfo::RegionType::SWEEP_REGION)) {
+        // Region may be moved from from region list to promote region list, so it must be double checked after from region
+        if (region->IsFromPromoteRegion() && promoteRegionList.TryDeleteRegion(region,
+            RegionInfo::RegionType::FROM_PROMOTE_REGION, RegionInfo::RegionType::SWEEP_REGION)) {
             GCPhase phase = Heap::GetHeap().GetGCPhase();
             CHECK(phase != GCPhase::GC_PHASE_FORWARD && phase != GCPhase::GC_PHASE_PREFORWARD &&
                 phase != GCPhase::GC_PHASE_GENERATION_FORWARD &&
@@ -206,8 +206,8 @@ private:
         }
         return total;
     }
-    static constexpr uint8_t PROMPT_AGE = 15;
-    void PromptRegionImpl(RegionInfo* fromRegion);
+    static constexpr uint8_t PROMOTE_AGE = 15;
+    void PromoteRegionImpl(RegionInfo* fromRegion);
     // TODO: parameters tuning.
     bool ShouldSplit(size_t unitCount) const
     {
@@ -229,8 +229,8 @@ private:
     RegionList oldRegionList;
     RegionList oldFromRegionList;
     RegionList ghostOldFromRegionList;
-    RegionList promptRegionList;
-    RegionList ghostPromptRegionList;
+    RegionList promoteRegionList;
+    RegionList ghostPromoteRegionList;
 };
 
 } // namespace MapleRuntime

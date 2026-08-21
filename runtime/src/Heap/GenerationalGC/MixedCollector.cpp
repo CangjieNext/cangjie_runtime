@@ -77,22 +77,25 @@ void MixedCollector::EnumAndTagRawRoot(ObjectRef& ref, RootSet& rootSet) const
     CHECK_DETAIL(!IsOldPointer(oldField), "EnumAndTagRawRoot failed: Invalid root: %zx", oldField.GetFieldValue());
     if (IsCurrentPointer(oldField)) {
         rootSet.push_back(oldField.GetTargetObject());
+        DLOG(ENUM, "[MIXED] enum raw root @%p: %#zx %p(%zu)", &ref, oldField.GetFieldValue(), oldField.GetTargetObject());
         return;
     }
     BaseObject* root = oldField.GetTargetObject();
     if (Heap::IsHeapAddress(root)) {
-        CHECK_DETAIL(root->IsValidObject(), "Enum and tag runtime root %p(%p) encounters invalid object", root, &ref);
+        CHECK_DETAIL(root->IsValidObject(), "[MIXED] Enum and tag runtime root %p(%p) encounters invalid object", root, &ref);
         RefField<> newField = GetAndTryTagRefField(root);
         if (oldField.GetFieldValue() == newField.GetFieldValue()) {
-            DLOG(ENUM, "enum raw root @%p: %p(%zu)", &ref, root, root->GetSize());
+            DLOG(ENUM, "[MIXED] enum raw root @%p: %p(%zu)", &ref, root, root->GetSize());
         } else if (refField.CompareExchange(oldField.GetFieldValue(), newField.GetFieldValue())) {
-            DLOG(ENUM, "enum static ref@%p: %#zx=>%#zx -> %p<%p>(%zu)", &refField, oldField.GetFieldValue(),
+            DLOG(ENUM, "[MIXED] enum raw ref@%p: %#zx=>%#zx -> %p<%p>(%zu)", &refField, oldField.GetFieldValue(),
                  newField.GetFieldValue(), root, root->GetTypeInfo(), root->GetSize());
         } else {
-            DLOG(ENUM, "enum static ref@%p: %#zx -> %p<%p>(%zu)", &refField, oldField.GetFieldValue(), root,
+            DLOG(ENUM, "[MIXED] enum raw ref@%p: %#zx -> %p<%p>(%zu)", &refField, oldField.GetFieldValue(), root,
                  root->GetTypeInfo(), root->GetSize());
         }
         rootSet.push_back(root);
+    } else {
+        DLOG(ENUM, "[MIXED] skip young invalid ref@%p: %#zx -> %p", &refField, oldField.GetFieldValue(), root);
     }
 }
 

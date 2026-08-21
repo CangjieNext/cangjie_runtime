@@ -83,7 +83,7 @@ public:
         ROUTED,
         COMPACTED,
         FORWARDED,
-        PROMPTED,
+        PROMOTED,
     };
 
     static const size_t UNIT_SIZE; // same as system page size
@@ -620,7 +620,7 @@ public:
         THREAD_LOCAL_REGION,
         RECENT_FULL_REGION,
         FROM_REGION,
-        FROM_PROMPT_REGION,
+        FROM_PROMOTE_REGION,
         LONE_FROM_REGION,
         UNMOVABLE_FROM_REGION,
         TO_REGION,
@@ -846,7 +846,7 @@ public:
         metadata.routeInfo.SetRouteInfo(0);
         if (GetLiveByteCount() > 0) {
             SetInGhostRegion(1);
-            SetPromptedFlag0(IsPrompted() ? 1 : 0);
+            SetPromotedFlag0(IsPromoted() ? 1 : 0);
             SetOldRegionFlag0(IsOldRegion() ? 1 : 0);
         }
 
@@ -879,7 +879,7 @@ public:
             for (size_t i = 0; i < nUnit; i++) {
                 array[i].SetInGhostRegion(0);
             }
-            SetPromptedFlag0(0);
+            SetPromotedFlag0(0);
             SetOldRegionFlag0(0);
         }
     }
@@ -893,7 +893,7 @@ public:
         size_t nUnit = GetGhostRegionUnitCount();
         UnitInfo* unit = reinterpret_cast<UnitInfo*>(this);
         UnitInfo::UnitInfoArray array = UnitInfo::UnitInfoArray(unit, nUnit);
-        SetPromptedFlag0(0);
+        SetPromotedFlag0(0);
         SetOldRegionFlag0(0);
         for (size_t i = 0; i < nUnit; i++) {
             array[i].SetInGhostRegion(0);
@@ -932,7 +932,7 @@ public:
     bool TryLockReadFromRegion()
     {
         if (metadata.rwLock.TryLockRead()) {
-            if (IsFromRegion() || IsLoneFromRegion() || IsFromPromptRegion()) {
+            if (IsFromRegion() || IsLoneFromRegion() || IsFromPromoteRegion()) {
                 return true;
             } else {
                 metadata.rwLock.UnlockRead();
@@ -983,16 +983,16 @@ public:
     {
         metadata.regionStateBitField.SetAtomicValue(RegionStateBitPos::RESURRECTED_REGION_FLAG, 1, flag);
     }
-    void SetPromptedFlag(uint8_t flag)
+    void SetPromotedFlag(uint8_t flag)
     {
-        metadata.unitRoleBitField.SetAtomicValue(PROMPTED_FLAG_POS, 1, flag);
+        metadata.unitRoleBitField.SetAtomicValue(PROMOTED_FLAG_POS, 1, flag);
     }
-    bool IsPrompted() const { return metadata.isPrompted == 1; }
-    void SetPromptedFlag0(uint8_t flag)
+    bool IsPromoted() const { return metadata.isPromoted == 1; }
+    void SetPromotedFlag0(uint8_t flag)
     {
-        metadata.unitRoleBitField.SetAtomicValue(PROMPTED0_FLAG_POS, 1, flag);
+        metadata.unitRoleBitField.SetAtomicValue(PROMOTED0_FLAG_POS, 1, flag);
     }
-    bool IsPrompted0() const { return metadata.isPrompted0 == 1; }
+    bool IsPromoted0() const { return metadata.isPromoted0 == 1; }
     void SetOldRegionFlag(uint8_t flag)
     {
         metadata.unitRoleBitField.SetAtomicValue(OLD_FLAG_POS, 1, flag);
@@ -1143,11 +1143,14 @@ public:
     }
 
     bool IsFromRegion() const { return static_cast<RegionType>(metadata.regionType) == RegionType::FROM_REGION; }
-    bool IsFromPromptRegion() const { return static_cast<RegionType>(metadata.regionType) == RegionType::FROM_PROMPT_REGION; }
+    bool IsFromPromoteRegion() const
+    {
+        return static_cast<RegionType>(metadata.regionType) == RegionType::FROM_PROMOTE_REGION;
+    }
     bool IsMovableRegion() const
     {
         auto type = static_cast<RegionType>(metadata.regionType);
-        return type == RegionType::FROM_REGION || type == RegionType::FROM_PROMPT_REGION;
+        return type == RegionType::FROM_REGION || type == RegionType::FROM_PROMOTE_REGION;
     }
     bool IsLoneFromRegion() const
     {
@@ -1214,8 +1217,8 @@ private:
         RESURRECTED_REGION_FLAG
     };
 
-    static constexpr int32_t PROMPTED_FLAG_POS = 2 * BIT_LENGTH;
-    static constexpr int32_t PROMPTED0_FLAG_POS = 2 * BIT_LENGTH + 1;
+    static constexpr int32_t PROMOTED_FLAG_POS = 2 * BIT_LENGTH;
+    static constexpr int32_t PROMOTED0_FLAG_POS = 2 * BIT_LENGTH + 1;
     static constexpr int32_t OLD_FLAG_POS = 2 * BIT_LENGTH + 2;
     static constexpr int32_t OLD0_FLAG_POS = 2 * BIT_LENGTH + 3;
 
@@ -1254,8 +1257,8 @@ private:
             struct {
                 uint16_t unitRole : BIT_LENGTH;
                 uint16_t unitRole0 : BIT_LENGTH; // unit class before forwarded and reclaimed.
-                uint16_t isPrompted : 1;
-                uint16_t isPrompted0 : 1;
+                uint16_t isPromoted : 1;
+                uint16_t isPromoted0 : 1;
                 uint16_t isOld : 1;
                 uint16_t isOld0 : 1;
             };

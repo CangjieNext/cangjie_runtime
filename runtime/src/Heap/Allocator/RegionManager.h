@@ -481,7 +481,7 @@ public:
         CHECK(fromRegionInfo->IsGhostFromRegion());
         do {
             RegionInfo::RouteState oldState = fromRegionInfo->GetRouteState();
-            CHECK(oldState != RegionInfo::RouteState::PROMPTED);
+            CHECK(oldState != RegionInfo::RouteState::PROMOTED);
             if (oldState == RegionInfo::RouteState::ROUTED || oldState == RegionInfo::RouteState::FORWARDED) {
                 return true;
             }

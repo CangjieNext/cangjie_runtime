@@ -155,7 +155,7 @@ MAddress GenerationAllocBuffer::AllocateOldOnNewRegion(MixedRegionManager &manag
     RegionInfo* r = manager.AllocateThreadLocalRegion();
     CJThreadPreemptOffCntSub();
     if (UNLIKELY(r == nullptr)) {
-        LOG(RTLOG_FATAL, "prompt object failed");
+        LOG(RTLOG_FATAL, "promote object failed");
         return 0;
     }
     r->SetOldRegionFlag(1);

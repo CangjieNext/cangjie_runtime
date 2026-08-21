@@ -196,7 +196,12 @@ void WCollector::TraceRefField(BaseObject* obj, RefField<>& field, WorkStack& wo
     if (IsCurrentPointer(oldField)) {
         BaseObject* targetObj = oldField.GetTargetObject();
         if (!IsMarkedObject(targetObj)) {
+            DLOG(TRACE, "trace obj %p ref@%p: %p<%p>(%zu)", obj, &field, targetObj, targetObj->GetTypeInfo(),
+                targetObj->GetSize());
             workStack.push_back(targetObj);
+        } else {
+            DLOG(TRACE, "skip obj %p ref@%p: %p<%p>(%zu)", obj, &field, targetObj, targetObj->GetTypeInfo(),
+                targetObj->GetSize());
         }
         return;
     }

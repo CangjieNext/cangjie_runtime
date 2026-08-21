@@ -637,8 +637,11 @@ inline void Mutator::GCPhasePreForward(GCPhase newPhase)
             if (!rootFieldSet.insert((void*)(&refFieldAddr)).second) { return; }
             BaseObject* toObj = collector.ForwardObject(oldObj);
             if (oldObj != toObj) { refFieldAddr.SetTargetObject(toObj); }
+            DLOG(ENUM, "fix stack pointer @%p %p->%p", &refFieldAddr, oldObj, toObj);
         } else if (IsStackAddr(reinterpret_cast<uintptr_t>(oldObj))) {
             CheckAndPush(oldObj, rootSet, rootStack);
+        } else {
+            DLOG(ENUM, "skip stack pointer @%p %p", &refFieldAddr, refFieldAddr.GetTargetObject());
         }
     };
 
@@ -649,8 +652,11 @@ inline void Mutator::GCPhasePreForward(GCPhase newPhase)
             if (!rootFieldSet.insert((void*)(&root)).second) { return; }
             BaseObject* toObj = collector.ForwardObject(oldObj);
             if (oldObj != toObj) { root.object = toObj; }
+            DLOG(ENUM, "fix stack pointer @%p %p->%p", &root, oldObj, toObj);
         } else if (IsStackAddr(reinterpret_cast<uintptr_t>(oldObj))) {
             CheckAndPush(oldObj, rootSet, rootStack);
+        } else {
+            DLOG(ENUM, "skip stack pointer @%p %p", &root, root.object);
         }
         while (!rootStack.empty()) {
             BaseObject* obj = rootStack.top();
