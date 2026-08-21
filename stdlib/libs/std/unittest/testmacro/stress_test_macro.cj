@@ -10,14 +10,10 @@ macro package std.unittest.testmacro
 import std.ast.*
 
 /**
- *
- * The macro only add inner macro @Attribute to outer macro Test.
- * The macro can be only defined at func.
- *
- * @since TODO
- * @see ConcurrentTest
- *
- * @throws MacroException if input is not FuncDecl.
+ * @StressTest macro marks function as a concurrent test inside @ConcurrentTest
+ * class C. Function must declare first parameter (e.g. named "scenario") of type
+ * ScenarioBuilder<C> and generator must be specified to this parameter:
+ * @StressTest[scenario in scenarios()].
  */
 public macro StressTest(input: Tokens): Tokens {
     return topLevelMacroDriver(STRESS_TEST_MACRO, input, Tokens(), { it => insideParentContext(it.macroIdentifier) })

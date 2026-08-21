@@ -13,6 +13,11 @@ macro package std.unittest.testmacro
 
 import std.ast.*
 
+/**
+ * @After macro marks the function that will be executed after each scenario
+ * iteration. The function can be marked with @After only inside @ConcurrentTest
+ * class. There can be not more than one function marked with @After.
+ */
 public macro After(input: Tokens): Tokens {
     topLevelMacroDriver(AFTER_MACRO, input, Tokens(), { it => insideParentContext(it.macroIdentifier) })
 }
