@@ -620,6 +620,7 @@ public:
         THREAD_LOCAL_REGION,
         RECENT_FULL_REGION,
         FROM_REGION,
+        FROM_PROMPT_REGION,
         LONE_FROM_REGION,
         UNMOVABLE_FROM_REGION,
         TO_REGION,
@@ -835,7 +836,7 @@ public:
 
     void PrepareForwardableRegion()
     {
-        CHECK(IsFromRegion());
+        CHECK(IsMovableRegion());
         CHECK(static_cast<UnitRole>(metadata.unitRole) == UnitRole::SMALL_SIZED_UNITS);
         CHECK(metadata.inGhostFromRegion == 0);
         metadata.routeState = FORWARDABLE;
@@ -931,7 +932,7 @@ public:
     bool TryLockReadFromRegion()
     {
         if (metadata.rwLock.TryLockRead()) {
-            if (IsFromRegion() || IsLoneFromRegion()) {
+            if (IsFromRegion() || IsLoneFromRegion() || IsFromPromptRegion()) {
                 return true;
             } else {
                 metadata.rwLock.UnlockRead();
@@ -1142,6 +1143,12 @@ public:
     }
 
     bool IsFromRegion() const { return static_cast<RegionType>(metadata.regionType) == RegionType::FROM_REGION; }
+    bool IsFromPromptRegion() const { return static_cast<RegionType>(metadata.regionType) == RegionType::FROM_PROMPT_REGION; }
+    bool IsMovableRegion() const
+    {
+        auto type = static_cast<RegionType>(metadata.regionType);
+        return type == RegionType::FROM_REGION || type == RegionType::FROM_PROMPT_REGION;
+    }
     bool IsLoneFromRegion() const
     {
         return static_cast<RegionType>(metadata.regionType) == RegionType::LONE_FROM_REGION;

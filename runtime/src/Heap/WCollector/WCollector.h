@@ -109,7 +109,7 @@ public:
         // filter const string object.
         if (Heap::IsHeapAddress(obj)) {
             auto regionInfo = RegionInfo::GetRegionInfoAt(reinterpret_cast<uintptr_t>(obj));
-            return regionInfo->IsFromRegion();
+            return regionInfo->IsMovableRegion();
         }
 
         return false;

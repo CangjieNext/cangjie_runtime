@@ -183,7 +183,7 @@ bool YoungCollector::MarkObject(BaseObject* obj) const
         // TODO: can be aggregated in MarkObject.
         region->AddLiveByteCount(objectSize);
         uint8_t age = region->IncObjectAge(obj);
-        if (ShouldPrompt(age)) {
+        if (!region->IsOldRegion() && ShouldPrompt(age)) {
             TagPromptRegion(region);
         }
         (void)region;
@@ -218,21 +218,7 @@ void YoungCollector::EnumRememberedRoots(RootSet& rootSet) const
 {
     RememberSet::Instance().VisitRememberedSlots([this, &rootSet](uintptr_t slotAddr) {
         RefField<>* field = reinterpret_cast<RefField<>*>(slotAddr);
-        BaseObject* oldTarget = field->GetTargetObject();
-        if (!Heap::IsHeapAddress(oldTarget)) {
-            return;
-        }
-        bool isOld = false;
-        RegionInfo* targetRegion = RegionInfo::GetGhostFromRegionAt(reinterpret_cast<MAddress>(oldTarget));
-        if (targetRegion == nullptr) {
-            targetRegion = RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(oldTarget));
-            isOld = targetRegion != nullptr ? targetRegion->IsOldRegion() : isOld;
-        } else {
-            isOld = targetRegion->IsOld0();
-        }
-        if (targetRegion == nullptr || isOld) {
-            return;
-        }
+        DLOG(ENUM, "[generation] scan remember set root %p(%p)", field, field->GetTargetObject());
         EnumRefFieldRoot(*field, rootSet);
     });
 }

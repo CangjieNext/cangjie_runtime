@@ -156,28 +156,41 @@ public:
                 if (oldFromRegionList.TryDeleteRegion(region, RegionInfo::RegionType::FROM_REGION,
                                                       RegionInfo::RegionType::SWEEP_REGION)) {
                     GCPhase phase = Heap::GetHeap().GetGCPhase();
-                    CHECK(phase != GCPhase::GC_PHASE_FORWARD && phase != GCPhase::GC_PHASE_PREFORWARD);
+                    CHECK(phase != GCPhase::GC_PHASE_FORWARD && phase != GCPhase::GC_PHASE_PREFORWARD &&
+                          phase != GCPhase::GC_PHASE_GENERATION_FORWARD &&
+                          phase != GCPhase::GC_PHASE_GENERATION_PREFORWARD);
                     if (phase == GCPhase::GC_PHASE_POST_TRACE || phase == GCPhase::GC_PHASE_GENERATION_POST_TRACE) {
                         region->ClearGhostRegionBit();
                     }
-                    sweepableOldRegionList.PrependRegion(region, RegionInfo::RegionType::RAW_POINTER_PINNED_REGION);
+                    sweepableOldRegionList.PrependRegion(region, RegionInfo::RegionType::SWEEP_REGION);
                 }
             } else {
-                bool needRemove = region->IsPrompted() ? promptRegionList.TryDeleteRegion(region,
-                    RegionInfo::RegionType::FROM_REGION, RegionInfo::RegionType::SWEEP_REGION) :
-                    fromRegionList.TryDeleteRegion(region, RegionInfo::RegionType::FROM_REGION,
-                    RegionInfo::RegionType::SWEEP_REGION);
-                if (needRemove) {
+                if (fromRegionList.TryDeleteRegion(region, RegionInfo::RegionType::FROM_REGION,
+                                                   RegionInfo::RegionType::SWEEP_REGION)) {
                     GCPhase phase = Heap::GetHeap().GetGCPhase();
-                    CHECK(phase != GCPhase::GC_PHASE_FORWARD && phase != GCPhase::GC_PHASE_PREFORWARD);
+                    CHECK(phase != GCPhase::GC_PHASE_FORWARD && phase != GCPhase::GC_PHASE_PREFORWARD &&
+                          phase != GCPhase::GC_PHASE_GENERATION_FORWARD &&
+                          phase != GCPhase::GC_PHASE_GENERATION_PREFORWARD);
                     if (phase == GCPhase::GC_PHASE_POST_TRACE || phase == GCPhase::GC_PHASE_GENERATION_POST_TRACE) {
                         region->ClearGhostRegionBit();
                     }
-                    sweepableYoungRegionList.PrependRegion(region, RegionInfo::RegionType::RAW_POINTER_PINNED_REGION);
+                    sweepableYoungRegionList.PrependRegion(region, RegionInfo::RegionType::SWEEP_REGION);
                 }
             }
         } else {
             CHECK(region->GetRegionType() != RegionInfo::RegionType::LONE_FROM_REGION);
+        }
+        // Region may be moved from from region list to prompt region list, so it must be double checked after from region
+        if (region->IsFromPromptRegion() && promptRegionList.TryDeleteRegion(region,
+            RegionInfo::RegionType::FROM_PROMPT_REGION, RegionInfo::RegionType::SWEEP_REGION)) {
+            GCPhase phase = Heap::GetHeap().GetGCPhase();
+            CHECK(phase != GCPhase::GC_PHASE_FORWARD && phase != GCPhase::GC_PHASE_PREFORWARD &&
+                phase != GCPhase::GC_PHASE_GENERATION_FORWARD &&
+                phase != GCPhase::GC_PHASE_GENERATION_PREFORWARD);
+            if (phase == GCPhase::GC_PHASE_POST_TRACE || phase == GCPhase::GC_PHASE_GENERATION_POST_TRACE) {
+                region->ClearGhostRegionBit();
+            }
+            sweepableYoungRegionList.PrependRegion(region, RegionInfo::RegionType::SWEEP_REGION);
         }
     }
     

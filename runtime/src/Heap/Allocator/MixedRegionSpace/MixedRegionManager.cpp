@@ -27,7 +27,7 @@ size_t MixedRegionManager::ClassifyYoungRegions()
         long rawPtrCnt = fromRegion->GetRawPointerObjectCount();
         if (rawPtrCnt == 0 && fromRegion->IsPrompted()) {
             RemoveRegionLocked(&fromRegionList, fromRegion);
-            promptRegionList.PrependRegion(fromRegion, RegionInfo::RegionType::FROM_REGION);
+            promptRegionList.PrependRegion(fromRegion, RegionInfo::RegionType::FROM_PROMPT_REGION);
             return;
         }
         size_t threshold = static_cast<size_t>(exempt * fromRegion->GetRegionSize());
