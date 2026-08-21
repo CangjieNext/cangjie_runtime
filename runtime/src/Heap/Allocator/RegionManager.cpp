@@ -97,7 +97,7 @@ const char* RegionInfo::GetTypeName() const
         "thread local region",
         "recent fullregion",
         "from region",
-        "from prompt region",
+        "from promote region",
         "lone from region",
         "unmovable from region",
         "to region",

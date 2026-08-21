@@ -50,8 +50,8 @@ protected:
     {
         reinterpret_cast<MixedRegionSpace&>(theAllocator).AssembleYoungCandidates();
     }
-    bool ShouldPrompt(uint8_t age) const;
-    void TagPromptRegion(RegionInfo* regionInfo) const;
+    bool ShouldPromote(uint8_t age) const;
+    void TagPromoteRegion(RegionInfo* regionInfo) const;
 
 private:
     static constexpr uint8_t OLD_AGE = 3;
