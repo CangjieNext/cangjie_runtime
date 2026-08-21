@@ -100,7 +100,7 @@ SELECT
     COALESCE(CAST(ma.name AS CHAR), '') AS name,
     COALESCE(CAST(ma.account_department_id AS CHAR), '') AS account_department_id,
     COALESCE(CAST(ma.account_department AS CHAR), '') AS account_department,
-    COALESCE(group_concat(mc.card_no SEPARATOR ','), '') AS card_no
+    COALESCE(group_concat(mc.card_no ORDER BY mc.id ASC SEPARATOR ','), '') AS card_no
 FROM member_account ma
 LEFT JOIN member_card mc
     ON mc.account_id = ma.id AND mc.status = 1
@@ -182,5 +182,11 @@ private func addCommonJsonHeaders(context: HttpContext): Unit {
 
 private func createDataSource(connectionString: String): Datasource {
     let driver = DriverManager.getDriver("mariadb").getOrThrow()
-    return driver.open(connectionString)
+    let dataSource = driver.open(connectionString)
+    // The driver's implementation defaults to server-side prepare despite its
+    // parameter comment.  This benchmark closes every statement per request;
+    // use client prepare to avoid issuing a COM_STMT_CLOSE on the MySQL socket
+    // from the HTTP worker's teardown path.
+    dataSource.setOption("prepare.mode", "client")
+    return dataSource
 }
