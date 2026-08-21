@@ -1,0 +1,2 @@
+/Users/lipeisheng/code/cangjie/cangjie/cangjie_runtime_region_mark/runtime/output/common/darwin_release_aarch64/lib/darwin_aarch64_cjnative/libcangjie-thread.a
+/Users/lipeisheng/code/cangjie/cangjie/cangjie_runtime_region_mark/runtime/output/common/darwin_release_aarch64/lib/darwin_aarch64_cjnative/libcangjie-aio.a
