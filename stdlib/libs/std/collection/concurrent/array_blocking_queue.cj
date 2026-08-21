@@ -182,6 +182,7 @@ public class ArrayBlockingQueue<E> {
         add(element)
     }
 
+    @Frozen
     public func add(element: E): Unit {
         // Quick retry loop: avoids the monitor park/unpark round-trip when a
         // consumer frees a slot shortly after the queue becomes full.
@@ -256,6 +257,7 @@ public class ArrayBlockingQueue<E> {
         remove()
     }
 
+    @Frozen
     public func remove(): E {
         // Quick retry loop: avoids the monitor park/unpark round-trip when a
         // producer fills a slot shortly after the queue becomes empty.
@@ -374,6 +376,7 @@ public class ArrayBlockingQueue<E> {
         peek()
     }
 
+    @Frozen
     public func peek(): Option<E> {
         while (true) {
             let roundIndex = reserved.load() // LP: if returns 'None<E>'
@@ -414,6 +417,7 @@ public class ArrayBlockingQueue<E> {
     }
 
     @OverflowWrapping
+    @Frozen
     public func tryAdd(element: E): Bool {
         while (true) {
             let roundIndex = allocated.load() // LP: if returns 'false'
@@ -456,6 +460,7 @@ public class ArrayBlockingQueue<E> {
     }
 
     @OverflowWrapping
+    @Frozen
     public func tryRemove(): Option<E> {
         while (true) {
             let roundIndex = reserved.load() // LP: if returns 'None<E>'

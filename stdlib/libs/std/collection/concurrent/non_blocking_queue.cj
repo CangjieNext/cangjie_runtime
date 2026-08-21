@@ -64,6 +64,7 @@ class Block<E> {
      * - true: sends @p element into the buffer successfully
      * - false: fails to send into the buffer
      */
+    @Frozen
     func push(element: E): Bool {
         // buffer full
         if (allocated.load() >= BUF_SIZE) {
@@ -94,6 +95,7 @@ class Block<E> {
      * - BlockDone: buffer full
      * - CONFLICT: another thread sends the element into buffer[@p index]
      */
+    @Frozen
     func pushAt(element: E, index: Int64): PushRes {
         // buffer full
         if (index >= BUF_SIZE) {
@@ -119,6 +121,7 @@ class Block<E> {
      * - BlockDone: if all of the entries in the buffer have been consumed
      * - ELEM(e): if gets the element e at the head of the buffer successfully
      */
+    @Frozen
     func pop(): ENTRY<E> {
         while (true) {
             let index = reserved.load()
@@ -160,6 +163,7 @@ class Block<E> {
      * - BlockDone: if all of the entries in the buffer have been consumed
      * - ELEM(e): if gets the element e at the head of the buffer successfully
      */
+    @Frozen
     func front(): ENTRY<E> {
         while (true) {
             let index = reserved.load()
@@ -189,10 +193,12 @@ class Block<E> {
         return BlockDone
     }
 
+    @Frozen
     func getAllocated(): (UInt64, Int64) {
         return (version, allocated.load())
     }
 
+    @Frozen
     func getReserved(): (UInt64, Int64) {
         return (version, reserved.load())
     }

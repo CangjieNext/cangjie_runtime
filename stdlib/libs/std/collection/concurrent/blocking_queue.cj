@@ -125,6 +125,7 @@ public class LinkedBlockingQueue<E> {
         add(element)
     }
 
+    @Frozen
     public func add(element: E): Unit {
         // Quick retry loop: avoids the monitor park/unpark round-trip when a
         // consumer frees a slot shortly after the queue becomes full.
@@ -204,6 +205,7 @@ public class LinkedBlockingQueue<E> {
         remove()
     }
 
+    @Frozen
     public func remove(): E {
         // Quick retry loop: avoids the monitor park/unpark round-trip when a
         // producer fills a slot shortly after the queue becomes empty.
@@ -311,6 +313,7 @@ public class LinkedBlockingQueue<E> {
         tryAdd(element)
     }
 
+    @Frozen
     public func tryAdd(element: E): Bool {
         while (true) {
             let tailBlock = rear.load()
@@ -370,6 +373,7 @@ public class LinkedBlockingQueue<E> {
         tryRemove()
     }
 
+    @Frozen
     public func tryRemove(): Option<E> {
         while (true) {
             let headBlock = front.load()
