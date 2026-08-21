@@ -14,6 +14,14 @@ import std.time.*
 @Deprecated[message: "Use LinkedBlockingQueue instead."]
 public type BlockingQueue<E> = LinkedBlockingQueue<E>
 
+/*
+ * Number of quick retries in the blocking 'add'/'remove' before falling back
+ * to the monitor. It avoids the costly park/unpark round-trip when the queue
+ * becomes non-full/non-empty within a short time (typical for producer-consumer
+ * ping-pong patterns).
+ */
+const LBQ_BLOCKING_SPIN_COUNT: Int64 = 64
+
 /**
  * BlockingQueue is a concurrent queue with a blocking mechanism and supports a user-specified upper bound of capacity.
  */
@@ -25,6 +33,7 @@ public class LinkedBlockingQueue<E> {
     private let receiveQSize = AtomicInt64(0) // Number of elements that are being dequeued.
     private let front: AtomicReference<Block<E>> // head of BlockingQueue.
     private let rear: AtomicReference<Block<E>> // tail of BlockingQueue.
+    private let bounded: Bool // whether the queue has an effective capacity limit
 
     public init(capacity: Int64) {
         if (capacity <= 0) {
@@ -32,6 +41,7 @@ public class LinkedBlockingQueue<E> {
         }
 
         this.capacity = capacity
+        bounded = capacity < Int64.Max
         let block = Block<E>(0)
         front = AtomicReference<Block<E>>(block)
         rear = AtomicReference<Block<E>>(block)
@@ -52,6 +62,7 @@ public class LinkedBlockingQueue<E> {
         }
 
         this.capacity = capacity
+        bounded = capacity < Int64.Max
         let block = Block<E>(0)
         front = AtomicReference<Block<E>>(block)
         rear = AtomicReference<Block<E>>(block)
@@ -72,6 +83,7 @@ public class LinkedBlockingQueue<E> {
         }
 
         this.capacity = capacity
+        bounded = capacity < Int64.Max
         let block = Block<E>(0)
         front = AtomicReference<Block<E>>(block)
         rear = AtomicReference<Block<E>>(block)
@@ -114,6 +126,16 @@ public class LinkedBlockingQueue<E> {
     }
 
     public func add(element: E): Unit {
+        // Quick retry loop: avoids the monitor park/unpark round-trip when a
+        // consumer frees a slot shortly after the queue becomes full.
+        var spin = 0
+        while (spin < LBQ_BLOCKING_SPIN_COUNT) {
+            if (tryAdd(element)) {
+                return
+            }
+            spin += 1
+        }
+
         while (true) {
             if (tryAdd(element)) {
                 return
@@ -183,6 +205,16 @@ public class LinkedBlockingQueue<E> {
     }
 
     public func remove(): E {
+        // Quick retry loop: avoids the monitor park/unpark round-trip when a
+        // producer fills a slot shortly after the queue becomes empty.
+        var spin = 0
+        while (spin < LBQ_BLOCKING_SPIN_COUNT) {
+            if (let Some(e) <- tryRemove()) {
+                return e
+            }
+            spin += 1
+        }
+
         while (true) {
             if (let Some(e) <- tryRemove()) {
                 return e
@@ -282,6 +314,19 @@ public class LinkedBlockingQueue<E> {
     public func tryAdd(element: E): Bool {
         while (true) {
             let tailBlock = rear.load()
+
+            // Fast path for the unbounded queue: skip the fullness check,
+            // which reads the head block and its counters on every push.
+            if (!bounded) {
+                let (_, tailBlockAllocated) = tailBlock.getAllocated()
+                match (tailBlock.pushAt(element, tailBlockAllocated)) {
+                    case SUCCEED => break
+                    case BlockDone => newBlock<E>(tailBlock, rear)
+                    case CONFLICT => ()
+                }
+                continue
+            }
+
             let headBlock = front.load()
             let (tailBlockVersion, tailBlockAllocated) = tailBlock.getAllocated()
             let (headBlockVersion, headBlockReserved) = headBlock.getReserved()
