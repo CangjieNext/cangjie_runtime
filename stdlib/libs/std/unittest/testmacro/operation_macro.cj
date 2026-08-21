@@ -13,13 +13,15 @@ macro package std.unittest.testmacro
 
 import std.ast.*
 
+/**
+ * @Operation macro marks the function that implements concurrent operation on
+ * data structure. Value sets for arguments cab be specified in macro arguments
+ * similar to @TestCase: `@Operation[arg1 in values1, arg2 in values2, ...]`.
+ */
 public macro Operation(input: Tokens): Tokens {
     topLevelMacroDriver(OPERATION_MACRO, input, Tokens(), { it => insideParentContext(it.macroIdentifier) })
 }
 
-/**
- * TODO
- */
 public macro Operation(attr: Tokens, input: Tokens): Tokens {
     topLevelMacroDriver(OPERATION_MACRO, input, attr, { it => insideParentContext(it.macroIdentifier) })
 }

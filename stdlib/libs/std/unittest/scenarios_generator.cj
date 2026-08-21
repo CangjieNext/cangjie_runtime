@@ -8,18 +8,25 @@ private class OperationDesc<S> {
     OperationDesc(
         let group!: Option<String>,
         let name!: String,
-        let operationIteratorProducer!: (Configuration) -> Iterator<Operation<S>>,
+        let operationIteratorProducer!: (Configuration) -> Iterator<Operation<S>>
     ) {}
 }
 
+private const DEFAULT_MIN_ACTORS: Int64 = 2
+private const DEFAULT_MAX_ACTORS: Int64 = 3
+private const DEFAULT_MIN_OPERATIONS_PER_ACTOR: Int64 = 2
+private const DEFAULT_MAX_OPERATIONS_PER_ACTOR: Int64 = 10
+
 private class ScenarioParams<S> {
     ScenarioParams(
-        let minActors!: Int64,
+        // Keep minimal count as is to adjust to maximal count,
+        // that may be limited by number of groups
+        let minActors!: ?Int64,
         let maxActors!: Int64,
         let minOperationPerActor!: Int64,
         let maxOperationPerActor!: Int64,
-        let scenarioBase!: () -> ScenarioBuilder<S>,
-    ) {}    
+        let scenarioBase!: () -> ScenarioBuilder<S>
+    ) {}
 }
 
 public class ScenariosGenerator<S> {
@@ -49,10 +56,11 @@ public class ScenariosGenerator<S> {
         body!: (T, S) -> R,
         dataStrategy!: DataStrategyProcessor<T>
     ): Unit where R <: Equatable<R> {
-        let operationDesc = OperationDesc(group: group, name: name) { configuration =>
-            dataStrategy.provide(configuration) |> map { args: T => 
-                let opName = formatOperationName(name, dataStrategy.lastItemInfo())
-                operation(opName) { state: S => body(args, state) }
+        let operationDesc = OperationDesc(group: group, name: name) {
+            configuration => dataStrategy.provide(configuration) |> map {
+                args: T =>
+                    let opName = formatOperationName(name, dataStrategy.lastItemInfo())
+                    operation(opName) {state: S => body(args, state)}
             }
         }
         operations.add(operationDesc)
@@ -61,10 +69,10 @@ public class ScenariosGenerator<S> {
     public func addOperation<R>(
         group!: Option<String>,
         name!: String,
-        body!: (S) -> R,
+        body!: (S) -> R
     ): Unit where R <: Equatable<R> {
-        let operationDesc = OperationDesc(group: group, name: name) { configuration =>
-            [operation(name, body)].iterator()
+        let operationDesc = OperationDesc(group: group, name: name) {
+            configuration => [operation(name, body)].iterator()
         }
         operations.add(operationDesc)
     }
@@ -73,15 +81,15 @@ public class ScenariosGenerator<S> {
         minActors!: ?Int64 = None,
         maxActors!: ?Int64 = None,
         minOperationPerActor!: ?Int64 = None,
-        maxOperationPerActor!: ?Int64 = None,
+        maxOperationPerActor!: ?Int64 = None
     ): DataStrategy<ScenarioBuilder<S>> {
         ScenarioDataStrategy(
             operations.toArray(),
             ScenarioParams(
-                minActors: minActors ?? 2,
-                maxActors: maxActors ?? 3,
-                minOperationPerActor: minOperationPerActor ?? 2,
-                maxOperationPerActor: maxOperationPerActor ?? 10,
+                minActors: minActors,
+                maxActors: maxActors ?? DEFAULT_MAX_ACTORS,
+                minOperationPerActor: minOperationPerActor ?? DEFAULT_MIN_OPERATIONS_PER_ACTOR,
+                maxOperationPerActor: maxOperationPerActor ?? DEFAULT_MAX_OPERATIONS_PER_ACTOR,
                 scenarioBase: scenarioBase,
             ),
         )
@@ -95,13 +103,13 @@ private class ScenarioIterator<S> <: Iterator<ScenarioBuilder<S>> {
     ScenarioIterator(
         private let configuration: Configuration,
         private let operations: Array<OperationDesc<S>>,
-        private let scenarioParams: ScenarioParams<S>,
+        private let scenarioParams: ScenarioParams<S>
     ) {
-        random = configuration.get<RandomSource>(KeyRandom.random) ??
-            throw IllegalArgumentException("RandomDataProvider initialized without configured random generator instance")
+        random = configuration.get<RandomSource>(KeyRandom.random) ?? throw IllegalArgumentException(
+            "RandomDataProvider initialized without configured random generator instance")
 
-        operationIterators = Array(operations.size) { idx =>
-            operations[idx].operationIteratorProducer(configuration)
+        operationIterators = Array(operations.size) {
+            idx => operations[idx].operationIteratorProducer(configuration)
         }
     }
 
@@ -142,20 +150,24 @@ private class ScenarioIterator<S> <: Iterator<ScenarioBuilder<S>> {
 
         var maxActors = scenarioParams.maxActors
         if (!hasGroupFreeOperation) {
-            maxActors = min(maxActors, groups.size) 
+            maxActors = min(maxActors, groups.size)
         }
 
-        if (maxActors < scenarioParams.minActors) {
+        let minActors = scenarioParams.minActors ?? min(DEFAULT_MIN_ACTORS, maxActors)
+
+        if (maxActors < minActors) {
             if (maxActors != scenarioParams.maxActors) {
-                throw IllegalArgumentException("Maximal count of actors must be greater or equal to minimum count ${scenarioParams.minActors}. Maximal count is limited by number of groups: ${maxActors}. Due to absence of operations without groups")
+                throw IllegalArgumentException(
+                    "Maximal count of actors must be greater or equal to minimal count ${minActors}. Maximal count is limited by number of groups: ${maxActors}. Due to absence of operations without groups")
             } else {
-                throw IllegalArgumentException("Maximal count of actors ${scenarioParams.maxActors} must be greater or equal to minimum count ${scenarioParams.minActors}")
+                throw IllegalArgumentException(
+                    "Maximal count of actors ${scenarioParams.maxActors} must be greater or equal to minimum count ${scenarioParams.minActors}")
             }
         }
 
-        let actorsCount = nextPosInt64(scenarioParams.minActors, maxActors + 1);
+        let actorsCount = nextPosInt64(minActors, maxActors + 1);
 
-        let actorsWithoutGroup = HashSet<Int64>(actorsCount) { i => i }
+        let actorsWithoutGroup = HashSet<Int64>(actorsCount) {i => i}
         let groupsToActors = HashMap<String, Int64>()
         var groupRemain = groups.size
         for (group in groups) {
@@ -172,12 +184,18 @@ private class ScenarioIterator<S> <: Iterator<ScenarioBuilder<S>> {
         }
 
         for (actorIdx in 0..actorsCount) {
-            let possibleOperations = operations |> enumerate |> filterMap { arg: (Int64, OperationDesc<S>) =>
-                let (idx, op) = arg
-                match (op.group) {
-                    case None => Some(idx)
-                    case Some(group) => if (groupsToActors[group] == actorIdx) { Some(idx) } else { Option<Int64>.None }
-                }
+            let possibleOperations = operations |> enumerate |> filterMap {
+                arg: (Int64, OperationDesc<S>) =>
+                    let (idx, op) = arg
+                    match (op.group) {
+                        case None => Some(idx)
+                        case Some(group) =>
+                            if (groupsToActors[group] == actorIdx) {
+                                Some(idx)
+                            } else {
+                                Option<Int64>.None
+                            }
+                    }
             } |> collectArray
 
             if (possibleOperations.isEmpty()) {
@@ -185,11 +203,12 @@ private class ScenarioIterator<S> <: Iterator<ScenarioBuilder<S>> {
                 throw Exception("Distribution of groups by actors is contradictory")
             }
 
-            let operationsCount =
-                nextPosInt64(scenarioParams.minOperationPerActor, scenarioParams.maxOperationPerActor + 1)
-            let actorOperations = Array(operationsCount) { _: Int64 =>
-                let operationIdx = nextPosInt64(possibleOperations.size) 
-                nextOperation(possibleOperations[operationIdx])
+            let operationsCount = nextPosInt64(scenarioParams.minOperationPerActor,
+                scenarioParams.maxOperationPerActor + 1)
+            let actorOperations = Array(operationsCount) {
+                _: Int64 =>
+                    let operationIdx = nextPosInt64(possibleOperations.size)
+                    nextOperation(possibleOperations[operationIdx])
             }
 
             scenario.actorWithOps(actorOperations)
@@ -203,7 +222,7 @@ private class ScenarioDataProvider<S> <: DataProvider<ScenarioBuilder<S>> & Iter
     ScenarioDataProvider(
         private let configuration: Configuration,
         private let operations: Array<OperationDesc<S>>,
-        private let scenarioParams: ScenarioParams<S>,
+        private let scenarioParams: ScenarioParams<S>
     ) {}
 
     public override func provide(): Iterable<ScenarioBuilder<S>> {
@@ -218,7 +237,7 @@ private class ScenarioDataProvider<S> <: DataProvider<ScenarioBuilder<S>> & Iter
 private class ScenarioDataStrategy<S> <: DataStrategy<ScenarioBuilder<S>> {
     ScenarioDataStrategy(
         private let operations: Array<OperationDesc<S>>,
-        private let scenarioParams: ScenarioParams<S>,
+        private let scenarioParams: ScenarioParams<S>
     ) {}
 
     public override func provider(configuration: Configuration): DataProvider<ScenarioBuilder<S>> {
@@ -226,7 +245,8 @@ private class ScenarioDataStrategy<S> <: DataStrategy<ScenarioBuilder<S>> {
     }
 
     public override prop isInfinite: Bool {
-        get() { true }
+        get() {
+            true
+        }
     }
 }
-

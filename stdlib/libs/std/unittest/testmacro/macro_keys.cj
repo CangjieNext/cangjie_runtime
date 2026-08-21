@@ -17,27 +17,11 @@ let TEST_BUILDER_MACRO = MacroKey.create("@TestBuilder", Function, TestEntity, c
 let TEST_TEMPLATE_MACRO = MacroKey.create("@TestTemplate", Class, TestEntity, conflicts: [TEST_MACRO],
     placement: TopLevel, allowedModifiers: [ABSTRACT])
 
-// NOTE: Maybe allow to use on functions:
-// ```cangjie
-// @ConcurrentTest
-// func concurrentTest(scenario: ScenarioBuilder) {
-//     let x: Int64 = 0
-//
-//     @Operation[arg in [-1, 1]]
-//     func add(arg: Int64) { x += arg }
-//
-//     @Operation
-//     func sum(arg: Int64) { x -= arg }
-//   
-//     scenario.iterations(1000)
-// }
-// ```
 let CONCURRENT_TEST_MACRO = MacroKey.create("@ConcurrentTest", Class, TestEntity, placement: TopLevel, conflicts: [TEST_MACRO])
-// FIXME: What's right kind for these?
 let OPERATION_MACRO = MacroKey.create("@Operation", Function, Concurrent, placement: InsideParent([CONCURRENT_TEST_MACRO]), conflicts: [])
 let GROUP_MACRO = MacroKey.create("@Group", Function, Concurrent, placement: InsideParent([CONCURRENT_TEST_MACRO]), conflicts: [])
-let VERIFY_MACRO = MacroKey.create("@Verify", Function, Concurrent, placement: InsideParent([CONCURRENT_TEST_MACRO]), conflicts: [])
-let AFTER_MACRO = MacroKey.create("@After", Function, Concurrent, placement: InsideParent([CONCURRENT_TEST_MACRO]), conflicts: [])
+let VERIFY_MACRO = MacroKey.create("@Verify", Function, Concurrent, placement: InsideParent([CONCURRENT_TEST_MACRO]), conflicts: [OPERATION_MACRO])
+let AFTER_MACRO = MacroKey.create("@After", Function, Concurrent, placement: InsideParent([CONCURRENT_TEST_MACRO]), conflicts: [VERIFY_MACRO, OPERATION_MACRO])
 
 // actual keys that are written to @Attribute section
 let SKIP_MACRO = MacroKey.create("@Skip", ClassOrFunction, Configuration)
@@ -96,10 +80,17 @@ let TEST_TEMPLATE_VERIFIER: Verifier = {
         case _ => ()
     }
 }
+let GROUP_VERIFIER: Verifier = {
+    _: MacroAttrs, decl: Decl, errors: MacroErrors =>
+    if (!decl.has(OPERATION_MACRO)) {
+        errors.add("@Group macro must be used together with @Operation macro")
+    }
+}
 let VERIFIERS = HashMap<MacroKey, Verifier>(
     (TYPES_MACRO, TYPES_VERIFIER),
     (TEST_MACRO, TEST_VERIFIER),
     (TEST_TEMPLATE_MACRO, TEST_TEMPLATE_VERIFIER),
+    (GROUP_MACRO, GROUP_VERIFIER),
 )
 
 enum MacroKind {

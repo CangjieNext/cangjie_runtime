@@ -57,8 +57,8 @@ class ConcurrentExecutor<T, S> <: Executor where S <: Any {
             if (failures.isEmpty()) {
                 tcase.add(RunStepResult(scenario.iterations, start, stepKind, Test(scenario.iterations)));
             } else {
-                let failures = failures |> take(1) |> map<ScenarioIterationResult, CheckResult> { tcase => 
-                    ConcurrentTestCheckResult(tcase)
+                let failures = failures |> take(1) |> map<ScenarioIterationResult, CheckResult> {
+                    tcase => ConcurrentTestCheckResult(tcase)
                 } |> collectArray
                 tcase.add(RunStepResult(scenario.iterations - failures.size, start, stepKind, Failure(failures)));
                 return
@@ -77,7 +77,7 @@ class ConcurrentExecutor<T, S> <: Executor where S <: Any {
         }
         let sb = PrettyText()
         if (let Some(scenario) <- scenario) {
-            sb.appendLine("Scenario: ${scenario.name}") 
+            sb.appendLine("Scenario: ${scenario.name}")
         }
         for (param in inputs.iterator().skip(1)) {
             sb.append(param.name)
@@ -92,37 +92,38 @@ class ConcurrentExecutor<T, S> <: Executor where S <: Any {
         failures: Array<ScenarioIterationResult>,
         param: Array<InputParameter>,
         configuration: Configuration,
-        generationStep: Int64,
+        generationStep: Int64
     ) {
         ArgumentDescription(
             formatArguments(scenario, failures, param),
             generationStep - 1,
-            strategy.currentReduction, 
+            strategy.currentReduction,
             configuration.randomSeed,
         )
     }
-    
+
     private func executeScenario(
         suiteInfo: TestSuiteReportInfo,
         tcase: TestCaseResult,
         configuration: Configuration,
-        scenario: ConcurrentScenario<S>,
+        scenario: ConcurrentScenario<S>
     ): Array<ScenarioIterationResult> {
         let progress = ProgressOutput(configuration)
-        let executor  = ScenarioRunner<S>(scenario)
+        let executor = ScenarioRunner<S>(scenario)
         let iterations = scenario.iterations
         progress.verbose {
             "Starting concurrent scenario '${tcase.caseId.caseName}' " +
-            "with ${scenario.threadCount} threads, ${iterations} iterations."
+                "with ${scenario.threadCount} threads, ${iterations} iterations."
         }
-        
+
         let verbose = configuration.verbose
         let failures = ArrayList<ScenarioIterationResult>()
-        executor.executeIterationsWithCallback(iterations, verbose: verbose) { iterResult, iterIndex =>
-            if (!iterResult.allSucceeded) {
-                failures.add(iterResult)
-            }
-            true
+        executor.executeIterationsWithCallback(iterations, verbose: verbose) {
+            iterResult, iterIndex =>
+                if (!iterResult.allSucceeded) {
+                    failures.add(iterResult)
+                }
+                true
         }
         if (failures.isEmpty()) {
             progress.verbose {

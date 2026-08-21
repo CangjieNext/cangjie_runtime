@@ -14,7 +14,8 @@ macro package std.unittest.testmacro
 import std.ast.*
 
 /**
- * TODO
+ * @ConcurrentTest macro declares test cases for specific set of concurrent
+ * data structure operations. 
  */
 public macro ConcurrentTest(input: Tokens): Tokens {
     return topLevelMacroDriver(CONCURRENT_TEST_MACRO, input, Tokens(), { it => insideParentContext(it.macroIdentifier) })
