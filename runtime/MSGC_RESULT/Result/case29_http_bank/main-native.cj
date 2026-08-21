@@ -110,13 +110,13 @@ GROUP BY ma.id
 ORDER BY ma.account_department_id, ma.name, ma.id
 LIMIT ? OFFSET ?
 """
-    public var id: ?String = None
-    public var memberId: ?String = None
-    public var accountCode: ?String = None
-    public var name: ?String = None
-    public var accountDepartmentId: ?String = None
-    public var accountDepartment: ?String = None
-    public var cardNo: ?String = None
+    public var id: String = ""
+    public var memberId: String = ""
+    public var accountCode: String = ""
+    public var name: String = ""
+    public var accountDepartmentId: String = ""
+    public var accountDepartment: String = ""
+    public var cardNo: String = ""
 
     public func toJson(w: JsonWriter): Unit {
         w.startObject()
@@ -139,21 +139,23 @@ LIMIT ? OFFSET ?
 
     public static func queryMemberAccounts(dataSource: Datasource, subjectId: String, limit: Int64, offset: Int64) {
         let list = ArrayList<MemberAccount>(32)
-        try (connection = dataSource.connect(), statement = connection.prepareStatement(QUERY_SQL)) {
-            statement.set<String>(1, subjectId)
-            statement.set<Int64>(2, limit)
-            statement.set<Int64>(3, offset)
-            try (result = statement.query()) {
-                while (result.next()) {
-                    let item = MemberAccount()
-                    item.id = result.getOrNull<String>(1) ?? ""
-                    item.memberId = result.getOrNull<String>(2) ?? ""
-                    item.accountCode = result.getOrNull<String>(3) ?? ""
-                    item.name = result.getOrNull<String>(4) ?? ""
-                    item.accountDepartmentId = result.getOrNull<String>(5) ?? ""
-                    item.accountDepartment = result.getOrNull<String>(6) ?? ""
-                    item.cardNo = result.getOrNull<String>(7) ?? ""
-                    list.add(item)
+        try (connection = dataSource.connect()) {
+            try (statement = connection.prepareStatement(QUERY_SQL)) {
+                statement.set<String>(1, subjectId)
+                statement.set<Int64>(2, limit)
+                statement.set<Int64>(3, offset)
+                try (result = statement.query()) {
+                    while (result.next()) {
+                        let item = MemberAccount()
+                        item.id = result.getOrNull<String>(1) ?? ""
+                        item.memberId = result.getOrNull<String>(2) ?? ""
+                        item.accountCode = result.getOrNull<String>(3) ?? ""
+                        item.name = result.getOrNull<String>(4) ?? ""
+                        item.accountDepartmentId = result.getOrNull<String>(5) ?? ""
+                        item.accountDepartment = result.getOrNull<String>(6) ?? ""
+                        item.cardNo = result.getOrNull<String>(7) ?? ""
+                        list.add(item)
+                    }
                 }
             }
         }
