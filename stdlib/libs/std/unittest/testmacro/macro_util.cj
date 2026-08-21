@@ -42,6 +42,12 @@ class TokensBuilder /* <: ToTokens */ {
         append(RCURL).append(NL)
     }
 
+    func parenthesis(body: (TokensBuilder) -> Unit): TokensBuilder {
+        append(LPAREN)
+        body(this)
+        append(RPAREN)
+    }
+
     func scope(body: (TokensBuilder) -> Unit) {
         append(NL).append(quote({ => ))
         body(this)
