@@ -22,6 +22,22 @@ public import std.unittest.prop_test.Shrink
 public import std.unittest.prop_test.random
 public import std.unittest.prop_test.KeyRandom
 
+// Re-exports of std.unittest.concurrent public symbols so that
+// `import std.unittest.*` (implicitly added by the compiler for test code)
+// also brings the concurrent scenario DSL into scope.
+public import std.unittest.concurrent.ConcurrentScenario
+public import std.unittest.concurrent.ConsistencyModel
+public import std.unittest.concurrent.ConsistencyValidationResult
+public import std.unittest.concurrent.EquatableObj
+public import std.unittest.concurrent.HBClock
+public import std.unittest.concurrent.Operation
+public import std.unittest.concurrent.OperationInvocation
+public import std.unittest.concurrent.ScenarioBuilder
+public import std.unittest.concurrent.ScenarioResult
+public import std.unittest.concurrent.execResultOf
+public import std.unittest.concurrent.operation
+public import std.unittest.concurrent.scenario
+
 
 @When[backend == "cjnative"]
 public import std.runtime.blackBox

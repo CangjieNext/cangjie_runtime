@@ -17,7 +17,7 @@ import std.random.Random
 import std.runtime.blackBox
 import std.runtime.getProcessorCount
 
-protected class ScenarioRunner<S> where S <: Any {
+protected class ScenarioRunner<S> {
     private let backoffGenerator: BackoffGenerator
 
     protected ScenarioRunner(private let scenario: ConcurrentScenario<S>) {

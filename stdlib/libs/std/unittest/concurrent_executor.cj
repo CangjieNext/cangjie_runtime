@@ -24,7 +24,7 @@ class ConcurrentTestFailure <: Exception {
     }
 }
 
-class ConcurrentExecutor<S> <: Executor where S <: Any {
+class ConcurrentExecutor<S> <: Executor {
     private let executor: ScenarioRunner<S>
 
     ConcurrentExecutor(

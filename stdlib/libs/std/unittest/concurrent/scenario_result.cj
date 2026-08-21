@@ -12,6 +12,7 @@ import std.collection.ArrayList
 import std.collection.collectArrayList
 import std.core.Duration
 import std.time.DateTime
+import std.unittest.common.PrettyText
 
 protected class ActorResult {
     protected ActorResult(
@@ -22,7 +23,7 @@ protected class ActorResult {
         protected let endTime!: DateTime
     ) {}
     
-    protected static func success<S>(actor: Actor<S>, startTime: DateTime, endTime: DateTime): ActorResult where S <: Any {
+    protected static func success<S>(actor: Actor<S>, startTime: DateTime, endTime: DateTime): ActorResult {
         ActorResult(
             actorId: actor.id,
             actorName: actor.name,
@@ -32,7 +33,7 @@ protected class ActorResult {
         )
     }
 
-    protected static func failure<S>(actor: Actor<S>, e: Exception, startTime: DateTime, endTime: DateTime): ActorResult where S <: Any {
+    protected static func failure<S>(actor: Actor<S>, e: Exception, startTime: DateTime, endTime: DateTime): ActorResult {
         ActorResult(
             actorId: actor.id,
             actorName: actor.name,
@@ -133,14 +134,47 @@ protected class ScenarioIterationResult {
     }
 }
 
+/**
+ * Top-level result of running a `ConcurrentScenario`: aggregates the
+ * per-iteration outcomes, the overall verdict, and a printable report.
+ *
+ * A `ScenarioResult` is produced by `ConcurrentScenario.run()` (or fed into a
+ * `TestSuite` via the `ConcurrentExecutor` adapter, which converts each
+ * iteration into a `RunStepResult`). It exposes:
+ * - the scenario name, the number of iterations actually executed, and the
+ *   total wall-clock duration;
+ * - a `passed` boolean that is `true` iff every executed iteration succeeded
+ *   (all actors ran without throwing *and* consistency validation, if
+ *   enabled, found the recorded history consistent);
+ * - the list of per-iteration `ConsistencyValidationResult`s (empty if no
+ *   consistency validator was attached to the scenario);
+ * - aggregate actor success / failure counts across all iterations;
+ * - a multi-line `report()` renderer returning a `PrettyText`.
+ *
+ * On success the report is a one-line summary; on failure it is verbose by
+ * default, embedding the per-failed-iteration consistency verdict and
+ * mismatch table.
+ */
 public class ScenarioResult {
     protected ScenarioResult(
+        /** Human-readable scenario name (set via `scenario(name)` / `ScenarioBuilder.name`). */
         public let scenarioName!: String,
+        /** Number of iterations actually executed (may be less than the configured count due to early-exit on first failure). */
         public let iterationsExecuted!: Int64,
         protected let iterationResults!: ArrayList<ScenarioIterationResult>,
+        /** Total wall-clock duration of the `ConcurrentScenario.run()` call. */
         public let totalDuration!: Duration
     ) {}
     
+    /**
+     * `true` iff every executed iteration succeeded — i.e. all actors ran
+     * without throwing, the `verify` predicate (if any) returned `true`, and
+     * the consistency validator (if any) found the recorded history consistent.
+     *
+     * Note that a `true` verdict does *not* prove the absence of races — it
+     * only means no consistency violation was observed within the executed
+     * iterations. Stress testing is probabilistic by nature.
+     */
     public prop passed: Bool {
         get() {
             for (iter in iterationResults) {
@@ -152,6 +186,14 @@ public class ScenarioResult {
         }
     }
 
+    /**
+     * Per-iteration consistency validation verdicts, in execution order.
+     *
+     * Iterations for which no consistency validator was attached (e.g. simple
+     * capture-based scenarios with no `reset` and no `withState`) are absent
+     * from the list; iterations that ran a validator appear here regardless of
+     * whether they passed or failed.
+     */
     public prop consistencyValidations: ArrayList<ConsistencyValidationResult> {
         get() {
             iterationResults
@@ -161,6 +203,7 @@ public class ScenarioResult {
         }
     }
     
+    /** Total number of successful actor executions summed across all iterations. */
     public prop totalSuccessCount: Int64 {
         get() {
             var count: Int64 = 0
@@ -171,6 +214,7 @@ public class ScenarioResult {
         }
     }
     
+    /** Total number of failed actor executions summed across all iterations. */
     public prop totalFailureCount: Int64 {
         get() {
             var count: Int64 = 0
@@ -181,34 +225,54 @@ public class ScenarioResult {
         }
     }
     
-    public func report(): String {
-        let sb = StringBuilder()
-        sb.append("Concurrent Scenario: ${scenarioName}\n")
-        sb.append("Iterations: ${iterationsExecuted}\n")
-        sb.append("Total Duration: ${totalDuration}\n")
-        sb.append("Status: ${if (passed) { "PASSED" } else { "FAILED" }}\n")
-        
-        sb.append("Actor Results Summary:\n")
-        sb.append("  Total successes: ${totalSuccessCount}\n")
-        sb.append("  Total failures: ${totalFailureCount}\n")
-        
+    /**
+     * Render a multi-line human-readable report of this scenario result.
+     *
+     * On success the report is a brief summary (scenario name, iteration count,
+     * total duration, status `PASSED`, aggregate actor success / failure
+     * counts). On failure the report additionally embeds, for each failed
+     * iteration, the one-line consistency verdict and the per-actor mismatch
+     * table produced by `ConsistencyValidationResult.getMismatchDetails()`.
+     *
+     * The report is returned as a `PrettyText` so it can be streamed to any
+     * `PrettyPrinter` (e.g. a colorised terminal reporter) without losing
+     * structure; call `.toString()` to flatten it to a plain `String`.
+     *
+     * @return a `PrettyText` rendering of this result
+     */
+    public func report(): PrettyText {
+        let pt = PrettyText()
+        pt.appendLine("Concurrent Scenario: ${scenarioName}")
+          .appendLine("Iterations: ${iterationsExecuted}")
+          .appendLine("Total Duration: ${totalDuration}")
+          .appendLine("Status: ${if (passed) { "PASSED" } else { "FAILED" }}")
+          .appendLine("Actor Results Summary:")
+          .appendLine("  Total successes: ${totalSuccessCount}")
+          .appendLine("  Total failures: ${totalFailureCount}")
+
         for (iter in iterationResults) {
             if (!iter.allSucceeded) {
                 if (let Some(consResult) <- iter.consistencyValidation) {
                     if (!consResult.isConsistent) {
-                        sb.append("\nIteration ${iter.iteration} failures:\n")
-                        sb.append("  Consistency validation failed: \n${consResult.getMismatchDetails().getOrThrow()}\n")
+                        pt.appendLine("")
+                          .appendLine("Iteration ${iter.iteration} failures:")
+                          .append("  Consistency validation failed:")
+                          .newLine()
+                        if (let Some(mismatch) <- consResult.getMismatchDetails()) {
+                            pt.append(mismatch)
+                        }
+                        pt.newLine()
                     }
                 }
                 for (r in iter.actorResults) {
                     if (!r.isSuccess) {
-                        sb.append("  Actor ${r.actorName}: ${r.getExceptionMessage()}\n")
+                        pt.appendLine("  Actor ${r.actorName}: ${r.getExceptionMessage()}")
                     }
                 }
             }
         }
-        
-        sb.toString()
+
+        pt
     }
     
     protected func getFirstFailure(): ?ActorResult {

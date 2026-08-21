@@ -21,32 +21,88 @@ protected class MismatchInfo {
     ) {}
 }
 
+/**
+ * Per-iteration verdict of the consistency validator: was the recorded
+ * concurrent history of this iteration consistent under the chosen
+ * `ConsistencyModel`, and if not, why.
+ *
+ * A `ConsistencyValidationResult` is produced by `ConsistencyValidator.validate`
+ * (invoked once per iteration from the scenario runner). It exposes:
+ * - the model under which validation ran;
+ * - whether a valid linearization was found (`isConsistent`);
+ * - the matching permutation (on success) or the deepest dead-end prefix and
+ *   per-branch mismatches (on failure);
+ * - validation statistics (`operationChecks`, `prunedBranches`, `cacheHits`)
+ *   for profiling;
+ * - an optional `exception` if validation could not run (e.g. the
+ *   `Serializability` `n > 10` guard);
+ * - public renderers `report()` (one-line verdict) and `getMismatchDetails()`
+ *   (per-actor mismatch table with `✓` / `≠` / `✗` markers and `-------`
+ *   barriers).
+ */
 public class ConsistencyValidationResult {
     protected ConsistencyValidationResult(
+        /** Consistency model under which validation was performed. */
         public let consistencyModel!: ConsistencyModel,
+        /**
+         * The linearization (as a list of operation ids) that reproduced every
+         * observed result, if one was found; `None` otherwise.
+         */
         public let matchingPermutation!: ?ArrayList<Int64>,
         protected let operationChecks!: Int64,
         protected let prunedBranches!: Int64,
         protected let cacheHits!: Int64,
         protected let history!: ConcurrentHistory,
         protected let partialOrder!: PartialOrder,
+        /**
+         * Exception that prevented validation from running, if any (e.g. the
+         * `Serializability` `n > 10` guard returns an `IllegalArgumentException`
+         * rather than throwing, so a misconfigured scenario does not abort the
+         * test runner). `None` for normal validation outcomes.
+         */
         public let exception!: ?Exception = None,
         protected let deadEndDepth!: Int64 = -1,
         protected let deadEndPrefix!: Array<Int64> = Array<Int64>(),
         protected let deadEndMismatches!: Array<MismatchInfo> = Array<MismatchInfo>()
     ) {}
     
+    /**
+     * `true` iff a sequential re-execution reproducing every observed result
+     * was found under the chosen consistency model.
+     *
+     * Equivalently, `matchingPermutation.isSome()`. A `false` value means the
+     * recorded concurrent history is *not* consistent under the model — a
+     * genuine consistency violation that is never a false positive (the
+     * validator only reports failure after exhausting every legal
+     * linearization without finding a match).
+     */
     public prop isConsistent: Bool {
         get() { matchingPermutation.isSome() }
     }
     
-    public func report(): String {
+    /**
+     * Render the one-line verdict for this iteration as a `PrettyText`.
+     *
+     * Three forms:
+     * - if `exception` is set: `<Model> validation error: <message>` —
+     *   validation could not run;
+     * - if `isConsistent`: `<Model> - found matching ordering after N
+     *   operation checks (P branches pruned, C cache hits)`;
+     * - otherwise: `NOT <model> - no valid ordering found after N operation
+     *   checks (P branches pruned, C cache hits)`.
+     *
+     * The statistics let users profile validation cost and identify the most
+     * expensive iterations.
+     *
+     * @return a `PrettyText` rendering of the one-line verdict
+     */
+    public func report(): PrettyText {
         if (let Some(e) <- exception) {
-            "${modelCapitalizedName(consistencyModel)} validation error: ${e.message}"
+            PrettyText("${modelCapitalizedName(consistencyModel)} validation error: ${e.message}")
         } else if (isConsistent) {
-            "${modelCapitalizedName(consistencyModel)} - found matching ordering after ${operationChecks} operation checks (${prunedBranches} branches pruned, ${cacheHits} cache hits)"
+            PrettyText("${modelCapitalizedName(consistencyModel)} - found matching ordering after ${operationChecks} operation checks (${prunedBranches} branches pruned, ${cacheHits} cache hits)")
         } else {
-            "${modelNotName(consistencyModel)} - no valid ordering found after ${operationChecks} operation checks (${prunedBranches} branches pruned, ${cacheHits} cache hits)"
+            PrettyText("${modelNotName(consistencyModel)} - no valid ordering found after ${operationChecks} operation checks (${prunedBranches} branches pruned, ${cacheHits} cache hits)")
         }
     }
 
@@ -66,11 +122,39 @@ public class ConsistencyValidationResult {
         sb.toString()
     }
 
-    public func getMismatchDetails(): ?String {
+    /**
+     * Render the per-actor mismatch table for the deepest dead-end reached
+     * during the consistency-validation DFS, if any.
+     *
+     * Returns `None` when there is no mismatch to report — either because the
+     * iteration was consistent (`isConsistent == true`), because validation
+     * could not run (`exception` is set), or because no dead-end was recorded
+     * (the DFS found a match without ever pruning a branch). Otherwise
+     * returns a `PrettyText` containing:
+     * - a header line documenting the partial-order constraints under the
+     *   chosen model (e.g. `Ordering: no constraints (all reorderings are
+     *   valid)` for `Serializability`, or `Ordering: per-actor + real-time
+     *   (------- = barrier)` for `Linearizability`);
+     * - a `PrettyTable` with one column per actor and one sub-row per "level"
+     *   of the partial order, where each cell shows `<opName>: <observed-result>`
+     *   followed by `✓` (the operation was successfully placed at this depth),
+     *   `≠ <expected> ✗` (the operation's observed result has no equivalent in
+     *   any sequential re-execution at this depth), or nothing (the operation
+     *   is not yet reachable — `-------` barrier or `...` placeholder).
+     *
+     * The deepest dead-end pinpoints the operation whose mismatch makes the
+     * entire history non-serializable; together with the one-line verdict from
+     * `report()` it gives a precise per-actor diagnostic of the consistency
+     * violation.
+     *
+     * @return a `PrettyText` rendering of the mismatch table, or `None` if
+     *         there is no dead-end to report
+     */
+    public func getMismatchDetails(): ?PrettyText {
         getMismatchTable()
     }
 
-    protected func getMismatchTable(): ?String {
+    protected func getMismatchTable(): ?PrettyText {
         if (deadEndMismatches.isEmpty()) {
             return None
         }
@@ -171,11 +255,11 @@ public class ConsistencyValidationResult {
             }
         }
 
-        let sb = StringBuilder()
-        sb.append(partialOrder.formatConstraints(consistencyModel))
-        sb.append("\n")
-        sb.append(PrettyText.of(pt).toString())
-        sb.toString()
+        let result = PrettyText()
+        result.append(partialOrder.formatConstraints(consistencyModel))
+              .newLine()
+              .append(PrettyText.of(pt))
+        Some(result)
     }
 
     private func formatCell(
