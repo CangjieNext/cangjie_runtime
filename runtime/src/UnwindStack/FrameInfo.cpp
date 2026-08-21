@@ -21,6 +21,12 @@ void FrameInfo::ResolveProcInfo()
 #else
     FuncDescRef funcDesc = MFuncDesc::GetFuncDesc(reinterpret_cast<Uptr>(startProc));
 #endif
+    if (funcDesc == nullptr) {
+        // The frame does not start at a valid function entry (e.g. a corrupted stack
+        // while dumping a crash): no exception table can be resolved for it.
+        lsdaStart = nullptr;
+        return;
+    }
     lsdaStart = reinterpret_cast<uint8_t*>(funcDesc->GetEHTable());
 }
 
@@ -134,6 +140,12 @@ void SigHandlerFrameinfo::PrintFrameInfo(uint32_t frameIdx) const
 #else
         FuncDescRef funcDesc = MFuncDesc::GetFuncDesc(reinterpret_cast<Uptr>(GetFuncStartPC()));
 #endif
+        if (funcDesc == nullptr) {
+            // Wild PC in a corrupted stack: no function metadata for this frame,
+            // print the frame address only to avoid a secondary fault.
+            FLOG(RTLOG_ERROR, outputStr);
+            return;
+        }
         CHECK_IN_SIG(sprintf_s(methodName, maxPrcessSize, "%s", funcDesc->GetFuncName().Str()) != -1);
         CHECK_IN_SIG(sprintf_s(fileName, maxPrcessSize, "%s", funcDesc->GetFuncDir().Str()) != -1);
         if (*fileName != '\0') {
