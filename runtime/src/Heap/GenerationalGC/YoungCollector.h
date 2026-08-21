@@ -54,7 +54,7 @@ protected:
     void TagPromptRegion(RegionInfo* regionInfo) const;
 
 private:
-    static constexpr uint8_t OLD_AGE = 15;
+    static constexpr uint8_t OLD_AGE = 3;
     bool IsYoungHeapAddress(BaseObject* obj) const;
     void EnumRememberedRoots(RootSet& rootSet) const;
     void PreforwardRememberedRoots();

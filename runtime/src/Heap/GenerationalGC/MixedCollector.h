@@ -27,11 +27,11 @@ public:
     RefField<> GetAndTryTagRefField(BaseObject* target) const override;
     BaseObject* ForwardObject(BaseObject* fromVersion) override;
     bool IsTargetAddress(BaseObject* obj) const override;
-    void AssembleCandidates() override;
-    void ConcurrentSweep() override;
 protected:
     void ResetForwardingData() override;
     bool IsTargetRegion(const RegionInfo*) const override { return true; }
+    void AssembleCandidates() override;
+    void ConcurrentSweep() override;
 };
 
 } // namespace MapleRuntime
