@@ -14,7 +14,9 @@ macro package std.unittest.testmacro
 import std.ast.*
 
 /**
- * TODO
+ * @Group["group"] macro marks the @Operation function, assigning this
+ * operation to group "group". Operations in the same group are not executed in
+ * parallel.
  */
 public macro Group(attr: Tokens, input: Tokens): Tokens {
     topLevelMacroDriver(GROUP_MACRO, input, attr, { it => insideParentContext(it.macroIdentifier) })
