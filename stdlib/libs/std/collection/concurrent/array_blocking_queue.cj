@@ -311,6 +311,7 @@ public class ArrayBlockingQueue<E> {
      * Consumes the slot at @p index whose reservation was already acquired:
      * loads the element, releases the slot state and wakes up blocked senders.
      */
+    @Frozen
     private func dequeueAt(index: Int64, roundState: UInt8, roundBit: UInt8): E {
         let e = buffer[index]
         buffer[index] = unsafe { zeroValue<E>() }
@@ -503,6 +504,7 @@ public class ArrayBlockingQueue<E> {
      * roundIndex. Power-of-two capacities use pure shift/mask arithmetic;
      * other capacities cost a single division instead of two.
      */
+    @Frozen
     private func locate(roundIndex: UInt64): (UInt64, Int64) {
         if (isPow2Capacity) {
             return (roundIndex >> capacityShift, Int64(roundIndex & capacityMask))
@@ -520,6 +522,7 @@ func readableState(roundBit: UInt8): UInt8 {
     }
 }
 
+@Frozen
 func writeableState(roundBit: UInt8): UInt8 {
     return if (roundBit == 1) {
         WRITEABLE_EVEN

@@ -395,6 +395,7 @@ public class LinkedBlockingQueue<E> {
         return None<E>
     }
 
+    @Frozen
     private func isFull(
         tailVersion: UInt64,
         tailAllocated: Int64,
@@ -404,6 +405,7 @@ public class LinkedBlockingQueue<E> {
         return (tailAllocated - headReserved) + Int64((tailVersion - headVersion) << BUF_SIZE_BITS) >= capacity
     }
 
+    @Frozen
     private func isFull(): Bool {
         let tailBlock = rear.load()
         let headBlock = front.load()

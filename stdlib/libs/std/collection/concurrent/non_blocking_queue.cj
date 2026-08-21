@@ -356,6 +356,7 @@ public class ConcurrentLinkedQueue<E> <: Collection<E> {
 /**
  * Allocates a new block and sets 'tail' pointing to the new one.
  */
+@Frozen
 func newBlock<E>(tailBlock: Block<E>, tail: AtomicReference<Block<E>>): Unit {
     if (!tailBlock.isExtended.compareAndSwap(false, true)) {
         while (true) {
@@ -373,6 +374,7 @@ func newBlock<E>(tailBlock: Block<E>, tail: AtomicReference<Block<E>>): Unit {
 /**
  * Sets 'head' to point to the next block.
  */
+@Frozen
 func nextBlock<E>(headBlock: Block<E>, head: AtomicReference<Block<E>>, tail: AtomicReference<Block<E>>): Bool {
     if (!refEq(head.load(), headBlock)) {
         return true
