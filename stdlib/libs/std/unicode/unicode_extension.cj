@@ -3356,6 +3356,23 @@ extend String <: UnicodeStringExtension {
         if (this.isEmpty()) {
             return true
         }
+        // Scan the common ASCII case using a public zero-copy byte view.
+        let data = unsafe { this.rawData() }
+        var index: Int64 = 0
+        while (index < data.size) {
+            let byte = data[index]
+            if (byte > 0x7Fu8) {
+                break
+            }
+            if (byte != 0x09u8 && byte != 0x0Au8 && byte != 0x0Bu8 &&
+                byte != 0x0Cu8 && byte != 0x0Du8 && byte != 0x20u8) {
+                return false
+            }
+            index++
+        }
+        if (index == data.size) {
+            return true
+        }
         for (i in this.runes()) {
             if (!i.isWhiteSpace()) {
                 return false
