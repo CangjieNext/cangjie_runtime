@@ -53,17 +53,6 @@ CString::CString(const char* initStr)
         }
         length = initLen;
         str[length] = '\0';
-    } else {
-        // Keep the object usable for a null input, just like the default
-        // constructor, instead of leaving str null.
-        str = reinterpret_cast<char*>(malloc(capacity));
-        PRINT_FATAL_IF(str == nullptr, "CString::Init failed");
-        if (str == nullptr) {
-            str = g_cStringEmptyStr;
-            capacity = 1;
-            return;
-        }
-        *str = '\0';
     }
 }
 

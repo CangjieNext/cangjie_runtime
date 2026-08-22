@@ -572,7 +572,7 @@ void MethodInfo::PrepareSRet(ArgValue* argValues, void**& sretSlot, TypeInfo* re
     }
     if (HasSRetNotGeneric() || HasSRetWithKnowGenericStruct()) {
         *sretSlot = MemoryAlloc(1, size);
-        if (*sretSlot == nullptr) {
+        if (*sretSlot == nullptr && size != 0) {
             HandleSRetAllocationFailure(sretSlot);
             return;
         }
