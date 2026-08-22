@@ -52,6 +52,7 @@ public:
     RegionList& GetOldSweptRegionList() { return oldSweptRegionList; }
     bool IsYoungSpaceHeavy() const;
     BaseObject* PromoteObject(BaseObject* fromObj, RegionInfo* ghostFromRegion);
+    void DumpRegionStats(const char* msg, bool dumpToError = false) const override;
     void PrepareYoungFromRegionList()
     {
         ghostFromRegionList.VisitAllGhostRegions([](RegionInfo* region) {
