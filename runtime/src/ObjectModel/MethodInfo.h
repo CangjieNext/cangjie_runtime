@@ -98,6 +98,7 @@ private:
     TypeInfo* GetActualTypeFromGenericTypeImpl(GenericTypeInfo* genericTi, void* genericArgs);
     Value ApplyCJMethodImpl(ArgValue* argValues, void** sretSlot);
     void PrepareSRet(ArgValue *argValues, void**& sretSlot, TypeInfo* retType);
+    void HandleSRetAllocationFailure(void**& sretSlot);
     void PrepareCJMethodActualArgs(ArgValue* argValues, void* actualArgsArray, void *genericArgsArray,
                                    ScopedAllocBuffer& allocBuffer);
     void PrepareCJMethodGenericArgs(ArgValue* argValues, void *genericArgsArray);
