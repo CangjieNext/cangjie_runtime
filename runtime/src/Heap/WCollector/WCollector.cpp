@@ -12,6 +12,8 @@
 
 namespace MapleRuntime {
 
+uint16_t WCollector::currentTagID = 0;
+
 bool WCollector::IsUnmovableFromObject(BaseObject* obj) const
 {
     // filter const string object.
