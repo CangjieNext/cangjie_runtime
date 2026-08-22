@@ -199,7 +199,7 @@ protected:
     void PreforwardDiscoveredExternObjects();
     void PreforwardAllResurrectExportFromObjects();
     // gc index 0 or 1 is used to distinguish previous gc and current gc.
-    uint16_t currentTagID = 0;
+    static uint16_t currentTagID;
     RegionForwardTable fwdTable;
 
 private:
