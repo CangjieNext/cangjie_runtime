@@ -14,8 +14,10 @@
 namespace MapleRuntime {
 ScopedAllocBuffer::~ScopedAllocBuffer()
 {
-    for (ObjectRef* nativeFrameRoot : nativeFrameRoots) {
-        mutator->RemoveNativeFrameRoot(nativeFrameRoot);
+    if (mutator != nullptr) {
+        for (ObjectRef* nativeFrameRoot : nativeFrameRoots) {
+            mutator->RemoveNativeFrameRoot(nativeFrameRoot);
+        }
     }
     AllocBuffer* buffer = AllocBuffer::GetAllocBuffer();
     if (buffer != nullptr) {
@@ -32,7 +34,6 @@ ScopedAllocBuffer::~ScopedAllocBuffer()
 
 void ScopedAllocBuffer::AddNativeFrameRoot(BaseObject* obj)
 {
-    CHECK_DETAIL(obj->HasRefField(), "native frame root must contain reference fields");
     if (mutator == nullptr) {
         mutator = ThreadLocal::GetMutator();
     }
@@ -553,6 +554,12 @@ Value MethodInfo::ApplyCJMethodImpl(ArgValue* argValues, void** sretSlot)
 
 void MethodInfo::PrepareSRet(ArgValue* argValues, void**& sretSlot, TypeInfo* retType)
 {
+    auto handleAllocationFailure = [this, &sretSlot]() {
+        ExceptionManager::OutOfMemory();
+        MemoryFree(sretSlot);
+        sretSlot = nullptr;
+        ExceptionManager::CheckAndThrowPendingException("PrepareSRet: allocate sret buffer failed");
+    };
     U32 size = 0;
     if (retType->IsVArray()) {
         size = retType->GetFieldNum() * retType->GetComponentTypeInfo()->GetInstanceSize();
@@ -560,8 +567,17 @@ void MethodInfo::PrepareSRet(ArgValue* argValues, void**& sretSlot, TypeInfo* re
         size = retType->GetInstanceSize();
     }
     sretSlot = static_cast<void**>(MemoryAlloc(1, sizeof(void*)));
+    if (sretSlot == nullptr) {
+        ExceptionManager::OutOfMemory();
+        ExceptionManager::CheckAndThrowPendingException("PrepareSRet: allocate sret slot failed");
+        return;
+    }
     if (HasSRetNotGeneric() || HasSRetWithKnowGenericStruct()) {
         *sretSlot = MemoryAlloc(1, size);
+        if (*sretSlot == nullptr) {
+            handleAllocationFailure();
+            return;
+        }
 #if defined(__aarch64__)
 #else
         argValues->AddReference(static_cast<BaseObject*>(*sretSlot));
@@ -570,6 +586,10 @@ void MethodInfo::PrepareSRet(ArgValue* argValues, void**& sretSlot, TypeInfo* re
     } else if (HasSRetWithGeneric()) {
         U32 objSize = MRT_ALIGN(size + TYPEINFO_PTR_SIZE, TYPEINFO_PTR_SIZE);
         *sretSlot = ObjectManager::NewObject(retType, objSize, AllocType::RAW_POINTER_OBJECT);
+        if (*sretSlot == nullptr) {
+            handleAllocationFailure();
+            return;
+        }
 #if defined(__aarch64__)
 #else
         argValues->AddInt64(reinterpret_cast<Uptr>(sretSlot));
@@ -578,6 +598,10 @@ void MethodInfo::PrepareSRet(ArgValue* argValues, void**& sretSlot, TypeInfo* re
     } else if (HasSRetWithUnknowGenericStruct()) {
         U32 objSize = MRT_ALIGN(size + TYPEINFO_PTR_SIZE, TYPEINFO_PTR_SIZE);
         *sretSlot = ObjectManager::NewObject(retType, objSize, AllocType::RAW_POINTER_OBJECT);
+        if (*sretSlot == nullptr) {
+            handleAllocationFailure();
+            return;
+        }
 #if defined(__aarch64__)
 #else
         argValues->AddInt64(reinterpret_cast<Uptr>(*sretSlot));
@@ -605,6 +629,10 @@ void* MethodInfo::ApplyCJMethod(ObjRef instanceObj, void* genericArgs, void* act
             retType = GetActualTypeFromGenericType(reinterpret_cast<GenericTypeInfo*>(retType), genericArgs);
         }
         PrepareSRet(&argValues, sretSlot, retType);
+        if (ExceptionManager::HasPendingException()) {
+            ExceptionManager::ThrowPendingException();
+            return nullptr;
+        }
     }
     if (instanceObj != nullptr) {
         // When a struct is passed as 'this' parameter and its size is unknown at compile time,
@@ -644,7 +672,7 @@ void* MethodInfo::ApplyCJMethod(ObjRef instanceObj, void* genericArgs, void* act
                 scopedAllocBuffer.AddNativeFrameRoot(instanceObj);
             }
             argValues.AddReference(instanceObj);
-        } else if (IsInitializer() && declaringTi->IsStruct()) {
+        } else if (IsInitializer() && declaringTi != nullptr && declaringTi->IsStruct()) {
             instanceObj = reinterpret_cast<ObjRef>(MemoryAlloc(1, declaringTi->GetInstanceSize()));
             argValues.AddInt64(reinterpret_cast<Uptr>(instanceObj));
             argValues.AddReference(nullptr); // add bp
@@ -686,10 +714,10 @@ void* MethodInfo::ApplyCJMethod(ObjRef instanceObj, void* genericArgs, void* act
         return ret.ref;
 #endif
     }
-    if (IsInitializer() && (declaringTi->IsClass() || (declaringTi->IsStruct() &&
+    if (IsInitializer() && declaringTi != nullptr && (declaringTi->IsClass() || (declaringTi->IsStruct() &&
         ((reflectVersion == 0) ? declaringTi->IsGenericTypeInfo() : declaringTi->IsUnknownSize())))) {
         return instanceObj;
-    } else if (IsInitializer() && declaringTi->IsStruct()) {
+    } else if (IsInitializer() && declaringTi != nullptr && declaringTi->IsStruct()) {
         ret.ref = instanceObj;
         void* any = RetValueToAny(ret, sretSlot == nullptr ? nullptr : *sretSlot, declaringTi);
         MemoryFree(instanceObj);
