@@ -17,6 +17,34 @@
 #include <unistd.h>
 
 namespace MapleRuntime {
+
+void MixedRegionManager::DumpRegionStats(const char* msg, bool dumpToError) const
+{
+    RegionManager::DumpRegionStats(msg, dumpToError);
+
+    auto dumpListStats = [dumpToError](const char* name, const RegionList& list) {
+        size_t regions = list.GetRegionCount();
+        size_t units = list.GetUnitCount();
+        size_t size = units * RegionInfo::UNIT_SIZE;
+        size_t allocated = list.GetAllocatedSize();
+        const char* format = "\t%s %zu: %zu units (%zu B, alloc %zu)";
+        VLOG(REPORT, format, name, regions, units, size, allocated);
+        if (dumpToError) {
+            LOG(RTLOG_ERROR, format, name, regions, units, size, allocated);
+        }
+    };
+
+    dumpListStats("sweepable young regions", sweepableYoungRegionList);
+    dumpListStats("sweepable old regions", sweepableOldRegionList);
+    dumpListStats("swept young regions", sweptYoungRegionList);
+    dumpListStats("swept old regions", oldSweptRegionList);
+    dumpListStats("old regions", oldRegionList);
+    dumpListStats("old from regions", oldFromRegionList);
+    dumpListStats("ghost old from regions", ghostOldFromRegionList);
+    dumpListStats("promote regions", promoteRegionList);
+    dumpListStats("ghost promote regions", ghostPromoteRegionList);
+}
+
 size_t MixedRegionManager::ClassifyYoungRegions()
 {
     size_t forwardBytes = 0;

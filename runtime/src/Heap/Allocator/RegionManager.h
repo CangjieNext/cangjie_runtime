@@ -134,7 +134,7 @@ public:
     void DumpRegionInfo() const;
 #endif
 
-    void DumpRegionStats(const char* msg, bool dumpToError = false) const;
+    virtual void DumpRegionStats(const char* msg, bool dumpToError = false) const;
 
     uintptr_t GetInactiveZone() const { return inactiveZone; }
 
