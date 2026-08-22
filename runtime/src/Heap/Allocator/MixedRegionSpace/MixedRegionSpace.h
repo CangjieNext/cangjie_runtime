@@ -38,10 +38,14 @@ public:
     void AssembleYoungCandidates()
     {
         CastDown(GetRegionManager()).AssembleYoungRegions();
+        GetRegionManager().AssemblePinnedGarbageCandidates(false);
+        GetRegionManager().AssembleLargeGarbageCandidates();
     }
     void AssembleMixedCandidates()
     {
         CastDown(GetRegionManager()).AssembleMixedRegions();
+        GetRegionManager().AssemblePinnedGarbageCandidates(false);
+        GetRegionManager().AssembleLargeGarbageCandidates();
     }
     size_t ClassifyCandidateRegions()
     {
