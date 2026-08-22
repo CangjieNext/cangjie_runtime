@@ -8,6 +8,7 @@
 
 package std.unicode
 
+import std.core.*
 import std.collection.*
 
 struct CaseRange {
@@ -3358,21 +3359,27 @@ extend String <: UnicodeStringExtension {
         }
         // Scan the common ASCII case using a public zero-copy byte view.
         let data = unsafe { this.rawData() }
-        var index: Int64 = 0
-        while (index < data.size) {
-            let byte = data[index]
-            if (byte > 0x7Fu8) {
-                break
+        let handle: CPointerHandle<UInt8> = unsafe { acquireArrayRawData(data) }
+        unsafe {
+            var index: Int64 = 0
+            while (index < data.size) {
+                let byte = handle.pointer.read(index)
+                if (byte > 0x7Fu8) {
+                    break
+                }
+                if (byte != 0x09u8 && byte != 0x0Au8 && byte != 0x0Bu8 &&
+                    byte != 0x0Cu8 && byte != 0x0Du8 && byte != 0x20u8) {
+                    releaseArrayRawData(handle)
+                    return false
+                }
+                index++
             }
-            if (byte != 0x09u8 && byte != 0x0Au8 && byte != 0x0Bu8 &&
-                byte != 0x0Cu8 && byte != 0x0Du8 && byte != 0x20u8) {
-                return false
+            if (index == data.size) {
+                releaseArrayRawData(handle)
+                return true
             }
-            index++
         }
-        if (index == data.size) {
-            return true
-        }
+        unsafe { releaseArrayRawData(handle) }
         for (i in this.runes()) {
             if (!i.isWhiteSpace()) {
                 return false
