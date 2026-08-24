@@ -15,7 +15,7 @@ namespace MapleRuntime {
 class GenerationAllocBuffer : public AllocBuffer {
 public:
     GenerationAllocBuffer() = default;
-    ~GenerationAllocBuffer() = default;
+    ~GenerationAllocBuffer();
 
     static GenerationAllocBuffer* GetGenerationAllocBuffer();
     MAddress AllocateImpl(size_t totalSize);
@@ -33,7 +33,11 @@ public:
         return r;
     }
 private:
+    static constexpr size_t SLOT_REGION_CACHE_LIMIT = 3;
+    void FlushSlotRegionCaches(MixedRegionManager& manager);
     RegionInfo* oldAllocRegion = RegionInfo::NullRegion();
+    RegionList youngSlotRegionCache{"young slot region cache"};
+    RegionList oldSlotRegionCache{"old slot region cache"};
 };
 
 } // namespace MapleRuntime

@@ -92,6 +92,16 @@ public:
         return currentHead;
     }
 
+    RegionInfo* TakeHeadRegionNoLock()
+    {
+        if (listHead == nullptr) {
+            return nullptr;
+        }
+        RegionInfo* currentHead = listHead;
+        DeleteRegionLocked(currentHead);
+        return currentHead;
+    }
+
     RegionInfo* TakeHeadRegion(RegionInfo::RegionType newType)
     {
         std::lock_guard<std::mutex> lg(listMutex);
@@ -138,6 +148,27 @@ public:
         std::lock_guard<std::mutex> lock(listMutex);
         for (RegionInfo* node = listHead; node != nullptr; node = node->GetNextRegion()) {
             node->SetRegionType(type);
+        }
+    }
+
+    void PrependRegionNoLock(RegionInfo* region, RegionInfo::RegionType type)
+    {
+        PrependRegionLocked(region, type);
+    }
+
+    void RemoveRegionNoLock(RegionInfo* region)
+    {
+        if (region != nullptr) {
+            DeleteRegionLocked(region);
+        }
+    }
+
+    void VisitAllRegionsNoLock(const std::function<void(RegionInfo*)>& visitor)
+    {
+        for (RegionInfo* node = listHead; node != nullptr;) {
+            RegionInfo* next = node->GetNextRegion();
+            visitor(node);
+            node = next;
         }
     }
 
