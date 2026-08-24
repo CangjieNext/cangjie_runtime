@@ -6,6 +6,7 @@
 
 
 #include "CString.h"
+#include "Base/Log.h"
 
 #include <libgen.h>
 
@@ -19,7 +20,7 @@ constexpr int8_t MIN_ALIGN_SPACE = 4;
 CString::CString()
 {
     str = reinterpret_cast<char*>(malloc(capacity));
-    PRINT_FATAL_IF(str == nullptr, "CString::Init failed");
+    CHECK_DETAIL(str != nullptr, "CString::Init failed");
     *str = '\0';
     length = 0;
 }
@@ -32,9 +33,9 @@ CString::CString(const char* initStr)
             capacity <<= 1;
         }
         str = reinterpret_cast<char*>(malloc(capacity));
-        PRINT_FATAL_IF(str == nullptr, "CString::Init failed");
+        CHECK_DETAIL(str != nullptr, "CString::Init failed");
         if (*initStr != '\0') {
-            PRINT_FATAL_IF(memcpy_s(str, capacity, initStr, initLen) != EOK, "CString::CString memcpy_s failed");
+            CHECK_DETAIL(memcpy_s(str, capacity, initStr, initLen) == EOK, "CString::CString memcpy_s failed");
         }
         length = initLen;
         str[length] = '\0';
@@ -44,7 +45,7 @@ CString::CString(const char* initStr)
 CString::CString(char c)
 {
     str = reinterpret_cast<char*>(malloc(capacity));
-    PRINT_FATAL_IF(str == nullptr, "CString::Init failed");
+    CHECK_DETAIL(str != nullptr, "CString::Init failed");
     str[0] = c;
     str[1] = '\0';
     length = 1;
@@ -56,9 +57,9 @@ CString::CString(int32_t number)
 {
     capacity = sizeof(int32_t) * MIN_ALIGN_SPACE;
     str = reinterpret_cast<char*>(malloc(capacity));
-    PRINT_FATAL_IF(str == nullptr, "CString::Init failed");
+    CHECK_DETAIL(str != nullptr, "CString::Init failed");
     int ret = sprintf_s(str, capacity, "%d", number);
-    PRINT_FATAL_IF(ret == -1, "CString::Init failed");
+    CHECK_DETAIL(ret != -1, "CString::Init failed");
     length = ret;
 }
 
@@ -66,9 +67,9 @@ CString::CString(int64_t number)
 {
     capacity = sizeof(int64_t) * MIN_ALIGN_SPACE;
     str = reinterpret_cast<char*>(malloc(capacity));
-    PRINT_FATAL_IF(str == nullptr, "CString::Init failed");
+    CHECK_DETAIL(str != nullptr, "CString::Init failed");
     int ret = sprintf_s(str, capacity, "%lld", number);
-    PRINT_FATAL_IF(ret == -1, "CString::Init failed");
+    CHECK_DETAIL(ret != -1, "CString::Init failed");
     length = ret;
 }
 
@@ -76,9 +77,9 @@ CString::CString(uint32_t number)
 {
     capacity = sizeof(uint32_t) * MIN_ALIGN_SPACE;
     str = reinterpret_cast<char*>(malloc(capacity));
-    PRINT_FATAL_IF(str == nullptr, "CString::Init failed");
+    CHECK_DETAIL(str != nullptr, "CString::Init failed");
     int ret = sprintf_s(str, capacity, "%u", number);
-    PRINT_FATAL_IF(ret == -1, "CString::Init failed");
+    CHECK_DETAIL(ret != -1, "CString::Init failed");
     length = ret;
 }
 
@@ -86,9 +87,9 @@ CString::CString(uint64_t number)
 {
     capacity = sizeof(uint64_t) * MIN_ALIGN_SPACE;
     str = reinterpret_cast<char*>(malloc(capacity));
-    PRINT_FATAL_IF(str == nullptr, "CString::Init failed");
+    CHECK_DETAIL(str != nullptr, "CString::Init failed");
     int ret = sprintf_s(str, capacity, "%lu", number);
-    PRINT_FATAL_IF(ret == -1, "CString::Init failed");
+    CHECK_DETAIL(ret != -1, "CString::Init failed");
     length = ret;
 }
 
@@ -99,9 +100,9 @@ CString::CString(const CString& other)
         capacity <<= 1;
     }
     str = reinterpret_cast<char*>(malloc(capacity));
-    PRINT_FATAL_IF(str == nullptr, "CString::Init failed");
+    CHECK_DETAIL(str != nullptr, "CString::Init failed");
     if (!other.IsEmpty()) {
-        PRINT_FATAL_IF(memcpy_s(str, capacity, other.Str(), initLen) != EOK, "CString::CString memcpy_s failed");
+        CHECK_DETAIL(memcpy_s(str, capacity, other.Str(), initLen) == EOK, "CString::CString memcpy_s failed");
     }
     length = initLen;
     str[length] = '\0';
@@ -114,9 +115,9 @@ CString::CString(const FixedCString& other)
         capacity <<= 1;
     }
     str = reinterpret_cast<char*>(malloc(capacity));
-    PRINT_FATAL_IF(str == nullptr, "CString::Init failed");
+    CHECK_DETAIL(str != nullptr, "CString::Init failed");
     if (!other.IsEmpty()) {
-        PRINT_FATAL_IF(memcpy_s(str, capacity, other.Str(), initLen) != EOK, "CString::CString memcpy_s failed");
+        CHECK_DETAIL(memcpy_s(str, capacity, other.Str(), initLen) == EOK, "CString::CString memcpy_s failed");
     }
     length = initLen;
     str[length] = '\0';
@@ -128,8 +129,8 @@ CString::CString(size_t number, char ch)
         capacity <<= 1;
     }
     str = reinterpret_cast<char*>(malloc(capacity));
-    PRINT_FATAL_IF(str == nullptr, "CString::Init failed");
-    PRINT_FATAL_IF(memset_s(str, capacity, ch, number) != EOK, "CString::CString memset_s failed");
+    CHECK_DETAIL(str != nullptr, "CString::Init failed");
+    CHECK_DETAIL(memset_s(str, capacity, ch, number) == EOK, "CString::CString memset_s failed");
     length = number;
     str[length] = '\0';
 }
@@ -147,9 +148,10 @@ CString& CString::operator=(const CString& other)
         free(str);
     }
     str = reinterpret_cast<char*>(malloc(capacity));
-    PRINT_FATAL_IF(str == nullptr, "CString::operator= malloc failed");
+    CHECK_DETAIL(str != nullptr, "CString::operator= malloc failed");
     if (!other.IsEmpty()) {
-        PRINT_FATAL_IF(memcpy_s(str, capacity, other.Str(), initLen) != EOK, "CString::operator= memcpy_s failed");
+        CHECK_DETAIL(memcpy_s(str, capacity, other.Str(), initLen) == EOK,
+                     "CString::operator= memcpy_s failed");
     }
     length = initLen;
     str[length] = '\0';
@@ -173,8 +175,8 @@ void CString::EnsureSpace(size_t addLen)
         capacity <<= 1;
     }
     char* newStr = reinterpret_cast<char*>(malloc(capacity));
-    PRINT_FATAL_IF(newStr == nullptr, "CString::Init failed");
-    PRINT_FATAL_IF(memcpy_s(newStr, capacity, str, length) != EOK, "CString::EnsureSpace memcpy_s failed");
+    CHECK_DETAIL(newStr != nullptr, "CString::Init failed");
+    CHECK_DETAIL(memcpy_s(newStr, capacity, str, length) == EOK, "CString::EnsureSpace memcpy_s failed");
     if (str != nullptr) {
         free(str);
     }
@@ -190,8 +192,11 @@ CString& CString::Append(const CString& addStr, size_t addLen)
         addLen = strlen(addStr.str);
     }
     EnsureSpace(addLen);
-    PRINT_FATAL_IF(memcpy_s(str + length, capacity - length, addStr.str, addLen) != EOK,
-                   "CString::Append memcpy_s failed");
+    if (capacity < length + addLen + 1) {
+        return *this;
+    }
+    CHECK_DETAIL(memcpy_s(str + length, capacity - length, addStr.str, addLen) == EOK,
+                 "CString::Append memcpy_s failed");
     length += addLen;
     str[length] = '\0';
     return *this;
@@ -206,7 +211,11 @@ CString& CString::Append(const char* addStr, size_t addLen)
         addLen = strlen(addStr);
     }
     EnsureSpace(addLen);
-    PRINT_FATAL_IF(memcpy_s(str + length, capacity - length, addStr, addLen) != EOK, "CString::Append memcpy_s failed");
+    if (capacity < length + addLen + 1) {
+        return *this;
+    }
+    CHECK_DETAIL(memcpy_s(str + length, capacity - length, addStr, addLen) == EOK,
+                 "CString::Append memcpy_s failed");
     length += addLen;
     str[length] = '\0';
     return *this;
@@ -285,6 +294,9 @@ CString CString::SubStr(size_t index, size_t len) const
     CString newStr;
     PRINT_ERROR_RETURN_IF(index + len > length, newStr, "CString::SubStr input parameter error\n");
     newStr.EnsureSpace(len);
+    if (newStr.capacity < len + 1) {
+        return newStr;
+    }
     PRINT_ERROR_RETURN_IF(memcpy_s(newStr.str, newStr.capacity, str + index, len) != EOK, newStr,
                           "CString::SubStr memcpy_s failed");
     newStr.length = len;
@@ -305,6 +317,9 @@ CString CString::RemoveBlankSpace() const
     if (length == 0) {
         return noBlankSpaceStr;
     }
+    if (noBlankSpaceStr.capacity < length + 1) {
+        return *this;
+    }
     for (size_t i = 0; i < length; i++) {
         if (str[i] != ' ') {
             noBlankSpaceStr.str[index++] = str[i];
@@ -318,8 +333,8 @@ CString CString::RemoveBlankSpace() const
 void CString::Replace(size_t pos, CString cStr)
 {
     size_t repLen = cStr.Length();
-    PRINT_FATAL_IF(pos + repLen > length, "CString::Replace failed, input is too long");
-    PRINT_FATAL_IF(memcpy_s(str + pos, repLen, cStr.Str(), repLen) != EOK, "CString::Replace memcpy_s failed");
+    CHECK_DETAIL(pos + repLen <= length, "CString::Replace failed, input is too long");
+    CHECK_DETAIL(memcpy_s(str + pos, repLen, cStr.Str(), repLen) == EOK, "CString::Replace memcpy_s failed");
 }
 
 #ifdef __OHOS__
