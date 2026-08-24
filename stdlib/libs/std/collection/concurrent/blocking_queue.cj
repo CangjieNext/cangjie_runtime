@@ -110,6 +110,7 @@ public class LinkedBlockingQueue<E> {
         add(element)
     }
 
+    @Frozen
     public func add(element: E): Unit {
         var prevCount: Int64 = -1
         putMonitor.lock()
@@ -189,6 +190,7 @@ public class LinkedBlockingQueue<E> {
         return remove()
     }
 
+    @Frozen
     public func remove(): E {
         var prevCount: Int64 = -1
         var value: E
@@ -268,6 +270,7 @@ public class LinkedBlockingQueue<E> {
         return peek()
     }
 
+    @Frozen
     public func peek(): Option<E> {
         while (true) {
             let headBlock = front.load()
@@ -298,6 +301,7 @@ public class LinkedBlockingQueue<E> {
         return tryAdd(element)
     }
 
+    @Frozen
     public func tryAdd(element: E): Bool {
         if (count.load() == capacity) {
             return false
@@ -335,6 +339,7 @@ public class LinkedBlockingQueue<E> {
         return tryRemove()
     }
 
+    @Frozen
     public func tryRemove(): Option<E> {
         if (count.load() == 0) {
             return None<E>
@@ -360,6 +365,7 @@ public class LinkedBlockingQueue<E> {
         return value
     }
 
+    @Frozen
     private func enqueueUnsafe(element: E): Unit {
         while (true) {
             let tailBlock = rear.load()
@@ -372,6 +378,7 @@ public class LinkedBlockingQueue<E> {
         }
     }
 
+    @Frozen
     private func dequeueUnsafe(): E {
         while (true) {
             let headBlock = front.load()
