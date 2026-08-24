@@ -17,16 +17,16 @@ import std.time.*
  * state_load, state_store and state_compareAndSwap are foreign functions to operate array 'state'.
  */
 @FastNative
-foreign func CjStdSyncStateInit(capacity: Int64): CPointer<UInt8>
+foreign func CjStdSyncStateInit(capacity: Int64, stride: Int64): CPointer<UInt8>
 
 @FastNative
-foreign func CjStdSyncStateLoad(ptr: CPointer<UInt8>, index: Int64): UInt8
+foreign func CjStdSyncStateLoad(ptr: CPointer<UInt8>, index: Int64, stride: Int64): UInt8
 
 @FastNative
-foreign func CjStdSyncStateStore(ptr: CPointer<UInt8>, index: Int64, state: UInt8): Unit
+foreign func CjStdSyncStateStore(ptr: CPointer<UInt8>, index: Int64, stride: Int64, state: UInt8): Unit
 
 @FastNative
-foreign func CjStdSyncStateCas(ptr: CPointer<UInt8>, index: Int64, expectedState: UInt8, desiredState: UInt8): Bool
+foreign func CjStdSyncStateCas(ptr: CPointer<UInt8>, index: Int64, stride: Int64, expectedState: UInt8, desiredState: UInt8): Bool
 
 const STATE_BITS: UInt8 = 3
 const ROUND_BIT: UInt8 = 2
@@ -65,6 +65,19 @@ public class ArrayBlockingQueue<E> {
     let state: CPointer<UInt8> // the state of the corresponding place in the buffer
 
     let allocated: AtomicUInt64 = AtomicUInt64(0) // index in buffer for the next producer
+
+    // Padding between producer-owned and consumer-owned atomics: without it
+    // 'allocated' and 'reserved' share a cache line and every producer CAS
+    // invalidates the line for all consumers (false sharing).
+    let padAlloc0: UInt64 = 0
+    let padAlloc1: UInt64 = 0
+    let padAlloc2: UInt64 = 0
+    let padAlloc3: UInt64 = 0
+    let padAlloc4: UInt64 = 0
+    let padAlloc5: UInt64 = 0
+    let padAlloc6: UInt64 = 0
+    let padAlloc7: UInt64 = 0
+
     let reserved: AtomicUInt64 = AtomicUInt64(0) // index in buffer for the next consumer
     let sendQSize = AtomicUInt64(0) // Number of elements that are enqueuing
     let receiveQSize = AtomicUInt64(0) // Number of elements that are being dequeued
@@ -72,6 +85,12 @@ public class ArrayBlockingQueue<E> {
     let receiveMonitor = Monitor() // Monitor for blocking the fail senders
 
     let unsignedCapacity: UInt64 // the unsigned version of the capacity
+
+    // Byte distance between two consecutive state slots. Each slot CAS on the
+    // state array invalidates a whole cache line; giving every slot its own
+    // line removes the inter-slot false sharing under multi-thread contention.
+    // Stride 64 is only used for small capacities to bound the memory cost.
+    let stateStride: Int64
 
     // Precomputed values to replace expensive divisions in the hot path:
     // - power-of-two capacities use shift/mask arithmetic;
@@ -87,7 +106,8 @@ public class ArrayBlockingQueue<E> {
 
         this.capacity = capacity
         buffer = Array(capacity, repeat: unsafe { zeroValue<E>() })
-        state = unsafe { CjStdSyncStateInit(capacity) }
+        stateStride = if (capacity <= 16384) { 64 } else { 1 }
+        state = unsafe { CjStdSyncStateInit(capacity, stateStride) }
         if (state.isNull()) {
             throw IllegalMemoryException("Failed to malloc memory of ${capacity}.")
         }
@@ -122,7 +142,8 @@ public class ArrayBlockingQueue<E> {
 
         this.capacity = capacity
         buffer = Array(capacity, repeat: unsafe { zeroValue<E>() })
-        state = unsafe { CjStdSyncStateInit(capacity) }
+        stateStride = if (capacity <= 16384) { 64 } else { 1 }
+        state = unsafe { CjStdSyncStateInit(capacity, stateStride) }
         if (state.isNull()) {
             throw IllegalMemoryException("Failed to malloc memory of ${capacity}.")
         }
@@ -262,7 +283,7 @@ public class ArrayBlockingQueue<E> {
         while (spin < BLOCKING_SPIN_COUNT) {
             let roundIndex = reserved.load()
             let (round, index) = locate(roundIndex)
-            let roundState = unsafe { CjStdSyncStateLoad(state, index) }
+            let roundState = unsafe { CjStdSyncStateLoad(state, index, stateStride) }
             let roundBit = roundState >> ROUND_BIT
 
             if (matchState(round, roundBit, roundState & STATE_BITS, READABLE)) {
@@ -277,7 +298,7 @@ public class ArrayBlockingQueue<E> {
         while (true) {
             let roundIndex = reserved.load()
             let (round, index) = locate(roundIndex)
-            let roundState = unsafe { CjStdSyncStateLoad(state, index) }
+            let roundState = unsafe { CjStdSyncStateLoad(state, index, stateStride) }
             let roundBit = roundState >> ROUND_BIT
 
             if (matchState(round, roundBit, roundState & STATE_BITS, READABLE)) {
@@ -302,7 +323,7 @@ public class ArrayBlockingQueue<E> {
     private func dequeueAt(index: Int64, roundState: UInt8, roundBit: UInt8): E {
         let e = buffer[index]
         buffer[index] = unsafe { zeroValue<E>() }
-        while (!unsafe { CjStdSyncStateCas(state, index, roundState, writeableState(roundBit)) }) {}
+        while (!unsafe { CjStdSyncStateCas(state, index, stateStride, roundState, writeableState(roundBit)) }) {}
 
         if (sendQSize.load() != 0) {
             receiveMonitor.lock()
@@ -371,17 +392,17 @@ public class ArrayBlockingQueue<E> {
         while (true) {
             let roundIndex = reserved.load() // LP: if returns 'None<E>'
             let (_, index) = locate(roundIndex)
-            let roundState = unsafe { CjStdSyncStateLoad(state, index) }
+            let roundState = unsafe { CjStdSyncStateLoad(state, index, stateStride) }
             let roundBit = roundState >> ROUND_BIT
 
             if ((roundState & STATE_BITS) == READABLE) {
-                if (unsafe { CjStdSyncStateCas(state, index, roundState, lockState(roundBit)) }) {
+                if (unsafe { CjStdSyncStateCas(state, index, stateStride, roundState, lockState(roundBit)) }) {
                     if (reserved.load() == roundIndex) { // LP: if returns 'Some(e)'
                         let e = buffer[index]
-                        unsafe { CjStdSyncStateStore(state, index, roundState) }
+                        unsafe { CjStdSyncStateStore(state, index, stateStride, roundState) }
                         return Some(e)
                     } else {
-                        unsafe { CjStdSyncStateStore(state, index, roundState) }
+                        unsafe { CjStdSyncStateStore(state, index, stateStride, roundState) }
                     }
                 }
             } else if (roundIndex >= allocated.load()) {
@@ -412,7 +433,7 @@ public class ArrayBlockingQueue<E> {
         while (true) {
             let roundIndex = allocated.load() // LP: if returns 'false'
             let (round, index) = locate(roundIndex)
-            let roundState = unsafe { CjStdSyncStateLoad(state, index) }
+            let roundState = unsafe { CjStdSyncStateLoad(state, index, stateStride) }
             let roundBit = roundState >> ROUND_BIT
 
             if (matchState(round, roundBit, roundState & STATE_BITS, WRITEABLE)) {
@@ -421,7 +442,7 @@ public class ArrayBlockingQueue<E> {
                 }
 
                 buffer[index] = element
-                unsafe { CjStdSyncStateStore(state, index, readableState(roundBit)) }
+                unsafe { CjStdSyncStateStore(state, index, stateStride, readableState(roundBit)) }
 
                 if (receiveQSize.load() != 0) {
                     sendMonitor.lock()
@@ -455,7 +476,7 @@ public class ArrayBlockingQueue<E> {
         while (true) {
             let roundIndex = reserved.load() // LP: if returns 'None<E>'
             let (round, index) = locate(roundIndex)
-            let roundState = unsafe { CjStdSyncStateLoad(state, index) }
+            let roundState = unsafe { CjStdSyncStateLoad(state, index, stateStride) }
             let roundBit = roundState >> ROUND_BIT
 
             if (matchState(round, roundBit, roundState & STATE_BITS, READABLE)) {
@@ -465,7 +486,7 @@ public class ArrayBlockingQueue<E> {
 
                 let e = buffer[index]
                 buffer[index] = unsafe { zeroValue<E>() }
-                while (!unsafe { CjStdSyncStateCas(state, index, roundState, writeableState(roundBit)) }) {}
+                while (!unsafe { CjStdSyncStateCas(state, index, stateStride, roundState, writeableState(roundBit)) }) {}
 
                 if (sendQSize.load() != 0) {
                     receiveMonitor.lock()
