@@ -22,7 +22,12 @@ public:
     void AssembleYoungRegions()
     {
         size_t unitCount = recentFullRegionList.GetUnitCount();
-        if (!ShouldSplit(unitCount)) {
+        size_t youngRegionSize = Heap::GetHeap().GetMaxCapacity() / 3;
+        size_t sweptRegionSize = sweptYoungRegionList.GetAllocatedSize();
+        size_t freeSlotSize = GetFreeSlotTotalSize(sweptYoungRegionList);
+        size_t sweptAllocatedSize = sweptRegionSize > freeSlotSize ? sweptRegionSize - freeSlotSize : 0;
+        bool shouldSplit = ShouldSplit(unitCount) && sweptAllocatedSize <= youngRegionSize / 3;
+        if (!shouldSplit) {
             fromRegionList.MergeRegionList(recentFullRegionList, RegionInfo::RegionType::FROM_REGION);
         } else {
             RegionList tmpMovable("movable regions cache");
@@ -50,6 +55,14 @@ public:
     RegionList& GetSweepableOldRegionList() { return sweepableOldRegionList; }
     RegionList& GetSweptRegionList() { return sweptYoungRegionList; }
     RegionList& GetOldSweptRegionList() { return oldSweptRegionList; }
+    void RecycleYoungSlotRegion(RegionInfo* region)
+    {
+        recentFullRegionList.PrependRegion(region, RegionInfo::RegionType::RECENT_FULL_REGION);
+    }
+    void RecycleOldSlotRegion(RegionInfo* region)
+    {
+        sweepableOldRegionList.PrependRegion(region, RegionInfo::RegionType::SWEEP_REGION);
+    }
     bool IsYoungSpaceHeavy() const;
     BaseObject* PromoteObject(BaseObject* fromObj, RegionInfo* ghostFromRegion);
     void DumpRegionStats(const char* msg, bool dumpToError = false) const override;
@@ -115,7 +128,7 @@ public:
             PrepareYoungFromRegionList();
         }
     }
-    void RequestForRegion(size_t size) override
+    void CheckGC() override
     {
         if (IsGcThread()) {
             return;
@@ -124,7 +137,8 @@ public:
         if (!heap.IsGcStarted()) {
             size_t maxCapacity = heap.GetMaxCapacity();
             size_t youngGenSize = maxCapacity / 3;
-            size_t youngAllocated = GetRecentAllocatedSize();
+            size_t youngAllocated = GetRecentAllocatedSize() + sweptYoungRegionList.GetAllocatedSize() -
+                GetFreeSlotTotalSize(sweptYoungRegionList);
             size_t totalAllocated = GetAllocatedSize();
             if (youngAllocated >= youngGenSize * 2 / 3) {
                 heap.GetCollector().RequestGC(GC_REASON_HEU, true);
@@ -132,7 +146,6 @@ public:
                 heap.GetCollector().RequestGC(GC_REASON_FORCE, true);
             }
         }
-        RegionManager::RequestForRegion(size);
     }
     size_t GetAllocatedSize() const override
     {

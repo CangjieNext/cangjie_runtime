@@ -832,6 +832,14 @@ public:
 
     RegionFreeSlotList* GetFreeSlotList() const { return metadata.routeInfo.GetFreeSlotList(); }
 
+    void ClearFreeSlotList()
+    {
+        if (metadata.routeInfo.kind == RouteInfo::RouteKind::FREE_SLOT_LIST) {
+            delete metadata.routeInfo.freeSlotList;
+            metadata.routeInfo.SetRouteInfo(0);
+        }
+    }
+
     void SweepRegion();
 
     void PrepareForwardableRegion()
@@ -1420,10 +1428,7 @@ private:
 
     void InitRegionInfo(size_t nUnit, UnitRole uClass)
     {
-        if (metadata.routeInfo.kind == RouteInfo::RouteKind::FREE_SLOT_LIST) {
-            delete metadata.routeInfo.freeSlotList;
-            metadata.routeInfo.SetRouteInfo(0);
-        }
+        ClearFreeSlotList();
 
         // Reset (free) the remembered-set card table atomically. RememberSet entries
         // still referencing this region will be skipped lazily via IsRSetSlotMarked==false.

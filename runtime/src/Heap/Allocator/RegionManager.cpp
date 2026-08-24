@@ -672,7 +672,7 @@ void RegionManager::ForEachObjSafe(const std::function<void(BaseObject*)>& visit
     ForEachObjUnsafe(visitor);
 }
 
-RegionInfo* RegionManager::TakeRegion(size_t num, RegionInfo::UnitRole type, bool expectPhysicalMem)
+void RegionManager::CheckGC()
 {
     // a chance to invoke heuristic gc.
     if (!Heap::GetHeap().IsGcStarted()) {
@@ -684,6 +684,11 @@ RegionInfo* RegionManager::TakeRegion(size_t num, RegionInfo::UnitRole type, boo
             collector.RequestGC(GC_REASON_HEU, true);
         }
     }
+}
+
+RegionInfo* RegionManager::TakeRegion(size_t num, RegionInfo::UnitRole type, bool expectPhysicalMem)
+{
+    CheckGC();
 
     // check for allocation since we do not want gc threads and mutators do any harm to each other.
     size_t size = num * RegionInfo::UNIT_SIZE;
@@ -1221,6 +1226,7 @@ void RegionManager::CompactRegion(RegionInfo* region)
         size_t reclaimSize = regionLimit - cur;
         CHECK_DETAIL(memset_s(reinterpret_cast<void*>(cur), reclaimSize, 0, reclaimSize) == EOK, "clear buffer failed");
     }
+    region->ClearFreeSlotList();
 
     if (region->IsFromRegion()) {
         fromRegionList.TryDeleteRegion(region, RegionInfo::RegionType::FROM_REGION,
@@ -1281,6 +1287,7 @@ void RegionManager::CompactRegion(RegionInfo* region, RegionInfo* toRegion1)
         size_t reclaimSize = regionLimit - cur;
         CHECK_DETAIL(memset_s(reinterpret_cast<void*>(cur), reclaimSize, 0, reclaimSize) == EOK, "clear buffer failed");
     }
+    region->ClearFreeSlotList();
 
     if (region->IsFromRegion()) {
         fromRegionList.TryDeleteRegion(region, RegionInfo::RegionType::FROM_REGION,
