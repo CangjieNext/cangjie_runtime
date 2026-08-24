@@ -125,7 +125,11 @@ AllocBuffer* AllocBuffer::GetOrCreateAllocBuffer()
 {
     auto* buffer = AllocBuffer::GetAllocBuffer();
     if (buffer == nullptr) {
-        buffer = new (std::nothrow) GenerationAllocBuffer();
+        if (Heap::GetGCMode() == GCMode::GENERATIONAL) {
+            buffer = new (std::nothrow) GenerationAllocBuffer();
+        } else {
+            buffer = new (std::nothrow) AllocBuffer();
+        }
         CHECK_DETAIL(buffer != nullptr, "new region alloc buffer fail");
         buffer->Init();
         ThreadLocal::SetAllocBuffer(buffer);

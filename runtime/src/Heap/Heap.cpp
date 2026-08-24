@@ -36,26 +36,35 @@ Barrier* Heap::stwBarrierPtr = nullptr;
 MAddress Heap::heapStartAddr = 0;
 MAddress Heap::heapCurrentEnd = 0;
 
-static bool InitEnabledGCParam()
-{
-    auto enableGC = std::getenv("cjEnableGC");
-    if (enableGC == nullptr) {
-        return true;
+static const GCMode gcMode = [] {
+    const char* enableGC = std::getenv("cjEnableGC");
+    if (enableGC == nullptr || strlen(enableGC) != 1) {
+        if (enableGC != nullptr) {
+            LOG(RTLOG_ERROR, "Unsupported cjEnableGC, cjEnableGC should be 0, 1 or 2.\n");
+        }
+        return GCMode::WGC;
     }
-    if (strlen(enableGC) != 1) {
-        LOG(RTLOG_ERROR, "Unsupported cjEnableGC, cjEnableGC should be 0 or 1.\n");
-        return true;
-    }
-
     switch (enableGC[0]) {
         case '0':
-            return false;
+            return GCMode::DISABLED;
         case '1':
-            return true;
+            return GCMode::WGC;
+        case '2':
+            return GCMode::GENERATIONAL;
         default:
-            LOG(RTLOG_ERROR, "Unsupported cjEnableGC, cjEnableGC should be 0 or 1.\n");
+            LOG(RTLOG_ERROR, "Unsupported cjEnableGC, cjEnableGC should be 0, 1 or 2.\n");
+            return GCMode::WGC;
     }
-    return true;
+}();
+
+static bool InitEnabledGCParam()
+{
+    return gcMode != GCMode::DISABLED;
+}
+
+GCMode Heap::GetGCMode()
+{
+    return gcMode;
 }
 
 class HeapImpl : public Heap {
