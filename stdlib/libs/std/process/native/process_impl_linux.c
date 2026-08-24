@@ -8,6 +8,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <string.h>
 #include <unistd.h>
 #include "securec.h"
 #include "process_ffi_unix.h"
@@ -501,6 +502,40 @@ extern int64_t CJ_OS_GetUserTime(int32_t pid)
 }
 
 /**
+ * @brief Detects whether the process at /proc/[pid] is a zombie (state 'Z').
+ *
+ * A zombie is a terminated process whose exit status has not been reaped yet.
+ * It still shows up in /proc with a valid start time, so start-time comparison
+ * alone reports it as "alive"; this helper lets isAlive() report the truth.
+ *
+ * @param pid The process ID (PID) of the target process.
+ * @return true if the process exists and is in zombie state, false otherwise.
+ */
+static bool IsZombieProcess(int32_t pid)
+{
+    char filename[MAX_PATH_LEN] = {0};
+    if (sprintf_s(filename, MAX_PATH_LEN, "/proc/%d/stat", pid) < 0) {
+        return false;
+    }
+    FILE* fp = fopen(filename, "r");
+    if (fp == NULL) {
+        return false;
+    }
+    char buf[BUF_LEN] = {0};
+    bool zombie = false;
+    if (fgets(buf, sizeof(buf), fp) != NULL) {
+        // Field 2 (comm) may contain spaces and ')' characters, so the state
+        // (field 3) is located right after the last ')' followed by a space.
+        char* lastParen = strrchr(buf, ')');
+        if (lastParen != NULL && lastParen[1] == ' ' && lastParen[2] != '\0') {
+            zombie = (lastParen[2] == 'Z');
+        }
+    }
+    (void)fclose(fp);
+    return zombie;
+}
+
+/**
  * @brief Checks whether a Linux process still matches the known start time.
  *
  * This function reads the current boot-based start time and compares it with
@@ -516,6 +551,9 @@ extern int64_t CJ_OS_GetUserTime(int32_t pid)
  */
 extern int8_t CJ_OS_GetProcessAliveStatus(int32_t pid, int64_t lastTime)
 {
+    if (IsZombieProcess(pid)) {
+        return PROCESS_STATUS_NOT_EXIST;
+    }
     int64_t newTime = CJ_OS_GetStartTimeFromBoot(pid);
     if ((lastTime > 0 && lastTime == newTime) || (lastTime == 0 || newTime == 0)) {
         return PROCESS_STATUS_ALIVE;
