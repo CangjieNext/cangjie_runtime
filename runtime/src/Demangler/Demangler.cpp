@@ -26,6 +26,8 @@ constexpr char MANGLE_CSTRING_PREFIX = 'k';
 constexpr char MANGLE_VOID_PREFIX = 'v';
 constexpr char MANGLE_GTY_PREFIX = 'G';
 constexpr char MANGLE_DEFAULT_PARAM_FUNCTION_PREFIX = '$';
+constexpr char MANGLE_TYPE_MODE_PREFIX = 'Q';
+constexpr char MANGLE_THIS_MODE_PREFIX = 'W';
 const char ARGS_DELIMITER[] = ", ";
 const char ARGS_DELIMITER_TYPE[] = ",";
 const char LEFT_BRACKET[] = "(";
@@ -197,12 +199,12 @@ bool IsPrimitive(char ch)
     return GetPrimitiveDemangleMap<T>(ch) != T{ "" };
 }
 
-// Local-modal function-level modifier suffixes produced by DemangleLocalModifier.
-const char LOCAL_MODIFIER_SUFFIX_FULL[] = " @local!";
-const char LOCAL_MODIFIER_SUFFIX_HALF[] = " @local?";
+// Local-modal suffix text produced by DemangleModeSet.
+const char LOCAL_MODIFIER_SUFFIX_FULL[] = " @ local!";
+const char LOCAL_MODIFIER_SUFFIX_HALF[] = " @ local?";
 
 // Whether `demangled` already ends with `argTypesName`, optionally followed by a single
-// local-modal function-level modifier suffix (" @local!" / " @local?"). Used by GetFullName to
+// local-modal modal suffix (" @ local!" / " @ local?"). Used by GetFullName to
 // tell apart a fully-assembled signature (params already embedded, do not re-append) from a bare
 // operator name like "()" (params not yet embedded, must be appended).
 template<typename T>
@@ -239,9 +241,11 @@ inline bool IsFunction(char ch)
     return ch == MANGLE_FUNCTION_PREFIX;
 }
 
-inline bool IsLocalModifierChar(char ch)
+/// Leaders of the modal encoding (方案 B): `Q` for a data-type mode-set, `W` for a this-mode-set.
+/// Neither is a prefix of any `<type>`, so a mode-set is unambiguous wherever it appears.
+inline bool IsModeLeaderChar(char ch)
 {
-    return ch == '?' || ch == '!';
+    return ch == MANGLE_TYPE_MODE_PREFIX || ch == MANGLE_THIS_MODE_PREFIX;
 }
 
 template<typename T>
@@ -458,37 +462,81 @@ void Demangler<T>::SkipOptionalChar(char ch)
 }
 
 template<typename T>
-bool Demangler<T>::IsLocalModifier() const
+bool Demangler<T>::IsModeLeader() const
 {
     if (currentIndex >= mangledName.Length()) {
         return false;
     }
-    return IsLocalModifierChar(mangledName[currentIndex]);
+    return IsModeLeaderChar(mangledName[currentIndex]);
 }
 
 template<typename T>
-T Demangler<T>::DemangleLocalModifier()
+bool Demangler<T>::IsThisMode() const
 {
-    if (!IsLocalModifier()) {
+    if (currentIndex >= mangledName.Length()) {
+        return false;
+    }
+    return mangledName[currentIndex] == MANGLE_THIS_MODE_PREFIX;
+}
+
+// <mode-set> ::= Q<payload>E | W<payload>E
+// <payload>  ::= <axis-degree>+E,  <axis-degree> ::= L|l | U|u | I|i
+//   (uppercase letter = FULL/!, lowercase = HALF/?; fixed axis order local -> unique -> immutable)
+template<typename T>
+T Demangler<T>::DemangleModeSet()
+{
+    T result;
+    if (!IsModeLeader()) {
         return T{};
     }
-    char ch = mangledName[currentIndex];
-    ++currentIndex;
-    // Matches AST::ToString(LocalModalAST): FULL -> "@local!", HALF -> "@local?"
-    if (ch == '!') {
-        return T{ " @local!" };
+    ++currentIndex; // Skip the leader (Q or W).
+    while (currentIndex < mangledName.Length()) {
+        char ch = mangledName[currentIndex];
+        if (ch == END) {
+            ++currentIndex; // Payload terminator E.
+            return result;
+        }
+        // Each non-default axis contributes one demangled modal word. (Only the local axis is
+        // in use today; U/u and I/i are reserved for the unique/immutable axes.)
+        switch (ch) {
+            case 'L':
+                result += T{ " @local!" };
+                ++currentIndex;
+                break;
+            case 'l':
+                result += T{ " @local?" };
+                ++currentIndex;
+                break;
+            case 'U':
+                result += T{ " @unique!" };
+                ++currentIndex;
+                break;
+            case 'u':
+                result += T{ " @unique?" };
+                ++currentIndex;
+                break;
+            case 'I':
+                result += T{ " @immutable!" };
+                ++currentIndex;
+                break;
+            case 'i':
+                result += T{ " @immutable?" };
+                ++currentIndex;
+                break;
+            default:
+                (void)Reject(T{ "invalid modal encoding" });
+                return T{};
+        }
     }
-    if (ch == '?') {
-        return T{ " @local?" };
-    }
-    return T{ ch };
+    (void)Reject(T{ "unterminated modal encoding" });
+    return T{};
 }
 
 template<typename T>
-void Demangler<T>::AppendLocalModifierIfExists(DemangleInfo<T>& di)
+void Demangler<T>::AppendModeTypeIfExists(DemangleInfo<T>& di)
 {
-    if (IsLocalModifier()) {
-        di.genericConstraints += DemangleLocalModifier();
+    if (currentIndex < mangledName.Length() && mangledName[currentIndex] == MANGLE_TYPE_MODE_PREFIX) {
+        di.genericConstraints += DemangleModeSet();
     }
 }
 
@@ -1030,7 +1078,7 @@ T Demangler<T>::DemangleArgTypes(const T& delimiter, uint32_t size)
         if (!isValid) {
             return T{};
         }
-        AppendLocalModifierIfExists(curDi);
+        AppendModeTypeIfExists(curDi);
         auto j = i % MAX_ARGS_SIZE;
         if (j == 0 && i != 0) {
             for (auto& arg : argsArr) {
@@ -1124,31 +1172,16 @@ DemangleInfo<T> Demangler<T>::DemangleNestedDecls(bool isClass, bool isParamInit
         }
         char ch;
         if (PeekChar(ch) && IsFunction(ch)) {
+            // <function-name>[<generic-modifier>]H[<this-mode>]<param-types>
             SkipChar(MANGLE_FUNCTION_PREFIX);
             typeKind = TypeKind::FUNCTION_DECL;
             curDi.type = TypeKind::FUNCTION_DECL;
+            // <this-mode> (W<payload>E right after H) is consumed inside
+            // DemangleFunctionParameterTypes and folded into the leading "this ..." argument.
             auto funcTys = DemangleFunctionParameterTypes().args;
             curDi.functionParameterTypes = funcTys;
             SkipOptionalChar(END);
-            AppendLocalModifierIfExists(curDi);
-        } else if (IsLocalModifier()) {
-            if (currentIndex + MANGLE_CHAR_LEN < mangledName.Length() &&
-                IsFunction(mangledName[currentIndex + MANGLE_CHAR_LEN])) {
-                T thisPrefix = T{ "this" } + DemangleLocalModifier();
-                SkipChar(MANGLE_FUNCTION_PREFIX);
-                typeKind = TypeKind::FUNCTION_DECL;
-                curDi.type = TypeKind::FUNCTION_DECL;
-                auto funcTys = DemangleFunctionParameterTypes().args;
-                if (funcTys.IsEmpty()) {
-                    curDi.functionParameterTypes = thisPrefix;
-                } else {
-                    curDi.functionParameterTypes = thisPrefix + T{ ARGS_DELIMITER } + funcTys;
-                }
-                SkipOptionalChar(END);
-                AppendLocalModifierIfExists(curDi);
-            } else {
-                return Reject("mangle name is invalid");
-            }
+            AppendModeTypeIfExists(curDi);
         }
         auto j = i % MAX_ARGS_SIZE;
         if (j == 0 && i != 0) {
@@ -1180,17 +1213,17 @@ DemangleInfo<T> Demangler<T>::DemangleClass(TypeKind typeKind)
     ++currentIndex;         // Skip one character representing the typeKind
     auto di = DemangleCommonDecl(true);
     di.type = typeKind;
-    AppendLocalModifierIfExists(di);
-    // Do not consume the trailing 'E' here. DemangleCommonDecl -> DemangleNestedDecls already
-    // stops before 'E' without consuming it, and the closing 'E' belongs to the enclosing
-    // container (function parameter list / generic type list). Consuming it greedily would
-    // swallow the function's terminating 'E' when this class is the last parameter, leaving the
-    // function-level local modifier ('!' / '?') to be mis-attached to that last parameter by
-    // DemangleFunctionParameterTypes. The enclosing caller is responsible for skipping its own 'E'.
-    // char ch;
-    // if (PeekChar(ch) && ch == END) {
-    //     SkipChar(END);
-    // }
+    // The class/struct/enum body ends with its own 'E'; the <type-mode> (Q<payload>E) follows it.
+    // Consume the 'E' here and then parse the mode-set, so that:
+    //   (a) the modal is attached to this type even when the caller stops parsing at 'E', and
+    //   (b) multi-parameter lists such as `H <class1><class2>` keep parsing past the first class's
+    //       terminating 'E'.
+    // so consuming the 'E' cannot mis-attach a function-level modifier to the last parameter.
+    char ch;
+    if (PeekChar(ch) && ch == END) {
+        SkipChar(END);
+    }
+    AppendModeTypeIfExists(di);
     return di;
 }
 
@@ -1199,11 +1232,11 @@ DemangleInfo<T> Demangler<T>::DemangleCFuncType()
 {
     SkipString(MANGLE_C_FUNCTY_PREFIX);
     auto returnDi = DemangleNextUnit();
-    AppendLocalModifierIfExists(returnDi);
+    AppendModeTypeIfExists(returnDi);
     DemangleInfo<T> di{ returnDi.GetFullName(scopeResolution), TypeKind::FUNCTION };
     di.args = DemangleArgTypes(ARGS_DELIMITER);
     SkipChar(END);
-    AppendLocalModifierIfExists(di);
+    AppendModeTypeIfExists(di);
     return di;
 }
 
@@ -1212,11 +1245,11 @@ DemangleInfo<T> Demangler<T>::DemangleFunction()
 {
     SkipString(MANGLE_FUNCTY_PREFIX);
     auto returnDi = DemangleNextUnit();
-    AppendLocalModifierIfExists(returnDi);
+    AppendModeTypeIfExists(returnDi);
     DemangleInfo<T> di{ returnDi.GetFullName(scopeResolution), TypeKind::FUNCTION };
     di.args = DemangleArgTypes(ARGS_DELIMITER);
     SkipChar(END);
-    AppendLocalModifierIfExists(di);
+    AppendModeTypeIfExists(di);
     return di;
 }
 
@@ -1231,7 +1264,7 @@ DemangleInfo<T> Demangler<T>::DemangleTuple()
     auto generic = DemangleGenericTypes().GetFullName(scopeResolution);
     di.genericTypes = genericTypefilter(generic);
     SkipChar(END);
-    AppendLocalModifierIfExists(di);
+    AppendModeTypeIfExists(di);
     return di;
 }
 
@@ -1245,7 +1278,7 @@ DemangleInfo<T> Demangler<T>::DemangleRawArray()
         di.genericConstraints += "[]";
     }
     di.args = DemangleNextUnit().GetFullName(scopeResolution);
-    AppendLocalModifierIfExists(di);
+    AppendModeTypeIfExists(di);
     return di;
 }
 
@@ -1256,7 +1289,7 @@ DemangleInfo<T> Demangler<T>::DemangleVArray()
     SkipChar(MANGLE_VARRAY_PREFIX);
     uint32_t num = DemangleManglingNumber();
     di.genericTypes = DemangleGenericTypes().GetFullName(scopeResolution, num);
-    AppendLocalModifierIfExists(di);
+    AppendModeTypeIfExists(di);
     return di;
 }
 
@@ -1267,7 +1300,7 @@ DemangleInfo<T> Demangler<T>::DemangleCPointer()
     SkipChar(MANGLE_PTR_PREFIX);
     auto generic = DemangleType().GetFullName(scopeResolution);
     di.genericTypes = genericTypefilter(generic);
-    AppendLocalModifierIfExists(di);
+    AppendModeTypeIfExists(di);
     return di;
 }
 
@@ -1358,7 +1391,7 @@ DemangleInfo<T> Demangler<T>::DemanglePrimitive()
         SkipChar(ch);
     }
     DemangleInfo<T> di{ GetPrimitiveDemangleMap<T>(ch), TypeKind::PRIMITIVE };
-    AppendLocalModifierIfExists(di);
+    AppendModeTypeIfExists(di);
     return di;
 }
 
@@ -1367,7 +1400,7 @@ DemangleInfo<T> Demangler<T>::DemangleCStringType()
 {
     SkipChar(MANGLE_CSTRING_PREFIX);
     auto di = DemangleInfo<T>{ MANGLE_CSTRING_STR, TypeKind::CSTRING, isValid };
-    AppendLocalModifierIfExists(di);
+    AppendModeTypeIfExists(di);
     return di;
 }
 
@@ -1391,7 +1424,7 @@ DemangleInfo<T> Demangler<T>::DemangleGenericType()
     name = T{ MANGLE_TUPLE_PREFIX } + UIntToString(gNumber);
 #endif
     auto di = DemangleInfo<T>{ name, TypeKind::GENERIC_TYPES, isValid };
-    AppendLocalModifierIfExists(di);
+    AppendModeTypeIfExists(di);
     return di;
 }
 
@@ -1402,7 +1435,7 @@ DemangleInfo<T> Demangler<T>::DemangleType()
     if (IsQualifiedType()) {
         auto curDi = DemangleNextUnit();
         if (isValid) {
-            AppendLocalModifierIfExists(curDi);
+            AppendModeTypeIfExists(curDi);
             di.args = curDi.GetFullName(scopeResolution);
             return di;
         }
@@ -1424,7 +1457,7 @@ DemangleInfo<T> Demangler<T>::DemangleGenericTypes()
         if (!isValid) {
             break;
         }
-        AppendLocalModifierIfExists(curDi);
+        AppendModeTypeIfExists(curDi);
         if (!firstIteration) {
             argTypesFullName += T{ ARGS_DELIMITER_TYPE };
         }
@@ -1441,23 +1474,37 @@ DemangleInfo<T> Demangler<T>::DemangleFunctionParameterTypes()
     DemangleInfo<T> di{ "", TypeKind::FUNCTION_PARAMETER_TYPES };
     bool firstIteration = true;
     T argTypesFullName{};
+    // <this-mode> ::= W<payload>E, placed at the head of the param list (right after H).
+    // E.g. `H WLE l` demangles the leading "this @local!" argument before the explicit params.
+    T thisPrefix;
+    if (IsThisMode()) {
+        thisPrefix = T{ "this" } + DemangleModeSet();
+    }
     if (IsNotEndOfMangledName() && mangledName[currentIndex] == MANGLE_VOID_PREFIX) {
         currentIndex += MANGLE_CHAR_LEN;
     } else {
         // Generic type may be next to a string, like "6<init>"
-        // Stop before local modifier (!/?) after H<types> — it belongs to the function decl, not another param.
+        // Stop before a mode-set leader (Q/W) — a mode-set never starts a param type; it either
+        // terminates the previous type (consumed by AppendModeTypeIfExists) or is the <this-mode>.
         while (IsNotEndOfMangledName() && !IsCurrentCharDigit(mangledName[currentIndex]) &&
-               !IsLocalModifier()) {
+               !IsModeLeader()) {
             auto curDi = DemangleNextUnit();
             if (!isValid) {
                 break;
             }
-            AppendLocalModifierIfExists(curDi);
+            AppendModeTypeIfExists(curDi);
             if (!firstIteration) {
                 argTypesFullName += T{ ARGS_DELIMITER };
             }
             argTypesFullName += curDi.GetFullName(scopeResolution);
             firstIteration = false;
+        }
+    }
+    if (!thisPrefix.IsEmpty()) {
+        if (argTypesFullName.IsEmpty()) {
+            argTypesFullName = thisPrefix;
+        } else {
+            argTypesFullName = thisPrefix + T{ ARGS_DELIMITER } + argTypesFullName;
         }
     }
     di.args = argTypesFullName;
