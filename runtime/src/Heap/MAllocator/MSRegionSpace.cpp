@@ -247,7 +247,7 @@ MAddress RegionSpaceMS::TryAllocateLargeObjectOnce(
     // Large arrays rely on zero-filled content after only their header is initialized.
     // TakeRegionForLarge may return hot-free pages that were not scavenged by the OS.
     ::memset(reinterpret_cast<void*>(regionStart), 0, regionBytes);
-    RegisterLargeObjectMS(addr, objectBytes, regionBytes, scanClass);
+    RegisterLargeObjectMS(addr, objectBytes, regionBytes, scanClass, msBuffer);
     // Pacing debt: large objects bypass AllocBufferMS::Allocate, so we must
     // accumulate assist debt explicitly here to keep GC pacing correct.
     if (msBuffer != nullptr) {
@@ -411,7 +411,8 @@ void Allocator::PushRootToBuffer(BaseObject* root)
 }
 
 void RegionSpaceMS::RegisterLargeObjectMS(
-    MAddress addr, size_t objectBytes, size_t regionBytes, MSScanClass scanClass)
+    MAddress addr, size_t objectBytes, size_t regionBytes, MSScanClass scanClass,
+    AllocBufferMS* msBuffer)
 {
     (void)scanClass;
     uintptr_t start = static_cast<uintptr_t>(addr);
@@ -469,7 +470,9 @@ void RegionSpaceMS::RegisterLargeObjectMS(
     // barrier (SATB + insertion) ensures children are independently
     // discovered when fields are written. No need to enqueue.
 
-    if (msCentralPool_ != nullptr) {
+    if (msBuffer != nullptr) {
+        msBuffer->StageLargeRegion(static_cast<uint32_t>(baseIdx));
+    } else if (msCentralPool_ != nullptr) {
         msCentralPool_->RegisterLargeRegion(baseInfo);
     }
 }

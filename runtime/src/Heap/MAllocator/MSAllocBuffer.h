@@ -77,6 +77,13 @@ public:
     // debt with one-shot central credit followed by direct assist work.
     void AccumulateSweepDebt(size_t allocatedRegions, uint8_t preferredCls);
 
+    // Large object metadata is initialized synchronously, but membership in
+    // the next large collect-set is staged by its owning P. This removes the
+    // CentralRegionPool large-membership mutex from the common allocation path.
+    void StageLargeRegion(uint32_t regionIdx);
+    void FlushPendingLargeRegions();
+    void DrainPendingLargeRegions(std::vector<uint32_t>& target);
+
     // Record one stack root during the Mutator safepoint. The reserved vector
     // is the common path; overflow uses fixed native chunks retained by this
     // AllocBufferMS across cycles. This is staging, not grey-work production.
@@ -215,6 +222,9 @@ private:
     // Resolved once on first TakeRegion call and reused thereafter.
     // Safe to cache because AllocBufferMS is per-OS-thread (per-P).
     uint16_t cachedHomeShardId_ = kMSInvalidShardId;
+
+    static constexpr size_t kLargeRegistrationBatchSize = 64;
+    std::vector<uint32_t> pendingLargeRegionIndices_;
 
     // Per-thread stack roots buffer (populated by Mutator::GcPhaseEnum)
     std::vector<BaseObject*> stackRoots_;

@@ -521,7 +521,17 @@ uint32_t CentralRegionPool::PrepareMarkEpochUnderSTW(bool forceMaxHelpers)
         }
     }
 
-    // Step 3: freeze and reset LARGE membership.
+    // Step 3: drain P-local LARGE registrations before freezing membership.
+    // Mutators are stopped, so each AllocBufferMS can transfer its tail batch
+    // without racing allocation. Entries published after this point belong to
+    // the next cycle's supply by construction.
+    size_t stwLargeRegistrationTail = DrainPendingLargeRegistrationsUnderSTW();
+    uint64_t largeRegistrationBatches =
+        largeRegistrationBatchCount_.exchange(0, std::memory_order_acq_rel);
+    uint64_t largeRegistrationEntries =
+        largeRegistrationEntryCount_.exchange(0, std::memory_order_acq_rel);
+
+    // Step 4: freeze and reset LARGE membership.
     // Purpose: the O(1) swap makes the current LARGE set immutable for Mark;
     // later LARGE allocations append only to largeNextSupply_ for next cycle.
     {
@@ -541,7 +551,13 @@ uint32_t CentralRegionPool::PrepareMarkEpochUnderSTW(bool forceMaxHelpers)
         }
     }
 
-    // Step 4: discard active-Region producer residue without collecting it.
+    VLOG(REPORT,
+         "[MS-GC]   Large registration: entries=%llu batches=%llu stwTail=%zu",
+         static_cast<unsigned long long>(largeRegistrationEntries),
+         static_cast<unsigned long long>(largeRegistrationBatches),
+         stwLargeRegistrationTail);
+
+    // Step 5: discard active-Region producer residue without collecting it.
     // Purpose: TLS active Regions remain mutator-owned and outside this
     // boundary. Clear stale barrier/assist state plus MARK/SCAN workspace only;
     // never materialize or inspect their live ALLOC plane.
@@ -1004,19 +1020,53 @@ CentralRegionPool::BucketPressure CentralRegionPool::GetBucketPressure(uint8_t c
 // Large Region management (Tier 1 in-heap large objects)
 // ============================================================================
 
-void CentralRegionPool::AddLargeLiveRegion(MSRegionInfo* region)
+void CentralRegionPool::AppendLargeRegionBatch(
+    const uint32_t* regionIndices, size_t count)
 {
-    size_t spanCount = region->LargeSpanCount();
+    if (count == 0) {
+        return;
+    }
+
+    size_t liveSpanCount = 0;
+    size_t liveObjectBytes = 0;
+    for (size_t i = 0; i < count; ++i) {
+        MSRegionInfo* region =
+            MSRegionInfoArray::GetRegionInfoByIdx(regionIndices[i]);
+        CHECK_DETAIL(region != nullptr &&
+                         region->GetRegionKind() == MSRegionKind::LARGE,
+                     "[MS-GC] AppendLargeRegionBatch: invalid primary idx=%u",
+                     regionIndices[i]);
+        liveSpanCount += region->LargeSpanCount();
+        liveObjectBytes += region->LargeObjectSize();
+    }
+
     std::lock_guard<std::mutex> lg(largeLock_);
-    largeNextSupply_.push_back(static_cast<uint32_t>(
-        MSRegionInfoArray::GetRegionIdx(region)));
-    largeLiveSpanCount_.fetch_add(spanCount, std::memory_order_release);
-    largeLiveObjectBytes_.fetch_add(region->LargeObjectSize(), std::memory_order_release);
+    largeNextSupply_.insert(
+        largeNextSupply_.end(), regionIndices, regionIndices + count);
+    largeLiveSpanCount_.fetch_add(liveSpanCount, std::memory_order_release);
+    largeLiveObjectBytes_.fetch_add(liveObjectBytes, std::memory_order_release);
+    largeRegistrationBatchCount_.fetch_add(1, std::memory_order_relaxed);
+    largeRegistrationEntryCount_.fetch_add(count, std::memory_order_relaxed);
 }
 
 void CentralRegionPool::RegisterLargeRegion(MSRegionInfo* region)
 {
-    AddLargeLiveRegion(region);
+    uint32_t regionIdx = static_cast<uint32_t>(
+        MSRegionInfoArray::GetRegionIdx(region));
+    AppendLargeRegionBatch(&regionIdx, 1);
+}
+
+size_t CentralRegionPool::DrainPendingLargeRegistrationsUnderSTW()
+{
+    std::vector<uint32_t> pendingRegionIndices;
+    VisitAllocBufferMS([&pendingRegionIndices](AllocBufferMS& buffer) {
+        buffer.DrainPendingLargeRegions(pendingRegionIndices);
+    });
+    if (!pendingRegionIndices.empty()) {
+        AppendLargeRegionBatch(
+            pendingRegionIndices.data(), pendingRegionIndices.size());
+    }
+    return pendingRegionIndices.size();
 }
 
 void CentralRegionPool::CollectDeadLargeRegions(
@@ -1048,7 +1098,7 @@ void CentralRegionPool::CollectDeadLargeRegions(
 void CentralRegionPool::SweepLargeRegions()
 {
     uint64_t startUs = TimeUtil::MicroSeconds();
-    // Two-pass to avoid holding largeLock_ during ReclaimRegion.
+    // Two-pass to avoid holding largeLock_ during reclaim.
     std::vector<MSRegionInfo*> deadRegions;
 
     CollectDeadLargeRegions(
@@ -1056,9 +1106,10 @@ void CentralRegionPool::SweepLargeRegions()
 
     size_t reclaimedBytes = 0;
     size_t reclaimedSpans = 0;
+    std::vector<FreeManager::RegionSpan> releasedSpans;
+    releasedSpans.reserve(deadRegions.size());
     // Release dead large regions.
     for (MSRegionInfo* msInfo : deadRegions) {
-        uintptr_t regionStart = msInfo->LargeObjectStart();
         size_t regionBytes = msInfo->LargeSpanBytes();
         reclaimedBytes += regionBytes;
         size_t spanCount = msInfo->LargeSpanCount();
@@ -1075,7 +1126,13 @@ void CentralRegionPool::SweepLargeRegions()
 
         // Reset base MSRegionInfo before publishing the whole span as free.
         msInfo->Reset();
-        msRegionManager_->ReclaimRegionLarge(regionStart, regionBytes);
+        releasedSpans.push_back({
+            static_cast<FreeManager::RegionIndex>(baseIdx),
+            static_cast<FreeManager::RegionCount>(spanCount),
+        });
+    }
+    if (!releasedSpans.empty()) {
+        msRegionManager_->ReclaimReleasedRegionsToHotFreeBatch(releasedSpans);
     }
 
     VLOG(REPORT,

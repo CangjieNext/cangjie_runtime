@@ -93,7 +93,8 @@ private:
     MAddress TryAllocateRegularObjectOnce(size_t allocSize, MSScanClass scanClass,
                                           ThreadLocalData* local, AllocBufferMS*& msBuffer);
     void RegisterLargeObjectMS(
-        MAddress addr, size_t objectBytes, size_t regionBytes, MSScanClass scanClass);
+        MAddress addr, size_t objectBytes, size_t regionBytes, MSScanClass scanClass,
+        AllocBufferMS* msBuffer);
 
     MAddress reservedStart = 0;
     MAddress reservedEnd = 0;

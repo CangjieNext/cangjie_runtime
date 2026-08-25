@@ -500,6 +500,7 @@ public:
 
     // Register a large MSRegionInfo (MS_REGION_LARGE) for GC tracking.
     void RegisterLargeRegion(MSRegionInfo* region);
+    void AppendLargeRegionBatch(const uint32_t* regionIndices, size_t count);
 
     // Eager sweep: reclaim unmarked large regions, return freed bytes.
     // Called after MarkTerminate / in PostMarkTermination.
@@ -807,7 +808,9 @@ private:
     std::vector<uint32_t> largeCollectSet_;
     std::atomic<size_t> largeLiveSpanCount_{0};
     std::atomic<size_t> largeLiveObjectBytes_{0};
-    void AddLargeLiveRegion(MSRegionInfo* region);
+    std::atomic<uint64_t> largeRegistrationBatchCount_{0};
+    std::atomic<uint64_t> largeRegistrationEntryCount_{0};
+    size_t DrainPendingLargeRegistrationsUnderSTW();
     void CollectDeadLargeRegions(uint32_t collectEpoch,
                                  std::vector<MSRegionInfo*>& deadRegions);
     template<typename Visitor>

@@ -169,6 +169,9 @@ void AllocBufferMS::Init(CentralRegionPool* central)
     if (stackRoots_.capacity() < kRootStagingReserve) {
         stackRoots_.reserve(kRootStagingReserve);
     }
+    if (pendingLargeRegionIndices_.capacity() < kLargeRegistrationBatchSize) {
+        pendingLargeRegionIndices_.reserve(kLargeRegistrationBatchSize);
+    }
     if (rootOverflowFree_ == nullptr) {
         rootOverflowFree_ = new (std::nothrow) RootOverflowChunk();
         CHECK_DETAIL(rootOverflowFree_ != nullptr,
@@ -182,6 +185,10 @@ void AllocBufferMS::Init(CentralRegionPool* central)
 
 void AllocBufferMS::Fini()
 {
+    // A departing P cannot leave large membership only in its local staging
+    // buffer: it will no longer participate in the next PreEnum STW drain.
+    FlushPendingLargeRegions();
+
     MarkSweepCollector* collector = MarkSweepCollector::GetActiveCollector();
     if (collector != nullptr) {
         collector->NotifyAllocBufferExit(*this);
@@ -202,6 +209,32 @@ void AllocBufferMS::Fini()
     central_ = nullptr;
     stackRoots_.clear();
     DestroyRootOverflowChunks();
+}
+
+void AllocBufferMS::StageLargeRegion(uint32_t regionIdx)
+{
+    pendingLargeRegionIndices_.push_back(regionIdx);
+    if (pendingLargeRegionIndices_.size() >= kLargeRegistrationBatchSize) {
+        FlushPendingLargeRegions();
+    }
+}
+
+void AllocBufferMS::FlushPendingLargeRegions()
+{
+    if (central_ == nullptr || pendingLargeRegionIndices_.empty()) {
+        return;
+    }
+    central_->AppendLargeRegionBatch(
+        pendingLargeRegionIndices_.data(), pendingLargeRegionIndices_.size());
+    pendingLargeRegionIndices_.clear();
+}
+
+void AllocBufferMS::DrainPendingLargeRegions(std::vector<uint32_t>& target)
+{
+    target.insert(target.end(),
+                  pendingLargeRegionIndices_.begin(),
+                  pendingLargeRegionIndices_.end());
+    pendingLargeRegionIndices_.clear();
 }
 
 AllocBufferMS::RootOverflowChunk* AllocBufferMS::AcquireRootOverflowChunk()
