@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
  * This source file is part of the Cangjie project, licensed under Apache-2.0
  * with Runtime Library Exception.
  *
@@ -7,15 +7,15 @@
  */
 
 /**
- * @file The file declares the macro Test.
+ * @file The file declares the macro ConcurrentTest.
  */
 macro package std.unittest.testmacro
 
 import std.ast.*
 
 /**
- * @ConcurrentTest macro declares test cases for specific set of concurrent
- * data structure operations. 
+ * @ConcurrentTest macro declares test cases for a specific set of concurrent
+ * data structure operations.
  */
 public macro ConcurrentTest(input: Tokens): Tokens {
     return topLevelMacroDriver(CONCURRENT_TEST_MACRO, input, Tokens(), { it => insideParentContext(it.macroIdentifier) })

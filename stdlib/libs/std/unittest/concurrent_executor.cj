@@ -39,7 +39,7 @@ class ConcurrentExecutor<T, S> <: Executor where S <: Any {
 
         for (arg in strategy.provide(configuration)) {
             generationStep += 1
-            if (generationStep >= configuration.generationSteps) {
+            if (strategy.isInfinite && generationStep > configuration.generationSteps) {
                 return
             }
 
@@ -55,12 +55,12 @@ class ConcurrentExecutor<T, S> <: Executor where S <: Any {
             }
             let stepKind = CaseStep(argDescription(scenario, failures, input, configuration, generationStep))
             if (failures.isEmpty()) {
-                tcase.add(RunStepResult(scenario.iterations, start, stepKind, Test(scenario.iterations)));
+                tcase.addSuccessfullStep(RunStepResult(scenario.iterations, start, stepKind, Test(1)))
             } else {
-                let failures = failures |> take(1) |> map<ScenarioIterationResult, CheckResult> {
-                    tcase => ConcurrentTestCheckResult(tcase)
+                let firstFailure = failures |> take(1) |> map<ScenarioIterationResult, CheckResult> {
+                    iter => ConcurrentTestCheckResult(iter)
                 } |> collectArray
-                tcase.add(RunStepResult(scenario.iterations - failures.size, start, stepKind, Failure(failures)));
+                tcase.add(RunStepResult(scenario.iterations - failures.size, start, stepKind, Failure(firstFailure)))
                 return
             }
         }

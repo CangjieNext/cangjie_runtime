@@ -117,18 +117,13 @@ class InstrumentedStressTest <: InstrumentedFunction {
             original,
             prefix: "StressTest"
         )
-
-        let testCaseDslSize = original.loadSingle(TESTCASE_MACRO)?.size ?? 0
-        if (testCaseDslSize > 0) {
-            throw MacroException("For stressTests only ${STRESS_TEST_MACRO} can contain strategies.")
-        }
     }
 
-    public open func caseInitializerName(strategyVar: Tokens): Tokens {
+    public override func caseInitializerName(strategyVar: Tokens): Tokens {
         quote( $strategyVar.intoStressTestCase)
     }
 
-    public open func creationArgs(funIdent: Tokens, argNames: Array<String>, argTypes: Array<Tokens>): Tokens {
+    public override func creationArgs(funIdent: Tokens, argNames: Array<String>, argTypes: Array<Tokens>): Tokens {
         if (argTypes.size < 1 || argTypes[0].size < 1 || argTypes[0][0].value != "ScenarioBuilder") {
             throw MacroException("@StressTest declaration must have first parameter of type ScenarioBuilder")
         }
@@ -847,7 +842,7 @@ private func collectConcurrentOperations(concurrentTest: ClassDecl): Array<FuncD
     let operations = collectFuncDeclsWithMacro(OPERATION_MACRO, concurrentTest)
 
     if (operations.size == 0) {
-        throw MacroException("Concurrent test must contains at least on @Operation annotated function")
+        throw MacroException("Concurrent test must contain at least one @Operation annotated function")
     }
 
     operations
@@ -859,7 +854,7 @@ private func collectSingleFuncDeclWithMacro(macroKey: MacroKey, classDecl: Class
     if (funcDecls.size > 1) {
         let identifiers = String.join(funcDecls |> map {decl => decl.identifier.value} |> collectArray, delimiter: ", ")
         throw MacroException(
-            "Test must contains not more than one ${macroKey.macroName} annotated function: ${identifiers}")
+            "Test must contain no more than one ${macroKey.macroName} annotated function: ${identifiers}")
     }
 
     return funcDecls |> first

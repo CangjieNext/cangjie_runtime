@@ -158,10 +158,10 @@ private class ScenarioIterator<S> <: Iterator<ScenarioBuilder<S>> {
         if (maxActors < minActors) {
             if (maxActors != scenarioParams.maxActors) {
                 throw IllegalArgumentException(
-                    "Maximal count of actors must be greater or equal to minimal count ${minActors}. Maximal count is limited by number of groups: ${maxActors}. Due to absence of operations without groups")
+                    "Maximum count of actors must be greater than or equal to minimum count ${minActors}. Maximum count is limited by number of groups: ${maxActors}, because there are no operations without groups")
             } else {
                 throw IllegalArgumentException(
-                    "Maximal count of actors ${scenarioParams.maxActors} must be greater or equal to minimum count ${scenarioParams.minActors}")
+                    "Maximum count of actors ${scenarioParams.maxActors} must be greater than or equal to minimum count ${scenarioParams.minActors}")
             }
         }
 

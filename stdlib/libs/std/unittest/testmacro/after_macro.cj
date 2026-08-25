@@ -7,7 +7,7 @@
  */
 
 /**
- * @file The file declares the macro Operation.
+ * @file The file declares the macro After.
  */
 macro package std.unittest.testmacro
 

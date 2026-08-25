@@ -20,7 +20,7 @@ let TEST_TEMPLATE_MACRO = MacroKey.create("@TestTemplate", Class, TestEntity, co
 let CONCURRENT_TEST_MACRO = MacroKey.create("@ConcurrentTest", Class, TestEntity, placement: TopLevel, conflicts: [TEST_MACRO])
 let OPERATION_MACRO = MacroKey.create("@Operation", Function, Concurrent, placement: InsideParent([CONCURRENT_TEST_MACRO]), conflicts: [])
 let GROUP_MACRO = MacroKey.create("@Group", Function, Concurrent, placement: InsideParent([CONCURRENT_TEST_MACRO]), conflicts: [])
-let VERIFY_MACRO = MacroKey.create("@Verify", Function, Concurrent, placement: InsideParent([CONCURRENT_TEST_MACRO]), conflicts: [OPERATION_MACRO])
+let VERIFY_MACRO = MacroKey.create("@Verify", Function, Concurrent, placement: InsideParent([CONCURRENT_TEST_MACRO]), conflicts: [OPERATION_MACRO, AFTER_MACRO])
 let AFTER_MACRO = MacroKey.create("@After", Function, Concurrent, placement: InsideParent([CONCURRENT_TEST_MACRO]), conflicts: [VERIFY_MACRO, OPERATION_MACRO])
 
 // actual keys that are written to @Attribute section
@@ -28,7 +28,7 @@ let SKIP_MACRO = MacroKey.create("@Skip", ClassOrFunction, Configuration)
 let TESTCASE_MACRO = MacroKey.create("@TestCase", Function, TestEntity,
     placement: InsideParent([TEST_MACRO, TEST_TEMPLATE_MACRO, CONCURRENT_TEST_MACRO]))
 let STRESS_TEST_MACRO = MacroKey.create("@StressTest", Function, TestEntity,
-    placement: InsideParent([CONCURRENT_TEST_MACRO]))
+    placement: InsideParent([CONCURRENT_TEST_MACRO]), conflicts: [TESTCASE_MACRO])
 let CONFIGURE_MACRO = MacroKey.create("@Configure", ClassOrFunction, Configuration, repeatable: true)
 let TYPES_MACRO = MacroKey.create("@Types", ClassOrFunction, Configuration,
     conflicts: [TEST_BUILDER_MACRO, TEST_TEMPLATE_MACRO])
