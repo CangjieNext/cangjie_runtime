@@ -42,7 +42,7 @@ static const GCMode gcMode = [] {
         if (enableGC != nullptr) {
             LOG(RTLOG_ERROR, "Unsupported cjEnableGC, cjEnableGC should be 0, 1 or 2.\n");
         }
-        return GCMode::WGC;
+        return GCMode::GENERATIONAL;
     }
     switch (enableGC[0]) {
         case '0':
