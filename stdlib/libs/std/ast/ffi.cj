@@ -100,7 +100,7 @@ unsafe func parse(input: Tokens, nativeParse: (CPointer<UInt8>) -> CPointer<Pars
     let parseResultRaw: CPointer<ParseRes> = nativeParse(pTokensBytes)
     if (parseResultRaw.isNull()) {
         LibC.free(pTokensBytes)
-        throw ParseASTException("Unable to get parseResult.")
+        throw ParseASTException("Failed to get parse result.")
     }
     let pNode = getParsedNodeAndReleaseParseResult(parseResultRaw, pTokensBytes)
     /*
@@ -122,13 +122,13 @@ unsafe func parseFragment(
     let sizeRef = LibC.malloc<Int64>()
     if (sizeRef.isNull()) {
         LibC.free(pTokensBytes)
-        throw IllegalMemoryException("parseFragment malloc failed!")
+        throw IllegalMemoryException("parseFragment malloc failed.")
     }
     let parseResultRaw = nativeParse(pTokensBytes, sizeRef)
     if (parseResultRaw.isNull()) {
         LibC.free(pTokensBytes)
         LibC.free(sizeRef)
-        throw ParseASTException("Unable to get parseResult.")
+        throw ParseASTException("Failed to get parse result.")
     }
     tokenCounter = sizeRef.read()
     var pNode = CPointer<UInt8>()
@@ -148,7 +148,7 @@ unsafe func parseFragment(
 func genNodeFormatNode(pNode: CPointer<UInt8>, pTokensBytes: CPointer<UInt8>) {
     if (pNode.isNull()) {
         unsafe { LibC.free(pTokensBytes) }
-        throw IllegalArgumentException("Negative or zero length.\n")
+        throw IllegalArgumentException("Negative or zero length.")
     }
     let bufferSize: Int64 = Int64(getInt32FromUnsafePointer(pNode))
     if (bufferSize <= 0) {
@@ -156,7 +156,7 @@ func genNodeFormatNode(pNode: CPointer<UInt8>, pTokensBytes: CPointer<UInt8>) {
             LibC.free(pNode)
             LibC.free(pTokensBytes)
         }
-        throw IllegalArgumentException("Negative or zero length.\n")
+        throw IllegalArgumentException("Negative or zero length.")
     }
     let flatBuf = Array<UInt8>(bufferSize, {x: Int64 => unsafe { pNode.read(x) }})
     unsafe {
@@ -168,11 +168,11 @@ func genNodeFormatNode(pNode: CPointer<UInt8>, pTokensBytes: CPointer<UInt8>) {
 
 func getTokensFromBytes(pTokenArray: CPointer<UInt8>): Tokens {
     if (pTokenArray.isNull()) {
-        throw IllegalArgumentException("Token array is null.\n")
+        throw IllegalArgumentException("Token array is null.")
     }
     var length: Int64 = Int64(getInt32FromUnsafePointer(pTokenArray))
     if (length <= 0) {
-        throw IllegalArgumentException("Negative or zero length.\n")
+        throw IllegalArgumentException("Negative or zero length.")
     }
     var tokenArray = Array<UInt8>(length, {x: Int64 => unsafe { pTokenArray.read(x) }})
     return Tokens(tokenArray[BUFFER_HEADER_SIZE..])
@@ -197,7 +197,7 @@ public func cangjieLex(code: String, truncated: Bool): Tokens {
     /* NOTE: call cangjie compiler lexer. */
     var pCode = unsafe { LibC.mallocCString(code) }
     if (pCode.isNull()) {
-        throw IllegalMemoryException("malloc failed.")
+        throw IllegalMemoryException("malloc failed!")
     }
     var fPtr = CPointer<Unit>()
     if (let Some(macroObjPtr) <- MACRO_OBJECT.get()) {
@@ -207,7 +207,7 @@ public func cangjieLex(code: String, truncated: Bool): Tokens {
         let lexResultRaw: CPointer<ParseRes> = CJ_AST_Lex(fPtr, pCode, code.size)
         if (lexResultRaw.isNull()) {
             LibC.free(pCode)
-            throw IllegalMemoryException("Unable to get lexResult.")
+            throw IllegalMemoryException("Failed to get lexer result.")
         }
         let pTokens = lexResultRaw.read().node
         let pErrorMsg = lexResultRaw.read().errMsg
@@ -247,7 +247,7 @@ func unsafePointerCastFromUint8Array(arr: Array<UInt8>): CPointer<UInt8> {
     }
     var ptr: CPointer<UInt8> = unsafe { LibC.malloc<UInt8>(count: arrSize) }
     if (ptr.isNull()) {
-        throw IllegalMemoryException("unsafePointerCastFromUint8Array malloc failed!")
+        throw IllegalMemoryException("unsafePointerCastFromUint8Array malloc failed.")
     }
     for (i in 0..arrSize) {
         unsafe { ptr.write(i, arr[i]) }
@@ -284,12 +284,12 @@ public func assertParentContext(parentMacroName: String): Unit {
         if (let Some(macroObjPtr) <- MACRO_OBJECT.get()) {
             var pStr = LibC.mallocCString(parentMacroName)
             if (pStr.isNull()) {
-                throw IllegalMemoryException("assertParentContext malloc failed!")
+                throw IllegalMemoryException("assertParentContext malloc failed.")
             }
             var flag = CJ_CheckParentContext(macroObjPtr, pStr, true)
             LibC.free(pStr)
             if (!flag) {
-                throw MacroContextException("context check for parent Macro ${parentMacroName} failed")
+                throw MacroContextException("Parent macro context check failed for macro '${parentMacroName}'.")
             }
         }
     }
@@ -306,7 +306,7 @@ public func insideParentContext(parentMacroName: String): Bool {
         if (let Some(macroObjPtr) <- MACRO_OBJECT.get()) {
             var pStr = LibC.mallocCString(parentMacroName)
             if (pStr.isNull()) {
-                throw IllegalMemoryException("insideParentContext malloc failed!")
+                throw IllegalMemoryException("insideParentContext malloc failed.")
             }
             var flag = CJ_CheckParentContext(macroObjPtr, pStr, false)
             LibC.free(pStr)
@@ -333,12 +333,12 @@ public func setItem(key: String, value: String): Unit {
         if (let Some(macroObjPtr) <- MACRO_OBJECT.get()) {
             var keyStr = LibC.mallocCString(key)
             if (keyStr.isNull()) {
-                throw IllegalMemoryException("setItem malloc failed!")
+                throw IllegalMemoryException("setItem malloc failed.")
             }
             var strV = LibC.mallocCString(value)
             if (strV.isNull()) {
                 LibC.free(keyStr)
-                throw IllegalMemoryException("setItem malloc failed!")
+                throw IllegalMemoryException("setItem malloc failed.")
             }
             CJ_SetItemInfo(macroObjPtr, keyStr, CPointer<Unit>(strV.getChars()), ITEM_TYPE_STRING)
         }
@@ -350,12 +350,12 @@ public func setItem(key: String, value: Int64): Unit {
         if (let Some(macroObjPtr) <- MACRO_OBJECT.get()) {
             var keyStr = LibC.mallocCString(key)
             if (keyStr.isNull()) {
-                throw IllegalMemoryException("setItem malloc failed!")
+                throw IllegalMemoryException("setItem malloc failed.")
             }
             var intV = LibC.malloc<Int64>()
             if (intV.isNull()) {
                 LibC.free(keyStr)
-                throw IllegalMemoryException("setItem malloc failed!")
+                throw IllegalMemoryException("setItem malloc failed.")
             }
             intV.write(value)
             CJ_SetItemInfo(macroObjPtr, keyStr, CPointer<Unit>(intV), ITEM_TYPE_INT64)
@@ -368,12 +368,12 @@ public func setItem(key: String, value: Bool): Unit {
         if (let Some(macroObjPtr) <- MACRO_OBJECT.get()) {
             var keyStr = LibC.mallocCString(key)
             if (keyStr.isNull()) {
-                throw IllegalMemoryException("setItem malloc failed!")
+                throw IllegalMemoryException("setItem malloc failed.")
             }
             var boolV = LibC.malloc<Bool>()
             if (boolV.isNull()) {
                 LibC.free(keyStr)
-                throw IllegalMemoryException("setItem malloc failed!")
+                throw IllegalMemoryException("setItem malloc failed.")
             }
             boolV.write(value)
             CJ_SetItemInfo(macroObjPtr, keyStr, CPointer<Unit>(boolV), ITEM_TYPE_BOOL)
@@ -386,7 +386,7 @@ public func setItem(key: String, value: Tokens): Unit {
         if (let Some(macroObjPtr) <- MACRO_OBJECT.get()) {
             var keyStr = LibC.mallocCString(key)
             if (keyStr.isNull()) {
-                throw IllegalMemoryException("setItem malloc failed!")
+                throw IllegalMemoryException("setItem malloc failed.")
             }
             let tokensBytes = value.toBytes()
             var tksV: CPointer<UInt8> = unsafePointerCastFromUint8Array(tokensBytes)
@@ -459,12 +459,12 @@ public class MacroMessage {
         var keyIndex = getIndexFromKey(key)
         if (keyIndex != -1) {
             if (infoMap[keyIndex].valueType != ITEM_TYPE_STRING) {
-                throw Exception("The '${key}' cannot get the String type value!\n")
+                throw Exception("Macro item '${key}' has a different type: expected 'String'.")
             } else {
                 return CString(CPointer<UInt8>(infoMap[keyIndex].value)).toString()
             }
         }
-        throw Exception("Cannot get the information from inner macro by '${key}'!\n")
+        throw Exception("Macro item '${key}' does not exist.")
     }
 
     /**
@@ -477,14 +477,14 @@ public class MacroMessage {
         var keyIndex = getIndexFromKey(key)
         if (keyIndex != -1) {
             if (infoMap[keyIndex].valueType != ITEM_TYPE_INT64) {
-                throw Exception("The '${key}' cannot get the Int64 type value!\n")
+                throw Exception("Macro item '${key}' has a different type: expected 'Int64'.")
             } else {
                 unsafe {
                     return CPointer<Int64>(infoMap[keyIndex].value).read()
                 }
             }
         }
-        throw Exception("Cannot get the information from inner macro by '${key}'!\n")
+        throw Exception("Macro item '${key}' does not exist.")
     }
 
     /**
@@ -497,14 +497,14 @@ public class MacroMessage {
         var keyIndex = getIndexFromKey(key)
         if (keyIndex != -1) {
             if (infoMap[keyIndex].valueType != ITEM_TYPE_BOOL) {
-                throw Exception("The '${key}' cannot get the Bool type value!\n")
+                throw Exception("Macro item '${key}' has a different type: expected 'Bool'.")
             } else {
                 unsafe {
                     return CPointer<Bool>(infoMap[keyIndex].value).read()
                 }
             }
         }
-        throw Exception("Cannot get the information from inner macro by '${key}'!\n")
+        throw Exception("Macro item '${key}' does not exist.")
     }
 
     /**
@@ -517,7 +517,7 @@ public class MacroMessage {
         var keyIndex = getIndexFromKey(key)
         if (keyIndex != -1) {
             if (infoMap[keyIndex].valueType != ITEM_TYPE_TOKENS) {
-                throw Exception("The '${key}' cannot get the Tokens type value!\n")
+                throw Exception("Macro item '${key}' has a different type: expected 'Tokens'.")
             } else {
                 if (infoMap[keyIndex].value.isNull()) {
                     return Tokens()
@@ -526,7 +526,7 @@ public class MacroMessage {
                 }
             }
         }
-        throw Exception("Cannot get the information from inner macro by '${key}'!\n")
+        throw Exception("Macro item '${key}' does not exist.")
     }
 }
 
@@ -564,7 +564,7 @@ public func getChildMessages(children: String): ArrayList<MacroMessage> {
 
     var childrenStr = unsafe { LibC.mallocCString(children) }
     if (childrenStr.isNull()) {
-        throw IllegalMemoryException("getChildMessages malloc failed!")
+        throw IllegalMemoryException("getChildMessages malloc failed.")
     }
     var resVector: CPointer<CPointer<CPointer<Unit>>> = unsafe { CJ_GetChildMessages(macroObjPtr, childrenStr) }
     var res: ArrayList<MacroMessage> = ArrayList<MacroMessage>()
