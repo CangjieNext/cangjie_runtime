@@ -39,7 +39,7 @@ class ConcurrentExecutor<T, S> <: Executor where S <: Any {
 
         for (arg in strategy.provide(configuration)) {
             generationStep += 1
-            if (generationStep >= configuration.generationSteps) {
+            if (strategy.isInfinite && generationStep > configuration.generationSteps) {
                 return
             }
 
@@ -50,17 +50,17 @@ class ConcurrentExecutor<T, S> <: Executor where S <: Any {
                 let failures = executeScenario(suiteInfo, tcase, configuration, scenario)
                 (scenario, failures)
             } catch (e: Exception) {
-                tcase.add(strategyErrorAsResult(e, argDescription(None, [], input, configuration, generationStep)))
+                tcase.add(strategyErrorAsResult(e, argDescription([], input, configuration, generationStep)))
                 return
             }
-            let stepKind = CaseStep(argDescription(scenario, failures, input, configuration, generationStep))
+            let stepKind = CaseStep(argDescription(failures, input, configuration, generationStep))
             if (failures.isEmpty()) {
-                tcase.add(RunStepResult(scenario.iterations, start, stepKind, Test(scenario.iterations)));
+                tcase.addSuccessfullStep(RunStepResult(scenario.iterations, start, stepKind, Test(1)))
             } else {
-                let failures = failures |> take(1) |> map<ScenarioIterationResult, CheckResult> {
-                    tcase => ConcurrentTestCheckResult(tcase)
+                let firstFailure = failures |> take(1) |> map<ScenarioIterationResult, CheckResult> {
+                    iter => ConcurrentTestCheckResult(iter)
                 } |> collectArray
-                tcase.add(RunStepResult(scenario.iterations - failures.size, start, stepKind, Failure(failures)));
+                tcase.add(RunStepResult(scenario.iterations - failures.size, start, stepKind, Failure(firstFailure)))
                 return
             }
         }
@@ -68,7 +68,6 @@ class ConcurrentExecutor<T, S> <: Executor where S <: Any {
 
     // FIXME: Currently scenario argument expected to be the first one
     static func formatArguments(
-        scenario: Option<ConcurrentScenario<S>>,
         failures: Array<ScenarioIterationResult>,
         inputs: Array<InputParameter>
     ): ?PrettyText {
@@ -76,9 +75,7 @@ class ConcurrentExecutor<T, S> <: Executor where S <: Any {
             return None
         }
         let sb = PrettyText()
-        if (let Some(scenario) <- scenario) {
-            sb.appendLine("Scenario: ${scenario.name}")
-        }
+        // Do not print first parameter which is scenario
         for (param in inputs.iterator().skip(1)) {
             sb.append(param.name)
             sb.append(" = ")
@@ -88,14 +85,13 @@ class ConcurrentExecutor<T, S> <: Executor where S <: Any {
     }
 
     private func argDescription(
-        scenario: Option<ConcurrentScenario<S>>,
         failures: Array<ScenarioIterationResult>,
         param: Array<InputParameter>,
         configuration: Configuration,
         generationStep: Int64
     ) {
         ArgumentDescription(
-            formatArguments(scenario, failures, param),
+            formatArguments(failures, param),
             generationStep - 1,
             strategy.currentReduction,
             configuration.randomSeed,

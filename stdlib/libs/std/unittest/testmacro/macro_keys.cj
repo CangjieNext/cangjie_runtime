@@ -28,7 +28,7 @@ let SKIP_MACRO = MacroKey.create("@Skip", ClassOrFunction, Configuration)
 let TESTCASE_MACRO = MacroKey.create("@TestCase", Function, TestEntity,
     placement: InsideParent([TEST_MACRO, TEST_TEMPLATE_MACRO, CONCURRENT_TEST_MACRO]))
 let STRESS_TEST_MACRO = MacroKey.create("@StressTest", Function, TestEntity,
-    placement: InsideParent([CONCURRENT_TEST_MACRO]))
+    placement: InsideParent([CONCURRENT_TEST_MACRO]), conflicts: [TESTCASE_MACRO])
 let CONFIGURE_MACRO = MacroKey.create("@Configure", ClassOrFunction, Configuration, repeatable: true)
 let TYPES_MACRO = MacroKey.create("@Types", ClassOrFunction, Configuration,
     conflicts: [TEST_BUILDER_MACRO, TEST_TEMPLATE_MACRO])

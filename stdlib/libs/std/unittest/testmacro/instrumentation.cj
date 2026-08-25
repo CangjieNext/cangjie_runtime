@@ -117,18 +117,13 @@ class InstrumentedStressTest <: InstrumentedFunction {
             original,
             prefix: "StressTest"
         )
-
-        let testCaseDslSize = original.loadSingle(TESTCASE_MACRO)?.size ?? 0
-        if (testCaseDslSize > 0) {
-            throw MacroException("For stressTests only ${STRESS_TEST_MACRO} can contain strategies.")
-        }
     }
 
-    public open func caseInitializerName(strategyVar: Tokens): Tokens {
+    public override func caseInitializerName(strategyVar: Tokens): Tokens {
         quote( $strategyVar.intoStressTestCase)
     }
 
-    public open func creationArgs(funIdent: Tokens, argNames: Array<String>, argTypes: Array<Tokens>): Tokens {
+    public override func creationArgs(funIdent: Tokens, argNames: Array<String>, argTypes: Array<Tokens>): Tokens {
         if (argTypes.size < 1 || argTypes[0].size < 1 || argTypes[0][0].value != "ScenarioBuilder") {
             throw MacroException("@StressTest declaration must have first parameter of type ScenarioBuilder")
         }
@@ -362,10 +357,10 @@ class InstrumentedClass {
         this.original = ClassDescriptor(original)
         this.configuration = loadClassConfiguration(original)
         this.measurements = loadMeasurements(original)
-        this.concurrentOperations = collectConcurrentOperations(original)
+        this.isConcurrentTest = original.has(CONCURRENT_TEST_MACRO)
+        this.concurrentOperations = collectConcurrentOperations(original, isConcurrentTest)
         this.concurrentVerify = findConcurrentVerify(original)
         this.concurrentAfter = findConcurrentAfter(original)
-        this.isConcurrentTest = original.has(CONCURRENT_TEST_MACRO)
 
         this.testFunctions = ArrayList()
 
@@ -602,7 +597,7 @@ class InstrumentedClass {
             .append(quote(private func createScenariosGenerator(): ScenariosGenerator<$concurrentTestStateClassName>))
             .curlyBraces {
                 tb =>
-                    tb.append(quote(let opManager = ScenariosGenerator<$concurrentTestStateClassName>))
+                    tb.append(quote(let scenariosGenerator = ScenariosGenerator<$concurrentTestStateClassName>))
                       .append(Token(TokenKind.LPAREN)).curlyBraces { tb => 
                           tb.append(quote(=> 
                             ScenarioBuilder<$concurrentTestStateClassName>()
@@ -614,7 +609,7 @@ class InstrumentedClass {
                           if (let Some(afterFunc) <- concurrentAfter) {
                               tb.append(quote(.after { s => s.$(afterFunc.identifier)() }))
                           }
-                      }.append(Token(TokenKind.RPAREN))
+                      }.append(Token(TokenKind.RPAREN)).append(NL)
 
                     for (operationFunc in concurrentOperations) {
                         let groupLitTokens = if (let Some(tokens) <- operationFunc.loadSingle(GROUP_MACRO)) {
@@ -647,7 +642,7 @@ class InstrumentedClass {
                             let destructuring = nestedTuple(namesTokens).ifEmpty(quote(_))
 
                             tb.append(quote(
-                                opManager.addOperation(
+                                scenariosGenerator.addOperation(
                                     group: $groupLitTokens,
                                     name: $operationLitTokens,
                                     body: { x___: $argType, state: $concurrentTestStateClassName =>
@@ -659,7 +654,7 @@ class InstrumentedClass {
                             ))
                         } else {
                             tb.append(quote(
-                                opManager.addOperation(
+                                scenariosGenerator.addOperation(
                                     group: $groupLitTokens,
                                     name: $operationLitTokens,
                                     body: { state: $concurrentTestStateClassName => state.$operationTokens() },
@@ -668,7 +663,7 @@ class InstrumentedClass {
                         }
                     }
 
-                    tb.append(quote(return opManager))
+                    tb.append(quote(return scenariosGenerator))
             }
         return tb
     }
@@ -843,11 +838,11 @@ private func collectFuncDeclsWithMacro(macroKey: MacroKey, classDecl: ClassDecl)
     return operations.toArray()
 }
 
-private func collectConcurrentOperations(concurrentTest: ClassDecl): Array<FuncDecl> {
+private func collectConcurrentOperations(concurrentTest: ClassDecl, isConcurrentTest: Bool): Array<FuncDecl> {
     let operations = collectFuncDeclsWithMacro(OPERATION_MACRO, concurrentTest)
 
-    if (operations.size == 0) {
-        throw MacroException("Concurrent test must contains at least on @Operation annotated function")
+    if (isConcurrentTest && operations.size == 0) {
+        throw MacroException("Concurrent test must contain at least one @Operation annotated function")
     }
 
     operations
@@ -859,7 +854,7 @@ private func collectSingleFuncDeclWithMacro(macroKey: MacroKey, classDecl: Class
     if (funcDecls.size > 1) {
         let identifiers = String.join(funcDecls |> map {decl => decl.identifier.value} |> collectArray, delimiter: ", ")
         throw MacroException(
-            "Test must contains not more than one ${macroKey.macroName} annotated function: ${identifiers}")
+            "Test must contain no more than one ${macroKey.macroName} annotated function: ${identifiers}")
     }
 
     return funcDecls |> first
