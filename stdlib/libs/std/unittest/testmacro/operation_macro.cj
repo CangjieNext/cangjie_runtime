@@ -15,7 +15,7 @@ import std.ast.*
 
 /**
  * @Operation macro marks the function that implements concurrent operation on
- * data structure. Value sets for arguments cab be specified in macro arguments
+ * data structure. Value sets for arguments can be specified in macro arguments
  * similar to @TestCase: `@Operation[arg1 in values1, arg2 in values2, ...]`.
  */
 public macro Operation(input: Tokens): Tokens {

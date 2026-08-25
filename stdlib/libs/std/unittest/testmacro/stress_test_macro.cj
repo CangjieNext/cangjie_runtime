@@ -5,6 +5,9 @@
  *
  * See https://cangjie-lang.cn/pages/LICENSE for license information.
  */
+/**
+ * @file The file declares the macro StressTest.
+ */
 macro package std.unittest.testmacro
 
 import std.ast.*
