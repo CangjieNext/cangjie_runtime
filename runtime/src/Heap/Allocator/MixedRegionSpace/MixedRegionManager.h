@@ -23,9 +23,7 @@ public:
     {
         size_t unitCount = recentFullRegionList.GetUnitCount();
         size_t youngRegionSize = Heap::GetHeap().GetMaxCapacity() / 3;
-        size_t sweptRegionSize = sweptYoungRegionList.GetAllocatedSize();
-        size_t freeSlotSize = GetFreeSlotTotalSize(sweptYoungRegionList);
-        size_t sweptAllocatedSize = sweptRegionSize > freeSlotSize ? sweptRegionSize - freeSlotSize : 0;
+        size_t sweptAllocatedSize = sweptYoungRegionList.GetAllocatedSize();
         bool shouldSplit = ShouldSplit(unitCount) && sweptAllocatedSize <= youngRegionSize / 3;
         if (!shouldSplit) {
             fromRegionList.MergeRegionList(recentFullRegionList, RegionInfo::RegionType::FROM_REGION);
@@ -136,7 +134,7 @@ public:
         Heap& heap = Heap::GetHeap();
         if (!heap.IsGcStarted()) {
             size_t maxCapacity = heap.GetMaxCapacity();
-            size_t youngGenSize = maxCapacity / 3;
+            size_t youngGenSize = (maxCapacity / 3) < 256ULL * 1024 * 1024 ? (maxCapacity / 3) : 256ULL * 1024 * 1024;
             size_t youngAllocated = GetRecentAllocatedSize() + sweptYoungRegionList.GetAllocatedSize() -
                 GetFreeSlotTotalSize(sweptYoungRegionList);
             size_t totalAllocated = GetAllocatedSize();
@@ -159,6 +157,18 @@ public:
         total += oldRegionList.GetAllocatedSize();
         total += oldFromRegionList.GetAllocatedSize();
         total += promoteRegionList.GetAllocatedSize();
+        return total;
+    }
+    size_t GetUsedUnitCount() const override
+    {
+        size_t total = RegionManager::GetUsedUnitCount();
+        total += sweepableYoungRegionList.GetUnitCount();
+        total += sweepableOldRegionList.GetUnitCount();
+        total += sweptYoungRegionList.GetUnitCount();
+        total += oldSweptRegionList.GetUnitCount();
+        total += oldRegionList.GetUnitCount();
+        total += oldFromRegionList.GetUnitCount();
+        total += promoteRegionList.GetUnitCount();
         return total;
     }
     void AddRawPointerObject(BaseObject* obj) override

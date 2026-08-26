@@ -22,11 +22,20 @@ void MixedRegionManager::DumpRegionStats(const char* msg, bool dumpToError) cons
 {
     RegionManager::DumpRegionStats(msg, dumpToError);
 
-    auto dumpListStats = [dumpToError](const char* name, const RegionList& list) {
+    auto dumpListStats = [this, dumpToError](const char* name, const RegionList& list, bool dumpFreeSlotSize) {
         size_t regions = list.GetRegionCount();
         size_t units = list.GetUnitCount();
         size_t size = units * RegionInfo::UNIT_SIZE;
         size_t allocated = list.GetAllocatedSize();
+        if (dumpFreeSlotSize) {
+            size_t freeSlotSize = GetFreeSlotTotalSize(list);
+            const char* format = "\t%s %zu: %zu units (%zu B, alloc %zu, free slot %zu)";
+            VLOG(REPORT, format, name, regions, units, size, allocated, freeSlotSize);
+            if (dumpToError) {
+                LOG(RTLOG_ERROR, format, name, regions, units, size, allocated, freeSlotSize);
+            }
+            return;
+        }
         const char* format = "\t%s %zu: %zu units (%zu B, alloc %zu)";
         VLOG(REPORT, format, name, regions, units, size, allocated);
         if (dumpToError) {
@@ -34,15 +43,15 @@ void MixedRegionManager::DumpRegionStats(const char* msg, bool dumpToError) cons
         }
     };
 
-    dumpListStats("sweepable young regions", sweepableYoungRegionList);
-    dumpListStats("sweepable old regions", sweepableOldRegionList);
-    dumpListStats("swept young regions", sweptYoungRegionList);
-    dumpListStats("swept old regions", oldSweptRegionList);
-    dumpListStats("old regions", oldRegionList);
-    dumpListStats("old from regions", oldFromRegionList);
-    dumpListStats("ghost old from regions", ghostOldFromRegionList);
-    dumpListStats("promote regions", promoteRegionList);
-    dumpListStats("ghost promote regions", ghostPromoteRegionList);
+    dumpListStats("sweepable young regions", sweepableYoungRegionList, false);
+    dumpListStats("sweepable old regions", sweepableOldRegionList, false);
+    dumpListStats("swept young regions", sweptYoungRegionList, true);
+    dumpListStats("swept old regions", oldSweptRegionList, true);
+    dumpListStats("old regions", oldRegionList, false);
+    dumpListStats("old from regions", oldFromRegionList, false);
+    dumpListStats("ghost old from regions", ghostOldFromRegionList, false);
+    dumpListStats("promote regions", promoteRegionList, false);
+    dumpListStats("ghost promote regions", ghostPromoteRegionList, false);
 }
 
 size_t MixedRegionManager::ClassifyYoungRegions()
@@ -258,7 +267,8 @@ void MixedRegionManager::ForwardFromSpace(GCThreadPool* threadPool)
 
 bool MixedRegionManager::IsYoungSpaceHeavy() const
 {
-    return Heap::GetHeap().IsGcStarted();
+    // return Heap::GetHeap().IsGcStarted();
+    return true;
 }
 
 BaseObject* MixedRegionManager::PromoteObject(BaseObject* fromObj, RegionInfo* fromRegion)

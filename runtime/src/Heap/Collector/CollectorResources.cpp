@@ -222,7 +222,7 @@ void CollectorResources::StartGCThreads()
     }
     // starts the thread pool.
     if (gcThreadPool == nullptr) {
-        int32_t helperThreads = 1;
+        int32_t helperThreads = 8;
         gcThreadCount = helperThreads + 1;
         VLOG(REPORT, "total gc thread count %d, helper thread count %d", gcThreadCount, helperThreads);
         gcThreadPool = new (std::nothrow) GCThreadPool("gc", helperThreads, GCPoolThread::GC_THREAD_PRIORITY);
