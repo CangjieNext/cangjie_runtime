@@ -364,7 +364,7 @@ public:
             oldLargeRegionList.GetAllocatedSize();
     }
 
-    size_t GetUsedUnitCount() const
+    virtual size_t GetUsedUnitCount() const
     {
         return
             fromRegionList.GetUnitCount() + unmovableFromRegionList.GetUnitCount() +

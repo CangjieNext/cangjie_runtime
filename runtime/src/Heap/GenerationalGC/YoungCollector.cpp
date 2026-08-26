@@ -20,11 +20,13 @@ void YoungCollector::TraceHeap()
     AssembleCandidates();
 
     {
+        MRT_PHASE_TIMER("enum roots & update old pointers within");
         TransitionToGCPhase(GCPhase::GC_PHASE_GENERATION_ENUM, true);
         DoEnumeration(workStack, foreignStack);
     }
 
     {
+        MRT_PHASE_TIMER("trace live objects & update old pointers in ref-fields");
         markedObjectCount.store(0, std::memory_order_relaxed);
         TransitionToGCPhase(GCPhase::GC_PHASE_GENERATION_TRACE, true);
         reinterpret_cast<RegionSpace&>(theAllocator).PrepareTrace();
