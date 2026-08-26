@@ -456,7 +456,7 @@ void RegionSpaceMS::RegisterLargeObjectMS(
         spanInfo->control = 0;
         spanInfo->allocSummary = 0;
         spanInfo->pendingWordSummary = 0;
-        spanInfo->reserved32 = 0;
+        spanInfo->spanBaseRegionIdx = MSRegionInfo::INVALID_REGION_IDX;
         spanInfo->allocMode = static_cast<uint8_t>(MSAllocMode::NONE);
         spanInfo->reserved8 = 0;
         spanInfo->sizeClass = MSRegionInfo::INVALID_SIZE_CLASS;

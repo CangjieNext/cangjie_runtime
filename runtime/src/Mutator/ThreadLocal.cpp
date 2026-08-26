@@ -131,8 +131,8 @@ extern "C" void MCC_CheckThreadLocalDataOffset()
                   "need to modify the offset of this value in llvm-project at the same time");
     static_assert(offsetof(MSRegionInfo, allocSummary) == 40,
                   "need to modify the offset of this value in llvm-project at the same time");
-    static_assert(offsetof(MSRegionInfo, reserved32) == 56,
-                  "need to modify the offset of this value in llvm-project at the same time");
+    static_assert(offsetof(MSRegionInfo, spanBaseRegionIdx) == 56,
+                  "MSRegionInfo layout: spanBaseRegionIdx");
     static_assert(offsetof(MSRegionInfo, allocMode) == 60,
                   "need to modify the offset of this value in llvm-project at the same time");
     static_assert(offsetof(MSRegionInfo, sizeClass) == 62,
