@@ -57,6 +57,7 @@ public:
         TAG_ROOT_UNKNOWN = 0xFF,
         TAG_ROOT_GLOBAL = 0x01,
         TAG_ROOT_LOCAL = 0x02,
+        TAG_ROOT_GLOBAL_SOURCE = 0x03,
         TAG_ROOT_THREAD_OBJECT = 0x08,
         TAG_CLASS_DUMP = 0x20,
         TAG_INSTANCE_DUMP = 0x21,
@@ -78,11 +79,22 @@ public:
     };
 
     struct DumpObject {
+        DumpObject(BaseObject* dumpObj, u1 dumpTag, u4 dumpThreadId, u4 dumpFrameNum,
+                   CjHeapDataStringId dumpClassId, CjHeapDataStringId dumpRootNameId = 0,
+                   CjHeapDataStringId dumpRootFileId = 0, u4 dumpRootLine = 0,
+                   CjHeapDataID dumpRootSlot = 0)
+            : obj(dumpObj), tag(dumpTag), threadId(dumpThreadId), frameNum(dumpFrameNum),
+              classId(dumpClassId), rootNameId(dumpRootNameId), rootFileId(dumpRootFileId),
+              rootLine(dumpRootLine), rootSlot(dumpRootSlot) {}
         BaseObject* obj;
         u1 tag;
         u4 threadId;
         u4 frameNum;
         CjHeapDataStringId classId;
+        CjHeapDataStringId rootNameId;
+        CjHeapDataStringId rootFileId;
+        u4 rootLine;
+        CjHeapDataID rootSlot;
     };
 
     struct DumpClass {
@@ -152,7 +164,7 @@ public:
     void ProcessRootClass(TypeInfo* klass);
     void ProcessStructClass(TypeInfo* klass);
 
-    void WriteGlobalRoot(BaseObject*& obj, const u1 tag);
+    void WriteGlobalRoot(const DumpObject& objectInfo);
     void WriteUnknownRoot(BaseObject*& obj, const u1 tag);
     void WriteLocalRoot(BaseObject*& obj, const u1 tag, const u4 tid, const u1 depth);
     void WriteThreadObjectRoot(BaseObject*& obj, const u1 tag, const u4 tid, const u4 stackTraceIdx);

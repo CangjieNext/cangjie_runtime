@@ -213,8 +213,11 @@ bool RegionSpaceMS::HasPendingShrinkWork() const
 
 bool RegionSpaceMS::ForEachObj(const std::function<void(BaseObject*)>& visitor, bool safe) const
 {
-    (void)visitor;
-    (void)safe;
+    if (safe) {
+        msRegionManager_->ForEachObjSafe(visitor);
+    } else {
+        msRegionManager_->ForEachObjUnsafe(visitor);
+    }
     return true;
 }
 

@@ -270,10 +270,14 @@ void CjHeapData::ProcessRootGlobal()
         if (obj == nullptr || !Heap::IsHeapAddress(obj)) {
             return;
         }
-        DumpObject dumpObject = {
+        StaticRootSourceInfo sourceInfo;
+        const bool hasSourceInfo = Heap::GetHeap().GetStaticRootSourceInfo(refField, sourceInfo);
+        DumpObject dumpObject(
             obj, TAG_ROOT_GLOBAL, 0, 0,
-            LookupStringId(obj->GetTypeInfo()->GetName() == nullptr ? "anonymous" : obj->GetTypeInfo()->GetName())
-        };
+            LookupStringId(obj->GetTypeInfo()->GetName() == nullptr ? "anonymous" : obj->GetTypeInfo()->GetName()),
+            hasSourceInfo ? LookupStringId(CString(sourceInfo.name.c_str())) : 0,
+            hasSourceInfo && !sourceInfo.file.empty() ? LookupStringId(CString(sourceInfo.file.c_str())) : 0,
+            hasSourceInfo ? sourceInfo.line : 0, hasSourceInfo ? sourceInfo.slot : 0);
         dumpObjects.push_back(dumpObject);
     };
     Heap::GetHeap().VisitStaticRoots(visitor);
@@ -367,7 +371,7 @@ void CjHeapData::WriteAllObjects()
                 WriteLocalRoot(objectInfo.obj, objectInfo.tag, objectInfo.threadId, objectInfo.frameNum);
                 break;
             case TAG_ROOT_GLOBAL:
-                WriteGlobalRoot(objectInfo.obj, objectInfo.tag);
+                WriteGlobalRoot(objectInfo);
                 break;
             case TAG_ROOT_UNKNOWN:
                 WriteUnknownRoot(objectInfo.obj, objectInfo.tag);
@@ -391,14 +395,24 @@ void CjHeapData::WriteAllObjects()
 }
 /*
  * Record Global Root Info:
- *     u1 tag;     //denoting the type of this sub-record
+ *     u1 tag;     // denoting the type of this sub-record
  *     ID objId;   // object ID
+ * Extended records additionally contain source-name ID, source-file ID, line,
+ * and static-slot address.
  */
-void CjHeapData::WriteGlobalRoot(BaseObject*& obj, const u1 tag)
+void CjHeapData::WriteGlobalRoot(const DumpObject& objectInfo)
 {
-    AddU1(tag);
-    CjHeapDataID objId = (reinterpret_cast<CjHeapDataID>(obj));
-    CString name = obj->GetTypeInfo()->GetName();
+    const CjHeapDataID objId = reinterpret_cast<CjHeapDataID>(objectInfo.obj);
+    if (objectInfo.rootNameId != 0) {
+        AddU1(TAG_ROOT_GLOBAL_SOURCE);
+        AddStringId(objId);
+        AddStringId(objectInfo.rootNameId);
+        AddStringId(objectInfo.rootFileId);
+        AddU4(objectInfo.rootLine);
+        AddStringId(objectInfo.rootSlot);
+        return;
+    }
+    AddU1(TAG_ROOT_GLOBAL);
     AddStringId(objId);
 }
 

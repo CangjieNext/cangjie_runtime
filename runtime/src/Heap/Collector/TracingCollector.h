@@ -82,6 +82,7 @@ public:
     void RegisterRoots(StaticRootArray* addr, U32 size);
     void UnregisterRoots(StaticRootArray* addr, U32 size);
     void VisitRoots(const RefFieldVisitor& visitor);
+    bool GetRootSourceInfo(const RefField<>& root, StaticRootSourceInfo& info) const;
 
 private:
     std::mutex gcRootsLock;                         // lock gcRootsBuckets

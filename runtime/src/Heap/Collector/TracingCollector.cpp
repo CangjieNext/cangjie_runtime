@@ -6,10 +6,17 @@
 
 #include "TracingCollector.h"
 
+#include <cstring>
+
 #include "Common/Runtime.h"
 #include "Concurrency/Concurrency.h"
 #include "Heap/Barrier/GCRefField.inline.h"
 #include "ObjectModel/RefField.inline.h"
+
+#if defined(__APPLE__)
+#include <dlfcn.h>
+#include <mach-o/getsect.h>
+#endif
 
 namespace MapleRuntime {
 const size_t TracingCollector::MAX_MARKING_WORK_SIZE = 16; // fork task if bigger
@@ -50,6 +57,51 @@ void StaticRootTable::VisitRoots(const RefFieldVisitor& visitor)
             visitor(*root);
         }
     }
+}
+
+bool StaticRootTable::GetRootSourceInfo(const RefField<>& root, StaticRootSourceInfo& info) const
+{
+#if defined(__APPLE__)
+    Dl_info imageInfo = {};
+    const void* rootAddr = reinterpret_cast<const void*>(&root);
+    if (dladdr(rootAddr, &imageInfo) == 0 || imageInfo.dli_fbase == nullptr) {
+        return false;
+    }
+
+    unsigned long sectionSize = 0;
+    const auto* image = reinterpret_cast<const mach_header_64*>(imageInfo.dli_fbase);
+    const auto* record = reinterpret_cast<const uint8_t*>(
+        getsectiondata(image, "__CJ_METADATA", "__cjrootdbg", &sectionSize));
+    const uint8_t* end = record == nullptr ? nullptr : record + sectionSize;
+    constexpr size_t headerSize = sizeof(Uptr) + sizeof(U32) + sizeof(U32) + sizeof(U32);
+    while (record != nullptr && record + headerSize <= end) {
+        Uptr slot = 0;
+        U32 line = 0;
+        U32 nameLength = 0;
+        U32 fileLength = 0;
+        std::memcpy(&slot, record, sizeof(slot));
+        std::memcpy(&line, record + sizeof(slot), sizeof(line));
+        std::memcpy(&nameLength, record + sizeof(slot) + sizeof(line), sizeof(nameLength));
+        std::memcpy(&fileLength, record + sizeof(slot) + sizeof(line) + sizeof(nameLength), sizeof(fileLength));
+        const uint8_t* strings = record + headerSize;
+        if (nameLength > static_cast<USize>(end - strings) ||
+            fileLength > static_cast<USize>(end - strings - nameLength)) {
+            return false;
+        }
+        if (slot == reinterpret_cast<Uptr>(rootAddr)) {
+            info.slot = slot;
+            info.line = line;
+            info.name.assign(reinterpret_cast<const char*>(strings), nameLength);
+            info.file.assign(reinterpret_cast<const char*>(strings + nameLength), fileLength);
+            return !info.name.empty();
+        }
+        record = strings + nameLength + fileLength;
+    }
+#else
+    (void)root;
+    (void)info;
+#endif
+    return false;
 }
 
 void ExportRootTable::VisitGCRoots(const RootVisitor& visitor)
