@@ -21,10 +21,19 @@ For standalone builds, please run the `build.py` script, which supports three fu
 The `build` command is used to independently construct the Cangjie runtime environment and supports multiple configurable options:
 
 - `--target <value>` specifies the build target. Default `value`: `native`. Available options:
-    - `native` -- refers to compiling and building from Linux/macOS to the native   platform;
-    - `windows-x86_64` -- refers to cross-compiling and building from Linux to the   Windows-x86_64 platform;
-    - `ohos-aarch64` -- refers to cross-compiling and building from Linux to the   ohos-aarch64 platform;
-    - `ohos-x86_64` -- refers to cross-compiling and building from Linux to the ohos-x86_64 platform.
+    - `native` -- refers to compiling and building from Linux/macOS to the native platform;
+    - `windows-x86_64` -- refers to cross-compiling and building from Linux to the Windows-x86_64 platform;
+    - `ohos-aarch64` -- refers to cross-compiling and building from Linux to the ohos-aarch64 platform;
+    - `ohos-x86_64` -- refers to cross-compiling and building from Linux to the ohos-x86_64 platform;
+    - `ohos-arm` -- refers to cross-compiling and building from Linux to the ohos-arm platform;
+    - `ios-aarch64` -- refers to cross-compiling and building from macOS to the ios-aarch64 platform;
+    - `ios-simulator-aarch64` -- refers to cross-compiling and building from macOS to the ios simulator(aarch64) platform;
+    - `ios-simulator-x86_64` -- refers to cross-compiling and building from macOS to the ios simulator(x86_64) platform;
+    - `android-aarch64` -- refers to cross-compiling and building from Linux to the android-aarch64(default API 31) platform;
+    - `android26-aarch64` -- refers to cross-compiling and building from Linux to the android-aarch64(API 26) platform;
+    - `android31-aarch64` -- refers to cross-compiling and building from Linux to the android-aarch64(API 31) platform;
+    - `android-x86_64` -- refers to cross-compiling and building from Linux to the android-x86_64(default API 31) platform;
+    - `android23-arm` -- refers to cross-compiling and building from Linux to the android-arm(API 23) platform.
 - `-t, --build-type <value>` specifies the build configuration. Valid values: `release, debug, relwithdebinfo`. Default: `release`.
 - `-v, --version <value>` sets the version number for the Cangjie runtime. Default: `0.0.1`.
 - `--prefix <value>` defines the installation path for build outputs. Defaults to `runtime/output/common`. If both `build` and `install` specify paths, install takes precedence.

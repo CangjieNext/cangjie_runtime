@@ -16,7 +16,16 @@
     - `native` -- 指 Linux/macOS 平台到 native 平台编译构建；
     - `windows-x86_64` -- 指 Linux 平台到 Windows-x86_64 平台的交叉编译构建；
     - `ohos-aarch64` -- 指 Linux 平台到 ohos-aarch64 平台的交叉编译构建；
-    - `ohos-x86_64` -- 指 Linux 平台到 ohos-x86_64 平台的交叉编译构建。
+    - `ohos-x86_64` -- 指 Linux 平台到 ohos-x86_64 平台的交叉编译构建；
+    - `ohos-arm` -- 指 Linux 平台到 ohos-arm 平台的交叉编译构建；
+    - `ios-aarch64` -- 指 macOS 平台到 ios-aarch64 平台的交叉编译构建；
+    - `ios-simulator-aarch64` -- 指 macOS 平台到 ios 模拟器(aarch64)的交叉编译构建；
+    - `ios-simulator-x86_64` -- 指 macOS 平台到 ios 模拟器(x86_64)的交叉编译构建；
+    - `android-aarch64` -- 指 Linux 平台到 android-aarch64(默认 API 31)平台的交叉编译构建；
+    - `android26-aarch64` -- 指 Linux 平台到 android-aarch64(API 26)平台的交叉编译构建；
+    - `android31-aarch64` -- 指 Linux 平台到 android-aarch64(API 31)平台的交叉编译构建；
+    - `android-x86_64` -- 指 Linux 平台到 android-x86_64(默认 API 31)平台的交叉编译构建；
+    - `android23-arm` -- 指 Linux 平台到 android-arm(API 23)平台的交叉编译构建。
 - `-t, --build-type <value>` 用于指定构建模式。`value` 的取值包括：`release、debug、relwithdebinfo`，区分大小写，默认值为 `release`。
 - `-v, --version <value>` 用于指定仓颉运行时的版本，`value` 默认值为 `0.0.1`。
 - `--prefix <value>` 可用于指定构建产物的安装路径，默认安装到 runtime 目录下的 output/common 目录。当 `build` 和 `install` 同时指定了安装路径，后者生效。
