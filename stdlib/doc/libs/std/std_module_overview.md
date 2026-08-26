@@ -26,7 +26,8 @@
 | OpenHarmony   | arm32     | OpenHarmony 5.1 或更高版本 |
 | HarmonyOS     | aarch64   | HarmonyOS 5.1 或更高版本 |
 | iOS           | aarch64   | iOS 11 或更高版本（ast 库需要 iOS 12 或更高版本） |
-| Android       | aarch64   | Android API 26 或更高版本 |
+| Android       | aarch64   | Android API 23 或更高版本 |
+| Android       | x86_64    | Android API 26 或更高版本 |
 
 ## 使用指导
 
