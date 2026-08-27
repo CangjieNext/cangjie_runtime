@@ -10,6 +10,7 @@
 
 #include <cstdlib>
 #include <functional>
+#include <string>
 
 #include "Barrier/Barrier.h"
 #include "Base/ImmortalWrapper.h"
@@ -24,6 +25,13 @@ class Allocator;
 class AllocBuffer;
 class FinalizerProcessor;
 class CollectorResources;
+
+struct StaticRootSourceInfo {
+    std::string name;
+    std::string file;
+    U32 line = 0;
+    Uptr slot = 0;
+};
 
 
 class Heap {
@@ -88,6 +96,9 @@ public:
     virtual void UnregisterStaticRoots(Uptr, U32) = 0;
 
     virtual void VisitStaticRoots(const RefFieldVisitor& visitor) = 0;
+
+    // Source metadata is optional and queried only by heap-dump tooling.
+    virtual bool GetStaticRootSourceInfo(const RefField<>&, StaticRootSourceInfo&) const = 0;
 
     virtual U64 RegisterExportRoot(BaseObject*) = 0;
     virtual void VisitAllExportRoots(const RootVisitor& visitor) = 0;

@@ -13,6 +13,7 @@
 #include <mutex>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 
 #include "Heap/MAllocator/MSFreeManager.h"
 #include "Heap/MAllocator/MSRegionInfo.h"
@@ -129,6 +130,9 @@ public:
     // Return bytes in hot-free regions (free but pages not yet returned to OS).
     size_t GetHotFreeBytes() const;
     uint16_t ResolveHomeShardId(uint16_t shardHint = kMSInvalidShardId) const;
+
+    void ForEachObjUnsafe(const std::function<void(BaseObject*)>& visitor) const;
+    void ForEachObjSafe(const std::function<void(BaseObject*)>& visitor) const;
 
 private:
     void InitializeFreshRegions(RegionIndex startIdx, RegionCount count) override;

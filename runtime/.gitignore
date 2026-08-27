@@ -45,5 +45,6 @@ default.cjo
 default.cjo.flag
 docs/
 runtime.code-workspace
+runtime-architecture*
 third_party/third_party_bounds_checking_function/
 tmp/

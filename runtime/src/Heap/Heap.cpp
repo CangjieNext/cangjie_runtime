@@ -121,6 +121,7 @@ public:
     void RegisterStaticRoots(Uptr addr, U32) override;
     void UnregisterStaticRoots(Uptr addr, U32) override;
     void VisitStaticRoots(const RefFieldVisitor& visitor) override;
+    bool GetStaticRootSourceInfo(const RefField<>& root, StaticRootSourceInfo& info) const override;
     bool ForEachObj(const std::function<void(BaseObject*)>&, bool) const override;
     ssize_t GetHeapPhysicalMemorySize() const override;
     void InstallBarrier(const GCPhase phase) override;
@@ -280,6 +281,11 @@ void HeapImpl::UnregisterStaticRoots(Uptr addr, U32 size)
 }
 
 void HeapImpl::VisitStaticRoots(const RefFieldVisitor& visitor) { staticRootTable.VisitRoots(visitor); }
+
+bool HeapImpl::GetStaticRootSourceInfo(const RefField<>& root, StaticRootSourceInfo& info) const
+{
+    return staticRootTable.GetRootSourceInfo(root, info);
+}
 
 #if defined(_WIN64)
 ssize_t HeapImpl::GetHeapPhysicalMemorySize() const

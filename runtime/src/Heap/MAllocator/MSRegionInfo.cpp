@@ -36,7 +36,7 @@ void MSRegionInfo::InitForSizeClass(uint8_t cls, MSScanClass scanClass)
     control = 0;
     allocSummary = 0;
     pendingWordSummary = 0;
-    reserved32 = 0;
+    spanBaseRegionIdx = INVALID_REGION_IDX;
     allocMode = static_cast<uint8_t>(MSAllocMode::BUMP);
     reserved8 = 0;
     sizeClass = cls;
@@ -80,7 +80,7 @@ void MSRegionInfo::InitForLargeObject(
     control = 0;
     allocSummary = 0;
     pendingWordSummary = 0;
-    reserved32 = 0;
+    spanBaseRegionIdx = INVALID_REGION_IDX;
     allocMode = static_cast<uint8_t>(MSAllocMode::NONE);
     reserved8 = 0;
     sizeClass = INVALID_SIZE_CLASS;
@@ -163,7 +163,7 @@ void MSRegionInfo::Reset()
     control = 0;
     allocSummary = 0;
     pendingWordSummary = 0;
-    reserved32 = 0;
+    spanBaseRegionIdx = INVALID_REGION_IDX;
     allocMode = static_cast<uint8_t>(MSAllocMode::NONE);
     reserved8 = 0;
     sizeClass = INVALID_SIZE_CLASS;
@@ -182,6 +182,7 @@ void MSRegionInfo::ResetToBump()
     control = 0;
     SetScanClass(scanClass);
     allocSummary = 0;
+    spanBaseRegionIdx = INVALID_REGION_IDX;
 }
 
 void MSRegionInfo::ResetToEmptyCache()
@@ -196,7 +197,7 @@ void MSRegionInfo::ResetToEmptyCache()
     control = 0;
     allocSummary = 0;
     pendingWordSummary = 0;
-    reserved32 = 0;
+    spanBaseRegionIdx = INVALID_REGION_IDX;
     allocMode = static_cast<uint8_t>(MSAllocMode::NONE);
     reserved8 = 0;
     sizeClass = INVALID_SIZE_CLASS;

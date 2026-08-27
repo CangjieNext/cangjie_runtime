@@ -40,7 +40,7 @@ enum class MSRegionType : uint8_t {
     MS_REGION_PARTIAL = 3,  // Central swept Region with free slots
     MS_REGION_FULL    = 4,  // Central Region with no free slots
     MS_REGION_LARGE   = 5,  // Base Region of one large object
-    MS_REGION_SPAN    = 6,  // Secondary Region of a large object; reserved=baseIdx
+    MS_REGION_SPAN    = 6,  // Secondary Region of a large object; spanBaseRegionIdx=baseIdx
     MS_REGION_EMPTY_CACHE = 7, // Empty small-region shell cached in CentralRegionPool
 };
 
@@ -108,9 +108,8 @@ struct alignas(64) MSRegionInfo {
     uint32_t control;                     // +36
     uint64_t allocSummary;                // +40
     uint64_t pendingWordSummary;          // +48
-    // Legacy LLVM binaries may still decrement the low halfword at +56.
-    // Runtime must never use or repurpose these bytes without ABI versioning.
-    uint32_t reserved32;                  // +56
+    // SPAN secondary: primary Region index. INVALID_REGION_IDX otherwise.
+    uint32_t spanBaseRegionIdx;           // +56
     uint8_t allocMode;                    // +60
     uint8_t reserved8;                    // +61
     uint8_t sizeClass;                    // +62
@@ -121,8 +120,7 @@ struct alignas(64) MSRegionInfo {
     static constexpr uint32_t CONTROL_SCAN_STATE_MASK = 0x03;
     static constexpr uint32_t CONTROL_LARGE_MARKED = 0x04;
     // Small Region currently parked in central swept supply after a real
-    // mutator return.  This provenance is kept in the existing control word,
-    // preserving the fixed MSRegionInfo ABI and leaving reserved32 untouched.
+    // mutator return. This provenance shares the existing control word.
     static constexpr uint32_t CONTROL_MUTATOR_RETURNED_SWEPT = 0x08;
 
     uint32_t GetCentralNextRegionIdx() const
@@ -329,11 +327,11 @@ struct alignas(64) MSRegionInfo {
     bool IsFreeRegion() const { return GetRegionKind() == MSRegionKind::FREE; }
     uint32_t GetSpanBaseRegionIdx() const
     {
-        return static_cast<uint32_t>(pendingWordSummary);
+        return spanBaseRegionIdx;
     }
     void SetSpanBaseRegionIdx(uint32_t idx)
     {
-        pendingWordSummary = static_cast<uint64_t>(idx);
+        spanBaseRegionIdx = idx;
     }
 
     // === Address helpers ===
@@ -354,10 +352,10 @@ struct alignas(64) MSRegionInfo {
     void ReleaseBitmaps();
     void Reset();
     // Reset a completely-free region back to BUMP for fast reuse (O3).
-    // Preserves bitmap memory, avoids munmap/mmap cycle.
+    // Preserves the Arena-owned bitmap storage and reuses this Region as BUMP.
     void ResetToBump();
     // Convert a completely-free small region into a classless empty-cache shell.
-    // Releases per-class bitmaps and clears object-layout metadata, but does not
+    // Clears per-class bitmap bindings and object-layout metadata, but does not
     // return the physical region to MSRegionManager.
     void ResetToEmptyCache();
 
@@ -480,8 +478,8 @@ static_assert(offsetof(MSRegionInfo, allocSummary) == 40,
               "compiler ABI: MSRegionInfo::allocSummary");
 static_assert(offsetof(MSRegionInfo, pendingWordSummary) == 48,
               "compiler ABI: MSRegionInfo::pendingWordSummary");
-static_assert(offsetof(MSRegionInfo, reserved32) == 56,
-              "compiler ABI: MSRegionInfo legacy free-slot-count tombstone");
+static_assert(offsetof(MSRegionInfo, spanBaseRegionIdx) == 56,
+              "MSRegionInfo layout: spanBaseRegionIdx");
 static_assert(offsetof(MSRegionInfo, allocMode) == 60,
               "compiler ABI: MSRegionInfo::allocMode");
 static_assert(offsetof(MSRegionInfo, reserved8) == 61,
@@ -577,7 +575,7 @@ public:
             // addr not in this large object — cross-contamination from
             // adjacent unaligned small region. Fall through to slow path.
         } else if (info->GetRegionKind() == MSRegionKind::SPAN) {
-            // SPAN entry (pendingWordSummary low32=baseIdx).
+            // SPAN entry (spanBaseRegionIdx=baseIdx).
             // Validate base entry liveness/range to avoid treating stale
             // span metadata (after large object reclaimed/reset) as valid.
             MSRegionInfo* base = ResolveLargeBaseInfo(info);

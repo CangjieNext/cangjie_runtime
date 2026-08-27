@@ -442,6 +442,69 @@ void MSRegionManager::ReclaimReleasedRegionsToHotFreeBatch(const std::vector<Fre
     freeManager_.ReclaimRegionsReleasedBatch(spans);
 }
 
+void MSRegionManager::ForEachObjUnsafe(const std::function<void(BaseObject*)>& visitor) const
+{
+    for (size_t regionIdx = 0; regionIdx < GetMaxRegionCount(); ++regionIdx) {
+        MSRegionInfo* region = &array_[regionIdx];
+        switch (region->GetRegionKind()) {
+            case MSRegionKind::LARGE:
+                if (region->LargeObjectSize() != 0 &&
+                    region->LargeObjectStart() < region->regionEnd) {
+                    visitor(reinterpret_cast<BaseObject*>(region->LargeObjectStart()));
+                }
+                continue;
+            case MSRegionKind::SPAN:
+            case MSRegionKind::FREE:
+                continue;
+            case MSRegionKind::SMALL:
+                break;
+        }
+
+        size_t totalSlotCount = region->GetTotalSlotCount();
+        size_t slotSize = region->GetSlotSize();
+        uintptr_t regionStart = region->RegionStart();
+        if (totalSlotCount == 0 || slotSize == 0) {
+            continue;
+        }
+
+        if (region->GetAllocMode() == MSAllocMode::BUMP) {
+            uintptr_t allocatedEnd = region->allocPtr;
+            if (allocatedEnd < regionStart || allocatedEnd > region->regionEnd) {
+                continue;
+            }
+            for (uintptr_t objectAddr = regionStart; objectAddr < allocatedEnd; objectAddr += slotSize) {
+                visitor(reinterpret_cast<BaseObject*>(objectAddr));
+            }
+            continue;
+        }
+
+        uint64_t* allocBitmap = region->GetAllocBitmap();
+        size_t wordCount = region->GetBitmapWordCount();
+        if (allocBitmap == nullptr || wordCount == 0) {
+            continue;
+        }
+        for (size_t wordIdx = 0; wordIdx < wordCount; ++wordIdx) {
+            uint64_t validMask = wordIdx + 1 == wordCount
+                ? region->GetValidTailMask() : ~UINT64_C(0);
+            uint64_t freeBits = allocBitmap[wordIdx] & validMask;
+            uint64_t allocatedBits = ~freeBits & validMask;
+            while (allocatedBits != 0) {
+                size_t bitIdx = static_cast<size_t>(__builtin_ctzll(allocatedBits));
+                size_t slotIdx = wordIdx * 64 + bitIdx;
+                visitor(reinterpret_cast<BaseObject*>(regionStart + slotIdx * slotSize));
+                allocatedBits &= allocatedBits - 1;
+            }
+        }
+    }
+}
+
+void MSRegionManager::ForEachObjSafe(const std::function<void(BaseObject*)>& visitor) const
+{
+    ScopedEnterSaferegion enterSaferegion(false);
+    ScopedStopTheWorld stw("visit all objects");
+    ForEachObjUnsafe(visitor);
+}
+
 size_t MSRegionManager::ScavengeFreeRegionsUpTo(size_t maxBytes)
 {
     return freeManager_.ScavengeAgedRegionsUpTo(maxBytes);

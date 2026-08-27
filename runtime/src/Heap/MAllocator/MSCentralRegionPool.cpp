@@ -1117,7 +1117,7 @@ void CentralRegionPool::SweepLargeRegions()
 
         // Reset span MSRegionInfo entries before resetting the base entry.
         // RegisterLargeObjectMS initializes secondary entries as MS_REGION_SPAN
-        // and reserved=baseIdx; we must clear them to avoid stale lookups.
+        // and spanBaseRegionIdx=baseIdx; clear them to avoid stale lookups.
         size_t baseIdx = MSRegionInfoArray::GetRegionIdx(msInfo);
         for (size_t i = 1; i < spanCount; i++) {
             MSRegionInfo* spanInfo = MSRegionInfoArray::GetRegionInfoByIdx(baseIdx + i);
