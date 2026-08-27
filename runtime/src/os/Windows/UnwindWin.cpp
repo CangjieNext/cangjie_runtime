@@ -21,6 +21,22 @@ extern uintptr_t unwindPCForTPE;
 extern uintptr_t unwindPCForStackGrowStub;
 
 namespace MapleRuntime {
+#if !defined(COMPILE_DYNAMIC)
+extern "C" uintptr_t __CJMethodInfo;
+extern "C" unsigned long __CJMethodInfoSize;
+
+static FuncDescRef GetStaticFuncDesc(Uptr startProc)
+{
+    FuncDescRef funcDesc = MFuncDesc::GetFuncDesc(startProc);
+    Uptr funcDescAddr = reinterpret_cast<Uptr>(funcDesc);
+    Uptr methodInfoEnd = __CJMethodInfo + __CJMethodInfoSize;
+    if (funcDescAddr < __CJMethodInfo || funcDescAddr >= methodInfoEnd) {
+        return nullptr;
+    }
+    return funcDesc;
+}
+#endif
+
 static uint32_t GetSlotsNum(const UnwindCode& unwindCode)
 {
     switch (unwindCode.GetUnwindOp()) {
@@ -92,11 +108,23 @@ FrameInfo GetCurFrameInfo(WinModuleManager& winModuleManager, Uptr pc, Uptr sp)
     FrameInfo frameInfo(reinterpret_cast<uint32_t*>(startProc));
     frameInfo.mFrame.SetIP(reinterpret_cast<uint32_t*>(pc));
 
-    if (frameInfo.mFrame.IsRuntimeFrame()) {
+    FuncDescRef funcDesc = nullptr;
+#if !defined(COMPILE_DYNAMIC)
+    funcDesc = GetStaticFuncDesc(reinterpret_cast<Uptr>(startProc));
+#endif
+    if (frameInfo.mFrame.IsRuntimeFrame() ||
+#if !defined(COMPILE_DYNAMIC)
+        funcDesc == nullptr
+#else
+        false
+#endif
+    ) {
         // 8: the first slot is pushed rbp
         frameInfo.mFrame.SetFA(reinterpret_cast<FrameAddress*>(sp + stackOffset - 8));
     } else {
-        FuncDescRef funcDesc = MFuncDesc::GetFuncDesc(reinterpret_cast<Uptr>(startProc));
+#if defined(COMPILE_DYNAMIC)
+        funcDesc = MFuncDesc::GetFuncDesc(reinterpret_cast<Uptr>(startProc));
+#endif
         Uptr* stackMapEntry = funcDesc->GetStackMap();
         uint32_t validPos = 0;
         stackOffset = EHFrameInfo::ReadVarInt(&stackMapEntry, validPos);
@@ -157,8 +185,20 @@ FrameInfo GetCallerFrameInfo(WinModuleManager& winModuleManager, const MachineFr
         frameInfo.mFrame.SetFA(reinterpret_cast<FrameAddress*>(
             reinterpret_cast<Uptr>(curFrame.GetFA()) + mutator->GetStackGrowFrameSize()));
     } else {
-        if (status != UnwindContextStatus::RISKY && !(frameInfo.mFrame.IsRuntimeFrame())) {
-            FuncDescRef funcDesc = MFuncDesc::GetFuncDesc(reinterpret_cast<Uptr>(startProc));
+        FuncDescRef funcDesc = nullptr;
+#if !defined(COMPILE_DYNAMIC)
+        funcDesc = GetStaticFuncDesc(reinterpret_cast<Uptr>(startProc));
+#endif
+        if (status != UnwindContextStatus::RISKY && !(frameInfo.mFrame.IsRuntimeFrame()) &&
+#if !defined(COMPILE_DYNAMIC)
+            funcDesc != nullptr
+#else
+            true
+#endif
+        ) {
+#if defined(COMPILE_DYNAMIC)
+            funcDesc = MFuncDesc::GetFuncDesc(reinterpret_cast<Uptr>(startProc));
+#endif
             Uptr* stackMapEntry = funcDesc->GetStackMap();
             uint32_t validPos = 0;
             uint32_t stackOffset = EHFrameInfo::ReadVarInt(&stackMapEntry, validPos);

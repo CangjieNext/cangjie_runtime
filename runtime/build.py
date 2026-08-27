@@ -22,9 +22,13 @@ def do_clean(args):
     # Remove specified directories
     dirs_to_remove = ["output", "CMakebuild", "build/cjthread_build"]
     for directory in dirs_to_remove:
+        path = os.path.join(script_path, directory)
         try:
-            subprocess.run(["rm", "-rf", os.path.join(script_path, directory)], check=True)
-        except subprocess.CalledProcessError as e:
+            if os.path.isdir(path):
+                shutil.rmtree(path)
+            elif os.path.exists(path):
+                os.remove(path)
+        except OSError as e:
             print(f"Error cleaning directory {directory}: {e}")
             sys.exit(1)
     print("Cleaned successfully.")
@@ -128,6 +132,7 @@ def do_build(args):
             "-DIOS_FLAG=0",
             "-DIOS_SIMULATOR_FLAG=0",
             "-DEULER_FLAG=0",
+            "-DWINDOWS_FLAG=1",
             "-DMACOS_FLAG={}".format(macos_flag),
             "-DRUNTIME_TRACE_FLAG=1",
             "-DASAN_FLAG=0",
@@ -137,9 +142,11 @@ def do_build(args):
             "-DDUMPADDRESS_FLAG=0",
             "-DCJ_SDK_VERSION={}".format(version),
             "-DDISABLE_VERSION_CHECK=1",
-            "-DCMAKE_C_COMPILER=clang",
-            "-DCMAKE_CXX_COMPILER=clang++",
+            "-DCMAKE_C_COMPILER=gcc",
+            "-DCMAKE_CXX_COMPILER=g++",
+            "-DCMAKE_ASM_COMPILER=clang",
             "-DCMAKE_AR_PATH=ar",
+            "-G", "Ninja",
             "-DCMAKE_SHARED_LINKER_FLAGS={}".format(shared_linker_flags),
             "-DCMAKE_EXE_LINKER_FLAGS={}".format(exe_linker_flags),
             "-S", ".", "-B", "CMakebuild"
@@ -178,6 +185,7 @@ def do_build(args):
             "-DCMAKE_C_COMPILER=clang",
             "-DCMAKE_CXX_COMPILER=clang++",
             "-DCMAKE_AR_PATH=ar",
+            "-G", "Ninja",
             "-DCMAKE_SHARED_LINKER_FLAGS={}".format(shared_linker_flags),
             "-DCMAKE_EXE_LINKER_FLAGS={}".format(exe_linker_flags),
             "-S", ".", "-B", "CMakebuild"
@@ -317,11 +325,18 @@ def build_target(cmake_command):
         os.makedirs(build_dir, exist_ok=True)
         os.chdir(build_dir)
 
-        subprocess.run(["make", "cangjie-runtime", "-j32", "VERBOSE=1"], check=True)
+        subprocess.run([
+            "cmake", "--build", build_dir, "--parallel", str(os.cpu_count() or 1),
+            "--target", "cangjie-runtime", "--verbose",
+        ], check=True)
 
-        subprocess.run(["make", "preinstall", "-j32", "VERBOSE=1"], check=True)
+        install_target = "install" if platform.system().lower() == "windows" else "preinstall"
+        subprocess.run([
+            "cmake", "--build", build_dir, "--parallel", str(os.cpu_count() or 1),
+            "--target", install_target, "--verbose",
+        ], check=True)
 
-        print("Build and preinstall completed successfully.")
+        print("Build and install preparation completed successfully.")
     except subprocess.CalledProcessError as e:
         print(f"Error during build : {e}")
         sys.exit(1)
@@ -340,6 +355,17 @@ def do_install(args):
             subprocess.run(["cmake", "-P", "cmake_install.cmake"], check=True)
         else:
             subprocess.run(["cmake", "-DCMAKE_INSTALL_PREFIX={}".format(args.prefix), "-P", "cmake_install.cmake"], check=True)
+
+        if platform.system().lower() == "windows":
+            # cjthread is configured by a nested CMake project, so its
+            # archives are not included in the parent install manifest.
+            cjthread_lib_dir = os.path.join(script_path, "output", "temp", "lib")
+            dst_dir = os.path.join(args.prefix, "lib", "windows_x86_64_cjnative")
+            for archive in ("libcangjie-aio.a", "libcangjie-thread.a"):
+                src = os.path.join(cjthread_lib_dir, archive)
+                if os.path.isfile(src):
+                    os.makedirs(dst_dir, exist_ok=True)
+                    shutil.copy2(src, os.path.join(dst_dir, archive))
 
         print("Install completed successfully.")
     except subprocess.CalledProcessError as e:

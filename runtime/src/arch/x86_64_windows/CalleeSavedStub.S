@@ -5,7 +5,7 @@
 // See https://cangjie-lang.cn/pages/LICENSE for license information.
 
 // stub need to be 16-byte aligned, so we should use (8 * even numbers)
-#define CalleeSavedRegistersStubFrameSize           (8 * 8)
+#define CalleeSavedRegistersStubFrameSize           (12 * 8)
 #define CalleeSavedRegistersStubFrameSize1           (12 * 8)
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -26,6 +26,8 @@
 //                 | %rdi         |
 //                 | %rsi         |
 //                 | %rbx         |
+//                 | Win64 home   |
+//                 | space        |
 // 16-byte aligned | null         | <==CalleeSavedRegistersStubFrameSize, CalleeSavedRegistersStub frame ends at here
 
     .macro CalleeSavedRegistersStub, funcName, funcNameStub

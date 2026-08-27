@@ -10,6 +10,7 @@
 
 #include <windows.h>
 #include <psapi.h>
+#include <string>
 #include <unordered_set>
 
 #include "Base/CString.h"

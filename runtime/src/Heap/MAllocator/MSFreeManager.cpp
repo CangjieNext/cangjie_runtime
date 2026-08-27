@@ -512,6 +512,7 @@ bool FreeManager::GrowOneSegmentLocked(uint16_t ownerShardId, HeapRangeHandler& 
         (newCommittedRegionCount + segmentRegionCount_ - 1) / segmentRegionCount_;
     ownerShardId = static_cast<uint16_t>(static_cast<uint32_t>(ownerShardId) % shardCount_);
 
+    ReuseUnits(RegionToUnitIdx(oldRegionCount), RegionCountToUnitCount(growRegions));
     handler.InitializeFreshRegions(oldRegionCount, growRegions);
 
     FreeManagerShard& shardState = GetShard(ownerShardId);
@@ -612,6 +613,7 @@ bool FreeManager::GrowAndTakeRegionsLocked(RegionCount numRegions,
     uintptr_t newCommittedEnd = oldCommittedEnd + growBytes;
     ownerShardId = static_cast<uint16_t>(static_cast<uint32_t>(ownerShardId) % shardCount_);
 
+    ReuseUnits(RegionToUnitIdx(oldRegionCount), RegionCountToUnitCount(growRegions));
     handler.InitializeFreshRegions(oldRegionCount, growRegions);
 
     FreeManagerShard& shardState = GetShard(ownerShardId);

@@ -12,6 +12,7 @@ import shlex
 import shutil
 import stat
 import subprocess
+import sys
 from collections.abc import Sequence
 from dataclasses import dataclass
 
@@ -23,6 +24,9 @@ DEFAULT_MSGC_SDK_ROOT_DARWIN = pathlib.Path(
 
 DEFAULT_MSGC_SDK_ROOT_LINUX = pathlib.Path(
     "/home/lipeisheng/cangjie/cangjie_compiler_CMSGC/output/msgc"
+)
+DEFAULT_MSGC_SDK_ROOT_WINDOWS = pathlib.Path(
+    r"C:\cangjie\cangjie_compiler_CMSGC\output\msgc"
 )
 
 
@@ -74,6 +78,11 @@ DARWIN_BUILD_TOOL_DIRS = (
     pathlib.Path("/opt/homebrew/bin"),
     pathlib.Path("/usr/local/bin"),
 )
+WINDOWS_BUILD_TOOL_DIRS = (
+    pathlib.Path(r"C:\msys64\ucrt64\bin"),
+    pathlib.Path(r"C:\Program Files\LLVM\bin"),
+    pathlib.Path(r"C:\Program Files\CMake\bin"),
+)
 
 
 def build_subprocess_path(
@@ -85,6 +94,8 @@ def build_subprocess_path(
     path_entries: list[str] = []
     if host.os_name == "darwin":
         path_entries.extend(str(path) for path in tool_dirs if path.is_dir())
+    elif host.os_name == "windows":
+        path_entries.extend(str(path) for path in WINDOWS_BUILD_TOOL_DIRS if path.is_dir())
     path_entries.extend(entry for entry in current_path.split(os.pathsep) if entry)
     return os.pathsep.join(dict.fromkeys(path_entries))
 
@@ -92,10 +103,22 @@ def build_subprocess_path(
 def build_subprocess_environment(host: HostLayout, validate_tools: bool = True) -> dict[str, str]:
     environment = os.environ.copy()
     environment["PATH"] = build_subprocess_path(host, environment.get("PATH", ""))
+    if host.os_name == "windows":
+        # Do not let a compiler environment prepared for the cross-build leak
+        # into the native CMake configure or its nested cjthread configure.
+        environment.pop("CC", None)
+        environment.pop("CXX", None)
+        environment.pop("CFLAGS", None)
+        environment.pop("CXXFLAGS", None)
+        environment["CMAKE_C_COMPILER"] = "gcc"
+        environment["CMAKE_CXX_COMPILER"] = "g++"
     if not validate_tools:
         return environment
 
-    required_tools = ("cmake", "make", "clang", "clang++")
+    if host.os_name == "windows":
+        required_tools = ("cmake", "gcc", "g++")
+    else:
+        required_tools = ("cmake", "make", "clang", "clang++")
     missing_tools = [
         tool for tool in required_tools if shutil.which(tool, path=environment["PATH"]) is None
     ]
@@ -126,6 +149,8 @@ def detect_host_layout(system_name: str | None = None, machine_name: str | None 
         os_name = "darwin"
     elif system_name == "linux":
         os_name = "linux"
+    elif system_name == "windows":
+        os_name = "windows"
     else:
         raise ValueError(f"unsupported host system: {system_name}")
 
@@ -153,6 +178,8 @@ def default_msgc_sdk_root(host: HostLayout) -> pathlib.Path:
         return DEFAULT_MSGC_SDK_ROOT_DARWIN
     if host.os_name == "linux":
         return DEFAULT_MSGC_SDK_ROOT_LINUX
+    if host.os_name == "windows":
+        return DEFAULT_MSGC_SDK_ROOT_WINDOWS
     raise ValueError(f"unsupported host system for MSGC SDK: {host.os_name}")
 
 
@@ -162,7 +189,7 @@ def build_stage_plan(config: BuildConfig) -> list[BuildStage]:
         stages.append(
             BuildStage(
                 cwd=config.runtime_root,
-                command=["python3", "build.py", "clean"],
+                command=[sys.executable, "build.py", "clean"],
             )
         )
     stages.extend(
@@ -170,7 +197,7 @@ def build_stage_plan(config: BuildConfig) -> list[BuildStage]:
             BuildStage(
                 cwd=config.runtime_root,
                 command=[
-                    "python3",
+                    sys.executable,
                     "build.py",
                     "build",
                     "--target",
@@ -186,7 +213,7 @@ def build_stage_plan(config: BuildConfig) -> list[BuildStage]:
             BuildStage(
                 cwd=config.runtime_root,
                 command=[
-                    "python3",
+                    sys.executable,
                     "build.py",
                     "install",
                     "--prefix",
@@ -199,7 +226,9 @@ def build_stage_plan(config: BuildConfig) -> list[BuildStage]:
 
 
 def runtime_static_artifact_names(host: HostLayout) -> list[str]:
-    artifacts = ["cjstart.o"]
+    artifacts = ["cjstart.o", "libcangjie-aio.a"]
+    if host.os_name == "windows":
+        artifacts.append("libcangjie-thread.a")
     if host.os_name == "darwin":
         artifacts.append("section.o")
     artifacts.append("libcangjie-runtime.a")
@@ -207,6 +236,8 @@ def runtime_static_artifact_names(host: HostLayout) -> list[str]:
 
 
 def runtime_shared_library_suffix(host: HostLayout) -> str:
+    if host.os_name == "windows":
+        return ".dll"
     return ".dylib" if host.os_name == "darwin" else ".so"
 
 
@@ -229,6 +260,11 @@ def build_runtime_relayout_plan(
     ] + [
         (shared_root / f"libcangjie-runtime{suffix}", shared_output / f"libcangjie-runtime{suffix}"),
         (shared_root / f"libcangjie-trace{suffix}", shared_output / f"libcangjie-trace{suffix}"),
+        *(
+            [(shared_root / "libboundscheck.dll", shared_output / "libboundscheck.dll")]
+            if host.os_name == "windows"
+            else []
+        ),
     ]
 
 
@@ -274,7 +310,10 @@ def build_verification_plan(config: BuildConfig, host: HostLayout) -> list[Verif
         for artifact in runtime_static_artifact_names(host)
     ]
     suffix = runtime_shared_library_suffix(host)
-    for artifact in (f"libcangjie-runtime{suffix}", f"libcangjie-trace{suffix}"):
+    shared_artifacts = [f"libcangjie-runtime{suffix}", f"libcangjie-trace{suffix}"]
+    if host.os_name == "windows":
+        shared_artifacts.append("libboundscheck.dll")
+    for artifact in shared_artifacts:
         items.append(
             VerificationItem(
                 label=artifact,

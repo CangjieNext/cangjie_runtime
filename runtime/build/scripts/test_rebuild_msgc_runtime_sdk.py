@@ -10,24 +10,14 @@ import rebuild_msgc_runtime_sdk as target
 
 
 class RebuildMSGCRuntimeSDKTests(unittest.TestCase):
-    def test_default_sdk_root_is_compiler_output_msgc(self) -> None:
+    def test_default_sdk_root_is_resolved_by_runtime_builder(self) -> None:
         script_path = pathlib.Path(
             "/workspace/cangjie_runtime/runtime/build/scripts/rebuild_msgc_runtime_sdk.py"
         )
 
         forwarded = target.build_forwarded_args(script_path, ["--dry-run"])
 
-        self.assertEqual(
-            forwarded,
-            [
-                "--sdk-root",
-                (
-                    "/Users/lipeisheng/code/cangjie/cangjie/"
-                    "cangjie_compiler_region_mark/output/msgc"
-                ),
-                "--dry-run",
-            ],
-        )
+        self.assertEqual(forwarded, ["--dry-run"])
 
     def test_explicit_sdk_root_overrides_the_default(self) -> None:
         script_path = pathlib.Path(

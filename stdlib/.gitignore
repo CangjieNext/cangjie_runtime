@@ -16,6 +16,7 @@ target
 !build/build.py
 *.swp
 *.swo
+/*.log
 .json
 **/test_temp/*
 **/__pycache__/

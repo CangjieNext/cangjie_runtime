@@ -1,2 +1,0 @@
-/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ar qc /Users/lipeisheng/code/cangjie/cangjie/cangjie_runtime_region_mark/runtime/output/temp/lib/libcjthread-trace.a trace/CMakeFiles/trace.dir/src/trace.cpp.o
-/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib /Users/lipeisheng/code/cangjie/cangjie/cangjie_runtime_region_mark/runtime/output/temp/lib/libcjthread-trace.a

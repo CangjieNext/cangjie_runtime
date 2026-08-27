@@ -11,6 +11,7 @@ SDK before the next component starts.
 from __future__ import annotations
 
 import pathlib
+import os
 import shutil
 import subprocess
 import sys
@@ -105,6 +106,73 @@ def reset_relocated_compiler_build(config: FullBuildConfig) -> bool:
     return True
 
 
+def reset_incompatible_llvm_build(
+    config: FullBuildConfig, host: HostLayout
+) -> bool:
+    """Reset stale Windows LLVM compiler and native-tools caches."""
+
+    if host.os_name != "windows":
+        return False
+
+    build_dir = sdk_helpers.compiler_cjnative_build_dir(config)
+    cache_path = build_dir / "CMakeCache.txt"
+    cached_compiler = _cmake_cache_value(cache_path, "CMAKE_CXX_COMPILER")
+    cached_use_builtins = _cmake_cache_value(
+        cache_path, "COMPILER_RT_USE_BUILTINS_LIBRARY"
+    )
+    native_build_dir = build_dir / "NATIVE"
+    cached_native_cross = _cmake_cache_value(
+        native_build_dir / "CMakeCache.txt", "CMAKE_CROSSCOMPILING"
+    )
+    compiler_text = str(cached_compiler) if cached_compiler is not None else ""
+    compiler_is_compatible = (
+        cached_compiler is None
+        or cached_compiler.name.lower() in {"clang++", "clang++.exe"}
+        and " " not in compiler_text
+    )
+    builtins_setting_is_compatible = cached_use_builtins is None or str(
+        cached_use_builtins
+    ).upper() in {"0", "FALSE", "OFF"}
+    native_setting_is_compatible = cached_native_cross is None or str(
+        cached_native_cross
+    ).upper() in {"0", "FALSE", "OFF"}
+    if compiler_is_compatible and builtins_setting_is_compatible:
+        if native_setting_is_compatible:
+            return False
+        print("\n== reset incompatible Windows LLVM native tools ==", flush=True)
+        print(
+            f"[stale-option] CMAKE_CROSSCOMPILING={cached_native_cross}",
+            flush=True,
+        )
+        print(f"[reset] {native_build_dir}", flush=True)
+        if not config.dry_run:
+            shutil.rmtree(native_build_dir)
+        return True
+
+    stamp_dir = build_dir.parent / "cjnative-stamp"
+    stale_stamps = (
+        "cjnative-configure",
+        "cjnative-build",
+        "cjnative-install",
+        "cjnative-done",
+    )
+    print("\n== reset incompatible Windows LLVM build ==", flush=True)
+    if not compiler_is_compatible:
+        print(f"[stale-compiler] {cached_compiler}", flush=True)
+    if not builtins_setting_is_compatible:
+        print(
+            "[stale-option] COMPILER_RT_USE_BUILTINS_LIBRARY="
+            f"{cached_use_builtins}",
+            flush=True,
+        )
+    print(f"[reset] {build_dir}", flush=True)
+    if not config.dry_run:
+        shutil.rmtree(build_dir)
+        for stamp_name in stale_stamps:
+            (stamp_dir / stamp_name).unlink(missing_ok=True)
+    return True
+
+
 def prepare_compiler_release(config: FullBuildConfig) -> None:
     """Force relinking the release compiler artifact copied by install."""
 
@@ -140,7 +208,27 @@ def build_incremental_stage_plan(
     stages: list[BuildStage] = []
     for key in _INCREMENTAL_STAGE_ORDER:
         stages.append(stage_by_key[key])
-        if key == ("compiler", "build"):
+        if key == ("compiler-llvm", "build"):
+            # cjc statically links the LLVM code generator. Rebuilding LLVM
+            # after cjc leaves the installed compiler on the old backend even
+            # though the SDK's standalone llc is current, so relink cjc only
+            # after the aggregate LLVM target has finished.
+            stages.append(
+                BuildStage(
+                    component="compiler-relink",
+                    action="build",
+                    cwd=config.compiler_root / "build" / "build",
+                    command=[
+                        "cmake",
+                        "--build",
+                        ".",
+                        "--parallel",
+                        str(config.jobs),
+                        "--target",
+                        "cjc",
+                    ],
+                )
+            )
             # Release SDK installation renames cjc-release to bin/cjc. The
             # cjc-release target only has an order-only dependency on cjc, so
             # rebuilding cjc alone does not relink the artifact that install
@@ -236,10 +324,19 @@ def execute_incremental_build(
 
     full_builder.ensure_paths_exist(config)
     reset_relocated_compiler_build(config)
+    reset_incompatible_llvm_build(config, host)
     runtime_environment = runtime_output.build_subprocess_environment(
         host,
         validate_tools=not config.dry_run,
     )
+    build_environment = os.environ.copy()
+    build_environment["PATH"] = runtime_output.build_subprocess_path(
+        host,
+        build_environment.get("PATH", ""),
+    )
+    # Native Windows runtime builds must keep the UCRT MinGW tools first in
+    # PATH.  Prepending the compiler's cjnative/Clang bin directory makes the
+    # nested cjthread CMake project select Clang and fail against GCC 16 STL.
     for stage in build_incremental_stage_plan(config, host):
         if stage.component == "compiler-release":
             prepare_compiler_release(config)
@@ -247,7 +344,9 @@ def execute_incremental_build(
             config,
             stage,
             environment=(
-                runtime_environment if stage.component == "runtime" else None
+                runtime_environment
+                if stage.component == "runtime"
+                else build_environment if host.os_name == "windows" else None
             ),
         )
         _after_install(config, host, stage)
@@ -274,7 +373,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     print("\nIncremental MSGC SDK build completed.", flush=True)
     print(f"SDK root : {config.sdk_root}", flush=True)
-    print(f"Source   : {config.sdk_root / 'envsetup.sh'}", flush=True)
+    envsetup_name = "envsetup.ps1" if host.os_name == "windows" else "envsetup.sh"
+    print(f"Source   : {config.sdk_root / envsetup_name}", flush=True)
     return 0
 
 

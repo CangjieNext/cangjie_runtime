@@ -69,7 +69,8 @@ class Case25BenchmarkTuningTests(unittest.TestCase):
                 self.assertIn("-O2", text)
 
         compare = RUN_COMPARE.read_text(encoding="utf-8")
-        self.assertIn('"$CASE_DIR/stream_transform.cj"', compare)
+        self.assertIn('"$CASE_DIR/copygc/stream_transform.cj"', compare)
+        self.assertIn('"$CASE_DIR/msgc/stream_transform.cj"', compare)
         self.assertIn('"$CASE_DIR/persistent_baseline.cj"', compare)
         self.assertIn("libstdx.encoding.json.stream.dylib", compare)
         self.assertIn('"CASE_DIR=$CASE_DIR"', compare)

@@ -61,10 +61,7 @@ class RebuildRuntimePlanTests(unittest.TestCase):
             self.assertEqual(target.main(), 0)
 
         self.assertIn(
-            (
-                "[info] sdk_root=/Users/lipeisheng/code/cangjie/cangjie/"
-                "cangjie_compiler_region_mark/output/msgc"
-            ),
+            f"[info] sdk_root={target.default_msgc_sdk_root(make_host('darwin', 'aarch64'))}",
             output.getvalue(),
         )
 
@@ -91,7 +88,7 @@ class RebuildRuntimePlanTests(unittest.TestCase):
              contextlib.redirect_stdout(output):
             self.assertEqual(target.main(), 0)
         self.assertIn(
-            "[info] sdk_root=/home/lipeisheng/cangjie/cangjie_compiler_CMSGC/output/msgc",
+            f"[info] sdk_root={target.default_msgc_sdk_root(make_host('linux', 'aarch64'))}",
             output.getvalue(),
         )
 
@@ -124,9 +121,9 @@ class RebuildRuntimePlanTests(unittest.TestCase):
         self.assertEqual(
             [stage.command for stage in stages],
             [
-                ["python3", "build.py", "clean"],
+                [target.sys.executable, "build.py", "clean"],
                 [
-                    "python3",
+                    target.sys.executable,
                     "build.py",
                     "build",
                     "--target",
@@ -139,7 +136,7 @@ class RebuildRuntimePlanTests(unittest.TestCase):
                     "0.0.1",
                 ],
                 [
-                    "python3",
+                    target.sys.executable,
                     "build.py",
                     "install",
                     "--prefix",
@@ -162,6 +159,10 @@ class RebuildRuntimePlanTests(unittest.TestCase):
                 (
                     runtime_common_root / "lib" / "darwin_aarch64_cjnative" / "cjstart.o",
                     runtime_common_dir / "lib" / "darwin_aarch64_cjnative" / "cjstart.o",
+                ),
+                (
+                    runtime_common_root / "lib" / "darwin_aarch64_cjnative" / "libcangjie-aio.a",
+                    runtime_common_dir / "lib" / "darwin_aarch64_cjnative" / "libcangjie-aio.a",
                 ),
                 (
                     runtime_common_root / "lib" / "darwin_aarch64_cjnative" / "section.o",
@@ -211,6 +212,8 @@ class RebuildRuntimePlanTests(unittest.TestCase):
             [
                 (root / "lib" / platform_dir / "cjstart.o",
                  output / "lib" / platform_dir / "cjstart.o"),
+                (root / "lib" / platform_dir / "libcangjie-aio.a",
+                 output / "lib" / platform_dir / "libcangjie-aio.a"),
                 (root / "lib" / platform_dir / "libcangjie-runtime.a",
                  output / "lib" / platform_dir / "libcangjie-runtime.a"),
                 (root / "runtime" / "lib" / platform_dir / "libcangjie-runtime.so",
@@ -224,7 +227,13 @@ class RebuildRuntimePlanTests(unittest.TestCase):
         plan = target.build_verification_plan(make_config(), make_host("linux", "aarch64"))
         self.assertEqual(
             [item.label for item in plan],
-            ["cjstart.o", "libcangjie-runtime.a", "libcangjie-runtime.so", "libcangjie-trace.so"],
+            [
+                "cjstart.o",
+                "libcangjie-aio.a",
+                "libcangjie-runtime.a",
+                "libcangjie-runtime.so",
+                "libcangjie-trace.so",
+            ],
         )
     def test_build_copy_plan_copies_runtime_lib_and_runtime_tree_into_sdk(self) -> None:
         config = make_config()
@@ -276,6 +285,12 @@ class RebuildRuntimePlanTests(unittest.TestCase):
                     "sha256",
                     runtime_common_dir / "lib" / "darwin_aarch64_cjnative" / "cjstart.o",
                     config.sdk_root / "lib" / "darwin_aarch64_cjnative" / "cjstart.o",
+                ),
+                (
+                    "libcangjie-aio.a",
+                    "sha256",
+                    runtime_common_dir / "lib" / "darwin_aarch64_cjnative" / "libcangjie-aio.a",
+                    config.sdk_root / "lib" / "darwin_aarch64_cjnative" / "libcangjie-aio.a",
                 ),
                 (
                     "section.o",

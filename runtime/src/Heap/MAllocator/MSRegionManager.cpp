@@ -16,6 +16,7 @@
 #include "Base/Log.h"
 #include "Base/LogFile.h"
 #include "AllocUtil.h"
+#include "Heap/Allocator/MemMap.h"
 #include "Heap/MAllocator/MSBitmapArena.h"
 #include "Heap/MAllocator/MSCentralRegionPool.h"
 #include "Heap/MAllocator/MSRegionSpace.h"
@@ -142,6 +143,13 @@ void MSRegionManager::Initialize(uintptr_t mmapBase, size_t maxVirtualHeapSize)
     heapStart_ = mmapBase + maxMetadataSize;
     uintptr_t committedEnd = heapStart_ + committedHeapSize;
     uintptr_t maxHeapEnd = heapStart_ + maxHeapAligned;
+
+#ifdef _WIN64
+    // MapMemory reserves address space on Windows. Commit the metadata and the
+    // initial heap segment before either range is touched.
+    MemMap::CommitMemory(array_, maxMetadataSize);
+    MemMap::CommitMemory(reinterpret_cast<void*>(heapStart_), committedHeapSize);
+#endif
 
     // Zero-initialize MSRegionInfo entries for the initial committed segment only.
     // Pages beyond committedRegionCount are OS-zero (lazy commit) but we do NOT

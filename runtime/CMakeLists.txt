@@ -38,9 +38,15 @@ endif()
 if (WINDOWS_FLAG MATCHES 1)
     # Use target x86_64-w64-mingw32 instead of x86_64-windows-gnu
     # to make sure clang can find x86_64-w64-mingw32-ld (linker for cross-compiling)
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -static -target x86_64-w64-mingw32 -pthread -femulated-tls --rtlib=compiler-rt")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -static -target x86_64-w64-mingw32 -pthread -femulated-tls -stdlib=libc++ --rtlib=compiler-rt")
-    set(CMAKE_ASM_FLAGS "${CMAKE_ASM_FLAGS} -static -target x86_64-w64-mingw32 --rtlib=compiler-rt")
+    if (CMAKE_C_COMPILER MATCHES "clang" OR CMAKE_CXX_COMPILER MATCHES "clang")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -static -target x86_64-w64-mingw32 -pthread -femulated-tls --rtlib=compiler-rt")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -static -target x86_64-w64-mingw32 -pthread -femulated-tls -stdlib=libstdc++ --rtlib=compiler-rt")
+        set(CMAKE_ASM_FLAGS "${CMAKE_ASM_FLAGS} -static -target x86_64-w64-mingw32 --rtlib=compiler-rt")
+    else()
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -static -pthread")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -static -pthread")
+        set(CMAKE_ASM_FLAGS "${CMAKE_ASM_FLAGS} -static")
+    endif()
     if (NOT CMAKE_AR_PATH)
         set(CMAKE_AR_PATH "llvm-ar.exe")
     endif()
@@ -274,6 +280,15 @@ link_directories(${OHOS_LIB})
 include_directories(${BOUNDSCHECK_INCLUDE})
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/src)
 add_subdirectory(third_party/third_party_bounds_checking_function)
+if (WINDOWS_FLAG MATCHES 1)
+    # The runtime DLL imports secure C functions from boundscheck. Keep the
+    # matching DLL beside the runtime so a standalone runtime install is usable.
+    install(
+        TARGETS boundscheck
+        RUNTIME DESTINATION runtime/lib/${TARGET_ARCH}${SANITIZER_SUBPATH}
+        ARCHIVE DESTINATION lib/${TARGET_ARCH}${SANITIZER_SUBPATH}
+    )
+endif()
 if (ANDROID_FLAG MATCHES 0 AND OHOS_FLAG MATCHES 0 AND WINDOWS_FLAG MATCHES 0 AND MACOS_FLAG MATCHES 0 AND IOS_FLAG MATCHES 0 AND IOS_SIMULATOR_FLAG MATCHES 0)
 if (CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64")
     set(LINK_SCRIPTS "-Wl,-T${CMAKE_CURRENT_SOURCE_DIR}/build/lds/aarch64_linux/cjnative_runtime.lds")
@@ -400,7 +415,7 @@ elseif (DOPRA_FLAG MATCHES 1 AND OHOS_FLAG IN_LIST OHOS_FLAG_LIST AND WINDOWS_FL
         "-lstdc++" ${LINK_LIBS} "-Wl,--end-group -lunwind -lclang_rt.builtins -lhilog_ndk.z -lhitrace_ndk.z")
 elseif (DOPRA_FLAG MATCHES 1 AND OHOS_FLAG MATCHES 0 AND WINDOWS_FLAG MATCHES 1) # Windows
     target_link_libraries(cangjie-runtime PRIVATE "-Wl,--start-group"
-        "-Wl,--export-all-symbols" "-lc++" "-lunwind" ${LINK_LIBS} "-Wl,--end-group -Wl,--no-insert-timestamp")
+        "-Wl,--export-all-symbols" "-lstdc++" ${LINK_LIBS} "-Wl,--end-group -Wl,--no-insert-timestamp")
 elseif (DOPRA_FLAG MATCHES 0 AND WINDOWS_FLAG MATCHES 0) # thread module
     target_link_libraries(cangjie-runtime "-Wl,--start-group -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/src/${EXPORT_MAP}"
         ${LINK_LIBS} "-Wl,--end-group -nodefaultlibs -Wl,-Bdynamic -lstdc++ -lm -lc -lgcc_s -lpthread -ldl")
@@ -626,6 +641,13 @@ if (IOS_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MAT
     if (MARKSWEEP_FLAG MATCHES 1)
         target_sources(cangjie-runtime-static PRIVATE $<TARGET_OBJECTS:MBarrier>)
         target_sources(cangjie-runtime-static PRIVATE $<TARGET_OBJECTS:MCollector>)
+        if (WINDOWS_FLAG MATCHES 1)
+            target_sources(cangjie-runtime-static PRIVATE
+                src/os/Windows/StaticMSGCImport.cpp)
+            target_include_directories(cangjie-runtime-static PRIVATE src)
+            target_compile_definitions(cangjie-runtime-static PRIVATE
+                MRT_USE_MARK_SWEEP)
+        endif()
     else()
         target_sources(cangjie-runtime-static PRIVATE $<TARGET_OBJECTS:WCollector>)
     endif()

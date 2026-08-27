@@ -207,10 +207,11 @@ elseif (EULER_FLAG MATCHES 1)
 elseif (WINDOWS_FLAG MATCHES 1)
     message("Building runtime in Windows.")
     if (CMAKE_HOST_SYSTEM_NAME MATCHES "Windows")
-        # The compiler path needs to be added in the system PATH.
-        set(CMAKE_C_COMPILER "clang.exe")
+        # Native Windows builds use the installed UCRT MinGW toolchain.
+        set(CMAKE_C_COMPILER "gcc.exe")
+        # The runtime stubs use LLVM/GAS-compatible relocation syntax.
         set(CMAKE_ASM_COMPILER "clang.exe")
-        set(CMAKE_CXX_COMPILER "clang++.exe")
+        set(CMAKE_CXX_COMPILER "g++.exe")
     elseif (CMAKE_HOST_SYSTEM_NAME MATCHES "Linux")
         set(CMAKE_C_COMPILER "clang")
         set(CMAKE_ASM_COMPILER "clang")

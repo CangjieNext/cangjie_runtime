@@ -1,5 +1,4 @@
 CMakebuild/
-build/cjthread_build
 output/
 third_party/third_party_bounds_checking_function*.log
 MSGC_RESULT/**/*.log
@@ -9,7 +8,22 @@ docs/superpowers/
 test/
 docs/assist/
 build/
-MSGC_RESULT/Result/
+
+# Keep case source, scripts, payloads, and analysis under version control.
+# Ignore only files created by local benchmark runs and language toolchains.
+MSGC_RESULT/Result/**/result/
+MSGC_RESULT/Result/**/classes/
+MSGC_RESULT/Result/**/.gocache/
+MSGC_RESULT/Result/**/.gotmp/
+MSGC_RESULT/Result/**/*.class
+MSGC_RESULT/Result/**/*.test
+MSGC_RESULT/Result/**/*.exe
+MSGC_RESULT/Result/**/*.cjo
+MSGC_RESULT/Result/**/*.cjo.flag
+
+# Keep bug reproducer sources, but not their generated outputs.
+bugfix/**/out/
+bugfix/**/temps/
 
 # Local Runtime workspace artifacts and notes.
 .DS_Store

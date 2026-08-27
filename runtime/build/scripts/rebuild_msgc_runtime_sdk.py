@@ -13,7 +13,9 @@ import rebuild_msgc_runtime_output as runtime_builder
 
 def build_forwarded_args(script_path: pathlib.Path, argv: Sequence[str]) -> list[str]:
     del script_path
-    return ["--sdk-root", str(runtime_builder.DEFAULT_MSGC_SDK_ROOT), *argv]
+    # The runtime builder resolves the platform-specific SDK default.  Keeping
+    # this wrapper transparent also lets an explicit --sdk-root pass through.
+    return list(argv)
 
 
 def main(argv: Sequence[str] | None = None) -> int:

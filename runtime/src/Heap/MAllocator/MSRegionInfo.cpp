@@ -13,7 +13,7 @@
 #include <algorithm>
 #include <cstdlib>
 #include <cstring>
-#ifdef MRT_WINDOWS
+#ifdef _WIN32
 #include <malloc.h>
 #endif
 #include "Base/Log.h"
@@ -556,7 +556,7 @@ void MSRegionInfoArray::Init(uintptr_t heapStart, size_t maxRegionCount, MSRegio
     } else {
         // Standalone/unit-test fallback. MSRegionInfo is over-aligned, so plain
         // malloc is not a valid C++14 allocation strategy on every platform.
-#ifdef MRT_WINDOWS
+#ifdef _WIN32
         array_ = static_cast<MSRegionInfo*>(
             _aligned_malloc(arrayBytes, alignof(MSRegionInfo)));
 #else

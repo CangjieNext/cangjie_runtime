@@ -5,6 +5,7 @@
 // See https://cangjie-lang.cn/pages/LICENSE for license information.
 
 #include <windows.h>
+#include <algorithm>
 #include <iostream>
 #include <initializer_list>
 

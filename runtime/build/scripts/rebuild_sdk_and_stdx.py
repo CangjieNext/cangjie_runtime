@@ -20,6 +20,32 @@ LINUX_COMPILER_LLVM_SHARED_LIBRARY_PATTERNS = (
     "libLLVM*.so*",
     "libLTO*.so*",
 )
+WINDOWS_COMPILER_LLVM_SHARED_LIBRARY_PATTERNS = (
+    "libLLVM*.dll",
+)
+WINDOWS_COMPILER_LLVM_TOOL_NAMES = (
+    "llc.exe",
+    "llvm-ar.exe",
+    "opt.exe",
+)
+WINDOWS_SDK_LLVM_RUNTIME_NAMES = (
+    "ld.exe",
+    "libgcc_s_seh-1.dll",
+    "libiconv-2.dll",
+    "libintl-8.dll",
+    "libstdc++-6.dll",
+    "libwinpthread-1.dll",
+    "libzstd.dll",
+    "zlib1.dll",
+)
+WINDOWS_COMPILER_DIAGNOSTIC_ARTIFACT_NAMES = (
+    "cjc-bfd.exe",
+    "cjc-debug.exe",
+    "cjc-map.exe",
+    "cjc-map2.exe",
+    "cjc-pdatafix.exe",
+    "cjc-symbols.exe",
+)
 
 
 @dataclass(frozen=True)
@@ -96,6 +122,8 @@ def detect_host_layout(system_name: str | None = None, machine_name: str | None 
         os_name = "darwin"
     elif system_name == "linux":
         os_name = "linux"
+    elif system_name == "windows":
+        os_name = "windows"
     else:
         raise ValueError(f"unsupported host system: {system_name}")
 
@@ -325,6 +353,16 @@ def build_compiler_llvm_sync_plan(
     cjnative_build = compiler_cjnative_build_dir(config)
     llvm_sdk_root = config.sdk_root / "third_party" / "llvm"
 
+    if host.os_name == "windows":
+        build_bin = cjnative_build / "bin"
+        sdk_bin = llvm_sdk_root / "bin"
+        tools = [build_bin / name for name in WINDOWS_COMPILER_LLVM_TOOL_NAMES]
+        shared_libs = discover_compiler_llvm_shared_libraries(
+            build_bin,
+            WINDOWS_COMPILER_LLVM_SHARED_LIBRARY_PATTERNS,
+        )
+        return [(src, sdk_bin / src.name) for src in tools + shared_libs]
+
     if host.os_name == "darwin":
         shared_libs = [
             cjnative_build / "lib" / "libLLVM.dylib",
@@ -356,6 +394,21 @@ def discover_linux_compiler_llvm_shared_libraries(
             ),
             key=lambda path: (path.is_symlink(), path.name),
         )
+        if not matches:
+            raise FileNotFoundError(
+                f"compiler LLVM shared libraries do not match {pattern}: {lib_dir}"
+            )
+        shared_libs.extend(matches)
+    return shared_libs
+
+
+def discover_compiler_llvm_shared_libraries(
+    lib_dir: pathlib.Path,
+    patterns: tuple[str, ...],
+) -> list[pathlib.Path]:
+    shared_libs: list[pathlib.Path] = []
+    for pattern in patterns:
+        matches = sorted(path for path in lib_dir.glob(pattern) if path.is_file())
         if not matches:
             raise FileNotFoundError(
                 f"compiler LLVM shared libraries do not match {pattern}: {lib_dir}"
@@ -396,6 +449,21 @@ def build_codesign_targets(config: BuildConfig, host: HostLayout) -> list[pathli
 
 
 def wrap_with_envsetup(cmd: list[str], envsetup: pathlib.Path) -> list[str]:
+    if platform.system().lower() == "windows":
+        def quote(value: str) -> str:
+            return "'" + value.replace("'", "''") + "'"
+
+        command = list(cmd)
+        if command and command[0] == "python3":
+            command[0] = sys.executable
+        ps_command = "; ".join([
+            f". {quote(str(envsetup))}",
+            "& " + " ".join(quote(part) for part in command),
+        ])
+        return [
+            "powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass",
+            "-Command", ps_command,
+        ]
     shell_cmd = f'source "{envsetup}" >/dev/null 2>&1 && {shlex.join(cmd)}'
     return ["bash", "-lc", shell_cmd]
 
@@ -407,12 +475,15 @@ def run_command(
     envsetup: pathlib.Path | None = None,
     environment: dict[str, str] | None = None,
 ) -> None:
-    effective_cmd = wrap_with_envsetup(cmd, envsetup) if envsetup else cmd
+    effective_cmd = wrap_with_envsetup(cmd, envsetup) if envsetup else list(cmd)
+    if effective_cmd and effective_cmd[0] == "python3":
+        effective_cmd[0] = sys.executable
     env_note = f" envsetup={envsetup}" if envsetup else ""
     print(f"[run] cwd={cwd}{env_note} cmd={' '.join(effective_cmd)}", flush=True)
     if dry_run:
         return
-    subprocess.run(effective_cmd, cwd=cwd, check=True, env=environment)
+    run_env = dict(os.environ) if environment is None else dict(environment)
+    subprocess.run(effective_cmd, cwd=cwd, check=True, env=run_env)
 
 
 def copy_tree(src: pathlib.Path, dst: pathlib.Path, dry_run: bool) -> None:
@@ -476,7 +547,75 @@ def sync_stdlib_into_sdk(config: BuildConfig, host: HostLayout, dry_run: bool) -
         copy_tree(src, dst, dry_run=dry_run)
 
 
+def cleanup_windows_compiler_diagnostic_artifacts(
+    config: BuildConfig,
+    host: HostLayout,
+    dry_run: bool,
+) -> None:
+    if host.os_name != "windows":
+        return
+
+    bin_dirs = (
+        config.sdk_root / "bin",
+        config.compiler_root / "build" / "build" / "bin",
+    )
+    for bin_dir in bin_dirs:
+        for name in WINDOWS_COMPILER_DIAGNOSTIC_ARTIFACT_NAMES:
+            path = bin_dir / name
+            if not path.is_file():
+                continue
+            print(f"[remove diagnostic artifact] {path}", flush=True)
+            if not dry_run:
+                make_path_writable(path)
+                path.unlink()
+
+
 def sync_compiler_llvm_into_sdk(config: BuildConfig, host: HostLayout, dry_run: bool) -> None:
+    if host.os_name == "windows":
+        cleanup_windows_compiler_diagnostic_artifacts(config, host, dry_run)
+        if dry_run:
+            build_bin = compiler_cjnative_build_dir(config) / "bin"
+            sdk_bin = config.sdk_root / "third_party" / "llvm" / "bin"
+            for name in WINDOWS_COMPILER_LLVM_TOOL_NAMES:
+                print(f"[copy] {build_bin / name} -> {sdk_bin / name}", flush=True)
+            for pattern in WINDOWS_COMPILER_LLVM_SHARED_LIBRARY_PATTERNS:
+                print(f"[copy] {build_bin / pattern} -> {sdk_bin}", flush=True)
+            return
+
+        plan = build_compiler_llvm_sync_plan(config, host)
+        for src, dst in plan:
+            copy_file(src, dst, dry_run=dry_run)
+
+        sdk_bin = config.sdk_root / "third_party" / "llvm" / "bin"
+        required_names = {
+            *(dst.name for _, dst in plan),
+            *WINDOWS_SDK_LLVM_RUNTIME_NAMES,
+        }
+        if not dry_run:
+            missing = sorted(name for name in required_names if not (sdk_bin / name).is_file())
+            if missing:
+                raise FileNotFoundError(
+                    "Windows SDK LLVM runtime files were not installed: " + ", ".join(missing)
+                )
+
+        if sdk_bin.exists():
+            for path in sorted(sdk_bin.iterdir()):
+                if not path.is_file() or path.name in required_names:
+                    continue
+                print(f"[remove] {path}", flush=True)
+                if not dry_run:
+                    make_path_writable(path)
+                    path.unlink()
+
+        llvm_lib = config.sdk_root / "third_party" / "llvm" / "lib"
+        for pattern in ("libLLVM*.dll", "libLTO*.dll"):
+            for path in sorted(llvm_lib.glob(pattern)) if llvm_lib.exists() else []:
+                print(f"[remove] {path}", flush=True)
+                if not dry_run:
+                    make_path_writable(path)
+                    path.unlink()
+        return
+
     if host.os_name == "linux" and dry_run:
         cjnative_build = compiler_cjnative_build_dir(config)
         llvm_sdk_root = config.sdk_root / "third_party" / "llvm"
@@ -589,6 +728,16 @@ def resolve_default_openssl_lib(
                 pathlib.Path("/usr/local/lib"),
                 pathlib.Path("/usr/lib"),
                 pathlib.Path("/lib"),
+            ]
+        )
+    elif system_name == "windows":
+        gcc = shutil.which("gcc")
+        if gcc:
+            candidates.append(pathlib.Path(gcc).resolve().parent.parent / "lib")
+        candidates.extend(
+            [
+                pathlib.Path("C:/msys64/ucrt64/lib"),
+                pathlib.Path("C:/msys64/mingw64/lib"),
             ]
         )
     else:

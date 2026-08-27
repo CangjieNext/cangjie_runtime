@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import contextlib
 import io
+import os
 import pathlib
 import stat
 import tempfile
@@ -116,6 +117,7 @@ class CompilerLLVMSyncPlanTests(unittest.TestCase):
             ],
         )
 
+    @unittest.skipIf(os.name == "nt", "requires permission to create symbolic links")
     def test_linux_sync_plan_discovers_versioned_llvm_shared_libraries(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             config = make_config_at(pathlib.Path(temp_dir))
@@ -138,6 +140,7 @@ class CompilerLLVMSyncPlanTests(unittest.TestCase):
                 ["bin", "libLLVM-15.so", "libLTO.so.15", "libLTO.so"],
             )
 
+    @unittest.skipIf(os.name == "nt", "requires permission to create symbolic links")
     def test_linux_sync_preserves_shared_library_symlinks(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             config = make_config_at(pathlib.Path(temp_dir))
@@ -174,6 +177,88 @@ class CompilerLLVMSyncPlanTests(unittest.TestCase):
 
             self.assertIn("libLLVM*.so*", output.getvalue())
             self.assertIn("libLTO*.so*", output.getvalue())
+
+    def test_windows_sync_plan_selects_only_compiler_tools_and_llvm_dlls(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config = make_config_at(pathlib.Path(temp_dir))
+            host = make_host(os_name="windows", arch="x86_64")
+            build_bin = target.compiler_cjnative_build_dir(config) / "bin"
+            build_bin.mkdir(parents=True)
+            for name in target.WINDOWS_COMPILER_LLVM_TOOL_NAMES:
+                (build_bin / name).write_text(name)
+            (build_bin / "libLLVM-15.dll").write_text("llvm\n")
+            (build_bin / "libLLVM-Foundation-15.dll").write_text("foundation\n")
+            (build_bin / "libLLVM-15.dll.stale").write_text("stale\n")
+            (build_bin / "gdb.exe").write_text("unused\n")
+
+            plan = target.build_compiler_llvm_sync_plan(config, host)
+
+            self.assertEqual(
+                [src.name for src, _ in plan],
+                [
+                    *target.WINDOWS_COMPILER_LLVM_TOOL_NAMES,
+                    "libLLVM-15.dll",
+                    "libLLVM-Foundation-15.dll",
+                ],
+            )
+
+    def test_windows_sync_prunes_unneeded_llvm_files(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config = make_config_at(pathlib.Path(temp_dir))
+            host = make_host(os_name="windows", arch="x86_64")
+            build_bin = target.compiler_cjnative_build_dir(config) / "bin"
+            build_bin.mkdir(parents=True)
+            for name in target.WINDOWS_COMPILER_LLVM_TOOL_NAMES:
+                (build_bin / name).write_text(name)
+            (build_bin / "libLLVM-15.dll").write_text("llvm\n")
+
+            sdk_bin = config.sdk_root / "third_party" / "llvm" / "bin"
+            sdk_bin.mkdir(parents=True)
+            for name in target.WINDOWS_SDK_LLVM_RUNTIME_NAMES:
+                (sdk_bin / name).write_text(name)
+            (sdk_bin / "gdb.exe").write_text("unused\n")
+            (sdk_bin / "libLLVM-15.dll.stale").write_text("unused\n")
+
+            sdk_compiler_bin = config.sdk_root / "bin"
+            sdk_compiler_bin.mkdir(parents=True)
+            (sdk_compiler_bin / "cjc.exe").write_text("keep\n")
+            (sdk_compiler_bin / "cjc-bfd.exe").write_text("unused\n")
+            build_compiler_bin = config.compiler_root / "build" / "build" / "bin"
+            build_compiler_bin.mkdir(parents=True, exist_ok=True)
+            (build_compiler_bin / "cjc-release.exe").write_text("keep\n")
+            (build_compiler_bin / "cjc-map.exe").write_text("unused\n")
+
+            sdk_lib = config.sdk_root / "third_party" / "llvm" / "lib"
+            sdk_lib.mkdir(parents=True)
+            (sdk_lib / "libLLVM-15.dll").write_text("duplicate\n")
+            (sdk_lib / "keep.txt").write_text("keep\n")
+
+            target.sync_compiler_llvm_into_sdk(config, host, dry_run=False)
+
+            expected_names = {
+                *target.WINDOWS_COMPILER_LLVM_TOOL_NAMES,
+                *target.WINDOWS_SDK_LLVM_RUNTIME_NAMES,
+                "libLLVM-15.dll",
+            }
+            self.assertEqual({path.name for path in sdk_bin.iterdir()}, expected_names)
+            self.assertFalse((sdk_lib / "libLLVM-15.dll").exists())
+            self.assertTrue((sdk_lib / "keep.txt").is_file())
+            self.assertTrue((sdk_compiler_bin / "cjc.exe").is_file())
+            self.assertFalse((sdk_compiler_bin / "cjc-bfd.exe").exists())
+            self.assertTrue((build_compiler_bin / "cjc-release.exe").is_file())
+            self.assertFalse((build_compiler_bin / "cjc-map.exe").exists())
+
+    def test_windows_sync_dry_run_does_not_require_built_files(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config = make_config_at(pathlib.Path(temp_dir))
+            host = make_host(os_name="windows", arch="x86_64")
+            output = io.StringIO()
+
+            with contextlib.redirect_stdout(output):
+                target.sync_compiler_llvm_into_sdk(config, host, dry_run=True)
+
+            self.assertIn("llc.exe", output.getvalue())
+            self.assertIn("libLLVM*.dll", output.getvalue())
 
     def test_build_codesign_targets_include_sdk_llvm_lib_on_darwin(self) -> None:
         config = make_config()

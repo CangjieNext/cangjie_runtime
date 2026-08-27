@@ -38,6 +38,14 @@ DEFAULT_MSGC_STDX_ROOT_LINUX = pathlib.Path(
     "/home/lipeisheng/cangjie/cangjie_stdx_CMSGC"
 )
 
+DEFAULT_MSGC_COMPILER_ROOT_WINDOWS = pathlib.Path(
+    r"C:\cangjie\cangjie_compiler_CMSGC"
+)
+
+DEFAULT_MSGC_STDX_ROOT_WINDOWS = pathlib.Path(
+    r"C:\cangjie\cangjie_stdx_CMSGC"
+)
+
 
 class GCMode(Enum):
     MSGC = ("msgc", "marksweep", "marksweep")
@@ -82,6 +90,8 @@ def default_msgc_compiler_root(host: HostLayout) -> pathlib.Path:
         return DEFAULT_MSGC_COMPILER_ROOT_DARWIN
     if host.os_name == "linux":
         return DEFAULT_MSGC_COMPILER_ROOT_LINUX
+    if host.os_name == "windows":
+        return DEFAULT_MSGC_COMPILER_ROOT_WINDOWS
     raise ValueError(f"unsupported host system for MSGC SDK: {host.os_name}")
 
 
@@ -90,6 +100,8 @@ def default_msgc_stdx_root(host: HostLayout) -> pathlib.Path:
         return DEFAULT_MSGC_STDX_ROOT_DARWIN
     if host.os_name == "linux":
         return DEFAULT_MSGC_STDX_ROOT_LINUX
+    if host.os_name == "windows":
+        return DEFAULT_MSGC_STDX_ROOT_WINDOWS
     raise ValueError(f"unsupported host system for MSGC SDK: {host.os_name}")
 
 
@@ -119,8 +131,8 @@ def default_config_for_mode(
 
 
 def build_stage_plan(config: FullBuildConfig, host: HostLayout) -> list[BuildStage]:
-    del host  # Reserved for future platform-specific stage arguments.
-    envsetup = config.sdk_root / "envsetup.sh"
+    envsetup_name = "envsetup.ps1" if host.os_name == "windows" else "envsetup.sh"
+    envsetup = config.sdk_root / envsetup_name
     cjc_gc_arg = f"--build-args=--gc-mode={config.gc_mode.cjc_name}"
 
     clean_stages = [

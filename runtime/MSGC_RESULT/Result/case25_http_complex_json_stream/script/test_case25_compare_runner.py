@@ -7,6 +7,7 @@ RUNNERS = (
     CASE_DIR / "run_compare.sh",
     CASE_DIR / "run_compare_linux.sh",
 )
+WINDOWS_RUNNER = CASE_DIR / "run_compare_windows.ps1"
 JACKSON_CORE_JAR = CASE_DIR / "java_benchmark" / "lib" / "jackson-core-2.17.2.jar"
 
 
@@ -31,19 +32,33 @@ def main() -> None:
             require(required in text, f"{runner.name} is missing dependency: {required}")
         require("case26_http_complex_json" not in text, f"{runner.name} must not reference case26")
         require("../case27_http_complex_json" not in text, f"{runner.name} must not reference case27")
+        require('-cp "$JACKSON_CORE_JAR"' in text, f"{runner.name} must compile Java against Jackson core")
+        require(
+            "Case27HttpComplexJsonBenchmarkTest" in text,
+            f"{runner.name} must run the Java source tests",
+        )
     require(JACKSON_CORE_JAR.is_file(), "vendored jackson-core jar is missing")
     require(
         'JACKSON_CORE_JAR="$CASE_DIR/java_benchmark/lib/jackson-core-2.17.2.jar"' in text,
         "runner must define its local Jackson classpath",
     )
-    require(
-        '"$JAVAC_BIN" "${module_opts[@]}" -cp "$JACKSON_CORE_JAR"' in text,
-        "runner must compile Java against Jackson core",
-    )
-    require(
-        '-cp "$OUT_DIR/classes:$JACKSON_CORE_JAR" Case27HttpComplexJsonBenchmarkTest' in text,
-        "runner must run Java tests against Jackson core",
-    )
+    require(WINDOWS_RUNNER.is_file(), "case25 Windows compare runner is missing")
+    windows_text = WINDOWS_RUNNER.read_text(encoding="utf-8")
+    for required in (
+        '"C:\\cangjie-pkg\\main\\20260827"',
+        '"--dy-std"',
+        '".dll.a"',
+        '".dll"',
+        'CASE25_PERSISTENT_BYTES',
+        'CASE27_PAYLOAD',
+        'Start-MonitoredProcess',
+        'compare_results.py',
+        'java_benchmark\\lib\\jackson-core-2.17.2.jar',
+        'go_benchmark',
+    ):
+        require(required in windows_text, f"Windows runner is missing dependency: {required}")
+    require("case26_http_complex_json" not in windows_text, "Windows runner must not reference case26")
+    require("../case27_http_complex_json" not in windows_text, "Windows runner must not reference case27")
 
 
 if __name__ == "__main__":

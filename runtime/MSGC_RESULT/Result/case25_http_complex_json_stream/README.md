@@ -120,4 +120,25 @@ MSGC、CopyGC、Go、Java；成功运行至少两项时，由相邻的 `script/c
 为了复用复制进来的 Go/Java 源码，runner 在它们的子进程中映射为 `CASE27_*` 环境变量，
 这是 case25 内部兼容细节，不依赖 case27 文件。
 
+Windows 使用原生 PowerShell 脚本 `run_compare_windows.ps1`。默认 CopyGC 发布包为
+`C:\cangjie-pkg\main\20260827`，MSGC SDK 为
+`C:\cangjie\cangjie_compiler_CMSGC\output\msgc`；路径可分别用
+`COPYGC_PACKAGE_ROOT`、`MSGC_SDK_ROOT` 覆盖。脚本使用 Windows 动态 stdx：CopyGC
+直接链接发布包的正式 `.dll`，MSGC 链接 SDK 的正式 `.dll.a` 导入库，不创建临时库别名。
+Go、Java、javac 默认从 PATH 查找，也可用 `GO_BIN`、`JAVA_BIN`、`JAVAC_BIN` 覆盖。
+
+```powershell
+$env:CASE25_PAYLOAD = "100K"
+$env:CASE25_CONCURRENCY = "100"
+$env:CASE25_DURATION_MS = "60000"
+$env:HEAP_SIZE = "16gb"
+$env:PROCS = "8"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\run_compare_windows.ps1
+```
+
+Windows runner 与 Linux runner 使用相同的四方开关和结果文件结构，并在至少启用两个
+实现时生成 `compare_report.md`。每侧包含编译/运行退出码、stdout/stderr、GC 日志、
+RSS/CPU 采样和运行元数据。单侧进程的默认超时为“`CASE25_DURATION_MS` + 120 秒”，
+可通过 `CASE25_PROCESS_TIMEOUT_MS` 覆盖，避免异常连接导致对比任务无限等待。
+
 只运行 MSGC 时可继续使用 `run_msgc.sh`；它固定以 `-O2 --gc-mode=marksweep` 编译。

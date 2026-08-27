@@ -9,7 +9,9 @@
 
 #include <cinttypes>
 #include <cstdint>
-#ifndef _WIN64
+#ifdef _WIN64
+#include <windows.h>
+#else
 #include <unistd.h>
 #endif
 

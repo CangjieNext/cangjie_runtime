@@ -36,6 +36,14 @@ def make_host() -> target.HostLayout:
     )
 
 
+def make_windows_host() -> target.HostLayout:
+    return target.HostLayout(
+        os_name="windows",
+        arch="x86_64",
+        sdk_platform_name="windows_x86_64_cjnative",
+    )
+
+
 class IncrementalStagePlanTests(unittest.TestCase):
     def test_compiler_is_incremental_and_other_components_install_sequentially(self) -> None:
         config = make_config(pathlib.Path("/tmp/cangjie-incremental-msgc-sdk-test"))
@@ -46,8 +54,9 @@ class IncrementalStagePlanTests(unittest.TestCase):
             [(stage.component, stage.action) for stage in stages],
             [
                 ("compiler", "build"),
-                ("compiler-release", "build"),
                 ("compiler-llvm", "build"),
+                ("compiler-relink", "build"),
+                ("compiler-release", "build"),
                 ("compiler", "install"),
                 ("runtime", "clean"),
                 ("runtime", "build"),
@@ -69,6 +78,11 @@ class IncrementalStagePlanTests(unittest.TestCase):
         )
         self.assertEqual(release_stage.cwd, config.compiler_root / "build" / "build")
         self.assertEqual(release_stage.command[-2:], ["--target", "cjc-release"])
+        relink_stage = next(
+            stage for stage in stages if stage.component == "compiler-relink"
+        )
+        self.assertEqual(relink_stage.cwd, config.compiler_root / "build" / "build")
+        self.assertEqual(relink_stage.command[-2:], ["--target", "cjc"])
 
     def test_msgc_mode_is_passed_to_runtime_stdlib_and_stdx(self) -> None:
         config = make_config(pathlib.Path("/tmp/cangjie-incremental-msgc-sdk-test"))
@@ -178,6 +192,73 @@ class CompilerBuildCacheTests(unittest.TestCase):
             target.prepare_compiler_release(config)
 
             self.assertFalse(release_compiler.exists())
+
+    def test_windows_gcc_llvm_cache_is_reset_for_clang(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config = make_config(pathlib.Path(temp_dir))
+            build_dir = target.sdk_helpers.compiler_cjnative_build_dir(config)
+            cache = build_dir / "CMakeCache.txt"
+            cache.parent.mkdir(parents=True)
+            cache.write_text(
+                "CMAKE_CXX_COMPILER:FILEPATH="
+                "C:/msys64/ucrt64/bin/x86_64-w64-mingw32-g++.exe\n"
+            )
+            stamp_dir = build_dir.parent / "cjnative-stamp"
+            stamp_dir.mkdir()
+            stale_stamp = stamp_dir / "cjnative-configure"
+            stale_stamp.write_text("stale\n")
+            download_stamp = stamp_dir / "cjnative-download"
+            download_stamp.write_text("keep\n")
+
+            reset = target.reset_incompatible_llvm_build(
+                config, make_windows_host()
+            )
+
+            self.assertTrue(reset)
+            self.assertFalse(build_dir.exists())
+            self.assertFalse(stale_stamp.exists())
+            self.assertTrue(download_stamp.exists())
+
+    def test_windows_clang_llvm_cache_is_preserved(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config = make_config(pathlib.Path(temp_dir))
+            build_dir = target.sdk_helpers.compiler_cjnative_build_dir(config)
+            cache = build_dir / "CMakeCache.txt"
+            cache.parent.mkdir(parents=True)
+            cache.write_text(
+                "CMAKE_CXX_COMPILER:FILEPATH=C:/PROGRA~1/LLVM/bin/clang++.exe\n"
+            )
+
+            reset = target.reset_incompatible_llvm_build(
+                config, make_windows_host()
+            )
+
+            self.assertFalse(reset)
+            self.assertTrue(cache.exists())
+
+    def test_windows_cross_compiling_native_llvm_cache_is_reset(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config = make_config(pathlib.Path(temp_dir))
+            build_dir = target.sdk_helpers.compiler_cjnative_build_dir(config)
+            cache = build_dir / "CMakeCache.txt"
+            cache.parent.mkdir(parents=True)
+            cache.write_text(
+                "CMAKE_CXX_COMPILER:FILEPATH=C:/PROGRA~1/LLVM/bin/clang++.exe\n"
+                "COMPILER_RT_USE_BUILTINS_LIBRARY:BOOL=OFF\n"
+            )
+            native_cache = build_dir / "NATIVE" / "CMakeCache.txt"
+            native_cache.parent.mkdir()
+            native_cache.write_text("CMAKE_CROSSCOMPILING:INTERNAL=TRUE\n")
+            marker = build_dir / "keep.txt"
+            marker.write_text("keep\n")
+
+            reset = target.reset_incompatible_llvm_build(
+                config, make_windows_host()
+            )
+
+            self.assertTrue(reset)
+            self.assertFalse(native_cache.parent.exists())
+            self.assertTrue(marker.exists())
 
 
 class IncrementalDryRunTests(unittest.TestCase):

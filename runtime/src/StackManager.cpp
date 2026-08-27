@@ -14,6 +14,7 @@
 #include "ExceptionManager.inline.h"
 #include "Mutator/Mutator.h"
 #include "ObjectManager.inline.h"
+#include "ObjectModel/MFuncdesc.inline.h"
 #include "UnwindStack/EhStackInfo.h"
 #include "UnwindStack/GcStackInfo.h"
 #include "UnwindStack/PrintSignalStackInfo.h"
@@ -41,6 +42,33 @@
 #define LIBCANGJIE_CJTHREAD_TRACE "libcangjie-trace"
 
 namespace MapleRuntime {
+#if defined(_WIN64) && !defined(COMPILE_DYNAMIC)
+extern "C" uintptr_t __CJMethodInfo;
+extern "C" unsigned long __CJMethodInfoSize;
+
+static bool IsNativeCodeInStaticExecutable(Uptr pc)
+{
+    HMODULE module = nullptr;
+    if (!GetModuleHandleEx(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                          reinterpret_cast<LPCSTR>(pc), &module) ||
+        module != GetModuleHandle(nullptr)) {
+        return false;
+    }
+
+    DWORD64 imageBase = 0;
+    PRUNTIME_FUNCTION runtimeFunction = RtlLookupFunctionEntry(pc, &imageBase, nullptr);
+    if (runtimeFunction == nullptr) {
+        return true;
+    }
+
+    Uptr startProc = imageBase + runtimeFunction->BeginAddress;
+    FuncDescRef funcDesc = MFuncDesc::GetFuncDesc(startProc);
+    Uptr funcDescAddr = reinterpret_cast<Uptr>(funcDesc);
+    Uptr methodInfoEnd = __CJMethodInfo + __CJMethodInfoSize;
+    return funcDescAddr < __CJMethodInfo || funcDescAddr >= methodInfoEnd;
+}
+#endif
+
 #ifdef __arm__
 Uptr STACK_ADDR_MAX = UINT32_MAX;
 #else
@@ -390,6 +418,11 @@ bool StackManager::IsRuntimeFrame(Uptr pc)
 #endif
 #ifdef CANGJIE_HWASAN_SUPPORT
     pc = Sanitizer::UntagAddr(pc);
+#endif
+#if defined(_WIN64) && !defined(COMPILE_DYNAMIC)
+    if (IsNativeCodeInStaticExecutable(pc)) {
+        return true;
+    }
 #endif
 #if defined(__IOS__) && defined(COMPILE_DYNAMIC) // iOS dynamic cangjie-runtime.
     Dl_info info;

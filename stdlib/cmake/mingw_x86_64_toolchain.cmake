@@ -58,7 +58,7 @@ set(STRIP_FLAG "-s")
 set(C_FLAGS "${WARNINGS_SETTINGS} ${C_OTHER_FLAGS} ${OTHER_FLAGS}")
 set(CPP_FLAGS "${WARNINGS_SETTINGS} ${CXX_OTHER_FLAGS} ${OTHER_FLAGS}")
 
-set(CMAKE_C_FLAGS "${C_FLAGS}")
+set(CMAKE_C_FLAGS "${C_FLAGS} -Wno-error=implicit-function-declaration -Wno-error=incompatible-pointer-types -Wno-implicit-int")
 set(CMAKE_C_FLAGS_RELWITHDEBINFO "-O2 -g -fdebug-types-section")
 set(CMAKE_C_FLAGS_RELEASE "-D_FORTIFY_SOURCE=2 -O2")
 set(CMAKE_C_FLAGS_DEBUG "-O0 -g -fdebug-types-section")
