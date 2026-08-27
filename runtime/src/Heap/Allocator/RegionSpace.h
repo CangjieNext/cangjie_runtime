@@ -249,13 +249,13 @@ public:
 
 protected:
     RegionManager& regionManager;
+    virtual MAddress TryAllocateOnce(size_t allocSize, AllocType allocType);
 
 private:
     enum class TryAllocationThreshold {
         RESCHEDULE = 3,
         TRIGGER_OOM = 5,
     };
-    MAddress TryAllocateOnce(size_t allocSize, AllocType allocType);
     bool ShouldRetryAllocation(size_t& tryTimes, size_t size) const;
     MAddress reservedStart = 0;
     MAddress reservedEnd = 0;

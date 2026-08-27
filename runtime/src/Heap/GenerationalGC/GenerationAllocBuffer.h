@@ -18,7 +18,6 @@ public:
     ~GenerationAllocBuffer();
 
     static GenerationAllocBuffer* GetGenerationAllocBuffer();
-    MAddress AllocateImpl(size_t totalSize);
     MAddress AllocateYoungOnNewRegion(MixedRegionManager &manager, size_t totalSize);
     MAddress AllocateYoungOnSlot(MixedRegionManager& manager, size_t totalSize);
     MAddress AllocateYoung(size_t totalSize);

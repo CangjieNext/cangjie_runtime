@@ -40,20 +40,25 @@ namespace {
 MAddress AllocateFromSlotRegionCache(RegionList& cache, size_t totalSize)
 {
     MAddress result = 0;
-    cache.VisitAllRegionsNoLock([&](RegionInfo* region) {
-        if (result != 0) {
-            return;
-        }
+    cache.VisitAllRegionsUntilSuccNoLock([&](RegionInfo* region) {
         RegionFreeSlotList* freeSlotList = region->GetFreeSlotList();
         if (freeSlotList == nullptr || freeSlotList->GetMaxAvailableSize() < totalSize) {
-            return;
+            return false;
         }
         uintptr_t addr = freeSlotList->AllocateSlot(totalSize, region->GetRegionStart());
         if (addr != 0) {
             CHECK_DETAIL(memset_s(reinterpret_cast<void*>(addr), totalSize, 0, totalSize) == EOK,
                          "zero free slot failed");
             result = static_cast<MAddress>(addr);
+            // We need to update alloc ptr of this region, or it may lead to tranversion wrong.
+            uintptr_t allocPtr = region->GetRegionAllocPtr();
+            uintptr_t slotEnd = addr + totalSize;
+            if (slotEnd > allocPtr) {
+                region->SetRegionAllocPtr(slotEnd);
+            }
+            return true;
         }
+        return false;
     });
     return result;
 }
@@ -62,54 +67,20 @@ RegionInfo* RemoveSmallestSlotRegion(RegionList& cache)
 {
     RegionInfo* smallest = nullptr;
     size_t smallestSize = std::numeric_limits<size_t>::max();
-    cache.VisitAllRegionsNoLock([&](RegionInfo* region) {
+    cache.VisitAllRegionsUntilSuccNoLock([&](RegionInfo* region) {
         RegionFreeSlotList* freeSlotList = region->GetFreeSlotList();
         size_t maxSlotSize = freeSlotList == nullptr ? 0 : freeSlotList->GetMaxAvailableSize();
         if (smallest == nullptr || maxSlotSize < smallestSize) {
             smallest = region;
             smallestSize = maxSlotSize;
         }
+        return false;
     });
     if (smallest != nullptr) {
         cache.RemoveRegionNoLock(smallest);
     }
     return smallest;
 }
-}
-MAddress GenerationAllocBuffer::AllocateImpl(size_t totalSize)
-{
-    MixedRegionSpace& theAllocator = MixedRegionSpace::CastDown(Heap::GetHeap().GetAllocator());
-    MixedRegionManager& manager = MixedRegionSpace::CastDown(theAllocator.GetRegionManager());
-
-    RegionInfo* tr = tlRegion;
-    if (LIKELY(tr != RegionInfo::NullRegion())) {
-        MAddress addr = tr->Alloc(totalSize);
-        if (addr != 0) {
-            return addr;
-        }
-
-        CHECK(tr->IsThreadLocalRegion());
-        // 10: Regard 1/10 capacity as the threshold of the criteria that enlist the region.
-        if (tr->GetAvailableSize() < (tr->GetRegionSize() / 10)) {
-            manager.RemoveThreadLocalRegion(tr);
-            manager.EnlistFullThreadLocalRegion(tr);
-            tlRegion = RegionInfo::NullRegion();
-        }
-    }
-
-    RegionInfo* r = preparedRegion.load(std::memory_order_acquire);
-    if (r != nullptr) {
-        preparedRegion.store(nullptr, std::memory_order_release);
-        tlRegion = r;
-        return r->Alloc(totalSize);
-    }
-
-    // Take a new region when young space is empty, and Take slot when young space is heavy.
-    if (manager.IsYoungSpaceHeavy()) {
-        MAddress slot = AllocateYoungOnSlot(manager, totalSize);
-        if (slot != 0) { return slot; }
-    }
-    return AllocateYoungOnNewRegion(manager, totalSize);
 }
 
 MAddress GenerationAllocBuffer::AllocateYoungOnNewRegion(MixedRegionManager &manager, size_t totalSize)
@@ -183,7 +154,40 @@ MAddress GenerationAllocBuffer::AllocateYoungOnSlot(MixedRegionManager &manager,
 
 MAddress GenerationAllocBuffer::AllocateYoung(size_t totalSize)
 {
-    return AllocateImpl(totalSize);
+    MixedRegionSpace& theAllocator = MixedRegionSpace::CastDown(Heap::GetHeap().GetAllocator());
+    MixedRegionManager& manager = MixedRegionSpace::CastDown(theAllocator.GetRegionManager());
+
+    RegionInfo* tr = tlRegion;
+    if (LIKELY(tr != RegionInfo::NullRegion())) {
+        MAddress addr = tr->Alloc(totalSize);
+        if (addr != 0) {
+            return addr;
+        }
+
+        CHECK(tr->IsThreadLocalRegion());
+        // 10: Regard 1/10 capacity as the threshold of the criteria that enlist the region.
+        if (tr->GetAvailableSize() < (tr->GetRegionSize() / 10)) {
+            manager.RemoveThreadLocalRegion(tr);
+            manager.EnlistFullThreadLocalRegion(tr);
+            tlRegion = RegionInfo::NullRegion();
+        }
+    }
+
+    RegionInfo* r = preparedRegion.load(std::memory_order_acquire);
+    if (r != nullptr) {
+        preparedRegion.store(nullptr, std::memory_order_release);
+        tlRegion = r;
+        return r->Alloc(totalSize);
+    }
+
+    // Take a new region when young space is empty, and Take slot when young space is heavy.
+    if (manager.IsYoungSpaceHeavy()) {
+        MAddress slot = AllocateYoungOnSlot(manager, totalSize);
+        if (slot != 0) {
+            return slot;
+        }
+    }
+    return AllocateYoungOnNewRegion(manager, totalSize);
 }
 
 MAddress GenerationAllocBuffer::AllocateOld(size_t totalSize)

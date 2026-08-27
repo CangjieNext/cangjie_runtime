@@ -168,6 +168,7 @@ bool RegionInfo::VisitLiveObjectsUntilFalse(const std::function<bool(BaseObject*
 
 void RegionInfo::SweepRegion()
 {
+    CHECK(!IsGhostFromRegion());
     RegionFreeSlotList* freeSlotList = GetFreeSlotList();
     if (freeSlotList == nullptr) {
         freeSlotList = new (std::nothrow) RegionFreeSlotList();
@@ -195,17 +196,22 @@ void RegionInfo::SweepRegion()
     uintptr_t freeStart = position;
     uintptr_t allocPtr = GetRegionAllocPtr();
     while (position < allocPtr) {
-        BaseObject* obj = reinterpret_cast<BaseObject*>(position);
-        size_t allocSize = RegionSpace::GetAllocSize(*obj);
-        if (IsSurvivedObject(off)) {
+        auto* slot = FreeSlotNode::Cast(position);
+        bool isValidSlot = slot->IsValidSlot();
+        size_t allocSize = isValidSlot ? slot->size
+                                       : RegionSpace::GetAllocSize(*reinterpret_cast<BaseObject*>(position));
+        if (!isValidSlot && IsSurvivedObject(off)) {
             if (inFreeRun) {
                 size_t freeSize = off - freeStartOff;
                 if (freeSize >= RegionFreeSlotList::MIN_SLOT_SIZE) {
+                    DLOG(SWEEP, "sweep region %p [%p, %p) add slot [%p, %p)", this, GetRegionStart(),
+                        GetRegionEnd(), GetRegionStart() + freeStartOff,
+                        GetRegionStart() + freeStartOff + freeSize);
                     freeSlotList->AddSlot(static_cast<uint32_t>(freeStartOff), static_cast<uint32_t>(freeSize));
                 }
                 inFreeRun = false;
             }
-        } else {
+        } else if (!isValidSlot) {
             if (IsOldRegion()) {
                 ClearRSetSlots(position, allocSize);
             }
@@ -222,12 +228,16 @@ void RegionInfo::SweepRegion()
         size_t freeSize = regionSize - freeStartOff;
         memset(reinterpret_cast<void*>(freeStart), 0, freeSize);
         if (freeSize >= RegionFreeSlotList::MIN_SLOT_SIZE) {
+            DLOG(SWEEP, "sweep region %p [%p, %p) add slot [%p, %p)", this, GetRegionStart(), GetRegionEnd(),
+                GetRegionStart() + freeStartOff, GetRegionStart() + freeStartOff + freeSize);
             freeSlotList->AddSlot(static_cast<uint32_t>(freeStartOff), static_cast<uint32_t>(freeSize));
         }
     } else if (off < regionSize) {
         size_t freeSize = regionSize - off;
         memset(reinterpret_cast<void*>(position), 0, freeSize);
         if (freeSize >= RegionFreeSlotList::MIN_SLOT_SIZE) {
+            DLOG(SWEEP, "sweep region %p [%p, %p) add slot [%p, %p)", this, GetRegionStart(), GetRegionEnd(),
+                GetRegionStart() + off, GetRegionStart() + off + freeSize);
             freeSlotList->AddSlot(static_cast<uint32_t>(off), static_cast<uint32_t>(freeSize));
         }
     }
@@ -615,7 +625,7 @@ size_t RegionManager::ExemptFromRegions()
     size_t floatingGarbage = 0;
     size_t oldFromBytes = fromRegionList.GetUnitCount() * RegionInfo::UNIT_SIZE;
     double exempt = exemptedRegionThreshold;
-    auto visitor = [this, exempt, &floatingGarbage](RegionInfo* fromRegion) {
+    auto visitor = [this, exempt, &floatingGarbage, &forwardBytes](RegionInfo* fromRegion) {
         size_t threshold = static_cast<size_t>(exempt * fromRegion->GetRegionSize());
         size_t liveBytes = fromRegion->GetLiveByteCount();
         long rawPtrCnt = fromRegion->GetRawPointerObjectCount();
@@ -642,6 +652,8 @@ size_t RegionManager::ExemptFromRegions()
             rawPointerPinnedRegionList.PrependRegion(del, RegionInfo::RegionType::RAW_POINTER_PINNED_REGION);
             del->ClearGhostRegionBit();
             floatingGarbage += (del->GetRegionSize() - del->GetLiveByteCount());
+        } else {
+            forwardBytes += liveBytes;
         }
     };
     fromRegionList.VisitAllRegions(visitor);

@@ -13,6 +13,7 @@
 #include <limits>
 #include "Base/Globals.h"
 #include "Base/Log.h"
+#include "Base/LogFile.h"
 
 namespace MapleRuntime {
 
@@ -35,10 +36,10 @@ struct FreeSlotNode {
 
     bool IsValidSlot() const { return magic == MAGIC_VALUE; }
 
-    static FreeSlotNode MakeSlot(uint32_t off, uint32_t sz)
+    static FreeSlotNode MakeSlot(uint32_t next, uint32_t sz)
     {
         FreeSlotNode node;
-        node.offset = off;
+        node.offset = next;
         node.size = sz;
         node.magic = MAGIC_VALUE;
         return node;
@@ -146,7 +147,7 @@ private:
 class RegionFreeSlotList {
 public:
     static constexpr size_t NUM_SLOTS = FreeSlotNode::NUM_SLOTS;
-    static constexpr size_t MIN_SLOT_SIZE = sizeof(FreeSlotNode) + sizeof(uintptr_t);
+    static constexpr size_t MIN_SLOT_SIZE = sizeof(FreeSlotNode);
 
     RegionFreeSlotList() : regionStart_(0), heads_{}, maxSlotIndex_(NUM_SLOTS), totalSlotSize_(0) {}
 
@@ -182,9 +183,8 @@ public:
         }
         uint32_t next = heads_[slotIdx];
         heads_[slotIdx] = offset;
-        WriteSlotNode(offset, FreeSlotNode::MakeSlot(offset, size));
-        WriteSlotNext(offset, next);
-        if (slotIdx > maxSlotIndex_) {
+        WriteSlotNode(offset, FreeSlotNode::MakeSlot(next, size));
+        if (maxSlotIndex_ == NUM_SLOTS || slotIdx > maxSlotIndex_) {
             maxSlotIndex_ = slotIdx;
         }
     }
@@ -211,7 +211,7 @@ public:
                     continue;
                 }
 
-                uint32_t nextOffset = ReadSlotNext(slotOffset);
+                uint32_t nextOffset = node.offset;
                 heads_[i] = nextOffset;
                 if (nextOffset == INVALID_OFFSET && i >= maxSlotIndex_) {
                     RecalculateMaxSlotIndex();
@@ -222,9 +222,16 @@ public:
                 if (slotSize > requestedSize) {
                     uint32_t remainderOffset = slotOffset + static_cast<uint32_t>(requestedSize);
                     uint32_t remainderSize = slotSize - static_cast<uint32_t>(requestedSize);
-                    AddSlot(remainderOffset, remainderSize);
+                    if (remainderSize >= MIN_SLOT_SIZE) {
+                        DLOG(SWEEP, "split piece slot [%p, %p)", regionStart + remainderOffset,
+                            regionStart + remainderOffset + remainderSize);
+                        AddSlot(remainderOffset, remainderSize);
+                    }
                 }
-
+                DLOG(SWEEP, "allocate slot [%p, %p) slotSize=%u requestedSize=%zu",
+                     reinterpret_cast<void*>(regionStart + slotOffset),
+                     reinterpret_cast<void*>(regionStart + slotOffset + slotSize),
+                     slotSize, requestedSize);
                 return regionStart + slotOffset;
             }
         }
@@ -266,20 +273,6 @@ private:
         ptr->offset = node.offset;
         ptr->size = node.size;
         ptr->magic = node.magic;
-    }
-
-    uint32_t ReadSlotNext(uint32_t offset) const
-    {
-        FreeSlotNode *node = reinterpret_cast<FreeSlotNode*>(regionStart_ + offset);
-        uintptr_t raw = *reinterpret_cast<uintptr_t*>(node + 1);
-        return static_cast<uint32_t>(raw);
-    }
-
-    void WriteSlotNext(uint32_t offset, uint32_t nextOffset)
-    {
-        FreeSlotNode *node = reinterpret_cast<FreeSlotNode*>(regionStart_ + offset);
-        uintptr_t *nextPtr = reinterpret_cast<uintptr_t*>(node + 1);
-        *nextPtr = nextOffset;
     }
 };
 
