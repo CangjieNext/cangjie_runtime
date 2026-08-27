@@ -185,6 +185,11 @@ public:
                           phase != GCPhase::GC_PHASE_GENERATION_PREFORWARD);
                     if (phase == GCPhase::GC_PHASE_POST_TRACE || phase == GCPhase::GC_PHASE_GENERATION_POST_TRACE) {
                         region->ClearGhostRegionBit();
+                        DLOG(TRACE, "dynamicly pin old region %p [%p, %p) and clear ghost bit at phase %u",
+                            region, region->GetRegionStart(), region->GetRegionEnd(), phase);
+                    } else {
+                        DLOG(TRACE, "dynamicly pin old region %p [%p, %p) and keep ghost bit at phase %u",
+                            region, region->GetRegionStart(), region->GetRegionEnd(), phase);
                     }
                     sweepableOldRegionList.PrependRegion(region, RegionInfo::RegionType::SWEEP_REGION);
                 }
@@ -197,6 +202,11 @@ public:
                           phase != GCPhase::GC_PHASE_GENERATION_PREFORWARD);
                     if (phase == GCPhase::GC_PHASE_POST_TRACE || phase == GCPhase::GC_PHASE_GENERATION_POST_TRACE) {
                         region->ClearGhostRegionBit();
+                        DLOG(TRACE, "dynamicly pin young region %p [%p, %p) and clear ghost bit at phase %u",
+                            region, region->GetRegionStart(), region->GetRegionEnd(), phase);
+                    } else {
+                        DLOG(TRACE, "dynamicly pin young region %p [%p, %p) and keep ghost bit at phase %u",
+                            region, region->GetRegionStart(), region->GetRegionEnd(), phase);
                     }
                     sweepableYoungRegionList.PrependRegion(region, RegionInfo::RegionType::SWEEP_REGION);
                 }
@@ -213,6 +223,11 @@ public:
                 phase != GCPhase::GC_PHASE_GENERATION_PREFORWARD);
             if (phase == GCPhase::GC_PHASE_POST_TRACE || phase == GCPhase::GC_PHASE_GENERATION_POST_TRACE) {
                 region->ClearGhostRegionBit();
+                DLOG(TRACE, "dynamicly pin promoted region %p [%p, %p) and clear ghost bit at phase %u",
+                    region, region->GetRegionStart(), region->GetRegionEnd(), phase);
+            } else {
+                DLOG(TRACE, "dynamicly pin promoted region %p [%p, %p) and keep ghost bit at phase %u",
+                    region, region->GetRegionStart(), region->GetRegionEnd(), phase);
             }
             sweepableYoungRegionList.PrependRegion(region, RegionInfo::RegionType::SWEEP_REGION);
         }
@@ -235,7 +250,7 @@ private:
     // TODO: parameters tuning.
     bool ShouldSplit(size_t unitCount) const
     {
-        return unitCount < 4000;
+        return unitCount > 4000;
     }
     // TODO: parameters tuning.
     size_t GetMovableThreshold() const

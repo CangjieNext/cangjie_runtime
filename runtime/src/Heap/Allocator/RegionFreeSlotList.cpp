@@ -8,4 +8,13 @@
 
 namespace MapleRuntime {
 std::array<uint8_t, FreeSlotNode::SMALL_SIZE_THRESHOLD + 1> FreeSlotNode::smallSizeToSlotIdx {};
+
+namespace {
+struct SizeToSlotMapInitializer {
+    SizeToSlotMapInitializer()
+    {
+        FreeSlotNode::InitSizeToSlotMap();
+    }
+} g_sizeToSlotMapInitializer;
+}
 }

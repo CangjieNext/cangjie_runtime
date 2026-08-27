@@ -60,7 +60,7 @@ size_t MixedRegionManager::ClassifyYoungRegions()
     size_t floatingGarbage = 0;
     size_t oldFromBytes = fromRegionList.GetUnitCount() * RegionInfo::UNIT_SIZE;
     double exempt = exemptedRegionThreshold;
-    auto visitor = [this, exempt, &floatingGarbage](RegionInfo* fromRegion) {
+    auto visitor = [this, exempt, &floatingGarbage, &forwardBytes](RegionInfo* fromRegion) {
         long rawPtrCnt = fromRegion->GetRawPointerObjectCount();
         if (rawPtrCnt == 0 && fromRegion->IsPromoted()) {
             RemoveRegionLocked(&fromRegionList, fromRegion);
@@ -77,14 +77,17 @@ size_t MixedRegionManager::ClassifyYoungRegions()
 
             CHECK(del->IsFromRegion());
             RemoveRegionLocked(&fromRegionList, del);
+            del->ClearGhostRegionBit();
             sweepableYoungRegionList.PrependRegion(del, RegionInfo::RegionType::SWEEP_REGION);
             floatingGarbage += (del->GetRegionSize() - del->GetLiveByteCount());
         }
+        forwardBytes += liveBytes;
     };
     fromRegionList.VisitAllRegions(visitor);
 
     auto promoteSweepVisitor = [this](RegionInfo* region) {
         long rawPtrCnt = region->GetRawPointerObjectCount();
+        region->ClearGhostRegionBit();
         if (rawPtrCnt == 0 && region->IsPromoted()) {
             RemoveRegionLocked(&sweepableYoungRegionList, region);
             recentFullRegionList.PrependRegion(region, RegionInfo::RegionType::RECENT_FULL_REGION);
@@ -93,9 +96,10 @@ size_t MixedRegionManager::ClassifyYoungRegions()
     sweepableYoungRegionList.VisitAllRegions(promoteSweepVisitor);
 
     size_t newFromBytes = fromRegionList.GetUnitCount() * RegionInfo::UNIT_SIZE;
-    size_t exemptedFromBytes = unmovableFromRegionList.GetUnitCount() * RegionInfo::UNIT_SIZE;
-    VLOG(REPORT, "exempt from-space: %zu B - %zu B -> %zu B, %zu B floating garbage, %zu B to forward",
-         oldFromBytes, exemptedFromBytes, newFromBytes, floatingGarbage, forwardBytes);
+    size_t sweepableBytes = sweepableYoungRegionList.GetUnitCount() * RegionInfo::UNIT_SIZE;
+    size_t promoteBytes = promoteRegionList.GetUnitCount() * RegionInfo::UNIT_SIZE;
+    VLOG(REPORT, "select %zu B from %zu B to be region forwarded, %zu will be sweep, %zu will be promoted",
+         forwardBytes, oldFromBytes, floatingGarbage, promoteBytes);
     return newFromBytes - forwardBytes;
 }
 

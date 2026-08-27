@@ -34,6 +34,7 @@ const char* LOG_TYPE_NAMES[LOG_TYPE_NUMBER] = {
     "sanitizer",
 #endif
     "promote",
+    "sweep",
 };
 
 RTLogLevel LogFile::logLevel = InitLogLevel();
@@ -94,6 +95,7 @@ void LogFile::SetFlags()
 #if defined(CANGJIE_SANITIZER_SUPPORT) || defined(CANGJIE_GWPASAN_SUPPORT)
     logFile[SANITIZER].enableLog = MRT_ENABLED_LOG(MRT_LOG_SANITIZER);
     logFile[PROMOTE].enableLog = MRT_ENABLED_LOG(MRT_LOG_PROMOTE);
+    logFile[SWEEP].enableLog = MRT_ENABLED_LOG(MRT_LOG_SWEEP);
 #endif
 #else
     SetFlagWithEnv("MRT_REPORT", REPORT);

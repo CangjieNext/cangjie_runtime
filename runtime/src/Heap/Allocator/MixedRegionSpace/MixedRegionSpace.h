@@ -8,6 +8,7 @@
 #define MRT_MIXED_REGION_SPACE_H
 
 #include "Allocator/RegionSpace.h"
+#include "GenerationalGC/GenerationAllocBuffer.h"
 #include "MixedRegionManager.h"
 
 namespace MapleRuntime {
@@ -54,6 +55,15 @@ public:
     void ForwardFromSpace(GCThreadPool* threadPool) override
     {
         CastDown(GetRegionManager()).ForwardFromSpace(threadPool);
+    }
+
+    MAddress TryAllocateOnce(size_t allocSize, AllocType allocType) override
+    {
+        if (allocType == AllocType::MOVEABLE_OBJECT && allocSize < GetRegionManager().GetLargeObjectThreshold()) {
+            AllocBuffer* allocBuffer = AllocBuffer::GetOrCreateAllocBuffer();
+            return static_cast<GenerationAllocBuffer*>(allocBuffer)->AllocateYoung(allocSize);
+        }
+        return RegionSpace::TryAllocateOnce(allocSize, allocType);
     }
 };
 

@@ -163,11 +163,13 @@ public:
         }
     }
 
-    void VisitAllRegionsNoLock(const std::function<void(RegionInfo*)>& visitor)
+    void VisitAllRegionsUntilSuccNoLock(const std::function<bool(RegionInfo*)>& visitor)
     {
         for (RegionInfo* node = listHead; node != nullptr;) {
             RegionInfo* next = node->GetNextRegion();
-            visitor(node);
+            if (visitor(node)) {
+                return;
+            }
             node = next;
         }
     }

@@ -57,6 +57,7 @@ enum LogType {
     SANITIZER,
 #endif
     PROMOTE,
+    SWEEP,
     LOG_TYPE_NUMBER
 };
 
@@ -159,6 +160,9 @@ enum LogType {
 #ifndef DEFAULT_MRT_LOG_PROMOTE
 #define DEFAULT_MRT_LOG_PROMOTE 0
 #endif // DEFAULT_MRT_LOG_PROMOTE
+#ifndef DEFAULT_MRT_LOG_SWEEP
+#define DEFAULT_MRT_LOG_SWEEP 0
+#endif // DEFAULT_MRT_LOG_SWEEP
 #endif
 
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
