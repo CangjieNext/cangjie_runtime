@@ -49,9 +49,6 @@ struct WarmupInfo {
     var emaGC = Ema(5)
 
     private mut func runMultipleAndEstimateTime(times: Int64, maxMeasureBatch: Int64): Float64 {
-
-        //println("    Running ${times} iterations with max batch size ${maxMeasureBatch} to estimate time per iteration.")
-
         let baseWithRun = benchmark.timeLoopOnce(times, times, maxMeasureBatch)
         let baseLoopOnly = benchmark.timeLoopOnce(0, times, maxMeasureBatch)
         let base = benchmark.timeLoopOnce(0, 0, maxMeasureBatch)
@@ -283,10 +280,6 @@ class BenchRunner {
         let minBatches = configuration.get(KeyMinBatches.minBatches) ?? 10
         this.minBatches = max(minBatches, 1)
 
-        if (let Some(range) <- configuration.get<Range<Int64>>(KeyBatchSize.batchSize)) {
-            this.maxMeasureBatch = range.end
-            this.batchSize = max(range.start, 1)..range.end
-        }
         if (let Some(size) <- configuration.get<Int64>(KeyBatchSize.batchSize)) {
             this.maxMeasureBatch = size
             this.batchSize = size..=size
@@ -388,8 +381,6 @@ Warning: Too many objects survive GC which causes unexpectedly long GC times.
         let maxBatch = batchRange.end.ceilTo(maxMeasureBatch)
         let benchExecTime: Duration
 
-        println("this.batchSize.start = ${this.batchSize.start}, this.batchSize.end = ${this.batchSize.end}, maxMeasureBatch = ${maxMeasureBatch}, batchRange.start = ${batchRange.start}, batchRange.end = ${batchRange.end}, maxBatch = ${maxBatch}")
-
         if (batchCount < 50 || (benchmark.measurement as Runtime)?.measuresGC() == Some(true)) {
             benchExecTime = doMacroBench(maxBatch, batchCount)
         } else {
@@ -489,7 +480,7 @@ Warning: Too many objects survive GC which causes unexpectedly long GC times.
 
         // apply all of the constraints on batch size
         let maxBatchSize = Int64(ceil((avgBatchSize - 1.0) * 2.0 + 1.0))
-        let range = 1..=max(min(maxBatchSize, this.batchSize.end), this.batchSize.start)
+        let range = 1..=max(maxBatchSize, this.batchSize.start)
 
         let finalAvgBatchSize = Float64(range.start + range.end) / 2.0
         let finalBatches = max(targetDurationNs / avgOneIterationTime / finalAvgBatchSize, Float64(minBatches))

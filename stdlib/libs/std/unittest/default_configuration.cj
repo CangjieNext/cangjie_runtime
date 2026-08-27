@@ -19,7 +19,7 @@ func fillAbsentValues(config: Configuration) {
     config.setIfAbsent(KeyGenerationSteps.generationSteps, 200)
     config.setIfAbsent(KeyReductionSteps.reductionSteps, 200)
     config.setIfAbsent(KeyWarmup.warmup, Duration.second)
-    config.setIfAbsent(KeyBatchSize.batchSize, 1..MAX_BATCH_SIZE)
+    //config.setIfAbsent(KeyBatchSize.batchSize, 1..MAX_BATCH_SIZE)
     config.setIfAbsent(KeyMinDuration.minDuration, Duration.second * 5)
     config.setIfAbsent(KeyMinBatches.minBatches, 10)
     config.setIfAbsent(KeyExplicitGC.explicitGC, ExplicitGcType.Auto)

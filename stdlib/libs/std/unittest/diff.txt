@@ -1,0 +1,169 @@
+diff --git a/stdlib/libs/std/unittest/bench_executor.cj b/stdlib/libs/std/unittest/bench_executor.cj
+index e6a00d51..ad91703f 100644
+--- a/stdlib/libs/std/unittest/bench_executor.cj
++++ b/stdlib/libs/std/unittest/bench_executor.cj
+@@ -27,6 +27,9 @@ func MeasurementNewToArrayList(m : MeasurementNew) : ArrayList <BenchRawMeasurem
+             ans.add((Float64(t * m.batchSize), m.distribution[t].x[i], 0.0, m.distribution[t].w[i]))
+         }
+     }
++    for (i in 0..m.distribution[2].sz) {
++        ans.add((Float64(m.batchSize), m.distribution[2].x[i], 1.0, m.distribution[2].w[i]))
++    }
+     return ans
+ }
+ 
+@@ -168,6 +171,10 @@ class BenchExecutor<T> <: Executor {
+         let mockOptForBenchEnabled = configuration.get(KeyOptimizeMocksForBench.optimizeMocksForBench) ?? false
+ 
+         let wrapper: Measurement
++        if (let Some(range) <- configuration.get<Range<Int64>>(KeyBatchSize.batchSize)) {
++            configuration.set(KeyBatchSize.batchSize, range.end)
++        }
++
+         if (let Some(bs) <- configuration.get<Int64>(KeyBatchSize.batchSize)) {
+             wrapper = MeasurementNew(measurement, bs)
+         }
+@@ -342,6 +349,29 @@ protected enum SeparateGc <: ToString {
+     }
+ }
+ 
++func getPre(d : ArrayList <BenchRawMeasurement>) : ArrayList <Int64> {
++    var pre : ArrayList <Int64> = ArrayList <Int64> (d.size + 1, { _ => 0})
++    for (i in 0..d.size) {
++        pre[i + 1] = pre[i] + d[i][3]
++    }    
++    pre
++}
++
++func sampleWeighted(pre : ArrayList <Int64>, random : Random) {
++    let x = random.nextInt64(pre[pre.size - 1])
++    var lo : Int64 = 0
++    var hi : Int64 = pre.size
++    while (lo < hi - 1) {
++        let m : Int64 = (lo + hi) / 2
++        if (x < pre[m]) {
++            hi = m
++        } else {
++            lo = m
++        }
++    }
++    lo
++}
++
+ protected class BenchmarkResult {
+     protected var finished = false
+ 
+@@ -426,11 +456,7 @@ protected class BenchmarkResult {
+             AllPoints
+         }
+ 
+-        let pre : ArrayList <Int64> = ArrayList <Int64> (data.size + 1, { _ => 0});
+-        for (i in 0..data.size) {
+-            pre[i + 1] = pre[i] + data[i][3]
+-        }
+-
++        let pre : ArrayList <Int64> = getPre(data);
+         bootstrapped = (0..workers) |>
+             map { _ => ArrayList<BenchRawMeasurement>(data.size) } |>
+             mapParallelOrdered(workers) { subsample =>
+@@ -439,18 +465,7 @@ protected class BenchmarkResult {
+                 for (_ in 0..BOOTSTRAP_ITERATIONS / workers) {
+                     subsample.clear()
+                     for (_ in 0..data.size) {
+-                        let x = random.nextInt64(pre[data.size])
+-                        var lo : Int64 = 0
+-                        var hi : Int64 = data.size
+-                        while (lo < hi - 1) {
+-                            let m : Int64 = (lo + hi) / 2
+-                            if (x < pre[m]) {
+-                                hi = m
+-                            } else {
+-                                lo = m
+-                            }
+-                        }
+-                        subsample.add(data[lo])
++                        subsample.add(data[sampleWeighted(pre, random)])
+                     }
+                     results.appendStatisticsFromSample(subsample)
+                 }
+@@ -608,12 +623,21 @@ protected class BootstrapResult {
+         medianOverheadStats.finish()
+         r2Stats.finish()
+ 
+-        resultSample = valuesSample(rawData)
++        if (rawData.isEmpty()) {
++            resultSample = if (!meanStats.sample.data.isEmpty()) {
++                StatisticsSample(meanStats.sample)
++            } else {
++                StatisticsSample(Sample(ArrayList<Float64>([0.0])))
++            }
++        } else {
++            resultSample = valuesSample(rawData)
++        }
++
+         f?.get()
+     }
+ 
+     // bootstrap actual values distribution accounting for batch size and overhead
+-    protected func valuesSample(rawData: ArrayList<BenchRawMeasurement>): StatisticsSample {
++    protected func valuesSample(rawData: ArrayList<BenchRawMeasurement>): StatisticsSample {        
+         let result = ArrayList<Float64>()
+ 
+         let overhead = overhead.sample
+@@ -627,7 +651,9 @@ protected class BootstrapResult {
+         let stddev2 = medianStats.sample.stddev()
+         let gcRatio = rawData.iterator().map{ x => x[2] }.sum() / Float64(rawData.size)
+ 
++        let pre = getPre(rawData)
+         let random = Random()
++
+         for (_ in 0..BOOTSTRAP_ITERATIONS) {
+             let offset = overhead.data.size / 5 // remove overhead outliers
+             
+@@ -639,7 +665,7 @@ protected class BootstrapResult {
+ 
+             let mean_sample = mean.data[meanIdx]
+             
+-            let batch = rawData[random.nextInt64(rawData.size)]
++            let batch = rawData[sampleWeighted(pre, random)]
+             if (!separateGc.toFilter()(batch)) { continue }
+ 
+ 
+diff --git a/stdlib/libs/std/unittest/bench_test_case.cj b/stdlib/libs/std/unittest/bench_test_case.cj
+index dd4ede69..abf0b8c2 100644
+--- a/stdlib/libs/std/unittest/bench_test_case.cj
++++ b/stdlib/libs/std/unittest/bench_test_case.cj
+@@ -283,10 +283,6 @@ class BenchRunner {
+         let minBatches = configuration.get(KeyMinBatches.minBatches) ?? 10
+         this.minBatches = max(minBatches, 1)
+ 
+-        if (let Some(range) <- configuration.get<Range<Int64>>(KeyBatchSize.batchSize)) {
+-            this.maxMeasureBatch = range.end
+-            this.batchSize = max(range.start, 1)..range.end
+-        }
+         if (let Some(size) <- configuration.get<Int64>(KeyBatchSize.batchSize)) {
+             this.maxMeasureBatch = size
+             this.batchSize = size..=size
+@@ -489,7 +485,8 @@ Warning: Too many objects survive GC which causes unexpectedly long GC times.
+ 
+         // apply all of the constraints on batch size
+         let maxBatchSize = Int64(ceil((avgBatchSize - 1.0) * 2.0 + 1.0))
+-        let range = 1..=max(min(maxBatchSize, this.batchSize.end), this.batchSize.start)
++        let range = 1..=max(maxBatchSize, this.batchSize.start)
++        //let range = 1..=max(min(maxBatchSize, this.batchSize.end), this.batchSize.start)
+ 
+         let finalAvgBatchSize = Float64(range.start + range.end) / 2.0
+         let finalBatches = max(targetDurationNs / avgOneIterationTime / finalAvgBatchSize, Float64(minBatches))
+diff --git a/stdlib/libs/std/unittest/default_configuration.cj b/stdlib/libs/std/unittest/default_configuration.cj
+index 0ef4dc8b..86b008c0 100644
+--- a/stdlib/libs/std/unittest/default_configuration.cj
++++ b/stdlib/libs/std/unittest/default_configuration.cj
+@@ -19,7 +19,7 @@ func fillAbsentValues(config: Configuration) {
+     config.setIfAbsent(KeyGenerationSteps.generationSteps, 200)
+     config.setIfAbsent(KeyReductionSteps.reductionSteps, 200)
+     config.setIfAbsent(KeyWarmup.warmup, Duration.second)
+-    config.setIfAbsent(KeyBatchSize.batchSize, 1..MAX_BATCH_SIZE)
++    //config.setIfAbsent(KeyBatchSize.batchSize, 1..MAX_BATCH_SIZE)
+     config.setIfAbsent(KeyMinDuration.minDuration, Duration.second * 5)
+     config.setIfAbsent(KeyMinBatches.minBatches, 10)
+     config.setIfAbsent(KeyExplicitGC.explicitGC, ExplicitGcType.Auto)

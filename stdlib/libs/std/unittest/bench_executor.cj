@@ -28,7 +28,7 @@ func MeasurementNewToArrayList(m : MeasurementNew) : ArrayList <BenchRawMeasurem
         }
     }
     for (i in 0..m.distribution[2].sz) {
-        ans.add((Float64(0), m.distribution[2].x[i], 1.0, m.distribution[2].w[i]))
+        ans.add((Float64(m.batchSize), m.distribution[2].x[i], 1.0, m.distribution[2].w[i]))
     }
     return ans
 }
@@ -170,6 +170,10 @@ class BenchExecutor<T> <: Executor {
         let mockOptForBenchEnabled = configuration.get(KeyOptimizeMocksForBench.optimizeMocksForBench) ?? false
 
         let wrapper: Measurement
+        if (let Some(range) <- configuration.get<Range<Int64>>(KeyBatchSize.batchSize)) {
+            configuration.set(KeyBatchSize.batchSize, range.end)
+        }
+
         if (let Some(bs) <- configuration.get<Int64>(KeyBatchSize.batchSize)) {
             wrapper = MeasurementNew(measurement, bs)
         }
@@ -344,6 +348,29 @@ protected enum SeparateGc <: ToString {
     }
 }
 
+func getPre(d : ArrayList <BenchRawMeasurement>) : ArrayList <Int64> {
+    var pre : ArrayList <Int64> = ArrayList <Int64> (d.size + 1, { _ => 0})
+    for (i in 0..d.size) {
+        pre[i + 1] = pre[i] + d[i][3]
+    }    
+    pre
+}
+
+func sampleWeighted(pre : ArrayList <Int64>, random : Random) {
+    let x = random.nextInt64(pre[pre.size - 1])
+    var lo : Int64 = 0
+    var hi : Int64 = pre.size
+    while (lo < hi - 1) {
+        let m : Int64 = (lo + hi) / 2
+        if (x < pre[m]) {
+            hi = m
+        } else {
+            lo = m
+        }
+    }
+    lo
+}
+
 protected class BenchmarkResult {
     protected var finished = false
 
@@ -430,11 +457,7 @@ protected class BenchmarkResult {
             AllPoints
         }
 
-        let pre : ArrayList <Int64> = ArrayList <Int64> (data.size + 1, { _ => 0});
-        for (i in 0..data.size) {
-            pre[i + 1] = pre[i] + data[i][3]
-        }
-
+        let pre : ArrayList <Int64> = getPre(data);
         bootstrapped = (0..workers) |>
             map { _ => ArrayList<BenchRawMeasurement>(data.size) } |>
             mapParallelOrdered(workers) { subsample =>
@@ -443,18 +466,7 @@ protected class BenchmarkResult {
                 for (_ in 0..BOOTSTRAP_ITERATIONS / workers) {
                     subsample.clear()
                     for (_ in 0..data.size) {
-                        let x = random.nextInt64(pre[data.size])
-                        var lo : Int64 = 0
-                        var hi : Int64 = data.size
-                        while (lo < hi - 1) {
-                            let m : Int64 = (lo + hi) / 2
-                            if (x < pre[m]) {
-                                hi = m
-                            } else {
-                                lo = m
-                            }
-                        }
-                        subsample.add(data[lo])
+                        subsample.add(data[sampleWeighted(pre, random)])
                     }
                     results.appendStatisticsFromSample(subsample)
                 }
@@ -612,12 +624,21 @@ protected class BootstrapResult {
         medianOverheadStats.finish()
         r2Stats.finish()
 
-        resultSample = valuesSample(rawData)
+        if (rawData.isEmpty()) {
+            resultSample = if (!meanStats.sample.data.isEmpty()) {
+                StatisticsSample(meanStats.sample)
+            } else {
+                StatisticsSample(Sample(ArrayList<Float64>([0.0])))
+            }
+        } else {
+            resultSample = valuesSample(rawData)
+        }
+
         f?.get()
     }
 
     // bootstrap actual values distribution accounting for batch size and overhead
-    protected func valuesSample(rawData: ArrayList<BenchRawMeasurement>): StatisticsSample {
+    protected func valuesSample(rawData: ArrayList<BenchRawMeasurement>): StatisticsSample {        
         let result = ArrayList<Float64>()
 
         let overhead = overhead.sample
@@ -631,7 +652,9 @@ protected class BootstrapResult {
         let stddev2 = medianStats.sample.stddev()
         let gcRatio = rawData.iterator().map{ x => x[2] }.sum() / Float64(rawData.size)
 
+        let pre = getPre(rawData)
         let random = Random()
+
         for (_ in 0..BOOTSTRAP_ITERATIONS) {
             let offset = overhead.data.size / 5 // remove overhead outliers
             
@@ -643,7 +666,7 @@ protected class BootstrapResult {
 
             let mean_sample = mean.data[meanIdx]
             
-            let batch = rawData[random.nextInt64(rawData.size)]
+            let batch = rawData[sampleWeighted(pre, random)]
             if (!separateGc.toFilter()(batch)) { continue }
 
 

@@ -1,0 +1,153 @@
+Test log saved to /home/huawei/compiler/cangjie/cangjie_runtime/stdlib/libs/std/unittest/cangjie_test_framework/test_temp/log
+Test log saved to /home/huawei/compiler/cangjie/cangjie_runtime/stdlib/libs/std/unittest/cangjie_test_framework/test_temp/log
+CONDITION:{'x86', 'CJNATIVE', 'Unix', 'Linux'}
+Testlist: ['cjnative_testlist'], EXCLUDE-TEST-CASE: compiler/CJMP/java/sema/cj_mapping_interop_lib_not_imported.cj is invalid test case
+Testlist: ['cjnative_testlist'], EXCLUDE-TEST-CASE: compiler/Plugins/IRCheck/FoundError/found_error.cj is invalid test case
+Testlist: ['cjnative_testlist'], EXCLUDE-TEST-CASE: compiler/Plugins/IRCheck/FoundError/default.cj is invalid test case
+Testlist: ['cjnative_testlist'], EXCLUDE-TEST-CASE: compiler/CJMP/java/sema/cj_mapping_struct_generic.cj is invalid test case
+Run 1 times
+Reading config file: /home/huawei/compiler/cangjie/cangjie_runtime/stdlib/libs/std/unittest/cangjie_test/testsuites/LLT/configs/cjnative/cjnative_test.cfg
+Test log saved to /home/huawei/compiler/cangjie/cangjie_runtime/stdlib/libs/std/unittest/cangjie_test_framework/test_temp/log
+Running test cases: 2.08% (1/48) Test log saved to /home/huawei/compiler/cangjie/cangjie_runtime/stdlib/libs/std/unittest/cangjie_test_framework/test_temp/log
+Test log saved to /home/huawei/compiler/cangjie/cangjie_runtime/stdlib/libs/std/unittest/cangjie_test_framework/test_temp/log
+Running test cases: 6.25% (3/48) Test log saved to /home/huawei/compiler/cangjie/cangjie_runtime/stdlib/libs/std/unittest/cangjie_test_framework/test_temp/log
+Test log saved to /home/huawei/compiler/cangjie/cangjie_runtime/stdlib/libs/std/unittest/cangjie_test_framework/test_temp/log
+Test log saved to /home/huawei/compiler/cangjie/cangjie_runtime/stdlib/libs/std/unittest/cangjie_test_framework/test_temp/log
+Test log saved to /home/huawei/compiler/cangjie/cangjie_runtime/stdlib/libs/std/unittest/cangjie_test_framework/test_temp/log
+Test log saved to /home/huawei/compiler/cangjie/cangjie_runtime/stdlib/libs/std/unittest/cangjie_test_framework/test_temp/log
+2026-08-27 08:45:40 ERROR bench_explicit_gc_disabled_cj_87dddd73a1da11f1 Failed!
+2026-08-27 08:45:40 ERROR bench_explicit_gc_disabled_cj_87dddd73a1da11f1 Command return code 1 not equals to expected return code 0
+Test log saved to /home/huawei/compiler/cangjie/cangjie_runtime/stdlib/libs/std/unittest/cangjie_test_framework/test_temp/log
+
+--------
+TestCase Failed: 
+Name           : new_bench/bench_explicit_gc_disabled.cj
+CMD list       : 
+--------
+PASS           :{'exit_code': 0, 'PIPE': False, 'cmd': 'cjc -j4 --error-count-limit=10000 --diagnostic-format=noColor -O2 -o bench_explicit_gc_disabled.out bench_explicit_gc_disabled.cj --test'}
+FAIL           :{'exit_code': 0, 'PIPE': True, 'cmd': 'export cjHeapSize=16gb &&   bench_explicit_gc_disabled.out --no-progress  --bench --no-color '}
+NOT_RUN        :{'cmd': '  /usr/bin/python3 /home/huawei/compiler/cangjie/cangjie_runtime/stdlib/libs/std/unittest/cangjie_test_framework/maple_test/compare.py --comment=//  --condition="\'x86\', \'CJNATIVE\', \'Unix\', \'Linux\'" bench_explicit_gc_disabled.cj', 'PIPE': False, 'exit_code': 0}
+--------
+Output         : 
+
+CMD            : cjc -j4 --error-count-limit=10000 --diagnostic-format=noColor -O2 -o bench_explicit_gc_disabled.out bench_explicit_gc_disabled.cj --test
+Return code    : 0
+Stdout         : 
+Stderr         : warning: unused import 'std.time.*'
+  ==> bench_explicit_gc_disabled.cj:14:1:
+   | 
+14 | import std.time.*
+   | ^^^^^^^^^^^^^^^^^ unused import
+   | 
+   # note: this warning can be suppressed by setting the compiler option `-Woff unused`
+
+warning: unused variable:'i'
+  ==> bench_explicit_gc_disabled.cj:52:14:
+   | 
+52 |         for (i in 0..100000) {
+   |              ^ unused variable
+   | 
+   # note: this warning can be suppressed by setting the compiler option `-Woff unused`
+note: the warning originates in the macro `Test` (consider using `--debug-macro` for more info)
+  ==> bench_explicit_gc_disabled.cj:41:1:
+   | 
+41 |   @Test
+   |  _^
+42 | | @Configure[
+   | | ...
+64 | | }
+   | |_^
+   | 
+
+warning: unused variable:'i'
+  ==> bench_explicit_gc_disabled.cj:80:14:
+   | 
+80 |         for (i in 0..100000) {
+   |              ^ unused variable
+   | 
+   # note: this warning can be suppressed by setting the compiler option `-Woff unused`
+note: the warning originates in the macro `Test` (consider using `--debug-macro` for more info)
+  ==> bench_explicit_gc_disabled.cj:68:1:
+   | 
+68 |   @Test
+   |  _^
+69 | | @Configure[
+   | | ...
+93 | | }
+   | |_^
+   | 
+
+3 warnings generated, 3 warnings printed.
+
+
+CMD            : export cjHeapSize=16gb &&   bench_explicit_gc_disabled.out --no-progress  --bench --no-color 
+Return code    : 1
+Stdout         : Starting the benchmark `BenchGCAutoDisabled.foo()`.
+Warming up for 10 iterations.
+    Starting measurements of 200 batches. Measuring Measurement.
+    Max batch size: 16, estimated execution time: 323.5 ms.
+this.batchSize.start = 1, this.batchSize.end = 1152921504606846976, maxMeasureBatch = 1, batchRange.start = 1, batchRange.end = 16, maxBatch = 16
+Finished in 452.1 ms. Analysing results:
+  percentiles:    [   10%      50%      90%      95%      99%      ]  
+  time:           [   100000   100000   100000   100000   100000   ]  
+  mean:           100000 .. 100000  Err ±0.0%
+  median:         100000 .. 100000
+  R²:             1.000 .. 1.000
+  stddev:         0
+
+105
+Starting the benchmark `BenchGCDisabled.foo()`.
+Warming up for 10 iterations.
+    Starting measurements of 200 batches. Measuring Measurement.
+    Max batch size: 17, estimated execution time: 317.1 ms.
+this.batchSize.start = 1, this.batchSize.end = 1152921504606846976, maxMeasureBatch = 1, batchRange.start = 1, batchRange.end = 17, maxBatch = 17
+Finished in 306.2 ms. Analysing results:
+  percentiles:    [   10%      50%      90%      95%      99%      ]  
+  time:           [   100000   100000   100000   100000   100000   ]  
+  mean:           100000 .. 100000  Err ±0.0%
+  median:         100000 .. 100000
+  R²:             1.000 .. 1.000
+  stddev:         0
+
+108
+--------------------------------------------------------------------------------------------------
+TP: default, time elapsed: 1438329616 ns, RESULT:
+    TCS: BenchGCAutoDisabled, time elapsed: 790423474 ns, RESULT:
+    | Case   | Median |    Err |   Err% |   Mean |
+    |:-------|-------:|-------:|-------:|-------:|
+    | foo    | 100000 |     ±0 |  ±0.0% | 100000 |
+    [ ERROR  ] After all step failed. (64729 ns)
+    REASON: Assert Failed: `(diff <= 10 == true)`
+       left: false
+      right: true
+
+    TCS: BenchGCDisabled, time elapsed: 647872805 ns, RESULT:
+    | Case   | Median |    Err |   Err% |   Mean |
+    |:-------|-------:|-------:|-------:|-------:|
+    | foo    | 100000 |     ±0 |  ±0.0% | 100000 |
+    [ ERROR  ] After all step failed. (34561 ns)
+    REASON: Assert Failed: `(diff <= 10 == true)`
+       left: false
+      right: true
+
+Summary: TOTAL: 4
+    PASSED: 2, SKIPPED: 0, ERROR: 2
+    FAILED: 0, listed below:
+            TCS: BenchGCAutoDisabled, CASE: AfterAll
+            TCS: BenchGCDisabled, CASE: AfterAll
+--------------------------------------------------------------------------------------------------
+
+Stderr         : 
+--------
+
+Running test cases: 22.92% (11/48) Test log saved to /home/huawei/compiler/cangjie/cangjie_runtime/stdlib/libs/std/unittest/cangjie_test_framework/test_temp/log
+Test log saved to /home/huawei/compiler/cangjie/cangjie_runtime/stdlib/libs/std/unittest/cangjie_test_framework/test_temp/log
+Running test cases: 33.33% (16/48) Test log saved to /home/huawei/compiler/cangjie/cangjie_runtime/stdlib/libs/std/unittest/cangjie_test_framework/test_temp/log
+Running test cases: 41.67% (20/48) Running test cases: 58.33% (28/48) Running test cases: 72.92% (35/48) Running test cases: 85.42% (41/48) Running test cases: 93.75% (45/48) Running test cases: 93.75% (45/48) Running test cases: 95.83% (46/48) Running test cases: 95.83% (46/48) Running test cases: 95.83% (46/48) Running test cases: 95.83% (46/48) Running test cases: 95.83% (46/48) Running test cases: 97.92% (47/48) Running test cases: 97.92% (47/48) Running test cases: 100.00% (48/48) ------------------------------------------------------------------------------------------------------------------------
+TestSuite Path: /home/huawei/compiler/cangjie/cangjie_runtime/stdlib/libs/std/unittest/cangjie_test/testsuites/LLT/API/std/unittest/new_bench
+  cjnative_test_cfg, Case: bench_explicit_gc_disabled.cj, Result: FAIL, LogFile: bench_explicit_gc_disabled_cj_87dddd73a1da11f1.log
+
+TestSuiteTask: cangjie_cjnative_test, Total: 48, PASS: 47, FAIL: 1, 
+  cjnative_test_cfg, total: 48, PASS: 47, FAIL: 1, 
+------------------------------------------------------------------------------------------------------------------------
+INFO: cost time info write in /home/huawei/compiler/cangjie/cangjie_runtime/stdlib/libs/std/unittest/cangjie_test/testsuites/LLT/configs/cjnative/cost_time.csv!
