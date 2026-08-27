@@ -64,7 +64,6 @@ class Block<E> {
      * - true: sends @p element into the buffer successfully
      * - false: fails to send into the buffer
      */
-    @Frozen
     func push(element: E): Bool {
         // buffer full
         if (allocated.load() >= BUF_SIZE) {
@@ -95,7 +94,6 @@ class Block<E> {
      * - BlockDone: buffer full
      * - CONFLICT: another thread sends the element into buffer[@p index]
      */
-    @Frozen
     func pushAt(element: E, index: Int64): PushRes {
         // buffer full
         if (index >= BUF_SIZE) {
@@ -121,7 +119,6 @@ class Block<E> {
      * - BlockDone: if all of the entries in the buffer have been consumed
      * - ELEM(e): if gets the element e at the head of the buffer successfully
      */
-    @Frozen
     func pop(): ENTRY<E> {
         while (true) {
             let index = reserved.load()
@@ -163,7 +160,6 @@ class Block<E> {
      * - BlockDone: if all of the entries in the buffer have been consumed
      * - ELEM(e): if gets the element e at the head of the buffer successfully
      */
-    @Frozen
     func front(): ENTRY<E> {
         while (true) {
             let index = reserved.load()
@@ -193,12 +189,10 @@ class Block<E> {
         return BlockDone
     }
 
-    @Frozen
     func getAllocated(): (UInt64, Int64) {
         return (version, allocated.load())
     }
 
-    @Frozen
     func getReserved(): (UInt64, Int64) {
         return (version, reserved.load())
     }
@@ -248,8 +242,9 @@ public class ConcurrentLinkedQueue<E> <: Collection<E> {
             let tailBlock = rear.load()
             let (headBlockVersion, headBlockReserved) = headBlock.getReserved()
             let (tailBlockVersion, tailBlockAllocated) = tailBlock.getAllocated()
-            return (tailBlockAllocated - headBlockReserved) + (Int64(tailBlockVersion - headBlockVersion) <<
-                BUF_SIZE_BITS)
+            let currentBlockSize = tailBlockAllocated - headBlockReserved
+            let completedBlockSize = Int64(tailBlockVersion - headBlockVersion) << BUF_SIZE_BITS
+            return currentBlockSize + completedBlockSize
         }
     }
 
@@ -323,7 +318,8 @@ public class ConcurrentLinkedQueue<E> <: Collection<E> {
     public func peek(): Option<E> {
         while (true) {
             let headBlock = front.load()
-            match (headBlock.front()) {
+            let entry = headBlock.front()
+            match (entry) {
                 case ELEM(e) => return Some(e)
                 case NoEntry => break
                 case BlockDone =>
@@ -356,7 +352,6 @@ public class ConcurrentLinkedQueue<E> <: Collection<E> {
 /**
  * Allocates a new block and sets 'tail' pointing to the new one.
  */
-@Frozen
 func newBlock<E>(tailBlock: Block<E>, tail: AtomicReference<Block<E>>): Unit {
     if (!tailBlock.isExtended.compareAndSwap(false, true)) {
         while (true) {
@@ -374,7 +369,6 @@ func newBlock<E>(tailBlock: Block<E>, tail: AtomicReference<Block<E>>): Unit {
 /**
  * Sets 'head' to point to the next block.
  */
-@Frozen
 func nextBlock<E>(headBlock: Block<E>, head: AtomicReference<Block<E>>, tail: AtomicReference<Block<E>>): Bool {
     if (!refEq(head.load(), headBlock)) {
         return true

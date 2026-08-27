@@ -203,7 +203,6 @@ public class ArrayBlockingQueue<E> {
         add(element)
     }
 
-    @Frozen
     public func add(element: E): Unit {
         // Quick retry loop: avoids the monitor park/unpark round-trip when a
         // consumer frees a slot shortly after the queue becomes full.
@@ -272,7 +271,6 @@ public class ArrayBlockingQueue<E> {
         remove()
     }
 
-    @Frozen
     public func remove(): E {
         // Quick retry loop: avoids the monitor park/unpark round-trip when a
         // producer fills a slot shortly after the queue becomes empty.
@@ -319,7 +317,6 @@ public class ArrayBlockingQueue<E> {
      * Consumes the slot at @p index whose reservation was already acquired:
      * loads the element, releases the slot state and wakes up blocked senders.
      */
-    @Frozen
     private func dequeueAt(index: Int64, roundState: UInt8, roundBit: UInt8): E {
         let e = buffer[index]
         buffer[index] = unsafe { zeroValue<E>() }
@@ -387,7 +384,6 @@ public class ArrayBlockingQueue<E> {
         peek()
     }
 
-    @Frozen
     public func peek(): Option<E> {
         while (true) {
             let roundIndex = reserved.load() // LP: if returns 'None<E>'
@@ -428,7 +424,6 @@ public class ArrayBlockingQueue<E> {
     }
 
     @OverflowWrapping
-    @Frozen
     public func tryAdd(element: E): Bool {
         while (true) {
             let roundIndex = allocated.load() // LP: if returns 'false'
@@ -471,7 +466,6 @@ public class ArrayBlockingQueue<E> {
     }
 
     @OverflowWrapping
-    @Frozen
     public func tryRemove(): Option<E> {
         while (true) {
             let roundIndex = reserved.load() // LP: if returns 'None<E>'
@@ -514,7 +508,6 @@ public class ArrayBlockingQueue<E> {
      * power-of-two capacities use shift/mask (no division), other capacities
      * derive the index from a single division instead of a second modulo.
      */
-    @Frozen
     private func locate(roundIndex: UInt64): (UInt64, Int64) {
         if (isPow2Capacity) {
             return (roundIndex >> capacityShift, Int64(roundIndex & capacityMask))
@@ -524,7 +517,6 @@ public class ArrayBlockingQueue<E> {
     }
 }
 
-@Frozen
 func readableState(roundBit: UInt8): UInt8 {
     return if (roundBit == 1) {
         READABLE_ODD
@@ -533,7 +525,6 @@ func readableState(roundBit: UInt8): UInt8 {
     }
 }
 
-@Frozen
 func writeableState(roundBit: UInt8): UInt8 {
     return if (roundBit == 1) {
         WRITEABLE_EVEN
@@ -542,7 +533,6 @@ func writeableState(roundBit: UInt8): UInt8 {
     }
 }
 
-@Frozen
 func lockState(roundBit: UInt8): UInt8 {
     return if (roundBit == 1) {
         LOCK_ODD
@@ -554,7 +544,6 @@ func lockState(roundBit: UInt8): UInt8 {
 /**
  * Justify whether the round and the state are matching the expectations.
  */
-@Frozen
 func matchState(round: UInt64, roundBit: UInt8, state: UInt8, expectState: UInt8) {
     if (UInt8(round & 1) == roundBit && state == expectState) {
         return true
