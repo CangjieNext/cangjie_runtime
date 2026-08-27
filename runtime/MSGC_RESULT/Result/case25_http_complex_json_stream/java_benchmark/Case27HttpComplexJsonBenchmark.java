@@ -89,6 +89,8 @@ public final class Case27HttpComplexJsonBenchmark {
                 Benchmark benchmark = new Benchmark(config);
                 if ("server".equals(config.role)) {
                     benchmark.runServerOnly();
+                } else if ("client".equals(config.role)) {
+                    benchmark.runClient();
                 } else {
                     benchmark.runBoth();
                 }
@@ -495,9 +497,9 @@ public final class Case27HttpComplexJsonBenchmark {
             if (timeoutMs <= 0) {
                 throw new IllegalArgumentException("CASE27_CLIENT_TIMEOUT_MS must be > 0");
             }
-            if (!"both".equals(role) && !"server".equals(role)) {
+            if (!"both".equals(role) && !"server".equals(role) && !"client".equals(role)) {
                 throw new IllegalArgumentException(
-                        "unsupported CASE27_ROLE=" + role + "; expected both or server");
+                        "unsupported CASE27_ROLE=" + role + "; expected both, server, or client");
             }
             if (!"sync".equals(clientMode) && !"async".equals(clientMode)) {
                 throw new IllegalArgumentException(
@@ -555,7 +557,7 @@ public final class Case27HttpComplexJsonBenchmark {
 
         private void runServerOnly() throws IOException, InterruptedException {
             startServer();
-            System.out.println("[INFO] HTTP Server ready at http://" + SERVER_ADDR + ":"
+            System.out.println("[READY] HTTP Server ready at http://" + SERVER_ADDR + ":"
                     + config.serverPort + "/process");
             System.out.println("[INFO] Running in server-only mode; waiting for external clients...");
             try {
@@ -565,7 +567,7 @@ public final class Case27HttpComplexJsonBenchmark {
             }
         }
 
-        private void runBoth() throws Exception {
+        private void runClient() throws Exception {
             byte[] payload;
             String payloadPath = Paths.get(config.payloadDir, config.payloadName + ".json").toString();
             if (!Files.exists(Paths.get(payloadPath))) {
@@ -575,10 +577,7 @@ public final class Case27HttpComplexJsonBenchmark {
             System.out.println("[INFO] loaded payload bytes=" + payload.length + " ("
                     + payload.length / 1024 + "KB) from " + payloadPath);
 
-            startServer();
-            sleepMillis(1000L);
             String url = "http://" + SERVER_ADDR + ":" + config.serverPort + "/process";
-            System.out.println("[INFO] HTTP Server ready at " + url);
             warmup(url, payload);
 
             Stats stats = new Stats();
@@ -639,7 +638,18 @@ public final class Case27HttpComplexJsonBenchmark {
                     + " inflight=" + stats.inflight.get() + " throughput=" + throughput + "req/s");
             System.out.println("[RESULT] bytes_sent=" + sentMb + "MB bytes_recv=" + recvMb + "MB");
             System.out.println("[DONE]");
-            stopServer();
+        }
+
+        private void runBoth() throws Exception {
+            startServer();
+            System.out.println("[INFO] HTTP Server ready at http://" + SERVER_ADDR + ":"
+                    + config.serverPort + "/process");
+            try {
+                sleepMillis(1000L);
+                runClient();
+            } finally {
+                stopServer();
+            }
         }
 
         private void warmup(String url, byte[] payload) {

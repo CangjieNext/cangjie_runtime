@@ -77,8 +77,9 @@ GO_GODEBUG="${GO_GODEBUG:-gctrace=1}"
 GO_GOGC="${GO_GOGC:-}"
 GO_GOMEMLIMIT="${GO_GOMEMLIMIT:-16GiB}"
 GO_BIN="${GO_BIN:-$(command -v go 2>/dev/null || true)}"
-JAVA_BIN="${JAVA_BIN:-$JAVA_HOME_DEFAULT/bin/java}"
-JAVAC_BIN="${JAVAC_BIN:-$JAVA_HOME_DEFAULT/bin/javac}"
+JAVA_HOME_EFFECTIVE="${JAVA_HOME:-$JAVA_HOME_DEFAULT}"
+JAVA_BIN="${JAVA_BIN:-$JAVA_HOME_EFFECTIVE/bin/java}"
+JAVAC_BIN="${JAVAC_BIN:-$JAVA_HOME_EFFECTIVE/bin/javac}"
 JACKSON_CORE_JAR="$CASE_DIR/java_benchmark/lib/jackson-core-2.17.2.jar"
 JAVA_CPUSET="${JAVA_CPUSET:-}"
 
@@ -268,15 +269,26 @@ run_cangjie() {
         if [[ -n "$RUNTIME_HEAP_GROWTH" ]]; then export cjHeapGrowth="$RUNTIME_HEAP_GROWTH"; else unset cjHeapGrowth; fi
         if [[ -n "$RUNTIME_SCAVENGE_GROWTH" ]]; then export cjScavengeGrowth="$RUNTIME_SCAVENGE_GROWTH"; else unset cjScavengeGrowth; fi
         if [[ -n "$RUNTIME_MIN_GC_THRESHOLD" ]]; then export cjMSMinGCThreshold="$RUNTIME_MIN_GC_THRESHOLD"; else unset cjMSMinGCThreshold; fi
-        MRT_REPORT="$OUT_DIR/gc.log" MRT_LOG_FILE_SIZE=200mb ./benchmark >stdout.txt 2>stderr.txt &
+        CASE25_ROLE=server MRT_REPORT="$OUT_DIR/server.gc.log" MRT_LOG_FILE_SIZE=200mb ./benchmark >server.stdout.txt 2>server.stderr.txt &
+        server_pid=$!
+        for _ in $(seq 1 300); do
+            (echo >"/dev/tcp/127.0.0.1/$CASE25_SERVER_PORT") 2>/dev/null && break
+            kill -0 "$server_pid" 2>/dev/null || { wait "$server_pid"; exit 1; }
+            sleep 0.1
+        done
+        (echo >"/dev/tcp/127.0.0.1/$CASE25_SERVER_PORT") 2>/dev/null || { kill "$server_pid" 2>/dev/null || true; exit 1; }
+        CASE25_ROLE=client CASE25_PERSISTENT_BYTES=0 MRT_REPORT="$OUT_DIR/gc.log" MRT_LOG_FILE_SIZE=200mb ./benchmark >stdout.txt 2>stderr.txt &
         pid=$!
         (while kill -0 "$pid" 2>/dev/null; do
             timestamp=$(date -u +%Y-%m-%dT%H:%M:%S.%N)
             timestamp="${timestamp:0:26}"
-            ps -o rss=,%cpu= -p "$pid" 2>/dev/null | awk -v t="$timestamp" "NF { print t \",\" \$1 \",\" \$2 }"
+            client_line=$(ps -o rss=,%cpu= -p "$pid" 2>/dev/null)
+            server_line=$(ps -o rss=,%cpu= -p "$server_pid" 2>/dev/null)
+            awk -v t="$timestamp" -v c="$client_line" -v s="$server_line" "BEGIN { split(c, cv); split(s, sv); if (cv[1] != \"\") print t \",\" cv[1] + sv[1] \",\" cv[2] + sv[2] }"
             sleep 0.2
         done) >rss.csv & sampler=$!
         wait "$pid"; run_rc=$?; kill "$sampler" 2>/dev/null; wait "$sampler" 2>/dev/null
+        kill "$server_pid" 2>/dev/null || true; wait "$server_pid" 2>/dev/null || true
         echo "$run_rc" >run.exitcode; exit "$run_rc"
     '
     local rc=$?
@@ -312,16 +324,27 @@ run_go() {
         [[ -n "$PROCS" ]] && export GOMAXPROCS="$PROCS"
         if [[ -n "$GO_GOGC" ]]; then export GOGC="$GO_GOGC"; else unset GOGC; fi
         cd "$OUT_DIR"
-        GODEBUG="$GO_GODEBUG" ./benchmark_go >stdout.txt 2>gc.log &
+        CASE27_ROLE=server GODEBUG="$GO_GODEBUG" ./benchmark_go >server.stdout.txt 2>server.gc.log &
+        server_pid=$!
+        for _ in $(seq 1 300); do
+            (echo >"/dev/tcp/127.0.0.1/$CASE27_SERVER_PORT") 2>/dev/null && break
+            kill -0 "$server_pid" 2>/dev/null || { wait "$server_pid"; exit 1; }
+            sleep 0.1
+        done
+        (echo >"/dev/tcp/127.0.0.1/$CASE27_SERVER_PORT") 2>/dev/null || { kill "$server_pid" 2>/dev/null || true; exit 1; }
+        CASE27_ROLE=client CASE27_PERSISTENT_BYTES=0 GODEBUG="$GO_GODEBUG" ./benchmark_go >stdout.txt 2>gc.log &
         pid=$!
         (while kill -0 "$pid" 2>/dev/null; do
             timestamp=$(date -u +%Y-%m-%dT%H:%M:%S.%N)
             timestamp="${timestamp:0:26}"
-            ps -o rss=,%cpu= -p "$pid" 2>/dev/null | awk -v t="$timestamp" "NF { print t \",\" \$1 \",\" \$2 }"
+            client_line=$(ps -o rss=,%cpu= -p "$pid" 2>/dev/null)
+            server_line=$(ps -o rss=,%cpu= -p "$server_pid" 2>/dev/null)
+            awk -v t="$timestamp" -v c="$client_line" -v s="$server_line" "BEGIN { split(c, cv); split(s, sv); if (cv[1] != \"\") print t \",\" cv[1] + sv[1] \",\" cv[2] + sv[2] }"
             sleep 0.2
         done) >rss.csv & sampler=$!
         wait "$pid"; run_rc=$?
         kill "$sampler" 2>/dev/null; wait "$sampler" 2>/dev/null
+        kill "$server_pid" 2>/dev/null || true; wait "$server_pid" 2>/dev/null || true
         echo "$run_rc" >run.exitcode; exit "$run_rc"
     '
     local rc=$?; echo "[INFO] Go rc=$rc"; return "$rc"
@@ -370,17 +393,27 @@ run_java_side() {
         export CASE27_PERSISTENT_BYTES="$CASE25_PERSISTENT_BYTES" CASE27_PERSISTENT_WORKERS="$CASE25_PERSISTENT_WORKERS" CASE27_SERVER_PORT="$CASE25_SERVER_PORT" CASE27_PAYLOAD_DIR="$CASE25_PAYLOAD_DIR" CASE27_CLIENT_MODE="$CASE25_CLIENT_MODE" CASE27_SEND_INTERVAL_MS="$CASE25_SEND_INTERVAL_MS" CASE27_MAX_INFLIGHT="$CASE25_MAX_INFLIGHT"
         "${java_cmd[@]}" "${module_opts[@]}" "${cpu_opts[@]}" -Xmx"$JAVA_HEAP" -cp "$OUT_DIR/classes:$JACKSON_CORE_JAR" Case27HttpComplexJsonBenchmarkTest >"$OUT_DIR/test.stdout.txt" 2>"$OUT_DIR/test.stderr.txt"
         rc=$?; echo "$rc" >"$OUT_DIR/test.exitcode"; ((rc == 0)) || exit "$rc"
-        : >"$OUT_DIR/gc.log"
-        "${java_cmd[@]}" "${module_opts[@]}" "${cpu_opts[@]}" -Xmx"$JAVA_HEAP" -Xlog:gc*:file="$OUT_DIR/gc.log":time,uptime,level,tags -cp "$OUT_DIR/classes:$JACKSON_CORE_JAR" Case27HttpComplexJsonBenchmark >"$OUT_DIR/stdout.txt" 2>"$OUT_DIR/stderr.txt" &
+        CASE27_ROLE=server "${java_cmd[@]}" "${module_opts[@]}" "${cpu_opts[@]}" -Xmx"$JAVA_HEAP" -Xlog:gc*:file="$OUT_DIR/server.gc.log":time,uptime,level,tags -cp "$OUT_DIR/classes:$JACKSON_CORE_JAR" Case27HttpComplexJsonBenchmark >"$OUT_DIR/server.stdout.txt" 2>"$OUT_DIR/server.stderr.txt" &
+        server_pid=$!
+        for _ in $(seq 1 300); do
+            (echo >"/dev/tcp/127.0.0.1/$CASE27_SERVER_PORT") 2>/dev/null && break
+            kill -0 "$server_pid" 2>/dev/null || { wait "$server_pid"; exit 1; }
+            sleep 0.1
+        done
+        (echo >"/dev/tcp/127.0.0.1/$CASE27_SERVER_PORT") 2>/dev/null || { kill "$server_pid" 2>/dev/null || true; exit 1; }
+        CASE27_ROLE=client CASE27_PERSISTENT_BYTES=0 "${java_cmd[@]}" "${module_opts[@]}" "${cpu_opts[@]}" -Xmx"$JAVA_HEAP" -Xlog:gc*:file="$OUT_DIR/gc.log":time,uptime,level,tags -cp "$OUT_DIR/classes:$JACKSON_CORE_JAR" Case27HttpComplexJsonBenchmark >"$OUT_DIR/stdout.txt" 2>"$OUT_DIR/stderr.txt" &
         pid=$!
         (while kill -0 "$pid" 2>/dev/null; do
             timestamp=$(date -u +%Y-%m-%dT%H:%M:%S.%N)
             timestamp="${timestamp:0:26}"
-            ps -o rss=,%cpu= -p "$pid" 2>/dev/null | awk -v t="$timestamp" "NF { print t \",\" \$1 \",\" \$2 }"
+            client_line=$(ps -o rss=,%cpu= -p "$pid" 2>/dev/null)
+            server_line=$(ps -o rss=,%cpu= -p "$server_pid" 2>/dev/null)
+            awk -v t="$timestamp" -v c="$client_line" -v s="$server_line" "BEGIN { split(c, cv); split(s, sv); if (cv[1] != \"\") print t \",\" cv[1] + sv[1] \",\" cv[2] + sv[2] }"
             sleep 0.2
         done) >"$OUT_DIR/rss.csv" & sampler=$!
         wait "$pid"; rc=$?
         kill "$sampler" 2>/dev/null; wait "$sampler" 2>/dev/null
+        kill "$server_pid" 2>/dev/null || true; wait "$server_pid" 2>/dev/null || true
         echo "$rc" >"$OUT_DIR/run.exitcode"; exit "$rc"
         '
     local rc=$?; echo "[INFO] Java rc=$rc"; return "$rc"

@@ -32,6 +32,18 @@ function Resolve-Tool {
     return $Fallback
 }
 
+function Resolve-JavaHome {
+    $configured = [Environment]::GetEnvironmentVariable('JAVA_HOME')
+    $candidates = @($configured, 'C:\Program Files\Java\jdk-21') | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+    foreach ($candidate in $candidates) {
+        if ((Test-Path -LiteralPath (Join-Path $candidate 'bin\java.exe') -PathType Leaf) -and
+            (Test-Path -LiteralPath (Join-Path $candidate 'bin\javac.exe') -PathType Leaf)) {
+            return (Resolve-Path -LiteralPath $candidate).Path
+        }
+    }
+    throw 'A real JDK is required. Set JAVA_HOME to a directory containing bin\java.exe and bin\javac.exe.'
+}
+
 function ConvertTo-ByteSize {
     param([string]$Value)
 
@@ -81,6 +93,16 @@ function Restore-ChildEnvironment {
     }
 }
 
+function Copy-Hashtable {
+    param([hashtable]$Source)
+
+    $copy = @{}
+    foreach ($entry in $Source.GetEnumerator()) {
+        $copy[$entry.Key] = $entry.Value
+    }
+    return $copy
+}
+
 function Invoke-Captured {
     param(
         [string]$FilePath,
@@ -112,6 +134,84 @@ function Invoke-Captured {
         return [int]$process.ExitCode
     } finally {
         Restore-ChildEnvironment $saved
+    }
+}
+
+function Start-DetachedProcess {
+    param(
+        [string]$FilePath,
+        [AllowEmptyCollection()][string[]]$ArgumentList,
+        [string]$WorkingDirectory,
+        [string]$StdoutPath,
+        [string]$StderrPath,
+        [hashtable]$Environment = @{}
+    )
+
+    $nativeArguments = (($ArgumentList | ForEach-Object { ConvertTo-NativeArgument $_ }) -join ' ')
+    $saved = Set-ChildEnvironment $Environment
+    try {
+        $startParameters = @{
+            FilePath = $FilePath
+            WorkingDirectory = $WorkingDirectory
+            RedirectStandardOutput = $StdoutPath
+            RedirectStandardError = $StderrPath
+            WindowStyle = 'Hidden'
+            PassThru = $true
+        }
+        if ($nativeArguments) {
+            $startParameters.ArgumentList = $nativeArguments
+        }
+        $process = Start-Process @startParameters
+        $null = $process.Handle
+        return $process
+    } finally {
+        Restore-ChildEnvironment $saved
+    }
+}
+
+function Wait-ForServerReady {
+    param(
+        [Diagnostics.Process]$Process,
+        [string]$StdoutPath,
+        [string]$StderrPath,
+        [int]$Port,
+        [long]$TimeoutMs = 30000
+    )
+
+    $deadline = (Get-Date).AddMilliseconds($TimeoutMs)
+    while ((Get-Date) -lt $deadline) {
+        if (Test-Path -LiteralPath $StdoutPath) {
+            if ((Get-Content -Raw -LiteralPath $StdoutPath) -match '(?m)^\[READY\]') {
+                return
+            }
+        }
+        try {
+            $probe = New-Object Net.Sockets.TcpClient
+            $connect = $probe.ConnectAsync('127.0.0.1', $Port)
+            if ($connect.Wait(100) -and $probe.Connected) {
+                $probe.Close()
+                return
+            }
+            $probe.Close()
+        } catch {}
+        $Process.Refresh()
+        if ($Process.HasExited) {
+            $details = if (Test-Path -LiteralPath $StderrPath) { Get-Content -Raw -LiteralPath $StderrPath } else { '' }
+            throw "Server exited before readiness (code=$($Process.ExitCode)): $details"
+        }
+        Start-Sleep -Milliseconds 100
+    }
+    throw "Server did not emit [READY] within ${TimeoutMs}ms"
+}
+
+function Stop-ServerProcess {
+    param([Diagnostics.Process]$Process)
+
+    if ($null -eq $Process) { return }
+    $Process.Refresh()
+    if (-not $Process.HasExited) {
+        Stop-Process -Id $Process.Id -Force -ErrorAction SilentlyContinue
+        $Process.WaitForExit()
     }
 }
 
@@ -151,32 +251,19 @@ function Start-MonitoredProcess {
         [string]$StderrPath,
         [string]$RssPath,
         [hashtable]$Environment = @{},
-        [long]$MaxRuntimeMs = 0
+        [long]$MaxRuntimeMs = 0,
+        [Diagnostics.Process]$ServerProcess = $null,
+        [string]$ClientRssPath = '',
+        [string]$ServerRssPath = ''
     )
 
-    $nativeArguments = (($ArgumentList | ForEach-Object { ConvertTo-NativeArgument $_ }) -join ' ')
-    $saved = Set-ChildEnvironment $Environment
-    try {
-        $startParameters = @{
-            FilePath = $FilePath
-            WorkingDirectory = $WorkingDirectory
-            RedirectStandardOutput = $StdoutPath
-            RedirectStandardError = $StderrPath
-            WindowStyle = "Hidden"
-            PassThru = $true
-        }
-        if ($nativeArguments) {
-            $startParameters.ArgumentList = $nativeArguments
-        }
-        $process = Start-Process @startParameters
-        # Opening the handle before exit keeps ExitCode available in Windows PowerShell 5.1.
-        $null = $process.Handle
-    } finally {
-        Restore-ChildEnvironment $saved
-    }
+    $process = Start-DetachedProcess $FilePath $ArgumentList $WorkingDirectory $StdoutPath $StderrPath $Environment
 
     $samples = New-Object Collections.Generic.List[string]
+    $clientSamples = New-Object Collections.Generic.List[string]
+    $serverSamples = New-Object Collections.Generic.List[string]
     $lastCpu = [TimeSpan]::Zero
+    $lastServerCpu = if ($ServerProcess) { $ServerProcess.TotalProcessorTime } else { [TimeSpan]::Zero }
     $lastTime = Get-Date
     $startedAt = $lastTime
     $timedOut = $false
@@ -194,8 +281,21 @@ function Start-MonitoredProcess {
             $cpuSeconds = [Math]::Max(($current.TotalProcessorTime - $lastCpu).TotalSeconds, 0)
             $cpuPercent = 100.0 * $cpuSeconds / $elapsedSeconds / $processorCount
             $timestamp = $now.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.ffffff")
-            $rssKb = [Math]::Round($current.WorkingSet64 / 1KB)
-            $samples.Add(('{0},{1},{2:F2}' -f $timestamp, $rssKb, $cpuPercent))
+            $clientRssKb = [Math]::Round($current.WorkingSet64 / 1KB)
+            $serverRssKb = 0
+            $serverCpuPercent = 0.0
+            if ($ServerProcess) {
+                $ServerProcess.Refresh()
+                if (-not $ServerProcess.HasExited) {
+                    $serverCpuSeconds = [Math]::Max(($ServerProcess.TotalProcessorTime - $lastServerCpu).TotalSeconds, 0)
+                    $serverCpuPercent = 100.0 * $serverCpuSeconds / $elapsedSeconds / $processorCount
+                    $serverRssKb = [Math]::Round($ServerProcess.WorkingSet64 / 1KB)
+                    $lastServerCpu = $ServerProcess.TotalProcessorTime
+                    $serverSamples.Add(('{0},{1},{2:F2}' -f $timestamp, $serverRssKb, $serverCpuPercent))
+                }
+            }
+            $clientSamples.Add(('{0},{1},{2:F2}' -f $timestamp, $clientRssKb, $cpuPercent))
+            $samples.Add(('{0},{1},{2:F2}' -f $timestamp, ($clientRssKb + $serverRssKb), ($cpuPercent + $serverCpuPercent)))
             $lastCpu = $current.TotalProcessorTime
             $lastTime = $now
         } catch {
@@ -207,6 +307,8 @@ function Start-MonitoredProcess {
     $process.WaitForExit()
     $process.Refresh()
     $samples | Set-Content -LiteralPath $RssPath -Encoding ASCII
+    if ($ClientRssPath) { $clientSamples | Set-Content -LiteralPath $ClientRssPath -Encoding ASCII }
+    if ($ServerRssPath) { $serverSamples | Set-Content -LiteralPath $ServerRssPath -Encoding ASCII }
     if ($timedOut) {
         Add-Content -LiteralPath $StderrPath -Value "[ERROR] process exceeded timeout ${MaxRuntimeMs}ms" -Encoding ASCII
         return 124
@@ -355,7 +457,6 @@ function Invoke-CangjieSide {
     $childEnvironment.CASE25_CLIENT_MODE = $clientMode
     $childEnvironment.CASE25_SEND_INTERVAL_MS = $sendIntervalMs
     $childEnvironment.CASE25_MAX_INFLIGHT = $maxInflight
-    $childEnvironment.MRT_REPORT = Join-Path $OutputDirectory "gc.log"
     $childEnvironment.MRT_LOG_FILE_SIZE = "200mb"
     if ($procs) {
         $childEnvironment.cjProcessorNum = $procs
@@ -365,9 +466,24 @@ function Invoke-CangjieSide {
         $childEnvironment.cjScavengeGrowth = $msgcScavengeGrowth
         $childEnvironment.cjMSMinGCThreshold = $msgcMinGcThreshold
     }
-    $runRc = Start-MonitoredProcess $benchmark @() $OutputDirectory `
-        (Join-Path $OutputDirectory "stdout.txt") (Join-Path $OutputDirectory "stderr.txt") `
-        (Join-Path $OutputDirectory "rss.csv") $childEnvironment $processTimeoutMs
+    $serverEnvironment = Copy-Hashtable $childEnvironment
+    $serverEnvironment.CASE25_ROLE = "server"
+    $serverEnvironment.MRT_REPORT = Join-Path $OutputDirectory "server.gc.log"
+    $serverProcess = Start-DetachedProcess $benchmark @() $OutputDirectory `
+        (Join-Path $OutputDirectory "server.stdout.txt") (Join-Path $OutputDirectory "server.stderr.txt") $serverEnvironment
+    try {
+        Wait-ForServerReady $serverProcess (Join-Path $OutputDirectory "server.stdout.txt") (Join-Path $OutputDirectory "server.stderr.txt") $Port
+        $clientEnvironment = Copy-Hashtable $childEnvironment
+        $clientEnvironment.CASE25_ROLE = "client"
+        $clientEnvironment.CASE25_PERSISTENT_BYTES = "0"
+        $clientEnvironment.MRT_REPORT = Join-Path $OutputDirectory "gc.log"
+        $runRc = Start-MonitoredProcess $benchmark @() $OutputDirectory `
+            (Join-Path $OutputDirectory "stdout.txt") (Join-Path $OutputDirectory "stderr.txt") `
+            (Join-Path $OutputDirectory "rss.csv") $clientEnvironment $processTimeoutMs $serverProcess `
+            (Join-Path $OutputDirectory "client.rss.csv") (Join-Path $OutputDirectory "server.rss.csv")
+    } finally {
+        Stop-ServerProcess $serverProcess
+    }
     Write-ExitCode (Join-Path $OutputDirectory "run.exitcode") $runRc
     Write-Host "[INFO] $Label rc=$runRc"
     return $runRc
@@ -413,9 +529,22 @@ function Invoke-GoSide {
     $runEnvironment.GOMEMLIMIT = $goMemLimit
     if ($goGogc) { $runEnvironment.GOGC = $goGogc }
     if ($procs) { $runEnvironment.GOMAXPROCS = $procs }
-    $runRc = Start-MonitoredProcess $benchmark @() $OutputDirectory `
-        (Join-Path $OutputDirectory "stdout.txt") (Join-Path $OutputDirectory "gc.log") `
-        (Join-Path $OutputDirectory "rss.csv") $runEnvironment $processTimeoutMs
+    $serverEnvironment = Copy-Hashtable $runEnvironment
+    $serverEnvironment.CASE27_ROLE = "server"
+    $serverProcess = Start-DetachedProcess $benchmark @() $OutputDirectory `
+        (Join-Path $OutputDirectory "server.stdout.txt") (Join-Path $OutputDirectory "server.gc.log") $serverEnvironment
+    try {
+        Wait-ForServerReady $serverProcess (Join-Path $OutputDirectory "server.stdout.txt") (Join-Path $OutputDirectory "server.gc.log") $Port
+        $clientEnvironment = Copy-Hashtable $runEnvironment
+        $clientEnvironment.CASE27_ROLE = "client"
+        $clientEnvironment.CASE27_PERSISTENT_BYTES = "0"
+        $runRc = Start-MonitoredProcess $benchmark @() $OutputDirectory `
+            (Join-Path $OutputDirectory "stdout.txt") (Join-Path $OutputDirectory "gc.log") `
+            (Join-Path $OutputDirectory "rss.csv") $clientEnvironment $processTimeoutMs $serverProcess `
+            (Join-Path $OutputDirectory "client.rss.csv") (Join-Path $OutputDirectory "server.rss.csv")
+    } finally {
+        Stop-ServerProcess $serverProcess
+    }
     Write-ExitCode (Join-Path $OutputDirectory "run.exitcode") $runRc
     Write-Host "[INFO] Go rc=$runRc"
     return $runRc
@@ -462,12 +591,28 @@ function Invoke-JavaSide {
         return $testRc
     }
 
-    $runArgs = @("--add-modules", "jdk.httpserver")
-    if ($procs) { $runArgs += "-XX:ActiveProcessorCount=$procs" }
-    $runArgs += @("-Xmx$javaHeap", "-Xlog:gc*:file=gc.log:time,uptime,level,tags", "-cp", $classPath, "Case27HttpComplexJsonBenchmark")
-    $runRc = Start-MonitoredProcess $javaBin $runArgs $OutputDirectory `
-        (Join-Path $OutputDirectory "stdout.txt") (Join-Path $OutputDirectory "stderr.txt") `
-        (Join-Path $OutputDirectory "rss.csv") $runEnvironment $processTimeoutMs
+    $serverArgs = @("--add-modules", "jdk.httpserver")
+    if ($procs) { $serverArgs += "-XX:ActiveProcessorCount=$procs" }
+    $serverArgs += @("-Xmx$javaHeap", "-Xlog:gc*:file=server.gc.log:time,uptime,level,tags", "-cp", $classPath, "Case27HttpComplexJsonBenchmark")
+    $serverEnvironment = Copy-Hashtable $runEnvironment
+    $serverEnvironment.CASE27_ROLE = "server"
+    $serverProcess = Start-DetachedProcess $javaBin $serverArgs $OutputDirectory `
+        (Join-Path $OutputDirectory "server.stdout.txt") (Join-Path $OutputDirectory "server.stderr.txt") $serverEnvironment
+    try {
+        Wait-ForServerReady $serverProcess (Join-Path $OutputDirectory "server.stdout.txt") (Join-Path $OutputDirectory "server.stderr.txt") $Port
+        $runArgs = @("--add-modules", "jdk.httpserver")
+        if ($procs) { $runArgs += "-XX:ActiveProcessorCount=$procs" }
+        $runArgs += @("-Xmx$javaHeap", "-Xlog:gc*:file=gc.log:time,uptime,level,tags", "-cp", $classPath, "Case27HttpComplexJsonBenchmark")
+        $clientEnvironment = Copy-Hashtable $runEnvironment
+        $clientEnvironment.CASE27_ROLE = "client"
+        $clientEnvironment.CASE27_PERSISTENT_BYTES = "0"
+        $runRc = Start-MonitoredProcess $javaBin $runArgs $OutputDirectory `
+            (Join-Path $OutputDirectory "stdout.txt") (Join-Path $OutputDirectory "stderr.txt") `
+            (Join-Path $OutputDirectory "rss.csv") $clientEnvironment $processTimeoutMs $serverProcess `
+            (Join-Path $OutputDirectory "client.rss.csv") (Join-Path $OutputDirectory "server.rss.csv")
+    } finally {
+        Stop-ServerProcess $serverProcess
+    }
     Write-ExitCode (Join-Path $OutputDirectory "run.exitcode") $runRc
     Write-Host "[INFO] Java rc=$runRc"
     return $runRc
@@ -502,8 +647,9 @@ $goGodebug = Get-Setting "GO_GODEBUG" "gctrace=1"
 $goGogc = Get-Setting "GO_GOGC" ""
 $goMemLimit = Get-Setting "GO_GOMEMLIMIT" "16GiB"
 $goBin = Resolve-Tool "GO_BIN" "C:\Program Files\Go\bin\go.exe"
-$javaBin = Resolve-Tool "JAVA_BIN" "java.exe"
-$javacBin = Resolve-Tool "JAVAC_BIN" "javac.exe"
+$javaHome = Resolve-JavaHome
+$javaBin = Join-Path $javaHome "bin\java.exe"
+$javacBin = Join-Path $javaHome "bin\javac.exe"
 $pythonBin = Resolve-Tool "PYTHON_BIN" "python.exe"
 $javaHeap = ConvertTo-JavaHeap $heapSize
 $jacksonCoreJar = Join-Path $caseDir "java_benchmark\lib\jackson-core-2.17.2.jar"

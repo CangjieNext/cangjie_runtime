@@ -105,8 +105,9 @@ GO_GOGC="${GO_GOGC:-}"
 GO_GOMEMLIMIT="${GO_GOMEMLIMIT:-16GiB}"
 JAVA_ENABLE="${JAVA_ENABLE:-1}"
 JAVA_HOME_DEFAULT="${JAVA_HOME_DEFAULT:-/opt/homebrew/opt/openjdk@25}"
-JAVA_BIN="${JAVA_BIN:-$JAVA_HOME_DEFAULT/bin/java}"
-JAVAC_BIN="${JAVAC_BIN:-$JAVA_HOME_DEFAULT/bin/javac}"
+JAVA_HOME_EFFECTIVE="${JAVA_HOME:-$JAVA_HOME_DEFAULT}"
+JAVA_BIN="${JAVA_BIN:-$JAVA_HOME_EFFECTIVE/bin/java}"
+JAVAC_BIN="${JAVAC_BIN:-$JAVA_HOME_EFFECTIVE/bin/javac}"
 JACKSON_CORE_JAR="$CASE_DIR/java_benchmark/lib/jackson-core-2.17.2.jar"
 # HotSpot accepts g/m/k suffixes, but not the cjHeapSize-style gb/mb suffixes.
 # Keep an explicitly supplied JAVA_OPTS unchanged; otherwise cap Java with HEAP_SIZE.
@@ -399,34 +400,47 @@ run_side() {
             # cjHeapSize is the MSGC soft memory limit.  Leave the virtual heap
             # reservation unset so the runtime uses the host-memory default.
             echo "[$LABEL] cjHeapSize=$HEAP_SIZE (soft limit; virtual heap=runtime default)"
-            MRT_REPORT="$OUT_DIR/gc.log" \
-            MRT_LOG_FILE_SIZE="200mb" \
-            cjHeapSize="$HEAP_SIZE" \
-                "$OUT_DIR/benchmark" > "$OUT_DIR/stdout.txt" 2>&1 &
+            CASE25_ROLE=server MRT_REPORT="$OUT_DIR/server.gc.log" MRT_LOG_FILE_SIZE="200mb" cjHeapSize="$HEAP_SIZE" "$OUT_DIR/benchmark" > "$OUT_DIR/server.stdout.txt" 2> "$OUT_DIR/server.stderr.txt" &
+            SERVER_PID=$!
+            for _ in $(seq 1 300); do
+                (echo >"/dev/tcp/127.0.0.1/$CASE25_SERVER_PORT") 2>/dev/null && break
+                kill -0 "$SERVER_PID" 2>/dev/null || { wait "$SERVER_PID"; exit 1; }
+                sleep 0.1
+            done
+            (echo >"/dev/tcp/127.0.0.1/$CASE25_SERVER_PORT") 2>/dev/null || { kill "$SERVER_PID" 2>/dev/null || true; exit 1; }
+            CASE25_ROLE=client CASE25_PERSISTENT_BYTES=0 MRT_REPORT="$OUT_DIR/gc.log" MRT_LOG_FILE_SIZE="200mb" cjHeapSize="$HEAP_SIZE" "$OUT_DIR/benchmark" > "$OUT_DIR/stdout.txt" 2> "$OUT_DIR/stderr.txt" &
             BENCH_PID=$!
 
             perl -MTime::HiRes=sleep,time -e "
-                my \$pid = \$ARGV[0];
-                while (kill 0, \$pid) {
+                my (\$client_pid, \$server_pid) = \@ARGV;
+                sub usage {
+                    my (\$pid) = \@_;
                     my \$line = \`ps -o rss=,%cpu= -p \$pid 2>/dev/null\`;
                     chomp \$line; \$line =~ s/^\s+//;
-                    if (length \$line) {
-                        my (\$rss, \$cpu) = split /\s+/, \$line, 2;
+                    return (0, 0) unless length \$line;
+                    return split /\s+/, \$line, 2;
+                }
+                while (kill 0, \$client_pid) {
+                    my (\$client_rss, \$client_cpu) = usage(\$client_pid);
+                    if (\$client_rss) {
+                        my (\$server_rss, \$server_cpu) = usage(\$server_pid);
                         my \$t = time();
                         my @lt = localtime(int(\$t));
                         my \$frac = sprintf(\"%.3f\", \$t - int(\$t));
                         \$frac =~ s/^0//;
                         printf \"%04d-%02d-%02dT%02d:%02d:%02d%s,%s,%s\n\",
-                            \$lt[5]+1900,\$lt[4]+1,\$lt[3],\$lt[2],\$lt[1],\$lt[0],\$frac,\$rss,\$cpu;
+                            \$lt[5]+1900,\$lt[4]+1,\$lt[3],\$lt[2],\$lt[1],\$lt[0],\$frac,\$client_rss + \$server_rss,\$client_cpu + \$server_cpu;
                     }
                     sleep(0.2);
                 }
-            " "$BENCH_PID" > "$OUT_DIR/rss.csv" 2>/dev/null &
+            " "$BENCH_PID" "$SERVER_PID" > "$OUT_DIR/rss.csv" 2>/dev/null &
             SAMPLER_PID=$!
             wait "$BENCH_PID"
             ec=$?
             kill "$SAMPLER_PID" 2>/dev/null || true
             wait "$SAMPLER_PID" 2>/dev/null || true
+            kill "$SERVER_PID" 2>/dev/null || true
+            wait "$SERVER_PID" 2>/dev/null || true
             echo "[$LABEL] bench exit=$ec"
             exit $ec
         '
@@ -526,32 +540,47 @@ run_go_side() {
                 unset GOGC 2>/dev/null || true
             fi
 
-            GODEBUG="$GO_GODEBUG" \
-                "$OUT_DIR/benchmark_go" > "$OUT_DIR/stdout.txt" 2> "$OUT_DIR/gc.log" &
+            CASE27_ROLE=server GODEBUG="$GO_GODEBUG" "$OUT_DIR/benchmark_go" > "$OUT_DIR/server.stdout.txt" 2> "$OUT_DIR/server.gc.log" &
+            SERVER_PID=$!
+            for _ in $(seq 1 300); do
+                (echo >"/dev/tcp/127.0.0.1/$CASE27_SERVER_PORT") 2>/dev/null && break
+                kill -0 "$SERVER_PID" 2>/dev/null || { wait "$SERVER_PID"; exit 1; }
+                sleep 0.1
+            done
+            (echo >"/dev/tcp/127.0.0.1/$CASE27_SERVER_PORT") 2>/dev/null || { kill "$SERVER_PID" 2>/dev/null || true; exit 1; }
+            CASE27_ROLE=client CASE27_PERSISTENT_BYTES=0 GODEBUG="$GO_GODEBUG" "$OUT_DIR/benchmark_go" > "$OUT_DIR/stdout.txt" 2> "$OUT_DIR/gc.log" &
             BENCH_PID=$!
 
             perl -MTime::HiRes=sleep,time -e "
-                my \$pid = \$ARGV[0];
-                while (kill 0, \$pid) {
+                my (\$client_pid, \$server_pid) = \@ARGV;
+                sub usage {
+                    my (\$pid) = \@_;
                     my \$line = \`ps -o rss=,%cpu= -p \$pid 2>/dev/null\`;
                     chomp \$line; \$line =~ s/^\\s+//;
-                    if (length \$line) {
-                        my (\$rss, \$cpu) = split /\\s+/, \$line, 2;
+                    return (0, 0) unless length \$line;
+                    return split /\\s+/, \$line, 2;
+                }
+                while (kill 0, \$client_pid) {
+                    my (\$client_rss, \$client_cpu) = usage(\$client_pid);
+                    if (\$client_rss) {
+                        my (\$server_rss, \$server_cpu) = usage(\$server_pid);
                         my \$t = time();
                         my @lt = localtime(int(\$t));
                         my \$frac = sprintf(\"%.3f\", \$t - int(\$t));
                         \$frac =~ s/^0//;
                         printf \"%04d-%02d-%02dT%02d:%02d:%02d%s,%s,%s\\n\",
-                            \$lt[5]+1900,\$lt[4]+1,\$lt[3],\$lt[2],\$lt[1],\$lt[0],\$frac,\$rss,\$cpu;
+                            \$lt[5]+1900,\$lt[4]+1,\$lt[3],\$lt[2],\$lt[1],\$lt[0],\$frac,\$client_rss + \$server_rss,\$client_cpu + \$server_cpu;
                     }
                     sleep(0.2);
                 }
-            " "$BENCH_PID" > "$OUT_DIR/rss.csv" 2>/dev/null &
+            " "$BENCH_PID" "$SERVER_PID" > "$OUT_DIR/rss.csv" 2>/dev/null &
             SAMPLER_PID=$!
             wait "$BENCH_PID"
             ec=$?
             kill "$SAMPLER_PID" 2>/dev/null || true
             wait "$SAMPLER_PID" 2>/dev/null || true
+            kill "$SERVER_PID" 2>/dev/null || true
+            wait "$SERVER_PID" 2>/dev/null || true
             echo "[$LABEL] bench exit=$ec"
             exit $ec
         '
@@ -710,34 +739,51 @@ run_java_side() {
                 exit "$test_rc"
             fi
 
-            : > "$OUT_DIR/gc.log"
-            "$JAVA_BIN" "${module_opts[@]}" "${java_opts[@]}" "${gc_opts[@]}" \
+            CASE27_ROLE=server "$JAVA_BIN" "${module_opts[@]}" "${java_opts[@]}" "${gc_opts[@]}" \
+                -cp "$OUT_DIR/classes:$JACKSON_CORE_JAR" Case27HttpComplexJsonBenchmark \
+                > "$OUT_DIR/server.stdout.txt" 2> "$OUT_DIR/server.stderr.txt" &
+            SERVER_PID=$!
+            for _ in $(seq 1 300); do
+                (echo >"/dev/tcp/127.0.0.1/$CASE27_SERVER_PORT") 2>/dev/null && break
+                kill -0 "$SERVER_PID" 2>/dev/null || { wait "$SERVER_PID"; exit 1; }
+                sleep 0.1
+            done
+            (echo >"/dev/tcp/127.0.0.1/$CASE27_SERVER_PORT") 2>/dev/null || { kill "$SERVER_PID" 2>/dev/null || true; exit 1; }
+            CASE27_ROLE=client CASE27_PERSISTENT_BYTES=0 "$JAVA_BIN" "${module_opts[@]}" "${java_opts[@]}" "${gc_opts[@]}" \
                 -cp "$OUT_DIR/classes:$JACKSON_CORE_JAR" Case27HttpComplexJsonBenchmark \
                 > "$OUT_DIR/stdout.txt" 2> "$OUT_DIR/stderr.txt" &
             BENCH_PID=$!
 
             perl -MTime::HiRes=sleep,time -e "
-                my \$pid = \$ARGV[0];
-                while (kill 0, \$pid) {
+                my (\$client_pid, \$server_pid) = \@ARGV;
+                sub usage {
+                    my (\$pid) = \@_;
                     my \$line = \`ps -o rss=,%cpu= -p \$pid 2>/dev/null\`;
                     chomp \$line; \$line =~ s/^\\s+//;
-                    if (length \$line) {
-                        my (\$rss, \$cpu) = split /\\s+/, \$line, 2;
+                    return (0, 0) unless length \$line;
+                    return split /\\s+/, \$line, 2;
+                }
+                while (kill 0, \$client_pid) {
+                    my (\$client_rss, \$client_cpu) = usage(\$client_pid);
+                    if (\$client_rss) {
+                        my (\$server_rss, \$server_cpu) = usage(\$server_pid);
                         my \$t = time();
                         my @lt = localtime(int(\$t));
                         my \$frac = sprintf(\"%.3f\", \$t - int(\$t));
                         \$frac =~ s/^0//;
                         printf \"%04d-%02d-%02dT%02d:%02d:%02d%s,%s,%s\\n\",
-                            \$lt[5]+1900,\$lt[4]+1,\$lt[3],\$lt[2],\$lt[1],\$lt[0],\$frac,\$rss,\$cpu;
+                            \$lt[5]+1900,\$lt[4]+1,\$lt[3],\$lt[2],\$lt[1],\$lt[0],\$frac,\$client_rss + \$server_rss,\$client_cpu + \$server_cpu;
                     }
                     sleep(0.2);
                 }
-            " "$BENCH_PID" > "$OUT_DIR/rss.csv" 2>/dev/null &
+            " "$BENCH_PID" "$SERVER_PID" > "$OUT_DIR/rss.csv" 2>/dev/null &
             SAMPLER_PID=$!
             wait "$BENCH_PID"
             run_rc=$?
             kill "$SAMPLER_PID" 2>/dev/null || true
             wait "$SAMPLER_PID" 2>/dev/null || true
+            kill "$SERVER_PID" 2>/dev/null || true
+            wait "$SERVER_PID" 2>/dev/null || true
             if ((run_rc == 0)) && ! grep -q "^\[RESULT\] total=" "$OUT_DIR/stdout.txt"; then
                 echo "[$LABEL] Java benchmark exited without a result line" >&2
                 run_rc=1

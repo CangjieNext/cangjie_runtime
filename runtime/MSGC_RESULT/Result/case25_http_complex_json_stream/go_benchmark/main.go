@@ -141,8 +141,8 @@ func loadConfigFromEnv() (benchConfig, error) {
 	if cfg.ClientTimeout <= 0 {
 		return benchConfig{}, errors.New("CASE27_CLIENT_TIMEOUT_MS must be > 0")
 	}
-	if cfg.Role != "both" && cfg.Role != "server" {
-		return benchConfig{}, fmt.Errorf("unsupported CASE27_ROLE=%s; expected both or server", cfg.Role)
+	if cfg.Role != "both" && cfg.Role != "server" && cfg.Role != "client" {
+		return benchConfig{}, fmt.Errorf("unsupported CASE27_ROLE=%s; expected both, server, or client", cfg.Role)
 	}
 	if cfg.ClientMode != "sync" && cfg.ClientMode != "async" {
 		return benchConfig{}, fmt.Errorf("unsupported CASE27_CLIENT_MODE=%s; expected sync or async", cfg.ClientMode)
@@ -837,24 +837,12 @@ func printSummary(cfg benchConfig, stats runStats, total time.Duration) {
 	fmt.Println("[DONE]")
 }
 
-func runBothMode(parent context.Context, cfg benchConfig) error {
+func runClientMode(parent context.Context, cfg benchConfig) error {
 	payload, payloadPath, err := loadPayload(cfg)
 	if err != nil {
 		return err
 	}
 	fmt.Printf("[INFO] loaded payload bytes=%d (%dKB) from %s\n", len(payload), len(payload)/1024, payloadPath)
-
-	server, listener, err := startHTTPServer(cfg)
-	if err != nil {
-		return fmt.Errorf("start http server: %w", err)
-	}
-	defer listener.Close()
-	defer server.Shutdown(context.Background())
-
-	fmt.Printf("[INFO] HTTP Server ready at %s\n", serverURL(cfg))
-	if !sleepContext(parent, time.Second) {
-		return parent.Err()
-	}
 
 	warmup(serverURL(cfg), payload, cfg.ClientTimeout)
 
@@ -896,10 +884,22 @@ func runBothMode(parent context.Context, cfg benchConfig) error {
 	}
 	printSummary(cfg, stats, time.Since(start))
 
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer shutdownCancel()
-	_ = server.Shutdown(shutdownCtx)
 	return nil
+}
+
+func runBothMode(parent context.Context, cfg benchConfig) error {
+	server, listener, err := startHTTPServer(cfg)
+	if err != nil {
+		return fmt.Errorf("start http server: %w", err)
+	}
+	defer listener.Close()
+	defer server.Shutdown(context.Background())
+
+	fmt.Printf("[INFO] HTTP Server ready at %s\n", serverURL(cfg))
+	if !sleepContext(parent, time.Second) {
+		return parent.Err()
+	}
+	return runClientMode(parent, cfg)
 }
 
 func runServerOnly(parent context.Context, cfg benchConfig) error {
@@ -908,7 +908,7 @@ func runServerOnly(parent context.Context, cfg benchConfig) error {
 		return fmt.Errorf("start http server: %w", err)
 	}
 	defer listener.Close()
-	fmt.Printf("[INFO] HTTP Server ready at %s\n", serverURL(cfg))
+	fmt.Printf("[READY] HTTP Server ready at %s\n", serverURL(cfg))
 	fmt.Println("[INFO] Running in server-only mode; waiting for external clients...")
 	<-parent.Done()
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -955,6 +955,13 @@ func main() {
 
 	if cfg.Role == "server" {
 		if err := runServerOnly(rootCtx, cfg); err != nil && !errors.Is(err, http.ErrServerClosed) && !errors.Is(err, context.Canceled) {
+			fmt.Printf("[ERROR] %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
+	if cfg.Role == "client" {
+		if err := runClientMode(rootCtx, cfg); err != nil && !errors.Is(err, context.Canceled) {
 			fmt.Printf("[ERROR] %v\n", err)
 			os.Exit(1)
 		}

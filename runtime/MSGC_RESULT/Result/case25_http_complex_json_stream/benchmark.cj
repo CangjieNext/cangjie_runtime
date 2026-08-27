@@ -85,6 +85,24 @@ func workerLoop(url: String, payload: Array<Byte>, timeoutMs: Int64,
     client.close()
 }
 
+func startServer(port: Int64): Server {
+    let builder = ServerBuilder()
+        .addr(SERVER_ADDR)
+        .port(UInt16(port))
+        .afterBind({ => println("[READY] HTTP Server ready at http://${SERVER_ADDR}:${port}/process") })
+    let server = builder.build()
+    let serverSequence = AtomicInt64(0)
+    server.distributor.register("/process", {
+        ctx =>
+        let output = ByteBuffer(initialResponseCapacity(ctx.request.bodySize))
+        transformRequest(ctx.request.body, output, serverSequence.fetchAdd(1))
+        ctx.responseBuilder
+            .header("content-type", "application/json")
+            .body(output)
+    })
+    server
+}
+
 main() {
     let payloadName = getEnvStr("CASE25_PAYLOAD", "10K")
     let concurrency = getEnvInt("CASE25_CONCURRENCY", 8)
@@ -95,10 +113,15 @@ main() {
     )
     let port = getEnvInt("CASE25_SERVER_PORT", DEFAULT_PORT)
     let timeoutMs = getEnvInt("CASE25_CLIENT_TIMEOUT_MS", 5_000)
+    let role = getEnvStr("CASE25_ROLE", "both")
     let persistentBytes = getEnvInt("CASE25_PERSISTENT_BYTES", 0)
     let persistentWorkers = getEnvInt("CASE25_PERSISTENT_WORKERS", 8)
     if (concurrency <= 0 || durationMs <= 0 || timeoutMs <= 0) {
         println("[ERROR] CASE25_CONCURRENCY, CASE25_DURATION_MS and CASE25_CLIENT_TIMEOUT_MS must be > 0")
+        return
+    }
+    if (role != "both" && role != "server" && role != "client") {
+        println("[ERROR] unsupported CASE25_ROLE=${role}; expected both, server, or client")
         return
     }
     try {
@@ -111,12 +134,6 @@ main() {
         return
     }
 
-    let payloadFile = "${payloadDir}/${payloadName}.json"
-    if (!exists(payloadFile)) {
-        println("[ERROR] payload file not found: ${payloadFile}")
-        return
-    }
-    let payload = readFileBytes(payloadFile)
     try {
         initializePersistentBaseline(persistentBytes, persistentWorkers)
     } catch (e: Error) {
@@ -126,18 +143,24 @@ main() {
         println("[ERROR] ${e.message}")
         return
     }
-    let server = ServerBuilder().addr(SERVER_ADDR).port(UInt16(port)).build()
-    let serverSequence = AtomicInt64(0)
-    server.distributor.register("/process", {
-        ctx =>
-        let output = ByteBuffer(initialResponseCapacity(ctx.request.bodySize))
-        transformRequest(ctx.request.body, output, serverSequence.fetchAdd(1))
-        ctx.responseBuilder
-            .header("content-type", "application/json")
-            .body(output)
-    })
-    let _ = spawn { server.serve() }
-    sleep(Duration.second)
+    if (role == "server") {
+        println("[INFO] Case25: HTTP complex JSON stream benchmark (server)")
+        let server = startServer(port)
+        server.serve()
+        return
+    }
+
+    let payloadFile = "${payloadDir}/${payloadName}.json"
+    if (!exists(payloadFile)) {
+        println("[ERROR] payload file not found: ${payloadFile}")
+        return
+    }
+    let payload = readFileBytes(payloadFile)
+    if (role == "both") {
+        let server = startServer(port)
+        let _ = spawn { server.serve() }
+        sleep(Duration.second)
+    }
 
     let url = "http://${SERVER_ADDR}:${port}/process"
     println("[INFO] Case25: HTTP complex JSON stream benchmark")
