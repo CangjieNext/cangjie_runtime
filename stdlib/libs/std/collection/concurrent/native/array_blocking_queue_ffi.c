@@ -17,34 +17,34 @@
 #pragma GCC diagnostic ignored "-Watomic-alignment"
 #endif
 
-extern uint8_t* CjStdSyncStateInit(int64_t capacity)
+extern uint8_t* CjStdSyncStateInit(int64_t capacity, int64_t stride)
 {
-    if (capacity <= 0) {
+    if (capacity <= 0 || stride <= 0) {
         return NULL;
     }
-    uint8_t* ptr = (uint8_t*)malloc((size_t)capacity);
+    uint8_t* ptr = (uint8_t*)malloc((size_t)capacity * (size_t)stride);
     if (ptr == NULL) {
         return NULL;
     }
-    (void)memset_s(ptr, (size_t)capacity, 0, (size_t)capacity);
+    (void)memset_s(ptr, (size_t)capacity * (size_t)stride, 0, (size_t)capacity * (size_t)stride);
     return ptr;
 }
 
-extern uint8_t CjStdSyncStateLoad(uint8_t* ptr, int64_t index)
+extern uint8_t CjStdSyncStateLoad(uint8_t* ptr, int64_t index, int64_t stride)
 {
-    _Atomic uint8_t* atmPtr = (_Atomic uint8_t*)ptr + index;
+    _Atomic uint8_t* atmPtr = (_Atomic uint8_t*)(ptr + (size_t)index * (size_t)stride);
     return atomic_load_explicit(atmPtr, memory_order_acquire);
 }
 
-extern void CjStdSyncStateStore(uint8_t* ptr, int64_t index, uint8_t state)
+extern void CjStdSyncStateStore(uint8_t* ptr, int64_t index, int64_t stride, uint8_t state)
 {
-    _Atomic uint8_t* atmPtr = (_Atomic uint8_t*)ptr + index;
+    _Atomic uint8_t* atmPtr = (_Atomic uint8_t*)(ptr + (size_t)index * (size_t)stride);
     atomic_store_explicit(atmPtr, state, memory_order_release);
 }
 
-extern bool CjStdSyncStateCas(uint8_t* ptr, int64_t index, uint8_t expected, uint8_t desired)
+extern bool CjStdSyncStateCas(uint8_t* ptr, int64_t index, int64_t stride, uint8_t expected, uint8_t desired)
 {
-    _Atomic uint8_t* atmPtr = (_Atomic uint8_t*)ptr + index;
+    _Atomic uint8_t* atmPtr = (_Atomic uint8_t*)(ptr + (size_t)index * (size_t)stride);
     return atomic_compare_exchange_strong_explicit(
         atmPtr, &expected, desired, memory_order_acq_rel, memory_order_acquire);
 }
