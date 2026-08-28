@@ -1189,6 +1189,13 @@ int CJThreadSetMutator(void *mutator);
 bool ScheduleIsRunning(ScheduleHandle scheduleHandle);
 
 /**
+ * @brief Get the scheduler type.
+ * @param scheduleHandle schedule handle
+ * @retval scheduler type value, or -1 when scheduleHandle is null
+ */
+int ScheduleGetType(ScheduleHandle scheduleHandle);
+
+/**
  * @brief Use the tls dynamic scheme to obtain the value of the tls variable.
  * @par Register the hook for obtaining the TLS offset. This interface must be invoked
  * before ScheduleNew.

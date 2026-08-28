@@ -1879,6 +1879,15 @@ bool ScheduleIsRunning(ScheduleHandle scheduleHandle)
     return false;
 }
 
+int ScheduleGetType(ScheduleHandle scheduleHandle)
+{
+    struct Schedule *schedule = (struct Schedule *)scheduleHandle;
+    if (schedule == nullptr) {
+        return -1;
+    }
+    return static_cast<int>(schedule->scheduleType);
+}
+
 void ScheduleSetToCurrentThread(ScheduleHandle schedule)
 {
     ScheduleSet((struct Schedule *)schedule);

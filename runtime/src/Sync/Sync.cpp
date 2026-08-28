@@ -9,6 +9,7 @@
 #include <atomic>
 
 #include "Base/TimeUtils.h"
+#include "Mutator/ThreadLocal.h"
 #include "schedule.h"
 #include "Concurrency/ConcurrencyModel.h"
 #if defined(CANGJIE_TSAN_SUPPORT)
@@ -417,9 +418,37 @@ bool MCC_MutexTryLock(void* ptr)
  */
 bool MCC_MutexCheckStatus(const void* ptr)
 {
+    if (ptr == nullptr) {
+        LOG(RTLOG_ERROR, "MutexCheckStatus failed: mutex is null");
+        return false;
+    }
     CJMutex* mutex = CastToT<CJMutex*>(ptr);
     int64_t curThreadId = MRT_GetCurrentThreadID();
-    return mutex->ownerThreadId.load(std::memory_order_acquire) == curThreadId;
+    int64_t ownerThreadId = mutex->ownerThreadId.load(std::memory_order_acquire);
+    if (ownerThreadId != curThreadId) {
+        ThreadLocalData* threadLocalData = ThreadLocal::GetThreadLocalData();
+        void* tlsCJThread = threadLocalData == nullptr ? nullptr : threadLocalData->cjthread;
+        int64_t state = mutex->state.load(std::memory_order_acquire);
+        LOG(RTLOG_ERROR,
+            "MutexCheckStatus failed: mutex=%p ownerId=%lld currentId=%lld state=%lld "
+            "tls=%p tlsCJThread=%p",
+            static_cast<void*>(mutex),
+            static_cast<long long>(ownerThreadId), static_cast<long long>(curThreadId),
+            static_cast<long long>(state), static_cast<void*>(threadLocalData),
+            tlsCJThread);
+        if (threadLocalData != nullptr) {
+            int scheduleType = ScheduleGetType(threadLocalData->schedule);
+            LOG(RTLOG_ERROR,
+                "MutexCheckStatus detail: klass=%p ownCount=%llu schedule=%p scheduleType=%d "
+                "foreignCJThread=%p mutator=%p",
+                mutex->klass, static_cast<unsigned long long>(mutex->ownCount),
+                static_cast<void*>(threadLocalData->schedule), scheduleType,
+                threadLocalData->foreignCJThread,
+                static_cast<void*>(threadLocalData->mutator));
+        }
+        return false;
+    }
+    return true;
 }
 
 /**
