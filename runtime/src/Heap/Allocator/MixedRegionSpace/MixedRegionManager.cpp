@@ -80,8 +80,9 @@ size_t MixedRegionManager::ClassifyYoungRegions()
             del->ClearGhostRegionBit();
             sweepableYoungRegionList.PrependRegion(del, RegionInfo::RegionType::SWEEP_REGION);
             floatingGarbage += (del->GetRegionSize() - del->GetLiveByteCount());
+        } else {
+            forwardBytes += liveBytes;
         }
-        forwardBytes += liveBytes;
     };
     fromRegionList.VisitAllRegions(visitor);
 
@@ -98,8 +99,8 @@ size_t MixedRegionManager::ClassifyYoungRegions()
     size_t newFromBytes = fromRegionList.GetUnitCount() * RegionInfo::UNIT_SIZE;
     size_t sweepableBytes = sweepableYoungRegionList.GetUnitCount() * RegionInfo::UNIT_SIZE;
     size_t promoteBytes = promoteRegionList.GetUnitCount() * RegionInfo::UNIT_SIZE;
-    VLOG(REPORT, "select %zu B from %zu B to be region forwarded, %zu will be sweep, %zu will be promoted",
-         forwardBytes, oldFromBytes, floatingGarbage, promoteBytes);
+    VLOG(REPORT, "select %zu B from %zu B to be region forwarded, %zu from %zu will be sweep, %zu will be promoted",
+         forwardBytes, oldFromBytes, floatingGarbage, sweepableBytes, promoteBytes);
     return newFromBytes - forwardBytes;
 }
 

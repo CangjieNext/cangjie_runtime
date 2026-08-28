@@ -33,6 +33,7 @@ public:
     void EnumRefFieldRoot(RefField<>& ref, RootSet& rootSet) const override;
     void EnumAndTagRawRoot(ObjectRef& ref, RootSet& rootSet) const override;
     RefField<> GetAndTryTagRefField(BaseObject* target) const override;
+    void CopyObject(const BaseObject& fromObj, BaseObject& toObj, size_t size) const override;
     BaseObject* TryForwardObject(BaseObject* fromVersion) override;
     bool MarkObject(BaseObject* obj) const override;
     bool TryUpdateRefField(BaseObject* obj, RefField<>& field, BaseObject*& newRef) const override;

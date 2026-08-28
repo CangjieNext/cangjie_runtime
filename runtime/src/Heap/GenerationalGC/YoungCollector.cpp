@@ -200,6 +200,18 @@ bool YoungCollector::MarkObject(BaseObject* obj) const
     return marked;
 }
 
+void YoungCollector::CopyObject(const BaseObject& fromObj, BaseObject& toObj, size_t size) const
+{
+    RegionInfo* fromRegion = RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(&fromObj));
+    uint8_t age = fromRegion->GetObjectAge(&fromObj);
+    CopyCollector::CopyObject(fromObj, toObj, size);
+
+    RegionInfo* toRegion = RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(&toObj));
+    if (age != 0 || toRegion->GetAgeBitmap() != nullptr) {
+        toRegion->SetObjectAge(&toObj, age);
+    }
+}
+
 BaseObject* YoungCollector::TryForwardObject(BaseObject* fromVersion)
 {
     RegionInfo* fromRegion = RegionInfo::GetGhostFromRegionAt(reinterpret_cast<uintptr_t>(fromVersion));
