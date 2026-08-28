@@ -302,7 +302,6 @@ public:
             if (phase == GCPhase::GC_PHASE_POST_TRACE) {
                 region->ClearGhostRegionBit();
             }
-            region->ClearGhostRegionBit();
             rawPointerPinnedRegionList.PrependRegion(region, RegionInfo::RegionType::RAW_POINTER_PINNED_REGION);
         } else {
             CHECK(region->GetRegionType() != RegionInfo::RegionType::LONE_FROM_REGION);
