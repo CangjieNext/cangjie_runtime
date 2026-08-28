@@ -910,6 +910,25 @@ void ExclusiveExecutor(struct Thread* thread, struct CJThread* newCJThread)
     return;
 }
 
+// Called from ExclusiveScope.S to avoid hardcoding the platform-dependent
+// offset of Thread::context in the Windows assembly stub.
+void* ExclusiveGetThreadContext(struct Thread* thread)
+{
+    if (thread == nullptr) {
+        LOG(RTLOG_ERROR, "ExclusiveGetThreadContext received null thread.");
+        return nullptr;
+    }
+    return static_cast<void*>(&thread->context);
+}
+
+int IsExclusiveCJThread(struct CJThread* cjthread)
+{
+    if (cjthread == nullptr || cjthread->schedule == nullptr) {
+        return 0;
+    }
+    return cjthread->schedule->scheduleType == SCHEDULE_EXCLUSIVE ? 1 : 0;
+}
+
 // ExclusiveRestore restore from exclusive cjthread
 void ExclusiveRestore(struct CJThread* oldCJThread, struct Thread* thread, struct CJThread* newCJThread, struct Processor* oldProcessor)
 {

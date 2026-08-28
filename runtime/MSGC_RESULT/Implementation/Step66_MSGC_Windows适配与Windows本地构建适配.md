@@ -943,6 +943,17 @@ cjc-symbols.exe
 快照。正式的 `cjc.exe`、`cjc-frontend.exe`、构建目标 `cjc-release.exe` 以及
 符号反修饰工具 `cjfilt.exe` 不在清理范围内。
 
+### 19.6 Windows MSGC 动态数组分派器的 unwind 覆盖（2026-08-28）
+
+`gc_async_allocation_finalizer.cj` 曾在 `CJ_MCC_NewArrayGenericFast3_MSGC_dispatch`
+的 safepoint 返回后报 `No Windows unwind entry for caller pc`。该函数由
+`CJRuntimeLowering` 合成，包含 GC safepoint，却没有 PE `.pdata/.xdata`；同时旧的
+X86 safepoint 慢路径会被延后发到函数体外。
+
+修复在 LLVM 完成：Windows 下分派器显式设置 `uwtable`，并将 safepoint 慢路径发回原
+函数体。验证必须重建 MSGC SDK、以 `cjc --gc-mode marksweep` 重新编译用例，并用
+`llvm-objdump --unwind-info` 确认 dispatcher 的函数表覆盖 safepoint 返回地址。
+
 ## 20. 剩余问题：MSGC 对齐官方 `cjc/ld.lld` 的 DLL 链接方式
 
 ### 20.1 当前状态

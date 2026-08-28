@@ -5,9 +5,14 @@
 // See https://cangjie-lang.cn/pages/LICENSE for license information.
 
 #include <windows.h>
-#include <algorithm>
-#include <iostream>
-#include <initializer_list>
+#include <limits>
+
+namespace {
+struct MetadataSection {
+    uintptr_t address;
+    unsigned long size;
+};
+}
 
 extern "C" {
 // CJMetadataHeader
@@ -215,30 +220,54 @@ __attribute__((constructor(0))) __declspec(dllexport) void InitData()
         ++sectionHeader;
     }
 
-    std::initializer_list<uintptr_t> addrs{
-        __CJSDKVersion,     reinterpret_cast<uintptr_t>(__CJSDKVersion + __CJSDKVersionSize),
-        __CJMethodInfo,     reinterpret_cast<uintptr_t>(__CJMethodInfo + __CJMethodInfoSize),
-        __CJGlobalInitFunc, reinterpret_cast<uintptr_t>(__CJGlobalInitFunc + __CJGlobalInitFuncSize),
-        __CJStringPoolDict, reinterpret_cast<uintptr_t>(__CJStringPoolDict + __CJStringPoolDictSize),
-        __CJStringPool,     reinterpret_cast<uintptr_t>(__CJStringPool + __CJStringPoolSize),
-        __CJStackMap,       reinterpret_cast<uintptr_t>(__CJStackMap + __CJStackMapSize),
-        __CJGCTib,          reinterpret_cast<uintptr_t>(__CJGCTib + __CJGCTibSize),
-        __CJGCRoots,        reinterpret_cast<uintptr_t>(__CJGCRoots + __CJGCRootsSize),
-        __CJTypeTemplate,        reinterpret_cast<uintptr_t>(__CJTypeTemplate + __CJTypeTemplateSize),
-        __CJTypeInfo,       reinterpret_cast<uintptr_t>(__CJTypeInfo + __CJTypeInfoSize),
-        __CJTypeFields,      reinterpret_cast<uintptr_t>(__CJTypeFields + __CJTypeFieldsSize),
-        __CJMTable,         reinterpret_cast<uintptr_t>(__CJMTable + __CJMTableSize),
-        __CJInnerTypeExtensions, reinterpret_cast<uintptr_t>(__CJInnerTypeExtensions + __CJInnerTypeExtensionsSize),
-        __CJOuterTypeExtensions, reinterpret_cast<uintptr_t>(__CJOuterTypeExtensions + __CJOuterTypeExtensionsSize),
-        __CJStaticGITable,  reinterpret_cast<uintptr_t>(__CJStaticGITable + __CJStaticGITableSize),
-        __CJGCFlags,        reinterpret_cast<uintptr_t>(__CJGCFlags + __CJGCFlagsSize),
-        __CJReflectPkgInfo, reinterpret_cast<uintptr_t>(__CJReflectPkgInfo + __CJGCReflectPkgInfoSize),
-        __CJReflectGV,      reinterpret_cast<uintptr_t>(__CJReflectGV + __CJReflectGVSize),
-        __CJReflectGI,      reinterpret_cast<uintptr_t>(__CJReflectGI + __CJReflectGISize),
-        __CJTypeExt,      reinterpret_cast<uintptr_t>(__CJTypeExt + __CJTypeExtSize),
+    const MetadataSection metadataSections[] = {
+        { __CJSDKVersion, __CJSDKVersionSize },
+        { __CJMethodInfo, __CJMethodInfoSize },
+        { __CJGlobalInitFunc, __CJGlobalInitFuncSize },
+        { __CJStringPoolDict, __CJStringPoolDictSize },
+        { __CJStringPool, __CJStringPoolSize },
+        { __CJStackMap, __CJStackMapSize },
+        { __CJGCTib, __CJGCTibSize },
+        { __CJGCRoots, __CJGCRootsSize },
+        { __CJTypeTemplate, __CJTypeTemplateSize },
+        { __CJTypeInfo, __CJTypeInfoSize },
+        { __CJTypeFields, __CJTypeFieldsSize },
+        { __CJMTable, __CJMTableSize },
+        { __CJInnerTypeExtensions, __CJInnerTypeExtensionsSize },
+        { __CJOuterTypeExtensions, __CJOuterTypeExtensionsSize },
+        { __CJStaticGITable, __CJStaticGITableSize },
+        { __CJGCFlags, __CJGCFlagsSize },
+        { __CJReflectPkgInfo, __CJGCReflectPkgInfoSize },
+        { __CJReflectGV, __CJReflectGVSize },
+        { __CJReflectGI, __CJReflectGISize },
+        { __CJTypeExt, __CJTypeExtSize },
     };
-    uintptr_t start = std::min<uintptr_t>(addrs);
-    uintptr_t end = std::max<uintptr_t>(addrs);
-    __CJMetadataSize = end - start;
+
+    uintptr_t metadataStart = 0;
+    uintptr_t metadataEnd = 0;
+    for (const MetadataSection& section : metadataSections) {
+        // Empty Cangjie metadata categories do not have a PE section. Their
+        // address and size remain zero and must not participate in min/max.
+        if (section.address == 0 || section.size == 0 ||
+            section.address > std::numeric_limits<uintptr_t>::max() - section.size) {
+            continue;
+        }
+        const uintptr_t sectionEnd = section.address + section.size;
+        if (metadataStart == 0 || section.address < metadataStart) {
+            metadataStart = section.address;
+        }
+        if (sectionEnd > metadataEnd) {
+            metadataEnd = sectionEnd;
+        }
+    }
+
+    if (metadataStart == 0 || metadataEnd < metadataStart) {
+        __CJMetadataSize = 0;
+        return;
+    }
+    const uintptr_t metadataSize = metadataEnd - metadataStart;
+    __CJMetadataSize = metadataSize <= std::numeric_limits<unsigned long>::max()
+                           ? static_cast<unsigned long>(metadataSize)
+                           : 0;
 }
 }

@@ -50,11 +50,20 @@ public:
 #endif
 
 private:
+#if defined(_WIN64)
+    void AddWinMetadataRange(Uptr begin, U32 size);
+#endif
     Uptr* GetGlobalInitFuncPtr(const CJFileMeta& cFileMeta) const;
     U32 GetGlobalInitFuncSize(const CJFileMeta& cFileMeta) const;
     CJFileMeta cJFileMeta;
     Uptr cJFileMetaBegin;
     Uptr cJFileMetaEnd;
+#if defined(_WIN64)
+    // PE stores the header and optional metadata tables in separate sections.
+    // Keep the parsing address distinct from the address-membership range.
+    Uptr cJFileMetaRangeBegin = 0;
+    Uptr cJFileMetaRangeEnd = 0;
+#endif
 };
 using CJFileRef = CJFile*;
 } // namespace MapleRuntime

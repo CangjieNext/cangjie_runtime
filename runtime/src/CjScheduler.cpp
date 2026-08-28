@@ -765,7 +765,7 @@ const void* MRT_RuntimeNewSubScheduler()
     CHECK_PTHREAD_CALL(pthread_attr_setdetachstate, (&attr, PTHREAD_CREATE_JOINABLE), "set pthread joinable");
     CHECK_PTHREAD_CALL(pthread_attr_setstacksize, (&attr, stackSize), "set pthread stacksize");
     CHECK_PTHREAD_CALL(pthread_create, (&thread, &attr, MRT_StartSubScheduler, &args), "create sub-scheduler thread");
-#ifdef __WIN64
+#ifdef _WIN64
     CHECK_PTHREAD_CALL(pthread_setname_np, (thread, threadName.c_str()), "set sub-scheduler thread name");
 #endif
     CHECK_PTHREAD_CALL(pthread_attr_destroy, (&attr), "destroy pthread attr");

@@ -549,9 +549,9 @@ private:
     UnwindContext uwContext;
     // exception object wrapper
     ExceptionWrapper exceptionWrapper;
-#ifndef __WIN64
+#ifndef _WIN64
     void* unuse = nullptr; // reusable placeholder
-#endif // __WIN64
+#endif // _WIN64
 
     uint64_t* safepointStatePtr = nullptr; // state: active or not
 #ifdef _WIN64

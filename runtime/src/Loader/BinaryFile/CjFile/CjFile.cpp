@@ -12,6 +12,9 @@
 #include "Common/TypeDef.h"
 #include "Heap/Heap.h"
 #include "Utils/Demangler.h"
+
+#include <limits>
+
 namespace MapleRuntime {
 void CJFile::RegisterFile() { LoadCJFileMeta(); }
 
@@ -22,12 +25,34 @@ void CJFile::UnregisterFile()
 }
 
 #if defined(_WIN64)
+void CJFile::AddWinMetadataRange(Uptr begin, U32 size)
+{
+    if (begin == 0 || size == 0 || begin > std::numeric_limits<Uptr>::max() - size) {
+        return;
+    }
+    const Uptr end = begin + size;
+    if (cJFileMetaRangeBegin == 0 || begin < cJFileMetaRangeBegin) {
+        cJFileMetaRangeBegin = begin;
+    }
+    if (end > cJFileMetaRangeEnd) {
+        cJFileMetaRangeEnd = end;
+    }
+}
+
 void CJFile::LoadWinCJFileMeta()
 {
     Uptr begin = GetFileMetaAddr();
     CJFileHeader* header = reinterpret_cast<CJFileHeader*>(begin);
+    cJFileMetaRangeBegin = 0;
+    cJFileMetaRangeEnd = 0;
+    AddWinMetadataRange(begin, sizeof(CJFileHeader));
+    AddWinMetadataRange(*header->cJSDKVersionPtr, sizeof(U64));
+    for (U32 i = 0; i < C_FILE_MAX; ++i) {
+        AddWinMetadataRange(*header->tables[i].tableAddr, *header->tables[i].tableSize);
+    }
+    cJFileMetaEnd = cJFileMetaRangeEnd;
+
     // Init TablePtrs
-    cJFileMetaEnd = cJFileMetaBegin + *header->cJFileSize;
     cJFileMeta.stackMapTbl.stackMapBasePtr = reinterpret_cast<void*>(*header->tables[STACK_MAP_TABLE].tableAddr);
     cJFileMeta.typeInfoTbl.typeInfoBasePtr = reinterpret_cast<TypeInfo*>(*header->tables[TYPE_INFO_TABLE].tableAddr);
     cJFileMeta.typeInfoTbl.typeInfoTotalSize = *header->tables[TYPE_INFO_TABLE].tableSize;
@@ -192,7 +217,14 @@ Uptr CJFile::GetFileMetaAddr() const { return cJFileMetaBegin; }
 
 const CJFileMeta& CJFile::GetCJFileMeta() const { return cJFileMeta; }
 
-bool CJFile::IsAddrInCJFile(Uptr addr) const { return cJFileMetaBegin <= addr && addr < cJFileMetaEnd; }
+bool CJFile::IsAddrInCJFile(Uptr addr) const
+{
+#if defined(_WIN64)
+    return cJFileMetaRangeBegin <= addr && addr < cJFileMetaRangeEnd;
+#else
+    return cJFileMetaBegin <= addr && addr < cJFileMetaEnd;
+#endif
+}
 
 void CJFile::GetGlobalInitFunc(std::vector<Uptr> &globalInitFuncs) const
 {

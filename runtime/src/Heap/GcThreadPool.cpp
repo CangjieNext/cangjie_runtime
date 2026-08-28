@@ -27,7 +27,7 @@ GCPoolThread::GCPoolThread(GCThreadPool* threadPool, const char* threadName, siz
     CHECK_PTHREAD_CALL(pthread_attr_init, (&attr), "");
     CHECK_PTHREAD_CALL(pthread_attr_setstacksize, (&attr, stackSize), stackSize);
     CHECK_PTHREAD_CALL(pthread_create, (&pthread, nullptr, &WorkerFunc, this), "GCPoolThread init");
-#ifdef __WIN64
+#ifdef _WIN64
     CHECK_PTHREAD_CALL(pthread_setname_np, (pthread, threadName), "GCPoolThread SetName");
 #endif
     CHECK_PTHREAD_CALL(pthread_attr_destroy, (&attr), "GCPoolThread init");

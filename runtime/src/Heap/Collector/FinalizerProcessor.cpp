@@ -44,7 +44,7 @@ void FinalizerProcessor::Start()
     CHECK_PTHREAD_CALL(pthread_attr_setstacksize, (&attr, stackSize), "set pthread stacksize");
     CHECK_PTHREAD_CALL(pthread_create, (&thread, &attr, MRT_ProcessFinalizers, this),
                        "create finalizer-process thread");
-#ifdef __WIN64
+#ifdef _WIN64
     CHECK_PTHREAD_CALL(pthread_setname_np, (thread, "finalizer"), "finalizer-processor thread setname");
 #endif
     CHECK_PTHREAD_CALL(pthread_attr_destroy, (&attr), "destroy pthread attr");

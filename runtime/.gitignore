@@ -9,6 +9,16 @@ test/
 docs/assist/
 build/
 
+# Keep the Windows PE metadata regression source and runner under version
+# control while continuing to ignore all ordinary build artifacts.
+!build/
+build/*
+!build/tests/
+!build/tests/windows/
+!build/tests/windows/pe_metadata_range/
+!build/tests/windows/pe_metadata_range/**
+build/tests/windows/pe_metadata_range/output/
+
 # Keep case source, scripts, payloads, and analysis under version control.
 # Ignore only files created by local benchmark runs and language toolchains.
 MSGC_RESULT/Result/**/result/

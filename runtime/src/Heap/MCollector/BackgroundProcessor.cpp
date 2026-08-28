@@ -123,7 +123,7 @@ void BackgroundProcessor::Start()
     CHECK_PTHREAD_CALL(pthread_attr_setstacksize, (&attr, stackSize), "set pthread stacksize");
     CHECK_PTHREAD_CALL(pthread_create, (&thread, &attr, MRT_ProcessBackgroundWork, this),
                        "create msgc-background thread");
-#ifdef __WIN64
+#ifdef _WIN64
     CHECK_PTHREAD_CALL(pthread_setname_np, (thread, "gc-helper"), "msgc-background thread setname");
 #endif
     CHECK_PTHREAD_CALL(pthread_attr_destroy, (&attr), "destroy pthread attr");

@@ -318,7 +318,7 @@ void CollectorResources::StartGCThreads()
         MRT_ASSERT(0, "pthread_create failed!");
     }
     // set thread name.
-#ifdef __WIN64
+#ifdef _WIN64
     int ret = pthread_setname_np(gcMainThread, "gc-main-thread");
     CHECK_E(UNLIKELY(ret != 0), "pthread_setname_np() in CollectorResources::StartGCThreads() return %d rather than 0",
             ret);
