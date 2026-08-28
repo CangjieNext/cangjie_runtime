@@ -1,0 +1,17 @@
+# Region-scan MSGC routine Runtime regression list.
+# Paths are relative to cangjie_test/testsuites/LLT.
+
+[ALL-TEST-CASE]
+Runtime/
+
+[EXCLUDE-TEST-CASE]
+# These two 16GB cases are non-macOS today, but remain pressure-only by policy.
+Runtime/CJNative/array/array16.cj
+Runtime/CJNative/load_option_none.cj
+
+# Deliberate multi-GB/OOM allocation tests; run only in the -j1 pressure pass.
+Runtime/CJNative/Exception/Exception32_OutOfMemoryError.cj
+Runtime/CJNative/Exception/Expection38_NewArray8.cj
+Runtime/CJNative/Exception/Expection39_NewArray16.cj
+Runtime/CJNative/Exception/Expection40_NewArray32.cj
+Runtime/CJNative/Exception/Expection42_NewObject.cj

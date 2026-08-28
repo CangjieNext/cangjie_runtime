@@ -1,0 +1,46 @@
+# Region-scan MSGC routine Runtime regression list.
+# Paths are relative to cangjie_test/testsuites/HLT.
+
+[ALL-TEST-CASE]
+Runtime/
+
+[EXCLUDE-TEST-CASE]
+# Finalizer callbacks below require the CJThread-aware finalizer execution model,
+# which is not merged into this Region-scan MSGC branch yet.  Keep them outside
+# the routine suite until that prerequisite lands; they are not treated as
+# marksweep regressions on this branch.
+Runtime/cjnative/runtime/Finalizer/barrier_sync.cj
+Runtime/cjnative/runtime/Finalizer/barrier_sync_1.cj
+Runtime/cjnative/runtime/Finalizer/complex_2.cj
+Runtime/cjnative/runtime/Finalizer/dump_thread.cj
+Runtime/cjnative/runtime/Finalizer/finalizer_mutex_01.cj
+Runtime/cjnative/runtime/Finalizer/monitor_sync.cj
+Runtime/cjnative/runtime/Finalizer/mutex_sync.cj
+Runtime/cjnative/runtime/Finalizer/read_write_lock_sync.cj
+Runtime/cjnative/runtime/Finalizer/read_write_lock_sync_1.cj
+Runtime/cjnative/runtime/Finalizer/semaphore_sync.cj
+Runtime/cjnative/runtime/Finalizer/semaphore_sync_1.cj
+Runtime/cjnative/runtime/Finalizer/sleep.cj
+Runtime/cjnative/runtime/Finalizer/sync_counter.cj
+
+# Deliberate high-memory allocation / huge stack pressure.
+Runtime/cjnative/runtime/array/array15.cj
+Runtime/cjnative/runtime/GC/huge_page/
+Runtime/cjnative/runtime/OutOfMemoryError/
+# Throwable/012 and /013 deliberately allocate until OOM (or force multi-GB
+# allocations); keep them in the separate -j1 pressure bucket.
+Runtime/Exception/Throwable/012/
+Runtime/Exception/Throwable/013/
+
+# Deliberate continuous-GC, busy-spin, and high-coroutine stress.
+Runtime/cjnative/runtime/GC/gc_concurrency/
+Runtime/cjnative/runtime/GC/gc_frequentgc_*.cj
+Runtime/cjnative/runtime/GC/gc_array_copy_01.cj
+Runtime/cjnative/runtime/GC/gc_atomic_cas_01.cj
+Runtime/cjnative/runtime/GC/gc_normal_01.cj
+Runtime/cjnative/runtime/GC/gc_normal_02.cj
+Runtime/cjnative/runtime/GC/gc_normal_04.cj
+Runtime/cjnative/runtime/GC/gc_vectorizer_01.cj
+Runtime/cjnative/runtime/GC/gc_vectorizer_02.cj
+Runtime/cjnative/runtime/GC/multi_coroutine_08.cj
+Runtime/cjnative/while/
