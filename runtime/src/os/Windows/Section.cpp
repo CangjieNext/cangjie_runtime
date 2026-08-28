@@ -170,7 +170,7 @@ __attribute__((constructor(0))) __declspec(dllexport) void InitData()
             __CJTypeFields = reinterpret_cast<uintptr_t>(hModule) +
                              sectionHeader->VirtualAddress;
             __CJTypeFieldsSize = sectionHeader->Misc.VirtualSize;
-        } else if (strncmp(secName, ".cjmtlb", sizeof(".cjmtlb") - 1) == 0) {
+        } else if (strncmp(secName, ".cjmtbl", sizeof(".cjmtbl") - 1) == 0) {
             __CJMTable = reinterpret_cast<uintptr_t>(hModule) +
                              sectionHeader->VirtualAddress;
             __CJMTableSize = sectionHeader->Misc.VirtualSize;

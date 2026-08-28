@@ -98,7 +98,11 @@ FrameInfo GetCurFrameInfo(WinModuleManager& winModuleManager, Uptr pc, Uptr sp)
     }
     CHECK(module != nullptr);
     RuntimeFunction* runtimeFunc = module->GetRuntimeFunction(pc);
-    CHECK(runtimeFunc != nullptr);
+    if (runtimeFunc == nullptr) {
+        LOG(RTLOG_FATAL, "No Windows unwind entry for current pc=%p in module=%s, image=[%p, %p]",
+            reinterpret_cast<void*>(pc), module->GetModuleName().Str(),
+            reinterpret_cast<void*>(module->GetImageBaseStart()), reinterpret_cast<void*>(module->GetImageBaseEnd()));
+    }
     UnwindInfo* unwindInfo = reinterpret_cast<UnwindInfo*>(module->GetImageBaseStart() + runtimeFunc->unwindInfoOffset);
 
     Uptr startProc = module->GetImageBaseStart() + runtimeFunc->startAddress;
@@ -152,7 +156,11 @@ FrameInfo GetCallerFrameInfo(WinModuleManager& winModuleManager, const MachineFr
     }
     CHECK(module != nullptr);
     RuntimeFunction* runtimeFunc = module->GetRuntimeFunction(callerPC);
-    CHECK(runtimeFunc != nullptr);
+    if (runtimeFunc == nullptr) {
+        LOG(RTLOG_FATAL, "No Windows unwind entry for caller pc=%p in module=%s, image=[%p, %p]",
+            reinterpret_cast<void*>(callerPC), module->GetModuleName().Str(),
+            reinterpret_cast<void*>(module->GetImageBaseStart()), reinterpret_cast<void*>(module->GetImageBaseEnd()));
+    }
 
     Uptr startProc = module->GetImageBaseStart() + runtimeFunc->startAddress;
     FrameInfo frameInfo(reinterpret_cast<uint32_t*>(startProc));
@@ -245,7 +253,11 @@ uintptr_t GetCallerRsp(WinModuleManager& winModuleManager, const MachineFrame& c
     }
     CHECK(module != nullptr);
     RuntimeFunction* runtimeFunc = module->GetRuntimeFunction(callerPC);
-    CHECK(runtimeFunc != nullptr);
+    if (runtimeFunc == nullptr) {
+        LOG(RTLOG_FATAL, "No Windows unwind entry while finding caller rsp: pc=%p in module=%s, image=[%p, %p]",
+            reinterpret_cast<void*>(callerPC), module->GetModuleName().Str(),
+            reinterpret_cast<void*>(module->GetImageBaseStart()), reinterpret_cast<void*>(module->GetImageBaseEnd()));
+    }
 
     Uptr startProc = module->GetImageBaseStart() + runtimeFunc->startAddress;
     uintptr_t callerRsp;
