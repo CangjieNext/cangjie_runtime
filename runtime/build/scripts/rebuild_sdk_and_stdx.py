@@ -24,6 +24,7 @@ WINDOWS_COMPILER_LLVM_SHARED_LIBRARY_PATTERNS = (
     "libLLVM*.dll",
 )
 WINDOWS_COMPILER_LLVM_TOOL_NAMES = (
+    "ld.lld.exe",
     "llc.exe",
     "llvm-ar.exe",
     "opt.exe",
@@ -178,6 +179,9 @@ def build_stage_plan(config: BuildConfig, host: HostLayout) -> list[BuildStage]:
                 "LLVM",
                 "llc",
                 "LTO",
+                "llvm-ar",
+                "opt",
+                "lld",
             ],
         ),
         BuildStage(

@@ -79,6 +79,9 @@ class CompilerLLVMSyncPlanTests(unittest.TestCase):
                 "LLVM",
                 "llc",
                 "LTO",
+                "llvm-ar",
+                "opt",
+                "lld",
             ],
         )
         self.assertEqual(compiler_install.name, "compiler")
@@ -257,6 +260,7 @@ class CompilerLLVMSyncPlanTests(unittest.TestCase):
             with contextlib.redirect_stdout(output):
                 target.sync_compiler_llvm_into_sdk(config, host, dry_run=True)
 
+            self.assertIn("ld.lld.exe", output.getvalue())
             self.assertIn("llc.exe", output.getvalue())
             self.assertIn("libLLVM*.dll", output.getvalue())
 

@@ -1024,3 +1024,22 @@ Target: x86_64-w64-mingw32
 在上述条件闭合前，GNU `ld + *.dll.a` 是当前 MSGC Windows 动态 SDK 的正式正确性
 方案。该问题不阻塞现有 SDK 发布和 case25 对比，但作为 linker/ABI 技术债保留；不得
 在仅有“编译成功”证据时删除 import library 或宣称已对齐官方 `ld.lld` 路径。
+
+### 20.5 2026-08-27 实施结果：已切换并验证
+
+MSGC Windows SDK 已完成 `cjc -> ld.lld.exe -> 直接 DLL` 切换：
+
+- `MinGW_CJNATIVE` 改为选择 `ld.lld.exe`；删除 GNU `ld` 专用的
+  `--enable-auto-import` 与 `--enable-runtime-pseudo-reloc`；
+- 动态 runtime/std 由 `*.dll.a` 改为 `-l:libcangjie-runtime.dll` 和
+  `-l:libcangjie-std-core.dll`；
+- x86_64 Windows 的 StackMaps 过滤帧锚点 RBP，避免其错误进入 runtime
+  callee-saved bitmap，修复 std.core 的 O2 codegen 异常；
+- 增量 SDK 脚本会在 Windows backend 变更后触发 split `libLLVM-15.dll` 重链，并构建、同步
+  `ld.lld.exe`、`llc.exe`、`llvm-ar.exe`、`opt.exe`。
+
+完整 `incremental_rebuild_msgc_sdk.py` 重组成功。用新 SDK 重新编译后，最小
+`--dy-std` 用例的实际 linker 命令为 `ld.lld.exe`，且直接传入
+`-l:libcangjie-std-core.dll`、`-l:libcangjie-runtime.dll`；程序输出
+`MSGC Windows smoke test`、退出码 0。case25 也以三个直接 `.dll`（不使用 `.dll.a`）
+重新编译并运行 2 秒：`total=22351`、`ok=22351`、`fail=0`、退出码 0。

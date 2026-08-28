@@ -84,6 +84,23 @@ class IncrementalStagePlanTests(unittest.TestCase):
         self.assertEqual(relink_stage.cwd, config.compiler_root / "build" / "build")
         self.assertEqual(relink_stage.command[-2:], ["--target", "cjc"])
 
+    def test_windows_plan_relinks_split_llvm_dylib(self) -> None:
+        config = make_config(pathlib.Path("/tmp/cangjie-incremental-msgc-sdk-test"))
+
+        stages = target.build_incremental_stage_plan(config, make_windows_host())
+        stamp_index = next(
+            index
+            for index, stage in enumerate(stages)
+            if stage.component == "compiler-llvm-dylib-stamp"
+        )
+
+        self.assertEqual(stages[stamp_index + 1].component, "compiler-llvm")
+        stamp_stage = stages[stamp_index]
+        self.assertEqual(stamp_stage.command[:3], ["cmake", "-E", "touch"])
+        stamp_path = pathlib.Path(stamp_stage.command[-1])
+        self.assertEqual(stamp_path.name, "linkLibs.rsp")
+        self.assertEqual(stamp_path.parent.name, "LLVM.dir")
+
     def test_msgc_mode_is_passed_to_runtime_stdlib_and_stdx(self) -> None:
         config = make_config(pathlib.Path("/tmp/cangjie-incremental-msgc-sdk-test"))
 

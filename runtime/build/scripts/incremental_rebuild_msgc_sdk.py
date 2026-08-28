@@ -207,6 +207,31 @@ def build_incremental_stage_plan(
 
     stages: list[BuildStage] = []
     for key in _INCREMENTAL_STAGE_ORDER:
+        if key == ("compiler-llvm", "build") and host.os_name == "windows":
+            # The MinGW Makefiles generated for LLVM's split DLL do not track
+            # component static archives as link prerequisites.  Refreshing the
+            # response file makes the aggregate LLVM target relink
+            # libLLVM-15.dll after an incremental backend rebuild.
+            stages.append(
+                BuildStage(
+                    component="compiler-llvm-dylib-stamp",
+                    action="build",
+                    cwd=sdk_helpers.compiler_cjnative_build_dir(config),
+                    command=[
+                        "cmake",
+                        "-E",
+                        "touch",
+                        str(
+                            sdk_helpers.compiler_cjnative_build_dir(config)
+                            / "tools"
+                            / "llvm-shlib"
+                            / "CMakeFiles"
+                            / "LLVM.dir"
+                            / "linkLibs.rsp"
+                        ),
+                    ],
+                )
+            )
         stages.append(stage_by_key[key])
         if key == ("compiler-llvm", "build"):
             # cjc statically links the LLVM code generator. Rebuilding LLVM
