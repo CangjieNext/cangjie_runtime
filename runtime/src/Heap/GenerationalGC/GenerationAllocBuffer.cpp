@@ -40,7 +40,7 @@ namespace {
 MAddress AllocateFromSlotRegionCache(RegionList& cache, size_t totalSize)
 {
     MAddress result = 0;
-    cache.VisitAllRegionsUntilSuccNoLock([&](RegionInfo* region) {
+    cache.VisitAllRegionsUntilSuccNoLock([&result, totalSize](RegionInfo* region) {
         RegionFreeSlotList* freeSlotList = region->GetFreeSlotList();
         if (freeSlotList == nullptr || freeSlotList->GetMaxAvailableSize() < totalSize) {
             return false;
@@ -67,7 +67,7 @@ RegionInfo* RemoveSmallestSlotRegion(RegionList& cache)
 {
     RegionInfo* smallest = nullptr;
     size_t smallestSize = std::numeric_limits<size_t>::max();
-    cache.VisitAllRegionsUntilSuccNoLock([&](RegionInfo* region) {
+    cache.VisitAllRegionsUntilSuccNoLock([&smallest, &smallestSize](RegionInfo* region) {
         RegionFreeSlotList* freeSlotList = region->GetFreeSlotList();
         size_t maxSlotSize = freeSlotList == nullptr ? 0 : freeSlotList->GetMaxAvailableSize();
         if (smallest == nullptr || maxSlotSize < smallestSize) {
@@ -134,7 +134,7 @@ MAddress GenerationAllocBuffer::AllocateYoungOnSlot(MixedRegionManager &manager,
         }
     }
     MAddress result = 0;
-    manager.GetSweptRegionList().VisitAllRegions([&](RegionInfo* region) {
+    manager.GetSweptRegionList().VisitAllRegions([&result, totalSize](RegionInfo* region) {
         if (result != 0) {
             return;
         }
