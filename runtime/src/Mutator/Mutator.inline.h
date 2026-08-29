@@ -32,6 +32,7 @@ inline bool Mutator::EnterSaferegion(bool updateUnwindContext) noexcept
         if (updateUnwindContext && uwContext.GetUnwindContextStatus() != UnwindContextStatus::RISKY) {
             UpdateUnwindContext();
         }
+        SaveCJThreadContext();
         DoEnterSaferegion();
         return true;
     }

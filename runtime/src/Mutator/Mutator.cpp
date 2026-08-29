@@ -21,6 +21,8 @@
 #include "StackManager.h"
 #include "ExceptionManager.h"
 #include "schedule.h"
+#include "../CJThread/src/runtime/schedule/include/inner/gas/offset_macro.h"
+#include "StackMap/StackMapTypeDef.h"
 #ifdef MRT_USE_MARK_SWEEP
 #include "Heap/MAllocator/MSAllocBuffer.h"
 #endif
@@ -195,7 +197,55 @@ void Mutator::PreparedToPark(void* pc, void* fa)
         uwContext.frameInfo = GetCallerFrameInfo(winModuleManager, curFrame.mFrame, ucs);
     }
 #endif // platform
+    // CJThreadMcall/CJThreadContextGet has already saved the callee-saved registers
+    // into cjthread->context before this function is called.
+    cjThreadContextValid.store(true, std::memory_order_release);
     DoEnterSaferegion();
+}
+
+void Mutator::SaveCJThreadContext()
+{
+#if defined(__aarch64__)
+    if (cjthread == nullptr) {
+        return;
+    }
+
+    auto* context = reinterpret_cast<CJThreadContext*>(
+        reinterpret_cast<uint8_t*>(cjthread) + CJTHREAD_CONTEXT_OFFSET);
+    CJThreadContextGet(context);
+    cjThreadContextValid.store(true, std::memory_order_release);
+#endif
+}
+
+void Mutator::RecordCJThreadContextRegisters(RegSlotsMap& regSlotsMap)
+{
+#if defined(__aarch64__)
+    if (cjthread == nullptr || !InSaferegion() ||
+        !cjThreadContextValid.load(std::memory_order_acquire)) {
+        return;
+    }
+
+    auto* context = reinterpret_cast<CJThreadContext*>(
+        reinterpret_cast<uint8_t*>(cjthread) + CJTHREAD_CONTEXT_OFFSET);
+    auto record = [&regSlotsMap](RegisterNum reg, unsigned long long& value) {
+        regSlotsMap.Insert(reg, reinterpret_cast<SlotAddress>(&value));
+    };
+    record(Register::X18, context->x18);
+    record(Register::X19, context->x19);
+    record(Register::X20, context->x20);
+    record(Register::X21, context->x21);
+    record(Register::X22, context->x22);
+    record(Register::X23, context->x23);
+    record(Register::X24, context->x24);
+    record(Register::X25, context->x25);
+    record(Register::X26, context->x26);
+    record(Register::X27, context->x27);
+    record(Register::X28, context->x28);
+    record(Register::X29, context->x29Fp);
+    record(Register::X30, context->x30Lr);
+#else
+    (void)regSlotsMap;
+#endif
 }
 
 void Mutator::HandleSuspensionRequest()

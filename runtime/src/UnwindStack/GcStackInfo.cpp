@@ -38,6 +38,7 @@ void GCStackInfo::FillInStackTrace()
 void GCStackInfo::VisitStackRoots(const RootVisitor& func, Mutator& mutator) const
 {
     RegSlotsMap regSlotsMap;
+    mutator.RecordCJThreadContextRegisters(regSlotsMap);
     for (const auto& frame : stack) {
         switch (frame.GetFrameType()) {
             case FrameType::MANAGED: {
@@ -68,6 +69,7 @@ void GCStackInfo::VisitHeapReferencesOnStack(const RootVisitor& rootVisitor, con
                                              Mutator& mutator) const
 {
     RegSlotsMap regSlotsMap;
+    mutator.RecordCJThreadContextRegisters(regSlotsMap);
     for (const auto& frame : stack) {
         switch (frame.GetFrameType()) {
             case FrameType::MANAGED: {
@@ -120,6 +122,7 @@ void RecordStackInfo::FillInStackTrace()
 void RecordStackInfo::VisitStackRoots(const RootVisitor &func, Mutator &mutator)
 {
     RegSlotsMap regSlotsMap;
+    mutator.RecordCJThreadContextRegisters(regSlotsMap);
     for (auto frame : stacks) {
         FrameInfo &ref = *frame;
         switch (frame->GetFrameType()) {

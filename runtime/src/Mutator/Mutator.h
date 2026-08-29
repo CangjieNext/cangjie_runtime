@@ -26,6 +26,7 @@
 
 namespace MapleRuntime {
 class AllocBufferMS;
+struct RegSlotsMap;
 extern "C" MRT_EXPORT bool MRT_EnterSaferegion(bool updateUnwindContext);
 extern "C" MRT_EXPORT bool MRT_LeaveSaferegion();
 extern "C" MRT_EXPORT bool MRT_CheckRuntimeFinished();
@@ -71,6 +72,7 @@ public:
         observerCnt = 0;
         mutatorPhase.store(GCPhase::GC_PHASE_IDLE);
         inManagedContext.store(true);
+        cjThreadContextValid.store(false, std::memory_order_relaxed);
         assistLocalWork_.clear();
         deferEnumAssistUntilNextSafepoint_ = false;
     }
@@ -105,6 +107,7 @@ public:
         assistLocalWork_.clear();
         deferEnumAssistUntilNextSafepoint_ = false;
         uwContext.Reset();
+        cjThreadContextValid.store(false, std::memory_order_relaxed);
         exceptionWrapper.ClearInfo();
     }
 
@@ -127,6 +130,8 @@ public:
     void SetCjthreadPtr(void* cjthreadPtr) { this->cjthread = cjthreadPtr;}
     uint32_t GetTid() const { return tid; }
     void* GetCjthreadPtr() const {return cjthread;}
+    void SaveCJThreadContext();
+    void RecordCJThreadContextRegisters(RegSlotsMap& regSlotsMap);
     void InitProtectStackAddr();
 
     // Sets saferegion state of this mutator.
@@ -475,6 +480,7 @@ public:
         Allocator::EnsureThreadLocalBuffer();
         SetThreadLocalGCPhase(tlData, GetMutatorPhase());
         DoLeaveSaferegion();
+        cjThreadContextValid.store(false, std::memory_order_release);
         SetSafepointStatePtr(&tlData->safepointState);
         SetSafepointActive(false);
     }
@@ -539,6 +545,8 @@ private:
     uint32_t tid = 0;
     // cjthread ptr
     void* cjthread;
+    // True only while the parked cjthread context contains the saved managed registers.
+    std::atomic<bool> cjThreadContextValid = { false };
     // in saferegion, it will not access any managed objects and can be visitted by observer
     std::atomic<uint32_t> inSaferegion = { SAFE_REGION_TRUE };
     // Protect observerCnt

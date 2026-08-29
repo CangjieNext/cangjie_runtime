@@ -73,6 +73,7 @@ void StackGrowStackInfo::RecordStackPtrs(const StackPtrVisitor& traceAndFixPtrVi
                                          const DerivedPtrVisitor& derivedPtrVisitor, Mutator& mutator)
 {
     RegSlotsMap regSlotsMap;
+    mutator.RecordCJThreadContextRegisters(regSlotsMap);
     for (const auto& frame : stack) {
         ObjectRef* rbp = reinterpret_cast<ObjectRef*>(frame.GetMachineFrame().GetFA());
         fixPtrVisitor(*rbp);
