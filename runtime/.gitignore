@@ -43,10 +43,7 @@ bugfix/**/temps/
 .tmp/
 .vscode/
 MSGC/
-MSGC_RESULT/bugfix/15_Case27_RunRegionTask_GCTib空指针修复.md
-MSGC_RESULT/bugfix/20260802_case27_stw_mutator_arrival_cv_fix.md
 MSGC_RESULT/doc/
-MSGC_RESULT/implement/04_case25_MSGC_CPU未打满问题记录.md
 MSGC_RESULT/temp/
 __pycache__/
 cases_without_level.txt
@@ -58,4 +55,18 @@ runtime.code-workspace
 runtime-architecture*
 third_party/third_party_bounds_checking_function/
 tmp/
-bugfix/
+# Keep MSGC_RESULT bugfix notes, patches, and source snapshots under version
+# control while ignoring generated diagnostics and local run artifacts.
+MSGC_RESULT/bugfix/**/*.log*
+MSGC_RESULT/bugfix/**/*.json
+MSGC_RESULT/bugfix/**/*.xml
+MSGC_RESULT/bugfix/**/*.out
+MSGC_RESULT/bugfix/**/*.so*
+MSGC_RESULT/bugfix/**/temp/
+MSGC_RESULT/bugfix/**/log/
+MSGC_RESULT/bugfix/**/out/
+MSGC_RESULT/bugfix/**/temps/
+MSGC_RESULT/bugfix/**/results.txt
+MSGC_RESULT/bugfix/**/summary.txt
+MSGC_RESULT/bugfix/**/status.txt
+MSGC_RESULT/bugfix/**/framework_rc.txt

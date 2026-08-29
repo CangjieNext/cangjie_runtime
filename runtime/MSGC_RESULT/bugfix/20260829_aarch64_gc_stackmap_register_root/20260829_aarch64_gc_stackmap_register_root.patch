@@ -1,0 +1,177 @@
+diff --git a/runtime/src/Mutator/Mutator.cpp b/runtime/src/Mutator/Mutator.cpp
+index 2fb1f335..b8a48684 100644
+--- a/runtime/src/Mutator/Mutator.cpp
++++ b/runtime/src/Mutator/Mutator.cpp
+@@ -21,6 +21,8 @@
+ #include "StackManager.h"
+ #include "ExceptionManager.h"
+ #include "schedule.h"
++#include "../CJThread/src/runtime/schedule/include/inner/gas/offset_macro.h"
++#include "StackMap/StackMapTypeDef.h"
+ #ifdef MRT_USE_MARK_SWEEP
+ #include "Heap/MAllocator/MSAllocBuffer.h"
+ #endif
+@@ -195,9 +197,57 @@ void Mutator::PreparedToPark(void* pc, void* fa)
+         uwContext.frameInfo = GetCallerFrameInfo(winModuleManager, curFrame.mFrame, ucs);
+     }
+ #endif // platform
++    // CJThreadMcall/CJThreadContextGet has already saved the callee-saved registers
++    // into cjthread->context before this function is called.
++    cjThreadContextValid.store(true, std::memory_order_release);
+     DoEnterSaferegion();
+ }
+ 
++void Mutator::SaveCJThreadContext()
++{
++#if defined(__aarch64__)
++    if (cjthread == nullptr) {
++        return;
++    }
++
++    auto* context = reinterpret_cast<CJThreadContext*>(
++        reinterpret_cast<uint8_t*>(cjthread) + CJTHREAD_CONTEXT_OFFSET);
++    CJThreadContextGet(context);
++    cjThreadContextValid.store(true, std::memory_order_release);
++#endif
++}
++
++void Mutator::RecordCJThreadContextRegisters(RegSlotsMap& regSlotsMap)
++{
++#if defined(__aarch64__)
++    if (cjthread == nullptr || !InSaferegion() ||
++        !cjThreadContextValid.load(std::memory_order_acquire)) {
++        return;
++    }
++
++    auto* context = reinterpret_cast<CJThreadContext*>(
++        reinterpret_cast<uint8_t*>(cjthread) + CJTHREAD_CONTEXT_OFFSET);
++    auto record = [&regSlotsMap](RegisterNum reg, unsigned long long& value) {
++        regSlotsMap.Insert(reg, reinterpret_cast<SlotAddress>(&value));
++    };
++    record(Register::X18, context->x18);
++    record(Register::X19, context->x19);
++    record(Register::X20, context->x20);
++    record(Register::X21, context->x21);
++    record(Register::X22, context->x22);
++    record(Register::X23, context->x23);
++    record(Register::X24, context->x24);
++    record(Register::X25, context->x25);
++    record(Register::X26, context->x26);
++    record(Register::X27, context->x27);
++    record(Register::X28, context->x28);
++    record(Register::X29, context->x29Fp);
++    record(Register::X30, context->x30Lr);
++#else
++    (void)regSlotsMap;
++#endif
++}
++
+ void Mutator::HandleSuspensionRequest()
+ {
+     for (;;) {
+diff --git a/runtime/src/Mutator/Mutator.h b/runtime/src/Mutator/Mutator.h
+index a092265f..c09a06b6 100644
+--- a/runtime/src/Mutator/Mutator.h
++++ b/runtime/src/Mutator/Mutator.h
+@@ -26,6 +26,7 @@
+ 
+ namespace MapleRuntime {
+ class AllocBufferMS;
++struct RegSlotsMap;
+ extern "C" MRT_EXPORT bool MRT_EnterSaferegion(bool updateUnwindContext);
+ extern "C" MRT_EXPORT bool MRT_LeaveSaferegion();
+ extern "C" MRT_EXPORT bool MRT_CheckRuntimeFinished();
+@@ -71,6 +72,7 @@ public:
+         observerCnt = 0;
+         mutatorPhase.store(GCPhase::GC_PHASE_IDLE);
+         inManagedContext.store(true);
++        cjThreadContextValid.store(false, std::memory_order_relaxed);
+         assistLocalWork_.clear();
+         deferEnumAssistUntilNextSafepoint_ = false;
+     }
+@@ -105,6 +107,7 @@ public:
+         assistLocalWork_.clear();
+         deferEnumAssistUntilNextSafepoint_ = false;
+         uwContext.Reset();
++        cjThreadContextValid.store(false, std::memory_order_relaxed);
+         exceptionWrapper.ClearInfo();
+     }
+ 
+@@ -127,6 +130,8 @@ public:
+     void SetCjthreadPtr(void* cjthreadPtr) { this->cjthread = cjthreadPtr;}
+     uint32_t GetTid() const { return tid; }
+     void* GetCjthreadPtr() const {return cjthread;}
++    void SaveCJThreadContext();
++    void RecordCJThreadContextRegisters(RegSlotsMap& regSlotsMap);
+     void InitProtectStackAddr();
+ 
+     // Sets saferegion state of this mutator.
+@@ -475,6 +480,7 @@ public:
+         Allocator::EnsureThreadLocalBuffer();
+         SetThreadLocalGCPhase(tlData, GetMutatorPhase());
+         DoLeaveSaferegion();
++        cjThreadContextValid.store(false, std::memory_order_release);
+         SetSafepointStatePtr(&tlData->safepointState);
+         SetSafepointActive(false);
+     }
+@@ -539,6 +545,8 @@ private:
+     uint32_t tid = 0;
+     // cjthread ptr
+     void* cjthread;
++    // True only while the parked cjthread context contains the saved managed registers.
++    std::atomic<bool> cjThreadContextValid = { false };
+     // in saferegion, it will not access any managed objects and can be visitted by observer
+     std::atomic<uint32_t> inSaferegion = { SAFE_REGION_TRUE };
+     // Protect observerCnt
+diff --git a/runtime/src/Mutator/Mutator.inline.h b/runtime/src/Mutator/Mutator.inline.h
+index df287d46..fe09691b 100644
+--- a/runtime/src/Mutator/Mutator.inline.h
++++ b/runtime/src/Mutator/Mutator.inline.h
+@@ -32,6 +32,7 @@ inline bool Mutator::EnterSaferegion(bool updateUnwindContext) noexcept
+         if (updateUnwindContext && uwContext.GetUnwindContextStatus() != UnwindContextStatus::RISKY) {
+             UpdateUnwindContext();
+         }
++        SaveCJThreadContext();
+         DoEnterSaferegion();
+         return true;
+     }
+diff --git a/runtime/src/UnwindStack/GcStackInfo.cpp b/runtime/src/UnwindStack/GcStackInfo.cpp
+index 5bc59e78..0a3780d8 100644
+--- a/runtime/src/UnwindStack/GcStackInfo.cpp
++++ b/runtime/src/UnwindStack/GcStackInfo.cpp
+@@ -38,6 +38,7 @@ void GCStackInfo::FillInStackTrace()
+ void GCStackInfo::VisitStackRoots(const RootVisitor& func, Mutator& mutator) const
+ {
+     RegSlotsMap regSlotsMap;
++    mutator.RecordCJThreadContextRegisters(regSlotsMap);
+     for (const auto& frame : stack) {
+         switch (frame.GetFrameType()) {
+             case FrameType::MANAGED: {
+@@ -68,6 +69,7 @@ void GCStackInfo::VisitHeapReferencesOnStack(const RootVisitor& rootVisitor, con
+                                              Mutator& mutator) const
+ {
+     RegSlotsMap regSlotsMap;
++    mutator.RecordCJThreadContextRegisters(regSlotsMap);
+     for (const auto& frame : stack) {
+         switch (frame.GetFrameType()) {
+             case FrameType::MANAGED: {
+@@ -120,6 +122,7 @@ void RecordStackInfo::FillInStackTrace()
+ void RecordStackInfo::VisitStackRoots(const RootVisitor &func, Mutator &mutator)
+ {
+     RegSlotsMap regSlotsMap;
++    mutator.RecordCJThreadContextRegisters(regSlotsMap);
+     for (auto frame : stacks) {
+         FrameInfo &ref = *frame;
+         switch (frame->GetFrameType()) {
+diff --git a/runtime/src/UnwindStack/StackGrowStackInfo.cpp b/runtime/src/UnwindStack/StackGrowStackInfo.cpp
+index 6a4bb593..2b46534b 100644
+--- a/runtime/src/UnwindStack/StackGrowStackInfo.cpp
++++ b/runtime/src/UnwindStack/StackGrowStackInfo.cpp
+@@ -73,6 +73,7 @@ void StackGrowStackInfo::RecordStackPtrs(const StackPtrVisitor& traceAndFixPtrVi
+                                          const DerivedPtrVisitor& derivedPtrVisitor, Mutator& mutator)
+ {
+     RegSlotsMap regSlotsMap;
++    mutator.RecordCJThreadContextRegisters(regSlotsMap);
+     for (const auto& frame : stack) {
+         ObjectRef* rbp = reinterpret_cast<ObjectRef*>(frame.GetMachineFrame().GetFA());
+         fixPtrVisitor(*rbp);
