@@ -24,7 +24,7 @@ namespace MapleRuntime {
 // MSRegionInfo — Lifecycle
 // ============================================================================
 
-void MSRegionInfo::InitForSizeClass(uint8_t cls, MSScanClass scanClass)
+bool MSRegionInfo::InitForSizeClass(uint8_t cls, MSScanClass scanClass)
 {
     uintptr_t regionStart = MSRegionInfoArray::GetRegionAddress(MSRegionInfoArray::GetRegionIdx(this));
     allocPtr = regionStart;
@@ -47,15 +47,18 @@ void MSRegionInfo::InitForSizeClass(uint8_t cls, MSScanClass scanClass)
     size_t bitmapWords = GetBitmapWordCount();
     size_t bitmapBytes = bitmapWords * sizeof(uint64_t);
     size_t regionIdx = MSRegionInfoArray::GetRegionIdx(this);
-    MSBitmapArena::EnsurePlaneRangeCommitted(MSBitmapPlane::ALLOC, regionIdx, 1);
-    MSBitmapArena::EnsurePlaneRangeCommitted(MSBitmapPlane::MARK, regionIdx, 1);
-    if (scanClass == MSScanClass::HAS_REF) {
-        MSBitmapArena::EnsurePlaneRangeCommitted(MSBitmapPlane::SCAN, regionIdx, 1);
+    if (!MSBitmapArena::EnsurePlaneRangeCommitted(MSBitmapPlane::ALLOC, regionIdx, 1) ||
+        !MSBitmapArena::EnsurePlaneRangeCommitted(MSBitmapPlane::MARK, regionIdx, 1) ||
+        (scanClass == MSScanClass::HAS_REF &&
+         !MSBitmapArena::EnsurePlaneRangeCommitted(MSBitmapPlane::SCAN, regionIdx, 1))) {
+        Reset();
+        return false;
     }
     allocBitmap = MSBitmapArena::GetAllocPlane(regionIdx);
     uint64_t* markBitmap = MSBitmapArena::GetMarkPlane(regionIdx);
     if (allocBitmap == nullptr || markBitmap == nullptr) {
-        return;
+        Reset();
+        return false;
     }
 
     // Initialize: all slots free (allocBitmap all-1s), mark bits cleared
@@ -66,6 +69,7 @@ void MSRegionInfo::InitForSizeClass(uint8_t cls, MSScanClass scanClass)
 
     // Build summary word (O4): all bitmap words have free slots
     allocSummary = (bitmapWords == 64) ? ~0ULL : ((1ULL << bitmapWords) - 1);
+    return true;
 }
 
 void MSRegionInfo::InitForLargeObject(

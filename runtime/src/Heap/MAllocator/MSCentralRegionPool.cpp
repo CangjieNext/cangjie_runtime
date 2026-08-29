@@ -164,7 +164,16 @@ MSRegionInfo* CentralRegionPool::GetFreshRegion(
 #endif
 
     // Initialize for the requested size class (sets bitmaps, slot counts, state)
-    msInfo->InitForSizeClass(cls, scanClass);
+    if (!msInfo->InitForSizeClass(cls, scanClass)) {
+        LOG(RTLOG_ERROR,
+            "[MS-GC] GetFreshRegion failed to activate bitmap storage: cls=%u regionIdx=%zu",
+            static_cast<unsigned>(cls), regionIdx);
+        msInfo->Reset();
+        msRegionManager_->ReclaimReleasedRegionsToHotFreeBatch({
+            { static_cast<FreeManager::RegionIndex>(regionIdx), 1 }
+        });
+        return nullptr;
+    }
 
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
     if (UNLIKELY(msInfo->GetAllocBitmap() == nullptr)) {
