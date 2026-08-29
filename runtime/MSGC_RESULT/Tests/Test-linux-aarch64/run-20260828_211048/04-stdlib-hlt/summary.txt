@@ -1,0 +1,3 @@
+stage: 04-stdlib-hlt
+raw_results: {"FAIL": 1164, "PASS": 8818, "UNRESOLVED": 747, "total": 10729}
+results: {"FAIL": 394, "PASS": 8818, "UNSUPPORTED": 1517}

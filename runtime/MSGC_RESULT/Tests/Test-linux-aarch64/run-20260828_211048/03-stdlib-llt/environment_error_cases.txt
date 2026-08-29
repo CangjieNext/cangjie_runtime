@@ -1,0 +1,2 @@
+std/core/exclusiveScope/c_interop.cj	link_dependency_missing	/home/lipeisheng/cangjie/cangjie_test/testsuites/LLT/configs/cjnative/cjnative_test_linux_aarch64.cfg	API/std/core/exclusiveScope/c_interop_cj_1787923939
+std/reflect/organizationName.cj	host_tool_or_macro_missing	/home/lipeisheng/cangjie/cangjie_test/testsuites/LLT/configs/cjnative/cjnative_test_linux_aarch64.cfg	API/std/reflect/organizationName_cj_1787923935

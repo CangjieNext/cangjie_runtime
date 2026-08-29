@@ -1,0 +1,31 @@
+MSGC Linux aarch64 test run summary
+run_root: /home/lipeisheng/cangjie/cangjie_runtime_CMSGC/runtime/MSGC_RESULT/Tests/Test-linux-aarch64/run-20260828_211048
+
+[01-runtime-llt]
+raw_results: {"FAIL": 5, "PASS": 226, "UNRESOLVED": 17, "total": 248}
+results: {"FAIL": 5, "PASS": 226, "UNSUPPORTED": 17}
+
+[02-runtime-hlt]
+raw_results: {"FAIL": 56, "PASS": 1322, "UNRESOLVED": 84, "total": 1462}
+results: {"FAIL": 56, "PASS": 1322, "UNSUPPORTED": 84}
+
+[03-stdlib-llt]
+raw_results: {"FAIL": 482, "PASS": 3189, "UNRESOLVED": 300, "total": 3971}
+results: {"ENV-ERROR": 2, "FAIL": 124, "PASS": 3189, "UNSUPPORTED": 656}
+
+[04-stdlib-hlt]
+raw_results: {"FAIL": 1164, "PASS": 8818, "UNRESOLVED": 747, "total": 10729}
+results: {"FAIL": 394, "PASS": 8818, "UNSUPPORTED": 1517}
+
+[05-compiler-llt]
+raw_results: {"FAIL": 978, "PASS": 14550, "UNRESOLVED": 6067, "total": 21595}
+results: {"FAIL": 589, "PASS": 14550, "UNSUPPORTED": 6456}
+
+[06-compiler-hlt]
+raw_results: {"FAIL": 378, "PASS": 28770, "UNRESOLVED": 19140, "total": 48288}
+results: {"ENV-ERROR": 13, "FAIL": 364, "PASS": 28770, "UNSUPPORTED": 19141}
+
+[TOTAL]
+raw_results: {"FAIL": 3063, "PASS": 56875, "UNRESOLVED": 26355, "total": 86293}
+results: {"ENV-ERROR": 15, "FAIL": 1532, "PASS": 56875, "UNSUPPORTED": 27871}
+case_list_counts: {"ENV-ERROR": 15, "FAIL": 1532, "UNSUPPORTED": 27871}
