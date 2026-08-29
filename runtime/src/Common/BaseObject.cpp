@@ -50,15 +50,15 @@ void BaseObject::DumpObject(int logtype, bool isSimple) const
 static void ForEachRefFieldInNonArrayObject(ObjectPtr obj, const RefFieldVisitor& visitor)
 {
     GCTib gcTib = obj->GetGCTib();
-    // gcTib record payload data, skip the TypeInfo
+    // gcTib records payload data, skip the TypeInfo
     MAddress objAddr = reinterpret_cast<MAddress>(obj) + TYPEINFO_PTR_SIZE;
     gcTib.ForEachBitmapWord(objAddr, visitor);
 }
 
-// Call func on each element in an object array.
+// Call visitor on each element of the array.
 static void ForEachElementInArray(ObjectPtr obj, const RefFieldVisitor& visitor)
 {
-    // take array length and content.
+    // Get the array length and componet type info.
     MArray* mArray = reinterpret_cast<MArray*>(obj);
     MIndex arrayLengthVal = mArray->GetLength();
     TypeInfo* componentTypeInfo = mArray->GetComponentTypeInfo();
@@ -72,7 +72,7 @@ static void ForEachElementInArray(ObjectPtr obj, const RefFieldVisitor& visitor)
     } else if (componentTypeInfo->IsObjectType() || componentTypeInfo->IsArrayType() ||
                componentTypeInfo->IsInterface()) {
         RefField<>* arrayContent = reinterpret_cast<RefField<>*>(mArray->ConvertToCArray());
-        // for each object in array.
+        // for each element in array.
         for (MIndex i = 0; i < arrayLengthVal; ++i) {
             visitor(arrayContent[i]);
         }
@@ -115,10 +115,10 @@ void BaseObject::ForEachAggRefFieldInArray(const RefFieldVisitor& visitor, MAddr
         GCTib gcTib = component->GetGCTib();
         MAddress contentAddr = reinterpret_cast<Uptr>(this) + MArray::GetContentOffset();
         size_t contentSize = mArray->GetElementSize();
-        // MIndex is enough to describe the size;
+        // The aggregate range lies within this array,so the start index fits in MIndex.
         MIndex startIndex = static_cast<MIndex>((aggStart - contentAddr) / contentSize);
         size_t alignedStart = startIndex * contentSize + contentAddr;
-        MRT_ASSERT((alignedStart + contentSize) >= aggEnd, "aggregate element is not align\n");
+        MRT_ASSERT((alignedStart + contentSize) >= aggEnd, "aggregate element is not aligned\n");
         MAddress currentAddr = alignedStart;
         for (U64 i = startIndex; (i < arrayLen) && (currentAddr < aggEnd); ++i) {
             gcTib.ForEachBitmapWord(currentAddr, visitor);
