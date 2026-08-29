@@ -205,21 +205,21 @@ void Mutator::PreparedToPark(void* pc, void* fa)
 
 void Mutator::SaveCJThreadContext()
 {
-#if defined(__aarch64__)
     if (cjthread == nullptr) {
         return;
     }
 
+    // A safepoint may be reached without going through CJThreadMcall.  Save
+    // the ABI callee-saved registers into the CJThread context in that case,
+    // so the stack-map scanner has a slot for every register root it sees.
     auto* context = reinterpret_cast<CJThreadContext*>(
         reinterpret_cast<uint8_t*>(cjthread) + CJTHREAD_CONTEXT_OFFSET);
     CJThreadContextGet(context);
     cjThreadContextValid.store(true, std::memory_order_release);
-#endif
 }
 
 void Mutator::RecordCJThreadContextRegisters(RegSlotsMap& regSlotsMap)
 {
-#if defined(__aarch64__)
     if (cjthread == nullptr || !InSaferegion() ||
         !cjThreadContextValid.load(std::memory_order_acquire)) {
         return;
@@ -230,6 +230,7 @@ void Mutator::RecordCJThreadContextRegisters(RegSlotsMap& regSlotsMap)
     auto record = [&regSlotsMap](RegisterNum reg, unsigned long long& value) {
         regSlotsMap.Insert(reg, reinterpret_cast<SlotAddress>(&value));
     };
+#if defined(__aarch64__)
     record(Register::X18, context->x18);
     record(Register::X19, context->x19);
     record(Register::X20, context->x20);
@@ -243,6 +244,55 @@ void Mutator::RecordCJThreadContextRegisters(RegSlotsMap& regSlotsMap)
     record(Register::X28, context->x28);
     record(Register::X29, context->x29Fp);
     record(Register::X30, context->x30Lr);
+    record(Register::D8, context->d8);
+    record(Register::D9, context->d9);
+    record(Register::D10, context->d10);
+    record(Register::D11, context->d11);
+    record(Register::D12, context->d12);
+    record(Register::D13, context->d13);
+    record(Register::D14, context->d14);
+    record(Register::D15, context->d15);
+#elif defined(__x86_64__)
+    record(Register::RBX, context->rbx);
+    record(Register::R12, context->r12);
+    record(Register::R13, context->r13);
+    record(Register::R14, context->r14);
+    record(Register::R15, context->r15);
+#ifdef MRT_WINDOWS
+    record(Register::RSI, context->rsi);
+    record(Register::RDI, context->rdi);
+    record(Register::XMM6, context->xmm6[0]);
+    record(Register::XMM7, context->xmm7[0]);
+    record(Register::XMM8, context->xmm8[0]);
+    record(Register::XMM9, context->xmm9[0]);
+    record(Register::XMM10, context->xmm10[0]);
+    record(Register::XMM11, context->xmm11[0]);
+    record(Register::XMM12, context->xmm12[0]);
+    record(Register::XMM13, context->xmm13[0]);
+    record(Register::XMM14, context->xmm14[0]);
+    record(Register::XMM15, context->xmm15[0]);
+#endif
+#elif defined(__arm__)
+    auto recordWord = [&regSlotsMap](RegisterNum reg, unsigned int& value) {
+        regSlotsMap.Insert(reg, reinterpret_cast<SlotAddress>(&value));
+    };
+    recordWord(Register::R4, context->r4);
+    recordWord(Register::R5, context->r5);
+    recordWord(Register::R6, context->r6);
+    recordWord(Register::R7, context->r7);
+    recordWord(Register::R8, context->r8);
+    recordWord(Register::R9, context->r9);
+    recordWord(Register::R10, context->r10);
+    recordWord(Register::R11, context->r11fp);
+    recordWord(Register::R14, context->r14lr);
+    record(Register::D8, context->d8);
+    record(Register::D9, context->d9);
+    record(Register::D10, context->d10);
+    record(Register::D11, context->d11);
+    record(Register::D12, context->d12);
+    record(Register::D13, context->d13);
+    record(Register::D14, context->d14);
+    record(Register::D15, context->d15);
 #else
     (void)regSlotsMap;
 #endif

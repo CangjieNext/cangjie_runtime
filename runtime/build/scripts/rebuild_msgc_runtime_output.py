@@ -183,7 +183,7 @@ def default_msgc_sdk_root(host: HostLayout) -> pathlib.Path:
     raise ValueError(f"unsupported host system for MSGC SDK: {host.os_name}")
 
 
-def build_stage_plan(config: BuildConfig) -> list[BuildStage]:
+def build_stage_plan(config: BuildConfig, host: HostLayout) -> list[BuildStage]:
     stages: list[BuildStage] = []
     if not config.skip_clean:
         stages.append(
@@ -192,23 +192,31 @@ def build_stage_plan(config: BuildConfig) -> list[BuildStage]:
                 command=[sys.executable, "build.py", "clean"],
             )
         )
+    runtime_target = "windows-x86_64" if host.os_name == "windows" else "native"
+    runtime_build_command = [
+        sys.executable,
+        "build.py",
+        "build",
+        "--target",
+        runtime_target,
+        "--build-type",
+        config.build_type,
+        "--gc-mode",
+        "marksweep",
+        "-v",
+        config.version,
+    ]
+    if host.os_name == "windows":
+        # ``native`` leaves WINDOWS_FLAG disabled.  The explicit Windows
+        # target also requires the MinGW root, even when building on Windows.
+        runtime_build_command.extend(
+            ["--target-toolchain", str(WINDOWS_BUILD_TOOL_DIRS[0].parent)]
+        )
     stages.extend(
         [
             BuildStage(
                 cwd=config.runtime_root,
-                command=[
-                    sys.executable,
-                    "build.py",
-                    "build",
-                    "--target",
-                    "native",
-                    "--build-type",
-                    config.build_type,
-                    "--gc-mode",
-                    "marksweep",
-                    "-v",
-                    config.version,
-                ],
+                command=runtime_build_command,
             ),
             BuildStage(
                 cwd=config.runtime_root,
@@ -588,7 +596,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     print(f"[info] host={host.os_name}/{host.arch}", flush=True)
     build_environment = build_subprocess_environment(host, validate_tools=not config.dry_run)
 
-    for stage in build_stage_plan(config):
+    for stage in build_stage_plan(config, host):
         run_command(
             stage.command,
             cwd=stage.cwd,

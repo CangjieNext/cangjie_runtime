@@ -206,6 +206,10 @@ elseif (EULER_FLAG MATCHES 1)
     add_definitions(-D__EULER__)
 elseif (WINDOWS_FLAG MATCHES 1)
     message("Building runtime in Windows.")
+    # CJThreadContext and the Windows stack-map ABI both use this macro.  It
+    # must be visible to the runtime targets as well as the nested CJThread
+    # build, otherwise the two sides compile different context layouts.
+    add_definitions(-DMRT_WINDOWS)
     if (CMAKE_HOST_SYSTEM_NAME MATCHES "Windows")
         # Native Windows builds use the installed UCRT MinGW toolchain.
         set(CMAKE_C_COMPILER "clang.exe")
