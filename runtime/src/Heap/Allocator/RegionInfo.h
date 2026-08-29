@@ -10,6 +10,7 @@
 #include <list>
 #include <map>
 #include <new>
+#include <cstdlib>
 #include <set>
 #include <thread>
 #include <vector>
@@ -218,11 +219,7 @@ public:
 
     AgeBitmap* GetAgeBitmap()
     {
-        LiveInfo* liveInfo = GetLiveInfo();
-        if (liveInfo == nullptr) {
-            return nullptr;
-        }
-        AgeBitmap* bitmap = __atomic_load_n(&liveInfo->ageBitmap, std::memory_order_acquire);
+        AgeBitmap* bitmap = __atomic_load_n(&metadata.ageBitmap, std::memory_order_acquire);
         if (reinterpret_cast<MAddress>(bitmap) == LiveInfo::TEMPORARY_PTR) {
             return nullptr;
         }
@@ -231,9 +228,8 @@ public:
 
     AgeBitmap* GetOrAllocAgeBitmap()
     {
-        LiveInfo* liveInfo = GetOrAllocLiveInfo();
         do {
-            AgeBitmap* bitmap = __atomic_load_n(&liveInfo->ageBitmap, std::memory_order_acquire);
+            AgeBitmap* bitmap = __atomic_load_n(&metadata.ageBitmap, std::memory_order_acquire);
             if (UNLIKELY(reinterpret_cast<uintptr_t>(bitmap) == LiveInfo::TEMPORARY_PTR)) {
                 continue;
             }
@@ -241,11 +237,16 @@ public:
                 return bitmap;
             }
             AgeBitmap* newValue = reinterpret_cast<AgeBitmap*>(LiveInfo::TEMPORARY_PTR);
-            if (__atomic_compare_exchange_n(&liveInfo->ageBitmap, &bitmap, newValue, false,
+            if (__atomic_compare_exchange_n(&metadata.ageBitmap, &bitmap, newValue, false,
                                             std::memory_order_seq_cst, std::memory_order_relaxed)) {
-                AgeBitmap* allocated =
-                    ForwardDataManager::GetForwardDataManager().AllocateAgeBitmap(GetRegionSize());
-                __atomic_store_n(&liveInfo->ageBitmap, allocated, std::memory_order_release);
+                size_t bitmapSize = AgeBitmap::GetAgeBitmapSize(GetRegionSize());
+                AgeBitmap* allocated = reinterpret_cast<AgeBitmap*>(std::malloc(bitmapSize));
+                CHECK_DETAIL(allocated != nullptr, "allocate age bitmap failed");
+                size_t wordCnt = AgeBitmap::WordCount(GetRegionSize());
+                for (size_t i = 0; i < wordCnt; i++) {
+                    new (&allocated->ageWords[i]) std::atomic<uint64_t>(0);
+                }
+                __atomic_store_n(&metadata.ageBitmap, allocated, std::memory_order_release);
                 return allocated;
             }
         } while (true);
@@ -1301,6 +1302,7 @@ private:
 
         // Per-old-region remembered-set slot bitmap (1 bit per pointer-sized slot).
         uint8_t* rsetCardTable = nullptr;
+        AgeBitmap* ageBitmap = nullptr;
     };
 
     class UnitInfo {
@@ -1431,6 +1433,11 @@ private:
     {
         ClearFreeSlotList();
 
+        AgeBitmap* ageBitmap = __atomic_exchange_n(&metadata.ageBitmap, nullptr, std::memory_order_acq_rel);
+        if (ageBitmap != nullptr && reinterpret_cast<uintptr_t>(ageBitmap) != LiveInfo::TEMPORARY_PTR) {
+            std::free(ageBitmap);
+        }
+
         // Reset (free) the remembered-set card table atomically. RememberSet entries
         // still referencing this region will be skipped lazily via IsRSetSlotMarked==false.
         ResetRSetCardTable();
@@ -1441,6 +1448,7 @@ private:
         metadata.nextRegionIdx = NULLPTR_IDX;
         metadata.liveByteCount = 0;
         metadata.liveInfo = nullptr;
+        metadata.ageBitmap = nullptr;
         SetRegionType(RegionType::FREE_REGION);
         SetUnitRole(uClass);
         SetTraceRegionFlag(0);
