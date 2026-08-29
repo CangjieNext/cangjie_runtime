@@ -39,9 +39,9 @@ if (WINDOWS_FLAG MATCHES 1)
     # Use target x86_64-w64-mingw32 instead of x86_64-windows-gnu
     # to make sure clang can find x86_64-w64-mingw32-ld (linker for cross-compiling)
     if (CMAKE_C_COMPILER MATCHES "clang" OR CMAKE_CXX_COMPILER MATCHES "clang")
-        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -static -target x86_64-w64-mingw32 -pthread -femulated-tls --rtlib=compiler-rt")
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -static -target x86_64-w64-mingw32 -pthread -femulated-tls -stdlib=libstdc++ --rtlib=compiler-rt")
-        set(CMAKE_ASM_FLAGS "${CMAKE_ASM_FLAGS} -static -target x86_64-w64-mingw32 --rtlib=compiler-rt")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -static -target x86_64-w64-mingw32 -pthread --rtlib=libgcc")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -static -target x86_64-w64-mingw32 -pthread -stdlib=libstdc++ --rtlib=libgcc")
+        set(CMAKE_ASM_FLAGS "${CMAKE_ASM_FLAGS} -static -target x86_64-w64-mingw32 --rtlib=libgcc")
     else()
         set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -static -pthread")
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -static -pthread")
@@ -116,7 +116,13 @@ if (WINDOWS_FLAG MATCHES 1)
     if (CMAKE_HOST_SYSTEM_NAME MATCHES "Windows")
         message("build cjthread for windows on windows")
         # build\build_cjthread_windows.bat -p windows_x86_64 Debug STATIC
-        execute_process(COMMAND build\\build_cjthread_windows.bat -p windows_x86_64 ${CMAKE_BUILD_TYPE} STATIC ${CJTHREAD_SAN_PRARM} "${OTHER_DEFINITIONS}" "${CMAKE_INSTALL_PREFIX}" ${TARGET_ARCH})
+        execute_process(
+            COMMAND build\\build_cjthread_windows.bat -p windows_x86_64 ${CMAKE_BUILD_TYPE} STATIC ${CJTHREAD_SAN_PRARM} "${OTHER_DEFINITIONS}" "${CMAKE_INSTALL_PREFIX}" ${TARGET_ARCH}
+            RESULT_VARIABLE CJTHREAD_BUILD_RESULT
+        )
+        if (NOT CJTHREAD_BUILD_RESULT EQUAL 0)
+            message(FATAL_ERROR "CJThread Windows build failed with exit code ${CJTHREAD_BUILD_RESULT}")
+        endif()
     elseif (CMAKE_HOST_SYSTEM_NAME MATCHES "Linux")
         message("build cjthread for windows on linux")
         execute_process(COMMAND bash build/build_cjthread.sh -p cross_windows_x86_64 ${CMAKE_BUILD_TYPE} STATIC ${CJTHREAD_SAN_PRARM} "${OTHER_DEFINITIONS}" "${CMAKE_INSTALL_PREFIX}" ${TARGET_ARCH})

@@ -55,9 +55,10 @@ if "%1" == "-s" (
     )
 
     mingw32-make
+    set BUILD_RESULT=%ERRORLEVEL%
 )
 
 cd %CURRENT_PATH%
-exit /b 0
+exit /b %BUILD_RESULT%
 
 @echo on

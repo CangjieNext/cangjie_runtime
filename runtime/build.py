@@ -160,7 +160,17 @@ def do_build(args):
         if args.sanitizer_support:
             print("Windows does not support sanitizer support")
             sys.exit(1)
-        os.environ["PATH"] = os.path.join(args.target_toolchain, "bin") + ":" + os.environ["PATH"]
+        toolchain_bin = os.path.join(args.target_toolchain, "bin")
+        if platform.system().lower() == "windows":
+            llvm_bin = os.path.join(os.environ.get("ProgramFiles", r"C:\\Program Files"), "LLVM", "bin")
+            if os.path.isfile(os.path.join(llvm_bin, "clang.exe")):
+                os.environ["PATH"] = toolchain_bin + os.pathsep + llvm_bin + os.pathsep + os.environ["PATH"]
+            else:
+                os.environ["PATH"] = toolchain_bin + os.pathsep + os.environ["PATH"]
+        else:
+            os.environ["PATH"] = toolchain_bin + os.pathsep + os.environ["PATH"]
+        windows_c_compiler = "clang"
+        windows_cxx_compiler = "clang++"
         cmake_command = [
             "cmake",
             "-DCMAKE_INSTALL_PREFIX={}_{}".format(install_prefix, target_arch),
@@ -182,8 +192,8 @@ def do_build(args):
             "-DDUMPADDRESS_FLAG=0",
             "-DCJ_SDK_VERSION={}".format(version),
             "-DDISABLE_VERSION_CHECK=1",
-            "-DCMAKE_C_COMPILER=clang",
-            "-DCMAKE_CXX_COMPILER=clang++",
+            "-DCMAKE_C_COMPILER={}".format(windows_c_compiler),
+            "-DCMAKE_CXX_COMPILER={}".format(windows_cxx_compiler),
             "-DCMAKE_AR_PATH=ar",
             "-G", "Ninja",
             "-DCMAKE_SHARED_LINKER_FLAGS={}".format(shared_linker_flags),

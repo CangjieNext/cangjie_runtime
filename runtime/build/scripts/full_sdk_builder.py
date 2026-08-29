@@ -16,6 +16,7 @@ from enum import Enum
 from typing import Iterator, Sequence
 
 import rebuild_sdk_and_stdx as sdk_helpers
+import rebuild_msgc_runtime_output as runtime_output
 
 
 RepoLayout = sdk_helpers.RepoLayout
@@ -134,6 +135,31 @@ def build_stage_plan(config: FullBuildConfig, host: HostLayout) -> list[BuildSta
     envsetup_name = "envsetup.ps1" if host.os_name == "windows" else "envsetup.sh"
     envsetup = config.sdk_root / envsetup_name
     cjc_gc_arg = f"--build-args=--gc-mode={config.gc_mode.cjc_name}"
+    # ``native`` does not enable the Windows-specific source lists in the
+    # runtime build script.  Use the explicit Windows target when rebuilding
+    # an SDK on Windows; native remains correct for Unix hosts.
+    runtime_target = "windows-x86_64" if host.os_name == "windows" else "native"
+    runtime_build_command = [
+        "python3",
+        "build.py",
+        "build",
+        "--target",
+        runtime_target,
+        "--build-type",
+        config.build_type,
+        "--gc-mode",
+        config.gc_mode.runtime_name,
+        "-v",
+        config.version,
+    ]
+    if host.os_name == "windows":
+        # build.py requires a MinGW root for its Windows target, even for a
+        # native Windows build.  Keep it aligned with the toolchain used by
+        # the runtime subprocess environment.
+        runtime_build_command.extend([
+            "--target-toolchain",
+            str(runtime_output.WINDOWS_BUILD_TOOL_DIRS[0].parent),
+        ])
 
     clean_stages = [
         BuildStage(
@@ -214,19 +240,7 @@ def build_stage_plan(config: FullBuildConfig, host: HostLayout) -> list[BuildSta
             component="runtime",
             action="build",
             cwd=config.runtime_root,
-            command=[
-                "python3",
-                "build.py",
-                "build",
-                "--target",
-                "native",
-                "--build-type",
-                config.build_type,
-                "--gc-mode",
-                config.gc_mode.runtime_name,
-                "-v",
-                config.version,
-            ],
+            command=runtime_build_command,
         ),
         BuildStage(
             component="runtime",
