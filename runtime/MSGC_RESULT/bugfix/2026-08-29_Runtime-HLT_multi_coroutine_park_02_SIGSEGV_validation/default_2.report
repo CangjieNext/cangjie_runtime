@@ -1,0 +1,5 @@
+2026-08-29 03:35:15.917665 1718545 [MS-GC] heap initialized: committedRegions=2048 committed=64.00MB maxVirtualRegions=16496881 segment=64.00MB shards=16 processorsPerShard=8 heap=[0x7f759468d000,0x7ff370e15000)
+2026-08-29 03:35:15.917771 1718545 [MS-GC] Mark ready shards: P=128 gcThreads=64 shards=96
+2026-08-29 03:35:15.917783 1718545 machine GC thread capacity=128, GCThreadPool total threads=64, helper threads=63
+2026-08-29 03:35:15.924205 1718545 [MS-GC] config: heap=64.00MB region=0.06MB gcThreads=64 P=128 markBudget=10000000us sweepSlice=2000us
+2026-08-29 03:35:15.924227 1718545 [MS-GC] config: markAssist=1 enumAssist=1 enumBatch=10 assistMaxMultiplier=4 sweepAssistMaxRegions=4 background(sweep=1 parallel=1 helpers=0 scavenge=1 shrink=0) verify=0/0 adaptiveGrowth=0 softLimit=515527.52MB allocator(shards=16 processorsPerShard=8 initialSegments=1)

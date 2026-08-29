@@ -55,24 +55,8 @@ runtime.code-workspace
 runtime-architecture*
 third_party/third_party_bounds_checking_function/
 tmp/
-# Keep MSGC_RESULT bugfix notes, patches, and source snapshots under version
-# control while ignoring generated diagnostics and local run artifacts.
-MSGC_RESULT/bugfix/**/*.log*
-MSGC_RESULT/bugfix/**/*.json
-MSGC_RESULT/bugfix/**/*.xml
-MSGC_RESULT/bugfix/**/*.out
-MSGC_RESULT/bugfix/**/*.so*
-MSGC_RESULT/bugfix/**/temp/
-MSGC_RESULT/bugfix/**/log/
-MSGC_RESULT/bugfix/**/out/
-MSGC_RESULT/bugfix/**/temps/
-MSGC_RESULT/bugfix/**/results.txt
-MSGC_RESULT/bugfix/**/summary.txt
-MSGC_RESULT/bugfix/**/status.txt
-MSGC_RESULT/bugfix/**/framework_rc.txt
-
-# Keep the complete MSGC bugfix investigation record, including repro
-# artifacts and diagnostics, under version control.
+# Keep all MSGC bugfix analysis, validation, and reproduction records under
+# version control, including generated diagnostics requested for review.
 !MSGC_RESULT/bugfix/
 !MSGC_RESULT/bugfix/**/
 !MSGC_RESULT/bugfix/**

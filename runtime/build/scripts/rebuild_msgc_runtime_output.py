@@ -254,10 +254,23 @@ def build_runtime_relayout_plan(
     shared_output = runtime_common_dir / "runtime" / "lib" / platform_dir
     suffix = runtime_shared_library_suffix(host)
 
-    return [
-        (static_root / artifact, static_output / artifact)
-        for artifact in runtime_static_artifact_names(host)
-    ] + [
+    relayout: list[tuple[pathlib.Path, pathlib.Path]] = []
+    for artifact in runtime_static_artifact_names(host):
+        # The nested cjthread build installs aio/thread archives directly in
+        # the build-type directory, while build.py installs cjstart/runtime
+        # in the common prefix. Keep both layouts synchronized before copying
+        # the complete runtime directory into the SDK.
+        source_root = (
+            runtime_common_dir / "lib" / platform_dir
+            if artifact == "libcangjie-aio.a"
+            else static_root
+        )
+        source = source_root / artifact
+        destination = static_output / artifact
+        if source != destination:
+            relayout.append((source, destination))
+
+    return relayout + [
         (shared_root / f"libcangjie-runtime{suffix}", shared_output / f"libcangjie-runtime{suffix}"),
         (shared_root / f"libcangjie-trace{suffix}", shared_output / f"libcangjie-trace{suffix}"),
         *(

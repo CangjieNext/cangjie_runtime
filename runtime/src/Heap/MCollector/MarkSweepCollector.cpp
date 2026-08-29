@@ -397,13 +397,15 @@ struct MarkSourceTag {};
 static inline bool ValidatePublishedMarkTarget(BaseObject* obj, MarkSourceTag<true>)
 {
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
-    CHECK_DETAIL(obj->GetTypeInfo() != nullptr,
+    CHECK_DETAIL(obj != nullptr && obj->GetTypeInfo() != nullptr,
                  "[MS-GC] trusted mark target is not published obj=%p",
                  static_cast<void*>(obj));
-#else
-    (void)obj;
 #endif
-    return true;
+    // Trusted callers establish the heap/slot coordinate, but an outside-set
+    // slot can still be reclaimed and zeroed before it is observed. This is
+    // the release liveness check; collect-set callers use the stable alloc
+    // bitmap instead.
+    return obj != nullptr && obj->GetTypeInfo() != nullptr;
 }
 
 static inline bool ValidatePublishedMarkTarget(BaseObject* obj, MarkSourceTag<false>)
@@ -913,6 +915,12 @@ void MarkSweepCollector::AddResolvedRefToMarkBatchImpl(
 
     uint32_t currentEpoch = batch.GetMarkEpoch();
     uint32_t regionIdx = target.regionIdx;
+    bool inCollectSet = target.info->collectEpoch == currentEpoch;
+    if (!inCollectSet && UNLIKELY(!ValidatePublishedMarkTarget(
+            obj, MarkSourceTag<Trusted> {}))) {
+        return;
+    }
+
     if (!Trusted) {
         uint64_t* markWord =
             &batch.GetMarkBitmap(regionIdx)[target.wordIdx];
@@ -924,15 +932,7 @@ void MarkSweepCollector::AddResolvedRefToMarkBatchImpl(
             return;
         }
 
-        bool inCollectSet = target.info->collectEpoch == currentEpoch;
         if (!inCollectSet) {
-            // An untrusted Runtime value can name an aligned stale slot.
-            // OUTSIDE_SET allocation state is mutable, so retain stateWord
-            // publication validation only for this defensive source.
-            if (UNLIKELY(!ValidatePublishedMarkTarget(
-                    obj, MarkSourceTag<Trusted> {}))) {
-                return;
-            }
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
             if (target.info->GetScanClass() == MSScanClass::NO_REF) {
                 TypeInfo* typeInfo = obj->GetTypeInfo();
@@ -959,7 +959,6 @@ void MarkSweepCollector::AddRefToMarkBatch(
         if (UNLIKELY(!Heap::IsHeapAddress(obj))) {
             return;
         }
-        (void)ValidatePublishedMarkTarget(obj, MarkSourceTag<true> {});
     }
 
     if (Source == MSMarkRefSource::DEFENSIVE) {
@@ -1003,6 +1002,16 @@ void MarkSweepCollector::AddRefToMarkBatch(
                      "[MS-GC] trusted direct Small lookup disagrees with validation obj=%p",
                      static_cast<void*>(obj));
 #endif
+        // The small-object trusted path resolves the slot directly and does
+        // not pass through AddResolvedRefToMarkBatchImpl. Keep the outside-set
+        // publication check here as well; its alloc bitmap is not stable for
+        // an active Region, so a stale aligned slot must be rejected before
+        // publishing a mark bit.
+        if (info->collectEpoch != batch.GetMarkEpoch() &&
+            UNLIKELY(!ValidatePublishedMarkTarget(
+                obj, MarkSourceTag<true> {}))) {
+            return;
+        }
         work.AddResolvedRefs();
         AddMarkBitToBatch(
             static_cast<uint32_t>(resolvedRegionIdx), slotIdx / 64,
@@ -1256,14 +1265,24 @@ void MarkSweepCollector::RunRegionTask(
             BaseObject* obj = reinterpret_cast<BaseObject*>(
                 regionStart + slotIdx * slotSize);
             TypeInfo* typeInfo = obj->GetTypeInfo();
+            if (UNLIKELY(typeInfo == nullptr)) {
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
-            CHECK_DETAIL(
-                typeInfo != nullptr,
-                "[MS-GC] Region owner found invalid marked object obj=%p "
-                "region=%u word=%zu bit=%zu",
-                static_cast<void*>(obj), lease.GetRegionIdx(),
-                wordIdx, bitIdx);
+                CHECK_DETAIL(
+                    false,
+                    "[MS-GC] Region owner found invalid marked object obj=%p "
+                    "region=%u word=%zu bit=%zu",
+                    static_cast<void*>(obj), lease.GetRegionIdx(),
+                    wordIdx, bitIdx);
+#else
+                LOG(RTLOG_ERROR,
+                    "[MS-GC] Region owner skipped invalid marked object "
+                    "obj=%p region=%u word=%zu bit=%zu",
+                    static_cast<void*>(obj), lease.GetRegionIdx(),
+                    wordIdx, bitIdx);
 #endif
+                scanWord |= bit;
+                continue;
+            }
 
             if (UNLIKELY(typeInfo->IsWeakRefType())) {
                 weakRefs.Add(obj);
@@ -1329,11 +1348,20 @@ void MarkSweepCollector::RunObjectTask(
     BaseObject* obj =
         reinterpret_cast<BaseObject*>(info->LargeObjectStart());
     TypeInfo* typeInfo = obj->GetTypeInfo();
+    if (UNLIKELY(typeInfo == nullptr)) {
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
-    CHECK_DETAIL(typeInfo != nullptr,
-                 "[MS-GC] Object task has invalid TypeInfo obj=%p idx=%u",
-                 static_cast<void*>(obj), lease.GetRegionIdx());
+        CHECK_DETAIL(typeInfo != nullptr,
+                     "[MS-GC] Object task has invalid TypeInfo obj=%p idx=%u",
+                     static_cast<void*>(obj), lease.GetRegionIdx());
+#else
+        LOG(RTLOG_ERROR,
+            "[MS-GC] Object task skipped invalid TypeInfo obj=%p idx=%u",
+            static_cast<void*>(obj), lease.GetRegionIdx());
 #endif
+        markScheduler_.CompleteObjectWork(info);
+        lease.Complete(true);
+        return;
+    }
 
     MSMarkWordBatch batch;
     InitializeGCMarkBatch(batch);

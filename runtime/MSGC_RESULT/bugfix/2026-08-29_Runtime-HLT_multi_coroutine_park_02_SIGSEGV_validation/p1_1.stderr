@@ -1,0 +1,8 @@
+1718841 E CJNatvie Handle signal: 11.
+1718841 E Thread "multi_coroutine" catched unhandled SIGSEGV (Segmentation fault) from managed frame. signal pc: 0x55e112f272a2, addr: (nil)
+1718841 E   #0  0x55e112f272a2 in _CN7default6<main>Hv at /home/lipeisheng/cangjie/cangjie_test/testsuites/HLT/Runtime/cjnative/runtime/GC/multi_coroutine_park_02.cj
+1718841 E   #1  0x55e112f28d51 in user.main
+1718841 E   #2  0x55e112f26fb4 in cj_entry$
+1718841 E   #3  0x7f89b491d523 in ExecuteCangjieStub from /home/lipeisheng/cangjie/cangjie_compiler_CMSGC/output/msgc/runtime/lib/linux_x86_64_cjnative/libcangjie-runtime.so
+1718841 E   #4  0x7f89b499aa5a in CJ_CJThreadEntry from /home/lipeisheng/cangjie/cangjie_compiler_CMSGC/output/msgc/runtime/lib/linux_x86_64_cjnative/libcangjie-runtime.so
+timeout: the monitored command dumped core

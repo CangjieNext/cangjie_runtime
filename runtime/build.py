@@ -132,7 +132,7 @@ def do_build(args):
             "-DIOS_FLAG=0",
             "-DIOS_SIMULATOR_FLAG=0",
             "-DEULER_FLAG=0",
-            "-DWINDOWS_FLAG=1",
+            "-DWINDOWS_FLAG=0",
             "-DMACOS_FLAG={}".format(macos_flag),
             "-DRUNTIME_TRACE_FLAG=1",
             "-DASAN_FLAG=0",
@@ -330,7 +330,7 @@ def build_target(cmake_command):
             "--target", "cangjie-runtime", "--verbose",
         ], check=True)
 
-        install_target = "install" if platform.system().lower() == "windows" else "preinstall"
+        install_target = "install"
         subprocess.run([
             "cmake", "--build", build_dir, "--parallel", str(os.cpu_count() or 1),
             "--target", install_target, "--verbose",

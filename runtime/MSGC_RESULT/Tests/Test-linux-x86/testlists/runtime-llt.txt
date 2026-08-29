@@ -1,0 +1,13 @@
+# Paths are relative to cangjie_test/testsuites/LLT.
+
+[ALL-TEST-CASE]
+Runtime/
+
+[EXCLUDE-TEST-CASE]
+Runtime/CJNative/array/array16.cj
+Runtime/CJNative/load_option_none.cj
+Runtime/CJNative/Exception/Exception32_OutOfMemoryError.cj
+Runtime/CJNative/Exception/Expection38_NewArray8.cj
+Runtime/CJNative/Exception/Expection39_NewArray16.cj
+Runtime/CJNative/Exception/Expection40_NewArray32.cj
+Runtime/CJNative/Exception/Expection42_NewObject.cj

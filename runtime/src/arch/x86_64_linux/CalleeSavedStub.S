@@ -114,6 +114,12 @@ CalleeSavedRegistersStub MCC_GetTypeInfoAnnotations CJ_MCC_GetTypeInfoAnnotation
 CalleeSavedRegistersStub MCC_GetInstanceFieldValue CJ_MCC_GetInstanceFieldValue
 CalleeSavedRegistersStub MCC_GetStaticFieldValue CJ_MCC_GetStaticFieldValue
 CalleeSavedRegistersStub MCC_NewArrayGeneric CJ_MCC_NewArrayGeneric
+#ifdef MRT_USE_MARK_SWEEP
+// MSGC generic-array fast paths tail-call this entry when the inline
+// allocator needs the runtime slow path. Preserve managed callee-saved roots
+// while the runtime may trigger GC.
+CalleeSavedRegistersStub MCC_NewArrayGenericFast3_MSGC CJ_MCC_NewArrayGenericFast3_MSGC
+#endif
 CalleeSavedRegistersStub MCC_DumpCJHeapData CJ_MCC_DumpCJHeapData
 CalleeSavedRegistersStub MCC_NewAndInitEnumTupleObject CJ_MCC_NewAndInitEnumTupleObject
 CalleeSavedRegistersStub MCC_GetAssociatedValues CJ_MCC_GetAssociatedValues

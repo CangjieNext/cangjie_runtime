@@ -1,0 +1,23 @@
+#!/bin/bash
+
+set -u
+
+sdk_cjc="/home/lipeisheng/cangjie/cangjie_compiler_CMSGC/output/msgc/bin/cjc"
+has_gc_mode=0
+for arg in "$@"; do
+    case "$arg" in
+        --gc-mode|--gc-mode=*)
+            has_gc_mode=1
+            ;;
+    esac
+done
+
+if [ "$has_gc_mode" -eq 0 ]; then
+    set -- --gc-mode=marksweep "$@"
+fi
+
+if [ -n "${MSGC_CJC_TRACE:-}" ]; then
+    printf '%s\n' "$*" >> "$MSGC_CJC_TRACE"
+fi
+
+exec "$sdk_cjc" "$@"

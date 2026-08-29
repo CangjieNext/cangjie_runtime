@@ -637,6 +637,15 @@ if (IOS_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MAT
             ${SANITIZER_LIB_STATIC}
         )
     endif()
+    # Static stack walking identifies runtime frames by section range. Rename
+    # the build archive before it can be linked, not only during install.
+    if (ANDROID_FLAG MATCHES 0 AND OHOS_FLAG MATCHES 0 AND WINDOWS_FLAG MATCHES 0 AND NOT APPLE)
+        add_custom_command(TARGET cangjie-runtime-static POST_BUILD
+            COMMAND objcopy --rename-section .text=.text_runtime
+                    "$<TARGET_FILE:cangjie-runtime-static>"
+            VERBATIM
+        )
+    endif()
     # GC mode conditional static objects
     if (MARKSWEEP_FLAG MATCHES 1)
         target_sources(cangjie-runtime-static PRIVATE $<TARGET_OBJECTS:MBarrier>)
