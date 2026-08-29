@@ -617,7 +617,6 @@ void MutatorManager::DumpAllGcInfos()
 extern "C" void MRT_FlushGCInfo()
 {
 #if defined(GCINFO_DEBUG) && GCINFO_DEBUG
-    Mutator::GetMutator()->DumpGCInfos();
     Mutator* mutator = Mutator::GetMutator();
     if (mutator != nullptr) {
         mutator->DumpGCInfos();

@@ -246,7 +246,6 @@ struct LiveInfo {
     RegionBitmap* markBitmap = nullptr;
     RegionBitmap* resurrectBitmap = nullptr;
     RegionBitmap* enqueueBitmap = nullptr;
-    AgeBitmap* ageBitmap = nullptr;
 
     uint64_t GetPreLiveBytes(size_t offset, size_t regionSize)
     {
