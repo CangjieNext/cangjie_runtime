@@ -223,8 +223,6 @@ public:
                     uint32_t remainderOffset = slotOffset + static_cast<uint32_t>(requestedSize);
                     uint32_t remainderSize = slotSize - static_cast<uint32_t>(requestedSize);
                     if (remainderSize >= MIN_SLOT_SIZE) {
-                        DLOG(SWEEP, "split piece slot [%p, %p)", regionStart + remainderOffset,
-                            regionStart + remainderOffset + remainderSize);
                         AddSlot(remainderOffset, remainderSize);
                     }
                 }

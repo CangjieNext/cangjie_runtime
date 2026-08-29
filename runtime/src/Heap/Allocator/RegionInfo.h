@@ -842,6 +842,37 @@ public:
         }
     }
 
+    size_t GetMaxSlotSize() const
+    {
+        RegionFreeSlotList* freeSlotList = GetFreeSlotList();
+        return freeSlotList == nullptr ? 0 : freeSlotList->GetMaxAvailableSize();
+    }
+
+    size_t GetTotalSlotSize() const
+    {
+        RegionFreeSlotList* freeSlotList = GetFreeSlotList();
+        return freeSlotList == nullptr ? 0 : freeSlotList->GetTotalSlotSize();
+    }
+
+    MAddress AllocateFromSlot(size_t totalSize)
+    {
+        RegionFreeSlotList* freeSlotList = GetFreeSlotList();
+        if (freeSlotList == nullptr || freeSlotList->GetMaxAvailableSize() < totalSize) {
+            return 0;
+        }
+        uintptr_t addr = freeSlotList->AllocateSlot(totalSize, GetRegionStart());
+        if (addr == 0) {
+            return 0;
+        }
+        CHECK_DETAIL(memset_s(reinterpret_cast<void*>(addr), totalSize, 0, totalSize) == EOK,
+                     "zero free slot failed");
+        uintptr_t slotEnd = addr + totalSize;
+        if (slotEnd > metadata.allocPtr) {
+            metadata.allocPtr = slotEnd;
+        }
+        return static_cast<MAddress>(addr);
+    }
+
     void SweepRegion();
 
     void PrepareForwardableRegion()

@@ -240,10 +240,7 @@ private:
     {
         size_t total = 0;
         for (RegionInfo* region = list.GetHeadRegion(); region != nullptr; region = region->GetNextRegion()) {
-            RegionFreeSlotList* fsl = region->GetFreeSlotList();
-            if (fsl != nullptr) {
-                total += fsl->GetTotalSlotSize();
-            }
+            total += region->GetTotalSlotSize();
         }
         return total;
     }
