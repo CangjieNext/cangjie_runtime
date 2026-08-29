@@ -34,6 +34,8 @@ public:
             fromRegionList.MergeRegionList(tmpMovable, RegionInfo::RegionType::FROM_REGION);
             sweepableYoungRegionList.MergeRegionList(tmpSwept, RegionInfo::RegionType::SWEEP_REGION);
         }
+        fromRegionList.VisitAllRegions([](RegionInfo* region) { region->ClearLiveInfo(); });
+        sweepableYoungRegionList.VisitAllRegions([](RegionInfo* region) { region->ClearLiveInfo(); });
     }
     void AssembleMixedRegions()
     {
@@ -260,6 +262,7 @@ private:
     void AssembleOldRegions()
     {
         sweepableOldRegionList.MergeRegionList(oldRegionList, RegionInfo::RegionType::SWEEP_REGION);
+        sweepableOldRegionList.VisitAllRegions([](RegionInfo* region) { region->ClearLiveInfo(); });
     }
     RegionList sweepableYoungRegionList;
     RegionList sweepableOldRegionList;
