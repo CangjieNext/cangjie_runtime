@@ -1,0 +1,15 @@
+run_stamp=20260828_204647
+host=Linux ubuntu23133 5.15.0-185-generic #195-Ubuntu SMP Fri Jun 19 17:16:34 UTC 2026 aarch64 aarch64 aarch64 GNU/Linux
+host_arch=aarch64
+sdk_root=/home/lipeisheng/cangjie/cangjie_compiler_CMSGC/output/msgc
+sdk_cjc=/home/lipeisheng/cangjie/cangjie_compiler_CMSGC/output/msgc/bin/cjc
+sdk_cjc_version=Cangjie Compiler: 0.0.1 (cjnative) Target: aarch64-unknown-linux-gnu 
+stdx_root=/home/lipeisheng/cangjie/cangjie_compiler_CMSGC/output/msgc/linux_aarch64_cjnative/dynamic/stdx
+test_root=/home/lipeisheng/cangjie/cangjie_test
+framework_root=/tmp/cangjie_test_framework.XDSApM
+framework_commit=2a6330f10d2dbb27ea8d0c898713ae1689eb275a
+runtime_root=/home/lipeisheng/cangjie/cangjie_runtime_CMSGC/runtime
+gc_mode=marksweep
+jobs=2
+timeout_seconds=120
+retry=0

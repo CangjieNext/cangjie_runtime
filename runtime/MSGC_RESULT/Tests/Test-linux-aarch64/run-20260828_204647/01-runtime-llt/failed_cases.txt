@@ -1,0 +1,4 @@
+CJNative/Exception/Expection41_NewArray64.cj		/home/lipeisheng/cangjie/cangjie_test/testsuites/LLT/configs/cjnative/cjnative_test_linux_aarch64.cfg	Runtime/CJNative/Exception/Expection41_NewArray64_cj_1787921208
+CJNative/RuntimeApi/runtime_api_followup.cj		/home/lipeisheng/cangjie/cangjie_test/testsuites/LLT/configs/cjnative/cjnative_test_linux_aarch64.cfg	Runtime/CJNative/RuntimeApi/runtime_api_followup_cj_1787921208
+CJNative/RuntimeApi/runtime_api_task_loader.cj		/home/lipeisheng/cangjie/cangjie_test/testsuites/LLT/configs/cjnative/cjnative_test_linux_aarch64.cfg	Runtime/CJNative/RuntimeApi/runtime_api_task_loader_cj_1787921208
+CJNative/RuntimeApi/runtime_api_validation.cj		/home/lipeisheng/cangjie/cangjie_test/testsuites/LLT/configs/cjnative/cjnative_test_linux_aarch64.cfg	Runtime/CJNative/RuntimeApi/runtime_api_validation_cj_1787921208

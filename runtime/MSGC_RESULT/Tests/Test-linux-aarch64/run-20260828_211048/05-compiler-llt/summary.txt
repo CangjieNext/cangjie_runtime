@@ -1,0 +1,3 @@
+stage: 05-compiler-llt
+raw_results: {"FAIL": 978, "PASS": 14550, "UNRESOLVED": 6067, "total": 21595}
+results: {"FAIL": 589, "PASS": 14550, "UNSUPPORTED": 6456}

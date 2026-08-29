@@ -1,0 +1,3 @@
+stage: 02-runtime-hlt
+raw_results: {"FAIL": 55, "PASS": 1323, "UNRESOLVED": 84, "total": 1462}
+results: {"FAIL": 55, "PASS": 1323, "UNSUPPORTED": 84}

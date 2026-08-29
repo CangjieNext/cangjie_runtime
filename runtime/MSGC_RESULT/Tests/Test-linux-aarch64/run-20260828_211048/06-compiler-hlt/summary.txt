@@ -1,0 +1,3 @@
+stage: 06-compiler-hlt
+raw_results: {"FAIL": 378, "PASS": 28770, "UNRESOLVED": 19140, "total": 48288}
+results: {"ENV-ERROR": 13, "FAIL": 364, "PASS": 28770, "UNSUPPORTED": 19141}
