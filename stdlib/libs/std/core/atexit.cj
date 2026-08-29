@@ -11,10 +11,8 @@ package std.core
 /**
  * atexitCallback will be executed, when the program exits.
  */
-@FastNative
 foreign func CJ_CORE_AtExitCallbackListLock(): Unit
 
-@FastNative
 foreign func CJ_CORE_AtExitCallbackListUnlook(): Unit
 
 // The node of atexitCallback function.

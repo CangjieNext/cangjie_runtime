@@ -56,7 +56,6 @@ foreign {
      * manual: https://man7.org/linux/man-pages/man2/exit.2.html
      * signature: void exit(int status);
      */
-    @FastNative
     func exit(status: Int32): Unit
 }
 
