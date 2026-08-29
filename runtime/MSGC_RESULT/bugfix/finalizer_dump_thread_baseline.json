@@ -1,0 +1,43 @@
+[
+  {
+    "name": "x86_64-w64-mingw32->x86_64-w64-mingw32 C:\\cangjie\\cangjie_test\\testsuites\\HLT\\Runtime\\cjnative\\runtime\\Finalizer\\dump_thread.cj",
+    "total": 1,
+    "PASS": 0,
+    "FAIL": 1,
+    "UNRESOLVED": 0,
+    "tests": [
+      {
+        "name": "C:\\cangjie\\cangjie_test\\testsuites\\HLT\\Runtime\\cjnative\\runtime\\Finalizer\\dump_thread.cj",
+        "cfg": "C:\\cangjie\\cangjie_test\\testsuites\\HLT\\configs\\cjnative\\windows_x64-windows_x64\\basic.cfg",
+        "result": "FAIL",
+        "commands": [
+          {
+            "exit_code": 0,
+            "PIPE": false,
+            "cmd": "cjc --error-count-limit=all --diagnostic-format=json --dy-std --gc-mode marksweep dump_thread.cj .\\the_class.cj -o dump_thread.exe"
+          },
+          {
+            "exit_code": 0,
+            "PIPE": false,
+            "cmd": "set \"PATH=%CANGJIE_HOME%/runtime/lib/windows_x86_64_cjnative;%chdir%;%PATH%\" && dump_thread.exe"
+          }
+        ],
+        "output": [
+          {
+            "cmd": "cjc --error-count-limit=all --diagnostic-format=json --dy-std --gc-mode marksweep dump_thread.cj .\\the_class.cj -o dump_thread.exe",
+            "return_code": 0,
+            "stdout": "",
+            "stderr": "{\r\n    \"Diags\":[\r\n            {\r\n                \"DiagKind\": \"sema_unused_import\",\r\n                \"Severity\": \"warning\",\r\n                \"WarnGroup\": \"unused\",\r\n                \"DiagCategory\": \"sema\",\r\n                \"Message\": \"unused import 'std.collection.*'\",\r\n                \"Location\": {\r\n                    \"File\": \"dump_thread.cj\",\r\n                    \"Line\": 16,\r\n                    \"Column\": 1\r\n                },\r\n                \"MainHint\": {\r\n                    \"Content\": \"unused import\",\r\n                    \"Range\": {\r\n                        \"Begin\": {\r\n                            \"File\": \"dump_thread.cj\",\r\n                            \"Line\": 16,\r\n                            \"Column\": 1\r\n                        },\r\n                        \"End\": {\r\n                            \"File\": \"dump_thread.cj\",\r\n                            \"Line\": 16,\r\n                            \"Column\": 24\r\n                        }\r\n                    }\r\n                },\r\n                \"OtherHints\": [],\r\n                \"Notes\": [\r\n                    {\r\n                        \"Message\": \"this warning can be suppressed by setting the compiler option `-Woff unused`\",\r\n                        \"MainHint\": null,\r\n                        \"OtherHints\": [],\r\n                        \"Help\": null\r\n                    }\r\n                ],\r\n                \"Helps\": []\r\n            },\r\n            {\r\n                \"DiagKind\": \"sema_unused_import\",\r\n                \"Severity\": \"warning\",\r\n                \"WarnGroup\": \"unused\",\r\n                \"DiagCategory\": \"sema\",\r\n                \"Message\": \"unused import 'std.unittest.testmacro.*'\",\r\n                \"Location\": {\r\n                    \"File\": \"dump_thread.cj\",\r\n                    \"Line\": 18,\r\n                    \"Column\": 1\r\n                },\r\n                \"MainHint\": {\r\n                    \"Content\": \"unused import\",\r\n                    \"Range\": {\r\n                        \"Begin\": {\r\n                            \"File\": \"dump_thread.cj\",\r\n                            \"Line\": 18,\r\n                            \"Column\": 1\r\n                        },\r\n                        \"End\": {\r\n                            \"File\": \"dump_thread.cj\",\r\n                            \"Line\": 18,\r\n                            \"Column\": 32\r\n                        }\r\n                    }\r\n                },\r\n                \"OtherHints\": [],\r\n                \"Notes\": [\r\n                    {\r\n                        \"Message\": \"this warning can be suppressed by setting the compiler option `-Woff unused`\",\r\n                        \"MainHint\": null,\r\n                        \"OtherHints\": [],\r\n                        \"Help\": null\r\n                    }\r\n                ],\r\n                \"Helps\": []\r\n            },\r\n            {\r\n                \"DiagKind\": \"sema_unused_import\",\r\n                \"Severity\": \"warning\",\r\n                \"WarnGroup\": \"unused\",\r\n                \"DiagCategory\": \"sema\",\r\n                \"Message\": \"unused import 'std.unittest.common.*'\",\r\n                \"Location\": {\r\n                    \"File\": \"dump_thread.cj\",\r\n                    \"Line\": 19,\r\n                    \"Column\": 1\r\n                },\r\n                \"MainHint\": {\r\n                    \"Content\": \"unused import\",\r\n                    \"Range\": {\r\n                        \"Begin\": {\r\n                            \"File\": \"dump_thread.cj\",\r\n                            \"Line\": 19,\r\n                            \"Column\": 1\r\n                        },\r\n                        \"End\": {\r\n                            \"File\": \"dump_thread.cj\",\r\n                            \"Line\": 19,\r\n                            \"Column\": 29\r\n                        }\r\n                    }\r\n                },\r\n                \"OtherHints\": [],\r\n                \"Notes\": [\r\n                    {\r\n                        \"Message\": \"this warning can be suppressed by setting the compiler option `-Woff unused`\",\r\n                        \"MainHint\": null,\r\n                        \"OtherHints\": [],\r\n                        \"Help\": null\r\n                    }\r\n                ],\r\n                \"Helps\": []\r\n            }\r\n    ],\r\n    \"Num\":{\r\n        \"Errors\": 0,\r\n        \"PrintedErrors\": 0,\r\n        \"Warnings\": 3,\r\n        \"PrintedWarnings\": 3\r\n    }\r\n}\r\n"
+          },
+          {
+            "cmd": "set \"PATH=%CANGJIE_HOME%/runtime/lib/windows_x86_64_cjnative;%chdir%;%PATH%\" && dump_thread.exe",
+            "return_code": 3221226505,
+            "stdout": "",
+            "stderr": "2026-08-29 13:58:32.413525 23432 F Check failed: mutator->IsVaildCJThread()\r\n2026-08-29 13:58:32.413763 23432 F Get invalid mutator\r\n"
+          }
+        ],
+        "log_file": "dump_thread_cj_a89a5578a36e11f1"
+      }
+    ]
+  }
+]

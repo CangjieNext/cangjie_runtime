@@ -1,0 +1,4 @@
+2026-08-29 10:45:26.203046 2392 E Unsupported cjMSMaxVirtualHeapSize parameter. Valid range is >= 65536KB and <= 17179803648KB.
+
+2026-08-29 10:45:26.204791 2392 E Unsupported cjHeapSize parameter. Valid range is >= 4096KB and <= 33385368KB.
+

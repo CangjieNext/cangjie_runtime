@@ -1,0 +1,136 @@
+[
+  {
+    "name": "x86_64-w64-mingw32->x86_64-w64-mingw32 C:\\cangjie\\cangjie_test\\testsuites\\HLT\\Runtime\\cjnative\\runtime\\GC\\gc_export\\gc_export_004.info",
+    "total": 1,
+    "PASS": 0,
+    "FAIL": 1,
+    "UNRESOLVED": 0,
+    "tests": [
+      {
+        "name": "C:\\cangjie\\cangjie_test\\testsuites\\HLT\\Runtime\\cjnative\\runtime\\GC\\gc_export\\gc_export_004.info",
+        "cfg": "C:\\cangjie\\cangjie_test\\testsuites\\HLT\\configs\\cjnative\\windows_x64-windows_x64\\basic.cfg",
+        "result": "FAIL",
+        "commands": [
+          {
+            "exit_code": 0,
+            "PIPE": false,
+            "cmd": "cjc --error-count-limit=all --diagnostic-format=json --dy-std --int-overflow=wrapping gc_export_code.cj -o gc_export_004.exe"
+          },
+          {
+            "exit_code": 0,
+            "PIPE": false,
+            "cmd": "echo set cjHeapSize=4mb > gc_export_004.sh"
+          },
+          {
+            "exit_code": 0,
+            "PIPE": false,
+            "cmd": "echo set cjRegionSize=4KB >> gc_export_004.sh"
+          },
+          {
+            "exit_code": 0,
+            "PIPE": false,
+            "cmd": "echo set cjExemptionThreshold=1.00 >> gc_export_004.sh"
+          },
+          {
+            "exit_code": 0,
+            "PIPE": false,
+            "cmd": "echo set cjHeapUtilization=1.00 >> gc_export_004.sh"
+          },
+          {
+            "exit_code": 0,
+            "PIPE": false,
+            "cmd": "echo set cjAllocationWaitTime=0 >> gc_export_004.sh"
+          },
+          {
+            "exit_code": 0,
+            "PIPE": false,
+            "cmd": "echo set cjGarbageThreshold=-1.05 >> gc_export_004.sh"
+          },
+          {
+            "exit_code": 0,
+            "PIPE": false,
+            "cmd": "echo set cjStackSize=4mb >> gc_export_004.sh"
+          },
+          {
+            "exit_code": 0,
+            "PIPE": false,
+            "cmd": "ren gc_export_004.sh gc_export_004.bat"
+          },
+          {
+            "exit_code": 0,
+            "PIPE": true,
+            "cmd": "set MRT_REPORT=.\\log.txt && gc_export_004.bat && set \"PATH=%CANGJIE_HOME%/runtime/lib/windows_x86_64_cjnative;%chdir%;%PATH%\" && gc_export_004.exe && cat log.txt"
+          },
+          {
+            "cmd": "  C:\\Users\\lipeisheng\\AppData\\Local\\Programs\\Python\\Python312\\python.exe C:\\cangjie\\cangjie_test_framework\\maple_test\\compare.py --comment=\"//\"  --condition=\"'Windows', 'host_x86_64', 'native_compilation', 'host_win', 'x86', 'target_win', 'target_x86_64', 'CJNATIVE'\" gc_export_004.info",
+            "PIPE": false,
+            "exit_code": 0
+          }
+        ],
+        "output": [
+          {
+            "cmd": "cjc --error-count-limit=all --diagnostic-format=json --dy-std --int-overflow=wrapping gc_export_code.cj -o gc_export_004.exe",
+            "return_code": 0,
+            "stdout": "",
+            "stderr": "{\r\n    \"Diags\":[\r\n            {\r\n                \"DiagKind\": \"chir_dce_unused_function\",\r\n                \"Severity\": \"warning\",\r\n                \"WarnGroup\": \"unused\",\r\n                \"DiagCategory\": \"chir\",\r\n                \"Message\": \"unused function:'foo'\",\r\n                \"Location\": {\r\n                    \"File\": \"gc_export_code.cj\",\r\n                    \"Line\": 24,\r\n                    \"Column\": 5\r\n                },\r\n                \"MainHint\": {\r\n                    \"Content\": \"unused function\",\r\n                    \"Range\": {\r\n                        \"Begin\": {\r\n                            \"File\": \"gc_export_code.cj\",\r\n                            \"Line\": 24,\r\n                            \"Column\": 5\r\n                        },\r\n                        \"End\": {\r\n                            \"File\": \"gc_export_code.cj\",\r\n                            \"Line\": 24,\r\n                            \"Column\": 25\r\n                        }\r\n                    }\r\n                },\r\n                \"OtherHints\": [],\r\n                \"Notes\": [\r\n                    {\r\n                        \"Message\": \"this warning can be suppressed by setting the compiler option `-Woff unused`\",\r\n                        \"MainHint\": null,\r\n                        \"OtherHints\": [],\r\n                        \"Help\": null\r\n                    }\r\n                ],\r\n                \"Helps\": []\r\n            },\r\n            {\r\n                \"DiagKind\": \"chir_dce_unused_function\",\r\n                \"Severity\": \"warning\",\r\n                \"WarnGroup\": \"unused\",\r\n                \"DiagCategory\": \"chir\",\r\n                \"Message\": \"unused function:'foo'\",\r\n                \"Location\": {\r\n                    \"File\": \"gc_export_code.cj\",\r\n                    \"Line\": 31,\r\n                    \"Column\": 5\r\n                },\r\n                \"MainHint\": {\r\n                    \"Content\": \"unused function\",\r\n                    \"Range\": {\r\n                        \"Begin\": {\r\n                            \"File\": \"gc_export_code.cj\",\r\n                            \"Line\": 31,\r\n                            \"Column\": 5\r\n                        },\r\n                        \"End\": {\r\n                            \"File\": \"gc_export_code.cj\",\r\n                            \"Line\": 31,\r\n                            \"Column\": 25\r\n                        }\r\n                    }\r\n                },\r\n                \"OtherHints\": [],\r\n                \"Notes\": [\r\n                    {\r\n                        \"Message\": \"this warning can be suppressed by setting the compiler option `-Woff unused`\",\r\n                        \"MainHint\": null,\r\n                        \"OtherHints\": [],\r\n                        \"Help\": null\r\n                    }\r\n                ],\r\n                \"Helps\": []\r\n            }\r\n    ],\r\n    \"Num\":{\r\n        \"Errors\": 0,\r\n        \"PrintedErrors\": 0,\r\n        \"Warnings\": 2,\r\n        \"PrintedWarnings\": 2\r\n    }\r\n}\r\n"
+          },
+          {
+            "cmd": "echo set cjHeapSize=4mb > gc_export_004.sh",
+            "return_code": 0,
+            "stdout": "",
+            "stderr": ""
+          },
+          {
+            "cmd": "echo set cjRegionSize=4KB >> gc_export_004.sh",
+            "return_code": 0,
+            "stdout": "",
+            "stderr": ""
+          },
+          {
+            "cmd": "echo set cjExemptionThreshold=1.00 >> gc_export_004.sh",
+            "return_code": 0,
+            "stdout": "",
+            "stderr": ""
+          },
+          {
+            "cmd": "echo set cjHeapUtilization=1.00 >> gc_export_004.sh",
+            "return_code": 0,
+            "stdout": "",
+            "stderr": ""
+          },
+          {
+            "cmd": "echo set cjAllocationWaitTime=0 >> gc_export_004.sh",
+            "return_code": 0,
+            "stdout": "",
+            "stderr": ""
+          },
+          {
+            "cmd": "echo set cjGarbageThreshold=-1.05 >> gc_export_004.sh",
+            "return_code": 0,
+            "stdout": "",
+            "stderr": ""
+          },
+          {
+            "cmd": "echo set cjStackSize=4mb >> gc_export_004.sh",
+            "return_code": 0,
+            "stdout": "",
+            "stderr": ""
+          },
+          {
+            "cmd": "ren gc_export_004.sh gc_export_004.bat",
+            "return_code": 0,
+            "stdout": "",
+            "stderr": ""
+          },
+          {
+            "cmd": "set MRT_REPORT=.\\log.txt && gc_export_004.bat && set \"PATH=%CANGJIE_HOME%/runtime/lib/windows_x86_64_cjnative;%chdir%;%PATH%\" && gc_export_004.exe && cat log.txt",
+            "return_code": 3,
+            "stdout": "TimeOut",
+            "stderr": "TimeOut"
+          }
+        ],
+        "log_file": "gc_export_004_info_88c987c1a35c11f1"
+      }
+    ]
+  }
+]

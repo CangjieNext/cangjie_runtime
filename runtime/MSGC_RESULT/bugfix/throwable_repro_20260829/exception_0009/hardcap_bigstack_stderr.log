@@ -1,0 +1,3 @@
+2026-08-29 14:20:25.186025 6660 E [MS-GC] TryAllocateOnceMS LARGE ALLOC FAILED: allocSize=81890040, unitCount=19993, activeMSRegionBytes=78872576, msRegionManager freeUnits=23888
+2026-08-29 14:20:25.275557 16944 E register rbx is not recorded
+2026-08-29 14:20:25.308845 16944 F wrong reg info, start ip: 00007FFCF2A9F5B4 frame pc: 00007FFCF2A9F64C

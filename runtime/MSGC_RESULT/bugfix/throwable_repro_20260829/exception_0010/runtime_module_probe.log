@@ -1,0 +1,599 @@
+2026-08-29 14:14:15.986268 24344 [MS-GC] heap initialized: committedRegions=2048 committed=64.00MB maxVirtualRegions=1043293 segment=64.00MB shards=6 processorsPerShard=2 heap=[0x238468ce000,0x2403c3b6000)
+2026-08-29 14:14:15.987386 24344 [MS-GC] Mark ready shards: P=12 gcThreads=6 shards=9
+2026-08-29 14:14:15.987428 24344 machine GC thread capacity=12, GCThreadPool total threads=6, helper threads=5
+2026-08-29 14:14:15.989400 24344 [MS-GC] config: heap=64.00MB region=0.06MB gcThreads=6 P=12 markBudget=10000000us sweepSlice=2000us
+2026-08-29 14:14:15.989441 24344 [MS-GC] config: markAssist=1 enumAssist=1 enumBatch=10 assistMaxMultiplier=4 sweepAssistMaxRegions=4 background(sweep=1 parallel=1 helpers=0 scavenge=1 shrink=0) verify=0/0 adaptiveGrowth=0 softLimit=256.00MB allocator(shards=6 processorsPerShard=2 initialSegments=1)
+2026-08-29 14:14:16.026769 24344 [MS-GC] heap grow: condition=stable-no-free-supply requestRegions=741 ownerShard=2 segments=1->2 shardSegments=[0:1,1:0,2:1,3:0,4:0,5:0] committedRegions=2048->4096 capacity=64.00MB->128.00MB
+2026-08-29 14:14:16.039848 24344 [MS-GC] Mark notify accepted: reason=heuristic trigger=1 epoch=1 retained=57.69MB triggerUsed=20.00MB mutatorReturnedSweptRegions=640 largeLiveSpans=0 threshold=20.00MB softLimit=256.00MB
+
+2026-08-29 14:14:16.039914 22724 [MS-GC] === GC begin: cycle=1 reason=3(heuristic) trigger=1 sweepEpoch=1 retained=57.66MB triggerUsed=20.00MB mutatorReturnedSweptRegions=640 largeLiveSpans=0 threshold=20.00MB softLimit=256.00MB ===
+2026-08-29 14:14:16.039934 22724 [MS-GC] Region summary(GC begin): P=12 allocBuffers=2 allocBufferActive=20 centralClasses=1/36 centralRegions=641 sweptRegions=641 unsweptRegions=0 empty=0 largeObjects=0 largeSpans=0 hotFree=1204 committed=4096(128.00MB)
+2026-08-29 14:14:16.039946 22724 [MS-GC] === PreEnumRoots begin ===
+2026-08-29 14:14:16.039959 22724 [MS-GC]   Sweep force finish: sweptRegions=0 total=4us
+2026-08-29 14:14:16.040008 22724 [MS-GC]   Large registration: entries=19 batches=1 stwTail=19
+2026-08-29 14:14:16.040025 22724 [MS-GC]   PrepareMarkEpoch STW: total=50us
+2026-08-29 14:14:16.040037 22724 [MS-GC] === PreEnumRoots end: total=90us ===
+2026-08-29 14:14:16.040045 22724 [MS-GC] === EnumRoots begin ===
+2026-08-29 14:14:16.040105 22724 [MS-GC]   EnumRoots stats: rawRootRefs=29 uniqueHeapRoots=18 scannedStacks=2 publishedWU=90
+2026-08-29 14:14:16.040114 22724 [MS-GC] === EnumRoots end: total=60us ===
+2026-08-29 14:14:16.040121 22724 [MS-GC] === ConcurrentMark begin ===
+2026-08-29 14:14:16.040141 22724 [MS-GC]   Mark control begin: helpers=0 assistMultiplier=1 pressure=0
+2026-08-29 14:14:16.045598 24344 [MS-GC] heap grow: condition=stable-no-free-supply requestRegions=1111 ownerShard=2 segments=2->3 shardSegments=[0:1,1:0,2:2,3:0,4:0,5:0] committedRegions=4096->6144 capacity=128.00MB->192.00MB
+2026-08-29 14:14:16.064072 22724 [MS-GC]   ConcurrentMark stats: totalWU=3412145 mainWU=3412145(100.0%) helperWU=0(0.0%) assistWU=0(0.0%)
+2026-08-29 14:14:16.064111 22724 [MS-GC] === ConcurrentMark end: total=23950us ===
+2026-08-29 14:14:16.064126 22724 [MS-GC] === MarkTermination begin ===
+2026-08-29 14:14:16.064151 22724 [MS-GC]   MarkTermination stats: drainWU=0 ordinaryWU=0 finalizerWU=0 helpers=0/0
+2026-08-29 14:14:16.064159 22724 [MS-GC] === MarkTermination end: total=25us ===
+2026-08-29 14:14:16.064165 22724 [MS-GC] === PostMarkTermination begin ===
+2026-08-29 14:14:16.064281 22724 [MS-GC]   PostMarkStats: liveBytes=43.19MB inUse=97.16MB fragmentation=55.5% retainedNoTLS=156.62MB liveRatio=27.6% total=110us
+2026-08-29 14:14:16.064319 22724 [MS-GC]   Large sweep: releasedLargeObjects=18 releasedSpans=1489 reclaimedBytes=46.53MB total=27us
+2026-08-29 14:14:16.064334 22724 [MS-GC]   GC threshold: live=43.19MB inUse=50.66MB threshold=20.00MB->86.38MB scavenge=20.03MB/103.65MB
+2026-08-29 14:14:16.064346 22724 [MS-GC]   Publish sweep: epoch=2 unsweptRegions=641 assistRatio=23547
+2026-08-29 14:14:16.064353 22724 [MS-GC] === PostMarkTermination end: total=188us ===
+2026-08-29 14:14:16.064361 22724 [MS-GC] Region summary(GC end): P=12 allocBuffers=3 allocBufferActive=21 centralClasses=1/36 centralRegions=880 sweptRegions=239 unsweptRegions=641 empty=0 largeObjects=1 largeSpans=741 hotFree=3391 committed=6144(192.00MB)
+2026-08-29 14:14:16.064425 22724 [MS-GC] Sweep notify accepted: source=post-mark epoch=2 unsweptRegions=641 unswept=20.03MB assistRatio=23547
+2026-08-29 14:14:16.064437 22724 [MS-GC] Scavenge notify accepted: source=post-mark retained=156.62MB reclaimable=105.94MB low=20.03MB high=103.65MB target=105.94MB
+2026-08-29 14:14:16.064447 22724 [MS-GC] GC total=24557us PreEnum=90us EnumRoots=60us ConcurrentMark=23950us MarkTerminationSTW=25us PostMarkTermination=188us Other=244us
+
+2026-08-29 14:14:16.064708 18384 [MS-GC] Sweep round end: epoch=2 sweptRegions=641 slices=1 total=266us
+2026-08-29 14:14:16.069468 18384 [MS-GC] Scavenge round end: target=105.72MB released=64.00MB slices=1 total=4738us
+2026-08-29 14:14:16.076332 24344 [MS-GC] heap grow: condition=stable-no-free-supply requestRegions=1667 ownerShard=2 segments=3->4 shardSegments=[0:1,1:0,2:3,3:0,4:0,5:0] committedRegions=6144->8192 capacity=192.00MB->256.00MB
+2026-08-29 14:14:16.076396 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=104.53MB reclaimable=46.69MB low=20.03MB high=103.65MB target=46.69MB
+2026-08-29 14:14:16.076659 18384 [MS-GC] Scavenge round end: target=46.69MB released=34.78MB slices=1 total=249us
+2026-08-29 14:14:16.116112 24344 [MS-GC] heap grow: condition=stable-no-free-supply requestRegions=2500 ownerShard=2 segments=4->6 shardSegments=[0:1,1:0,2:5,3:0,4:0,5:0] committedRegions=8192->12288 capacity=256.00MB->384.00MB
+2026-08-29 14:14:16.116161 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=49.88MB low=20.03MB high=103.65MB target=49.88MB
+2026-08-29 14:14:16.116222 18384 [MS-GC] Scavenge round end: target=49.88MB released=0.00MB slices=1 total=12us
+2026-08-29 14:14:16.135131 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=49.84MB low=20.03MB high=103.65MB target=49.84MB
+2026-08-29 14:14:16.135188 18384 [MS-GC] Scavenge round end: target=49.84MB released=0.00MB slices=1 total=12us
+2026-08-29 14:14:16.135241 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=49.81MB low=20.03MB high=103.65MB target=49.81MB
+2026-08-29 14:14:16.135295 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=49.78MB low=20.03MB high=103.65MB target=49.78MB
+2026-08-29 14:14:16.135294 18384 [MS-GC] Scavenge round end: target=49.81MB released=0.00MB slices=1 total=10us
+2026-08-29 14:14:16.135335 18384 [MS-GC] Scavenge round end: target=49.78MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.135355 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=49.75MB low=20.03MB high=103.65MB target=49.75MB
+2026-08-29 14:14:16.135373 18384 [MS-GC] Scavenge round end: target=49.75MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.135409 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=49.72MB low=20.03MB high=103.65MB target=49.72MB
+2026-08-29 14:14:16.135462 18384 [MS-GC] Scavenge round end: target=49.72MB released=0.00MB slices=1 total=10us
+2026-08-29 14:14:16.135493 18384 [MS-GC] Scavenge round end: target=49.69MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.135471 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=49.69MB low=20.03MB high=103.65MB target=49.69MB
+2026-08-29 14:14:16.135583 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=49.66MB low=20.03MB high=103.65MB target=49.66MB
+2026-08-29 14:14:16.135633 18384 [MS-GC] Scavenge round end: target=49.66MB released=0.00MB slices=1 total=10us
+2026-08-29 14:14:16.135666 18384 [MS-GC] Scavenge round end: target=49.62MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.135645 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=49.62MB low=20.03MB high=103.65MB target=49.62MB
+2026-08-29 14:14:16.135799 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=49.59MB low=20.03MB high=103.65MB target=49.59MB
+2026-08-29 14:14:16.135850 18384 [MS-GC] Scavenge round end: target=49.59MB released=0.00MB slices=1 total=10us
+2026-08-29 14:14:16.135866 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=49.56MB low=20.03MB high=103.65MB target=49.56MB
+2026-08-29 14:14:16.135880 18384 [MS-GC] Scavenge round end: target=49.56MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.135925 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=49.53MB low=20.03MB high=103.65MB target=49.53MB
+2026-08-29 14:14:16.135975 18384 [MS-GC] Scavenge round end: target=49.53MB released=0.00MB slices=1 total=10us
+2026-08-29 14:14:16.136008 18384 [MS-GC] Scavenge round end: target=49.50MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.135982 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=49.50MB low=20.03MB high=103.65MB target=49.50MB
+2026-08-29 14:14:16.136087 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=49.47MB low=20.03MB high=103.65MB target=49.47MB
+2026-08-29 14:14:16.136105 18384 [MS-GC] Scavenge round end: target=49.47MB released=0.00MB slices=1 total=10us
+2026-08-29 14:14:16.136156 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=49.44MB low=20.03MB high=103.65MB target=49.44MB
+2026-08-29 14:14:16.136200 18384 [MS-GC] Scavenge round end: target=49.44MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.136208 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=49.41MB low=20.03MB high=103.65MB target=49.41MB
+2026-08-29 14:14:16.136231 18384 [MS-GC] Scavenge round end: target=49.41MB released=0.00MB slices=1 total=8us
+2026-08-29 14:14:16.136296 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=49.38MB low=20.03MB high=103.65MB target=49.38MB
+2026-08-29 14:14:16.136346 18384 [MS-GC] Scavenge round end: target=49.38MB released=0.00MB slices=1 total=10us
+2026-08-29 14:14:16.136377 18384 [MS-GC] Scavenge round end: target=49.34MB released=0.00MB slices=1 total=8us
+2026-08-29 14:14:16.136350 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=49.34MB low=20.03MB high=103.65MB target=49.34MB
+2026-08-29 14:14:16.136486 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=49.31MB low=20.03MB high=103.65MB target=49.31MB
+2026-08-29 14:14:16.136536 18384 [MS-GC] Scavenge round end: target=49.31MB released=0.00MB slices=1 total=10us
+2026-08-29 14:14:16.136542 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=49.28MB low=20.03MB high=103.65MB target=49.28MB
+2026-08-29 14:14:16.136568 18384 [MS-GC] Scavenge round end: target=49.28MB released=0.00MB slices=1 total=8us
+2026-08-29 14:14:16.136635 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=49.25MB low=20.03MB high=103.65MB target=49.25MB
+2026-08-29 14:14:16.136687 18384 [MS-GC] Scavenge round end: target=49.25MB released=0.00MB slices=1 total=10us
+2026-08-29 14:14:16.136689 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=49.22MB low=20.03MB high=103.65MB target=49.22MB
+2026-08-29 14:14:16.136719 18384 [MS-GC] Scavenge round end: target=49.22MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.136789 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=49.19MB low=20.03MB high=103.65MB target=49.19MB
+2026-08-29 14:14:16.136843 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=49.16MB low=20.03MB high=103.65MB target=49.16MB
+2026-08-29 14:14:16.136843 18384 [MS-GC] Scavenge round end: target=49.19MB released=0.00MB slices=1 total=10us
+2026-08-29 14:14:16.136894 18384 [MS-GC] Scavenge round end: target=49.16MB released=0.00MB slices=1 total=10us
+2026-08-29 14:14:16.136904 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=49.12MB low=20.03MB high=103.65MB target=49.12MB
+2026-08-29 14:14:16.136913 18384 [MS-GC] Scavenge round end: target=49.12MB released=0.00MB slices=1 total=8us
+2026-08-29 14:14:16.136960 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=49.09MB low=20.03MB high=103.65MB target=49.09MB
+2026-08-29 14:14:16.137003 18384 [MS-GC] Scavenge round end: target=49.09MB released=0.00MB slices=1 total=10us
+2026-08-29 14:14:16.137016 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=49.06MB low=20.03MB high=103.65MB target=49.06MB
+2026-08-29 14:14:16.137028 18384 [MS-GC] Scavenge round end: target=49.06MB released=0.00MB slices=1 total=8us
+2026-08-29 14:14:16.137072 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=49.03MB low=20.03MB high=103.65MB target=49.03MB
+2026-08-29 14:14:16.137115 18384 [MS-GC] Scavenge round end: target=49.03MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.137128 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=49.00MB low=20.03MB high=103.65MB target=49.00MB
+2026-08-29 14:14:16.137138 18384 [MS-GC] Scavenge round end: target=49.00MB released=0.00MB slices=1 total=8us
+2026-08-29 14:14:16.137182 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=48.97MB low=20.03MB high=103.65MB target=48.97MB
+2026-08-29 14:14:16.137229 18384 [MS-GC] Scavenge round end: target=48.97MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.137241 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=48.94MB low=20.03MB high=103.65MB target=48.94MB
+2026-08-29 14:14:16.137253 18384 [MS-GC] Scavenge round end: target=48.94MB released=0.00MB slices=1 total=8us
+2026-08-29 14:14:16.137297 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=48.91MB low=20.03MB high=103.65MB target=48.91MB
+2026-08-29 14:14:16.137352 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=48.88MB low=20.03MB high=103.65MB target=48.88MB
+2026-08-29 14:14:16.137352 18384 [MS-GC] Scavenge round end: target=48.91MB released=0.00MB slices=1 total=8us
+2026-08-29 14:14:16.137395 18384 [MS-GC] Scavenge round end: target=48.88MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.137409 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=48.84MB low=20.03MB high=103.65MB target=48.84MB
+2026-08-29 14:14:16.137422 18384 [MS-GC] Scavenge round end: target=48.84MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.137467 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=48.81MB low=20.03MB high=103.65MB target=48.81MB
+2026-08-29 14:14:16.137509 18384 [MS-GC] Scavenge round end: target=48.81MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.137519 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=48.78MB low=20.03MB high=103.65MB target=48.78MB
+2026-08-29 14:14:16.137537 18384 [MS-GC] Scavenge round end: target=48.78MB released=0.00MB slices=1 total=8us
+2026-08-29 14:14:16.137620 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=48.75MB low=20.03MB high=103.65MB target=48.75MB
+2026-08-29 14:14:16.137637 18384 [MS-GC] Scavenge round end: target=48.75MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.137690 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=48.72MB low=20.03MB high=103.65MB target=48.72MB
+2026-08-29 14:14:16.137707 18384 [MS-GC] Scavenge round end: target=48.72MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.137781 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=48.69MB low=20.03MB high=103.65MB target=48.69MB
+2026-08-29 14:14:16.137798 18384 [MS-GC] Scavenge round end: target=48.69MB released=0.00MB slices=1 total=8us
+2026-08-29 14:14:16.137838 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=48.66MB low=20.03MB high=103.65MB target=48.66MB
+2026-08-29 14:14:16.137855 18384 [MS-GC] Scavenge round end: target=48.66MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.137898 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=48.62MB low=20.03MB high=103.65MB target=48.62MB
+2026-08-29 14:14:16.137915 18384 [MS-GC] Scavenge round end: target=48.62MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.137953 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=48.59MB low=20.03MB high=103.65MB target=48.59MB
+2026-08-29 14:14:16.137967 18384 [MS-GC] Scavenge round end: target=48.59MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.138011 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=48.56MB low=20.03MB high=103.65MB target=48.56MB
+2026-08-29 14:14:16.138029 18384 [MS-GC] Scavenge round end: target=48.56MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.138066 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=48.53MB low=20.03MB high=103.65MB target=48.53MB
+2026-08-29 14:14:16.138084 18384 [MS-GC] Scavenge round end: target=48.53MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.138125 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=48.50MB low=20.03MB high=103.65MB target=48.50MB
+2026-08-29 14:14:16.138142 18384 [MS-GC] Scavenge round end: target=48.50MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.138179 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=48.47MB low=20.03MB high=103.65MB target=48.47MB
+2026-08-29 14:14:16.138196 18384 [MS-GC] Scavenge round end: target=48.47MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.138244 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=48.44MB low=20.03MB high=103.65MB target=48.44MB
+2026-08-29 14:14:16.138262 18384 [MS-GC] Scavenge round end: target=48.44MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.138299 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=48.41MB low=20.03MB high=103.65MB target=48.41MB
+2026-08-29 14:14:16.138316 18384 [MS-GC] Scavenge round end: target=48.41MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.138357 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=48.38MB low=20.03MB high=103.65MB target=48.38MB
+2026-08-29 14:14:16.138374 18384 [MS-GC] Scavenge round end: target=48.38MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.138411 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=48.34MB low=20.03MB high=103.65MB target=48.34MB
+2026-08-29 14:14:16.138428 18384 [MS-GC] Scavenge round end: target=48.34MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.138470 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=48.31MB low=20.03MB high=103.65MB target=48.31MB
+2026-08-29 14:14:16.138487 18384 [MS-GC] Scavenge round end: target=48.31MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.138524 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=48.28MB low=20.03MB high=103.65MB target=48.28MB
+2026-08-29 14:14:16.138542 18384 [MS-GC] Scavenge round end: target=48.28MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.138588 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=48.25MB low=20.03MB high=103.65MB target=48.25MB
+2026-08-29 14:14:16.138606 18384 [MS-GC] Scavenge round end: target=48.25MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.138644 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=48.22MB low=20.03MB high=103.65MB target=48.22MB
+2026-08-29 14:14:16.138662 18384 [MS-GC] Scavenge round end: target=48.22MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.138710 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=48.19MB low=20.03MB high=103.65MB target=48.19MB
+2026-08-29 14:14:16.138727 18384 [MS-GC] Scavenge round end: target=48.19MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.138764 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=48.16MB low=20.03MB high=103.65MB target=48.16MB
+2026-08-29 14:14:16.138782 18384 [MS-GC] Scavenge round end: target=48.16MB released=0.00MB slices=1 total=8us
+2026-08-29 14:14:16.138822 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=48.12MB low=20.03MB high=103.65MB target=48.12MB
+2026-08-29 14:14:16.138840 18384 [MS-GC] Scavenge round end: target=48.12MB released=0.00MB slices=1 total=8us
+2026-08-29 14:14:16.138876 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=48.09MB low=20.03MB high=103.65MB target=48.09MB
+2026-08-29 14:14:16.138894 18384 [MS-GC] Scavenge round end: target=48.09MB released=0.00MB slices=1 total=8us
+2026-08-29 14:14:16.138934 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=48.06MB low=20.03MB high=103.65MB target=48.06MB
+2026-08-29 14:14:16.138951 18384 [MS-GC] Scavenge round end: target=48.06MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.138989 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=48.03MB low=20.03MB high=103.65MB target=48.03MB
+2026-08-29 14:14:16.139006 18384 [MS-GC] Scavenge round end: target=48.03MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.139047 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=48.00MB low=20.03MB high=103.65MB target=48.00MB
+2026-08-29 14:14:16.139064 18384 [MS-GC] Scavenge round end: target=48.00MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.139101 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=47.97MB low=20.03MB high=103.65MB target=47.97MB
+2026-08-29 14:14:16.139119 18384 [MS-GC] Scavenge round end: target=47.97MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.139166 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=47.94MB low=20.03MB high=103.65MB target=47.94MB
+2026-08-29 14:14:16.139181 18384 [MS-GC] Scavenge round end: target=47.94MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.139221 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=47.91MB low=20.03MB high=103.65MB target=47.91MB
+2026-08-29 14:14:16.139239 18384 [MS-GC] Scavenge round end: target=47.91MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.139288 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=47.88MB low=20.03MB high=103.65MB target=47.88MB
+2026-08-29 14:14:16.139305 18384 [MS-GC] Scavenge round end: target=47.88MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.139344 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=47.84MB low=20.03MB high=103.65MB target=47.84MB
+2026-08-29 14:14:16.139361 18384 [MS-GC] Scavenge round end: target=47.84MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.139403 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=47.81MB low=20.03MB high=103.65MB target=47.81MB
+2026-08-29 14:14:16.139420 18384 [MS-GC] Scavenge round end: target=47.81MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.139459 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=47.78MB low=20.03MB high=103.65MB target=47.78MB
+2026-08-29 14:14:16.139476 18384 [MS-GC] Scavenge round end: target=47.78MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.139517 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=47.75MB low=20.03MB high=103.65MB target=47.75MB
+2026-08-29 14:14:16.139534 18384 [MS-GC] Scavenge round end: target=47.75MB released=0.00MB slices=1 total=8us
+2026-08-29 14:14:16.139572 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=47.72MB low=20.03MB high=103.65MB target=47.72MB
+2026-08-29 14:14:16.139589 18384 [MS-GC] Scavenge round end: target=47.72MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.139633 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=47.69MB low=20.03MB high=103.65MB target=47.69MB
+2026-08-29 14:14:16.139650 18384 [MS-GC] Scavenge round end: target=47.69MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.139689 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=47.66MB low=20.03MB high=103.65MB target=47.66MB
+2026-08-29 14:14:16.139706 18384 [MS-GC] Scavenge round end: target=47.66MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.139747 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=47.62MB low=20.03MB high=103.65MB target=47.62MB
+2026-08-29 14:14:16.139764 18384 [MS-GC] Scavenge round end: target=47.62MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.139801 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=47.59MB low=20.03MB high=103.65MB target=47.59MB
+2026-08-29 14:14:16.139819 18384 [MS-GC] Scavenge round end: target=47.59MB released=0.00MB slices=1 total=8us
+2026-08-29 14:14:16.139859 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=47.56MB low=20.03MB high=103.65MB target=47.56MB
+2026-08-29 14:14:16.139876 18384 [MS-GC] Scavenge round end: target=47.56MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.139914 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=47.53MB low=20.03MB high=103.65MB target=47.53MB
+2026-08-29 14:14:16.139931 18384 [MS-GC] Scavenge round end: target=47.53MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.139973 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=47.50MB low=20.03MB high=103.65MB target=47.50MB
+2026-08-29 14:14:16.139990 18384 [MS-GC] Scavenge round end: target=47.50MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.140028 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=47.47MB low=20.03MB high=103.65MB target=47.47MB
+2026-08-29 14:14:16.140045 18384 [MS-GC] Scavenge round end: target=47.47MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.140089 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=47.44MB low=20.03MB high=103.65MB target=47.44MB
+2026-08-29 14:14:16.140106 18384 [MS-GC] Scavenge round end: target=47.44MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.140144 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=47.41MB low=20.03MB high=103.65MB target=47.41MB
+2026-08-29 14:14:16.140161 18384 [MS-GC] Scavenge round end: target=47.41MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.140203 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=47.38MB low=20.03MB high=103.65MB target=47.38MB
+2026-08-29 14:14:16.140220 18384 [MS-GC] Scavenge round end: target=47.38MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.140259 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=47.34MB low=20.03MB high=103.65MB target=47.34MB
+2026-08-29 14:14:16.140276 18384 [MS-GC] Scavenge round end: target=47.34MB released=0.00MB slices=1 total=8us
+2026-08-29 14:14:16.140318 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=47.31MB low=20.03MB high=103.65MB target=47.31MB
+2026-08-29 14:14:16.140335 18384 [MS-GC] Scavenge round end: target=47.31MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.140373 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=47.28MB low=20.03MB high=103.65MB target=47.28MB
+2026-08-29 14:14:16.140403 18384 [MS-GC] Scavenge round end: target=47.28MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.140432 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=47.25MB low=20.03MB high=103.65MB target=47.25MB
+2026-08-29 14:14:16.140449 18384 [MS-GC] Scavenge round end: target=47.25MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.140487 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=47.22MB low=20.03MB high=103.65MB target=47.22MB
+2026-08-29 14:14:16.140501 18384 [MS-GC] Scavenge round end: target=47.22MB released=0.00MB slices=1 total=10us
+2026-08-29 14:14:16.140548 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=47.19MB low=20.03MB high=103.65MB target=47.19MB
+2026-08-29 14:14:16.140563 18384 [MS-GC] Scavenge round end: target=47.19MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.140602 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=47.16MB low=20.03MB high=103.65MB target=47.16MB
+2026-08-29 14:14:16.140619 18384 [MS-GC] Scavenge round end: target=47.16MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.140660 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=47.12MB low=20.03MB high=103.65MB target=47.12MB
+2026-08-29 14:14:16.140677 18384 [MS-GC] Scavenge round end: target=47.12MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.140715 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=47.09MB low=20.03MB high=103.65MB target=47.09MB
+2026-08-29 14:14:16.140732 18384 [MS-GC] Scavenge round end: target=47.09MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.140773 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=47.06MB low=20.03MB high=103.65MB target=47.06MB
+2026-08-29 14:14:16.140789 18384 [MS-GC] Scavenge round end: target=47.06MB released=0.00MB slices=1 total=8us
+2026-08-29 14:14:16.140827 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=47.03MB low=20.03MB high=103.65MB target=47.03MB
+2026-08-29 14:14:16.140844 18384 [MS-GC] Scavenge round end: target=47.03MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.140886 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=47.00MB low=20.03MB high=103.65MB target=47.00MB
+2026-08-29 14:14:16.140903 18384 [MS-GC] Scavenge round end: target=47.00MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.140941 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=46.97MB low=20.03MB high=103.65MB target=46.97MB
+2026-08-29 14:14:16.140958 18384 [MS-GC] Scavenge round end: target=46.97MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.141002 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=46.94MB low=20.03MB high=103.65MB target=46.94MB
+2026-08-29 14:14:16.141016 18384 [MS-GC] Scavenge round end: target=46.94MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.141083 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=46.91MB low=20.03MB high=103.65MB target=46.91MB
+2026-08-29 14:14:16.141100 18384 [MS-GC] Scavenge round end: target=46.91MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.141144 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=46.88MB low=20.03MB high=103.65MB target=46.88MB
+2026-08-29 14:14:16.141161 18384 [MS-GC] Scavenge round end: target=46.88MB released=0.00MB slices=1 total=8us
+2026-08-29 14:14:16.141199 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=46.84MB low=20.03MB high=103.65MB target=46.84MB
+2026-08-29 14:14:16.141216 18384 [MS-GC] Scavenge round end: target=46.84MB released=0.00MB slices=1 total=8us
+2026-08-29 14:14:16.141257 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=46.81MB low=20.03MB high=103.65MB target=46.81MB
+2026-08-29 14:14:16.141274 18384 [MS-GC] Scavenge round end: target=46.81MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.141317 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=46.78MB low=20.03MB high=103.65MB target=46.78MB
+2026-08-29 14:14:16.141334 18384 [MS-GC] Scavenge round end: target=46.78MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.141379 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=46.75MB low=20.03MB high=103.65MB target=46.75MB
+2026-08-29 14:14:16.141396 18384 [MS-GC] Scavenge round end: target=46.75MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.141442 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=46.72MB low=20.03MB high=103.65MB target=46.72MB
+2026-08-29 14:14:16.141460 18384 [MS-GC] Scavenge round end: target=46.72MB released=0.00MB slices=1 total=8us
+2026-08-29 14:14:16.141506 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=46.69MB low=20.03MB high=103.65MB target=46.69MB
+2026-08-29 14:14:16.141523 18384 [MS-GC] Scavenge round end: target=46.69MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.141560 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=46.66MB low=20.03MB high=103.65MB target=46.66MB
+2026-08-29 14:14:16.141582 18384 [MS-GC] Scavenge round end: target=46.66MB released=0.00MB slices=1 total=16us
+2026-08-29 14:14:16.141619 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=46.62MB low=20.03MB high=103.65MB target=46.62MB
+2026-08-29 14:14:16.141634 18384 [MS-GC] Scavenge round end: target=46.62MB released=0.00MB slices=1 total=8us
+2026-08-29 14:14:16.141673 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=46.59MB low=20.03MB high=103.65MB target=46.59MB
+2026-08-29 14:14:16.141690 18384 [MS-GC] Scavenge round end: target=46.59MB released=0.00MB slices=1 total=8us
+2026-08-29 14:14:16.141731 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=46.56MB low=20.03MB high=103.65MB target=46.56MB
+2026-08-29 14:14:16.141748 18384 [MS-GC] Scavenge round end: target=46.56MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.141785 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=46.53MB low=20.03MB high=103.65MB target=46.53MB
+2026-08-29 14:14:16.141802 18384 [MS-GC] Scavenge round end: target=46.53MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.141844 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=46.50MB low=20.03MB high=103.65MB target=46.50MB
+2026-08-29 14:14:16.141861 18384 [MS-GC] Scavenge round end: target=46.50MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.141899 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=46.47MB low=20.03MB high=103.65MB target=46.47MB
+2026-08-29 14:14:16.141916 18384 [MS-GC] Scavenge round end: target=46.47MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.141961 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=46.44MB low=20.03MB high=103.65MB target=46.44MB
+2026-08-29 14:14:16.141978 18384 [MS-GC] Scavenge round end: target=46.44MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.142016 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=46.41MB low=20.03MB high=103.65MB target=46.41MB
+2026-08-29 14:14:16.142037 18384 [MS-GC] Scavenge round end: target=46.41MB released=0.00MB slices=1 total=11us
+2026-08-29 14:14:16.142088 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=46.38MB low=20.03MB high=103.65MB target=46.38MB
+2026-08-29 14:14:16.142113 18384 [MS-GC] Scavenge round end: target=46.38MB released=0.00MB slices=1 total=13us
+2026-08-29 14:14:16.142229 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=46.34MB low=20.03MB high=103.65MB target=46.34MB
+2026-08-29 14:14:16.142252 18384 [MS-GC] Scavenge round end: target=46.34MB released=0.00MB slices=1 total=12us
+2026-08-29 14:14:16.142307 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=46.31MB low=20.03MB high=103.65MB target=46.31MB
+2026-08-29 14:14:16.142329 18384 [MS-GC] Scavenge round end: target=46.31MB released=0.00MB slices=1 total=13us
+2026-08-29 14:14:16.142372 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=46.28MB low=20.03MB high=103.65MB target=46.28MB
+2026-08-29 14:14:16.142395 18384 [MS-GC] Scavenge round end: target=46.28MB released=0.00MB slices=1 total=13us
+2026-08-29 14:14:16.142461 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=46.25MB low=20.03MB high=103.65MB target=46.25MB
+2026-08-29 14:14:16.142484 18384 [MS-GC] Scavenge round end: target=46.25MB released=0.00MB slices=1 total=13us
+2026-08-29 14:14:16.142565 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=46.22MB low=20.03MB high=103.65MB target=46.22MB
+2026-08-29 14:14:16.142583 18384 [MS-GC] Scavenge round end: target=46.22MB released=0.00MB slices=1 total=12us
+2026-08-29 14:14:16.142666 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=46.19MB low=20.03MB high=103.65MB target=46.19MB
+2026-08-29 14:14:16.142714 18384 [MS-GC] Scavenge round end: target=46.19MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.142784 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=46.16MB low=20.03MB high=103.65MB target=46.16MB
+2026-08-29 14:14:16.142832 18384 [MS-GC] Scavenge round end: target=46.16MB released=0.00MB slices=1 total=10us
+2026-08-29 14:14:16.142907 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=46.12MB low=20.03MB high=103.65MB target=46.12MB
+2026-08-29 14:14:16.142931 18384 [MS-GC] Scavenge round end: target=46.12MB released=0.00MB slices=1 total=14us
+2026-08-29 14:14:16.142981 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=46.09MB low=20.03MB high=103.65MB target=46.09MB
+2026-08-29 14:14:16.143032 18384 [MS-GC] Scavenge round end: target=46.09MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.143040 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=46.06MB low=20.03MB high=103.65MB target=46.06MB
+2026-08-29 14:14:16.143069 18384 [MS-GC] Scavenge round end: target=46.06MB released=0.00MB slices=1 total=13us
+2026-08-29 14:14:16.143139 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=46.03MB low=20.03MB high=103.65MB target=46.03MB
+2026-08-29 14:14:16.143159 18384 [MS-GC] Scavenge round end: target=46.03MB released=0.00MB slices=1 total=11us
+2026-08-29 14:14:16.143208 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=46.00MB low=20.03MB high=103.65MB target=46.00MB
+2026-08-29 14:14:16.143225 18384 [MS-GC] Scavenge round end: target=46.00MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.143263 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=45.97MB low=20.03MB high=103.65MB target=45.97MB
+2026-08-29 14:14:16.143285 18384 [MS-GC] Scavenge round end: target=45.97MB released=0.00MB slices=1 total=10us
+2026-08-29 14:14:16.143328 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=45.94MB low=20.03MB high=103.65MB target=45.94MB
+2026-08-29 14:14:16.143380 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=45.91MB low=20.03MB high=103.65MB target=45.91MB
+2026-08-29 14:14:16.143380 18384 [MS-GC] Scavenge round end: target=45.94MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.143427 18384 [MS-GC] Scavenge round end: target=45.91MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.143438 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=45.88MB low=20.03MB high=103.65MB target=45.88MB
+2026-08-29 14:14:16.143449 18384 [MS-GC] Scavenge round end: target=45.88MB released=0.00MB slices=1 total=11us
+2026-08-29 14:14:16.143494 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=45.84MB low=20.03MB high=103.65MB target=45.84MB
+2026-08-29 14:14:16.143514 18384 [MS-GC] Scavenge round end: target=45.84MB released=0.00MB slices=1 total=13us
+2026-08-29 14:14:16.143554 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=45.81MB low=20.03MB high=103.65MB target=45.81MB
+2026-08-29 14:14:16.143605 18384 [MS-GC] Scavenge round end: target=45.81MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.143643 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=45.78MB low=20.03MB high=103.65MB target=45.78MB
+2026-08-29 14:14:16.143661 18384 [MS-GC] Scavenge round end: target=45.78MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.143707 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=45.75MB low=20.03MB high=103.65MB target=45.75MB
+2026-08-29 14:14:16.143724 18384 [MS-GC] Scavenge round end: target=45.75MB released=0.00MB slices=1 total=8us
+2026-08-29 14:14:16.143762 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=45.72MB low=20.03MB high=103.65MB target=45.72MB
+2026-08-29 14:14:16.143781 18384 [MS-GC] Scavenge round end: target=45.72MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.143824 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=45.69MB low=20.03MB high=103.65MB target=45.69MB
+2026-08-29 14:14:16.143841 18384 [MS-GC] Scavenge round end: target=45.69MB released=0.00MB slices=1 total=8us
+2026-08-29 14:14:16.143879 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=45.66MB low=20.03MB high=103.65MB target=45.66MB
+2026-08-29 14:14:16.143896 18384 [MS-GC] Scavenge round end: target=45.66MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.143938 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=45.62MB low=20.03MB high=103.65MB target=45.62MB
+2026-08-29 14:14:16.143955 18384 [MS-GC] Scavenge round end: target=45.62MB released=0.00MB slices=1 total=9us
+2026-08-29 14:14:16.143993 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=45.59MB low=20.03MB high=103.65MB target=45.59MB
+2026-08-29 14:14:16.144029 18384 [MS-GC] Scavenge round end: target=45.59MB released=0.00MB slices=1 total=13us
+2026-08-29 14:14:16.144054 24344 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=125.09MB reclaimable=45.56MB low=20.03MB high=103.65MB target=45.56MB
+2026-08-29 14:14:16.176461 24344 [MS-GC] heap grow: condition=stable-no-free-supply requestRegions=3749 ownerShard=2 segments=6->8 shardSegments=[0:1,1:0,2:7,3:0,4:0,5:0] committedRegions=12288->16384 capacity=384.00MB->512.00MB
+
+2026-08-29 14:14:16.209136 22724 [MS-GC] === GC begin: cycle=2 reason=3(heuristic) trigger=1 sweepEpoch=2 retained=135.97MB triggerUsed=86.38MB mutatorReturnedSweptRegions=2023 largeLiveSpans=741 threshold=86.38MB softLimit=256.00MB ===
+2026-08-29 14:14:16.209155 22724 [MS-GC] Region summary(GC begin): P=12 allocBuffers=3 allocBufferActive=20 centralClasses=1/36 centralRegions=2664 sweptRegions=2664 unsweptRegions=0 empty=0 largeObjects=1 largeSpans=741 hotFree=946 committed=16384(512.00MB)
+2026-08-29 14:14:16.209167 22724 [MS-GC] === PreEnumRoots begin ===
+2026-08-29 14:14:16.209082 24344 [MS-GC] Mark notify accepted: reason=heuristic trigger=1 epoch=2 retained=135.97MB triggerUsed=86.38MB mutatorReturnedSweptRegions=2023 largeLiveSpans=741 threshold=86.38MB softLimit=256.00MB
+2026-08-29 14:14:16.209174 22724 [MS-GC]   Sweep force finish: sweptRegions=0 total=1us
+2026-08-29 14:14:16.209314 22724 [MS-GC]   Large registration: entries=4 batches=1 stwTail=4
+2026-08-29 14:14:16.209486 22724 [MS-GC]   PrepareMarkEpoch STW: total=230us
+2026-08-29 14:14:16.209513 22724 [MS-GC] === PreEnumRoots end: total=346us ===
+2026-08-29 14:14:16.209525 22724 [MS-GC] === EnumRoots begin ===
+2026-08-29 14:14:16.209576 22724 [MS-GC]   EnumRoots stats: rawRootRefs=29 uniqueHeapRoots=18 scannedStacks=2 publishedWU=90
+2026-08-29 14:14:16.209591 22724 [MS-GC] === EnumRoots end: total=51us ===
+2026-08-29 14:14:16.209601 22724 [MS-GC] === ConcurrentMark begin ===
+2026-08-29 14:14:16.209626 22724 [MS-GC]   Mark control begin: helpers=0 assistMultiplier=1 pressure=0
+2026-08-29 14:14:16.266292 24344 [MS-GC] heap grow: condition=stable-no-free-supply requestRegions=5623 ownerShard=2 segments=8->11 shardSegments=[0:1,1:0,2:10,3:0,4:0,5:0] committedRegions=16384->22528 capacity=512.00MB->704.00MB
+2026-08-29 14:14:16.330391 22724 [MS-GC]   ConcurrentMark stats: totalWU=17273736 mainWU=17273736(100.0%) helperWU=0(0.0%) assistWU=0(0.0%)
+2026-08-29 14:14:16.330436 22724 [MS-GC] === ConcurrentMark end: total=120790us ===
+2026-08-29 14:14:16.330445 22724 [MS-GC] === MarkTermination begin ===
+2026-08-29 14:14:16.330462 22724 [MS-GC]   MarkTermination stats: drainWU=0 ordinaryWU=0 finalizerWU=0 helpers=0/0
+2026-08-29 14:14:16.330470 22724 [MS-GC] === MarkTermination end: total=17us ===
+2026-08-29 14:14:16.330476 22724 [MS-GC] === PostMarkTermination begin ===
+2026-08-29 14:14:16.330911 22724 [MS-GC]   PostMarkStats: liveBytes=200.44MB inUse=433.19MB fragmentation=53.7% retainedNoTLS=438.66MB liveRatio=45.7% total=428us
+2026-08-29 14:14:16.330957 22724 [MS-GC]   Large sweep: releasedLargeObjects=4 releasedSpans=6019 reclaimedBytes=188.09MB total=35us
+2026-08-29 14:14:16.330967 22724 [MS-GC]   GC threshold: live=200.44MB inUse=245.12MB threshold=86.38MB->97.17MB scavenge=106.41MB/116.61MB
+2026-08-29 14:14:16.330978 22724 [MS-GC]   Publish sweep: epoch=3 unsweptRegions=2665 assistRatio=174653440
+2026-08-29 14:14:16.330985 22724 [MS-GC] === PostMarkTermination end: total=509us ===
+2026-08-29 14:14:16.330993 22724 [MS-GC] Region summary(GC end): P=12 allocBuffers=3 allocBufferActive=21 centralClasses=1/36 centralRegions=4096 sweptRegions=1431 unsweptRegions=2665 empty=0 largeObjects=1 largeSpans=3749 hotFree=6192 committed=22528(704.00MB)
+2026-08-29 14:14:16.331008 22724 [MS-GC] Sweep notify accepted: source=post-mark epoch=3 unsweptRegions=2665 unswept=83.28MB assistRatio=174653440
+2026-08-29 14:14:16.331017 22724 [MS-GC] GC total=121920us PreEnum=346us EnumRoots=51us ConcurrentMark=120790us MarkTerminationSTW=17us PostMarkTermination=509us Other=207us
+
+
+2026-08-29 14:14:16.331135 22724 [MS-GC] === GC begin: cycle=3 reason=1(oom) trigger=2 sweepEpoch=3 retained=438.62MB triggerUsed=161.94MB mutatorReturnedSweptRegions=1433 largeLiveSpans=3749 threshold=97.17MB softLimit=256.00MB ===
+2026-08-29 14:14:16.331162 22724 [MS-GC] Region summary(GC begin): P=12 allocBuffers=3 allocBufferActive=20 centralClasses=1/36 centralRegions=4093 sweptRegions=1986 unsweptRegions=2107 empty=0 largeObjects=1 largeSpans=3749 hotFree=6191 committed=22528(704.00MB)
+2026-08-29 14:14:16.331183 22724 [MS-GC] === PreEnumRoots begin ===
+2026-08-29 14:14:16.331538 22724 [MS-GC]   Sweep force finish: sweptRegions=274 total=345us
+2026-08-29 14:14:16.331567 18384 [MS-GC] Sweep round end: epoch=3 sweptRegions=2665 slices=1 total=522us
+2026-08-29 14:14:16.331590 22724 [MS-GC]   Large registration: entries=1 batches=1 stwTail=1
+2026-08-29 14:14:16.331784 22724 [MS-GC]   PrepareMarkEpoch STW: total=229us
+2026-08-29 14:14:16.331801 22724 [MS-GC] === PreEnumRoots end: total=618us ===
+2026-08-29 14:14:16.331810 22724 [MS-GC] === EnumRoots begin ===
+2026-08-29 14:14:16.331848 22724 [MS-GC]   EnumRoots stats: rawRootRefs=26 uniqueHeapRoots=17 scannedStacks=2 publishedWU=81
+2026-08-29 14:14:16.331861 22724 [MS-GC] === EnumRoots end: total=39us ===
+2026-08-29 14:14:16.331868 22724 [MS-GC] === ConcurrentMark begin ===
+2026-08-29 14:14:16.331884 22724 [MS-GC]   Mark control begin: helpers=3 assistMultiplier=4 pressure=2
+2026-08-29 14:14:16.370085 18384 [MS-GC] Scavenge round end: target=193.47MB released=193.47MB slices=4 total=38501us
+2026-08-29 14:14:16.497713 22724 [MS-GC]   ConcurrentMark stats: totalWU=18883637 mainWU=18883613(100.0%) helperWU=24(0.0%) assistWU=0(0.0%)
+2026-08-29 14:14:16.497751 22724 [MS-GC] === ConcurrentMark end: total=165844us ===
+2026-08-29 14:14:16.497759 22724 [MS-GC] === MarkTermination begin ===
+2026-08-29 14:14:16.497772 22724 [MS-GC]   MarkTermination stats: drainWU=0 ordinaryWU=0 finalizerWU=0 helpers=0/0
+2026-08-29 14:14:16.497779 22724 [MS-GC] === MarkTermination end: total=13us ===
+2026-08-29 14:14:16.497785 22724 [MS-GC] === PostMarkTermination begin ===
+2026-08-29 14:14:16.498541 22724 [MS-GC]   PostMarkStats: liveBytes=303.78MB inUse=420.94MB fragmentation=27.8% retainedNoTLS=420.94MB liveRatio=72.2% total=749us
+2026-08-29 14:14:16.498583 22724 [MS-GC]   Large sweep: releasedLargeObjects=1 releasedSpans=3749 reclaimedBytes=117.16MB total=30us
+2026-08-29 14:14:16.498594 22724 [MS-GC]   GC threshold: live=303.78MB inUse=303.78MB threshold=97.17MB->204.80MB scavenge=240.00MB/240.00MB
+2026-08-29 14:14:16.498605 22724 [MS-GC]   Publish sweep: epoch=4 unsweptRegions=4098 assistRatio=288471
+2026-08-29 14:14:16.498613 22724 [MS-GC] === PostMarkTermination end: total=827us ===
+2026-08-29 14:14:16.498620 22724 [MS-GC] Region summary(GC end): P=12 allocBuffers=3 allocBufferActive=20 centralClasses=1/36 centralRegions=4098 sweptRegions=0 unsweptRegions=4098 empty=0 largeObjects=1 largeSpans=5623 hotFree=3749 committed=22528(704.00MB)
+2026-08-29 14:14:16.498636 22724 [MS-GC] Sweep notify accepted: source=post-mark epoch=4 unsweptRegions=4098 unswept=128.06MB assistRatio=288471
+2026-08-29 14:14:16.498645 22724 [MS-GC] Scavenge notify accepted: source=post-mark retained=420.94MB reclaimable=117.16MB low=240.00MB high=240.00MB target=117.16MB
+2026-08-29 14:14:16.498658 22724 [MS-GC] GC total=167538us PreEnum=618us EnumRoots=39us ConcurrentMark=165844us MarkTerminationSTW=13us PostMarkTermination=827us Other=197us
+
+
+2026-08-29 14:14:16.498809 22724 [MS-GC] === GC begin: cycle=4 reason=1(oom) trigger=2 sweepEpoch=4 retained=356.94MB triggerUsed=175.75MB mutatorReturnedSweptRegions=1 largeLiveSpans=5623 threshold=204.80MB softLimit=256.00MB ===
+2026-08-29 14:14:16.498826 22724 [MS-GC] Region summary(GC begin): P=12 allocBuffers=3 allocBufferActive=20 centralClasses=1/36 centralRegions=4099 sweptRegions=5 unsweptRegions=4094 empty=0 largeObjects=1 largeSpans=5623 hotFree=1700 committed=22528(704.00MB)
+2026-08-29 14:14:16.498844 22724 [MS-GC] === PreEnumRoots begin ===
+2026-08-29 14:14:16.500410 22724 [MS-GC]   Sweep force finish: sweptRegions=4094 total=1558us
+2026-08-29 14:14:16.500470 22724 [MS-GC]   Large registration: entries=0 batches=0 stwTail=0
+2026-08-29 14:14:16.500684 22724 [MS-GC]   PrepareMarkEpoch STW: total=262us
+2026-08-29 14:14:16.500700 22724 [MS-GC] === PreEnumRoots end: total=1857us ===
+2026-08-29 14:14:16.500709 22724 [MS-GC] === EnumRoots begin ===
+2026-08-29 14:14:16.500736 22724 [MS-GC]   EnumRoots stats: rawRootRefs=26 uniqueHeapRoots=17 scannedStacks=2 publishedWU=81
+2026-08-29 14:14:16.500745 22724 [MS-GC] === EnumRoots end: total=27us ===
+2026-08-29 14:14:16.500751 22724 [MS-GC] === ConcurrentMark begin ===
+2026-08-29 14:14:16.500766 22724 [MS-GC]   Mark control begin: helpers=3 assistMultiplier=4 pressure=2
+2026-08-29 14:14:16.509079 18384 [MS-GC] Scavenge round end: target=117.16MB released=117.12MB slices=2 total=10434us
+2026-08-29 14:14:16.666633 22724 [MS-GC]   ConcurrentMark stats: totalWU=18888245 mainWU=1(0.0%) helperWU=18888244(100.0%) assistWU=0(0.0%)
+2026-08-29 14:14:16.666668 22724 [MS-GC] === ConcurrentMark end: total=165881us ===
+2026-08-29 14:14:16.666676 22724 [MS-GC] === MarkTermination begin ===
+2026-08-29 14:14:16.666687 22724 [MS-GC]   MarkTermination stats: drainWU=0 ordinaryWU=0 finalizerWU=0 helpers=0/0
+2026-08-29 14:14:16.666695 22724 [MS-GC] === MarkTermination end: total=11us ===
+2026-08-29 14:14:16.666700 22724 [MS-GC] === PostMarkTermination begin ===
+2026-08-29 14:14:16.667362 22724 [MS-GC]   PostMarkStats: liveBytes=303.81MB inUse=303.81MB fragmentation=0.0% retainedNoTLS=303.81MB liveRatio=100.0% total=656us
+2026-08-29 14:14:16.667375 22724 [MS-GC]   Large sweep: releasedLargeObjects=0 releasedSpans=0 reclaimedBytes=0.00MB total=0us
+2026-08-29 14:14:16.667384 22724 [MS-GC]   GC threshold: live=303.81MB inUse=303.81MB threshold=204.80MB->204.80MB scavenge=240.00MB/240.00MB
+2026-08-29 14:14:16.667394 22724 [MS-GC]   Publish sweep: epoch=5 unsweptRegions=4099 assistRatio=288541
+2026-08-29 14:14:16.667400 22724 [MS-GC] === PostMarkTermination end: total=700us ===
+2026-08-29 14:14:16.667407 22724 [MS-GC] Region summary(GC end): P=12 allocBuffers=3 allocBufferActive=20 centralClasses=1/36 centralRegions=4099 sweptRegions=0 unsweptRegions=4099 empty=0 largeObjects=1 largeSpans=5623 hotFree=0 committed=22528(704.00MB)
+2026-08-29 14:14:16.667427 22724 [MS-GC] Sweep notify accepted: source=post-mark epoch=5 unsweptRegions=4099 unswept=128.09MB assistRatio=288541
+2026-08-29 14:14:16.667443 22724 [MS-GC] GC total=168647us PreEnum=1857us EnumRoots=27us ConcurrentMark=165881us MarkTerminationSTW=11us PostMarkTermination=700us Other=171us
+
+
+2026-08-29 14:14:16.667672 22724 [MS-GC] === GC begin: cycle=5 reason=1(oom) trigger=2 sweepEpoch=5 retained=303.75MB triggerUsed=175.75MB mutatorReturnedSweptRegions=1 largeLiveSpans=5623 threshold=204.80MB softLimit=256.00MB ===
+2026-08-29 14:14:16.667699 22724 [MS-GC] Region summary(GC begin): P=12 allocBuffers=3 allocBufferActive=20 centralClasses=1/36 centralRegions=4098 sweptRegions=942 unsweptRegions=3156 empty=0 largeObjects=1 largeSpans=5623 hotFree=0 committed=22528(704.00MB)
+2026-08-29 14:14:16.667724 22724 [MS-GC] === PreEnumRoots begin ===
+2026-08-29 14:14:16.668218 22724 [MS-GC]   Sweep force finish: sweptRegions=399 total=483us
+2026-08-29 14:14:16.668315 18384 [MS-GC] Sweep round end: epoch=5 sweptRegions=4099 slices=1 total=845us
+2026-08-29 14:14:16.668350 22724 [MS-GC]   Large registration: entries=0 batches=0 stwTail=0
+2026-08-29 14:14:16.668360 22724 [MS-GC]   PrepareMarkEpoch STW: total=123us
+2026-08-29 14:14:16.668366 22724 [MS-GC] === PreEnumRoots end: total=643us ===
+2026-08-29 14:14:16.668372 22724 [MS-GC] === EnumRoots begin ===
+2026-08-29 14:14:16.668400 22724 [MS-GC]   EnumRoots stats: rawRootRefs=26 uniqueHeapRoots=17 scannedStacks=2 publishedWU=81
+2026-08-29 14:14:16.668408 22724 [MS-GC] === EnumRoots end: total=28us ===
+2026-08-29 14:14:16.668418 22724 [MS-GC] === ConcurrentMark begin ===
+2026-08-29 14:14:16.668436 22724 [MS-GC]   Mark control begin: helpers=3 assistMultiplier=4 pressure=2
+2026-08-29 14:14:16.816324 22724 [MS-GC]   ConcurrentMark stats: totalWU=18892853 mainWU=24(0.0%) helperWU=18892829(100.0%) assistWU=0(0.0%)
+2026-08-29 14:14:16.816360 22724 [MS-GC] === ConcurrentMark end: total=147905us ===
+2026-08-29 14:14:16.816367 22724 [MS-GC] === MarkTermination begin ===
+2026-08-29 14:14:16.816379 22724 [MS-GC]   MarkTermination stats: drainWU=0 ordinaryWU=0 finalizerWU=0 helpers=0/0
+2026-08-29 14:14:16.816386 22724 [MS-GC] === MarkTermination end: total=12us ===
+2026-08-29 14:14:16.816392 22724 [MS-GC] === PostMarkTermination begin ===
+2026-08-29 14:14:16.817047 22724 [MS-GC]   PostMarkStats: liveBytes=303.84MB inUse=303.84MB fragmentation=0.0% retainedNoTLS=303.84MB liveRatio=100.0% total=648us
+2026-08-29 14:14:16.817060 22724 [MS-GC]   Large sweep: releasedLargeObjects=0 releasedSpans=0 reclaimedBytes=0.00MB total=1us
+2026-08-29 14:14:16.817068 22724 [MS-GC]   GC threshold: live=303.84MB inUse=303.84MB threshold=204.80MB->204.80MB scavenge=240.00MB/240.00MB
+2026-08-29 14:14:16.817078 22724 [MS-GC]   Publish sweep: epoch=6 unsweptRegions=4100 assistRatio=288611
+2026-08-29 14:14:16.817084 22724 [MS-GC] === PostMarkTermination end: total=692us ===
+2026-08-29 14:14:16.817091 22724 [MS-GC] Region summary(GC end): P=12 allocBuffers=3 allocBufferActive=20 centralClasses=1/36 centralRegions=4100 sweptRegions=0 unsweptRegions=4100 empty=0 largeObjects=1 largeSpans=5623 hotFree=0 committed=22528(704.00MB)
+2026-08-29 14:14:16.817111 22724 [MS-GC] Sweep notify accepted: source=post-mark epoch=6 unsweptRegions=4100 unswept=128.12MB assistRatio=288611
+2026-08-29 14:14:16.817125 22724 [MS-GC] GC total=149471us PreEnum=643us EnumRoots=28us ConcurrentMark=147905us MarkTerminationSTW=12us PostMarkTermination=692us Other=191us
+
+
+2026-08-29 14:14:16.817360 22724 [MS-GC] === GC begin: cycle=6 reason=1(oom) trigger=2 sweepEpoch=6 retained=303.81MB triggerUsed=175.75MB mutatorReturnedSweptRegions=1 largeLiveSpans=5623 threshold=204.80MB softLimit=256.00MB ===
+2026-08-29 14:14:16.817384 22724 [MS-GC] Region summary(GC begin): P=12 allocBuffers=3 allocBufferActive=20 centralClasses=1/36 centralRegions=4100 sweptRegions=1262 unsweptRegions=2838 empty=0 largeObjects=1 largeSpans=5623 hotFree=0 committed=22528(704.00MB)
+2026-08-29 14:14:16.817405 22724 [MS-GC] === PreEnumRoots begin ===
+2026-08-29 14:14:16.817828 22724 [MS-GC]   Sweep force finish: sweptRegions=360 total=414us
+2026-08-29 14:14:16.817925 18384 [MS-GC] Sweep round end: epoch=6 sweptRegions=4100 slices=1 total=780us
+2026-08-29 14:14:16.817955 22724 [MS-GC]   Large registration: entries=0 batches=0 stwTail=0
+2026-08-29 14:14:16.817966 22724 [MS-GC]   PrepareMarkEpoch STW: total=119us
+2026-08-29 14:14:16.817972 22724 [MS-GC] === PreEnumRoots end: total=568us ===
+2026-08-29 14:14:16.817977 22724 [MS-GC] === EnumRoots begin ===
+2026-08-29 14:14:16.818004 22724 [MS-GC]   EnumRoots stats: rawRootRefs=26 uniqueHeapRoots=17 scannedStacks=2 publishedWU=81
+2026-08-29 14:14:16.818012 22724 [MS-GC] === EnumRoots end: total=27us ===
+2026-08-29 14:14:16.818018 22724 [MS-GC] === ConcurrentMark begin ===
+2026-08-29 14:14:16.818034 22724 [MS-GC]   Mark control begin: helpers=3 assistMultiplier=4 pressure=2
+2026-08-29 14:14:16.965974 22724 [MS-GC]   ConcurrentMark stats: totalWU=18897461 mainWU=18897437(100.0%) helperWU=24(0.0%) assistWU=0(0.0%)
+2026-08-29 14:14:16.966011 22724 [MS-GC] === ConcurrentMark end: total=147955us ===
+2026-08-29 14:14:16.966019 22724 [MS-GC] === MarkTermination begin ===
+2026-08-29 14:14:16.966031 22724 [MS-GC]   MarkTermination stats: drainWU=0 ordinaryWU=0 finalizerWU=0 helpers=0/0
+2026-08-29 14:14:16.966038 22724 [MS-GC] === MarkTermination end: total=12us ===
+2026-08-29 14:14:16.966044 22724 [MS-GC] === PostMarkTermination begin ===
+2026-08-29 14:14:16.966763 22724 [MS-GC]   PostMarkStats: liveBytes=303.88MB inUse=303.88MB fragmentation=0.0% retainedNoTLS=303.88MB liveRatio=100.0% total=712us
+2026-08-29 14:14:16.966786 22724 [MS-GC]   Large sweep: releasedLargeObjects=0 releasedSpans=0 reclaimedBytes=0.00MB total=0us
+2026-08-29 14:14:16.966797 22724 [MS-GC]   GC threshold: live=303.88MB inUse=303.88MB threshold=204.80MB->204.80MB scavenge=240.00MB/240.00MB
+2026-08-29 14:14:16.966808 22724 [MS-GC]   Publish sweep: epoch=7 unsweptRegions=4101 assistRatio=288682
+2026-08-29 14:14:16.966814 22724 [MS-GC] === PostMarkTermination end: total=770us ===
+2026-08-29 14:14:16.966821 22724 [MS-GC] Region summary(GC end): P=12 allocBuffers=3 allocBufferActive=20 centralClasses=1/36 centralRegions=4101 sweptRegions=0 unsweptRegions=4101 empty=0 largeObjects=1 largeSpans=5623 hotFree=0 committed=22528(704.00MB)
+2026-08-29 14:14:16.966837 22724 [MS-GC] Sweep notify accepted: source=post-mark epoch=7 unsweptRegions=4101 unswept=128.16MB assistRatio=288682
+2026-08-29 14:14:16.966850 22724 [MS-GC] GC total=149506us PreEnum=568us EnumRoots=27us ConcurrentMark=147955us MarkTerminationSTW=12us PostMarkTermination=770us Other=174us
+
+
+2026-08-29 14:14:16.967028 22724 [MS-GC] === GC begin: cycle=7 reason=1(oom) trigger=2 sweepEpoch=7 retained=303.81MB triggerUsed=175.75MB mutatorReturnedSweptRegions=1 largeLiveSpans=5623 threshold=204.80MB softLimit=256.00MB ===
+2026-08-29 14:14:16.967050 22724 [MS-GC] Region summary(GC begin): P=12 allocBuffers=3 allocBufferActive=20 centralClasses=1/36 centralRegions=4099 sweptRegions=1006 unsweptRegions=3093 empty=0 largeObjects=1 largeSpans=5623 hotFree=0 committed=22528(704.00MB)
+2026-08-29 14:14:16.967071 22724 [MS-GC] === PreEnumRoots begin ===
+2026-08-29 14:14:16.967569 22724 [MS-GC]   Sweep force finish: sweptRegions=360 total=487us
+2026-08-29 14:14:16.967607 18384 [MS-GC] Sweep round end: epoch=7 sweptRegions=4101 slices=1 total=759us
+2026-08-29 14:14:16.967621 22724 [MS-GC]   Large registration: entries=0 batches=0 stwTail=0
+2026-08-29 14:14:16.967791 22724 [MS-GC]   PrepareMarkEpoch STW: total=203us
+2026-08-29 14:14:16.967807 22724 [MS-GC] === PreEnumRoots end: total=736us ===
+2026-08-29 14:14:16.967815 22724 [MS-GC] === EnumRoots begin ===
+2026-08-29 14:14:16.967843 22724 [MS-GC]   EnumRoots stats: rawRootRefs=26 uniqueHeapRoots=17 scannedStacks=2 publishedWU=81
+2026-08-29 14:14:16.967852 22724 [MS-GC] === EnumRoots end: total=28us ===
+2026-08-29 14:14:16.967858 22724 [MS-GC] === ConcurrentMark begin ===
+2026-08-29 14:14:16.967873 22724 [MS-GC]   Mark control begin: helpers=3 assistMultiplier=4 pressure=2
+2026-08-29 14:14:17.116550 22724 [MS-GC]   ConcurrentMark stats: totalWU=18902069 mainWU=18902016(100.0%) helperWU=53(0.0%) assistWU=0(0.0%)
+2026-08-29 14:14:17.116587 22724 [MS-GC] === ConcurrentMark end: total=148692us ===
+2026-08-29 14:14:17.116594 22724 [MS-GC] === MarkTermination begin ===
+2026-08-29 14:14:17.116606 22724 [MS-GC]   MarkTermination stats: drainWU=0 ordinaryWU=0 finalizerWU=0 helpers=0/0
+2026-08-29 14:14:17.116613 22724 [MS-GC] === MarkTermination end: total=12us ===
+2026-08-29 14:14:17.116619 22724 [MS-GC] === PostMarkTermination begin ===
+2026-08-29 14:14:17.117407 22724 [MS-GC]   PostMarkStats: liveBytes=303.91MB inUse=303.91MB fragmentation=0.0% retainedNoTLS=303.91MB liveRatio=100.0% total=782us
+2026-08-29 14:14:17.117420 22724 [MS-GC]   Large sweep: releasedLargeObjects=0 releasedSpans=0 reclaimedBytes=0.00MB total=1us
+2026-08-29 14:14:17.117428 22724 [MS-GC]   GC threshold: live=303.91MB inUse=303.91MB threshold=204.80MB->204.80MB scavenge=240.00MB/240.00MB
+2026-08-29 14:14:17.117438 22724 [MS-GC]   Publish sweep: epoch=8 unsweptRegions=4102 assistRatio=288752
+2026-08-29 14:14:17.117445 22724 [MS-GC] === PostMarkTermination end: total=826us ===
+2026-08-29 14:14:17.117452 22724 [MS-GC] Region summary(GC end): P=12 allocBuffers=3 allocBufferActive=20 centralClasses=1/36 centralRegions=4102 sweptRegions=0 unsweptRegions=4102 empty=0 largeObjects=1 largeSpans=5623 hotFree=0 committed=22528(704.00MB)
+2026-08-29 14:14:17.117474 22724 [MS-GC] Sweep notify accepted: source=post-mark epoch=8 unsweptRegions=4102 unswept=128.19MB assistRatio=288752
+2026-08-29 14:14:17.117542 22724 [MS-GC] GC total=150528us PreEnum=736us EnumRoots=28us ConcurrentMark=148692us MarkTerminationSTW=12us PostMarkTermination=826us Other=234us
+
+
+2026-08-29 14:14:17.117708 22724 [MS-GC] === GC begin: cycle=8 reason=1(oom) trigger=2 sweepEpoch=8 retained=303.84MB triggerUsed=175.75MB mutatorReturnedSweptRegions=1 largeLiveSpans=5623 threshold=204.80MB softLimit=256.00MB ===
+2026-08-29 14:14:17.117724 22724 [MS-GC] Region summary(GC begin): P=12 allocBuffers=3 allocBufferActive=20 centralClasses=1/36 centralRegions=4102 sweptRegions=1026 unsweptRegions=3076 empty=0 largeObjects=1 largeSpans=5623 hotFree=0 committed=22528(704.00MB)
+2026-08-29 14:14:17.117737 22724 [MS-GC] === PreEnumRoots begin ===
+2026-08-29 14:14:17.118199 22724 [MS-GC]   Sweep force finish: sweptRegions=436 total=456us
+2026-08-29 14:14:17.118252 18384 [MS-GC] Sweep round end: epoch=8 sweptRegions=4102 slices=1 total=715us
+2026-08-29 14:14:17.118351 22724 [MS-GC]   Large registration: entries=0 batches=0 stwTail=0
+2026-08-29 14:14:17.118360 22724 [MS-GC]   PrepareMarkEpoch STW: total=153us
+2026-08-29 14:14:17.118366 22724 [MS-GC] === PreEnumRoots end: total=630us ===
+2026-08-29 14:14:17.118372 22724 [MS-GC] === EnumRoots begin ===
+2026-08-29 14:14:17.118398 22724 [MS-GC]   EnumRoots stats: rawRootRefs=26 uniqueHeapRoots=17 scannedStacks=2 publishedWU=81
+2026-08-29 14:14:17.118407 22724 [MS-GC] === EnumRoots end: total=26us ===
+2026-08-29 14:14:17.118412 22724 [MS-GC] === ConcurrentMark begin ===
+2026-08-29 14:14:17.118428 22724 [MS-GC]   Mark control begin: helpers=3 assistMultiplier=4 pressure=2
+2026-08-29 14:14:17.264244 22724 [MS-GC]   ConcurrentMark stats: totalWU=18906677 mainWU=0(0.0%) helperWU=18906677(100.0%) assistWU=0(0.0%)
+2026-08-29 14:14:17.264279 22724 [MS-GC] === ConcurrentMark end: total=145832us ===
+2026-08-29 14:14:17.264287 22724 [MS-GC] === MarkTermination begin ===
+2026-08-29 14:14:17.264298 22724 [MS-GC]   MarkTermination stats: drainWU=0 ordinaryWU=0 finalizerWU=0 helpers=0/0
+2026-08-29 14:14:17.264305 22724 [MS-GC] === MarkTermination end: total=12us ===
+2026-08-29 14:14:17.264311 22724 [MS-GC] === PostMarkTermination begin ===
+2026-08-29 14:14:17.265025 22724 [MS-GC]   PostMarkStats: liveBytes=303.94MB inUse=303.94MB fragmentation=0.0% retainedNoTLS=303.94MB liveRatio=100.0% total=708us
+2026-08-29 14:14:17.265041 22724 [MS-GC]   Large sweep: releasedLargeObjects=0 releasedSpans=0 reclaimedBytes=0.00MB total=0us
+2026-08-29 14:14:17.265050 22724 [MS-GC]   GC threshold: live=303.94MB inUse=303.94MB threshold=204.80MB->204.80MB scavenge=240.00MB/240.00MB
+2026-08-29 14:14:17.265060 22724 [MS-GC]   Publish sweep: epoch=9 unsweptRegions=4103 assistRatio=288822
+2026-08-29 14:14:17.265067 22724 [MS-GC] === PostMarkTermination end: total=755us ===
+2026-08-29 14:14:17.265073 22724 [MS-GC] Region summary(GC end): P=12 allocBuffers=3 allocBufferActive=20 centralClasses=1/36 centralRegions=4103 sweptRegions=0 unsweptRegions=4103 empty=0 largeObjects=1 largeSpans=5623 hotFree=0 committed=22528(704.00MB)
+2026-08-29 14:14:17.265089 22724 [MS-GC] Sweep notify accepted: source=post-mark epoch=9 unsweptRegions=4103 unswept=128.22MB assistRatio=288822
+2026-08-29 14:14:17.265101 22724 [MS-GC] GC total=147405us PreEnum=630us EnumRoots=26us ConcurrentMark=145832us MarkTerminationSTW=12us PostMarkTermination=755us Other=150us
+
+
+2026-08-29 14:14:17.265226 22724 [MS-GC] === GC begin: cycle=9 reason=1(oom) trigger=2 sweepEpoch=9 retained=303.91MB triggerUsed=175.75MB mutatorReturnedSweptRegions=1 largeLiveSpans=5623 threshold=204.80MB softLimit=256.00MB ===
+2026-08-29 14:14:17.265238 22724 [MS-GC] Region summary(GC begin): P=12 allocBuffers=3 allocBufferActive=20 centralClasses=1/36 centralRegions=4101 sweptRegions=467 unsweptRegions=3634 empty=0 largeObjects=1 largeSpans=5623 hotFree=0 committed=22528(704.00MB)
+2026-08-29 14:14:17.265249 22724 [MS-GC] === PreEnumRoots begin ===
+2026-08-29 14:14:17.265830 22724 [MS-GC]   Sweep force finish: sweptRegions=515 total=574us
+2026-08-29 14:14:17.265880 18384 [MS-GC] Sweep round end: epoch=9 sweptRegions=4103 slices=1 total=749us
+2026-08-29 14:14:17.265959 22724 [MS-GC]   Large registration: entries=0 batches=0 stwTail=0
+2026-08-29 14:14:17.265969 22724 [MS-GC]   PrepareMarkEpoch STW: total=121us
+2026-08-29 14:14:17.265975 22724 [MS-GC] === PreEnumRoots end: total=726us ===
+2026-08-29 14:14:17.265981 22724 [MS-GC] === EnumRoots begin ===
+2026-08-29 14:14:17.266007 22724 [MS-GC]   EnumRoots stats: rawRootRefs=26 uniqueHeapRoots=17 scannedStacks=2 publishedWU=81
+2026-08-29 14:14:17.266015 22724 [MS-GC] === EnumRoots end: total=26us ===
+2026-08-29 14:14:17.266021 22724 [MS-GC] === ConcurrentMark begin ===
+2026-08-29 14:14:17.266035 22724 [MS-GC]   Mark control begin: helpers=3 assistMultiplier=4 pressure=2
+2026-08-29 14:14:17.414408 22724 [MS-GC]   ConcurrentMark stats: totalWU=18911285 mainWU=18911261(100.0%) helperWU=24(0.0%) assistWU=0(0.0%)
+2026-08-29 14:14:17.414446 22724 [MS-GC] === ConcurrentMark end: total=148386us ===
+2026-08-29 14:14:17.414456 22724 [MS-GC] === MarkTermination begin ===
+2026-08-29 14:14:17.414478 22724 [MS-GC]   MarkTermination stats: drainWU=0 ordinaryWU=0 finalizerWU=0 helpers=0/0
+2026-08-29 14:14:17.414488 22724 [MS-GC] === MarkTermination end: total=22us ===
+2026-08-29 14:14:17.414495 22724 [MS-GC] === PostMarkTermination begin ===
+2026-08-29 14:14:17.415162 22724 [MS-GC]   PostMarkStats: liveBytes=303.97MB inUse=303.97MB fragmentation=0.0% retainedNoTLS=303.97MB liveRatio=100.0% total=661us
+2026-08-29 14:14:17.415176 22724 [MS-GC]   Large sweep: releasedLargeObjects=0 releasedSpans=0 reclaimedBytes=0.00MB total=1us
+2026-08-29 14:14:17.415185 22724 [MS-GC]   GC threshold: live=303.97MB inUse=303.97MB threshold=204.80MB->204.80MB scavenge=240.00MB/240.00MB
+2026-08-29 14:14:17.415195 22724 [MS-GC]   Publish sweep: epoch=10 unsweptRegions=4104 assistRatio=288893
+2026-08-29 14:14:17.415202 22724 [MS-GC] === PostMarkTermination end: total=708us ===
+2026-08-29 14:14:17.415209 22724 [MS-GC] Region summary(GC end): P=12 allocBuffers=3 allocBufferActive=20 centralClasses=1/36 centralRegions=4104 sweptRegions=0 unsweptRegions=4104 empty=0 largeObjects=1 largeSpans=5623 hotFree=0 committed=22528(704.00MB)
+2026-08-29 14:14:17.415225 22724 [MS-GC] Sweep notify accepted: source=post-mark epoch=10 unsweptRegions=4104 unswept=128.25MB assistRatio=288893
+2026-08-29 14:14:17.415237 22724 [MS-GC] GC total=150017us PreEnum=726us EnumRoots=26us ConcurrentMark=148386us MarkTerminationSTW=22us PostMarkTermination=708us Other=149us
+
+
+2026-08-29 14:14:17.415375 22724 [MS-GC] === GC begin: cycle=10 reason=1(oom) trigger=2 sweepEpoch=10 retained=303.88MB triggerUsed=175.75MB mutatorReturnedSweptRegions=1 largeLiveSpans=5623 threshold=204.80MB softLimit=256.00MB ===
+2026-08-29 14:14:17.415398 22724 [MS-GC] Region summary(GC begin): P=12 allocBuffers=3 allocBufferActive=20 centralClasses=1/36 centralRegions=4102 sweptRegions=840 unsweptRegions=3262 empty=0 largeObjects=1 largeSpans=5623 hotFree=0 committed=22528(704.00MB)
+2026-08-29 14:14:17.415420 22724 [MS-GC] === PreEnumRoots begin ===
+2026-08-29 14:14:17.415909 22724 [MS-GC]   Sweep force finish: sweptRegions=394 total=480us
+2026-08-29 14:14:17.415967 18384 [MS-GC] Sweep round end: epoch=10 sweptRegions=4104 slices=1 total=733us
+2026-08-29 14:14:17.416046 22724 [MS-GC]   Large registration: entries=0 batches=0 stwTail=0
+2026-08-29 14:14:17.416056 22724 [MS-GC]   PrepareMarkEpoch STW: total=131us
+2026-08-29 14:14:17.416062 22724 [MS-GC] === PreEnumRoots end: total=643us ===
+2026-08-29 14:14:17.416068 22724 [MS-GC] === EnumRoots begin ===
+2026-08-29 14:14:17.416096 22724 [MS-GC]   EnumRoots stats: rawRootRefs=26 uniqueHeapRoots=17 scannedStacks=2 publishedWU=81
+2026-08-29 14:14:17.416104 22724 [MS-GC] === EnumRoots end: total=29us ===
+2026-08-29 14:14:17.416110 22724 [MS-GC] === ConcurrentMark begin ===
+2026-08-29 14:14:17.416125 22724 [MS-GC]   Mark control begin: helpers=3 assistMultiplier=4 pressure=2
+2026-08-29 14:14:17.560848 22724 [MS-GC]   ConcurrentMark stats: totalWU=18915893 mainWU=1(0.0%) helperWU=18915892(100.0%) assistWU=0(0.0%)
+2026-08-29 14:14:17.560896 22724 [MS-GC] === ConcurrentMark end: total=144738us ===
+2026-08-29 14:14:17.560904 22724 [MS-GC] === MarkTermination begin ===
+2026-08-29 14:14:17.560916 22724 [MS-GC]   MarkTermination stats: drainWU=0 ordinaryWU=0 finalizerWU=0 helpers=0/0
+2026-08-29 14:14:17.560924 22724 [MS-GC] === MarkTermination end: total=12us ===
+2026-08-29 14:14:17.560929 22724 [MS-GC] === PostMarkTermination begin ===
+2026-08-29 14:14:17.561741 22724 [MS-GC]   PostMarkStats: liveBytes=304.00MB inUse=304.00MB fragmentation=0.0% retainedNoTLS=304.00MB liveRatio=100.0% total=806us
+2026-08-29 14:14:17.561771 22724 [MS-GC]   Large sweep: releasedLargeObjects=0 releasedSpans=0 reclaimedBytes=0.00MB total=1us
+2026-08-29 14:14:17.561780 22724 [MS-GC]   GC threshold: live=304.00MB inUse=304.00MB threshold=204.80MB->204.80MB scavenge=240.00MB/240.00MB
+2026-08-29 14:14:17.561790 22724 [MS-GC]   Publish sweep: epoch=11 unsweptRegions=4105 assistRatio=288963
+2026-08-29 14:14:17.561797 22724 [MS-GC] === PostMarkTermination end: total=868us ===
+2026-08-29 14:14:17.561804 22724 [MS-GC] Region summary(GC end): P=12 allocBuffers=3 allocBufferActive=20 centralClasses=1/36 centralRegions=4105 sweptRegions=0 unsweptRegions=4105 empty=0 largeObjects=1 largeSpans=5623 hotFree=0 committed=22528(704.00MB)
+2026-08-29 14:14:17.561822 22724 [MS-GC] Sweep notify accepted: source=post-mark epoch=11 unsweptRegions=4105 unswept=128.28MB assistRatio=288963
+2026-08-29 14:14:17.561835 22724 [MS-GC] GC total=146471us PreEnum=643us EnumRoots=29us ConcurrentMark=144738us MarkTerminationSTW=12us PostMarkTermination=868us Other=181us
+
+
+2026-08-29 14:14:17.562009 22724 [MS-GC] === GC begin: cycle=11 reason=1(oom) trigger=2 sweepEpoch=11 retained=303.94MB triggerUsed=175.75MB mutatorReturnedSweptRegions=1 largeLiveSpans=5623 threshold=204.80MB softLimit=256.00MB ===
+2026-08-29 14:14:17.562026 22724 [MS-GC] Region summary(GC begin): P=12 allocBuffers=3 allocBufferActive=20 centralClasses=1/36 centralRegions=4100 sweptRegions=820 unsweptRegions=3280 empty=0 largeObjects=1 largeSpans=5623 hotFree=0 committed=22528(704.00MB)
+2026-08-29 14:14:17.562039 22724 [MS-GC] === PreEnumRoots begin ===
+2026-08-29 14:14:17.562537 22724 [MS-GC]   Sweep force finish: sweptRegions=480 total=492us
+2026-08-29 14:14:17.562609 18384 [MS-GC] Sweep round end: epoch=11 sweptRegions=4105 slices=1 total=753us
+2026-08-29 14:14:17.562693 22724 [MS-GC]   Large registration: entries=0 batches=0 stwTail=0
+2026-08-29 14:14:17.562703 22724 [MS-GC]   PrepareMarkEpoch STW: total=155us
+2026-08-29 14:14:17.562708 22724 [MS-GC] === PreEnumRoots end: total=669us ===
+2026-08-29 14:14:17.562714 22724 [MS-GC] === EnumRoots begin ===
+2026-08-29 14:14:17.562744 22724 [MS-GC]   EnumRoots stats: rawRootRefs=26 uniqueHeapRoots=17 scannedStacks=2 publishedWU=81
+2026-08-29 14:14:17.562752 22724 [MS-GC] === EnumRoots end: total=29us ===
+2026-08-29 14:14:17.562757 22724 [MS-GC] === ConcurrentMark begin ===
+2026-08-29 14:14:17.562773 22724 [MS-GC]   Mark control begin: helpers=3 assistMultiplier=4 pressure=2

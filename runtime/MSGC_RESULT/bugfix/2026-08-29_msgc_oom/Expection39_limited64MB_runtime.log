@@ -1,0 +1,33 @@
+2026-08-29 10:47:02.882156 20176 [MS-GC] heap initialized: committedRegions=2048 committed=64.00MB maxVirtualRegions=2048 segment=64.00MB shards=6 processorsPerShard=2 heap=[0x23f71000000,0x23f75000000)
+2026-08-29 10:47:02.882915 20176 [MS-GC] Mark ready shards: P=12 gcThreads=6 shards=9
+2026-08-29 10:47:02.882941 20176 machine GC thread capacity=12, GCThreadPool total threads=6, helper threads=5
+2026-08-29 10:47:02.884455 20176 [MS-GC] config: heap=64.00MB region=0.06MB gcThreads=6 P=12 markBudget=10000000us sweepSlice=2000us
+2026-08-29 10:47:02.884485 20176 [MS-GC] config: markAssist=1 enumAssist=1 enumBatch=10 assistMaxMultiplier=4 sweepAssistMaxRegions=4 background(sweep=1 parallel=1 helpers=0 scavenge=1 shrink=0) verify=0/0 adaptiveGrowth=0 softLimit=64.00MB allocator(shards=6 processorsPerShard=2 initialSegments=1)
+
+2026-08-29 10:47:02.884791 18052 [MS-GC] === GC begin: cycle=1 reason=1(oom) trigger=2 sweepEpoch=1 retained=64.00MB triggerUsed=0.00MB mutatorReturnedSweptRegions=0 largeLiveSpans=0 threshold=12.80MB softLimit=64.00MB ===
+2026-08-29 10:47:02.884807 18052 [MS-GC] Region summary(GC begin): P=12 allocBuffers=2 allocBufferActive=0 centralClasses=0/36 centralRegions=0 sweptRegions=0 unsweptRegions=0 empty=0 largeObjects=0 largeSpans=0 hotFree=2048 committed=2048(64.00MB)
+2026-08-29 10:47:02.884828 18052 [MS-GC] === PreEnumRoots begin ===
+2026-08-29 10:47:02.884840 18052 [MS-GC]   Sweep force finish: sweptRegions=0 total=4us
+2026-08-29 10:47:02.884848 18052 [MS-GC]   Large registration: entries=0 batches=0 stwTail=0
+2026-08-29 10:47:02.884855 18052 [MS-GC]   PrepareMarkEpoch STW: total=8us
+2026-08-29 10:47:02.884860 18052 [MS-GC] === PreEnumRoots end: total=32us ===
+2026-08-29 10:47:02.884866 18052 [MS-GC] === EnumRoots begin ===
+2026-08-29 10:47:02.884929 18052 [MS-GC]   EnumRoots stats: rawRootRefs=21 uniqueHeapRoots=0 scannedStacks=2 publishedWU=0
+2026-08-29 10:47:02.884938 18052 [MS-GC] === EnumRoots end: total=63us ===
+2026-08-29 10:47:02.884946 18052 [MS-GC] === ConcurrentMark begin ===
+2026-08-29 10:47:02.884962 18052 [MS-GC]   Mark control begin: helpers=0 assistMultiplier=4 pressure=2
+2026-08-29 10:47:02.885018 18052 [MS-GC]   ConcurrentMark stats: totalWU=0 mainWU=0(0.0%) helperWU=0(0.0%) assistWU=0(0.0%)
+2026-08-29 10:47:02.885037 18052 [MS-GC] === ConcurrentMark end: total=72us ===
+2026-08-29 10:47:02.885050 18052 [MS-GC] === MarkTermination begin ===
+2026-08-29 10:47:02.885064 18052 [MS-GC]   MarkTermination stats: drainWU=0 ordinaryWU=0 finalizerWU=0 helpers=0/0
+2026-08-29 10:47:02.885072 18052 [MS-GC] === MarkTermination end: total=15us ===
+2026-08-29 10:47:02.885078 18052 [MS-GC] === PostMarkTermination begin ===
+2026-08-29 10:47:02.885084 18052 [MS-GC]   PostMarkStats: liveBytes=0.00MB inUse=0.00MB fragmentation=0.0% retainedNoTLS=64.00MB liveRatio=0.0% total=0us
+2026-08-29 10:47:02.885094 18052 [MS-GC]   Large sweep: releasedLargeObjects=0 releasedSpans=0 reclaimedBytes=0.00MB total=0us
+2026-08-29 10:47:02.885105 18052 [MS-GC]   GC threshold: live=0.00MB inUse=0.00MB threshold=12.80MB->20.00MB scavenge=0.00MB/24.00MB
+2026-08-29 10:47:02.885118 18052 [MS-GC]   Publish sweep: epoch=2 unsweptRegions=0 assistRatio=0
+2026-08-29 10:47:02.885124 18052 [MS-GC] === PostMarkTermination end: total=46us ===
+2026-08-29 10:47:02.885131 18052 [MS-GC] Region summary(GC end): P=12 allocBuffers=3 allocBufferActive=0 centralClasses=0/36 centralRegions=0 sweptRegions=0 unsweptRegions=0 empty=0 largeObjects=0 largeSpans=0 hotFree=2048 committed=2048(64.00MB)
+2026-08-29 10:47:02.885148 18052 [MS-GC] GC total=371us PreEnum=32us EnumRoots=63us ConcurrentMark=72us MarkTerminationSTW=15us PostMarkTermination=46us Other=143us
+
+2026-08-29 10:47:02.885312 20176 Allocating array RawArray<Int16> length 2147483648 failed and throw OutOfMemoryError

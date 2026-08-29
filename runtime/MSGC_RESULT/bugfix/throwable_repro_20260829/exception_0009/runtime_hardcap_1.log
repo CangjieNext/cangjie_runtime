@@ -1,0 +1,52 @@
+2026-08-29 14:11:17.486312 25900 [MS-GC] heap initialized: committedRegions=2048 committed=64.00MB maxVirtualRegions=8192 segment=64.00MB shards=6 processorsPerShard=2 heap=[0x20ae0e30000,0x20af0e30000)
+2026-08-29 14:11:17.487246 25900 [MS-GC] Mark ready shards: P=12 gcThreads=6 shards=9
+2026-08-29 14:11:17.487276 25900 machine GC thread capacity=12, GCThreadPool total threads=6, helper threads=5
+2026-08-29 14:11:17.489183 25900 [MS-GC] config: heap=64.00MB region=0.06MB gcThreads=6 P=12 markBudget=10000000us sweepSlice=2000us
+2026-08-29 14:11:17.489226 25900 [MS-GC] config: markAssist=1 enumAssist=1 enumBatch=10 assistMaxMultiplier=4 sweepAssistMaxRegions=4 background(sweep=1 parallel=1 helpers=0 scavenge=1 shrink=0) verify=0/0 adaptiveGrowth=0 softLimit=256.00MB allocator(shards=6 processorsPerShard=2 initialSegments=1)
+2026-08-29 14:11:17.522975 25900 [MS-GC] heap grow: condition=stable-no-free-supply requestRegions=741 ownerShard=4 segments=1->2 shardSegments=[0:1,1:0,2:0,3:0,4:1,5:0] committedRegions=2048->4096 capacity=64.00MB->128.00MB
+2026-08-29 14:11:17.533512 25900 [MS-GC] Mark notify accepted: reason=heuristic trigger=1 epoch=1 retained=57.69MB triggerUsed=20.00MB mutatorReturnedSweptRegions=640 largeLiveSpans=0 threshold=20.00MB softLimit=256.00MB
+
+2026-08-29 14:11:17.533579 23936 [MS-GC] === GC begin: cycle=1 reason=3(heuristic) trigger=1 sweepEpoch=1 retained=57.66MB triggerUsed=20.00MB mutatorReturnedSweptRegions=640 largeLiveSpans=0 threshold=20.00MB softLimit=256.00MB ===
+2026-08-29 14:11:17.533598 23936 [MS-GC] Region summary(GC begin): P=12 allocBuffers=2 allocBufferActive=21 centralClasses=1/36 centralRegions=641 sweptRegions=641 unsweptRegions=0 empty=0 largeObjects=0 largeSpans=0 hotFree=1204 committed=4096(128.00MB)
+2026-08-29 14:11:17.533610 23936 [MS-GC] === PreEnumRoots begin ===
+2026-08-29 14:11:17.533623 23936 [MS-GC]   Sweep force finish: sweptRegions=0 total=5us
+2026-08-29 14:11:17.533675 23936 [MS-GC]   Large registration: entries=19 batches=1 stwTail=19
+2026-08-29 14:11:17.533688 23936 [MS-GC]   PrepareMarkEpoch STW: total=48us
+2026-08-29 14:11:17.533699 23936 [MS-GC] === PreEnumRoots end: total=89us ===
+2026-08-29 14:11:17.533709 23936 [MS-GC] === EnumRoots begin ===
+2026-08-29 14:11:17.533782 23936 [MS-GC]   EnumRoots stats: rawRootRefs=25 uniqueHeapRoots=17 scannedStacks=2 publishedWU=81
+2026-08-29 14:11:17.533791 23936 [MS-GC] === EnumRoots end: total=73us ===
+2026-08-29 14:11:17.533799 23936 [MS-GC] === ConcurrentMark begin ===
+2026-08-29 14:11:17.533820 23936 [MS-GC]   Mark control begin: helpers=0 assistMultiplier=1 pressure=0
+2026-08-29 14:11:17.537904 25900 [MS-GC] heap grow: condition=stable-no-free-supply requestRegions=1111 ownerShard=4 segments=2->3 shardSegments=[0:1,1:0,2:0,3:0,4:2,5:0] committedRegions=4096->6144 capacity=128.00MB->192.00MB
+2026-08-29 14:11:17.558104 23936 [MS-GC]   ConcurrentMark stats: totalWU=3412145 mainWU=3412145(100.0%) helperWU=0(0.0%) assistWU=0(0.0%)
+2026-08-29 14:11:17.558142 23936 [MS-GC] === ConcurrentMark end: total=24304us ===
+2026-08-29 14:11:17.558157 23936 [MS-GC] === MarkTermination begin ===
+2026-08-29 14:11:17.558188 23936 [MS-GC]   MarkTermination stats: drainWU=0 ordinaryWU=0 finalizerWU=0 helpers=0/0
+2026-08-29 14:11:17.558196 23936 [MS-GC] === MarkTermination end: total=30us ===
+2026-08-29 14:11:17.558202 23936 [MS-GC] === PostMarkTermination begin ===
+2026-08-29 14:11:17.558315 23936 [MS-GC]   PostMarkStats: liveBytes=43.22MB inUse=101.22MB fragmentation=57.3% retainedNoTLS=156.62MB liveRatio=27.6% total=106us
+2026-08-29 14:11:17.558341 23936 [MS-GC]   Large sweep: releasedLargeObjects=18 releasedSpans=1489 reclaimedBytes=46.53MB total=16us
+2026-08-29 14:11:17.558355 23936 [MS-GC]   GC threshold: live=43.22MB inUse=54.72MB threshold=20.00MB->86.44MB scavenge=20.03MB/103.72MB
+2026-08-29 14:11:17.558367 23936 [MS-GC]   Publish sweep: epoch=2 unsweptRegions=642 assistRatio=25407
+2026-08-29 14:11:17.558374 23936 [MS-GC] === PostMarkTermination end: total=172us ===
+2026-08-29 14:11:17.558380 23936 [MS-GC] Region summary(GC end): P=12 allocBuffers=3 allocBufferActive=21 centralClasses=1/36 centralRegions=1011 sweptRegions=369 unsweptRegions=642 empty=0 largeObjects=1 largeSpans=741 hotFree=3260 committed=6144(192.00MB)
+2026-08-29 14:11:17.558439 23936 [MS-GC] Sweep notify accepted: source=post-mark epoch=2 unsweptRegions=642 unswept=20.06MB assistRatio=25407
+2026-08-29 14:11:17.558452 23936 [MS-GC] Scavenge notify accepted: source=post-mark retained=156.62MB reclaimable=101.84MB low=20.03MB high=103.72MB target=101.84MB
+2026-08-29 14:11:17.558461 23936 [MS-GC] GC total=24906us PreEnum=89us EnumRoots=73us ConcurrentMark=24304us MarkTerminationSTW=30us PostMarkTermination=172us Other=238us
+
+2026-08-29 14:11:17.558688 16840 [MS-GC] Sweep round end: epoch=2 sweptRegions=642 slices=1 total=213us
+2026-08-29 14:11:17.563227 16840 [MS-GC] Scavenge round end: target=101.59MB released=64.00MB slices=1 total=4520us
+2026-08-29 14:11:17.563378 25900 [MS-GC] heap grow: condition=stable-no-free-supply requestRegions=1667 ownerShard=4 segments=3->4 shardSegments=[0:1,1:0,2:0,3:0,4:3,5:0] committedRegions=6144->8192 capacity=192.00MB->256.00MB
+2026-08-29 14:11:17.563404 25900 [MS-GC] Scavenge notify accepted: source=allocation-pressure retained=104.53MB reclaimable=46.69MB low=20.03MB high=103.72MB target=46.69MB
+2026-08-29 14:11:17.563665 16840 [MS-GC] Scavenge round end: target=46.69MB released=34.78MB slices=1 total=227us
+2026-08-29 14:11:17.711109 25900 Large allocation failed for 81890040(B), trigger one synchronous OOM GC
+
+2026-08-29 14:11:17.711197 23936 [MS-GC] === GC begin: cycle=2 reason=1(oom) trigger=0 sweepEpoch=2 retained=75.22MB triggerUsed=55.16MB mutatorReturnedSweptRegions=1024 largeLiveSpans=741 threshold=86.44MB softLimit=256.00MB ===
+2026-08-29 14:11:17.711213 23936 [MS-GC] Region summary(GC begin): P=12 allocBuffers=3 allocBufferActive=21 centralClasses=1/36 centralRegions=1666 sweptRegions=1666 unsweptRegions=0 empty=0 largeObjects=1 largeSpans=741 hotFree=0 committed=8192(256.00MB)
+2026-08-29 14:11:17.711226 23936 [MS-GC] === PreEnumRoots begin ===
+2026-08-29 14:11:17.711233 23936 [MS-GC]   Sweep force finish: sweptRegions=0 total=1us
+2026-08-29 14:11:17.711268 23936 [MS-GC]   Large registration: entries=2 batches=1 stwTail=2
+2026-08-29 14:11:17.711355 23936 [MS-GC]   PrepareMarkEpoch STW: total=115us
+2026-08-29 14:11:17.711370 23936 [MS-GC] === PreEnumRoots end: total=143us ===
+2026-08-29 14:11:17.711378 23936 [MS-GC] === EnumRoots begin ===

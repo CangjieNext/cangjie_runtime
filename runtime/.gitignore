@@ -70,3 +70,9 @@ MSGC_RESULT/bugfix/**/results.txt
 MSGC_RESULT/bugfix/**/summary.txt
 MSGC_RESULT/bugfix/**/status.txt
 MSGC_RESULT/bugfix/**/framework_rc.txt
+
+# Keep the complete MSGC bugfix investigation record, including repro
+# artifacts and diagnostics, under version control.
+!MSGC_RESULT/bugfix/
+!MSGC_RESULT/bugfix/**/
+!MSGC_RESULT/bugfix/**

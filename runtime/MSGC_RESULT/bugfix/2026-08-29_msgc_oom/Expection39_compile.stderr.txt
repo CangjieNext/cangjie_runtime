@@ -1,0 +1,9 @@
+warning: unused variable:'i'
+  ==> C:\cangjie\cangjie_test\testsuites\LLT\Runtime\CJNative\Exception\Expection39_NewArray16.cj:14:44:
+   | 
+14 |     let array3 = Array<Int16>(2147483648) {i => 1}
+   |                                            ^ unused variable
+   | 
+   # note: this warning can be suppressed by setting the compiler option `-Woff unused`
+
+1 warning generated, 1 warning printed.
