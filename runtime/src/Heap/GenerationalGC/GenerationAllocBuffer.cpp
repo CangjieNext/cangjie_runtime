@@ -14,7 +14,7 @@
 namespace MapleRuntime {
 GenerationAllocBuffer* GenerationAllocBuffer::GetGenerationAllocBuffer()
 {
-    return static_cast<GenerationAllocBuffer*>(AllocBuffer::GetAllocBuffer());
+    return static_cast<GenerationAllocBuffer*>(AllocBuffer::GetOrCreateAllocBuffer());
 }
 
 GenerationAllocBuffer::~GenerationAllocBuffer()
@@ -41,24 +41,8 @@ MAddress AllocateFromSlotRegionCache(RegionList& cache, size_t totalSize)
 {
     MAddress result = 0;
     cache.VisitAllRegionsUntilSuccNoLock([&result, totalSize](RegionInfo* region) {
-        RegionFreeSlotList* freeSlotList = region->GetFreeSlotList();
-        if (freeSlotList == nullptr || freeSlotList->GetMaxAvailableSize() < totalSize) {
-            return false;
-        }
-        uintptr_t addr = freeSlotList->AllocateSlot(totalSize, region->GetRegionStart());
-        if (addr != 0) {
-            CHECK_DETAIL(memset_s(reinterpret_cast<void*>(addr), totalSize, 0, totalSize) == EOK,
-                         "zero free slot failed");
-            result = static_cast<MAddress>(addr);
-            // We need to update alloc ptr of this region, or it may lead to tranversion wrong.
-            uintptr_t allocPtr = region->GetRegionAllocPtr();
-            uintptr_t slotEnd = addr + totalSize;
-            if (slotEnd > allocPtr) {
-                region->SetRegionAllocPtr(slotEnd);
-            }
-            return true;
-        }
-        return false;
+        result = region->AllocateFromSlot(totalSize);
+        return result != 0;
     });
     return result;
 }
@@ -68,8 +52,7 @@ RegionInfo* RemoveSmallestSlotRegion(RegionList& cache)
     RegionInfo* smallest = nullptr;
     size_t smallestSize = std::numeric_limits<size_t>::max();
     cache.VisitAllRegionsUntilSuccNoLock([&smallest, &smallestSize](RegionInfo* region) {
-        RegionFreeSlotList* freeSlotList = region->GetFreeSlotList();
-        size_t maxSlotSize = freeSlotList == nullptr ? 0 : freeSlotList->GetMaxAvailableSize();
+        size_t maxSlotSize = region->GetMaxSlotSize();
         if (smallest == nullptr || maxSlotSize < smallestSize) {
             smallest = region;
             smallestSize = maxSlotSize;
@@ -121,6 +104,8 @@ MAddress GenerationAllocBuffer::AllocateYoungOnSlot(MixedRegionManager &manager,
     if (youngSlotRegionCache.GetRegionCount() > 0) {
         RegionInfo* region = RemoveSmallestSlotRegion(youngSlotRegionCache);
         if (region != nullptr) {
+            DLOG(SWEEP, "re-compact sweepable region %p sweepable [%p, %p)", region, region->GetRegionStart(),
+                region->GetRegionAllocPtr());
             region->ClearFreeSlotList();
             manager.RecycleYoungSlotRegion(region);
         }
@@ -138,16 +123,7 @@ MAddress GenerationAllocBuffer::AllocateYoungOnSlot(MixedRegionManager &manager,
         if (result != 0) {
             return;
         }
-        RegionFreeSlotList* freeSlotList = region->GetFreeSlotList();
-        if (freeSlotList == nullptr || freeSlotList->GetMaxAvailableSize() < totalSize) {
-            return;
-        }
-        uintptr_t addr = freeSlotList->AllocateSlot(totalSize, region->GetRegionStart());
-        if (addr != 0) {
-            CHECK_DETAIL(memset_s(reinterpret_cast<void*>(addr), totalSize, 0, totalSize) == EOK,
-                         "zero free slot failed");
-            result = static_cast<MAddress>(addr);
-        }
+        result = region->AllocateFromSlot(totalSize);
     });
     return result;
 }
@@ -237,16 +213,7 @@ MAddress GenerationAllocBuffer::AllocateOldOnSlot(MixedRegionManager &manager, s
         if (result != 0) {
             return;
         }
-        RegionFreeSlotList* freeSlotList = region->GetFreeSlotList();
-        if (freeSlotList == nullptr || freeSlotList->GetMaxAvailableSize() < totalSize) {
-            return;
-        }
-        uintptr_t addr = freeSlotList->AllocateSlot(totalSize, region->GetRegionStart());
-        if (addr != 0) {
-            CHECK_DETAIL(memset_s(reinterpret_cast<void*>(addr), totalSize, 0, totalSize) == EOK,
-                         "zero free slot failed");
-            result = static_cast<MAddress>(addr);
-        }
+        result = region->AllocateFromSlot(totalSize);
     });
     return result;
 }
