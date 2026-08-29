@@ -482,7 +482,10 @@ MSRegionInfo* AllocBufferMS::RefillFromCentral(uint8_t cls, MSScanClass scanClas
         CHECK_DETAIL(region->IsFreeRegion(),
                      "RefillFromCentral got bad global empty regionType=%u",
                      static_cast<unsigned>(region->GetRegionType()));
-        region->InitForSizeClass(cls, scanClass);
+        if (!region->InitForSizeClass(cls, scanClass)) {
+            central_->ReturnEmptyRegion(region);
+            return nullptr;
+        }
         return region;
     }
     return central_->GetFreshRegion(cls, scanClass, cachedHomeShardId_);

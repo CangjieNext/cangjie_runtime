@@ -51,6 +51,7 @@ public:
     enum class TryTakeResult : uint8_t {
         SUCCESS,
         EMPTY,
+        COMMIT_FAILED,
     };
 
     class HeapRangeHandler {
@@ -317,6 +318,9 @@ private:
     size_t CountFreeInViewRangeLocked(const OwnedSegmentView& view, size_t localStart, RegionCount num) const;
     void MarkAllocatedLocked(FreeManagerShard& shard, RegionIndex idx, RegionCount num, bool& reusedScavenged);
     void MarkFreeLocked(FreeManagerShard& shard, RegionIndex idx, RegionCount num);
+    // A failed recommit must never leave a selected Region unavailable.  Mark
+    // the whole range cold so the next user allocation recommits it before use.
+    void RollbackFailedReuseLocked(FreeManagerShard& shard, RegionIndex idx, RegionCount num);
     void MarkScavengingLocked(FreeManagerShard& shard, RegionIndex idx, RegionCount num);
     void CompleteScavengingLocked(FreeManagerShard& shard,
                                   RegionIndex idx,
@@ -327,7 +331,7 @@ private:
     void UpdateChunkSummaryRangeLocked(OwnedSegmentView& view, size_t localStart, RegionCount num);
     size_t CountTrailingFreeRegionsLocked() const;
     bool ReleaseUnits(UnitIndex idx, UnitCount num) const;
-    void ReuseUnits(UnitIndex idx, UnitCount num) const;
+    bool ReuseUnits(UnitIndex idx, UnitCount num) const;
     void CheckAlignmentConfig() const;
     size_t GetRegionSizeBytes() const;
     RegionIndex AddrToRegionIdx(uintptr_t addr) const;

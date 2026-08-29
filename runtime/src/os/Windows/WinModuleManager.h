@@ -37,7 +37,10 @@ public:
     bool IsInRuntimeFunc(uint32_t index, Uptr pc) const
     {
         Uptr rvaPc = pc - imageBaseStart;
-        return rvaPc >= funcTable[index].startAddress && rvaPc <= funcTable[index].endAddress;
+        // IMAGE_RUNTIME_FUNCTION_ENTRY::EndAddress is exclusive.  Treating it
+        // as inclusive attributes a return address at a function boundary to
+        // the preceding function, and then selects its Cangjie stack map.
+        return rvaPc >= funcTable[index].startAddress && rvaPc < funcTable[index].endAddress;
     }
 
     Uptr GetImageBaseStart() const { return imageBaseStart; }

@@ -389,11 +389,20 @@ FreeManager::TryTakeResult FreeManager::TryTakeRegions(RegionCount num, uint16_t
         return TryTakeResult::EMPTY;
     }
 
-    if (reusedScavenged) {
-        ReuseUnits(RegionToUnitIdx(idx), RegionCountToUnitCount(num));
+    if (reusedScavenged &&
+        !ReuseUnits(RegionToUnitIdx(idx), RegionCountToUnitCount(num))) {
+        FreeManagerShard& shardState = GetShard(homeShardId);
+        std::lock_guard<std::mutex> shardLock(shardState.shardMutex_);
+        RollbackFailedReuseLocked(shardState, idx, num);
+        return TryTakeResult::COMMIT_FAILED;
     }
-    if (reusedSpan.num != 0) {
-        ReuseUnits(RegionToUnitIdx(reusedSpan.idx), RegionCountToUnitCount(reusedSpan.num));
+    if (reusedSpan.num != 0 &&
+        !ReuseUnits(RegionToUnitIdx(reusedSpan.idx), RegionCountToUnitCount(reusedSpan.num))) {
+        uint16_t ownerShardId = ResolveOwnerShardId(reusedSpan.idx);
+        FreeManagerShard& shardState = GetShard(ownerShardId);
+        std::lock_guard<std::mutex> shardLock(shardState.shardMutex_);
+        RollbackFailedReuseLocked(shardState, reusedSpan.idx, reusedSpan.num);
+        return TryTakeResult::COMMIT_FAILED;
     }
     return TryTakeResult::SUCCESS;
 }
@@ -512,7 +521,9 @@ bool FreeManager::GrowOneSegmentLocked(uint16_t ownerShardId, HeapRangeHandler& 
         (newCommittedRegionCount + segmentRegionCount_ - 1) / segmentRegionCount_;
     ownerShardId = static_cast<uint16_t>(static_cast<uint32_t>(ownerShardId) % shardCount_);
 
-    ReuseUnits(RegionToUnitIdx(oldRegionCount), RegionCountToUnitCount(growRegions));
+    if (!ReuseUnits(RegionToUnitIdx(oldRegionCount), RegionCountToUnitCount(growRegions))) {
+        return false;
+    }
     handler.InitializeFreshRegions(oldRegionCount, growRegions);
 
     FreeManagerShard& shardState = GetShard(ownerShardId);
@@ -613,7 +624,9 @@ bool FreeManager::GrowAndTakeRegionsLocked(RegionCount numRegions,
     uintptr_t newCommittedEnd = oldCommittedEnd + growBytes;
     ownerShardId = static_cast<uint16_t>(static_cast<uint32_t>(ownerShardId) % shardCount_);
 
-    ReuseUnits(RegionToUnitIdx(oldRegionCount), RegionCountToUnitCount(growRegions));
+    if (!ReuseUnits(RegionToUnitIdx(oldRegionCount), RegionCountToUnitCount(growRegions))) {
+        return false;
+    }
     handler.InitializeFreshRegions(oldRegionCount, growRegions);
 
     FreeManagerShard& shardState = GetShard(ownerShardId);
@@ -693,8 +706,12 @@ bool FreeManager::TryTakeOrGrowRegions(RegionCount num,
     std::lock_guard<std::mutex> growLock(growMutex_);
     for (;;) {
         uint64_t generationBeforeTake = availabilityGeneration_.load(std::memory_order_acquire);
-        if (TryTakeRegions(num, homeShardId, idx) == TryTakeResult::SUCCESS) {
+        TryTakeResult takeResult = TryTakeRegions(num, homeShardId, idx);
+        if (takeResult == TryTakeResult::SUCCESS) {
             return true;
+        }
+        if (takeResult == TryTakeResult::COMMIT_FAILED) {
+            return false;
         }
         uint64_t generationAfterTake = availabilityGeneration_.load(std::memory_order_acquire);
         if (generationAfterTake == generationBeforeTake) {
@@ -2202,6 +2219,41 @@ void FreeManager::MarkFreeLocked(FreeManagerShard& shard, RegionIndex idx, Regio
     RefreshRegionSnapshotsLocked(shard);
 }
 
+void FreeManager::RollbackFailedReuseLocked(FreeManagerShard& shard, RegionIndex idx, RegionCount num)
+{
+    RegionIndex cursor = idx;
+    RegionCount remaining = num;
+    while (remaining != 0) {
+        OwnedSegmentView* view = FindOwnedSegmentViewByRegionLocked(shard, cursor);
+        CHECK_DETAIL(view != nullptr, "[MS-GC] failed-reuse rollback target view missing: region=%u", cursor);
+        RegionCount chunk = std::min<RegionCount>(
+            remaining, static_cast<RegionCount>(view->regionEnd_ - cursor));
+        size_t localStart = static_cast<size_t>(cursor - view->regionStart_);
+        for (size_t localIdx = localStart; localIdx < localStart + chunk; ++localIdx) {
+            CHECK_DETAIL(TestBit(view->allocBits_.data(), localIdx) &&
+                         !TestBit(view->scavengingBits_.data(), localIdx),
+                         "[MS-GC] failed-reuse rollback requires allocated non-scavenging Region: "
+                         "segment=%zu localIdx=%zu",
+                         view->segmentIdx_, localIdx);
+            ClearBit(view->allocBits_.data(), localIdx);
+            // The failed OS operation leaves the physical state unsuitable for
+            // direct reuse.  Conservatively classify even previously hot pages
+            // as cold; VirtualAlloc/mmap is idempotent on a later retry.
+            SetBit(view->scavengedBits_.data(), localIdx);
+            view->freeEpochs_[localIdx] = kNoFreeEpoch;
+        }
+        shard.freeRegionCount_ += chunk;
+        shard.scavengedRegionCount_ += chunk;
+        UpdateChunkSummaryRangeLocked(*view, localStart, chunk);
+        size_t committedLocal = static_cast<size_t>(
+            std::min(view->regionEnd_, static_cast<RegionIndex>(committedRegionCount_)) - view->regionStart_);
+        RefreshHotWordsInRangeLocked(*view, localStart, chunk, committedLocal);
+        cursor = static_cast<RegionIndex>(cursor + chunk);
+        remaining = static_cast<RegionCount>(remaining - chunk);
+    }
+    RefreshRegionSnapshotsLocked(shard);
+}
+
 void FreeManager::MarkScavengingLocked(FreeManagerShard& shard, RegionIndex idx, RegionCount num)
 {
     RegionIndex cursor = idx;
@@ -2502,17 +2554,23 @@ bool FreeManager::ReleaseUnits(UnitIndex idx, UnitCount num) const
 #endif
 }
 
-void FreeManager::ReuseUnits(UnitIndex idx, UnitCount num) const
+bool FreeManager::ReuseUnits(UnitIndex idx, UnitCount num) const
 {
 #if defined(_WIN64)
     uintptr_t addr = heapStart_ + static_cast<uintptr_t>(idx) * unitSize_;
     size_t size = static_cast<size_t>(num) * unitSize_;
     void* ret = VirtualAlloc(reinterpret_cast<void*>(addr), size, MEM_COMMIT, PAGE_READWRITE);
-    CHECK_DETAIL(ret != nullptr, "VirtualAlloc failed in FreeManager::ReuseUnits");
+    if (UNLIKELY(ret == nullptr)) {
+        LOG(RTLOG_ERROR,
+            "[MS-GC] FreeManager::ReuseUnits VirtualAlloc commit failed: addr=%p size=%zu error=%lu",
+            reinterpret_cast<void*>(addr), size, static_cast<unsigned long>(GetLastError()));
+        return false;
+    }
 #else
     (void)idx;
     (void)num;
 #endif
+    return true;
 }
 
 FreeManager::UnitIndex FreeManager::RegionToUnitIdx(RegionIndex regionIdx) const

@@ -1,0 +1,6 @@
+compiler LLT first attempt
+result: test collection aborted, no testcase executed
+exit: 1
+error: UnicodeDecodeError: 'gbk' codec can't decode byte 0x8c in position 453: illegal multibyte sequence
+stack: maple_test/test.py extract_separation_by_files -> open(file) using system default encoding
+workaround for retry: set PYTHONUTF8=1

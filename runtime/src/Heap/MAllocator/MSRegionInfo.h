@@ -347,7 +347,7 @@ struct alignas(64) MSRegionInfo {
     size_t LargeSpanCount() const { return LargeSpanBytes() / MS_REGION_SIZE; }
 
     // === Lifecycle: Init / Release ===
-    void InitForSizeClass(uint8_t cls, MSScanClass scanClass);
+    bool InitForSizeClass(uint8_t cls, MSScanClass scanClass);
     void InitForLargeObject(uintptr_t start, uintptr_t end, size_t objectBytes, MSScanClass scanClass);
     void ReleaseBitmaps();
     void Reset();

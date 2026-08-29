@@ -100,7 +100,7 @@ unwindPCForStackGrowStub:
     movq    -88(%rbp), %r12
     movq    -96(%rbp), %r13
     movq    -104(%rbp), %r14
-    movq    -112(%rbp), %rax
+    movq    -112(%rbp), %r15
 
     movapd  -128(%rbp), %xmm0
     movapd  -144(%rbp), %xmm1

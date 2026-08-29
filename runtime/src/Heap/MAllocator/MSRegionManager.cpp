@@ -337,6 +337,9 @@ bool MSRegionManager::TakeRegions(RegionCount num, uint16_t homeShardId, RegionI
     MaybeNotifyMark();
 
     FreeManager::TryTakeResult result = freeManager_.TryTakeRegions(num, homeShardId, rawIdx);
+    if (result == FreeManager::TryTakeResult::COMMIT_FAILED) {
+        return false;
+    }
     if (result != FreeManager::TryTakeResult::SUCCESS &&
         !freeManager_.TryTakeOrGrowRegions(num, homeShardId, rawIdx, *this)) {
         return false;

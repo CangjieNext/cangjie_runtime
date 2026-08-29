@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cerrno>
 #include <mutex>
 
 #include "Allocator/MemMap.h"
@@ -17,6 +18,7 @@
 #include "Heap/MSGCFastPath.h"
 
 #ifdef _WIN64
+#include <errhandlingapi.h>
 #include <memoryapi.h>
 #else
 #include <sys/mman.h>
@@ -75,8 +77,8 @@ bool RemapChunkRange(
         void* mem = VirtualAlloc(reinterpret_cast<void*>(chunkBase), chunkBytes, MEM_COMMIT, PAGE_READWRITE);
         if (mem == nullptr) {
             LOG(RTLOG_ERROR,
-                "[MS-GC] MSBitmapArena commit failed: chunkStart=%zu, chunkCount=%zu, bytes=%zu",
-                startChunkIdx, chunkCount, chunkBytes);
+                "[MS-GC] MSBitmapArena commit failed: chunkStart=%zu, chunkCount=%zu, bytes=%zu, error=%lu",
+                startChunkIdx, chunkCount, chunkBytes, static_cast<unsigned long>(GetLastError()));
             return false;
         }
         return true;
@@ -95,8 +97,8 @@ bool RemapChunkRange(
                      MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
     if (mem == MAP_FAILED) {
         LOG(RTLOG_ERROR,
-            "[MS-GC] MSBitmapArena remap failed: active=%d, chunkStart=%zu, chunkCount=%zu, bytes=%zu",
-            active ? 1 : 0, startChunkIdx, chunkCount, chunkBytes);
+            "[MS-GC] MSBitmapArena remap failed: active=%d, chunkStart=%zu, chunkCount=%zu, bytes=%zu, errno=%d",
+            active ? 1 : 0, startChunkIdx, chunkCount, chunkBytes, errno);
         return false;
     }
     return true;
@@ -175,11 +177,11 @@ void MSBitmapArena::Cleanup()
     g_bitmapArenaChunkCount = 0;
 }
 
-void MSBitmapArena::EnsurePlaneRangeCommitted(
+bool MSBitmapArena::EnsurePlaneRangeCommitted(
     MSBitmapPlane plane, size_t startRegionIdx, size_t regionCount)
 {
     if (regionCount == 0) {
-        return;
+        return true;
     }
 
     std::lock_guard<std::mutex> lg(g_bitmapArenaLock);
@@ -197,15 +199,16 @@ void MSBitmapArena::EnsurePlaneRangeCommitted(
                  "[MS-GC] bitmap arena chunk overflow: required=%zu, max=%zu",
                  requiredChunkCount, g_bitmapArenaChunkCount);
     if (requiredChunkCount <= state.committedChunkCount) {
-        return;
+        return true;
     }
 
     size_t activateChunkStart = state.committedChunkCount;
     size_t activateChunkCount = requiredChunkCount - state.committedChunkCount;
-    CHECK_DETAIL(RemapChunkRange(state, activateChunkStart, activateChunkCount, true),
-                 "[MS-GC] failed to activate %s chunk range: start=%zu, count=%zu",
-                 state.tag, activateChunkStart, activateChunkCount);
+    if (!RemapChunkRange(state, activateChunkStart, activateChunkCount, true)) {
+        return false;
+    }
     state.committedChunkCount = requiredChunkCount;
+    return true;
 }
 
 namespace {

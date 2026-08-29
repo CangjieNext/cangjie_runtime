@@ -1,0 +1,54 @@
+[
+  {
+    "name": "cangjie_cjnative_test_win C:\\cangjie\\cangjie_test\\testsuites\\LLT\\Runtime\\CJNative\\GC\\gc_async_allocation_finalizer.cj",
+    "total": 1,
+    "PASS": 1,
+    "FAIL": 0,
+    "UNRESOLVED": 0,
+    "tests": [
+      {
+        "name": "C:\\cangjie\\cangjie_test\\testsuites\\LLT\\Runtime\\CJNative\\GC\\gc_async_allocation_finalizer.cj",
+        "cfg": "C:\\cangjie\\cangjie_test\\testsuites\\LLT\\configs\\cjnative\\cjnative_test_win.cfg",
+        "result": "PASS",
+        "commands": [
+          {
+            "exit_code": 0,
+            "PIPE": false,
+            "cmd": "cjc.exe --gc-mode marksweep -j1 --error-count-limit=10000 --diagnostic-format=noColor gc_async_allocation_finalizer.cj -o gc_async_allocation_finalizer.exe"
+          },
+          {
+            "exit_code": 0,
+            "PIPE": true,
+            "cmd": "gc_async_allocation_finalizer.exe 2>&1"
+          },
+          {
+            "cmd": "C:\\Users\\lipeisheng\\AppData\\Local\\Programs\\Python\\Python312\\python.exe C:\\cangjie\\cangjie_test_framework\\maple_test\\compare.py --comment=\"//\" --condition=\"'x86', 'Windows', 'CJNATIVE'\" gc_async_allocation_finalizer.cj",
+            "PIPE": false,
+            "exit_code": 0
+          }
+        ],
+        "output": [
+          {
+            "cmd": "cjc.exe --gc-mode marksweep -j1 --error-count-limit=10000 --diagnostic-format=noColor gc_async_allocation_finalizer.cj -o gc_async_allocation_finalizer.exe",
+            "return_code": 0,
+            "stdout": "",
+            "stderr": ""
+          },
+          {
+            "cmd": "gc_async_allocation_finalizer.exe 2>&1",
+            "return_code": 0,
+            "stdout": "runtime async allocation finalizer pass\r\n",
+            "stderr": ""
+          },
+          {
+            "cmd": "C:\\Users\\lipeisheng\\AppData\\Local\\Programs\\Python\\Python312\\python.exe C:\\cangjie\\cangjie_test_framework\\maple_test\\compare.py --comment=\"//\" --condition=\"'x86', 'Windows', 'CJNATIVE'\" gc_async_allocation_finalizer.cj",
+            "return_code": 0,
+            "stdout": "compare.py input:\r\n\truntime async allocation finalizer pass\r\n\r\ncompare.py input end\r\n\r\nStarting SingleLine Compare:\r\nb\"It's a assert, flag: scan, pattern: runtime async allocation finalizer pass , result: True, matched at output line: 0 \"\r\nback reference dict:{}\r\nSingleLine Compare End\r\n[Compare Pass]\r\n",
+            "stderr": ""
+          }
+        ],
+        "log_file": "gc_async_allocation_finalizer_cj_59a8005ca2d911f1"
+      }
+    ]
+  }
+]

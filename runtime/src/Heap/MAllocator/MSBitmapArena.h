@@ -30,7 +30,7 @@ public:
     static void Init(size_t maxRegionCount);
     static void Cleanup();
 
-    static void EnsurePlaneRangeCommitted(
+    static bool EnsurePlaneRangeCommitted(
         MSBitmapPlane plane, size_t startRegionIdx, size_t regionCount);
 
     static uint64_t* GetAllocPlane(size_t regionIdx);
