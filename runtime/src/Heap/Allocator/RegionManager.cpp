@@ -118,10 +118,18 @@ const char* RegionInfo::GetTypeName() const
 
 void RegionInfo::VisitAllObjects(const std::function<void(BaseObject*)>&& func)
 {
+    VisitAllObjectsFrom(GetRegionStart(), std::move(func));
+}
+
+void RegionInfo::VisitAllObjectsFrom(MAddress start, const std::function<void(BaseObject*)>&& func)
+{
     if (IsLargeRegion()) {
-        func(reinterpret_cast<BaseObject*>(GetRegionStart()));
+        if (start == GetRegionStart()) {
+            func(reinterpret_cast<BaseObject*>(GetRegionStart()));
+        }
     } else if (IsSmallRegion()) {
-        uintptr_t position = GetRegionStart();
+        CHECK(start >= GetRegionStart() && start <= GetRegionAllocPtr());
+        uintptr_t position = start;
         uintptr_t allocPtr = GetRegionAllocPtr();
         while (position < allocPtr) {
             auto* slot = FreeSlotNode::Cast(position);
@@ -1215,21 +1223,21 @@ void RegionManager::CompactRegion(RegionInfo* region)
     DLOG(REGION, "compact region %p@[%#zx+%zu, %#zx) type %u", region, regionStart,
         region->GetLiveByteCount(), region->GetRegionEnd(), region->GetRegionType());
     MAddress regionLimit = region->GetRegionAllocPtr();
-    region->SetRegionAllocPtr(regionStart);
+    MAddress target = regionStart;
     CopyCollector& collector = reinterpret_cast<CopyCollector&>(Heap::GetHeap().GetCollector());
-    for (MAddress currentPtr = regionStart; currentPtr < regionLimit;) {
-        BaseObject* currentObj = reinterpret_cast<BaseObject*>(currentPtr);
-        size_t size = currentObj->GetSize();
+    region->VisitAllObjects([region, regionStart, &target, &collector](BaseObject* currentObj) {
+        MAddress currentPtr = reinterpret_cast<MAddress>(currentObj);
+        size_t size = RegionSpace::GetAllocSize(*currentObj);
         size_t offset = currentPtr - regionStart;
         if (region->IsSurvivedObject(offset)) {
-            MAddress toAddress = region->Alloc(size);
-            BaseObject* toObj = reinterpret_cast<BaseObject*>(toAddress);
+            BaseObject* toObj = reinterpret_cast<BaseObject*>(target);
             DLOG(FORWARD, "compact obj %p<%p>(%zu) to %p", currentObj, currentObj->GetTypeInfo(), size, toObj);
             collector.CopyObject(*currentObj, *toObj, size);
             toObj->SetStateCode(ObjectState::NORMAL);
+            target += size;
         }
-        currentPtr += size;
-    }
+    });
+    region->SetRegionAllocPtr(target);
     std::atomic_thread_fence(std::memory_order_release);
 
     // clear unused space which is free after compaction.
@@ -1253,48 +1261,42 @@ void RegionManager::CompactRegion(RegionInfo* region, RegionInfo* toRegion1)
     DLOG(REGION, "compact region %p@[%#zx+%zu, %#zx) type %u to region %p@%#zx:%#zx",
         region, regionStart, region->GetLiveByteCount(), region->GetRegionEnd(), region->GetRegionType(),
         toRegion1, toRegion1->GetRegionStart(), toRegion1->GetRegionAllocPtr());
-    MAddress currentPtr = regionStart;
-    BaseObject* currentObj = reinterpret_cast<BaseObject*>(currentPtr);
-    CopyCollector& collector = reinterpret_cast<CopyCollector&>(Heap::GetHeap().GetCollector());
-    while (true) {
-        CHECK(currentPtr>=regionStart);
-        size_t offset = currentPtr - regionStart;
-        size_t size = currentObj->GetSize();
-        if (region->IsSurvivedObject(offset)) {
-            MAddress toAddress = toRegion1->Alloc(size);
-            if (toAddress == 0) {
-                break;
-            }
-            BaseObject* toObj = reinterpret_cast<BaseObject*>(toAddress);
-            DLOG(FORWARD, "compact obj %p<%p>(%zu) to %p", currentObj, currentObj->GetTypeInfo(), size, toObj);
-            collector.CopyObject(*currentObj, *toObj, size);
-            toObj->SetStateCode(ObjectState::NORMAL);
-            std::atomic_thread_fence(std::memory_order_release);
-        }
-        currentPtr += size;
-        currentObj = reinterpret_cast<BaseObject*>(currentPtr);
-    };
-
     MAddress regionLimit = region->GetRegionAllocPtr();
-    region->SetRegionAllocPtr(regionStart);
-    while (currentPtr < regionLimit) {
-        CHECK(currentPtr >= regionStart);
-        size_t offset = currentPtr - regionStart;
-        BaseObject* currentObj = reinterpret_cast<BaseObject*>(currentPtr);
-        size_t size = currentObj->GetSize();
+    MAddress remainingStart = regionLimit;
+    CopyCollector& collector = reinterpret_cast<CopyCollector&>(Heap::GetHeap().GetCollector());
+    (void)region->VisitLiveObjectsUntilFalse([&remainingStart, &collector, &toRegion1](BaseObject* currentObj) {
+        size_t size = RegionSpace::GetAllocSize(*currentObj);
+        MAddress toAddress = toRegion1->Alloc(size);
+        if (toAddress == 0) {
+            remainingStart = reinterpret_cast<MAddress>(currentObj);
+            return false;
+        }
+        BaseObject* toObj = reinterpret_cast<BaseObject*>(toAddress);
+        DLOG(FORWARD, "compact obj %p<%p>(%zu) to %p", currentObj, currentObj->GetTypeInfo(), size, toObj);
+        collector.CopyObject(*currentObj, *toObj, size);
+        toObj->SetStateCode(ObjectState::NORMAL);
+        std::atomic_thread_fence(std::memory_order_release);
+        return true;
+    });
+
+    MAddress target = regionStart;
+    region->VisitAllObjectsFrom(remainingStart, [region, regionStart, &target, &collector](BaseObject* currentObj) {
+        MAddress currentAddress = reinterpret_cast<MAddress>(currentObj);
+        size_t offset = currentAddress - regionStart;
         if (region->IsSurvivedObject(offset)) {
-            MAddress toAddress = region->Alloc(size);
-            BaseObject* toObj = reinterpret_cast<BaseObject*>(toAddress);
+            size_t size = RegionSpace::GetAllocSize(*currentObj);
+            BaseObject* toObj = reinterpret_cast<BaseObject*>(target);
             DLOG(FORWARD, "compact obj %p<%p>(%zu) to %p", currentObj, currentObj->GetTypeInfo(), size, toObj);
             collector.CopyObject(*currentObj, *toObj, size);
             toObj->SetStateCode(ObjectState::NORMAL);
-            std::atomic_thread_fence(std::memory_order_release);
+            target += size;
         }
-        currentPtr += size;
-    }
+    });
+    region->SetRegionAllocPtr(target);
+    std::atomic_thread_fence(std::memory_order_release);
 
     // clear unused space which is free after compaction.
-    MAddress cur = region->GetRegionAllocPtr();
+    MAddress cur = target;
     if (regionLimit > cur) {
         size_t reclaimSize = regionLimit - cur;
         CHECK_DETAIL(memset_s(reinterpret_cast<void*>(cur), reclaimSize, 0, reclaimSize) == EOK, "clear buffer failed");

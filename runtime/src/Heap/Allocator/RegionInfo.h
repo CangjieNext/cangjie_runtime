@@ -795,6 +795,7 @@ public:
 #endif
 
     void VisitAllObjects(const std::function<void(BaseObject*)>&& func);
+    void VisitAllObjectsFrom(MAddress start, const std::function<void(BaseObject*)>&& func);
     bool VisitLiveObjectsUntilFalse(const std::function<bool(BaseObject*)>&& func);
 
     // reset so that this region can be reused for allocation
