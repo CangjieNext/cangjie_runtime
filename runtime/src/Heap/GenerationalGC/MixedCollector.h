@@ -22,6 +22,7 @@ public:
     ~MixedCollector() override = default;
 
     void DoGarbageCollection() override;
+    void ProcessFinalizers() override;
     void EnumRefFieldRoot(RefField<>& ref, RootSet& rootSet) const override;
     void EnumAndTagRawRoot(ObjectRef& ref, RootSet& rootSet) const override;
     RefField<> GetAndTryTagRefField(BaseObject* target) const override;

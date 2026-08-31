@@ -14,6 +14,14 @@
 
 namespace MapleRuntime {
 
+void MixedCollector::ProcessFinalizers()
+{
+    std::function<bool(BaseObject*)> finalizable = [this](BaseObject* obj) { return !IsMarkedObject(obj); };
+    FinalizerProcessor& fp = collectorResources.GetFinalizerProcessor();
+    fp.EnqueueFinalizables(finalizable, snapshotFinalizerNum);
+    fp.Notify();
+}
+
 void MixedCollector::DoGarbageCollection()
 {
     TraceHeap();

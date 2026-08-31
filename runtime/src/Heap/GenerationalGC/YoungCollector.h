@@ -47,6 +47,7 @@ protected:
     }
     virtual void ResetForwardingData();
     void PostTrace() override;
+    void ProcessFinalizers() override;
     void RefineFromSpace() override;
     virtual void ConcurrentSweep();
     virtual bool IsTargetAddress(BaseObject* obj) const { return IsYoungHeapAddress(obj); }
