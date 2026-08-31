@@ -244,7 +244,7 @@ private:
         }
         return total;
     }
-    static constexpr uint8_t PROMOTE_AGE = 15;
+    static constexpr uint8_t PROMOTE_AGE = 3;
     void PromoteRegionImpl(RegionInfo* fromRegion);
     // TODO: parameters tuning.
     bool ShouldSplit(size_t unitCount) const

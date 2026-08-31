@@ -713,6 +713,7 @@ inline void Mutator::HandleGCPhase(GCPhase newPhase)
             GCPhasePreForward(newPhase);
             break;
         case GCPhase::GC_PHASE_CLEAR_SATB_BUFFER:
+        case GCPhase::GC_PHASE_GENERATION_RECLAIM_SATB_NODE:
         case GCPhase::GC_PHASE_RECLAIM_SATB_NODE: {
             std::lock_guard<std::mutex> lg(mutatorLock);
             if (satbNode != nullptr) {

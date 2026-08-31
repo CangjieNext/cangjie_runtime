@@ -315,6 +315,11 @@ public:
 protected:
     void RequestGCInternal(GCReason reason, bool async) override { collectorResources.RequestGC(reason, async); }
 
+    virtual GCPhase GetPostGarbageCollectionPhase() const
+    {
+        return GCPhase::GC_PHASE_RECLAIM_SATB_NODE;
+    }
+
     Allocator& theAllocator;
 
     // A collectorResources provides the resources that the tracing collector need,
