@@ -36,6 +36,17 @@ void YoungCollector::TraceHeap()
     }
 }
 
+void YoungCollector::ProcessFinalizers()
+{
+    std::function<bool(BaseObject*)> finalizable = [this](BaseObject* obj) {
+        RegionInfo* region = RegionInfo::GetRegionInfoAt(reinterpret_cast<uintptr_t>(obj));
+        return !IsMarkedObject(obj) && !region->IsOldRegion();
+    };
+    FinalizerProcessor& fp = collectorResources.GetFinalizerProcessor();
+    fp.EnqueueFinalizables(finalizable, snapshotFinalizerNum);
+    fp.Notify();
+}
+
 void YoungCollector::Preforward()
 {
     ScopedEntryTrace trace("CJRT_GC_PREFORWARD");
