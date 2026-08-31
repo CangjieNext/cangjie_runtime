@@ -140,17 +140,23 @@ public:
         if (fromRegionInfo == nullptr) {
             return nullptr;
         }
-        RegionSpace& space = reinterpret_cast<RegionSpace&>(theAllocator);
-        return space.GetRegionManager().RouteObject(obj);
+        return FindToVersion(obj, fromRegionInfo);
     }
 
 protected:
+    BaseObject* FindToVersion(BaseObject* obj, RegionInfo* fromRegionInfo) const
+    {
+        RegionSpace& space = reinterpret_cast<RegionSpace&>(theAllocator);
+        return space.GetRegionManager().RouteObject(obj, fromRegionInfo);
+    }
+
     BaseObject* ForwardObjectImpl(BaseObject* obj, RegionInfo* ghostFromRegion);
     BaseObject* ForwardObjectExclusive(BaseObject* obj) override;
 
     bool TryUntagRefField(BaseObject* obj, RefField<>& field, BaseObject*& target) const override;
 
     virtual BaseObject* TryForwardObject(BaseObject* fromVersion);
+    BaseObject* TryForwardObject(BaseObject* fromVersion, RegionInfo* fromRegion);
 
     bool TryUpdateRefField(BaseObject* obj, RefField<>& field, BaseObject*& newRef) const override;
     bool TryForwardRefField(BaseObject* obj, RefField<>& field, BaseObject*& newRef) const override;

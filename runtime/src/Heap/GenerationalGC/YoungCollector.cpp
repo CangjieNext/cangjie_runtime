@@ -221,12 +221,29 @@ BaseObject* YoungCollector::TryForwardObject(BaseObject* fromVersion)
         return nullptr;
     }
     if (!fromRegion->IsPromoted0()) {
-        return WCollector::TryForwardObject(fromVersion);
+        return WCollector::TryForwardObject(fromVersion, fromRegion);
     }
 
     MixedRegionSpace& space = static_cast<MixedRegionSpace&>(theAllocator);
     MixedRegionManager& manager = MixedRegionSpace::CastDown(space.GetRegionManager());
     return manager.PromoteObject(fromVersion, fromRegion);
+}
+
+BaseObject* YoungCollector::FindToVersion(BaseObject* obj) const
+{
+    RegionInfo* fromRegion = RegionInfo::GetGhostFromRegionAt(reinterpret_cast<uintptr_t>(obj));
+    if (fromRegion == nullptr) {
+        return nullptr;
+    }
+    if (!fromRegion->IsPromoted0()) {
+        return WCollector::FindToVersion(obj, fromRegion);
+    }
+
+    ObjectForwardingTable* fwdTable = fromRegion->GetForwardingTable();
+    if (fwdTable == nullptr) {
+        return nullptr;
+    }
+    return fwdTable->GetRoute(obj);
 }
 
 bool YoungCollector::ShouldPromote(uint8_t age) const {

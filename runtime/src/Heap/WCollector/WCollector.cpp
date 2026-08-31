@@ -577,17 +577,21 @@ BaseObject* WCollector::TryForwardObject(BaseObject* obj)
     if (region == nullptr) {
         return nullptr;
     }
+    return TryForwardObject(obj, region);
+}
 
+BaseObject* WCollector::TryForwardObject(BaseObject* obj, RegionInfo* region)
+{
     if (fwdTable.RouteRegion(region)) {
         if (region->TryLockReadFromRegion()) {
             BaseObject* toVersion = ForwardObjectImpl(obj, region);
             region->UnlockReadFromRegion();
             return toVersion;
         } else {
-            return FindToVersion(obj);
+            return FindToVersion(obj, region);
         }
     } else if (region->IsCompacted()) {
-        return FindToVersion(obj);
+        return FindToVersion(obj, region);
     }
     return nullptr;
 }

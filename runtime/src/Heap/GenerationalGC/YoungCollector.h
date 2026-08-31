@@ -35,6 +35,7 @@ public:
     RefField<> GetAndTryTagRefField(BaseObject* target) const override;
     void CopyObject(const BaseObject& fromObj, BaseObject& toObj, size_t size) const override;
     BaseObject* TryForwardObject(BaseObject* fromVersion) override;
+    BaseObject* FindToVersion(BaseObject* obj) const override;
     bool MarkObject(BaseObject* obj) const override;
     bool TryUpdateRefField(BaseObject* obj, RefField<>& field, BaseObject*& newRef) const override;
     bool TryForwardRefField(BaseObject* obj, RefField<>& field, BaseObject*& newRef) const override;
