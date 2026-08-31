@@ -41,6 +41,10 @@ public:
     bool TryForwardRefField(BaseObject* obj, RefField<>& field, BaseObject*& newRef) const override;
 
 protected:
+    GCPhase GetPostGarbageCollectionPhase() const override
+    {
+        return GCPhase::GC_PHASE_GENERATION_RECLAIM_SATB_NODE;
+    }
     virtual void ResetForwardingData();
     void PostTrace() override;
     void RefineFromSpace() override;

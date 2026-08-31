@@ -37,7 +37,7 @@ enum GCPhase : uint8_t {
     GC_PHASE_GENERATION_IDLE = 15,
     GC_PHASE_GENERATION_ENUM = 16,
     GC_PHASE_GENERATION_TRACE = 17,
-
+    GC_PHASE_GENERATION_RECLAIM_SATB_NODE = 18,
     GC_PHASE_GENERATION_PREFORWARD = 19,
     GC_PHASE_GENERATION_FORWARD = 20,
     GC_PHASE_GENERATION_POST_TRACE = 21,
@@ -72,7 +72,14 @@ public:
     //         In order to prevent deadlocks, async trigger only add one async gc task and will not block.
     void RequestGC(GCReason reason, bool async);
 
-    virtual GCPhase GetGCPhase() const { return gcPhase.load(std::memory_order_acquire); }
+    virtual GCPhase GetGCPhase() const
+    {
+        auto phase = gcPhase.load(std::memory_order_acquire);
+        if ((uint32_t)phase < 9) {
+            VLOG(REPORT, "[wrong] return gc phase %u", (uint32_t)phase);
+        }
+        return phase;
+    }
 
     virtual void SetGCPhase(const GCPhase phase) { gcPhase.store(phase, std::memory_order_release); }
 

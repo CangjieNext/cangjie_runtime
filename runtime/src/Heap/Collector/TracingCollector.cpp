@@ -679,7 +679,7 @@ void TracingCollector::PreGarbageCollection(bool isConcurrent)
 void TracingCollector::PostGarbageCollection(uint64_t gcIndex)
 {
     // release pages in PagePool
-    TransitionToGCPhase(GCPhase::GC_PHASE_RECLAIM_SATB_NODE, true);
+    TransitionToGCPhase(GetPostGarbageCollectionPhase(), true);
     SatbBuffer::Instance().ReclaimALLPages();
     PagePool::Instance().Trim();
     collectorResources.NotifyGCFinished(gcIndex);
