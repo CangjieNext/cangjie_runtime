@@ -33,7 +33,13 @@ public:
     void Init() override;
     void Fini() override;
 
-    GCPhase GetGCPhase() const override { return currentCollector->GetGCPhase(); }
+    GCPhase GetGCPhase() const override
+    {
+        if (currentCollector == nullptr) {
+            return GCPhase::GC_PHASE_UNDEF;
+        }
+        return currentCollector->GetGCPhase();
+    }
 
     void SetGCPhase(const GCPhase phase) override { currentCollector->SetGCPhase(phase); }
 

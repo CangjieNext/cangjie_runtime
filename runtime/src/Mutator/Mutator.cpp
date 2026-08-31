@@ -34,12 +34,11 @@ extern "C" uintptr_t MRT_GetThreadLocalData()
 {
     uintptr_t tlDataAddr = reinterpret_cast<uintptr_t>(ThreadLocal::GetThreadLocalData());
 #if defined(__aarch64__)
-    if (Heap::GetHeap().IsGcStarted()) {
-        // Since the TBI(top bit ignore) feature in Aarch64,
-        // set gc phase to high 8-bit of ThreadLocalData Address for gc barrier fast path.
-        // 56: make gcphase value shift left 56 bit to set the high 8-bit
-        tlDataAddr = tlDataAddr | (static_cast<uint64_t>(Heap::GetHeap().GetGCPhase()) << 56);
-    }
+    // Since the TBI(top bit ignore) feature in Aarch64,
+    // set gc phase to high 8-bit of ThreadLocalData Address for gc barrier fast path.
+    // We always do this since generaional gc requires all-time WB.
+    // 56: make gcphase value shift left 56 bit to set the high 8-bit
+    tlDataAddr = tlDataAddr | (static_cast<uint64_t>(Heap::GetHeap().GetGCPhase()) << 56);
 #endif
     return tlDataAddr;
 }
