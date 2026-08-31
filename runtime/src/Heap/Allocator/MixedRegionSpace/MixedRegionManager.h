@@ -61,7 +61,7 @@ public:
     }
     void RecycleOldSlotRegion(RegionInfo* region)
     {
-        sweepableOldRegionList.PrependRegion(region, RegionInfo::RegionType::SWEEP_REGION);
+        oldRegionList.PrependRegion(region, RegionInfo::RegionType::SWEEP_REGION);
     }
     bool IsYoungSpaceHeavy() const;
     BaseObject* PromoteObject(BaseObject* fromObj, RegionInfo* ghostFromRegion);

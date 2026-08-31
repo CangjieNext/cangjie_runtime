@@ -37,6 +37,9 @@ void CollectorProxy::RunGarbageCollection(uint64_t gcIndex, GCReason reason)
         currentCollector = &wCollector;
     } else {
         switch (reason) {
+            case GC_REASON_USER:
+                currentCollector = &mixedCollector;
+                break;
             case GC_REASON_HEU:
                 currentCollector = &youngCollector;
                 break;

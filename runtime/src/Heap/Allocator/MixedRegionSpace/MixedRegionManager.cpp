@@ -204,7 +204,7 @@ void MixedRegionManager::PromoteRegionImpl(RegionInfo* fromRegion)
         MAddress toAddress = needPromote ? buffer->AllocateOld(allocSize) : buffer->AllocateYoung(allocSize);
         BaseObject* toObj = reinterpret_cast<BaseObject*>(toAddress);
         DLOG(FORWARD, "promote obj %s %p<%p>(%zu) to %s %p", currentObj, currentObj->GetTypeInfo(), allocSize,
-             needPromote ? "to young" : "to old", toObj);
+             needPromote ? "to old" : "to young", toObj);
         collector.CopyObject(*currentObj, *toObj, allocSize);
         toObj->SetStateCode(ObjectState::NORMAL);
         if (needPromote) {
