@@ -479,10 +479,14 @@ public:
     {
         Allocator::EnsureThreadLocalBuffer();
         SetThreadLocalGCPhase(tlData, GetMutatorPhase());
-        DoLeaveSaferegion();
-        cjThreadContextValid.store(false, std::memory_order_release);
+        // Publish the processor-local safepoint slot before leaving the safe
+        // region. If STW races this handoff, DoLeaveSaferegion() observes the
+        // suspension flag; after it returns, the GC can arm this published
+        // slot without being overwritten by a trailing clear.
         SetSafepointStatePtr(&tlData->safepointState);
         SetSafepointActive(false);
+        DoLeaveSaferegion();
+        cjThreadContextValid.store(false, std::memory_order_release);
     }
 
     void PreparedToPark(void* pc, void* fa);
@@ -533,8 +537,9 @@ private:
     {
         if (LIKELY(Heap::IsHeapAddress(obj))) {
             if (SatbBuffer::Instance().ShouldEnqueue(obj)) {
-                SatbBuffer::Instance().EnsureGoodNode(satbNode);
-                satbNode->Push(obj);
+                if (SatbBuffer::Instance().EnsureGoodNode(satbNode)) {
+                    satbNode->Push(obj);
+                }
             }
         }
     }

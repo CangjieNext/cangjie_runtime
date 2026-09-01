@@ -42,7 +42,8 @@ public:
         opt.reqBase = nullptr;
         memMap = MemMap::MapMemory(mapSize, mapSize, opt);
 #ifdef _WIN64
-        MemMap::CommitMemory(memMap->GetBaseAddr(), mapSize);
+        CHECK_DETAIL(MemMap::CommitMemory(memMap->GetBaseAddr(), mapSize),
+                     "failed to commit LocalDeque memory: size=%zu", mapSize);
 #endif
         beginAddr = reinterpret_cast<MAddress>(memMap->GetBaseAddr());
         endAddr = reinterpret_cast<MAddress>(memMap->GetCurrEnd());
@@ -198,7 +199,8 @@ public:
         opt.reqBase = nullptr;
         memMap = MemMap::MapMemory(mapSize, mapSize, opt);
 #ifdef _WIN64
-        MemMap::CommitMemory(memMap->GetBaseAddr(), mapSize);
+        CHECK_DETAIL(MemMap::CommitMemory(memMap->GetBaseAddr(), mapSize),
+                     "failed to commit RTAllocator memory: size=%zu", mapSize);
 #endif
         currAddr = reinterpret_cast<MAddress>(memMap->GetBaseAddr());
         endAddr = reinterpret_cast<MAddress>(memMap->GetCurrEnd());

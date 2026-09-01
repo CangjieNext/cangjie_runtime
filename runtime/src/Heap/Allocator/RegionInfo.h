@@ -153,6 +153,12 @@ public:
             if (__atomic_compare_exchange_n(&metadata.liveInfo, &liveInfo, newValue, false, std::memory_order_seq_cst,
                                             std::memory_order_relaxed)) {
                 LiveInfo* allocatedLiveInfo = ForwardDataManager::GetForwardDataManager().AllocateLiveInfo();
+                if (UNLIKELY(allocatedLiveInfo == nullptr)) {
+                    // Do not leave the temporary marker installed after a
+                    // failed lazy commit; another GC/mutator can retry.
+                    __atomic_store_n(&metadata.liveInfo, nullptr, std::memory_order_release);
+                    return nullptr;
+                }
                 allocatedLiveInfo->bindedRegion = this;
                 __atomic_store_n(&metadata.liveInfo, allocatedLiveInfo, std::memory_order_release);
                 DLOG(REGION, "region %p@%#zx liveinfo %p", this, GetRegionStart(), metadata.liveInfo);
@@ -179,6 +185,9 @@ public:
     RegionBitmap* GetOrAllocMarkBitmap()
     {
         LiveInfo* liveInfo = GetOrAllocLiveInfo();
+        if (UNLIKELY(liveInfo == nullptr)) {
+            return nullptr;
+        }
         do {
             RegionBitmap* bitmap = __atomic_load_n(&liveInfo->markBitmap, std::memory_order_acquire);
             if (UNLIKELY(reinterpret_cast<uintptr_t>(bitmap) == LiveInfo::TEMPORARY_PTR)) {
@@ -193,6 +202,9 @@ public:
                 RegionBitmap* allocated =
                     ForwardDataManager::GetForwardDataManager().AllocateRegionBitmap(GetRegionSize());
                 __atomic_store_n(&liveInfo->markBitmap, allocated, std::memory_order_release);
+                if (UNLIKELY(allocated == nullptr)) {
+                    return nullptr;
+                }
                 DLOG(REGION, "region %p@%#zx markbitmap %p", this, GetRegionStart(), metadata.liveInfo->markBitmap);
                 return allocated;
             }
@@ -217,6 +229,9 @@ public:
     RegionBitmap* GetOrAllocResurrectBitmap()
     {
         LiveInfo* liveInfo = GetOrAllocLiveInfo();
+        if (UNLIKELY(liveInfo == nullptr)) {
+            return nullptr;
+        }
         do {
             RegionBitmap* bitmap = __atomic_load_n(&liveInfo->resurrectBitmap, std::memory_order_acquire);
             if (UNLIKELY(reinterpret_cast<uintptr_t>(bitmap) == LiveInfo::TEMPORARY_PTR)) {
@@ -231,6 +246,9 @@ public:
                 RegionBitmap* allocated =
                     ForwardDataManager::GetForwardDataManager().AllocateRegionBitmap(GetRegionSize());
                 __atomic_store_n(&liveInfo->resurrectBitmap, allocated, std::memory_order_release);
+                if (UNLIKELY(allocated == nullptr)) {
+                    return nullptr;
+                }
                 DLOG(REGION, "region %p@%#zx resurrectbitmap %p", this, GetRegionStart(),
                      metadata.liveInfo->resurrectBitmap);
                 return allocated;
@@ -256,6 +274,9 @@ public:
     RegionBitmap* GetOrAllocEnqueueBitmap()
     {
         LiveInfo* liveInfo = GetOrAllocLiveInfo();
+        if (UNLIKELY(liveInfo == nullptr)) {
+            return nullptr;
+        }
         do {
             RegionBitmap* bitmap = __atomic_load_n(&liveInfo->enqueueBitmap, std::memory_order_acquire);
             if (UNLIKELY(reinterpret_cast<uintptr_t>(bitmap) == LiveInfo::TEMPORARY_PTR)) {
@@ -270,6 +291,9 @@ public:
                 RegionBitmap* allocated =
                     ForwardDataManager::GetForwardDataManager().AllocateRegionBitmap(GetRegionSize());
                 __atomic_store_n(&liveInfo->enqueueBitmap, allocated, std::memory_order_release);
+                if (UNLIKELY(allocated == nullptr)) {
+                    return nullptr;
+                }
                 DLOG(REGION, "region %p@%#zx enqueuebitmap %p", this, GetRegionStart(),
                      metadata.liveInfo->enqueueBitmap);
                 return allocated;
@@ -298,7 +322,11 @@ public:
         U32 objSize = obj->GetSize();
         size_t offset = GetAddressOffset(reinterpret_cast<MAddress>(obj));
         size_t regionSize = offset + GetRegionEnd() - reinterpret_cast<MAddress>(obj);
-        bool marked = GetOrAllocMarkBitmap()->MarkBits(offset, objSize, regionSize);
+        RegionBitmap* bitmap = GetOrAllocMarkBitmap();
+        if (UNLIKELY(bitmap == nullptr)) {
+            return false;
+        }
+        bool marked = bitmap->MarkBits(offset, objSize, regionSize);
         CHECK(IsMarkedObject(offset));
         return marked;
     }
@@ -314,7 +342,11 @@ public:
         }
         size_t offset = GetAddressOffset(reinterpret_cast<MAddress>(obj));
         size_t regionSize = offset + GetRegionEnd() - reinterpret_cast<MAddress>(obj);
-        bool marked = GetOrAllocMarkBitmap()->MarkBits(offset, objSize, regionSize);
+        RegionBitmap* bitmap = GetOrAllocMarkBitmap();
+        if (UNLIKELY(bitmap == nullptr)) {
+            return false;
+        }
+        bool marked = bitmap->MarkBits(offset, objSize, regionSize);
         CHECK(IsMarkedObject(offset));
         return marked;
     }
@@ -330,7 +362,11 @@ public:
         }
         U32 objSize = obj->GetSize();
         size_t regionSize = offset + GetRegionEnd() - reinterpret_cast<MAddress>(obj);
-        bool marked = GetOrAllocResurrectBitmap()->MarkBits(offset, objSize, regionSize);
+        RegionBitmap* bitmap = GetOrAllocResurrectBitmap();
+        if (UNLIKELY(bitmap == nullptr)) {
+            return false;
+        }
+        bool marked = bitmap->MarkBits(offset, objSize, regionSize);
         CHECK(IsResurrectedObject(offset));
         return marked;
     }
@@ -347,7 +383,11 @@ public:
         U32 objSize = obj->GetSize();
         size_t regionSize = offset + GetRegionEnd() - reinterpret_cast<MAddress>(obj);
         CHECK(regionSize > 0);
-        bool marked = GetOrAllocEnqueueBitmap()->MarkBits(offset, objSize, regionSize);
+        RegionBitmap* bitmap = GetOrAllocEnqueueBitmap();
+        if (UNLIKELY(bitmap == nullptr)) {
+            return false;
+        }
+        bool marked = bitmap->MarkBits(offset, objSize, regionSize);
         CHECK(IsEnqueuedObject(offset));
         return marked;
     }

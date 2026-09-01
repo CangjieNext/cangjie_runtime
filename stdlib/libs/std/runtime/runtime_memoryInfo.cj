@@ -11,6 +11,12 @@ package std.runtime
 @When[backend == "cjnative"]
 import std.fs.*
 
+@When[os == "Windows"]
+foreign func CJ_Runtime_OpenFileForFd(path: CString): Int32
+
+@When[os == "Windows"]
+foreign func CJ_Runtime_CloseFd(fd: Int32): Int32
+
 @Intrinsic
 func getMaxCjHeapSize(): UIntNative
 
@@ -23,6 +29,11 @@ func getRealHeapSize(): UIntNative
 @When[backend == "cjnative"]
 @Intrinsic
 func dumpCjHeapData(fd: Int32): Bool
+
+@When[backend == "cjnative"]
+func boxDumpCjHeapData(fd: Int32): Bool {
+    return dumpCjHeapData(fd)
+}
 
 @When[backend == "cjnative"]
 @Frozen
@@ -87,7 +98,7 @@ public func getUsedHeapSize(): Int64 {
     }
 }
 
-@When[backend == "cjnative"]
+@When[backend == "cjnative" && os != "Windows"]
 public func dumpHeapData(path: Path): Unit {
     try (file = File(path, ReadWrite)) {
         let success = dumpCjHeapData(Int32(file.fileDescriptor.fileHandle))
@@ -96,4 +107,28 @@ public func dumpHeapData(path: Path): Unit {
         }
     }
     return
+}
+
+@When[backend == "cjnative" && os == "Windows"]
+func executeWithWindowsFd(path: Path, action: (Int32) -> Bool): Bool {
+    unsafe {
+        var success = false
+        try (cPath = LibC.mallocCString(path.toString()).asResource()) {
+            let fd = CJ_Runtime_OpenFileForFd(cPath.value)
+            if (fd == -1) {
+                return false
+            }
+            success = action(fd)
+            CJ_Runtime_CloseFd(fd)
+        }
+        return success
+    }
+}
+
+@When[backend == "cjnative" && os == "Windows"]
+public func dumpHeapData(path: Path): Unit {
+    let success = executeWithWindowsFd(path, boxDumpCjHeapData)
+    if (!success) {
+        throw MemoryInfoException("Failed to dump heap data.")
+    }
 }

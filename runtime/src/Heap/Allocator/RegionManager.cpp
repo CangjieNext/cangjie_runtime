@@ -6,6 +6,7 @@
 
 
 #include "Allocator/RegionManager.h"
+#include "Allocator/MemMap.h"
 
 #include <atomic>
 #include <chrono>
@@ -307,7 +308,9 @@ void RegionManager::Initialize(size_t nUnit, uintptr_t regionInfoAddr)
 {
     size_t metadataSize = GetMetadataSize(nUnit);
 #ifdef _WIN64
-    MemMap::CommitMemory(reinterpret_cast<void*>(regionInfoAddr), metadataSize);
+    CHECK_DETAIL(MemMap::CommitMemory(reinterpret_cast<void*>(regionInfoAddr), metadataSize),
+                 "failed to commit RegionInfo metadata: addr=%p size=%zu", reinterpret_cast<void*>(regionInfoAddr),
+                 metadataSize);
 #endif
     this->regionInfoStart = regionInfoAddr;
     this->regionHeapStart = regionInfoAddr + metadataSize;
@@ -521,8 +524,15 @@ RegionInfo* RegionManager::TakeRegion(size_t num, RegionInfo::UnitRole type, boo
             region = RegionInfo::InitRegionAt(addr, num, type);
             size_t idx = region->GetUnitIdx();
 #ifdef _WIN64
-            MemMap::CommitMemory(
-                reinterpret_cast<void*>(RegionInfo::GetUnitAddress(idx)), num * RegionInfo::UNIT_SIZE);
+            if (UNLIKELY(!MemMap::CommitMemory(
+                    reinterpret_cast<void*>(RegionInfo::GetUnitAddress(idx)), num * RegionInfo::UNIT_SIZE))) {
+                // inactiveZone is a concurrent bump pointer and cannot be
+                // safely decremented. Return the reserved span to the
+                // released tree for a later commit retry instead.
+                region->InitFreeUnits();
+                freeRegionManager.AddReleaseUnits(idx, num);
+                return nullptr;
+            }
 #endif
             (void)idx; // eliminate compilation warning
             DLOG(REGION, "take inactive units [%zu+%zu, %zu) at [0x%zx, 0x%zx)", idx, num, idx + num,

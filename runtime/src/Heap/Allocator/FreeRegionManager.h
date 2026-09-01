@@ -9,6 +9,7 @@
 #define MRT_FREE_REGION_MANAGER_H
 
 #include "CartesianTree.h"
+#include "MemMap.h"
 #include "RegionInfo.h"
 #include "Common/ScopedObjectAccess.h"
 
@@ -62,8 +63,17 @@ public:
             if (tryReleasedTree && releasedUnitTreeMutex.try_lock()) {
                 if (releasedUnitTree.TakeUnits(num, idx)) {
 #ifdef _WIN64
-                    MemMap::CommitMemory(
-                        reinterpret_cast<void*>(RegionInfo::GetUnitAddress(idx)), num * RegionInfo::UNIT_SIZE);
+                    if (UNLIKELY(!MemMap::CommitMemory(
+                            reinterpret_cast<void*>(RegionInfo::GetUnitAddress(idx)), num * RegionInfo::UNIT_SIZE))) {
+                        // The span was removed before committing its pages.
+                        // Keep it available, but leave it classified as
+                        // released so the next attempt commits it again.
+                        CHECK_DETAIL(releasedUnitTree.MergeInsert(idx, num, true),
+                                     "failed to restore released units after commit failure [%u+%u, %u)", idx, num,
+                                     idx + num);
+                        releasedUnitTreeMutex.unlock();
+                        return nullptr;
+                    }
 #endif
                     DLOG(REGION, "c-tree %p alloc released units[%u+%u, %u) @[0x%zx, 0x%zx), %u released-units left",
                         &releasedUnitTree, idx, num, idx + num, RegionInfo::GetUnitAddress(idx),

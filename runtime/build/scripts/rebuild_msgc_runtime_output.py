@@ -13,7 +13,8 @@ import shutil
 import stat
 import subprocess
 import sys
-from collections.abc import Sequence
+import tempfile
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
 
@@ -79,31 +80,215 @@ DARWIN_BUILD_TOOL_DIRS = (
     pathlib.Path("/usr/local/bin"),
 )
 WINDOWS_BUILD_TOOL_DIRS = (
+    pathlib.Path(r"C:\software\msys64\mingw64\bin"),
+    pathlib.Path(r"C:\msys64\mingw64\bin"),
+    pathlib.Path(r"C:\software\msys64\ucrt64\bin"),
     pathlib.Path(r"C:\msys64\ucrt64\bin"),
+    pathlib.Path(r"C:\software\msys64\clang64\bin"),
+    pathlib.Path(r"C:\msys64\clang64\bin"),
     pathlib.Path(r"C:\Program Files\LLVM\bin"),
+    pathlib.Path(r"C:\software\CMake\bin"),
     pathlib.Path(r"C:\Program Files\CMake\bin"),
+    pathlib.Path(r"C:\software\Git\cmd"),
+    pathlib.Path(r"C:\software\Git\usr\bin"),
+    pathlib.Path(r"C:\Program Files\Git\cmd"),
+    pathlib.Path(r"C:\Program Files\Git\usr\bin"),
 )
+WINDOWS_TOOLCHAIN_ENV_NAMES = (
+    "CANGJIE_MINGW_PATH",
+    "MINGW_PATH",
+    "MSYS2_MINGW64",
+)
+WINDOWS_MSYS_ROOT_ENV_NAMES = ("MSYS2_ROOT", "MSYS2_HOME")
+WINDOWS_TOOLCHAIN_NAMES = ("mingw64", "ucrt64", "clang64")
+WINDOWS_REQUIRED_TOOLS = (
+    "cmake",
+    "gcc",
+    "g++",
+    "mingw32-make",
+    "ninja",
+    "patch",
+    "git",
+)
+WINDOWS_PACKAGE_PREFIXES = {
+    "mingw64": "mingw-w64-x86_64",
+    "ucrt64": "mingw-w64-ucrt-x86_64",
+    "clang64": "mingw-w64-clang-x86_64",
+}
+
+
+def _normalise_windows_toolchain_root(value: str | pathlib.Path) -> pathlib.Path:
+    path = pathlib.Path(value).expanduser()
+    return path.parent if path.name.lower() == "bin" else path
+
+
+def _windows_toolchain_candidates(environment: Mapping[str, str]) -> list[pathlib.Path]:
+    candidates: list[pathlib.Path] = []
+
+    for name in WINDOWS_TOOLCHAIN_ENV_NAMES:
+        value = environment.get(name)
+        if value:
+            candidates.append(_normalise_windows_toolchain_root(value))
+
+    for name in WINDOWS_MSYS_ROOT_ENV_NAMES:
+        value = environment.get(name)
+        if not value:
+            continue
+        msys_root = pathlib.Path(value).expanduser()
+        candidates.extend(msys_root / toolchain for toolchain in WINDOWS_TOOLCHAIN_NAMES)
+
+    for tool_dir in WINDOWS_BUILD_TOOL_DIRS:
+        if tool_dir.name.lower() == "bin" and tool_dir.parent.name.lower() in WINDOWS_TOOLCHAIN_NAMES:
+            candidates.append(tool_dir.parent)
+
+    for tool in ("x86_64-w64-mingw32-gcc", "gcc"):
+        executable = shutil.which(tool, path=environment.get("PATH", ""))
+        if executable:
+            candidates.append(pathlib.Path(executable).resolve().parent.parent)
+
+    return list(dict.fromkeys(candidates))
+
+
+def _windows_toolchain_is_usable(root: pathlib.Path) -> bool:
+    bin_dir = root / "bin"
+    return all(
+        any((bin_dir / name).is_file() for name in names)
+        for names in (
+            ("x86_64-w64-mingw32-gcc.exe", "x86_64-w64-mingw32-gcc"),
+            ("x86_64-w64-mingw32-g++.exe", "x86_64-w64-mingw32-g++"),
+        )
+    )
+
+
+def resolve_windows_toolchain_root(
+    environment: Mapping[str, str] | None = None,
+    *,
+    require_tools: bool = True,
+) -> pathlib.Path:
+    environment = os.environ if environment is None else environment
+    candidates = _windows_toolchain_candidates(environment)
+    for candidate in candidates:
+        if _windows_toolchain_is_usable(candidate):
+            return candidate
+    if not require_tools:
+        for candidate in candidates:
+            if candidate.is_dir():
+                return candidate
+    raise FileNotFoundError(
+        "unable to locate a usable MinGW toolchain; set "
+        "CANGJIE_MINGW_PATH to its mingw64/ucrt64 root"
+    )
+
+
+def _windows_pacman(
+    toolchain_root: pathlib.Path,
+    environment: Mapping[str, str],
+) -> pathlib.Path | None:
+    candidates = [toolchain_root.parent / "usr" / "bin" / "pacman.exe"]
+    for name in WINDOWS_MSYS_ROOT_ENV_NAMES:
+        value = environment.get(name)
+        if value:
+            candidates.append(pathlib.Path(value) / "usr" / "bin" / "pacman.exe")
+    candidates.extend(
+        [
+            pathlib.Path(r"C:\software\msys64\usr\bin\pacman.exe"),
+            pathlib.Path(r"C:\msys64\usr\bin\pacman.exe"),
+        ]
+    )
+    pacman = shutil.which("pacman", path=environment.get("PATH", ""))
+    if pacman:
+        candidates.append(pathlib.Path(pacman))
+    return next((candidate for candidate in dict.fromkeys(candidates) if candidate.is_file()), None)
+
+
+def _windows_openssl_lib(
+    toolchain_root: pathlib.Path,
+    environment: Mapping[str, str],
+) -> pathlib.Path | None:
+    candidates: list[pathlib.Path] = []
+    for name in ("OPENSSL_ROOT_DIR", "OPENSSL_PATH"):
+        value = environment.get(name)
+        if not value:
+            continue
+        path = pathlib.Path(value).expanduser()
+        candidates.append(path if path.name.lower() == "lib" else path / "lib")
+        candidates.append(path)
+    candidates.append(toolchain_root / "lib")
+    for candidate in dict.fromkeys(candidates):
+        if candidate.is_dir() and all(
+            (candidate / name).is_file()
+            for name in ("libcrypto.dll.a", "libssl.dll.a")
+        ):
+            return candidate
+    return None
+
+
+def _install_windows_packages(
+    toolchain_root: pathlib.Path,
+    packages: list[str],
+    environment: Mapping[str, str],
+) -> None:
+    if not packages:
+        return
+    pacman = _windows_pacman(toolchain_root, environment)
+    if pacman is None:
+        raise FileNotFoundError(
+            "missing Windows build dependencies and pacman was not found; "
+            "install MSYS2 or set MSYS2_ROOT/MSYS2_HOME"
+        )
+    command = [str(pacman), "-S", "--needed", "--noconfirm", *packages]
+    print(f"[install] {shlex.join(command)}", flush=True)
+    subprocess.run(command, check=True, env=dict(environment))
 
 
 def build_subprocess_path(
     host: HostLayout,
     current_path: str,
     darwin_tool_dirs: list[pathlib.Path] | tuple[pathlib.Path, ...] | None = None,
+    environment: Mapping[str, str] | None = None,
 ) -> str:
     tool_dirs = darwin_tool_dirs if darwin_tool_dirs is not None else DARWIN_BUILD_TOOL_DIRS
     path_entries: list[str] = []
     if host.os_name == "darwin":
         path_entries.extend(str(path) for path in tool_dirs if path.is_dir())
     elif host.os_name == "windows":
+        environment = os.environ if environment is None else environment
+        try:
+            toolchain_root = resolve_windows_toolchain_root(
+                environment,
+                require_tools=False,
+            )
+            path_entries.extend(
+                [
+                    str(toolchain_root / "bin"),
+                    str(toolchain_root.parent / "usr" / "bin"),
+                ]
+            )
+        except FileNotFoundError:
+            pass
         path_entries.extend(str(path) for path in WINDOWS_BUILD_TOOL_DIRS if path.is_dir())
     path_entries.extend(entry for entry in current_path.split(os.pathsep) if entry)
     return os.pathsep.join(dict.fromkeys(path_entries))
 
 
-def build_subprocess_environment(host: HostLayout, validate_tools: bool = True) -> dict[str, str]:
+def build_subprocess_environment(
+    host: HostLayout,
+    validate_tools: bool = True,
+    install_missing: bool = True,
+) -> dict[str, str]:
     environment = os.environ.copy()
-    environment["PATH"] = build_subprocess_path(host, environment.get("PATH", ""))
+    environment["PATH"] = build_subprocess_path(
+        host,
+        environment.get("PATH", ""),
+        environment=environment,
+    )
     if host.os_name == "windows":
+        toolchain_root = resolve_windows_toolchain_root(environment)
+        environment["PATH"] = build_subprocess_path(
+            host,
+            environment.get("PATH", ""),
+            environment=environment,
+        )
         # Do not let a compiler environment prepared for the cross-build leak
         # into the native CMake configure or its nested cjthread configure.
         environment.pop("CC", None)
@@ -112,11 +297,70 @@ def build_subprocess_environment(host: HostLayout, validate_tools: bool = True) 
         environment.pop("CXXFLAGS", None)
         environment["CMAKE_C_COMPILER"] = "gcc"
         environment["CMAKE_CXX_COMPILER"] = "g++"
+        # CMake fetches FlatBuffers with a nested Git process.  Windows Git
+        # rejects the repository's :Zone.Identifier names unless NTFS
+        # protection is disabled for this build process.
+        environment["GIT_CONFIG_COUNT"] = "1"
+        environment["GIT_CONFIG_KEY_0"] = "core.protectNTFS"
+        environment["GIT_CONFIG_VALUE_0"] = "false"
     if not validate_tools:
         return environment
 
     if host.os_name == "windows":
-        required_tools = ("cmake", "gcc", "g++")
+        required_tools = WINDOWS_REQUIRED_TOOLS
+        missing_tools = [
+            tool
+            for tool in required_tools
+            if shutil.which(tool, path=environment["PATH"]) is None
+        ]
+        missing_packages: list[str] = []
+        package_prefix = WINDOWS_PACKAGE_PREFIXES.get(toolchain_root.name.lower())
+        if package_prefix is None:
+            raise ValueError(
+                f"unsupported MinGW toolchain layout: {toolchain_root}; "
+                "expected mingw64, ucrt64, or clang64"
+            )
+        package_for_tool = {
+            "mingw32-make": f"{package_prefix}-make",
+            "ninja": f"{package_prefix}-ninja",
+        }
+        missing_packages.extend(
+            package_for_tool[tool]
+            for tool in missing_tools
+            if tool in package_for_tool
+        )
+        if _windows_openssl_lib(toolchain_root, environment) is None:
+            missing_packages.append(f"{package_prefix}-openssl")
+        missing_packages.extend(
+            tool for tool in missing_tools if tool in {"git", "patch"}
+        )
+        if missing_packages:
+            if not install_missing:
+                raise FileNotFoundError(
+                    "required Windows build dependencies are not available in PATH: "
+                    + ", ".join(missing_tools)
+                )
+            _install_windows_packages(
+                toolchain_root,
+                list(dict.fromkeys(missing_packages)),
+                environment,
+            )
+            environment["PATH"] = build_subprocess_path(
+                host,
+                environment.get("PATH", ""),
+                environment=environment,
+            )
+            missing_tools = [
+                tool
+                for tool in required_tools
+                if shutil.which(tool, path=environment["PATH"]) is None
+            ]
+        if _windows_openssl_lib(toolchain_root, environment) is None:
+            raise FileNotFoundError(
+                "OpenSSL MinGW libraries were not found under "
+                f"{toolchain_root / 'lib'}"
+            )
+        environment["OPENSSL_ROOT_DIR"] = str(toolchain_root)
     else:
         required_tools = ("cmake", "make", "clang", "clang++")
     missing_tools = [
@@ -128,6 +372,36 @@ def build_subprocess_environment(host: HostLayout, validate_tools: bool = True) 
         )
     for tool in required_tools:
         print(f"[info] {tool}={shutil.which(tool, path=environment['PATH'])}", flush=True)
+    return environment
+
+
+def prepare_windows_build_environment(
+    host: HostLayout,
+    *,
+    validate_tools: bool = True,
+    install_missing: bool = True,
+) -> dict[str, str]:
+    if host.os_name != "windows":
+        return os.environ.copy()
+    environment = build_subprocess_environment(
+        host,
+        validate_tools=validate_tools,
+        install_missing=install_missing,
+    )
+    for name in ("CC", "CXX", "CFLAGS", "CXXFLAGS"):
+        os.environ.pop(name, None)
+    os.environ.update(
+        {
+            "PATH": environment["PATH"],
+            "CMAKE_C_COMPILER": environment["CMAKE_C_COMPILER"],
+            "CMAKE_CXX_COMPILER": environment["CMAKE_CXX_COMPILER"],
+            "GIT_CONFIG_COUNT": environment["GIT_CONFIG_COUNT"],
+            "GIT_CONFIG_KEY_0": environment["GIT_CONFIG_KEY_0"],
+            "GIT_CONFIG_VALUE_0": environment["GIT_CONFIG_VALUE_0"],
+        }
+    )
+    if "OPENSSL_ROOT_DIR" in environment:
+        os.environ["OPENSSL_ROOT_DIR"] = environment["OPENSSL_ROOT_DIR"]
     return environment
 
 
@@ -210,7 +484,7 @@ def build_stage_plan(config: BuildConfig, host: HostLayout) -> list[BuildStage]:
         # ``native`` leaves WINDOWS_FLAG disabled.  The explicit Windows
         # target also requires the MinGW root, even when building on Windows.
         runtime_build_command.extend(
-            ["--target-toolchain", str(WINDOWS_BUILD_TOOL_DIRS[0].parent)]
+            ["--target-toolchain", str(resolve_windows_toolchain_root())]
         )
     stages.extend(
         [
@@ -264,16 +538,12 @@ def build_runtime_relayout_plan(
 
     relayout: list[tuple[pathlib.Path, pathlib.Path]] = []
     for artifact in runtime_static_artifact_names(host):
-        # The nested cjthread build installs aio/thread archives directly in
-        # the build-type directory, while build.py installs cjstart/runtime
-        # in the common prefix. Keep both layouts synchronized before copying
-        # the complete runtime directory into the SDK.
-        source_root = (
-            runtime_common_dir / "lib" / platform_dir
-            if artifact == "libcangjie-aio.a"
-            else static_root
-        )
-        source = source_root / artifact
+        # build.py installs all runtime archives in the common prefix. Some
+        # older cjthread builds may also leave an archive in the build-type
+        # directory, so use it only when the common-prefix artifact is absent.
+        source = static_root / artifact
+        if not source.is_file():
+            source = runtime_common_dir / "lib" / platform_dir / artifact
         destination = static_output / artifact
         if source != destination:
             relayout.append((source, destination))
@@ -420,6 +690,111 @@ def codesign_tree(root: pathlib.Path, dry_run: bool) -> None:
 def repair_runtime_output_layout(config: BuildConfig, host: HostLayout, dry_run: bool) -> None:
     for src, dst in build_runtime_relayout_plan(config, host):
         copy_file(src, dst, dry_run=dry_run)
+
+
+def repair_windows_msvcrt_boundscheck(
+    runtime_root: pathlib.Path,
+    build_type: str,
+    environment: Mapping[str, str],
+    dry_run: bool,
+    extra_targets: Sequence[pathlib.Path] = (),
+) -> None:
+    """Rebuild boundscheck with the MSVCRT-compatible vsnprintf_s export.
+
+    The upstream secure-CMake target disables ``vsnprintf_s`` by default, but
+    the MinGW MSVCRT runtime links ``libcangjie-runtime.dll`` against that
+    symbol.  Rebuilding this small DLL here keeps the source tree untouched
+    and makes the generated runtime usable by stdlib/stdx on Windows.
+    """
+    source_root = runtime_root / "third_party" / "third_party_bounds_checking_function"
+    source_files = [
+        source_root / "src" / name
+        for name in (
+            "memset_s.c",
+            "snprintf_s.c",
+            "vsnprintf_s.c",
+            "secureprintoutput_a.c",
+        )
+    ]
+    if not all(path.is_file() for path in source_files):
+        missing = [str(path) for path in source_files if not path.is_file()]
+        raise FileNotFoundError(
+            "cannot rebuild Windows boundscheck; missing sources:\n" + "\n".join(missing)
+        )
+
+    runtime_common_root = runtime_root / "output" / "common"
+    platform_dir = "windows_x86_64_cjnative"
+    target_files = [
+        runtime_common_root / "runtime" / "lib" / platform_dir / "libboundscheck.dll",
+        runtime_common_root
+        / f"windows_{build_type}_x86_64"
+        / "runtime"
+        / "lib"
+        / platform_dir
+        / "libboundscheck.dll",
+        *extra_targets,
+    ]
+    if dry_run:
+        print(
+            "[repair] rebuild Windows libboundscheck.dll with "
+            "SECUREC_ENABLE_VSNPRINTF=1",
+            flush=True,
+        )
+        return
+
+    compiler = shutil.which(
+        "x86_64-w64-mingw32-gcc",
+        path=environment.get("PATH", ""),
+    ) or shutil.which("gcc", path=environment.get("PATH", ""))
+    if compiler is None:
+        raise FileNotFoundError(
+            "cannot rebuild Windows boundscheck; MinGW gcc is not available"
+        )
+
+    include_dirs = [source_root / "include"]
+    generated_include = runtime_root / "output" / "temp" / "include"
+    if generated_include.is_dir():
+        include_dirs.append(generated_include)
+
+    command = [
+        compiler,
+        "-shared",
+        "-static",
+        "-w",
+        "-O2",
+        "-D_FORTIFY_SOURCE=2",
+        "-DSECUREC_ENABLE_VSNPRINTF=1",
+        *(f"-I{path}" for path in include_dirs),
+        *(str(path) for path in source_files),
+        "-o",
+    ]
+    with tempfile.TemporaryDirectory(prefix="cangjie-boundscheck-") as temp_dir:
+        output = pathlib.Path(temp_dir) / "libboundscheck.dll"
+        command.append(str(output))
+        command.extend(
+            [
+                "-lkernel32",
+                "-luser32",
+                "-lgdi32",
+                "-lwinspool",
+                "-lshell32",
+                "-lole32",
+                "-loleaut32",
+                "-luuid",
+                "-lcomdlg32",
+                "-ladvapi32",
+            ]
+        )
+        print(f"[repair] {shlex.join(command)}", flush=True)
+        subprocess.run(command, cwd=runtime_root, check=True, env=dict(environment))
+        existing_targets = [path for path in target_files if path.is_file()]
+        if not existing_targets:
+            raise FileNotFoundError(
+                "runtime install did not produce libboundscheck.dll under "
+                f"{runtime_common_root}"
+            )
+        for target in existing_targets:
+            copy_file(output, target, dry_run=False)
 
 
 def verify_outputs(config: BuildConfig, host: HostLayout) -> None:
@@ -594,7 +969,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     print(f"[info] runtime_root={config.runtime_root}", flush=True)
     print(f"[info] sdk_root={config.sdk_root}", flush=True)
     print(f"[info] host={host.os_name}/{host.arch}", flush=True)
-    build_environment = build_subprocess_environment(host, validate_tools=not config.dry_run)
+    build_environment = build_subprocess_environment(
+        host,
+        validate_tools=not config.dry_run,
+        install_missing=not config.dry_run,
+    )
 
     for stage in build_stage_plan(config, host):
         run_command(
@@ -602,6 +981,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             cwd=stage.cwd,
             dry_run=config.dry_run,
             environment=build_environment,
+        )
+
+    if host.os_name == "windows":
+        print("\n== repair Windows boundscheck runtime ==", flush=True)
+        repair_windows_msvcrt_boundscheck(
+            config.runtime_root,
+            config.build_type,
+            build_environment,
+            config.dry_run,
         )
 
     print("\n== repair runtime output layout ==", flush=True)

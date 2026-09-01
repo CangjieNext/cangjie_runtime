@@ -39,6 +39,7 @@ public:
         size_t size = static_cast<size_t>(totalPageCount) * MapleRuntime::MRT_PAGE_SIZE;
         freePagesTree.Init(totalPageCount);
         base = MapMemory(size, tag);
+        CHECK_DETAIL(base != nullptr, "PagePool reserve failed: size=%zu", size);
         totalSize = size;
     }
     void Fini()
@@ -64,8 +65,14 @@ public:
             if (freePagesTree.TakeUnits(static_cast<Count>(count), idx, false)) {
                 auto* ret = base + static_cast<size_t>(idx) * MapleRuntime::MRT_PAGE_SIZE;
 #ifdef _WIN64
-                CHECK_E(UNLIKELY(!VirtualAlloc(ret, pageSize, MEM_COMMIT, PAGE_READWRITE)),
-                        "VirtualAlloc commit failed in GetPage, errno: %d", GetLastError());
+                if (UNLIKELY(!CommitPageMemory(ret, pageSize, "free-page"))) {
+                    // TakeUnits removes the span before the OS operation. Put
+                    // it back so a later allocation can retry the commit.
+                    CHECK_DETAIL(freePagesTree.MergeInsert(idx, static_cast<Count>(count), false),
+                                 "failed to restore free page span after commit failure [%u+%u, %u)", idx, count,
+                                 idx + count);
+                    return nullptr;
+                }
 #endif
                 return ret;
             }
@@ -73,8 +80,12 @@ public:
                 size_t current = usedZone;
                 usedZone += pageSize;
 #ifdef _WIN64
-                CHECK_E(UNLIKELY(!VirtualAlloc(base + current, pageSize, MEM_COMMIT, PAGE_READWRITE)),
-                        "VirtualAlloc commit failed in GetPage, errno: %d", GetLastError());
+                if (UNLIKELY(!CommitPageMemory(base + current, pageSize, "bump-page"))) {
+                    // usedZone is protected by freePagesMutex, so rolling it
+                    // back cannot race with another bump allocation.
+                    usedZone = current;
+                    return nullptr;
+                }
 #endif
                 return base + current;
             }
@@ -128,9 +139,12 @@ protected:
     uint8_t* MapMemory(size_t size, const char* memName, bool isCommit = false) const
     {
 #ifdef _WIN64
-        void* result = VirtualAlloc(NULL, size, isCommit ? MEM_COMMIT : MEM_RESERVE, PAGE_READWRITE);
+        DWORD allocationType = isCommit ? (MEM_RESERVE | MEM_COMMIT) : MEM_RESERVE;
+        void* result = VirtualAlloc(NULL, size, allocationType, PAGE_READWRITE);
         if (result == NULL) {
-            LOG(RTLOG_FATAL, "allocate create page failed! Out of Memory!");
+            LOG(RTLOG_ERROR, "PagePool VirtualAlloc failed: size=%zu commit=%d error=%lu", size, isCommit,
+                static_cast<unsigned long>(GetLastError()));
+            return nullptr;
         }
         (void)memName;
 #else
@@ -147,6 +161,18 @@ protected:
 #endif
         return reinterpret_cast<uint8_t*>(result);
     }
+
+#ifdef _WIN64
+    static bool CommitPageMemory(void* addr, size_t size, const char* source)
+    {
+        if (LIKELY(VirtualAlloc(addr, size, MEM_COMMIT, PAGE_READWRITE) != nullptr)) {
+            return true;
+        }
+        LOG(RTLOG_ERROR, "PagePool commit failed: source=%s addr=%p size=%zu error=%lu", source, addr, size,
+            static_cast<unsigned long>(GetLastError()));
+        return false;
+    }
+#endif
     using Index = CartesianTree::Index;
     using Count = CartesianTree::Count;
     std::mutex freePagesMutex;

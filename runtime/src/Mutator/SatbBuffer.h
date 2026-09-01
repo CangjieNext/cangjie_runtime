@@ -167,7 +167,7 @@ public:
         T* head;
     };
 
-    void EnsureGoodNode(Node*& node)
+    bool EnsureGoodNode(Node*& node)
     {
         if (node == nullptr) {
             node = freeNodes.Pop();
@@ -177,14 +177,14 @@ public:
             node = freeNodes.Pop();
         } else {
             // not null & have slots
-            return;
+            return true;
         }
         if (node == nullptr) {
             // there is no free nodes in the freeNodes list
             Page* page = GetPages(MapleRuntime::MRT_PAGE_SIZE);
             Node* list = ConstructFreeNodeList(page, MapleRuntime::MRT_PAGE_SIZE);
             if (list == nullptr) {
-                return;
+                return false;
             }
             node = list;
             Node* cur = list->next;
@@ -198,6 +198,7 @@ public:
         } else {
             CHECK_DETAIL(node->IsEmpty(), "get an unempty node from free nodes");
         }
+        return true;
     }
     bool ShouldEnqueue(const BaseObject* obj);
 
@@ -267,7 +268,11 @@ public:
 private:
     Page* GetPages(size_t bytes)
     {
-        Page* page = new (PagePool::Instance().GetPage(bytes)) Page(nullptr, bytes);
+        void* memory = PagePool::Instance().GetPage(bytes);
+        if (UNLIKELY(memory == nullptr)) {
+            return nullptr;
+        }
+        Page* page = new (memory) Page(nullptr, bytes);
         page->next = nullptr;
         arena.Push(page);
         return page;
@@ -275,6 +280,9 @@ private:
 
     Node* ConstructFreeNodeList(const Page* page, size_t bytes) const
     {
+        if (UNLIKELY(page == nullptr)) {
+            return nullptr;
+        }
         MAddress start = reinterpret_cast<MAddress>(page) + RoundUp(sizeof(Page), CACHE_LINE_ALIGN);
         MAddress end = reinterpret_cast<MAddress>(page) + bytes;
         Node* cur = nullptr;

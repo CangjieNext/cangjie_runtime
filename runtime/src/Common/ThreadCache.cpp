@@ -64,7 +64,9 @@ void* ThreadCache::FetchFromCentralCache(size_t index, size_t alignBytes)
     size_t actualNum = CentralCache::GetInstance()->FetchRangeObj(begin, end, batchNum, alignBytes);
     // 3. Return the first small fixed-size memory block to the caller
     //    and link the remaining blocks to the free list bucket
-    CHECK(actualNum > 0);
+    if (UNLIKELY(actualNum == 0)) {
+        return nullptr;
+    }
     if (actualNum == 1) {
         CHECK(begin == end);
         return begin;

@@ -68,17 +68,53 @@ class ForwardDataManager {
         {
 #if defined(_WIN64)
             allocSpinLock.Lock();
-            uintptr_t startAddr = allocZone[type].zonePosition.fetch_add(sz);
+            Zone& zone = allocZone[type];
+            uintptr_t startAddr = zone.zonePosition.load(std::memory_order_relaxed);
+            uintptr_t zoneEnd = type == Zone::ZoneType::LIVE_INFO
+                                    ? allocZone[Zone::ZoneType::BIT_MAP].zoneStartAddress
+                                    : startAddress + size;
+            if (UNLIKELY(sz == 0 || startAddr > zoneEnd || sz > zoneEnd - startAddr)) {
+                LOG(RTLOG_ERROR, "ForwardData allocation exceeds reserved zone: type=%zu addr=%p size=%zu end=%p",
+                    static_cast<size_t>(type), reinterpret_cast<void*>(startAddr), sz,
+                    reinterpret_cast<void*>(zoneEnd));
+                allocSpinLock.Unlock();
+                return 0;
+            }
+
             uintptr_t endAddr = startAddr + sz;
             uintptr_t lastAddr = lastCommitEndAddr[type].load(std::memory_order_relaxed);
+            if (UNLIKELY(lastAddr > endAddr)) {
+                LOG(RTLOG_ERROR, "ForwardData commit cursor is invalid: type=%zu cursor=%p end=%p",
+                    static_cast<size_t>(type), reinterpret_cast<void*>(lastAddr), reinterpret_cast<void*>(endAddr));
+                allocSpinLock.Unlock();
+                return 0;
+            }
             if (endAddr <= lastAddr) {
+                zone.zonePosition.store(endAddr, std::memory_order_relaxed);
                 allocSpinLock.Unlock();
                 return startAddr;
             }
-            size_t pageSize = RoundUp(sz, MapleRuntime::MRT_PAGE_SIZE);
-            CHECK_E(UNLIKELY(!VirtualAlloc(reinterpret_cast<void*>(lastAddr), pageSize, MEM_COMMIT, PAGE_READWRITE)),
-                    "VirtualAlloc commit failed in Allocate, errno: %d", GetLastError());
-            lastCommitEndAddr[type].store(lastAddr + pageSize);
+
+            size_t bytesToCommit = static_cast<size_t>(endAddr - lastAddr);
+            if (UNLIKELY(bytesToCommit > std::numeric_limits<size_t>::max() -
+                                         (MapleRuntime::MRT_PAGE_SIZE - 1))) {
+                LOG(RTLOG_ERROR, "ForwardData commit size overflow: type=%zu addr=%p size=%zu",
+                    static_cast<size_t>(type), reinterpret_cast<void*>(lastAddr), bytesToCommit);
+                allocSpinLock.Unlock();
+                return 0;
+            }
+            size_t commitSize = RoundUp(bytesToCommit, MapleRuntime::MRT_PAGE_SIZE);
+            if (UNLIKELY(VirtualAlloc(reinterpret_cast<void*>(lastAddr), commitSize, MEM_COMMIT, PAGE_READWRITE) ==
+                         nullptr)) {
+                LOG(RTLOG_ERROR,
+                    "ForwardData VirtualAlloc commit failed: type=%zu addr=%p size=%zu error=%lu",
+                    static_cast<size_t>(type), reinterpret_cast<void*>(lastAddr), commitSize,
+                    static_cast<unsigned long>(GetLastError()));
+                allocSpinLock.Unlock();
+                return 0;
+            }
+            lastCommitEndAddr[type].store(lastAddr + commitSize, std::memory_order_relaxed);
+            zone.zonePosition.store(endAddr, std::memory_order_relaxed);
             allocSpinLock.Unlock();
             return startAddr;
 #else
@@ -153,7 +189,9 @@ public:
         uintptr_t addr = liveInfoData[currentTagID].Allocate(ForwardDataSpace::Zone::ZoneType::BIT_MAP,
                                                              RegionBitmap::GetRegionBitmapSize(regionSize));
         RegionBitmap* bitmap = reinterpret_cast<RegionBitmap*>(addr);
-        CHECK(bitmap != nullptr);
+        if (UNLIKELY(bitmap == nullptr)) {
+            return nullptr;
+        }
         new (bitmap) RegionBitmap(regionSize);
         return bitmap;
     }

@@ -30,6 +30,9 @@ Span* CentralCache::GetOneSpan(SpanList& list, size_t alignBytes)
     {
         ScopedPageCacheMutex mtx;
         span = PageCache::GetInstance()->NewSpan(SizeManager::CalculatePageNum(alignBytes));
+        if (UNLIKELY(span == nullptr)) {
+            return nullptr;
+        }
         span->isUse = true;
     }
 
@@ -62,7 +65,10 @@ size_t CentralCache::FetchRangeObj(void*& start, void*& end, size_t batchNum, si
 
     // Retrieve batchNum small fixed-size memory blocks from the Span.
     Span* span = GetOneSpan(centralCacheSpans[index], alignBytes);
-    CHECK(span != nullptr);
+    if (UNLIKELY(span == nullptr)) {
+        centralCacheSpans[index].GetSpanListMutex().unlock();
+        return 0;
+    }
     CHECK(span->freeBlocks);
     start = span->freeBlocks;
     end = span->freeBlocks;

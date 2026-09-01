@@ -125,6 +125,9 @@ public:
 
             if (nonFull == nullptr) {
                 Page* cur = CreatePage();
+                if (UNLIKELY(cur == nullptr)) {
+                    return nullptr;
+                }
                 InitPage(*cur);
                 nonFull = cur;
                 ++totalPages;

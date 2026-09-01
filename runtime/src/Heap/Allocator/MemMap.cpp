@@ -67,10 +67,15 @@ MemMap* MemMap::MapMemory(size_t reqSize, size_t initSize, const Option& opt)
 }
 
 #ifdef _WIN64
-void MemMap::CommitMemory(void* addr, size_t size)
+bool MemMap::CommitMemory(void* addr, size_t size)
 {
-    CHECK_E(UNLIKELY(!VirtualAlloc(addr, size, MEM_COMMIT, PAGE_READWRITE)),
-        "VirtualAlloc commit failed in GetPage, errno: %d", GetLastError());
+    if (LIKELY(VirtualAlloc(addr, size, MEM_COMMIT, PAGE_READWRITE) != nullptr)) {
+        return true;
+    }
+
+    LOG(RTLOG_ERROR, "VirtualAlloc commit failed: addr=%p size=%zu error=%lu", addr, size,
+        static_cast<unsigned long>(GetLastError()));
+    return false;
 }
 #endif
 

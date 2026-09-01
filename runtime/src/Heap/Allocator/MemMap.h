@@ -48,7 +48,9 @@ public:
     static MemMap* MapMemory(size_t reqSize, size_t initSize, const Option& opt = DEFAULT_OPTIONS);
 
 #ifdef _WIN64
-    static void CommitMemory(void* addr, size_t size);
+    // Commit is a recoverable operation for runtime allocations.  Callers
+    // must not publish or use the range when this returns false.
+    static bool CommitMemory(void* addr, size_t size);
 #endif
 
     // destroy a MemMap

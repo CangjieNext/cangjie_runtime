@@ -158,7 +158,7 @@ def build_stage_plan(config: FullBuildConfig, host: HostLayout) -> list[BuildSta
         # the runtime subprocess environment.
         runtime_build_command.extend([
             "--target-toolchain",
-            str(runtime_output.WINDOWS_BUILD_TOOL_DIRS[0].parent),
+            str(runtime_output.resolve_windows_toolchain_root()),
         ])
 
     clean_stages = [
@@ -405,13 +405,18 @@ def ensure_paths_exist(config: FullBuildConfig) -> None:
     validate_sdk_output(config)
 
 
-def _run_stage(config: FullBuildConfig, stage: BuildStage) -> None:
+def _run_stage(
+    config: FullBuildConfig,
+    stage: BuildStage,
+    environment: dict[str, str] | None = None,
+) -> None:
     print(f"\n== {stage.component} {stage.action} ==", flush=True)
     sdk_helpers.run_command(
         stage.command,
         cwd=stage.cwd,
         dry_run=config.dry_run,
         envsetup=stage.envsetup,
+        environment=environment,
     )
 
 
@@ -435,6 +440,7 @@ def _after_install(
     config: FullBuildConfig,
     host: HostLayout,
     stage: BuildStage,
+    environment: dict[str, str] | None = None,
 ) -> None:
     if stage.action != "install":
         return
@@ -451,6 +457,13 @@ def _after_install(
             )
     elif stage.component == "runtime":
         print("\n== repair and sync runtime into SDK ==", flush=True)
+        if host.os_name == "windows":
+            runtime_output.repair_windows_msvcrt_boundscheck(
+                config.runtime_root,
+                config.build_type,
+                environment or os.environ.copy(),
+                config.dry_run,
+            )
         sdk_helpers.repair_runtime_output_layout(config, host, config.dry_run)
         sdk_helpers.sync_runtime_into_sdk(config, host, config.dry_run)
         if host.os_name == "darwin":
@@ -460,6 +473,21 @@ def _after_install(
             )
     elif stage.component == "stdlib":
         print("\n== sync stdlib into SDK ==", flush=True)
+        if host.os_name == "windows":
+            runtime_output.repair_windows_msvcrt_boundscheck(
+                config.runtime_root,
+                config.build_type,
+                environment or os.environ.copy(),
+                config.dry_run,
+                extra_targets=(
+                    config.stdlib_root
+                    / "output"
+                    / "runtime"
+                    / "lib"
+                    / host.sdk_platform_name
+                    / "libboundscheck.dll",
+                ),
+            )
         sdk_helpers.sync_stdlib_into_sdk(config, host, config.dry_run)
         if host.os_name == "darwin":
             sdk_helpers.codesign_tree(
@@ -470,6 +498,14 @@ def _after_install(
 
 def execute_full_build(config: FullBuildConfig, host: HostLayout) -> None:
     ensure_paths_exist(config)
+    build_environment = None
+    if host.os_name == "windows":
+        build_environment = runtime_output.build_subprocess_environment(
+            host,
+            validate_tools=not config.dry_run,
+            install_missing=not config.dry_run,
+        )
+        build_environment["OPENSSL_ROOT_DIR"] = str(config.openssl_lib.parent)
     stages = build_stage_plan(config, host)
     clean_stages = [stage for stage in stages if stage.action == "clean"]
     build_stages = [stage for stage in stages if stage.action != "clean"]
@@ -477,15 +513,15 @@ def execute_full_build(config: FullBuildConfig, host: HostLayout) -> None:
     for stage in clean_stages:
         if stage.component == "compiler":
             with preserve_sibling_sdk(config):
-                _run_stage(config, stage)
+                _run_stage(config, stage, environment=build_environment)
         else:
-            _run_stage(config, stage)
+            _run_stage(config, stage, environment=build_environment)
 
     reset_sdk_output(config)
 
     for stage in build_stages:
-        _run_stage(config, stage)
-        _after_install(config, host, stage)
+        _run_stage(config, stage, environment=build_environment)
+        _after_install(config, host, stage, environment=build_environment)
 
     print("\n== overlay outputs into SDK ==", flush=True)
     for src, dst in sdk_helpers.build_copy_plan(config, host):
@@ -570,8 +606,15 @@ def parse_args_for_mode(
 
 def main_for_mode(gc_mode: GCMode, argv: Sequence[str] | None = None) -> int:
     try:
-        config = parse_args_for_mode(gc_mode, argv)
         host = sdk_helpers.detect_host_layout()
+        raw_argv = list(argv) if argv is not None else sys.argv[1:]
+        if host.os_name == "windows":
+            runtime_output.prepare_windows_build_environment(
+                host,
+                validate_tools="--dry-run" not in raw_argv,
+                install_missing="--dry-run" not in raw_argv,
+            )
+        config = parse_args_for_mode(gc_mode, argv)
         execute_full_build(config, host)
     except subprocess.CalledProcessError as exc:
         print(
@@ -586,5 +629,6 @@ def main_for_mode(gc_mode: GCMode, argv: Sequence[str] | None = None) -> int:
     print("\nBuild completed (no post-build validation was run).", flush=True)
     print(f"GC mode  : {config.gc_mode.output_name}", flush=True)
     print(f"SDK root : {config.sdk_root}", flush=True)
-    print(f"Source   : {config.sdk_root / 'envsetup.sh'}", flush=True)
+    envsetup_name = "envsetup.ps1" if host.os_name == "windows" else "envsetup.sh"
+    print(f"Source   : {config.sdk_root / envsetup_name}", flush=True)
     return 0

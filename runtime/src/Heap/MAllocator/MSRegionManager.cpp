@@ -147,8 +147,11 @@ void MSRegionManager::Initialize(uintptr_t mmapBase, size_t maxVirtualHeapSize)
 #ifdef _WIN64
     // MapMemory reserves address space on Windows. Commit the metadata and the
     // initial heap segment before either range is touched.
-    MemMap::CommitMemory(array_, maxMetadataSize);
-    MemMap::CommitMemory(reinterpret_cast<void*>(heapStart_), committedHeapSize);
+    CHECK_DETAIL(MemMap::CommitMemory(array_, maxMetadataSize),
+                 "[MS-GC] failed to commit region metadata: addr=%p size=%zu", array_, maxMetadataSize);
+    CHECK_DETAIL(MemMap::CommitMemory(reinterpret_cast<void*>(heapStart_), committedHeapSize),
+                 "[MS-GC] failed to commit initial heap: addr=%p size=%zu", reinterpret_cast<void*>(heapStart_),
+                 committedHeapSize);
 #endif
 
     // Zero-initialize MSRegionInfo entries for the initial committed segment only.

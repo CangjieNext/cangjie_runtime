@@ -116,6 +116,7 @@ bool CjHeapData::DumpHeap(int fd)
     int copyfd = dup(fd);
     if (copyfd == -1) {
         LOG(RTLOG_ERROR, "Failed to open heap dump file, stop dumping heap info, %s", strerror(errno));
+        return false;
     }
     fp = fdopen(copyfd, "wb");
     if (fp == nullptr) {

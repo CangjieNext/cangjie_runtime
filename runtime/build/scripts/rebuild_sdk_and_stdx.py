@@ -697,9 +697,16 @@ def resolve_default_openssl_lib(
     env = os.environ if env is None else env
     candidates: list[pathlib.Path] = []
 
-    env_value = env.get("OPENSSL_PATH")
-    if env_value:
-        candidates.append(pathlib.Path(env_value))
+    def add_openssl_path(value: str) -> None:
+        path = pathlib.Path(value).expanduser()
+        candidates.append(path)
+        if path.name.lower() != "lib":
+            candidates.append(path / "lib")
+
+    for env_name in ("OPENSSL_PATH", "OPENSSL_ROOT_DIR"):
+        env_value = env.get(env_name)
+        if env_value:
+            add_openssl_path(env_value)
 
     if system_name == "linux":
         detected_multiarch = multiarch_name or sysconfig.get_config_var("MULTIARCH")
@@ -738,10 +745,19 @@ def resolve_default_openssl_lib(
         gcc = shutil.which("gcc")
         if gcc:
             candidates.append(pathlib.Path(gcc).resolve().parent.parent / "lib")
+        for env_name in ("CANGJIE_MINGW_PATH", "MINGW_PATH", "MSYS2_MINGW64"):
+            value = env.get(env_name)
+            if value:
+                mingw_root = pathlib.Path(value).expanduser()
+                if mingw_root.name.lower() == "bin":
+                    mingw_root = mingw_root.parent
+                candidates.append(mingw_root / "lib")
         candidates.extend(
             [
-                pathlib.Path("C:/msys64/ucrt64/lib"),
+                pathlib.Path("C:/software/msys64/mingw64/lib"),
                 pathlib.Path("C:/msys64/mingw64/lib"),
+                pathlib.Path("C:/software/msys64/ucrt64/lib"),
+                pathlib.Path("C:/msys64/ucrt64/lib"),
             ]
         )
     else:
@@ -755,7 +771,14 @@ def resolve_default_openssl_lib(
         )
 
     for candidate in candidates:
-        if candidate.is_dir():
+        if system_name == "windows":
+            has_openssl = all(
+                (candidate / name).is_file()
+                for name in ("libcrypto.dll.a", "libssl.dll.a")
+            )
+            if candidate.is_dir() and has_openssl:
+                return candidate
+        elif candidate.is_dir():
             return candidate
     raise FileNotFoundError(
         "unable to locate OpenSSL lib dir; set OPENSSL_PATH or pass --openssl-lib"

@@ -50,6 +50,10 @@ Span* PageCache::NewSpan(size_t k)
     Span* bigSpan = new Span;
 
     void* ptr = SystemAlloc(MAX_NPAGES - 1);
+    if (UNLIKELY(ptr == nullptr)) {
+        delete bigSpan;
+        return nullptr;
+    }
 
     bigSpan->pageNum = MAX_NPAGES - 1;
     bigSpan->pageId = reinterpret_cast<pageID>(ptr) >> PAGE_SHIFT;
