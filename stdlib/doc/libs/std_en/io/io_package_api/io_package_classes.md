@@ -1452,7 +1452,7 @@ Function: Expands the buffer by the specified size.
 > **Note:**
 >
 > - No expansion occurs when the remaining bytes in the buffer are greater than or equal to `additional`.
-> - When the remaining bytes in the buffer are less than `additional`, the buffer is expanded to the greater of the number of bytes already used plus `additional` and 1.5 times `capacity` (rounded down).
+> - When the remaining bytes in the buffer are less than `additional`, the buffer is expanded to the maximum value between (`additional` + `capacity`) and (1.5 times `capacity` rounded down).
 
 Parameters:
 
@@ -1491,7 +1491,7 @@ main(): Unit {
 
     /* Attempt to expand, causing capacity to exceed Int64 maximum value */
     try {
-        buffer.reserve(Int64.Max)
+        buffer.reserve(Int64.Max - buffer.capacity + 1)
     } catch (e: OverflowException) {
         println("Error: " + e.message)
     }

@@ -188,7 +188,7 @@ public class ByteBuffer <: IOStream & Seekable {
         let size = myData.size
 
         if (length > size) {
-            grow(length)
+            reserve(length - size)
         } else {
             myData[length..size].fill(0)
             if (start > length) {
@@ -221,7 +221,7 @@ public class ByteBuffer <: IOStream & Seekable {
         }
 
         let growSize = if (_length >= 0) {
-            checkGrowSize(checkGrowSize(start, _length), additional)
+            checkGrowSize(myData.size, additional)
         } else {
             checkGrowSize(this.start, additional)
         }

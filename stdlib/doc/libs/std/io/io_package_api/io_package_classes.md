@@ -1886,7 +1886,7 @@ public func reserve(additional: Int64): Unit
 > - 若当前剩余容量 ≥ additional，不进行扩容，直接返回。
 > - 若当前剩余容量 < additional，则按以下两者计算最大者执行扩容：
 >     - 1.原始容量的 1.5 倍（结果向下取整）
->     - 2.已使用容量 + additional。
+>     - 2.原始容量 + additional。
 
 参数：
 
@@ -1925,7 +1925,7 @@ main(): Unit {
 
     /* 尝试扩容，导致容量超过 Int64 最大值 */
     try {
-        buffer.reserve(Int64.Max)
+        buffer.reserve(Int64.Max - buffer.capacity + 1)
     } catch (e: OverflowException) {
         println("Error: " + e.message)
     }
