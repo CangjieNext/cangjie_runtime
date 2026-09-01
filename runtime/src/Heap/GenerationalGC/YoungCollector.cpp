@@ -249,6 +249,10 @@ BaseObject* YoungCollector::FindToVersion(BaseObject* obj) const
     if (!fromRegion->IsPromoted0()) {
         return WCollector::FindToVersion(obj, fromRegion);
     }
+    // This may be optimized, since we can ensure that the region is promoted in most situations.
+    MixedRegionSpace& space = static_cast<MixedRegionSpace&>(theAllocator);
+    MixedRegionManager& manager = MixedRegionSpace::CastDown(space.GetRegionManager());
+    manager.RoutePromoteRegion(fromRegion);
 
     ObjectForwardingTable* fwdTable = fromRegion->GetForwardingTable();
     if (fwdTable == nullptr) {

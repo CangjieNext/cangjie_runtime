@@ -224,7 +224,7 @@ MAddress GenerationAllocBuffer::AllocateOldOnNewRegion(MixedRegionManager &manag
     RegionInfo* r = manager.AllocateThreadLocalRegion();
     CJThreadPreemptOffCntSub();
     if (UNLIKELY(r == nullptr)) {
-        LOG(RTLOG_FATAL, "promote object failed");
+        DLOG(PROMOTE, "promote object failed");
         return 0;
     }
     r->SetOldRegionFlag(1);
@@ -238,6 +238,7 @@ MAddress GenerationAllocBuffer::AllocateOldOnNewRegion(MixedRegionManager &manag
         manager.ReclaimRegion(r);
         return addr;
     }
+    manager.RemoveThreadLocalRegion(oldAllocRegion);
     manager.EnlistOldRegionList(oldAllocRegion);
     oldAllocRegion = r;
     return r->Alloc(totalSize);
