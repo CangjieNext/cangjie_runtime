@@ -56,8 +56,8 @@ if (BUILD_RUNTIME)
         "arch/x86_64_macos/StackGrowStub.S"
         "arch/x86_64_macos/HandleSafepointStub.S"
         "arch/x86_64_macos/ExclusiveScope.S"
-        "os/Macos/Loader.cpp"
-        "os/Macos/Path.cpp"
+        "os/macOS/Loader.cpp"
+        "os/macOS/Path.cpp"
     )
 elseif ((CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64" AND IOS_FLAG MATCHES 1) OR IOS_SIMULATOR_FLAG MATCHES 2)
     set(SRC_LIST
@@ -80,8 +80,8 @@ elseif ((CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64" AND IOS_FLAG MATCHES 1) OR IOS_
         "arch/x86_64_ios/I2NStub.S"
         "arch/x86_64_ios/HandleSafepointStub.S"
         "arch/x86_64_ios/ExclusiveScope.S"
-        "Os/Linux/Loader.cpp"
-        "Os/Linux/Path.cpp"
+        "os/macOS/Loader.cpp"
+        "os/macOS/Path.cpp"
     )
 elseif ((CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64") AND (WINDOWS_FLAG MATCHES 0) AND (IOS_FLAG MATCHES 0) AND (IOS_SIMULATOR_FLAG MATCHES 0))
     set(SRC_LIST
@@ -127,8 +127,8 @@ elseif ((CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64") AND (MACOS_FLAG MATCHES 1))
         "arch/aarch64_macos/StackGrowStub.S"
         "arch/aarch64_macos/HandleSafepointStub.S"
         "arch/aarch64_macos/ExclusiveScope.S"
-        "os/Macos/Loader.cpp"
-        "os/Macos/Path.cpp"
+        "os/macOS/Loader.cpp"
+        "os/macOS/Path.cpp"
     )
 elseif ((IOS_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MATCHES 1) AND (CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64"))
     set(SRC_LIST
@@ -151,8 +151,8 @@ elseif ((IOS_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MATCHES 1) AND (CMAKE_SYSTEM_P
         "arch/aarch64_ios/I2NStub.S"
         "arch/aarch64_ios/HandleSafepointStub.S"
         "arch/aarch64_ios/ExclusiveScope.S"
-        "Os/Linux/Loader.cpp"
-        "Os/Linux/Path.cpp"
+        "os/macOS/Loader.cpp"
+        "os/macOS/Path.cpp"
     )
 elseif ((CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64") AND (WINDOWS_FLAG MATCHES 0))
     set(SRC_LIST
