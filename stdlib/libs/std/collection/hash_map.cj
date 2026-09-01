@@ -467,7 +467,7 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
         buckets = Array<Int64>(DEFAULT_CAPACITY, repeat: -1)
         entries = Array<HashMapEntry<K, V>>(
             DEFAULT_CAPACITY,
-            repeat: HashMapEntry<K, V>()
+            repeat: HashMapEntry<K, V>() @local!
         )
     }
 
@@ -654,7 +654,7 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
             if (hash == entries[entryIndex].hash && key == entries[entryIndex].key) {
                 let oldValue: Option<V> @local! = Option<V>.Some(entries[entryIndex].value) @local!
                 entries[entryIndex] = HashMapEntry<K, V>(entries[entryIndex].hash, entries[entryIndex].next,
-                    entries[entryIndex].key, value)
+                    entries[entryIndex].key, value) @local!
                 return oldValue
             }
             entryIndex = entries[entryIndex].next
@@ -671,7 +671,7 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
             appendIndex++
         }
 
-        entries[entryIndex] = HashMapEntry<K, V>(hash, buckets[bucketIndex], key, value)
+        entries[entryIndex] = HashMapEntry<K, V>(hash, buckets[bucketIndex], key, value) @local!
         modCount++
         buckets[bucketIndex] = entryIndex
         return Option<V>.None
@@ -1392,7 +1392,7 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
                 if (entries[i].hash >= 0) {
                     let bucket: Int64 = getIndex(entries[i].hash, newCapOfBuckets)
                     entries[i] = HashMapEntry<K, V>(entries[i].hash, newBuckets[bucket], entries[i].key,
-                        entries[i].value)
+                        entries[i].value) @local!
                     newBuckets[bucket] = i
                 }
             }
@@ -1404,7 +1404,7 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
             let newCapOfEntries = max(oldEntriesSize + (oldEntriesSize >> 1), argCap)
             let newEntries = Array<HashMapEntry<K, V>>(
                 newCapOfEntries,
-                repeat: HashMapEntry<K, V>()
+                repeat: HashMapEntry<K, V>() @local!
             ) @local!
             entries.copyTo(newEntries, 0, 0, oldEntriesSize)
             entries = newEntries

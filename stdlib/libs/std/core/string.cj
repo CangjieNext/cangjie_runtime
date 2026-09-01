@@ -1517,7 +1517,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
 
     @Frozen
     private exclave func sliceUnchecked(this @local?, startIndex: Int64, len: Int64): String @local? {
-        String(Array<Byte>(myData, Int64(this.start) + startIndex, len))
+        String(Array<Byte>(myData, Int64(this.start) + startIndex, len) @local?)
     }
 
     /**
