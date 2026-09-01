@@ -346,6 +346,10 @@ void RegionList::PrependRegionLocked(RegionInfo* region, RegionInfo::RegionType 
         return;
     }
 
+    CHECK_DETAIL(region->GetPrevRegion() == nullptr && region->GetNextRegion() == nullptr,
+                 "prepend linked region %p to %s: prev %p, next %p", region, listName,
+                 region->GetPrevRegion(), region->GetNextRegion());
+
     DLOG(REGION, "list %p (%zu, %zu)+(%zu, %zu) prepend region %p@[%#zx+%zu, %#zx) type %u->%u", this,
         regionCount, unitCount, 1llu, region->GetUnitCount(), region, region->GetRegionStart(),
         region->GetRegionAllocatedSize(), region->GetRegionEnd(), region->GetRegionType(), type);

@@ -44,7 +44,8 @@ public:
 
     }
     size_t ClassifyYoungRegions();
-    bool PromoteRegion(RegionInfo* fromRegion);
+    bool RoutePromoteRegion(RegionInfo* fromRegion);
+    void PromoteRegion(RegionInfo* fromRegion);
     void ForwardFromSpace(GCThreadPool* threadPool) override;
     void EnlistOldRegionList(RegionInfo* region) noexcept
     {
@@ -239,13 +240,14 @@ private:
     static size_t GetFreeSlotTotalSize(const RegionList& list)
     {
         size_t total = 0;
+        std::lock_guard<std::mutex> lock(const_cast<RegionList&>(list).GetListMutex());
         for (RegionInfo* region = list.GetHeadRegion(); region != nullptr; region = region->GetNextRegion()) {
             total += region->GetTotalSlotSize();
         }
         return total;
     }
     static constexpr uint8_t PROMOTE_AGE = 3;
-    void PromoteRegionImpl(RegionInfo* fromRegion);
+    bool PromoteRegionImpl(RegionInfo* fromRegion);
     // TODO: parameters tuning.
     bool ShouldSplit(size_t unitCount) const
     {

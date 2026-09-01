@@ -89,6 +89,9 @@ size_t MixedRegionManager::ClassifyYoungRegions()
     auto promoteSweepVisitor = [this](RegionInfo* region) {
         long rawPtrCnt = region->GetRawPointerObjectCount();
         region->ClearGhostRegionBit();
+        // If the region route kind is sweepable region, it may lead to promotion infomation deleted
+        // when the region is rebuilt as free region.
+        region->ClearFreeSlotList();
         if (rawPtrCnt == 0 && region->IsPromoted()) {
             RemoveRegionLocked(&sweepableYoungRegionList, region);
             recentFullRegionList.PrependRegion(region, RegionInfo::RegionType::RECENT_FULL_REGION);
@@ -141,7 +144,7 @@ public:
     {
         constexpr size_t BATCH = 10;
         for (size_t i = 0; i < BATCH; i++) {
-            RegionInfo* region = promoteRegionList.TakeHeadRegion();
+            RegionInfo* region = promoteRegionList.TakeHeadRegion(RegionInfo::RegionType::LONE_FROM_REGION);
             if (region == nullptr) {
                 return;
             }
@@ -156,12 +159,15 @@ private:
     GCThreadPool* threadPool;
 };
 
-bool MixedRegionManager::PromoteRegion(RegionInfo* fromRegion)
+bool MixedRegionManager::RoutePromoteRegion(RegionInfo* fromRegion)
 {
     do {
         RegionInfo::RouteState oldState = fromRegion->GetRouteState();
         if (oldState == RegionInfo::RouteState::PROMOTED) {
             return true;
+        }
+        if (oldState == RegionInfo::RouteState::HALF_PROMOTED) {
+            return false;
         }
         if (oldState == RegionInfo::RouteState::ROUTED || oldState == RegionInfo::RouteState::COMPACTED) {
             LOG(RTLOG_FATAL, "promote a wrong from region");
@@ -171,14 +177,30 @@ bool MixedRegionManager::PromoteRegion(RegionInfo* fromRegion)
             continue;
         }
         if (fromRegion->TryLockRouting(oldState)) {
-            PromoteRegionImpl(fromRegion);
-            fromRegion->SetRouteState(RegionInfo::RouteState::PROMOTED);
-            return true;
+            auto ret = PromoteRegionImpl(fromRegion);
+            if (ret) {
+                fromRegion->SetRouteState(RegionInfo::RouteState::PROMOTED);
+            } else {
+                fromRegion->SetRouteState(RegionInfo::RouteState::HALF_PROMOTED);
+            }
+            return ret;
         }
     } while (true);
 }
 
-void MixedRegionManager::PromoteRegionImpl(RegionInfo* fromRegion)
+void MixedRegionManager::PromoteRegion(RegionInfo* fromRegion)
+{
+    if (RoutePromoteRegion(fromRegion)) {
+        DLOG(PROMOTE, "collect promoted region %p: [%p, %p)", fromRegion, fromRegion->GetRegionStart(), fromRegion->GetRegionEnd());
+        CollectRegion(fromRegion);
+        // fromRegion->SetRegionType(RegionInfo::RegionType::RECENT_FULL_REGION);
+    } else {
+        DLOG(PROMOTE, "reactivate promoted region %p: [%p, %p)", fromRegion, fromRegion->GetRegionStart(), fromRegion->GetRegionEnd());
+        recentFullRegionList.PrependRegion(fromRegion, RegionInfo::RegionType::RECENT_FULL_REGION);
+    }
+}
+
+bool MixedRegionManager::PromoteRegionImpl(RegionInfo* fromRegion)
 {
     CHECK(fromRegion->IsRoutingState());
     DLOG(PROMOTE, "promote region %p [%p, %p]", fromRegion, fromRegion->GetRegionStart(), fromRegion->GetRegionEnd());
@@ -188,7 +210,8 @@ void MixedRegionManager::PromoteRegionImpl(RegionInfo* fromRegion)
         fwdTable = new ObjectForwardingTable();
         fromRegion->SetForwardingTable(fwdTable);
     }
-    fromRegion->VisitLiveObjectsUntilFalse([fromRegion, &collector, &fwdTable](BaseObject* currentObj) {
+    bool promoteAll = true;
+    fromRegion->VisitLiveObjectsUntilFalse([fromRegion, &collector, &fwdTable, &promoteAll](BaseObject* currentObj) {
         StateWord oldWord = currentObj->GetStateWord();
         if (currentObj->IsForwarded()) {
             return true;
@@ -202,8 +225,17 @@ void MixedRegionManager::PromoteRegionImpl(RegionInfo* fromRegion)
         size_t allocSize = RegionSpace::GetAllocSize(*currentObj);
         bool needPromote = age >= PROMOTE_AGE;
         MAddress toAddress = needPromote ? buffer->AllocateOld(allocSize) : buffer->AllocateYoung(allocSize);
+        if (toAddress == 0) {
+            BaseObject* toObj = currentObj;
+            toObj->SetStateCode(ObjectState::NORMAL);
+            fwdTable->SetForwardingAddr(currentObj, toObj);
+            promoteAll = false;
+            DLOG(PROMOTE, "promote obj %p<%p>(%zu) to self %p", currentObj, currentObj->GetTypeInfo(), allocSize,
+                toObj);
+            return true;
+        }
         BaseObject* toObj = reinterpret_cast<BaseObject*>(toAddress);
-        DLOG(FORWARD, "promote obj %s %p<%p>(%zu) to %s %p", currentObj, currentObj->GetTypeInfo(), allocSize,
+        DLOG(PROMOTE, "promote obj %p<%p>(%zu) to %s %p", currentObj, currentObj->GetTypeInfo(), allocSize,
              needPromote ? "to old" : "to young", toObj);
         collector.CopyObject(*currentObj, *toObj, allocSize);
         toObj->SetStateCode(ObjectState::NORMAL);
@@ -241,7 +273,10 @@ void MixedRegionManager::PromoteRegionImpl(RegionInfo* fromRegion)
         fwdTable->SetForwardingAddr(currentObj, toObj);
         return true;
     });
-
+    if (!promoteAll) {
+        fromRegion->SetRegionType(RegionInfo::RegionType::RECENT_FULL_REGION);
+    }
+    return promoteAll;
 }
 
 void MixedRegionManager::ForwardFromSpace(GCThreadPool* threadPool)
@@ -249,7 +284,7 @@ void MixedRegionManager::ForwardFromSpace(GCThreadPool* threadPool)
     if (threadPool == nullptr) {
         ForwardFromRegions();
         while (true) {
-            RegionInfo* region = promoteRegionList.TakeHeadRegion();
+            RegionInfo* region = promoteRegionList.TakeHeadRegion(RegionInfo::RegionType::LONE_FROM_REGION);
             if (region == nullptr) {
                 break;
             }
@@ -265,7 +300,9 @@ void MixedRegionManager::ForwardFromSpace(GCThreadPool* threadPool)
     Heap::GetHeap().GetAllocator().VisitAllocBuffers([this](AllocBuffer& buffer) {
         RegionInfo* oldRegion = static_cast<GenerationAllocBuffer&>(buffer).TakeOldAllocRegion();
         if (oldRegion != nullptr && oldRegion != RegionInfo::NullRegion()) {
+            RemoveThreadLocalRegion(oldRegion);
             EnlistOldRegionList(oldRegion);
+            oldRegion = RegionInfo::NullRegion();
         }
     });
 }
@@ -279,7 +316,7 @@ bool MixedRegionManager::IsYoungSpaceHeavy() const
 BaseObject* MixedRegionManager::PromoteObject(BaseObject* fromObj, RegionInfo* fromRegion)
 {
     CHECK(fromRegion->IsPromoted0());
-    PromoteRegion(fromRegion);
+    RoutePromoteRegion(fromRegion);
     ObjectForwardingTable* fwdTable = fromRegion->GetForwardingTable();
     return fwdTable->GetRoute(fromObj);
 }

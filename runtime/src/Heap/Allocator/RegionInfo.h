@@ -85,6 +85,7 @@ public:
         COMPACTED,
         FORWARDED,
         PROMOTED,
+        HALF_PROMOTED,
     };
 
     static const size_t UNIT_SIZE; // same as system page size
