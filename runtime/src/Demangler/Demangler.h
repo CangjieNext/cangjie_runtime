@@ -8,14 +8,16 @@
 #ifndef CANGJIE_DEMANGLER_H
 #define CANGJIE_DEMANGLER_H
 
-#include <array>
 #ifndef BUILD_LIB_CANGJIE_DEMANGLE
+#include "Base/CString.h"
+#else
+#include <string>
 #include <vector>
 #endif
+#include <array>
 #include <functional>
 #include <cassert>
-
-#include "Base/CString.h"
+#include <cstdint>
 
 namespace Cangjie {
 
@@ -280,7 +282,7 @@ private:
     bool IsQualifiedType() const;
     bool IsDecl() const;
     bool IsNotEndOfMangledName() const;
-    bool MatchForward(const char pattern[], uint32_t len) const;
+    bool MatchForward(const char pattern[], size_t len) const;
 
     /**
      * @brief Get the current character without incrementing `currentIndex`.
