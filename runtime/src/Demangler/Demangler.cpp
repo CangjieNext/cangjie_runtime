@@ -4,7 +4,7 @@
 //
 // See https://cangjie-lang.cn/pages/LICENSE for license information.
 
-
+#include "Demangler.h"
 #ifdef BUILD_LIB_CANGJIE_DEMANGLE // to reuse the code to compile CangjieDemangle.cpp
 #include <cstring>
 #include <string>
@@ -15,7 +15,6 @@
 #endif
 #include "DeCompression.h"
 #include "Utils.h"
-#include "Demangler.h"
 
 namespace {
 constexpr char MANGLE_TUPLE_PREFIX = 'T';
@@ -183,9 +182,9 @@ T ReplaceString(T str, const char* pattern, const char* replacement)
     auto pos = str.Find(pattern);
     auto n = str.Length();
     auto pLen = strlen(pattern);
-    while (pos > -1 && n - pos - pLen > 0) {
+    while (pos > -1 && n - static_cast<size_t>(pos) - pLen > 0) {
         n = str.Length();
-        str = str.SubStr(0, pos) + replacement + str.SubStr(pos + pLen, n - pos - pLen);
+        str = str.SubStr(0, pos) + replacement + str.SubStr(pos + pLen, n - static_cast<size_t>(pos) - pLen);
         pos = str.Find(pattern);
     }
     return str;
@@ -355,7 +354,7 @@ bool Demangler<T>::IsDecl() const
 }
 
 template<typename T>
-void Demangler<T>::ErrorLog(const char* msg) const
+void Demangler<T>::ErrorLog([[maybe_unused]] const char* msg) const
 {
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1) && !defined(BUILD_LIB_CANGJIE_DEMANGLE)
     PRINT_ERROR("'%s' is not a valid mangling name.\n ", mangledName.Str());
@@ -368,7 +367,7 @@ void Demangler<T>::ErrorLog(const char* msg) const
 }
 
 template<typename T>
-bool Demangler<T>::MatchForward(const char pattern[], uint32_t len) const
+bool Demangler<T>::MatchForward(const char pattern[], size_t len) const
 {
     auto maxLen = mangledName.Length() - currentIndex;
     len = len > maxLen ? maxLen : len;
@@ -717,8 +716,8 @@ DemangleInfo<T> Demangler<T>::DemanglePackageName()
     if (pkg.IsEmpty()) {
         pkg = DemangleStringName();
         auto pos = pkg.Find(':');
-        if (pos > -1 && pkg.Length() - pos > 0) {
-            pkg = pkg.SubStr(0, pos) + T{':'} + pkg.SubStr(pos, pkg.Length() - pos);
+        if (pos > -1 && pkg.Length() - static_cast<size_t>(pos) > 1) {
+            pkg = pkg.SubStr(0, pos) + T{':'} + pkg.SubStr(pos, pkg.Length() - static_cast<size_t>(pos));
         }
     }
     if (IsFileName()) {
@@ -1061,7 +1060,8 @@ DemangleInfo<T> Demangler<T>::DemangleNestedDecls(bool isClass, bool isParamInit
         }
         lastElement = curDi;
     }
-    result += GetArgTypesFullName(argsArr, i % (MAX_ARGS_SIZE + 1), delimiter);
+    uint32_t remainingLength = i == 0 ? 0 : ((i - 1) % MAX_ARGS_SIZE) + 1;
+    result += GetArgTypesFullName(argsArr, remainingLength, delimiter);
     DemangleInfo<T> resDi = { result, typeKind, isValid };
     resDi.functionParameterTypes = lastElement.functionParameterTypes;
     return resDi;
@@ -1132,7 +1132,7 @@ DemangleInfo<T> Demangler<T>::DemangleVArray()
 {
     DemangleInfo<T> di{ MANGLE_VARRAY_STR, TypeKind::TUPLE };
     SkipChar(MANGLE_VARRAY_PREFIX);
-    uint32_t num = DemangleManglingNumber();
+    uint32_t num = static_cast<uint32_t>(DemangleManglingNumber());
     di.genericTypes = DemangleGenericTypes().GetFullName(scopeResolution, num);
     return di;
 }
@@ -1164,7 +1164,7 @@ DemangleInfo<T> Demangler<T>::DemangleCommonDecl(bool isClass)
     auto pkgDi = DemanglePackageName();
     di.pkgName = pkgDi.pkgName;
     di.isPrivateDeclaration = pkgDi.isPrivateDeclaration;
-    
+
     // Take the part before E as identifier and concatenate with scope resolution.
     DemangleInfo<T> nestedDi = DemangleNestedDecls(isClass);
     di.demangled = nestedDi.demangled;
@@ -1381,7 +1381,7 @@ DemangleInfo<T> Demangler<T>::DemangleWrappedFunction()
     mangledName = T(MANGLE_CANGJIE_PREFIX) + mangledName.SubStr(prefixIndex, endIndex - prefixIndex);
     auto di = DemangleDecl();
     di.demangled += WRAPPED_FUNCTION_SUFFIX_INFO;
-    di.type = TypeKind::WRAPPED_FUNCTION;  
+    di.type = TypeKind::WRAPPED_FUNCTION;
     return di;
 }
 
