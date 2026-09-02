@@ -307,6 +307,7 @@ public:
     GCStats& GetGCStats() override { return collectorResources.GetGCStats(); }
 
     virtual void UpdateGCStats();
+    virtual size_t GetPacingThreshold() { return GetGCStats().GetThreshold(); }
     virtual uint16_t GetCurrentTagID() { std::abort(); }
 
     static const size_t MAX_MARKING_WORK_SIZE;

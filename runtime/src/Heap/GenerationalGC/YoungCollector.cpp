@@ -313,7 +313,10 @@ void YoungCollector::UpdateGCStats()
     const size_t predicted = static_cast<size_t>(stats.RefreshAllocationSpeed(TimeUtil::NanoSeconds()) *
                                                   static_cast<double>(CangjieRuntime::GetGCParam().gcInterval));
     const size_t headroom = maxThreshold > used ? maxThreshold - used : 0;
+    const size_t oldThreshold = stats.GetYoungThreshold();
     stats.SetYoungThreshold(used + std::min(predicted, headroom));
+    VLOG(REPORT, "young used size %zu, update young threshold %zu -> %zu", used, oldThreshold,
+         stats.GetYoungThreshold());
 }
 
 void YoungCollector::RefineFromSpace()

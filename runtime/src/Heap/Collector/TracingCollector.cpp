@@ -654,7 +654,7 @@ void TracingCollector::PreGarbageCollection(bool isConcurrent)
 {
     VLOG(REPORT, "Begin GC log. GCReason: %s, Current allocated %s, Current threshold %s, current tag %u",
          g_gcRequests[gcReason].name, Pretty(Heap::GetHeap().GetAllocatedSize()).Str(),
-         Pretty(Heap::GetHeap().GetCollector().GetGCStats().GetThreshold()).Str(), GetCurrentTagID());
+         Pretty(GetPacingThreshold()).Str(), GetCurrentTagID());
 
     // SatbBuffer should be initialized before concurrent enumeration.
     SatbBuffer::Instance().Init();

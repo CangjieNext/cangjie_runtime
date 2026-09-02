@@ -35,6 +35,10 @@ protected:
     void AssembleCandidates() override;
     void ConcurrentSweep() override;
     void UpdateGCStats() override;
+    size_t GetPacingThreshold() override
+    {
+        return static_cast<GenerationalGCStats&>(GetGCStats()).GetMixedThreshold();
+    }
 };
 
 } // namespace MapleRuntime

@@ -33,7 +33,10 @@ void MixedCollector::UpdateGCStats()
     const size_t predicted = static_cast<size_t>(stats.RefreshAllocationSpeed(TimeUtil::NanoSeconds()) *
                                                   static_cast<double>(CangjieRuntime::GetGCParam().gcInterval));
     const size_t headroom = maxThreshold > used ? maxThreshold - used : 0;
+    const size_t oldThreshold = stats.GetMixedThreshold();
     stats.SetMixedThreshold(used + std::min(predicted, headroom));
+    VLOG(REPORT, "all used size %zu, update mixed threshold %zu -> %zu", used, oldThreshold,
+         stats.GetMixedThreshold());
 }
 
 void MixedCollector::DoGarbageCollection()
