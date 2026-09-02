@@ -66,7 +66,7 @@ void YoungCollector::Preforward()
     threadPool->AddWork(new (std::nothrow) LambdaWork([this](size_t) { PreforwardDiscoveredExternObjects(); }));
     threadPool->AddWork(new (std::nothrow) LambdaWork([this](size_t) { PreforwardAllResurrectExportFromObjects(); }));
     // This may be not necessary.
-    threadPool->AddWork(new (std::nothrow) LambdaWork([this](size_t) { PreforwardRememberedRoots(); }));
+    // threadPool->AddWork(new (std::nothrow) LambdaWork([this](size_t) { PreforwardRememberedRoots(); }));
     threadPool->Start();
     threadPool->WaitFinish();
 }
@@ -276,10 +276,10 @@ void YoungCollector::EnumRememberedRoots(RootSet& rootSet) const
 
 void YoungCollector::PreforwardRememberedRoots()
 {
-    RememberSet::Instance().VisitRememberedSlots([this](uintptr_t slotAddr) {
-        auto* field = reinterpret_cast<ObjectRef*>(slotAddr);
-        ForwardUpdateRawRef(*field);
-    });
+    // RememberSet::Instance().VisitRememberedSlots([this](uintptr_t slotAddr) {
+    //     auto* field = reinterpret_cast<ObjectRef*>(slotAddr);
+    //     ForwardUpdateRawRef(*field);
+    // });
 }
 
 void YoungCollector::EnumAllCommonRoots(GCThreadPool* threadPool, RootSet& rootSet)
