@@ -103,7 +103,7 @@ void YoungCollector::EnumRefFieldRoot(RefField<>& field, RootSet& rootSet) const
         BaseObject* targetObj = oldField.GetTargetObject();
         latest = FindLatestVersion(targetObj);
     } else {
-        latest = field.GetTargetObject();
+        latest = oldField.GetTargetObject();
     }
 
     // The target could be null or non-heap for some static variable. Check the
