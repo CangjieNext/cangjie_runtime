@@ -13,12 +13,12 @@ namespace MapleRuntime {
 
 class MixedRegionManager : public RegionManager {
 public:
-    MixedRegionManager() : RegionManager(), sweptYoungRegionList("swept young region list"),
-        sweepableYoungRegionList("sweepable young region list"), oldSweptRegionList("old swept region list"),
-        sweepableOldRegionList("sweepable old region list"), oldRegionList("old region list"),
+    MixedRegionManager() : RegionManager(), sweepableYoungRegionList("sweepable young region list"),
+        sweepableOldRegionList("sweepable old region list"), sweptYoungRegionList("swept young region list"),
+        oldSweptRegionList("old swept region list"), oldRegionList("old region list"),
         oldFromRegionList("old from region list"), ghostOldFromRegionList("ghost old from region list"),
         promoteRegionList("promote region list"), ghostPromoteRegionList("ghost promote region list") {}
-    ~MixedRegionManager() = default;
+    ~MixedRegionManager() override = default;
     void AssembleYoungRegions()
     {
         size_t unitCount = recentFullRegionList.GetUnitCount();

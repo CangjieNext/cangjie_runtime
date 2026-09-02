@@ -22,7 +22,7 @@ void MixedRegionManager::DumpRegionStats(const char* msg, bool dumpToError) cons
 {
     RegionManager::DumpRegionStats(msg, dumpToError);
 
-    auto dumpListStats = [this, dumpToError](const char* name, const RegionList& list, bool dumpFreeSlotSize) {
+    auto dumpListStats = [dumpToError](const char* name, const RegionList& list, bool dumpFreeSlotSize) {
         size_t regions = list.GetRegionCount();
         size_t units = list.GetUnitCount();
         size_t size = units * RegionInfo::UNIT_SIZE;

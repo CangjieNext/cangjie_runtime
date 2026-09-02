@@ -144,7 +144,7 @@ public:
 
     uintptr_t GetRegionHeapStart() const { return regionHeapStart; }
 
-    ~RegionManager() = default;
+    virtual ~RegionManager() = default;
 
     // take a region with *num* units for allocation
     RegionInfo* TakeRegion(size_t num, RegionInfo::UnitRole, bool expectPhysicalMem = false);
