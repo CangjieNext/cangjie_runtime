@@ -118,6 +118,41 @@ public:
     size_t ForwardPackageName(T& mangled, size_t& cnt, size_t idx);
 
     /**
+     * @brief Forward the compound type encodes: class ('CN'/'RN'/'NN'),
+     * function (F0/FC), tuple ('T'), C pointer ('P'), array ('A'/'V') and generic ('G').
+     *
+     * @param mangled The name needs to decompress.
+     * @param cnt Record the number of new elements added to the treeIdMap.
+     * @param ch The mangled prefix character of the type.
+     * @param idx The start index of the demangled name.
+     * @return size_t The end index of the demangled name, or idx when the encode is unknown.
+     */
+    size_t ForwardCompoundType(T& mangled, size_t& cnt, char ch, size_t idx);
+
+    /**
+     * @brief Forward the compressed type reference, Y<number>. The reference is replaced
+     * by the span recorded in treeIdMap, and no span is recorded for the reference itself.
+     *
+     * @param mangled The name needs to decompress.
+     * @param cnt Record the number of new elements added to the treeIdMap.
+     * @param curCnt The treeIdMap count captured before the type was recorded.
+     * @param idx The start index of the demangled name.
+     * @return size_t The end index of the demangled name.
+     */
+    size_t ForwardCompressedType(T& mangled, size_t& cnt, size_t curCnt, size_t idx);
+
+    /**
+     * @brief Pop the placeholder record pushed for the current type and return the
+     * forwarding result. Used by the encodes that record no span, e.g. 'k' and primitives.
+     *
+     * @param cnt Record the number of new elements added to the treeIdMap.
+     * @param curCnt The treeIdMap count captured before the type was recorded.
+     * @param nextIdx The end index of the demangled name.
+     * @return size_t The end index passed in nextIdx.
+     */
+    size_t PopRecordedType(size_t& cnt, size_t curCnt, size_t nextIdx);
+
+    /**
      * @brief Get the index at the end of the type.
      *
      * @param mangled The name needs to decompress.
