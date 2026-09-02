@@ -16,7 +16,7 @@ class GenerationEnumBarrier : public EnumBarrier {
 public:
     explicit GenerationEnumBarrier(Collector& collector) : EnumBarrier(collector) {}
 
-    void WriteReference(BaseObject* obj, RefField<false>& field, BaseObject* ref) const;
+    void WriteReference(BaseObject* obj, RefField<false>& field, BaseObject* ref) const override;
 
     void WriteStruct(BaseObject* obj, MAddress dst, size_t dstLen, MAddress src, size_t srcLen) const override;
     void AtomicWriteReference(BaseObject* obj, RefField<true>& field, BaseObject* ref, MemoryOrder order) const override;
