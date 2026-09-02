@@ -22,6 +22,20 @@ void MixedCollector::ProcessFinalizers()
     fp.Notify();
 }
 
+void MixedCollector::UpdateGCStats()
+{
+    GenerationalGCStats& stats = static_cast<GenerationalGCStats&>(GetGCStats());
+    stats.Dump();
+    MixedRegionSpace& space = static_cast<MixedRegionSpace&>(theAllocator);
+    MixedRegionManager& manager = MixedRegionSpace::CastDown(space.GetRegionManager());
+    const size_t maxThreshold = theAllocator.GetMaxCapacity() * 2 / 3;
+    const size_t used = manager.GetUsedRegionSize();
+    const size_t predicted = static_cast<size_t>(stats.RefreshAllocationSpeed(TimeUtil::NanoSeconds()) *
+                                                  static_cast<double>(CangjieRuntime::GetGCParam().gcInterval));
+    const size_t headroom = maxThreshold > used ? maxThreshold - used : 0;
+    stats.SetMixedThreshold(used + std::min(predicted, headroom));
+}
+
 void MixedCollector::DoGarbageCollection()
 {
     TraceHeap();

@@ -34,6 +34,7 @@ protected:
     bool IsTargetRegion(const RegionInfo*) const override { return true; }
     void AssembleCandidates() override;
     void ConcurrentSweep() override;
+    void UpdateGCStats() override;
 };
 
 } // namespace MapleRuntime

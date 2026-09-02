@@ -44,6 +44,7 @@ void CollectorProxy::RunGarbageCollection(uint64_t gcIndex, GCReason reason)
                 currentCollector = &youngCollector;
                 break;
             case GC_REASON_BACKUP:
+            case GC_REASON_MIXED:
                 currentCollector = &mixedCollector;
                 break;
             case GC_REASON_OOM:

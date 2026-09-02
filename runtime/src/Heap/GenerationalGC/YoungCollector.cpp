@@ -300,6 +300,22 @@ void YoungCollector::TagPromoteRegion(RegionInfo* regionInfo) const
     regionInfo->SetPromotedFlag(1);
 }
 
+void YoungCollector::UpdateGCStats()
+{
+    GenerationalGCStats& stats = static_cast<GenerationalGCStats&>(GetGCStats());
+    stats.Dump();
+    MixedRegionSpace& space = static_cast<MixedRegionSpace&>(theAllocator);
+    MixedRegionManager& manager = MixedRegionSpace::CastDown(space.GetRegionManager());
+    const size_t maxCapacity = theAllocator.GetMaxCapacity();
+    const size_t youngCapacity = std::min(maxCapacity / 3, static_cast<size_t>(256 * MB));
+    const size_t maxThreshold = youngCapacity * 2 / 3;
+    const size_t used = manager.GetYoungUsedSize();
+    const size_t predicted = static_cast<size_t>(stats.RefreshAllocationSpeed(TimeUtil::NanoSeconds()) *
+                                                  static_cast<double>(CangjieRuntime::GetGCParam().gcInterval));
+    const size_t headroom = maxThreshold > used ? maxThreshold - used : 0;
+    stats.SetYoungThreshold(used + std::min(predicted, headroom));
+}
+
 void YoungCollector::RefineFromSpace()
 {
     GCStats& stats = GetGCStats();

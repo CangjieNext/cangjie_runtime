@@ -59,6 +59,7 @@ protected:
     }
     bool ShouldPromote(uint8_t age) const;
     void TagPromoteRegion(RegionInfo* regionInfo) const;
+    void UpdateGCStats() override;
 
 private:
     static constexpr uint8_t OLD_AGE = 3;

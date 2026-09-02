@@ -48,6 +48,38 @@ void GCStats::Init()
     heapThreshold = std::min(static_cast<size_t>(Heap::GetHeap().GetMaxCapacity() * 0.2), heapThreshold);
 }
 
+void GenerationalGCStats::Init()
+{
+    GCStats::Init();
+    youngThreshold = std::min(static_cast<size_t>(20 * MB), CangjieRuntime::GetGCParam().gcThreshold);
+    mixedThreshold = Heap::GetHeap().GetMaxCapacity() / 2;
+    allocationBytes.store(0, std::memory_order_relaxed);
+    allocationStartTime.store(TimeUtil::NanoSeconds(), std::memory_order_relaxed);
+    allocationSpeed = 0.0;
+}
+
+void GenerationalGCStats::RecordAllocation(size_t bytes)
+{
+    allocationBytes.fetch_add(bytes, std::memory_order_relaxed);
+}
+
+double GenerationalGCStats::RefreshAllocationSpeed(uint64_t timestamp)
+{
+    uint64_t start = allocationStartTime.load(std::memory_order_relaxed);
+    uint64_t elapsed = timestamp - start;
+    size_t bytes = allocationBytes.exchange(0, std::memory_order_relaxed);
+    if (elapsed != 0) {
+        allocationSpeed = static_cast<double>(bytes) / static_cast<double>(elapsed);
+    }
+    allocationStartTime.store(timestamp, std::memory_order_relaxed);
+    return allocationSpeed;
+}
+
+double GenerationalGCStats::GetAllocationSpeed() const
+{
+    return allocationSpeed;
+}
+
 void GCStats::Dump() const
 {
     // Print a summary of the last GC.

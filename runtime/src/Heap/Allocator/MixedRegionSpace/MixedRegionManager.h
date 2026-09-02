@@ -56,6 +56,16 @@ public:
     RegionList& GetSweepableOldRegionList() { return sweepableOldRegionList; }
     RegionList& GetSweptRegionList() { return sweptYoungRegionList; }
     RegionList& GetOldSweptRegionList() { return oldSweptRegionList; }
+    size_t GetYoungUsedSize() const
+    {
+        size_t youngUnitCount = unmovableFromRegionList.GetUnitCount() + recentFullRegionList.GetUnitCount() +
+            recentLargeRegionList.GetUnitCount() + recentPinnedRegionList.GetUnitCount() +
+            rawPointerPinnedRegionList.GetUnitCount() + largeTraceRegions.GetUnitCount() +
+            fullTraceRegions.GetUnitCount() + tlRegionList.GetUnitCount() + fromRegionList.GetUnitCount() +
+            sweepableYoungRegionList.GetUnitCount() + sweptYoungRegionList.GetUnitCount() +
+            promoteRegionList.GetUnitCount();
+        return youngUnitCount * RegionInfo::UNIT_SIZE;
+    }
     void RecycleYoungSlotRegion(RegionInfo* region)
     {
         recentFullRegionList.PrependRegion(region, RegionInfo::RegionType::RECENT_FULL_REGION);
@@ -129,17 +139,25 @@ public:
             return;
         }
         Heap& heap = Heap::GetHeap();
-        if (!heap.IsGcStarted()) {
-            size_t maxCapacity = heap.GetMaxCapacity();
-            size_t youngGenSize = (maxCapacity / 3) < 256ULL * 1024 * 1024 ? (maxCapacity / 3) : 256ULL * 1024 * 1024;
-            size_t youngAllocated = GetRecentAllocatedSize() + sweptYoungRegionList.GetAllocatedSize() -
-                GetFreeSlotTotalSize(sweptYoungRegionList);
-            size_t totalAllocated = GetAllocatedSize();
-            if (youngAllocated >= youngGenSize * 2 / 3) {
-                heap.GetCollector().RequestGC(GC_REASON_HEU, true);
-            } else if (totalAllocated >= maxCapacity / 2) {
-                heap.GetCollector().RequestGC(GC_REASON_FORCE, true);
-            }
+        if (heap.IsGcStarted()) {
+            return;
+        }
+
+        GenerationalGCStats& stats = static_cast<GenerationalGCStats&>(heap.GetCollector().GetGCStats());
+        size_t maxCapacity = heap.GetMaxCapacity();
+        size_t youngCapacity = std::min(maxCapacity / 3, static_cast<size_t>(256 * MB));
+        size_t maxYoungThreshold = youngCapacity * 2 / 3;
+        size_t maxMixedThreshold = maxCapacity * 2 / 3;
+        size_t youngUsedSize = GetYoungUsedSize();
+        size_t allUsedSize = GetUsedRegionSize();
+        bool mixedReached = allUsedSize >= stats.GetMixedThreshold();
+        bool youngReached = youngUsedSize >= stats.GetYoungThreshold();
+        if (mixedReached) {
+            bool async = stats.GetMixedThreshold() < maxMixedThreshold;
+            heap.GetCollector().RequestGC(async ? GC_REASON_MIXED : GC_REASON_FORCE, async);
+        } else if (youngReached) {
+            bool async = stats.GetYoungThreshold() < maxYoungThreshold;
+            heap.GetCollector().RequestGC(async ? GC_REASON_HEU : GC_REASON_HEU_SYNC, async);
         }
     }
     size_t GetAllocatedSize() const override
