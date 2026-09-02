@@ -69,8 +69,23 @@ public:
     void DumpRegionStats(const char* msg, bool dumpToError = false) const override;
     void PrepareYoungFromRegionList()
     {
+        // All DispelGhostFromRegion must happen before PrepareForwardableRegion.
+        // Even if it is young gc, we also need to handle ghost region in old space,
+        // because they may be reclaimed and be taken into young space.
         ghostFromRegionList.VisitAllGhostRegions([](RegionInfo* region) {
             DLOG(REGION, "dispel ghost from region %p@[%#zx, %#zx)", region, region->GetRegionStart(),
+                 region->GetRegionEnd());
+            region->DispelGhostFromRegion();
+        });
+
+        ghostPromoteRegionList.VisitAllGhostRegions([](RegionInfo* region) {
+            DLOG(REGION, "dispel ghost promote region %p@[%#zx, %#zx)", region, region->GetRegionStart(),
+                 region->GetRegionEnd());
+            region->DispelGhostFromRegion();
+        });
+
+        ghostOldFromRegionList.VisitAllGhostRegions([](RegionInfo* region) {
+            DLOG(REGION, "dispel ghost old region %p@[%#zx, %#zx)", region, region->GetRegionStart(),
                  region->GetRegionEnd());
             region->DispelGhostFromRegion();
         });
@@ -83,11 +98,6 @@ public:
 
         fromRegionList.CopyListTo(ghostFromRegionList);
 
-        ghostPromoteRegionList.VisitAllGhostRegions([](RegionInfo* region) {
-            DLOG(REGION, "dispel ghost promote region %p@[%#zx, %#zx)", region, region->GetRegionStart(),
-                 region->GetRegionEnd());
-            region->DispelGhostFromRegion();
-        });
         promoteRegionList.VisitAllRegions([](RegionInfo* region) {
             DLOG(REGION, "prepare promote region %p@[%#zx+%zu, %#zx)", region, region->GetRegionStart(),
                  region->GetLiveByteCount(), region->GetRegionEnd());
@@ -97,23 +107,7 @@ public:
     }
     void PrepareMixedFromRegionList()
     {
-        RegionManager::PrepareFromRegionList(true);
-        ghostPromoteRegionList.VisitAllGhostRegions([](RegionInfo* region) {
-            DLOG(REGION, "dispel ghost promote region %p@[%#zx, %#zx)", region, region->GetRegionStart(),
-                 region->GetRegionEnd());
-            region->DispelGhostFromRegion();
-        });
-        promoteRegionList.VisitAllRegions([](RegionInfo* region) {
-            DLOG(REGION, "prepare promote region %p@[%#zx+%zu, %#zx)", region, region->GetRegionStart(),
-                 region->GetLiveByteCount(), region->GetRegionEnd());
-            region->PrepareForwardableRegion();
-        });
-        promoteRegionList.CopyListTo(ghostPromoteRegionList);
-        ghostOldFromRegionList.VisitAllGhostRegions([](RegionInfo* region) {
-            DLOG(REGION, "dispel ghost old region %p@[%#zx, %#zx)", region, region->GetRegionStart(),
-                 region->GetRegionEnd());
-            region->DispelGhostFromRegion();
-        });
+        PrepareYoungFromRegionList();
         oldFromRegionList.VisitAllRegions([](RegionInfo* region) {
             DLOG(REGION, "prepare old region %p@[%#zx+%zu, %#zx)", region, region->GetRegionStart(),
                  region->GetLiveByteCount(), region->GetRegionEnd());
