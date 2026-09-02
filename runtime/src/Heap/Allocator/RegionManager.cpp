@@ -1121,6 +1121,7 @@ void RegionManager::RequestForRegion(size_t size)
 
     Heap& heap = Heap::GetHeap();
     GCStats& gcstats = heap.GetCollector().GetGCStats();
+    gcstats.RecordAllocation(size);
     size_t allocatedBytes = GetAllocatedSize() - gcstats.liveBytesAfterGC;
     constexpr double pi = 3.14;
     size_t availableBytesAfterGC = heap.GetMaxCapacity() - gcstats.liveBytesAfterGC;
