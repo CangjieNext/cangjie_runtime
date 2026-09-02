@@ -29,6 +29,7 @@ public:
     BaseObject* ForwardObject(BaseObject* fromVersion) override;
     bool IsTargetAddress(BaseObject* obj) const override;
 protected:
+    void EnumRememberedRoots(RootSet& rootSet) const override;
     void ResetForwardingData() override;
     bool IsTargetRegion(const RegionInfo*) const override { return true; }
     void AssembleCandidates() override;

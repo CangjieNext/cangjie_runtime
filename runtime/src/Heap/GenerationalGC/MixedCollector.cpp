@@ -54,7 +54,7 @@ void MixedCollector::EnumRefFieldRoot(RefField<>& field, RootSet& rootSet) const
         BaseObject* targetObj = oldField.GetTargetObject();
         latest = FindLatestVersion(targetObj);
     } else {
-        latest = field.GetTargetObject();
+        latest = oldField.GetTargetObject();
     }
 
     // target object could be null or non-heap for some static variable.
@@ -75,6 +75,44 @@ void MixedCollector::EnumRefFieldRoot(RefField<>& field, RootSet& rootSet) const
              latest->GetTypeInfo(), latest->GetSize());
     }
     rootSet.push_back(latest);
+}
+
+void MixedCollector::EnumRememberedRoots(RootSet& rootSet) const
+{
+    (void)rootSet;
+    RememberSet::Instance().VisitRememberedSlots([this](uintptr_t slotAddr) {
+        RefField<>* field = reinterpret_cast<RefField<>*>(slotAddr);
+        RefField<> oldField(*field);
+        // if field is already tagged currently, it is also already enumerated.
+        if (IsCurrentPointer(oldField)) {
+            return;
+        }
+
+        BaseObject* latest = nullptr;
+        if (IsOldPointer(oldField)) {
+            BaseObject* targetObj = oldField.GetTargetObject();
+            latest = FindLatestVersion(targetObj);
+        } else {
+            latest = oldField.GetTargetObject();
+        }
+
+        // target object could be null or non-heap for some static variable.
+        if (!IsTargetAddress(latest)) {
+            DLOG(ENUM, "skip invalid mixed field ref %p: %#zx -> %p", &field, oldField.GetFieldValue(), latest);
+            return;
+        }
+        RefField<> newField = GetAndTryTagRefField(latest);
+        if (oldField.GetFieldValue() == newField.GetFieldValue()) {
+            DLOG(ENUM, "enum fix static ref@%p: %#zx -> %p<%p>(%zu)", &field, oldField.GetFieldValue(), latest,
+                latest->GetTypeInfo(), latest->GetSize());
+        } else if (field->CompareExchange(oldField.GetFieldValue(), newField.GetFieldValue())) {
+            DLOG(ENUM, "enum fix static ref@%p: %#zx=>%#zx -> %p<%p>(%zu)", &field, oldField.GetFieldValue(),
+                newField.GetFieldValue(), latest, latest->GetTypeInfo(), latest->GetSize());
+        } else {
+            DLOG(ENUM, "enum fix static ref@%p: %#zx -> %p<%p>(%zu)", &field, oldField.GetFieldValue(), latest,
+                latest->GetTypeInfo(), latest->GetSize());
+        }
+    });
 }
 
 // TODO: override
