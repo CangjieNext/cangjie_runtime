@@ -60,6 +60,10 @@ protected:
     bool ShouldPromote(uint8_t age) const;
     void TagPromoteRegion(RegionInfo* regionInfo) const;
     void UpdateGCStats() override;
+    size_t GetPacingThreshold() override
+    {
+        return static_cast<GenerationalGCStats&>(GetGCStats()).GetYoungThreshold();
+    }
 
 private:
     static constexpr uint8_t OLD_AGE = 3;
