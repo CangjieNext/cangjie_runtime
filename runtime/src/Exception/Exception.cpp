@@ -161,8 +161,7 @@ bool ExceptionHandling::ProcessEHFrame(const FrameInfo& frame, std::vector<std::
         return false;
     }
 #endif
-    // Exclusive bridge: skip (no spills). Stub: ExclusiveScopeEHFrameInfo restores
-    // bridge+stub together. Neither updates lastRuntimeFrame.
+    // ExclusiveScopeEHFrameInfo restores bridge+stub together. Neither frame updates lastRuntimeFrame.
     if (frame.mFrame.IsExclusiveBridgeFrame()) {
         return false;
     }
