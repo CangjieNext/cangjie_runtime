@@ -117,11 +117,8 @@ void StackInfo::AnalyseAndSetFrameType(UnwindContext& uwContext)
     } else if (mFrame.IsStackGrowStubFrame()) {
         isReliableN2CStub = false;
         frameInfo.SetFrameType(FrameType::STACKGROW);
-    } else if (mFrame.IsExclusiveBridgeFrame()) {
-        frameInfo.SetFrameType(FrameType::EXCLUSIVE_BRIDGE);
-        isReliableN2CStub = false;
-    } else if (mFrame.IsExclusiveStubFrame()) {
-        frameInfo.SetFrameType(FrameType::EXCLUSIVE_STUB);
+    } else if (mFrame.IsExclusiveBridgeFrame() || mFrame.IsExclusiveStubFrame()) {
+        frameInfo.SetFrameType(FrameType::EXCLUSIVE);
         isReliableN2CStub = false;
     } else if (mFrame.IsRuntimeFrame()) {
         frameInfo.SetFrameType(FrameType::RUNTIME);

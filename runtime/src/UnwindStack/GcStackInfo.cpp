@@ -30,7 +30,6 @@ void GCStackInfo::VisitStackRoots(const RootVisitor& func, Mutator& mutator) con
                 TracingCollector::RecordStubAllRegister(regSlotsMap, reinterpret_cast<Uptr>(frame.mFrame.GetFA()));
                 break;
             case FrameType::C2R_STUB:
-            case FrameType::EXCLUSIVE_STUB:
                 TracingCollector::RecordStubCalleeSaved(regSlotsMap, reinterpret_cast<Uptr>(frame.mFrame.GetFA()));
                 break;
             case FrameType::C2N_STUB:
@@ -55,7 +54,6 @@ void GCStackInfo::VisitHeapReferencesOnStack(const RootVisitor& rootVisitor, con
                 break;
             }
             case FrameType::C2R_STUB:
-            case FrameType::EXCLUSIVE_STUB:
                 TracingCollector::RecordStubCalleeSaved(regSlotsMap, reinterpret_cast<Uptr>(frame.mFrame.GetFA()));
                 break;
             case FrameType::C2N_STUB:
@@ -92,7 +90,6 @@ void RecordStackInfo::VisitStackRoots(const RootVisitor &func, Mutator &mutator)
                 TracingCollector::RecordStubAllRegister(regSlotsMap, reinterpret_cast<Uptr>(frame->mFrame.GetFA()));
                 break;
             case FrameType::C2R_STUB:
-            case FrameType::EXCLUSIVE_STUB:
                 TracingCollector::RecordStubCalleeSaved(regSlotsMap, reinterpret_cast<Uptr>(frame->mFrame.GetFA()));
                 break;
             case FrameType::C2N_STUB:
@@ -120,7 +117,6 @@ void GCStackInfo::VisitStackRoots(const RootVisitor& func, Mutator& mutator) con
                 break;
             case FrameType::C2R_STUB:
             case FrameType::C2N_STUB:
-            case FrameType::EXCLUSIVE_STUB:
 #ifdef INTERPRETER_ENABLED
             case FrameType::INTERPRETER_C2I:
 #endif
@@ -173,7 +169,6 @@ void GCStackInfo::VisitHeapReferencesOnStack(const RootVisitor& rootVisitor, con
             }
             case FrameType::C2R_STUB:
             case FrameType::C2N_STUB:
-            case FrameType::EXCLUSIVE_STUB:
 #ifdef INTERPRETER_ENABLED
             case FrameType::INTERPRETER_C2I:
 #endif
@@ -230,7 +225,6 @@ void RecordStackInfo::VisitStackRoots(const RootVisitor &func, Mutator &mutator)
                 break;
             case FrameType::C2R_STUB:
             case FrameType::C2N_STUB:
-            case FrameType::EXCLUSIVE_STUB:
                 TracingCollector::RecordStubCalleeSaved(regSlotsMap, reinterpret_cast<Uptr>(frame->mFrame.GetFA()));
                 break;
             default: {

@@ -25,21 +25,19 @@
 //      Entry (plain C, not LLVM sret): x0=sret, x1=fn, x2=destSp
 //      AutoEnv call (Cangjie AArch64 sret): x8=sret, x0=fn, x1=*(fn+0)
 //
-// GC: sret must not live in callee-saved regs across AutoEnv (a safepoint may
-// snapshot it as a GC root). Keep sret/fn in caller-saved regs through bridge
-// setup (x0/x1), then reshape to x8/x0 before blr — still caller-saved. Hold
-// stub FA in x3. Do not clobber x0/x1 during bridge setup.
+// Callee-saved NOP: do not clobber x19–x28. Keep sret/fn in
+// caller-saved regs through bridge setup (x0/x1), then reshape to x8/x0
+// before blr — still caller-saved. Hold stub FA in x3. Do not clobber
+// x0/x1 during bridge setup.
 // ------------------------------------------------------------------------------
 
 // CJ exclusive stub frame (heap stack):
 //   [x29+0x00] x29,x30
-//   [x29+0x20] x19..x28   (RecordStubCalleeSaved)
-#define ExclusiveScopeFrameSize     0x70
+#define ExclusiveScopeFrameSize     16
 
 // OS bridge frame:
 //   [x29+0x00] x29,x30
 //   [x29+0x10] N2CSlotData (GetSlotData = fa+0x10)
-// Callee-saved live on the CJ stub (RecordStubCalleeSaved); bridge records none.
 #define ExclusiveBridgeFrameSize    48
 
     .text
@@ -57,23 +55,6 @@ CJ_MCC_ExclusiveScope:
     cfi_rel_offset(x30, 8)
     mov     x29, sp
     cfi_def_cfa_register(x29)
-
-    // Callee-saved order must match RecordStubCalleeSaved (GC register roots).
-    stp     x19, x20, [x29, #0x20]
-    cfi_rel_offset(x19, 0x20)
-    cfi_rel_offset(x20, 0x28)
-    stp     x21, x22, [x29, #0x30]
-    cfi_rel_offset(x21, 0x30)
-    cfi_rel_offset(x22, 0x38)
-    stp     x23, x24, [x29, #0x40]
-    cfi_rel_offset(x23, 0x40)
-    cfi_rel_offset(x24, 0x48)
-    stp     x25, x26, [x29, #0x50]
-    cfi_rel_offset(x25, 0x50)
-    cfi_rel_offset(x26, 0x58)
-    stp     x27, x28, [x29, #0x60]
-    cfi_rel_offset(x27, 0x60)
-    cfi_rel_offset(x28, 0x68)
 
     // x0=sret, x1=fn stay in arg regs; x3 = stub FA for bridge setup.
     mov     x3, x29
@@ -113,26 +94,8 @@ unwindPCForExclusiveStubFull:
     mov     sp, x29
     ldp     x29, x30, [sp], #ExclusiveBridgeFrameSize
 
-    // Restore heap SP.
+    // Restore heap SP and return.
     mov     sp, x29
-
-    // Restore callee-saved registers
-    ldp     x19, x20, [x29, #0x20]
-    cfi_restore(x19)
-    cfi_restore(x20)
-    ldp     x21, x22, [x29, #0x30]
-    cfi_restore(x21)
-    cfi_restore(x22)
-    ldp     x23, x24, [x29, #0x40]
-    cfi_restore(x23)
-    cfi_restore(x24)
-    ldp     x25, x26, [x29, #0x50]
-    cfi_restore(x25)
-    cfi_restore(x26)
-    ldp     x27, x28, [x29, #0x60]
-    cfi_restore(x27)
-    cfi_restore(x28)
-
     ldp     x29, x30, [sp], #ExclusiveScopeFrameSize
     cfi_adjust_cfa_offset(-ExclusiveScopeFrameSize)
     cfi_restore(x29)
