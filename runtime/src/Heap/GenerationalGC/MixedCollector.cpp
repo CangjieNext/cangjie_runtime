@@ -28,13 +28,16 @@ void MixedCollector::UpdateGCStats()
     stats.Dump();
     MixedRegionSpace& space = static_cast<MixedRegionSpace&>(theAllocator);
     MixedRegionManager& manager = MixedRegionSpace::CastDown(space.GetRegionManager());
-    const size_t maxThreshold = theAllocator.GetMaxCapacity() * 2 / 3;
+    const size_t maxCapacity = theAllocator.GetMaxCapacity();
+    const size_t youngCapacity = std::min(maxCapacity / 3, static_cast<size_t>(256 * MB));
+    const size_t minThreshold = youngCapacity * 6 / 5;
+    const size_t maxThreshold = maxCapacity * 2 / 3;
     const size_t used = manager.GetUsedRegionSize();
     const size_t predicted = static_cast<size_t>(stats.RefreshAllocationSpeed(TimeUtil::NanoSeconds()) *
                                                   static_cast<double>(CangjieRuntime::GetGCParam().gcInterval));
     const size_t headroom = maxThreshold > used ? maxThreshold - used : 0;
     const size_t oldThreshold = stats.GetMixedThreshold();
-    stats.SetMixedThreshold(used + std::min(predicted, headroom));
+    stats.SetMixedThreshold(std::max(used + std::min(predicted, headroom), minThreshold));
     VLOG(REPORT, "all used size %zu, update mixed threshold %zu -> %zu", used, oldThreshold,
          stats.GetMixedThreshold());
 }
