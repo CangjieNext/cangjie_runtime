@@ -24,8 +24,7 @@
 // ABI: void CJ_MCC_ExclusiveScope(void* sret, void* fn, uintptr_t destSp)
 //      ARM32: r0=sret, r1=fn, r2=destSp
 //
-// GC: sret must not live in callee-saved regs across AutoEnv
-// (a safepoint may snapshot it as a GC root). Keep sret/fn in the arg regs
+// Callee-saved NOP: do not clobber r4–r10. Keep sret/fn in the arg regs
 // (caller-saved) through bridge setup; hold stub FA in r3. Do not clobber
 // r0/r1 before the invoke.
 // ------------------------------------------------------------------------------
@@ -33,13 +32,11 @@
 // CJ exclusive stub frame (heap stack):
 //   0x00  r11 (fp)
 //   0x04  lr
-//   0x10  r4..r10 (RecordStubCalleeSaved)
-#define ExclusiveScopeFrameSize     0x30
+#define ExclusiveScopeFrameSize     8
 
 // OS bridge frame:
 //   0x00  r11, lr
 //   0x08  N2CSlotData (GetSlotData = fa+0x08)
-// Callee-saved live on the CJ stub (RecordStubCalleeSaved); bridge records none.
 #define ExclusiveBridgeFrameSize    32
 
     .text
@@ -56,22 +53,6 @@ CJ_MCC_ExclusiveScope:
     cfi_rel_offset(lr, 4)
     mov     r11, sp
     cfi_def_cfa_register(r11)
-
-    // Callee-saved order must match RecordStubCalleeSaved (GC register roots).
-    str     r4, [r11, #0x10]
-    cfi_rel_offset(r4, 0x10)
-    str     r5, [r11, #0x14]
-    cfi_rel_offset(r5, 0x14)
-    str     r6, [r11, #0x18]
-    cfi_rel_offset(r6, 0x18)
-    str     r7, [r11, #0x1c]
-    cfi_rel_offset(r7, 0x1c)
-    str     r8, [r11, #0x20]
-    cfi_rel_offset(r8, 0x20)
-    str     r9, [r11, #0x24]
-    cfi_rel_offset(r9, 0x24)
-    str     r10, [r11, #0x28]
-    cfi_rel_offset(r10, 0x28)
 
     // r0=sret, r1=fn stay in arg regs; r3 = stub FA for bridge setup.
     mov     r3, r11
@@ -115,25 +96,8 @@ unwindPCForExclusiveStubFull:
     ldr     lr, [sp, #4]
     add     sp, sp, #ExclusiveBridgeFrameSize
 
-    // Restore heap SP.
+    // Restore heap SP and return.
     mov     sp, r11
-
-    // Restore callee-saved registers
-    ldr     r4, [r11, #0x10]
-    cfi_restore(r4)
-    ldr     r5, [r11, #0x14]
-    cfi_restore(r5)
-    ldr     r6, [r11, #0x18]
-    cfi_restore(r6)
-    ldr     r7, [r11, #0x1c]
-    cfi_restore(r7)
-    ldr     r8, [r11, #0x20]
-    cfi_restore(r8)
-    ldr     r9, [r11, #0x24]
-    cfi_restore(r9)
-    ldr     r10, [r11, #0x28]
-    cfi_restore(r10)
-
     ldr     r11, [sp, #0]
     ldr     lr, [sp, #4]
     add     sp, sp, #ExclusiveScopeFrameSize

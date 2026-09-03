@@ -19,20 +19,16 @@
 // ABI: void CJ_MCC_ExclusiveScope(void* sret, void* fn, uintptr_t destSp)
 //      Win64: rcx=sret, rdx=fn, r8=destSp
 //
-// GC: sret must not live in callee-saved regs across AutoEnv
-// (a safepoint may snapshot it as a GC root). Keep sret/fn in the arg regs
-// (volatile) through bridge setup; hold stub FA in rax.
+// Callee-saved NOP: do not clobber rbx/rdi/rsi/r12–r15. Keep sret/fn in the
+// arg regs (volatile) through bridge setup; hold stub FA in rax.
 // ------------------------------------------------------------------------------
 
 // CJ exclusive stub frame (heap stack):
 //   [rbp]     saved rbp | return addr
-//   -8..-56   r15,r14,r13,r12,rdi,rsi,rbx   (RecordStubCalleeSaved)
-#define ExclusiveScopeFrameSize     (8 * 7)
-
+//
 // OS bridge frame:
 //   [rbp]     saved rbp | return addr
 //   -8..-24   N2CSlotData (GetSlotData = fa-24)
-// Callee-saved live on the CJ stub (RecordStubCalleeSaved); bridge records none.
 #define ExclusiveBridgeFrameSize    (8 * 4)
 
     .text
@@ -49,18 +45,7 @@ CJ_MCC_ExclusiveScope:
     .seh_pushreg %rbp
     movq    %rsp, %rbp
     .seh_setframe %rbp, 0
-    subq    $ExclusiveScopeFrameSize, %rsp
-    .seh_stackalloc ExclusiveScopeFrameSize
     .seh_endprologue
-
-    // Callee-saved order must match RecordStubCalleeSaved (GC register roots).
-    movq    %r15, -8(%rbp)
-    movq    %r14, -16(%rbp)
-    movq    %r13, -24(%rbp)
-    movq    %r12, -32(%rbp)
-    movq    %rdi, -40(%rbp)
-    movq    %rsi, -48(%rbp)
-    movq    %rbx, -56(%rbp)
 
     // rcx=sret, rdx=fn stay in arg regs; rax = stub FA for bridge setup.
     movq    %rbp, %rax
@@ -104,19 +89,8 @@ unwindPCForExclusiveStubFull:
     popq    %rbp                    // restore CJ exclusive stub fa into %rbp
     addq    $8, %rsp                // discard bridge return address
 
-    // Restore heap SP.
-    leaq    -ExclusiveScopeFrameSize(%rbp), %rsp
-
-    // Restore callee-saved registers
-    movq    -8(%rbp),  %r15
-    movq    -16(%rbp), %r14
-    movq    -24(%rbp), %r13
-    movq    -32(%rbp), %r12
-    movq    -40(%rbp), %rdi
-    movq    -48(%rbp), %rsi
-    movq    -56(%rbp), %rbx
-
-    addq    $ExclusiveScopeFrameSize, %rsp
+    // Restore heap SP (stub FA) and return.
+    movq    %rbp, %rsp
     popq    %rbp
     retq
 
