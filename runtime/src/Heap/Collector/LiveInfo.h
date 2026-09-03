@@ -68,16 +68,21 @@ struct RegionBitmap {
         }
     }
 
-    bool ApplyBitMaskInfo(const BitMaskInfo& maskInfo, size_t byteCnt, size_t regionSize)
+    bool ApplyBitMaskInfo(const BitMaskInfo& maskInfo, size_t byteCnt, size_t regionSize, bool markHeadOnly)
     {
         uint64_t old = markWords[maskInfo.headWordIdx].load();
         bool isMarked = ((old & maskInfo.headMaskBits) != 0);
         if (isMarked) {
             return isMarked;
         }
+
         old = markWords[maskInfo.headWordIdx].fetch_or(maskInfo.headMaskBits);
         isMarked = ((old & maskInfo.headMaskBits) != 0);
         if (isMarked) {
+            return isMarked;
+        }
+        if (markHeadOnly) {
+            liveBytes.fetch_add(byteCnt);
             return isMarked;
         }
         size_t markWordSize = regionSize / (kMarkedBytesPerBit * kBitsPerWord);
@@ -115,11 +120,11 @@ struct RegionBitmap {
     explicit RegionBitmap(size_t regionSize) : liveBytes(0), wordCnt(regionSize / (kMarkedBytesPerBit * kBitsPerWord))
     {}
 
-    bool MarkBits(size_t start, size_t byteCnt, size_t regionSize)
+    bool MarkBits(size_t start, size_t byteCnt, size_t regionSize, bool markHeadOnly = false)
     {
         BitMaskInfo maskInfo;
         GetBitMaskInfo(start, byteCnt, maskInfo);
-        return ApplyBitMaskInfo(maskInfo, byteCnt, regionSize);
+        return ApplyBitMaskInfo(maskInfo, byteCnt, regionSize, markHeadOnly);
     }
 
     bool IsMarked(size_t start)

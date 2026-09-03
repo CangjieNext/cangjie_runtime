@@ -52,7 +52,10 @@ void GenerationalGCStats::Init()
 {
     GCStats::Init();
     youngThreshold = std::min(static_cast<size_t>(20 * MB), CangjieRuntime::GetGCParam().gcThreshold);
-    mixedThreshold = Heap::GetHeap().GetMaxCapacity() / 2;
+    const size_t maxCapacity = Heap::GetHeap().GetMaxCapacity();
+    const size_t youngCapacity = std::min(maxCapacity / 3, static_cast<size_t>(256 * MB));
+    const size_t minMixedThreshold = youngCapacity * 6 / 5;
+    mixedThreshold = std::max(maxCapacity / 2, minMixedThreshold);
     allocationBytes.store(0, std::memory_order_relaxed);
     allocationStartTime.store(TimeUtil::NanoSeconds(), std::memory_order_relaxed);
     allocationSpeed = 0.0;

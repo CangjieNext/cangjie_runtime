@@ -464,10 +464,11 @@ public:
             }
             return true;
         }
+
         U32 objSize = obj->GetSize();
         size_t offset = GetAddressOffset(reinterpret_cast<MAddress>(obj));
         size_t regionSize = offset + GetRegionEnd() - reinterpret_cast<MAddress>(obj);
-        bool marked = GetOrAllocMarkBitmap()->MarkBits(offset, objSize, regionSize);
+        bool marked = GetOrAllocMarkBitmap()->MarkBits(offset, objSize, regionSize, IsSweepRegion());
         CHECK(IsMarkedObject(offset));
         return marked;
     }
@@ -483,7 +484,7 @@ public:
         }
         size_t offset = GetAddressOffset(reinterpret_cast<MAddress>(obj));
         size_t regionSize = offset + GetRegionEnd() - reinterpret_cast<MAddress>(obj);
-        bool marked = GetOrAllocMarkBitmap()->MarkBits(offset, objSize, regionSize);
+        bool marked = GetOrAllocMarkBitmap()->MarkBits(offset, objSize, regionSize, IsSweepRegion());
         CHECK(IsMarkedObject(offset));
         return marked;
     }
@@ -499,7 +500,7 @@ public:
         }
         U32 objSize = obj->GetSize();
         size_t regionSize = offset + GetRegionEnd() - reinterpret_cast<MAddress>(obj);
-        bool marked = GetOrAllocResurrectBitmap()->MarkBits(offset, objSize, regionSize);
+        bool marked = GetOrAllocResurrectBitmap()->MarkBits(offset, objSize, regionSize, IsSweepRegion());
         CHECK(IsResurrectedObject(offset));
         return marked;
     }
@@ -516,7 +517,7 @@ public:
         U32 objSize = obj->GetSize();
         size_t regionSize = offset + GetRegionEnd() - reinterpret_cast<MAddress>(obj);
         CHECK(regionSize > 0);
-        bool marked = GetOrAllocEnqueueBitmap()->MarkBits(offset, objSize, regionSize);
+        bool marked = GetOrAllocEnqueueBitmap()->MarkBits(offset, objSize, regionSize, true);
         CHECK(IsEnqueuedObject(offset));
         return marked;
     }
