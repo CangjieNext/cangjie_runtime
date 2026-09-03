@@ -166,6 +166,19 @@ extend String {
             .replace("|", "_")
             .replace(" ", "")
     }
+
+    // Organization-qualified package names are displayed as `org::package`,
+    // while report paths use the file-system-safe `package@org` form.
+    func toSafeBenchPackageFileName() {
+        if (!this.contains("::")) {
+            return this.toSafeFileName()
+        }
+        let parts = this.split("::")
+        if (parts.size != 2) {
+            return this.toSafeFileName()
+        }
+        "${parts[1]}@${parts[0]}".toSafeFileName()
+    }
 }
 
 interface ReportFormat {
@@ -401,6 +414,11 @@ extend TestGroupResult {
 extend TestSuiteId {
     func reportFileName(isBench!: Bool, extension!: String): String {
         let prefix = if (isBench) { "bench" } else { "test" }
-        "${prefix}-${this.groupName.toSafeFileName()}.${suiteName.toSafeFileName()}.${extension}"
+        let groupName = if (isBench) {
+            this.groupName.toSafeBenchPackageFileName()
+        } else {
+            this.groupName.toSafeFileName()
+        }
+        "${prefix}-${groupName}.${suiteName.toSafeFileName()}.${extension}"
     }
 }

@@ -185,7 +185,7 @@ class PackageTextReport {
 
         let reportPath = getReportDirectory(KeyReportPath.reportPath)
         let baselinePath = [getReportDirectory(KeyBaselinePath.baselinePath), reportPath] |> filterMap{ x => x } |> first
-        let rawReportFileName = groupName.toSafeFileName()
+        let rawReportFileName = groupName.toSafeBenchPackageFileName()
 
         if (let Some(baseline) <- baselinePath) {
             let finalPath = baseline.join("benchmarks").join(rawReportFileName)
@@ -213,7 +213,7 @@ class PackageTextReport {
         baselineReport.removeIf { _, v => v.isNaN() }
 
         let data = baselineReport.serializeInternal().toJson().toJsonString()
-        let filePath = dir.join(groupName.toSafeFileName())
+        let filePath = dir.join(groupName.toSafeBenchPackageFileName())
         File.writeTo(filePath, data.toArray())
     }
 

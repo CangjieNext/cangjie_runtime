@@ -104,6 +104,10 @@ struct TestCaseId <: Serializable<TestCaseId> & Hashable & Equatable<TestCaseId>
         "${suiteId.groupName.toSafeFileName()}.${suiteId.suiteName.toSafeFileName()}.${caseName.toSafeFileName()}"
     }
 
+    public func benchFqName(): String {
+        "${suiteId.groupName.toSafeBenchPackageFileName()}.${suiteId.suiteName.toSafeFileName()}.${caseName.toSafeFileName()}"
+    }
+
     public func toString(): String {
         "TestCaseId(${suiteId}, ${caseName})"
     }

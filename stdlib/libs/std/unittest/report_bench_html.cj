@@ -773,7 +773,7 @@ extend TestGroupResult {
         let caseResults = collectAllResults(dir)
 
         for ((name, results) in caseResults) {
-            let subdir = dir.join(name.fqName())
+            let subdir = dir.join(name.benchFqName())
             Directory.ensureExists(subdir)
 
             let data = Root(CASE_TEMPLATE).substitute(results)
@@ -812,7 +812,7 @@ extend TestGroupResult {
                 let (k, v) = it
                 let funcs = v.iterator()
                     .filter { x => !failedCases.contains(x) }
-                    .map { v => object([("func", "${v.caseName}()"), ("link", "${v.fqName()}/index.html")]) }
+                    .map { v => object([("func", "${v.caseName}()"), ("link", "${v.benchFqName()}/index.html")]) }
                     .into(collectArray<JsonObject>)
                 let failures = v.iterator()
                     .filter { x => failedCases.contains(x) }
@@ -862,7 +862,7 @@ extend TestGroupResult {
         this.visitPassedBenches { step =>
             let id = step.caseId
 
-            let fullName = id.fqName()
+            let fullName = id.benchFqName()
             let result = results.getOrInsert(id){ object([
                     ("caseName", JsonString("${fullName}()")),
                     ("parameters", JsonArray()),
