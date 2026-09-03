@@ -1487,6 +1487,7 @@ private:
         SetMarkedRegionFlag(0);
         SetEnqueuedRegionFlag(0);
         SetResurrectedRegionFlag(0);
+        SetOldRegionFlag(0);
         __atomic_store_n(&metadata.rawPointerObjectCount, 0, __ATOMIC_SEQ_CST);
     }
 

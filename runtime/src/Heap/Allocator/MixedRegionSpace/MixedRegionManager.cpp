@@ -304,6 +304,7 @@ void MixedRegionManager::ForwardFromSpace(GCThreadPool* threadPool)
             EnlistOldRegionList(oldRegion);
             oldRegion = RegionInfo::NullRegion();
         }
+        static_cast<GenerationAllocBuffer&>(buffer).MoveOldSlotRegionCacheTo(oldSweptRegionList);
     });
 }
 
