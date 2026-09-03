@@ -26,6 +26,7 @@ public:
     static RememberSet& Instance() noexcept;
 
     void Record(RegionInfo* source, uintptr_t slotAddr);
+    void RemoveRegion(RegionInfo* source);
 
     template <typename Func>
     void VisitRememberedSlots(Func&& func)

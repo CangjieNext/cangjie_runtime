@@ -347,6 +347,7 @@ void YoungCollector::PostTrace()
     RefineFromSpace();
     CollectPinnedGarbage();
     CollectLargeGarbage();
+    ClearDeadObjectRSetSlots();
     ResetForwardingData();
 }
 

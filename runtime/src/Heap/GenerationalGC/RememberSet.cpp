@@ -26,6 +26,15 @@ void RememberSet::Record(RegionInfo* source, uintptr_t slotAddr)
     rememberedRegions.insert(source);
 }
 
+void RememberSet::RemoveRegion(RegionInfo* source)
+{
+    if (source == nullptr) {
+        return;
+    }
+    std::lock_guard<std::mutex> lock(mtx_);
+    rememberedRegions.erase(source);
+}
+
 void RememberSet::ClearAll()
 {
     std::lock_guard<std::mutex> lock(mtx_);

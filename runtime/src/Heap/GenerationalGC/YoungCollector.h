@@ -46,6 +46,7 @@ protected:
         return GCPhase::GC_PHASE_GENERATION_RECLAIM_SATB_NODE;
     }
     virtual void ResetForwardingData();
+    virtual void ClearDeadObjectRSetSlots() {}
     void PostTrace() override;
     void ProcessFinalizers() override;
     void RefineFromSpace() override;

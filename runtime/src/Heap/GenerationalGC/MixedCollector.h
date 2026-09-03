@@ -31,6 +31,7 @@ public:
 protected:
     void EnumRememberedRoots(RootSet& rootSet) const override;
     void ResetForwardingData() override;
+    void ClearDeadObjectRSetSlots() override;
     bool IsTargetRegion(const RegionInfo*) const override { return true; }
     void AssembleCandidates() override;
     void ConcurrentSweep() override;

@@ -31,6 +31,11 @@ public:
         oldAllocRegion = RegionInfo::NullRegion();
         return r;
     }
+
+    void MoveOldSlotRegionCacheTo(RegionList& target)
+    {
+        target.MergeRegionList(oldSlotRegionCache, RegionInfo::RegionType::SWEEP_REGION);
+    }
 private:
     static constexpr size_t SLOT_REGION_CACHE_LIMIT = 3;
     void FlushSlotRegionCaches(MixedRegionManager& manager);

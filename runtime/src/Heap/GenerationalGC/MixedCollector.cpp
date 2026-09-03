@@ -203,6 +203,7 @@ public:
                 return;
             }
             if (region->GetLiveByteCount() == 0) {
+                RememberSet::Instance().RemoveRegion(region);
                 region->ResetRSetCardTable();
                 regionManager.CollectRegion(region);
                 continue;
@@ -220,6 +221,20 @@ private:
     GCThreadPool* threadPool;
     RegionManager& regionManager;
 };
+
+void MixedCollector::ClearDeadObjectRSetSlots()
+{
+    MixedRegionSpace& space = static_cast<MixedRegionSpace&>(theAllocator);
+    MixedRegionManager& manager = MixedRegionSpace::CastDown(space.GetRegionManager());
+    manager.GetOldSweptRegionList().VisitAllRegions([](RegionInfo* region) {
+        region->VisitAllObjects([region](BaseObject* object) {
+            if (!region->IsMarkedObject(object)) {
+                const uintptr_t start = reinterpret_cast<uintptr_t>(object);
+                region->ClearRSetSlots(start, RegionSpace::GetAllocSize(*object));
+            }
+        });
+    });
+}
 
 void MixedCollector::ConcurrentSweep()
 {
