@@ -32,12 +32,14 @@ func MeasurementNewToArrayList(m : MeasurementNew) : ArrayList <BenchRawMeasurem
     }
     return ans
 }
-
-let maxSize : Int64 = 200
-class Distribution {
-    var x : Array <Float64> = Array <Float64> (maxSize, {_ => 0.0})
-    var w : Array <Int64> = Array <Int64> (maxSize, {_ => 0})
+protected class Distribution {    
+    protected var x : Array <Float64>
+    protected var w : Array <Int64>
     public var sz : Int64 = 0
+    protected Distribution (let maxSize : Int64) {
+        this.x = Array<Float64>(maxSize, { _ => 0.0 })
+        this.w = Array<Int64>(maxSize, { _ => 0 })
+    }
     private func choose(i : Int64, newx : Float64) : Unit {
         x[i] = (x[i] * Float64(w[i]) + newx) / Float64(w[i] + 1)
         w[i]++
@@ -88,8 +90,9 @@ class Distribution {
         }
     }
 }
+
 class MeasurementNew <: Measurement {
-    var distribution = [Distribution(), Distribution(), Distribution()]
+    var distribution = [Distribution(200), Distribution(200), Distribution(200)]
     var batchSizeInConfiguration : Bool = false
     MeasurementNew (let arg : Measurement, let batchSize : Int64) {}
     var start: ?MonoTime = None
@@ -412,7 +415,7 @@ protected class BenchmarkResult {
         }
     }}              
 
-    protected BenchmarkResult(var data: ArrayList<BenchRawMeasurement>) {}
+    //protected BenchmarkResult(var data: ArrayList<BenchRawMeasurement>) {}
 
     var data: ArrayList<BenchRawMeasurement> = ArrayList()
     protected init() {}    
