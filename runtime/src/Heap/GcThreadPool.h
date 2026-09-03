@@ -89,6 +89,9 @@ public:
     // Add new task to task queue , task should inherit from HeapWork.
     void AddWork(HeapWork* task);
 
+    // Let an external thread take and execute one task from the running pool.
+    bool TryExecuteOneTask(size_t threadId = 0);
+
     // Start thread pool, notify all sleep threads to get to work
     void Start();
 
@@ -145,6 +148,9 @@ private:
     // current watiing thread, when equals to currActiveThreadNum
     // no thread executing, all task finished
     int32_t waitingThreadNum;
+
+    // Number of tasks taken from the queue and currently executed by external threads.
+    size_t externalExecutingTaskNum = 0;
 
     // single lock
     std::mutex poolMutex;

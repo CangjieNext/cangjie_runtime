@@ -153,10 +153,10 @@ public:
         bool mixedReached = allUsedSize >= stats.GetMixedThreshold();
         bool youngReached = youngUsedSize >= stats.GetYoungThreshold();
         if (mixedReached) {
-            bool async = stats.GetMixedThreshold() < maxMixedThreshold;
+            bool async = allUsedSize < maxMixedThreshold;
             heap.GetCollector().RequestGC(async ? GC_REASON_MIXED : GC_REASON_FORCE, async);
         } else if (youngReached) {
-            bool async = stats.GetYoungThreshold() < maxYoungThreshold;
+            bool async = youngUsedSize < maxYoungThreshold;
             heap.GetCollector().RequestGC(async ? GC_REASON_HEU : GC_REASON_HEU_SYNC, async);
         }
     }
