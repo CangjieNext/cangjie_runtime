@@ -166,7 +166,6 @@ It includes built-in types (signed integers, unsigned integers, floating-point n
 | [ArithmeticException](./core_package_api/core_package_exceptions.md#class-arithmeticexception) | Arithmetic exception class, used when arithmetic exceptions occur. |
 | [Error](./core_package_api/core_package_exceptions.md#class-error) | `Error` is the parent class of all error classes. This class cannot be inherited or initialized, but can be caught. |
 | [Exception](./core_package_api/core_package_exceptions.md#class-exception) | `Exception` is the parent class of all exception classes. |
-| [ExclusiveScopeException](./core_package_api/core_package_exceptions.md#class-exclusivescopeexception) | Custom exception class to wrap exceptions thrown in an exclusive scope. It preserves the original exception's stack trace and information. |
 | [IllegalArgumentException](./core_package_api/core_package_exceptions.md#class-illegalargumentexception) | Exception class representing illegal arguments. |
 | [IllegalFormatException](./core_package_api/core_package_exceptions.md#class-illegalformatexception) | Exception class for invalid or non-standard variable formats. |
 | [IllegalMemoryException](./core_package_api/core_package_exceptions.md#class-illegalmemoryexception) | Exception class for memory operation errors. |
