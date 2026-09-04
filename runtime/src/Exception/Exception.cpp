@@ -161,11 +161,8 @@ bool ExceptionHandling::ProcessEHFrame(const FrameInfo& frame, std::vector<std::
         return false;
     }
 #endif
-    // ExclusiveScopeEHFrameInfo restores bridge+stub together. Neither frame updates lastRuntimeFrame.
-    if (frame.mFrame.IsExclusiveBridgeFrame()) {
-        return false;
-    }
-    if (frame.mFrame.IsExclusiveStubFrame()) {
+    // ExclusiveScopeEHFrameInfo restores bridge+stub together. Do not update lastRuntimeFrame.
+    if (frame.GetFrameType() == FrameType::EXCLUSIVE) {
         ehFrameInfos.push_back(std::make_unique<ExclusiveScopeEHFrameInfo>(frame));
         return false;
     }

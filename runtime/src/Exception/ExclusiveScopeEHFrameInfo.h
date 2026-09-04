@@ -17,7 +17,8 @@
 namespace MapleRuntime {
 
 // EH frame for CJ_MCC_ExclusiveScope (ExclusiveScope.S).
-// Restores FP/SP through the OS bridge and CJ stub in one step, keyed off the stub FA.
+// The walker only visits the OS bridge; unwrap bridgeFA → stub FA, then restore
+// FP/SP as if the stub epilogue ran (heap SP, managed caller FP).
 class ExclusiveScopeEHFrameInfo : public IEHFrameInfo, public FrameInfo {
 public:
     explicit ExclusiveScopeEHFrameInfo(const FrameInfo& info) : FrameInfo(info) {}
@@ -38,9 +39,13 @@ public:
         if (UNLIKELY(adjustedSize != 0)) {
             LOG(RTLOG_FATAL, "ExclusiveScopeEHFrameInfo: unexpected adjustedSize %u", adjustedSize);
         }
-        FrameAddress* stubFa = mFrame.GetFA();
+        FrameAddress* bridgeFa = mFrame.GetFA();
+        if (UNLIKELY(bridgeFa == nullptr)) {
+            LOG(RTLOG_FATAL, "ExclusiveScopeEHFrameInfo: null bridge FA");
+        }
+        FrameAddress* stubFa = bridgeFa->callerFrameAddress;
         if (UNLIKELY(stubFa == nullptr)) {
-            LOG(RTLOG_FATAL, "ExclusiveScopeEHFrameInfo: null stub FA");
+            LOG(RTLOG_FATAL, "ExclusiveScopeEHFrameInfo: null stub FA for bridge FA %p", bridgeFa);
         }
 
         FrameAddress* callerFa = stubFa->callerFrameAddress;
