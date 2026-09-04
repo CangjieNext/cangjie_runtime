@@ -24,6 +24,7 @@ public:
     MAddress AllocateOld(size_t totalSize);
     MAddress AllocateOldOnSlot(MixedRegionManager& manager, size_t totalSize);
     MAddress AllocateOldOnNewRegion(MixedRegionManager& manager, size_t totalSize);
+    size_t CacheGarbageRegion(MixedRegionManager& manager, RegionInfo* region);
 
     RegionInfo* TakeOldAllocRegion()
     {
@@ -38,10 +39,15 @@ public:
     }
 private:
     static constexpr size_t SLOT_REGION_CACHE_LIMIT = 3;
+    static constexpr size_t GC_GARBAGE_CACHE_LIMIT = 256 * KB;
+    static constexpr size_t MUTATOR_GARBAGE_CACHE_LIMIT = 2 * MB;
     void FlushSlotRegionCaches(MixedRegionManager& manager);
+    void FlushGarbageRegionCache(MixedRegionManager& manager);
+    RegionInfo* TakeGarbageRegion(MixedRegionManager& manager, size_t totalSize);
     RegionInfo* oldAllocRegion = RegionInfo::NullRegion();
     RegionList youngSlotRegionCache{"young slot region cache"};
     RegionList oldSlotRegionCache{"old slot region cache"};
+    RegionList garbageRegionCache{"garbage region cache"};
 };
 
 } // namespace MapleRuntime

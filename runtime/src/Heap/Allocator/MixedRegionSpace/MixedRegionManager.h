@@ -47,6 +47,7 @@ public:
     bool RoutePromoteRegion(RegionInfo* fromRegion);
     void PromoteRegion(RegionInfo* fromRegion);
     void ForwardFromSpace(GCThreadPool* threadPool) override;
+    size_t CollectRegion(RegionInfo* region) override;
     void EnlistOldRegionList(RegionInfo* region) noexcept
     {
         region->SetOldRegionFlag(1);
@@ -56,6 +57,10 @@ public:
     RegionList& GetSweepableOldRegionList() { return sweepableOldRegionList; }
     RegionList& GetSweptRegionList() { return sweptYoungRegionList; }
     RegionList& GetOldSweptRegionList() { return oldSweptRegionList; }
+    void EnlistThreadLocalRegion(RegionInfo* region)
+    {
+        tlRegionList.PrependRegion(region, RegionInfo::RegionType::THREAD_LOCAL_REGION);
+    }
     size_t GetYoungUsedSize() const
     {
         size_t youngUnitCount = unmovableFromRegionList.GetUnitCount() + recentFullRegionList.GetUnitCount() +
@@ -258,7 +263,7 @@ private:
         }
         return total;
     }
-    static constexpr uint8_t PROMOTE_AGE = 3;
+    static constexpr uint8_t PROMOTE_AGE = 15;
     bool PromoteRegionImpl(RegionInfo* fromRegion);
     // TODO: parameters tuning.
     bool ShouldSplit(size_t unitCount) const

@@ -62,6 +62,12 @@ size_t MixedRegionManager::ClassifyYoungRegions()
     double exempt = exemptedRegionThreshold;
     auto visitor = [this, exempt, &floatingGarbage, &forwardBytes](RegionInfo* fromRegion) {
         long rawPtrCnt = fromRegion->GetRawPointerObjectCount();
+        if (fromRegion->GetRegionSize() != GetThreadLocalRegionSize()) {
+            RemoveRegionLocked(&fromRegionList, fromRegion);
+            fromRegion->SetPromotedFlag(1);
+            promoteRegionList.PrependRegion(fromRegion, RegionInfo::RegionType::FROM_PROMOTE_REGION);
+            return;
+        }
         if (rawPtrCnt == 0 && fromRegion->IsPromoted()) {
             RemoveRegionLocked(&fromRegionList, fromRegion);
             promoteRegionList.PrependRegion(fromRegion, RegionInfo::RegionType::FROM_PROMOTE_REGION);
@@ -198,6 +204,19 @@ void MixedRegionManager::PromoteRegion(RegionInfo* fromRegion)
         DLOG(PROMOTE, "reactivate promoted region %p: [%p, %p)", fromRegion, fromRegion->GetRegionStart(), fromRegion->GetRegionEnd());
         recentFullRegionList.PrependRegion(fromRegion, RegionInfo::RegionType::RECENT_FULL_REGION);
     }
+}
+
+size_t MixedRegionManager::CollectRegion(RegionInfo* region)
+{
+    DLOG(REGION, "collect region %p@[%#zx+%zu, %#zx) type %u", region, region->GetRegionStart(),
+         region->GetLiveByteCount(), region->GetRegionEnd(), region->GetRegionType());
+    region->LockWriteRegion();
+    size_t collectedSize = region->IsLargeRegion() ? region->GetRegionSize()
+                                                    : region->GetRegionSize() - region->GetLiveByteCount();
+    region->UnlockWriteRegion();
+    GenerationAllocBuffer* buffer = GenerationAllocBuffer::GetGenerationAllocBuffer();
+    buffer->CacheGarbageRegion(*this, region);
+    return collectedSize;
 }
 
 bool MixedRegionManager::PromoteRegionImpl(RegionInfo* fromRegion)

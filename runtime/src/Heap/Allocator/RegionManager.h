@@ -278,7 +278,7 @@ public:
         return maxUnitCountPerRegion * RegionInfo::UNIT_SIZE;
     }
 
-    size_t CollectRegion(RegionInfo* region)
+    virtual size_t CollectRegion(RegionInfo* region)
     {
         DLOG(REGION, "collect region %p@[%#zx+%zu, %#zx) type %u", region, region->GetRegionStart(),
              region->GetLiveByteCount(), region->GetRegionEnd(), region->GetRegionType());
