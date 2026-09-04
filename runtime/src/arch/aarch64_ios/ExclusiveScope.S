@@ -12,13 +12,13 @@
 // ------------------------------------------------------------------------------
 // _CJ_MCC_ExclusiveScope — AArch64
 //
-// Glue (CodeGen) owns pin + protectAddr via CJ_MCC_ExclusiveScopeEnter/Leave and
+// CodeGen owns pin + protectAddr via CJ_MCC_ExclusiveScopeEnter/Leave and
 // only calls this stub when destSp != 0. This stub:
 //   1) builds the CJ exclusive stub frame on the heap stack
 //   2) switches SP to destSp
 //   3) builds the exclusive OS bridge and invokes the AutoEnv closure
 //
-// protectAddr and exclusiveScopeCnt are owned by Enter/Leave in the glue finally
+// protectAddr and exclusiveScopeCnt are owned by Enter/Leave in exclusiveScopeImpl's finally
 // (EH skips this epilogue).
 //
 // ABI: void _CJ_MCC_ExclusiveScope(void* sret, void* fn, uintptr_t destSp)
@@ -38,6 +38,7 @@
 // OS bridge frame:
 //   [x29+0x00] x29,x30
 //   [x29+0x10] N2CSlotData (GetSlotData = fa+0x10)
+//              slot->{pc,fa} = managed caller.
 #define ExclusiveBridgeFrameSize    48
 
     .text
@@ -59,23 +60,21 @@ _CJ_MCC_ExclusiveScope:
     // x0=sret, x1=fn stay in arg regs; x3 = stub FA for bridge setup.
     mov     x3, x29
 
-    // IP stored into the bridge N2CSlotData so stack walk lands on this stub.
-    .global _unwindPCForExclusiveStub
-_unwindPCForExclusiveStub:
-
     // Red-zone / align for bridge frame on OS stack, then switch SP.
     sub     x2, x2, #128
     bic     x2, x2, #15
     mov     sp, x2
 
-    // Build OS bridge frame: saved fp links to the CJ stub FA; return addr is glue.
+    // Build OS bridge frame: saved fp links to the CJ stub FA; return addr is the managed caller's.
     stp     x29, x30, [sp, #-ExclusiveBridgeFrameSize]!
     mov     x29, sp
 
     // Fill N2CSlotData at fa+0x10 (do not clobber x0/x1).
-    adr     x4, _unwindPCForExclusiveStub
-    str     x4, [x29, #0x10]            // slot->pc
-    str     x3, [x29, #0x18]            // slot->fa
+    // slot->{pc,fa} = managed caller LR/FA so the walker skips the stub frame.
+    ldr     x4, [x3, #8]
+    str     x4, [x29, #0x10]            // slot->pc  = managed caller LR
+    ldr     x4, [x3]
+    str     x4, [x29, #0x18]            // slot->fa  = managed caller FA
     mov     x4, #2                      // RISKY
     str     x4, [x29, #0x20]            // slot->status
 
@@ -86,8 +85,8 @@ _unwindPCForExclusiveStub:
     blr     x9
 
     // Post-call PC: exclusive bridge identity for IsExclusiveBridgeFrame.
-    .global _unwindPCForExclusiveStubFull
-_unwindPCForExclusiveStubFull:
+    .global _unwindPCForExclusiveStub
+_unwindPCForExclusiveStub:
 
     // Tear down bridge frame.
     mov     sp, x29
