@@ -1080,8 +1080,8 @@ NativeLocalObjectAllocator::LocalNativeRegion* NativeLocalObjectAllocator::PopRe
     while (curr != nullptr) {
         LocalNativeRegion* prev = curr->prev;
         if (ownerFA != nullptr && curr->firstRegion->ownerFA != ownerFA) {
-            LOG(RTLOG_WARNING, "skip native local region pop across frame boundary: region ownerFA %p, target ownerFA %p",
-                curr->firstRegion->ownerFA, ownerFA);
+            LOG(RTLOG_WARNING, "skip native local region pop across frame boundary: region ownerFA %p, target ownerFA "
+                "%p",curr->firstRegion->ownerFA, ownerFA);
             return nullptr;
         }
         if (curr->firstRegion == curr) {
