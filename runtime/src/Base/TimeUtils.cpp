@@ -41,7 +41,7 @@ uint64_t MicroSeconds() noexcept { return ClockTime<Us>(CLOCK_MONOTONIC); }
 void SleepForNano(uint64_t ns) { std::this_thread::sleep_for(std::chrono::nanoseconds(ns)); }
 
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
-yyyymmdd_hhmmss
+//yyyymmdd_hhmmss
 static inline CString GetDate(const char* format)
 {
     std::time_t time = std::time(0);
@@ -57,7 +57,7 @@ static inline CString GetDate(const char* format)
     return CString();
 }
 
-yyyymmdd_hhmmss
+//yyyymmdd_hhmmss
 CString GetDigitDate()
 {
     CString date = GetDate("%Y%m%d_%H%M%S");
