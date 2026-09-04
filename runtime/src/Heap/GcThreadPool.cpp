@@ -20,6 +20,10 @@
 
 // thread pool implementation
 namespace MapleRuntime {
+namespace {
+thread_local bool externalTaskExecuting = false;
+}
+
 GCPoolThread::GCPoolThread(GCThreadPool* threadPool, const char* threadName, size_t threadId, size_t stackSize)
     : id(threadId), tid(-1), name(threadName), pool(threadPool)
 {
@@ -212,6 +216,9 @@ void GCThreadPool::AddWork(HeapWork* task)
 
 bool GCThreadPool::TryExecuteOneTask(size_t threadId)
 {
+    if (externalTaskExecuting) {
+        return false;
+    }
     HeapWork* task = nullptr;
     {
         std::unique_lock<std::mutex> poolLock(poolMutex);
@@ -223,7 +230,9 @@ bool GCThreadPool::TryExecuteOneTask(size_t threadId)
         ++externalExecutingTaskNum;
     }
 
+    externalTaskExecuting = true;
     task->Execute(threadId);
+    externalTaskExecuting = false;
     delete task;
 
     {

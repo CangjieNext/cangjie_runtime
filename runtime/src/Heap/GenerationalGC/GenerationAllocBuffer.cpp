@@ -20,7 +20,9 @@ GenerationAllocBuffer* GenerationAllocBuffer::GetGenerationAllocBuffer()
 GenerationAllocBuffer::~GenerationAllocBuffer()
 {
     MixedRegionSpace& space = MixedRegionSpace::CastDown(Heap::GetHeap().GetAllocator());
-    FlushSlotRegionCaches(MixedRegionSpace::CastDown(space.GetRegionManager()));
+    MixedRegionManager& manager = MixedRegionSpace::CastDown(space.GetRegionManager());
+    FlushSlotRegionCaches(manager);
+    FlushGarbageRegionCache(manager);
 }
 
 void GenerationAllocBuffer::FlushSlotRegionCaches(MixedRegionManager& manager)
@@ -34,6 +36,49 @@ void GenerationAllocBuffer::FlushSlotRegionCaches(MixedRegionManager& manager)
         region->ClearFreeSlotList();
         manager.RecycleOldSlotRegion(region);
     }
+}
+
+void GenerationAllocBuffer::FlushGarbageRegionCache(MixedRegionManager& manager)
+{
+    RegionInfo* region = garbageRegionCache.TakeHeadRegionNoLock();
+    while (region != nullptr) {
+        manager.ReleaseRegion(region);
+        region = garbageRegionCache.TakeHeadRegionNoLock();
+    }
+}
+
+size_t GenerationAllocBuffer::CacheGarbageRegion(MixedRegionManager& manager, RegionInfo* region)
+{
+    const size_t regionSize = region->GetRegionSize();
+    const size_t cacheLimit = IsGcThread() ? GC_GARBAGE_CACHE_LIMIT : MUTATOR_GARBAGE_CACHE_LIMIT;
+    if (garbageRegionCache.GetAllocatedSize() >= cacheLimit) {
+        return manager.ReleaseRegion(region);
+    }
+    RegionInfo::InitFreeRegion(region->GetUnitIdx(), region->GetUnitCount());
+    garbageRegionCache.PrependRegionNoLock(region, RegionInfo::RegionType::FREE_REGION);
+    return regionSize;
+}
+
+RegionInfo* GenerationAllocBuffer::TakeGarbageRegion(MixedRegionManager& manager, size_t totalSize)
+{
+    RegionInfo* best = nullptr;
+    garbageRegionCache.VisitAllRegionsUntilSuccNoLock([totalSize, &best](RegionInfo* region) {
+        if (region->GetRegionSize() >= totalSize &&
+            (best == nullptr || region->GetRegionSize() < best->GetRegionSize())) {
+            best = region;
+        }
+        return false;
+    });
+    if (best == nullptr) {
+        return nullptr;
+    }
+    garbageRegionCache.RemoveRegionNoLock(best);
+    const size_t unitCount = best->GetUnitCount();
+    const size_t unitIndex = best->GetUnitIdx();
+    RegionInfo::ClearUnits(unitIndex, unitCount);
+    RegionInfo* region = RegionInfo::InitRegion(unitIndex, unitCount, RegionInfo::UnitRole::SMALL_SIZED_UNITS);
+    manager.EnlistThreadLocalRegion(region);
+    return region;
 }
 
 namespace {
@@ -68,9 +113,12 @@ RegionInfo* RemoveSmallestSlotRegion(RegionList& cache)
 
 MAddress GenerationAllocBuffer::AllocateYoungOnNewRegion(MixedRegionManager &manager, size_t totalSize)
 {
-    CJThreadPreemptOffCntAdd();
-    RegionInfo* r = manager.AllocateThreadLocalRegion();
-    CJThreadPreemptOffCntSub();
+    RegionInfo* r = TakeGarbageRegion(manager, totalSize);
+    if (r == nullptr) {
+        CJThreadPreemptOffCntAdd();
+        r = manager.AllocateThreadLocalRegion();
+        CJThreadPreemptOffCntSub();
+    }
     if (UNLIKELY(r == nullptr))
     {
         return 0;
@@ -83,11 +131,8 @@ MAddress GenerationAllocBuffer::AllocateYoungOnNewRegion(MixedRegionManager &man
     MAddress addr = tlRegion->Alloc(totalSize);
     if (addr != 0)
     {
-        if (!SetPreparedRegion(r))
-        {
-            manager.RemoveThreadLocalRegion(r);
-            manager.ReclaimRegion(r);
-        }
+        manager.RemoveThreadLocalRegion(r);
+        CacheGarbageRegion(manager, r);
         return addr;
     }
     manager.RemoveThreadLocalRegion(tlRegion);
@@ -147,13 +192,6 @@ MAddress GenerationAllocBuffer::AllocateYoung(size_t totalSize)
             manager.EnlistFullThreadLocalRegion(tr);
             tlRegion = RegionInfo::NullRegion();
         }
-    }
-
-    RegionInfo* r = preparedRegion.load(std::memory_order_acquire);
-    if (r != nullptr) {
-        preparedRegion.store(nullptr, std::memory_order_release);
-        tlRegion = r;
-        return r->Alloc(totalSize);
     }
 
     // Take a new region when young space is empty, and Take slot when young space is heavy.
@@ -220,9 +258,12 @@ MAddress GenerationAllocBuffer::AllocateOldOnSlot(MixedRegionManager &manager, s
 
 MAddress GenerationAllocBuffer::AllocateOldOnNewRegion(MixedRegionManager &manager, size_t totalSize)
 {
-    CJThreadPreemptOffCntAdd();
-    RegionInfo* r = manager.AllocateThreadLocalRegion();
-    CJThreadPreemptOffCntSub();
+    RegionInfo* r = TakeGarbageRegion(manager, totalSize);
+    if (r == nullptr) {
+        CJThreadPreemptOffCntAdd();
+        r = manager.AllocateThreadLocalRegion();
+        CJThreadPreemptOffCntSub();
+    }
     if (UNLIKELY(r == nullptr)) {
         DLOG(PROMOTE, "promote object failed");
         return 0;

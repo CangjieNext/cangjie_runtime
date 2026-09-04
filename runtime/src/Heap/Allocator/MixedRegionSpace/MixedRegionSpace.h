@@ -8,8 +8,13 @@
 #define MRT_MIXED_REGION_SPACE_H
 
 #include "Allocator/RegionSpace.h"
+#include "Common/ScopedObjectAccess.h"
+#include "Collector/CollectorResources.h"
 #include "GenerationalGC/GenerationAllocBuffer.h"
+#include "Heap.h"
+#include "Heap/GcThreadPool.h"
 #include "MixedRegionManager.h"
+#include "Mutator/MutatorManager.h"
 
 namespace MapleRuntime {
 
@@ -57,8 +62,20 @@ public:
         CastDown(GetRegionManager()).ForwardFromSpace(threadPool);
     }
 
+    void FeedHungryBuffers() override {}
+
     MAddress TryAllocateOnce(size_t allocSize, AllocType allocType) override
     {
+        if (!IsGcThread() && Heap::GetHeap().IsGcStarted()) {
+            GCPhase currentPhase = Heap::GetHeap().GetGCPhase();
+            if (currentPhase != GCPhase::GC_PHASE_ENUM &&
+                currentPhase != GCPhase::GC_PHASE_GENERATION_ENUM) {
+                GCThreadPool* threadPool = Heap::GetHeap().GetCollectorResources().GetThreadPool();
+                if (threadPool != nullptr) {
+                    (void)threadPool->TryExecuteOneTask(static_cast<size_t>(GetTid()));
+                }
+            }
+        }
         if (allocType == AllocType::MOVEABLE_OBJECT && allocSize < GetRegionManager().GetLargeObjectThreshold()) {
             AllocBuffer* allocBuffer = AllocBuffer::GetOrCreateAllocBuffer();
             return static_cast<GenerationAllocBuffer*>(allocBuffer)->AllocateYoung(allocSize);

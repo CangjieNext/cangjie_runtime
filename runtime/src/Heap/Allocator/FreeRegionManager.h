@@ -48,7 +48,7 @@ public:
 #if defined(__OHOS__)
                 bool dirtyOk = dirtyUnitTree.TakeUnitsLowAddr(num, idx);
 #else
-                bool dirtyOk = dirtyUnitTree.TakeUnits(num, idx);
+                bool dirtyOk = dirtyUnitTree.TakeUnitsLowAddr(num, idx);
 #endif
                 if (dirtyOk) {
                     DLOG(REGION, "c-tree %p alloc dirty units[%u+%u, %u) @[0x%zx, 0x%zx), %u dirty-units left",
