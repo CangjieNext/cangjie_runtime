@@ -60,7 +60,7 @@ public class ScenariosGenerator<S> {
             configuration => dataStrategy.provide(configuration) |> map {
                 args: T =>
                     let opName = formatOperationName(name, dataStrategy.lastItemInfo())
-                    operation(opName) {state: S => body(args, state)}
+                    operation(opName, args) { args: T, state: S => body(args, state)}
             }
         }
         operations.add(operationDesc)

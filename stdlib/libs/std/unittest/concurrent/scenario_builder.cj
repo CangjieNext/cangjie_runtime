@@ -166,10 +166,12 @@ public class ScenarioBuilder<S> where S <: Any {
             { state: S => op.executeWrapped(state) }
         }
         let names = ops.map { op => op.name }
+        let callArgs = ops.map { op => op.callArgs }
         _actors.add(Actor<S>(
             id: _actors.size,
             operations: wrappedOps,
             operationNames: names,
+            operationCallArgs: callArgs,
             name: "actor_${_actors.size}"
         ))
         this

@@ -316,6 +316,7 @@ protected class ScenarioRunner<S> where S <: Any {
                     actorId: actor.id,
                     operationIndex: i,
                     operationName: actor.operationNames[i],
+                    callArgs: actor.operationCallArgs[i],
                     result: result,
                     invocationVC: invocationVC,
                     responseVC: Some(responseVC)
@@ -327,6 +328,7 @@ protected class ScenarioRunner<S> where S <: Any {
                     actorId: actor.id,
                     operationIndex: i,
                     operationName: actor.operationNames[i],
+                    callArgs: actor.operationCallArgs[i],
                     result: result
                 ))
             }
