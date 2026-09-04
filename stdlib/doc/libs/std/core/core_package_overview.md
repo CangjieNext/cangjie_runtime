@@ -166,7 +166,6 @@ core 包是标准库的核心包，提供了适用仓颉语言编程最基本的
 | [ArithmeticException](./core_package_api/core_package_exceptions.md#class-arithmeticexception) | 算术异常类，发生算术异常时使用。 |
 | [Error](./core_package_api/core_package_exceptions.md#class-error) | `Error` 是所有错误类的父类。该类不可被继承，不可初始化，但是可以被捕获到。 |
 | [Exception](./core_package_api/core_package_exceptions.md#class-exception) | `Exception` 是所有异常类的父类。 |
-| <!--DelRow--> [ExclusiveScopeException](./core_package_api/core_package_exceptions.md#class-exclusivescopeexception) | 自定义异常类，用于包装在独占作用域中抛出的异常。它保留了原始异常的堆栈信息，不支持主动构造该异常，但是可以被捕获到。 |
 | [IllegalArgumentException](./core_package_api/core_package_exceptions.md#class-illegalargumentexception) | 表示参数非法的异常类。 |
 | [IllegalFormatException](./core_package_api/core_package_exceptions.md#class-illegalformatexception) | 表示变量的格式无效或不标准时的异常类。 |
 | [IllegalMemoryException](./core_package_api/core_package_exceptions.md#class-illegalmemoryexception) | 表示内存操作错误的异常类。 |
