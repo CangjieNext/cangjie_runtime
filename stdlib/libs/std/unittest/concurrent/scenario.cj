@@ -74,10 +74,18 @@ public func scenario(): ScenarioBuilder<Unit> {
 
 
 protected class Actor<S> where S <: Any {
+    protected let operationCallArgs: Array<?Any>
+
     protected Actor(
+        operationCallArgs!: ?Array<?Any> = None,
         protected let id!: Int64,
         protected let operations!: Array<(S) -> EquatableObj>,
         protected let operationNames!: Array<String>,
-        protected let name!: String
-    ) {}
+        protected let name!: String,
+    ) {
+        this.operationCallArgs = match(operationCallArgs) {
+            case Some(operationCallArgs) => operationCallArgs
+            case None => Array<?Any>(operations.size) { _ => None }
+        }
+    }
 }

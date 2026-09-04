@@ -9,13 +9,24 @@
 package std.unittest.concurrent
 
 public class Operation<S> where S <: Any {
-    Operation(
-        let name!: String,
-        let body!: (S) -> EquatableObj,
-    ) {}
+    let name: String
+    let body: (?Any, S) -> EquatableObj
+    let callArgs: ?Any
+
+    init(name!: String, body!: (S) -> EquatableObj) {
+        this.name = name
+        this.body = { _, state => body(state) }
+        this.callArgs = None
+    }
+
+    init(name!: String, callArgs!: Any, body!: (Any, S) -> EquatableObj) {
+        this.name = name
+        this.body = { args, state => body(args.getOrThrow(), state) }
+        this.callArgs = callArgs
+    }
 
     func executeWrapped(state: S): EquatableObj {
-        body(state)
+        body(callArgs, state)
     }
 }
 
@@ -31,6 +42,12 @@ public func operation<T, S>(name: String, body: (S) -> T): Operation<S> where T 
     Operation<S>(name: name) { state: S => execResultOf({ => body(state) }) }
 }
 
+public func operation<T, E, S>(name: String, callArgs: E, body: (E, S) -> T): Operation<S> where T <: Equatable<T>, S <: Any {
+    Operation<S>(name: name, callArgs: callArgs) {
+        args: Any, state: S => execResultOf({ => body((args as E).getOrThrow(), state) })
+    }
+}
+
 
 public class OperationInvocation {
     protected OperationInvocation(
@@ -38,6 +55,7 @@ public class OperationInvocation {
         public let operationIndex!: Int64,
         public let operationName!: String,
         public let result!: EquatableObj,
+        public let callArgs!: ?Any = None,
         let invocationVC!: ?Array<Int64> = None,
         let responseVC!: ?Array<Int64> = None
     ) {}
