@@ -23,6 +23,42 @@ public:
 
     void SplitList(RegionList& dst1, RegionList& dst2, size_t threshold);
 
+    bool SplitByRegionCount(RegionList& dst, size_t count)
+    {
+        std::lock_guard<std::mutex> lock(listMutex);
+        if (count == 0 || listHead == nullptr) {
+            return false;
+        }
+        RegionInfo* splitTail = listHead;
+        size_t splitCount = 1;
+        while (splitCount < count && splitTail->GetNextRegion() != nullptr) {
+            splitTail = splitTail->GetNextRegion();
+            ++splitCount;
+        }
+        RegionInfo* remainHead = splitTail->GetNextRegion();
+        splitTail->SetNextRegion(nullptr);
+        if (remainHead != nullptr) {
+            remainHead->SetPrevRegion(nullptr);
+        }
+        dst.listHead = listHead;
+        dst.listTail = splitTail;
+        dst.regionCount = splitCount;
+        dst.unitCount = 0;
+        for (RegionInfo* region = dst.listHead; region != nullptr; region = region->GetNextRegion()) {
+            dst.unitCount += region->GetUnitCount();
+        }
+        listHead = remainHead;
+        if (listHead == nullptr) {
+            listTail = nullptr;
+        }
+        regionCount -= splitCount;
+        unitCount = 0;
+        for (RegionInfo* region = listHead; region != nullptr; region = region->GetNextRegion()) {
+            unitCount += region->GetUnitCount();
+        }
+        return true;
+    }
+
     void DeleteRegion(RegionInfo* del)
     {
         if (del == nullptr) {

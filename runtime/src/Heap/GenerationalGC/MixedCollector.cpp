@@ -192,36 +192,33 @@ void MixedCollector::AssembleCandidates()
 
 class OldSweepTask : public HeapWork {
 public:
-    OldSweepTask(RegionList& sweepable, RegionList& swept, GCThreadPool* pool, RegionManager& manager)
-        : sweepableRegionList(sweepable), sweptRegionList(swept), threadPool(pool), regionManager(manager) {}
+    OldSweepTask(RegionList* sweepable, RegionList& swept, RegionManager& manager)
+        : sweepableRegionList(sweepable), sweptRegionList(swept), regionManager(manager) {}
 
     ~OldSweepTask() override = default;
 
     void Execute(size_t) override
     {
-        constexpr size_t BATCH = 10;
-        for (size_t i = 0; i < BATCH; i++) {
-            RegionInfo* region = sweepableRegionList.TakeHeadRegion();
-            if (region == nullptr) {
-                return;
-            }
+        RegionInfo* region = sweepableRegionList->TakeHeadRegionNoLock();
+        while (region != nullptr) {
+            RegionInfo* next = sweepableRegionList->TakeHeadRegionNoLock();
             if (region->GetLiveByteCount() == 0) {
                 RememberSet::Instance().RemoveRegion(region);
                 region->ResetRSetCardTable();
                 regionManager.CollectRegion(region);
+                region = next;
                 continue;
             }
             region->SweepRegion();
             sweptRegionList.PrependRegion(region, RegionInfo::RegionType::SWEEP_REGION);
+            region = next;
         }
-        threadPool->AddWork(new (std::nothrow) OldSweepTask(sweepableRegionList, sweptRegionList, threadPool,
-                                                           regionManager));
+        delete sweepableRegionList;
     }
 
 private:
-    RegionList& sweepableRegionList;
+    RegionList* sweepableRegionList;
     RegionList& sweptRegionList;
-    GCThreadPool* threadPool;
     RegionManager& regionManager;
 };
 
@@ -248,8 +245,18 @@ void MixedCollector::ConcurrentSweep()
     }
     MixedRegionSpace& space = static_cast<MixedRegionSpace&>(theAllocator);
     MixedRegionManager& manager = MixedRegionSpace::CastDown(space.GetRegionManager());
-    threadPool->AddWork(new (std::nothrow) OldSweepTask(manager.GetSweepableOldRegionList(),
-                                                       manager.GetOldSweptRegionList(), threadPool, manager));
+    constexpr size_t regionsPerTask = 20;
+    while (true) {
+        RegionList* local = new (std::nothrow) RegionList("old sweep task regions");
+        CHECK_DETAIL(local != nullptr, "failed to allocate old sweep task list");
+        if (!manager.GetSweepableOldRegionList().SplitByRegionCount(*local, regionsPerTask)) {
+            delete local;
+            break;
+        }
+        HeapWork* task = new (std::nothrow) OldSweepTask(local, manager.GetOldSweptRegionList(), manager);
+        CHECK_DETAIL(task != nullptr, "failed to allocate old sweep task");
+        threadPool->AddWork(task);
+    }
 }
 
 void MixedCollector::ResetForwardingData()

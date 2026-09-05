@@ -456,8 +456,8 @@ bool TracingCollector::MarkSatbBuffer(WorkStack& workStack)
         workStack.clear();
     }
 
-    constexpr uint64_t maxIterationTime = 120ULL * 1000 * 1000 * 1000; // 2 mins.
-    constexpr uint64_t maxIterationLoopNum = 1000;
+    constexpr uint64_t maxIterationTime = 100ULL * 1000 * 1000; // 100 ms
+    constexpr uint64_t maxIterationLoopNum = 10;
     auto visitSatbObj = [this, &workStack]() {
         WorkStack remarkStack;
         auto func = [&remarkStack](Mutator& mutator) {
