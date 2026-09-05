@@ -883,7 +883,6 @@ size_t RegionManager::CollectLargeGarbage()
             region = region->GetNextRegion();
         }
     }
-
     region = recentLargeRegionList.GetHeadRegion();
     while (region != nullptr) {
         region->ResetMarkBit();
@@ -1098,7 +1097,7 @@ RegionInfo* RegionManager::AllocateThreadLocalRegion(bool expectPhysicalMem)
     if (region != nullptr) {
         {
             GCPhase phase = Heap::GetHeap().GetCollector().GetGCPhase();
-            if (phase == GC_PHASE_TRACE || phase == GC_PHASE_CLEAR_SATB_BUFFER) {
+            if (phase == GC_PHASE_GENERATION_TRACE || phase == GC_PHASE_TRACE || phase == GC_PHASE_CLEAR_SATB_BUFFER) {
                 region->SetTraceRegionFlag(1);
             }
             tlRegionList.PrependRegion(region, RegionInfo::RegionType::THREAD_LOCAL_REGION);

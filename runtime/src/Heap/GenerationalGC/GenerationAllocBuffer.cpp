@@ -10,6 +10,7 @@
 #include "Collector/FinalizerProcessor.h"
 #include "Common/ScopedObjectAccess.h"
 #include "Heap.h"
+#include "Mutator/Mutator.h"
 
 namespace MapleRuntime {
 GenerationAllocBuffer* GenerationAllocBuffer::GetGenerationAllocBuffer()
@@ -77,16 +78,43 @@ RegionInfo* GenerationAllocBuffer::TakeGarbageRegion(MixedRegionManager& manager
     const size_t unitIndex = best->GetUnitIdx();
     RegionInfo::ClearUnits(unitIndex, unitCount);
     RegionInfo* region = RegionInfo::InitRegion(unitIndex, unitCount, RegionInfo::UnitRole::SMALL_SIZED_UNITS);
+    GCPhase phase = Heap::GetHeap().GetGCPhase();
+    if (phase == GCPhase::GC_PHASE_TRACE || phase == GCPhase::GC_PHASE_CLEAR_SATB_BUFFER ||
+        phase == GCPhase::GC_PHASE_GENERATION_TRACE) {
+        region->SetTraceRegionFlag(1);
+    }
     manager.EnlistThreadLocalRegion(region);
     return region;
 }
 
 namespace {
+// Black allocation: objects allocated from swept slot regions during GC trace/enumeration
+// phases must be marked immediately, otherwise the concurrent sweep of the current cycle
+// may reclaim them before any traced root references them (use-after-free).
+// NOTE: the object header (typeInfo) is not initialized yet at this point,
+// so only the caller-known totalSize is used, never obj->GetSize().
+// Uses the global GC phase: this path may also run on GC pool threads which have no Mutator.
+void MarkAllocatedObject(MAddress addr, size_t objSize)
+{
+    GCPhase phase = Heap::GetHeap().GetGCPhase();
+    if (LIKELY(phase != GCPhase::GC_PHASE_ENUM && phase != GCPhase::GC_PHASE_TRACE &&
+               phase != GCPhase::GC_PHASE_GENERATION_ENUM && phase != GCPhase::GC_PHASE_GENERATION_TRACE &&
+               phase != GCPhase::GC_PHASE_CLEAR_SATB_BUFFER)) {
+        return;
+    }
+    auto* obj = reinterpret_cast<BaseObject*>(addr);
+    RegionInfo* region = RegionInfo::GetRegionInfoAt(addr);
+    region->MarkObject(obj, objSize);
+}
+
 MAddress AllocateFromSlotRegionCache(RegionList& cache, size_t totalSize)
 {
     MAddress result = 0;
     cache.VisitAllRegionsUntilSuccNoLock([&result, totalSize](RegionInfo* region) {
         result = region->AllocateFromSlot(totalSize);
+        if (result != 0) {
+            MarkAllocatedObject(result, totalSize);
+        }
         return result != 0;
     });
     return result;
@@ -169,6 +197,9 @@ MAddress GenerationAllocBuffer::AllocateYoungOnSlot(MixedRegionManager &manager,
             return;
         }
         result = region->AllocateFromSlot(totalSize);
+        if (result != 0) {
+            MarkAllocatedObject(result, totalSize);
+        }
     });
     return result;
 }
@@ -252,6 +283,9 @@ MAddress GenerationAllocBuffer::AllocateOldOnSlot(MixedRegionManager &manager, s
             return;
         }
         result = region->AllocateFromSlot(totalSize);
+        if (result != 0) {
+            MarkAllocatedObject(result, totalSize);
+        }
     });
     return result;
 }

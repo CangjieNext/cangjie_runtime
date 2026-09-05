@@ -48,6 +48,11 @@ public:
     void PromoteRegion(RegionInfo* fromRegion);
     void ForwardFromSpace(GCThreadPool* threadPool) override;
     size_t CollectRegion(RegionInfo* region) override;
+    size_t CollectLargeGarbage();
+    void MergeOldLargeRegionList(RegionList& regions)
+    {
+        oldLargeRegionList.MergeRegionList(regions, RegionInfo::RegionType::LARGE_REGION);
+    }
     void EnlistOldRegionList(RegionInfo* region) noexcept
     {
         region->SetOldRegionFlag(1);

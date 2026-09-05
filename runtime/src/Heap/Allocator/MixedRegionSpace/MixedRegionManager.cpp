@@ -18,6 +18,43 @@
 
 namespace MapleRuntime {
 
+namespace {
+class CollectMixedLargeGarbageTask : public HeapWork {
+public:
+    CollectMixedLargeGarbageTask(MixedRegionManager& manager, RegionList* regions,
+                                 std::atomic<size_t>& garbageSize)
+        : regionManager(manager), tmpRegions(regions), totalGarbageSize(garbageSize) {}
+
+    void Execute(size_t) override
+    {
+        size_t garbageSize = 0;
+        RegionInfo* region = tmpRegions->GetHeadRegion();
+        while (region != nullptr) {
+            RegionInfo* next = region->GetNextRegion();
+            if (!region->IsSurvivedObject(0)) {
+                tmpRegions->RemoveRegionNoLock(region);
+                if (region->GetRegionSize() > RegionInfo::LARGE_OBJECT_RELEASE_THRESHOLD) {
+                    garbageSize += regionManager.ReleaseRegion(region);
+                } else {
+                    garbageSize += regionManager.CollectRegion(region);
+                }
+            } else {
+                region->ResetMarkBit();
+            }
+            region = next;
+        }
+        totalGarbageSize.fetch_add(garbageSize, std::memory_order_relaxed);
+        regionManager.MergeOldLargeRegionList(*tmpRegions);
+        delete tmpRegions;
+    }
+
+private:
+    MixedRegionManager& regionManager;
+    RegionList* tmpRegions;
+    std::atomic<size_t>& totalGarbageSize;
+};
+} // namespace
+
 void MixedRegionManager::DumpRegionStats(const char* msg, bool dumpToError) const
 {
     RegionManager::DumpRegionStats(msg, dumpToError);
@@ -122,8 +159,8 @@ public:
 
     void Execute(size_t) override
     {
-        constexpr size_t BATCH = 10;
-        for (size_t i = 0; i < BATCH; i++) {
+        constexpr size_t batch = 10;
+        for (size_t i = 0; i < batch; ++i) {
             RegionInfo* region = fromRegionList.TakeHeadRegion(RegionInfo::RegionType::LONE_FROM_REGION);
             if (region == nullptr) {
                 return;
@@ -217,6 +254,36 @@ size_t MixedRegionManager::CollectRegion(RegionInfo* region)
     GenerationAllocBuffer* buffer = GenerationAllocBuffer::GetGenerationAllocBuffer();
     buffer->CacheGarbageRegion(*this, region);
     return collectedSize;
+}
+
+size_t MixedRegionManager::CollectLargeGarbage()
+{
+    constexpr size_t regionsPerTask = 20;
+    std::atomic<size_t> garbageSize{0};
+    GCThreadPool* threadPool = Heap::GetHeap().GetCollectorResources().GetThreadPool();
+    while (true) {
+        RegionList* tmpRegions = new (std::nothrow) RegionList("old large regions task");
+        CHECK_DETAIL(tmpRegions != nullptr, "failed to allocate old large regions task list");
+        if (!oldLargeRegionList.SplitByRegionCount(*tmpRegions, regionsPerTask)) {
+            delete tmpRegions;
+            break;
+        }
+        HeapWork* task = new (std::nothrow) CollectMixedLargeGarbageTask(*this, tmpRegions, garbageSize);
+        CHECK_DETAIL(task != nullptr, "failed to allocate old large region collection task");
+        if (threadPool == nullptr) {
+            task->Execute(0);
+            delete task;
+        } else {
+            threadPool->AddWork(task);
+        }
+    }
+    if (threadPool != nullptr) {
+        threadPool->Start();
+        threadPool->WaitFinish();
+    }
+
+    recentLargeRegionList.VisitAllRegions([](RegionInfo* region) { region->ResetMarkBit(); });
+    return garbageSize.load(std::memory_order_relaxed);
 }
 
 bool MixedRegionManager::PromoteRegionImpl(RegionInfo* fromRegion)

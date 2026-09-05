@@ -183,7 +183,7 @@ public:
         GetRegionManager().ForwardFromSpace(threadPool);
     }
 
-    size_t CollectLargeGarbage() { return GetRegionManager().CollectLargeGarbage(); }
+    virtual size_t CollectLargeGarbage() { return GetRegionManager().CollectLargeGarbage(); }
 
     size_t CollectPinnedGarbage() { return GetRegionManager().CollectPinnedGarbage(); }
 

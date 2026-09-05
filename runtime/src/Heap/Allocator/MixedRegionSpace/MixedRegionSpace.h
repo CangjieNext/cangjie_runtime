@@ -64,13 +64,27 @@ public:
 
     void FeedHungryBuffers() override {}
 
+    size_t CollectLargeGarbage() override
+    {
+        return CastDown(GetRegionManager()).CollectLargeGarbage();
+    }
+
     MAddress TryAllocateOnce(size_t allocSize, AllocType allocType) override
     {
-        if (!IsGcThread() && Heap::GetHeap().IsGcStarted()) {
-            GCPhase currentPhase = Heap::GetHeap().GetGCPhase();
+        constexpr size_t mutatorAssistInterval = 64 * KB;
+        thread_local size_t allocationBalance = 0;
+        Heap& heap = Heap::GetHeap();
+        if (!IsGcThread() && heap.IsGcStarted()) {
+            allocationBalance += allocSize;
+        } else {
+            allocationBalance = 0;
+        }
+        if (allocationBalance >= mutatorAssistInterval) {
+            allocationBalance = 0;
+            GCPhase currentPhase = heap.GetGCPhase();
             if (currentPhase != GCPhase::GC_PHASE_ENUM &&
                 currentPhase != GCPhase::GC_PHASE_GENERATION_ENUM) {
-                GCThreadPool* threadPool = Heap::GetHeap().GetCollectorResources().GetThreadPool();
+                GCThreadPool* threadPool = heap.GetCollectorResources().GetThreadPool();
                 if (threadPool != nullptr) {
                     (void)threadPool->TryExecuteOneTask(static_cast<size_t>(GetTid()));
                 }

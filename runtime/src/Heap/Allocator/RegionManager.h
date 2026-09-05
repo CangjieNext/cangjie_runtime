@@ -185,7 +185,7 @@ public:
                  region->GetRegionType());
             // If allocate pinned obj during tracing, set region to traced new region.
             GCPhase phase = Heap::GetHeap().GetCollector().GetGCPhase();
-            if (phase == GC_PHASE_TRACE || phase == GC_PHASE_CLEAR_SATB_BUFFER) {
+            if (phase == GC_PHASE_GENERATION_TRACE || phase == GC_PHASE_TRACE || phase == GC_PHASE_CLEAR_SATB_BUFFER) {
                 region->SetTraceRegionFlag(1);
             }
             // To make sure the allocedSize are consistent, it must prepend region first then alloc object.
@@ -213,7 +213,7 @@ public:
         uintptr_t addr = region->Alloc(size);
 
         GCPhase phase = Heap::GetHeap().GetCollector().GetGCPhase();
-        bool shouldSetTraceRegion = (phase == GC_PHASE_TRACE || phase == GC_PHASE_CLEAR_SATB_BUFFER);
+        bool shouldSetTraceRegion = (phase == GC_PHASE_GENERATION_TRACE || phase == GC_PHASE_TRACE || phase == GC_PHASE_CLEAR_SATB_BUFFER);
         if (largeTraceRegions.TryPrependRegion(region, RegionInfo::RegionType::RECENT_LARGE_REGION)) {
             if (shouldSetTraceRegion) {
                 region->SetTraceRegionFlag(1);
