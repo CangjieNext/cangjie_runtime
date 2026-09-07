@@ -17,8 +17,8 @@
 namespace MapleRuntime {
 
 // EH frame for CJ_MCC_ExclusiveScope (ExclusiveScope.S).
-// The walker only visits the OS bridge; unwrap bridgeFA → stub FA, then restore
-// FP/SP as if the stub epilogue ran (heap SP, managed caller FP).
+// The walker only visits the bridge and restores FP/SP to the managed caller
+// in a single hop, as if both assembly epilogues have run: heap SP, managed caller FP.
 class ExclusiveScopeEHFrameInfo : public IEHFrameInfo, public FrameInfo {
 public:
     explicit ExclusiveScopeEHFrameInfo(const FrameInfo& info) : FrameInfo(info) {}
