@@ -29,7 +29,7 @@ public class ConcurrentScenario<S> where S <: Any {
     ) {}
 
     public func run(): ScenarioResult {
-        let executor = ScenarioRunner<S>(this)
+        let executor = ScenarioRunner<S>(ConcurrentScenarioProducer.constant(this))
         let iterationResults = ArrayList<ScenarioIterationResult>()
         let startTime = DateTime.now()
 
@@ -52,6 +52,54 @@ public class ConcurrentScenario<S> where S <: Any {
             iterationResults: iterationResults,
             totalDuration: endTime - startTime
         )
+    }
+}
+
+public class ConcurrentScenarioProducer<S> {
+    protected ConcurrentScenarioProducer(
+        private let producer: (?S) -> (S, ConcurrentScenario<S>)
+    ) {}
+
+    public func get(): (S, ConcurrentScenario<S>) {
+        producer(None)
+    }
+
+    public func get(state: S): ConcurrentScenario<S> {
+        let (_, scenario) = producer(Some(state))
+        scenario
+    }
+
+    // FIXMe: Create scenario once and then get these constant fields from there
+    public prop parallelIterations: Bool {
+        get() {
+            let (_, scenario) = this.get()
+            scenario.parallelIterations
+        }
+    }
+
+    public prop threadCount: Int64 {
+        get() {
+            let (_, scenario) = this.get()
+            scenario.threadCount
+        }
+    }
+
+    public prop resetBlock: ?() -> Unit {
+        get() {
+            let (_, scenario) = this.get()
+            scenario.resetBlock
+        }
+    }
+
+    public prop iterations: Int64 {
+        get() {
+            let (_, scenario) = this.get()
+            scenario.iterations
+        }
+    }
+
+    public static func constant(scenario: ConcurrentScenario<S>): ConcurrentScenarioProducer<S> {
+        ConcurrentScenarioProducer { state => (state ?? scenario.stateFactory.getOrThrow()(), scenario) }
     }
 }
 

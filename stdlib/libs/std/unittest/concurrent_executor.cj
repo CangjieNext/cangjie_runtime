@@ -12,6 +12,7 @@ import std.unittest.common.*
 import std.unittest.concurrent.ScenarioRunner
 import std.unittest.concurrent.ScenarioIterationResult
 import std.unittest.concurrent.ConcurrentScenario
+import std.unittest.concurrent.ConcurrentScenarioProducer
 import std.collection.*
 import std.time.DateTime
 
@@ -27,7 +28,7 @@ class ConcurrentTestFailure <: Exception {
 class ConcurrentExecutor<T, S> <: Executor where S <: Any {
     ConcurrentExecutor(
         private let strategy!: DataStrategyProcessor<T>,
-        private let body!: (T) -> ConcurrentScenario<S>
+        private let body!: (T) -> ConcurrentScenarioProducer<S>
     ) {}
 
     public func execute(
@@ -45,22 +46,22 @@ class ConcurrentExecutor<T, S> <: Executor where S <: Any {
 
             let input = strategy.lastItemInfo()
             let start = DateTime.now()
-            let (scenario, failures) = try {
-                let scenario = body(arg)
-                let failures = executeScenario(suiteInfo, tcase, configuration, scenario)
-                (scenario, failures)
+            let (scenarioProducer, failures) = try {
+                let scenarioProducer = body(arg)
+                let failures = executeScenario(suiteInfo, tcase, configuration, scenarioProducer)
+                (scenarioProducer, failures)
             } catch (e: Exception) {
                 tcase.add(strategyErrorAsResult(e, argDescription([], input, configuration, generationStep)))
                 return
             }
             let stepKind = CaseStep(argDescription(failures, input, configuration, generationStep))
             if (failures.isEmpty()) {
-                tcase.addSuccessfullStep(RunStepResult(scenario.iterations, start, stepKind, Test(1)))
+                tcase.addSuccessfullStep(RunStepResult(scenarioProducer.iterations, start, stepKind, Test(1)))
             } else {
                 let firstFailure = failures |> take(1) |> map<ScenarioIterationResult, CheckResult> {
                     iter => ConcurrentTestCheckResult(iter)
                 } |> collectArray
-                tcase.add(RunStepResult(scenario.iterations - failures.size, start, stepKind, Failure(firstFailure)))
+                tcase.add(RunStepResult(scenarioProducer.iterations - failures.size, start, stepKind, Failure(firstFailure)))
                 return
             }
         }
@@ -102,14 +103,14 @@ class ConcurrentExecutor<T, S> <: Executor where S <: Any {
         suiteInfo: TestSuiteReportInfo,
         tcase: TestCaseResult,
         configuration: Configuration,
-        scenario: ConcurrentScenario<S>
+        scenarioProducer: ConcurrentScenarioProducer<S>
     ): Array<ScenarioIterationResult> {
         let progress = ProgressOutput(configuration)
-        let executor = ScenarioRunner<S>(scenario)
-        let iterations = scenario.iterations
+        let executor = ScenarioRunner<S>(scenarioProducer)
+        let iterations = scenarioProducer.iterations
         progress.verbose {
             "Starting concurrent scenario '${tcase.caseId.caseName}' " +
-                "with ${scenario.threadCount} threads, ${iterations} iterations."
+                "with ${scenarioProducer.threadCount} threads, ${iterations} iterations."
         }
 
         let verbose = configuration.verbose

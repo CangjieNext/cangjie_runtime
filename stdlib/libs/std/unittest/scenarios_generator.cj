@@ -82,7 +82,7 @@ public class ScenariosGenerator<S> {
         maxActors!: ?Int64 = None,
         minOperationPerActor!: ?Int64 = None,
         maxOperationPerActor!: ?Int64 = None
-    ): DataStrategy<ScenarioBuilder<S>> {
+    ): DataStrategy<ScopedScenarioBuilder> {
         ScenarioDataStrategy(
             operations.toArray(),
             ScenarioParams(
@@ -96,7 +96,7 @@ public class ScenariosGenerator<S> {
     }
 }
 
-private class ScenarioIterator<S> <: Iterator<ScenarioBuilder<S>> {
+private class ScenarioIterator<S> <: Iterator<ScopedScenarioBuilder> {
     private let operationIterators: Array<Iterator<Operation<S>>>
     private let random: RandomSource
 
@@ -135,7 +135,7 @@ private class ScenarioIterator<S> <: Iterator<ScenarioBuilder<S>> {
         }
     }
 
-    public override func next(): Option<ScenarioBuilder<S>> {
+    public override func next(): Option<ScopedScenarioBuilder> {
         let scenario = scenarioParams.scenarioBase()
 
         let groups = HashSet<String>()
@@ -214,33 +214,33 @@ private class ScenarioIterator<S> <: Iterator<ScenarioBuilder<S>> {
             scenario.actorWithOps(actorOperations)
         }
 
-        Some(scenario)
+        Some(scenario.scoped())
     }
 }
 
-private class ScenarioDataProvider<S> <: DataProvider<ScenarioBuilder<S>> & Iterable<ScenarioBuilder<S>> {
+private class ScenarioDataProvider<S> <: DataProvider<ScopedScenarioBuilder> & Iterable<ScopedScenarioBuilder> {
     ScenarioDataProvider(
         private let configuration: Configuration,
         private let operations: Array<OperationDesc<S>>,
         private let scenarioParams: ScenarioParams<S>
     ) {}
 
-    public override func provide(): Iterable<ScenarioBuilder<S>> {
+    public override func provide(): Iterable<ScopedScenarioBuilder> {
         this
     }
 
-    public override func iterator(): Iterator<ScenarioBuilder<S>> {
+    public override func iterator(): Iterator<ScopedScenarioBuilder> {
         ScenarioIterator(configuration, operations, scenarioParams)
     }
 }
 
-private class ScenarioDataStrategy<S> <: DataStrategy<ScenarioBuilder<S>> {
+private class ScenarioDataStrategy<S> <: DataStrategy<ScopedScenarioBuilder> {
     ScenarioDataStrategy(
         private let operations: Array<OperationDesc<S>>,
         private let scenarioParams: ScenarioParams<S>
     ) {}
 
-    public override func provider(configuration: Configuration): DataProvider<ScenarioBuilder<S>> {
+    public override func provider(configuration: Configuration): DataProvider<ScopedScenarioBuilder> {
         ScenarioDataProvider(configuration, operations, scenarioParams)
     }
 

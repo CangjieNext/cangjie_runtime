@@ -9,6 +9,7 @@ package std.unittest
 
 import std.collection.*
 import std.unittest.concurrent.ConcurrentScenario
+import std.unittest.concurrent.ConcurrentScenarioProducer
 import std.unittest.concurrent.ScenarioBuilder
 
 public class TestSuite {
@@ -417,7 +418,11 @@ public class ConcurrentTestCase {
         scenario!: ConcurrentScenario<S>,
         configuration!: Configuration = Configuration()
     ): ConcurrentTestCase where S <: Any {
-        createParameterized<Unit, S>(name, noArgsProcessor(), body: { _: Unit => scenario }, configuration: configuration)
+        createParameterized<Unit, S>(
+            name, noArgsProcessor(),
+            body: { _: Unit => ConcurrentScenarioProducer<S>.constant(scenario) },
+            configuration: configuration,
+        )
     }
 
     public static func createFromBuilder<S>(
@@ -431,7 +436,7 @@ public class ConcurrentTestCase {
     public static func createParameterized<T, S>(
         name: String,
         strategy: DataStrategyProcessor<T>, 
-        body!: (T) -> ConcurrentScenario<S>,
+        body!: (T) -> ConcurrentScenarioProducer<S>,
         configuration!: Configuration = Configuration()
     ): ConcurrentTestCase where S <: Any {
         let executor = ConcurrentExecutor<T, S>(strategy: strategy, body: body)

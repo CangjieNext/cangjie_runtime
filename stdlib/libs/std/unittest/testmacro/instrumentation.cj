@@ -110,8 +110,9 @@ class InstrumentedBench <: InstrumentedFunction {
 }
 
 class InstrumentedStressTest <: InstrumentedFunction {
-    init(
-        original: FuncDecl
+    InstrumentedStressTest(
+        original: FuncDecl,
+        private let concurrentTestStateClassName: Token,
     ) {
         super(
             original,
@@ -124,16 +125,19 @@ class InstrumentedStressTest <: InstrumentedFunction {
     }
 
     public override func creationArgs(funIdent: Tokens, argNames: Array<String>, argTypes: Array<Tokens>): Tokens {
-        if (argTypes.size < 1 || argTypes[0].size < 1 || argTypes[0][0].value != "ScenarioBuilder") {
-            throw MacroException("@StressTest declaration must have first parameter of type ScenarioBuilder")
+        if (argTypes.size < 1 || argTypes[0].size < 1 || argTypes[0][0].value != "ScopedScenarioBuilder") {
+            throw MacroException("@StressTest declaration must have first parameter of type ScopedScenarioBuilder")
         }
         let namesTokens = argNames |> map{ x => Token(IDENTIFIER, x) } |> collectArray<Token>
+        let builderName = namesTokens[0]
+        let scenarioName = Token(STRING_LITERAL, funIdent[0].value)
         let argType = nestedTuple(argTypes).ifEmpty(quote(Unit))
         let destructuring = nestedTuple(namesTokens).ifEmpty(quote(_))
         quote(doRun: { x___: $argType =>
                 let $destructuring = x___
-                $funIdent($(commaSeparated(namesTokens)))
-                $(namesTokens[0]).build()
+                $builderName.name($scenarioName).build<$concurrentTestStateClassName> { state, $builderName =>
+                    state.$funIdent($(commaSeparated(namesTokens)))
+                }
             })
     }
 }
@@ -428,7 +432,7 @@ class InstrumentedClass {
                 testFunctions.add(InstrumentedBench(funcDecl))
             }
             if (funcDecl.has(STRESS_TEST_MACRO)) {
-                testFunctions.add(InstrumentedStressTest(funcDecl))
+                testFunctions.add(InstrumentedStressTest(funcDecl, concurrentTestStateClassName))
             }
         }
     }
@@ -578,11 +582,11 @@ class InstrumentedClass {
                         maxActors!: ?Int64 = None,
                         minOperationPerActor!: ?Int64 = None,
                         maxOperationPerActor!: ?Int64 = None,
-                ): DataStrategy<ScenarioBuilder<$concurrentTestStateClassName>>
+                ): DataStrategy<ScopedScenarioBuilder>
             )).curlyBraces {
                 tb => tb.append(quote(
-                    let operationsManager = createScenariosGenerator()
-                    operationsManager.scenarios(
+                    let scenariosGenerator = createScenariosGenerator()
+                    scenariosGenerator.scenarios(
                         minActors: minActors,
                         maxActors: maxActors,
                         minOperationPerActor: minOperationPerActor,
