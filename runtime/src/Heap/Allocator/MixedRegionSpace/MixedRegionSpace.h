@@ -71,7 +71,7 @@ public:
 
     MAddress TryAllocateOnce(size_t allocSize, AllocType allocType) override
     {
-        constexpr size_t mutatorAssistInterval = 64 * KB;
+        constexpr size_t mutatorAssistInterval = 4 * KB;
         thread_local size_t allocationBalance = 0;
         Heap& heap = Heap::GetHeap();
         if (!IsGcThread() && heap.IsGcStarted()) {
