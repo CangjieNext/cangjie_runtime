@@ -31,9 +31,12 @@ public:
             RegionList tmpMovable("movable regions cache");
             RegionList tmpSwept("swept regions cache");
             recentFullRegionList.SplitList(tmpMovable, tmpSwept, GetMovableThreshold());
+            MovePromotedRegions(tmpMovable);
+            MovePromotedRegions(tmpSwept);
             fromRegionList.MergeRegionList(tmpMovable, RegionInfo::RegionType::FROM_REGION);
             sweepableYoungRegionList.MergeRegionList(tmpSwept, RegionInfo::RegionType::SWEEP_REGION);
         }
+        MovePromotedRegions(fromRegionList);
         fromRegionList.VisitAllRegions([](RegionInfo* region) { region->ClearLiveInfo(); });
         sweepableYoungRegionList.VisitAllRegions([](RegionInfo* region) { region->ClearLiveInfo(); });
     }
@@ -259,6 +262,19 @@ public:
     }
     
 private:
+    void MovePromotedRegions(RegionList& source)
+    {
+        RegionInfo* region = source.GetHeadRegion();
+        while (region != nullptr) {
+            RegionInfo* next = region->GetNextRegion();
+            if (region->IsPromoted()) {
+                source.RemoveRegionNoLock(region);
+                promoteRegionList.PrependRegion(region, RegionInfo::RegionType::FROM_PROMOTE_REGION);
+            }
+            region = next;
+        }
+    }
+
     static size_t GetFreeSlotTotalSize(const RegionList& list)
     {
         size_t total = 0;
