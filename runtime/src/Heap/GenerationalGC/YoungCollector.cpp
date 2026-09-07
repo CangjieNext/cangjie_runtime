@@ -290,6 +290,8 @@ void YoungCollector::EnumAllCommonRoots(GCThreadPool* threadPool, RootSet& rootS
 
 void YoungCollector::ForwardFromSpace()
 {
+    ScopedEntryTrace trace("CJRT_GC_FORWARD");
+    MRT_PHASE_TIMER("ForwardFromRegions");
     TransitionToGCPhase(GCPhase::GC_PHASE_GENERATION_FORWARD, true);
     MixedRegionSpace& space = static_cast<MixedRegionSpace&>(theAllocator);
     space.ForwardFromSpace(GetThreadPool());

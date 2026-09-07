@@ -17,7 +17,8 @@ public:
         sweepableOldRegionList("sweepable old region list"), sweptYoungRegionList("swept young region list"),
         oldSweptRegionList("old swept region list"), oldRegionList("old region list"),
         oldFromRegionList("old from region list"), ghostOldFromRegionList("ghost old from region list"),
-        promoteRegionList("promote region list"), ghostPromoteRegionList("ghost promote region list") {}
+        discreteForwardingRegionList("discretely forwarding region list"),
+        ghostPromoteRegionList("ghost promote region list") {}
     ~MixedRegionManager() override = default;
     void AssembleYoungRegions()
     {
@@ -31,12 +32,10 @@ public:
             RegionList tmpMovable("movable regions cache");
             RegionList tmpSwept("swept regions cache");
             recentFullRegionList.SplitList(tmpMovable, tmpSwept, GetMovableThreshold());
-            MovePromotedRegions(tmpMovable);
             MovePromotedRegions(tmpSwept);
             fromRegionList.MergeRegionList(tmpMovable, RegionInfo::RegionType::FROM_REGION);
             sweepableYoungRegionList.MergeRegionList(tmpSwept, RegionInfo::RegionType::SWEEP_REGION);
         }
-        MovePromotedRegions(fromRegionList);
         fromRegionList.VisitAllRegions([](RegionInfo* region) { region->ClearLiveInfo(); });
         sweepableYoungRegionList.VisitAllRegions([](RegionInfo* region) { region->ClearLiveInfo(); });
     }
@@ -76,7 +75,7 @@ public:
             rawPointerPinnedRegionList.GetUnitCount() + largeTraceRegions.GetUnitCount() +
             fullTraceRegions.GetUnitCount() + tlRegionList.GetUnitCount() + fromRegionList.GetUnitCount() +
             sweepableYoungRegionList.GetUnitCount() + sweptYoungRegionList.GetUnitCount() +
-            promoteRegionList.GetUnitCount();
+            discreteForwardingRegionList.GetUnitCount();
         return youngUnitCount * RegionInfo::UNIT_SIZE;
     }
     void RecycleYoungSlotRegion(RegionInfo* region)
@@ -121,12 +120,12 @@ public:
 
         fromRegionList.CopyListTo(ghostFromRegionList);
 
-        promoteRegionList.VisitAllRegions([](RegionInfo* region) {
+        discreteForwardingRegionList.VisitAllRegions([](RegionInfo* region) {
             DLOG(REGION, "prepare promote region %p@[%#zx+%zu, %#zx)", region, region->GetRegionStart(),
                  region->GetLiveByteCount(), region->GetRegionEnd());
             region->PrepareForwardableRegion();
         });
-        promoteRegionList.CopyListTo(ghostPromoteRegionList);
+        discreteForwardingRegionList.CopyListTo(ghostPromoteRegionList);
     }
     void PrepareMixedFromRegionList()
     {
@@ -169,7 +168,8 @@ public:
             bool async = allUsedSize < maxMixedThreshold;
             heap.GetCollector().RequestGC(async ? GC_REASON_MIXED : GC_REASON_FORCE, async);
         } else if (youngReached) {
-            bool async = youngUsedSize < maxYoungThreshold;
+            // bool async = youngUsedSize < maxYoungThreshold;
+            bool async = true;
             heap.GetCollector().RequestGC(async ? GC_REASON_HEU : GC_REASON_HEU_SYNC, async);
         }
     }
@@ -184,7 +184,7 @@ public:
         total -= GetFreeSlotTotalSize(oldSweptRegionList);
         total += oldRegionList.GetAllocatedSize();
         total += oldFromRegionList.GetAllocatedSize();
-        total += promoteRegionList.GetAllocatedSize();
+        total += discreteForwardingRegionList.GetAllocatedSize();
         return total;
     }
     size_t GetUsedUnitCount() const override
@@ -196,7 +196,7 @@ public:
         total += oldSweptRegionList.GetUnitCount();
         total += oldRegionList.GetUnitCount();
         total += oldFromRegionList.GetUnitCount();
-        total += promoteRegionList.GetUnitCount();
+        total += discreteForwardingRegionList.GetUnitCount();
         return total;
     }
     void AddRawPointerObject(BaseObject* obj) override
@@ -243,7 +243,7 @@ public:
             CHECK(region->GetRegionType() != RegionInfo::RegionType::LONE_FROM_REGION);
         }
         // Region may be moved from from region list to promote region list, so it must be double checked after from region
-        if (region->IsFromPromoteRegion() && promoteRegionList.TryDeleteRegion(region,
+        if (region->IsFromPromoteRegion() && discreteForwardingRegionList.TryDeleteRegion(region,
             RegionInfo::RegionType::FROM_PROMOTE_REGION, RegionInfo::RegionType::SWEEP_REGION)) {
             GCPhase phase = Heap::GetHeap().GetGCPhase();
             CHECK(phase != GCPhase::GC_PHASE_FORWARD && phase != GCPhase::GC_PHASE_PREFORWARD &&
@@ -269,7 +269,7 @@ private:
             RegionInfo* next = region->GetNextRegion();
             if (region->IsPromoted()) {
                 source.RemoveRegionNoLock(region);
-                promoteRegionList.PrependRegion(region, RegionInfo::RegionType::FROM_PROMOTE_REGION);
+                discreteForwardingRegionList.PrependRegion(region, RegionInfo::RegionType::FROM_PROMOTE_REGION);
             }
             region = next;
         }
@@ -308,7 +308,7 @@ private:
     RegionList oldRegionList;
     RegionList oldFromRegionList;
     RegionList ghostOldFromRegionList;
-    RegionList promoteRegionList;
+    RegionList discreteForwardingRegionList;
     RegionList ghostPromoteRegionList;
 };
 

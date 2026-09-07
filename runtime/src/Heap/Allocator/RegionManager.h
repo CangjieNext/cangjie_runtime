@@ -170,6 +170,7 @@ public:
         if (addr == 0) {
             addr = AllocPinnedFromFreeList(size);
         }
+        regionListMutex.unlock();
         if (addr == 0) {
             size_t needUnitCount = maxUnitCountPerRegion;
 #if defined(__EULER__)
@@ -189,12 +190,12 @@ public:
                 region->SetTraceRegionFlag(1);
             }
             // To make sure the allocedSize are consistent, it must prepend region first then alloc object.
-            recentPinnedRegionList.PrependRegionLocked(region, RegionInfo::RegionType::RECENT_PINNED_REGION);
             addr = region->Alloc(size);
+            ScopedEnterSaferegion enterSaferegion(true);
+            recentPinnedRegionList.PrependRegion(region, RegionInfo::RegionType::RECENT_PINNED_REGION);
         }
 
         DLOG(ALLOC, "alloc pinned obj 0x%zx(%zu)", addr, size);
-        regionListMutex.unlock();
         return addr;
     }
 
