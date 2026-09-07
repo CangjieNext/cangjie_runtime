@@ -94,6 +94,15 @@ class PipeOutputStream <: OutputStream & Resource {
      *
      * @throws ProcessException if system failed to write the file
      */
+    @When[os != "Windows"]
+    private func directWrite(buffer: Array<Byte>): Unit {
+        let success = IOPool.shared.submitWrite(this._fileDescriptor._fileHandle, buffer)
+        if (!success) {
+            throw ProcessException("The stream write error.")
+        }
+    }
+
+    @When[os == "Windows"]
     private func directWrite(buffer: Array<Byte>): Unit {
         unsafe {
             let bufSize: Int64 = buffer.size
@@ -154,6 +163,12 @@ class PipeInputStream <: InputStream & Resource {
      *
      * @return Length successfully written into the array buffer
      */
+    @When[os != "Windows"]
+    private func directRead(buffer: Array<Byte>): Int64 {
+        return IOPool.shared.submitRead(this._fileDescriptor._fileHandle, buffer)
+    }
+
+    @When[os == "Windows"]
     private func directRead(buffer: Array<Byte>): Int64 {
         unsafe {
             let bufPtr: CPointerHandle<Byte> = acquireArrayRawData(buffer)
