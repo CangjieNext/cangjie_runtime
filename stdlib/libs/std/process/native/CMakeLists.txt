@@ -7,7 +7,7 @@
 set(process_ffi_src)
 
 if(NOT WIN32)
-    list(APPEND process_ffi_src process_ffi_unix.c)
+    list(APPEND process_ffi_src process_ffi_unix.c io_pool_ffi.c)
     if(DARWIN)
         list(APPEND process_ffi_src process_impl_macos.c)
     else()

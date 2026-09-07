@@ -315,6 +315,7 @@ make_cangjie_lib(
         std-time
         std-sort
         std-sync
+        std-collection.concurrent
     CANGJIE_STD_LIB_INDIRECT_DEPENDS std-math
     OBJECTS ${output_cj_object_dir}/std/process.o
     FLAGS
@@ -336,6 +337,7 @@ make_cangjie_lib(
         std-io
         std-sync
         std-sort
+        std-process
     CANGJIE_STD_LIB_INDIRECT_DEPENDS std-math
     OBJECTS ${output_cj_object_dir}/std/env.o
     FORCE_LINK_ARCHIVES
