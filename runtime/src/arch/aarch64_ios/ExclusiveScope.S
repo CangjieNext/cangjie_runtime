@@ -27,19 +27,16 @@
 //
 // Callee-saved NOP: do not clobber x19–x28. Keep sret/fn in
 // caller-saved regs through bridge setup (x0/x1), then reshape to x8/x0
-// before blr — still caller-saved. Hold stub FA in x3. Do not clobber
-// x0/x1 during bridge setup.
+// before blr — still caller-saved.
 // ------------------------------------------------------------------------------
 
 // CJ exclusive stub frame (heap stack):
 //   [x29+0x00] x29,x30
-#define ExclusiveScopeFrameSize     16
-
+//
 // OS bridge frame:
-//   [x29+0x00] x29,x30
-//   [x29+0x10] N2CSlotData (GetSlotData = fa+0x10)
-//              slot->{pc,fa} = managed caller.
-#define ExclusiveBridgeFrameSize    48
+//   [x29+0x00] saved x29 = stub FA | x30 = managed caller LR
+
+#define ExclusiveScopeFrameSize     16
 
     .text
     .align 2
@@ -57,26 +54,16 @@ _CJ_MCC_ExclusiveScope:
     mov     x29, sp
     cfi_def_cfa_register(x29)
 
-    // x0=sret, x1=fn stay in arg regs; x3 = stub FA for bridge setup.
-    mov     x3, x29
+    // x0=sret, x1=fn stay in arg regs.
 
     // Red-zone / align for bridge frame on OS stack, then switch SP.
     sub     x2, x2, #128
     bic     x2, x2, #15
     mov     sp, x2
 
-    // Build OS bridge frame: saved fp links to the CJ stub FA; return addr is the managed caller's.
-    stp     x29, x30, [sp, #-ExclusiveBridgeFrameSize]!
+    // Build OS bridge frame: saved x29 = stub FA; x30 = managed caller LR.
+    stp     x29, x30, [sp, #-ExclusiveScopeFrameSize]!
     mov     x29, sp
-
-    // Fill N2CSlotData at fa+0x10 (do not clobber x0/x1).
-    // slot->{pc,fa} = managed caller LR/FA so the walker skips the stub frame.
-    ldr     x4, [x3, #8]
-    str     x4, [x29, #0x10]            // slot->pc  = managed caller LR
-    ldr     x4, [x3]
-    str     x4, [x29, #0x18]            // slot->fa  = managed caller FA
-    mov     x4, #2                      // RISKY
-    str     x4, [x29, #0x20]            // slot->status
 
     // C → CJ AutoEnv ABI: x0=sret,x1=fn → x8=sret,x0=fn,x1=TI; blr *(fn+8).
     mov     x8, x0                      // sret (caller-saved)
@@ -90,7 +77,7 @@ _unwindPCForExclusiveStub:
 
     // Tear down bridge frame.
     mov     sp, x29
-    ldp     x29, x30, [sp], #ExclusiveBridgeFrameSize
+    ldp     x29, x30, [sp], #ExclusiveScopeFrameSize
 
     // Restore heap SP and return.
     mov     sp, x29

@@ -11,25 +11,20 @@
 namespace MapleRuntime {
 
 #ifndef _WIN64
-static bool UnwindAcrossSlot(const MachineFrame& mFrame, UnwindContext& caller)
+bool UnwindContext::UnwindToCallerContextFromN2CStub(UnwindContext& caller) const
 {
-    N2CSlotData* slotData = N2CFrame::GetSlotData(mFrame.GetFA());
-    if (slotData->status == UnwindContextStatus::RISKY ||
-        slotData->status == UnwindContextStatus::SIGNAL_STATUS ||
-        slotData->status == UnwindContextStatus::UNKNOWN) {
-        caller.frameInfo.mFrame.SetFA(slotData->fa);
-        caller.frameInfo.mFrame.SetIP(slotData->pc);
-    } else if (slotData->status == UnwindContextStatus::RELIABLE) {
-        mFrame.UnwindToCallerMachineFrame(caller.frameInfo.mFrame);
+    N2CSlotData* n2cSlotData = N2CFrame::GetSlotData(frameInfo.mFrame.GetFA());
+    if (n2cSlotData->status == UnwindContextStatus::RISKY ||
+        n2cSlotData->status == UnwindContextStatus::SIGNAL_STATUS ||
+        n2cSlotData->status == UnwindContextStatus::UNKNOWN) {
+        caller.frameInfo.mFrame.SetFA(n2cSlotData->fa);
+        caller.frameInfo.mFrame.SetIP(n2cSlotData->pc);
+    } else if (n2cSlotData->status == UnwindContextStatus::RELIABLE) {
+        frameInfo.mFrame.UnwindToCallerMachineFrame(caller.frameInfo.mFrame);
     }
 
     caller.SetUnwindContextStatus(UnwindContextStatus::RELIABLE);
     return true;
-}
-
-bool UnwindContext::UnwindToCallerContextFromN2CStub(UnwindContext& caller) const
-{
-    return UnwindAcrossSlot(frameInfo.mFrame, caller);
 }
 
 bool UnwindContext::UnwindToCallerContext(UnwindContext& caller) const
@@ -42,9 +37,10 @@ bool UnwindContext::UnwindToCallerContext(UnwindContext& caller) const
     DLOG(UNWIND, "FrameInfoType\t%d", frameInfo.GetFrameType());
     DLOG(UNWIND, "FrameInfo->lsda\t%p", reinterpret_cast<uintptr_t>(frameInfo.GetLsdaProc()));
     DLOG(UNWIND, "FrameInfo->startProc\t%p", reinterpret_cast<uintptr_t>(frameInfo.GetStartProc()));
-    if (frameInfo.GetFrameType() == FrameType::N2C_STUB ||
-        frameInfo.mFrame.IsExclusiveBridgeFrame()) {
-        UnwindAcrossSlot(frameInfo.mFrame, caller);
+    if (frameInfo.GetFrameType() == FrameType::N2C_STUB) {
+        UnwindToCallerContextFromN2CStub(caller);
+    } else if (frameInfo.GetFrameType() == FrameType::EXCLUSIVE) {
+        UnwindExclusiveBridgeToCaller(caller);
     } else {
 #if defined(ENABLE_BACKWARD_PTRAUTH_CFI)
         auto res = frameInfo.mFrame.UnwindToCallerMachineFrame(caller.frameInfo.mFrame);
@@ -73,8 +69,7 @@ bool UnwindContext::UnwindToCallerContext(UnwindContext& caller, UnwindContextSt
     DLOG(UNWIND, "FrameInfoType\t%d", frameInfo.GetFrameType());
     DLOG(UNWIND, "FrameInfo->lsda\t%p", reinterpret_cast<uintptr_t>(frameInfo.GetLsdaProc()));
     DLOG(UNWIND, "FrameInfo->startProc\t%p", reinterpret_cast<uintptr_t>(frameInfo.GetStartProc()));
-    if (frameInfo.GetFrameType() == FrameType::N2C_STUB ||
-        frameInfo.mFrame.IsExclusiveBridgeFrame()) {
+    if (frameInfo.GetFrameType() == FrameType::N2C_STUB) {
         N2CSlotData* n2cSlotData = N2CFrame::GetSlotData(frameInfo.mFrame.GetFA());
         if (n2cSlotData->status == UnwindContextStatus::RISKY ||
             n2cSlotData->status == UnwindContextStatus::SIGNAL_STATUS ||
@@ -86,12 +81,22 @@ bool UnwindContext::UnwindToCallerContext(UnwindContext& caller, UnwindContextSt
         }
         caller.SetUnwindContextStatus(UnwindContextStatus::RELIABLE);
         return true;
+    } else if (frameInfo.GetFrameType() == FrameType::EXCLUSIVE) {
+        UnwindExclusiveBridgeToCaller(caller);
     } else {
     return frameInfo.mFrame.UnwindToCallerMachineFrame(caller.frameInfo, uwCtxStatus);
     }
     return true;
 }
 #endif
+
+void UnwindContext::UnwindExclusiveBridgeToCaller(UnwindContext& caller) const
+{
+    FrameAddress* stubFa = frameInfo.mFrame.GetFA()->callerFrameAddress;
+    caller.frameInfo.mFrame.SetFA(stubFa->callerFrameAddress);
+    caller.frameInfo.mFrame.SetIP(stubFa->returnAddress);
+    caller.SetUnwindContextStatus(UnwindContextStatus::RELIABLE);
+}
 
 void UnwindContext::GoIntoManagedCode()
 {

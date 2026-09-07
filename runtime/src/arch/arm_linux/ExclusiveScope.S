@@ -25,20 +25,22 @@
 //      ARM32: r0=sret, r1=fn, r2=destSp
 //
 // Callee-saved NOP: do not clobber r4–r10. Keep sret/fn in the arg regs
-// (caller-saved) through bridge setup; hold stub FA in r3. Do not clobber
-// r0/r1 before the invoke.
+// (caller-saved) through bridge setup.
 // ------------------------------------------------------------------------------
 
 // CJ exclusive stub frame (heap stack):
 //   0x00  r11 (fp)
 //   0x04  lr
-#define ExclusiveScopeFrameSize     8
-
+//   0x08  padding
+//
 // OS bridge frame:
-//   0x00  r11, lr
-//   0x08  N2CSlotData (GetSlotData = fa+0x08)
-//         slot->{pc,fa} = managed caller.
-#define ExclusiveBridgeFrameSize    32
+//   0x00  saved r11 = stub FA
+//   0x04  lr = managed caller LR
+//   0x08  padding
+//
+// 16-byte SP alignment is required for 128-bit NEON load/store.
+
+#define ExclusiveScopeFrameSize     16
 
     .text
     .align 2
@@ -55,28 +57,18 @@ CJ_MCC_ExclusiveScope:
     mov     r11, sp
     cfi_def_cfa_register(r11)
 
-    // r0=sret, r1=fn stay in arg regs; r3 = stub FA for bridge setup.
-    mov     r3, r11
+    // r0=sret, r1=fn stay in arg regs.
 
     // Red-zone / align for bridge frame on OS stack, then switch SP.
     sub     r2, r2, #64
     bic     r2, r2, #15
     mov     sp, r2
 
-    // Build OS bridge frame: saved fp links to the CJ stub FA; return addr is the managed caller's.
-    sub     sp, sp, #ExclusiveBridgeFrameSize
+    // Build OS bridge frame: saved r11 = stub FA; lr = managed caller LR.
+    sub     sp, sp, #ExclusiveScopeFrameSize
     str     r11, [sp, #0]
     str     lr, [sp, #4]
     mov     r11, sp
-
-    // Fill N2CSlotData at fa+0x08 (do not clobber r0/r1).
-    // slot->{pc,fa} = managed caller LR/FA so the walker skips the stub frame.
-    ldr     r12, [r3, #4]
-    str     r12, [r11, #0x08]           // slot->pc  = managed caller LR
-    ldr     r12, [r3]
-    str     r12, [r11, #0x0c]           // slot->fa  = managed caller FA
-    mov     r12, #2                     // RISKY
-    str     r12, [r11, #0x10]           // slot->status
 
     // AutoEnv Invoke: *(fn+8)(sret, fn, OuterTypeInfo=*(fn+0))
     // ARM32 object: ti@0, pad@4, payload@8 → method0 at +8.
@@ -93,7 +85,7 @@ unwindPCForExclusiveStub:
     mov     sp, r11
     ldr     r11, [sp, #0]
     ldr     lr, [sp, #4]
-    add     sp, sp, #ExclusiveBridgeFrameSize
+    add     sp, sp, #ExclusiveScopeFrameSize
 
     // Restore heap SP and return.
     mov     sp, r11

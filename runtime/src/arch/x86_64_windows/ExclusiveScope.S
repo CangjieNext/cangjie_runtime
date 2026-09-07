@@ -20,17 +20,14 @@
 //      Win64: rcx=sret, rdx=fn, r8=destSp
 //
 // Callee-saved NOP: do not clobber rbx/rdi/rsi/r12–r15. Keep sret/fn in the
-// arg regs (volatile) through bridge setup; hold stub FA in rax.
+// arg regs (volatile) through bridge setup.
 // ------------------------------------------------------------------------------
 
 // CJ exclusive stub frame (heap stack):
 //   [rbp]     saved rbp | return addr
 //
 // OS bridge frame:
-//   [rbp]     saved rbp | return addr
-//   -8..-24   N2CSlotData (GetSlotData = fa-24)
-//             slot->{pc,fa} = managed caller.
-#define ExclusiveBridgeFrameSize    (8 * 4)
+//   [rbp]  saved rbp = stub FA | return addr = managed caller RA
 
     .text
     .p2align 4, 0x90
@@ -48,27 +45,17 @@ CJ_MCC_ExclusiveScope:
     .seh_setframe %rbp, 0
     .seh_endprologue
 
-    // rcx=sret, rdx=fn stay in arg regs; rax = stub FA for bridge setup.
-    movq    %rbp, %rax
+    // rcx=sret, rdx=fn stay in arg regs.
 
     // Red-zone / align for bridge frame on OS stack, then switch SP.
     subq    $128, %r8
     andq    $-16, %r8
     movq    %r8, %rsp
 
-    // Build OS bridge frame: saved rbp links to the CJ stub FA; return addr is the managed caller's.
-    pushq   8(%rax)
-    pushq   %rax
+    // Build OS bridge frame: saved rbp = stub FA; RA = managed caller.
+    pushq   8(%rbp)
+    pushq   %rbp
     movq    %rsp, %rbp
-    subq    $ExclusiveBridgeFrameSize, %rsp
-
-    // Fill N2CSlotData at fa-24 (do not clobber rcx/rdx).
-    // slot->{pc,fa} = managed caller RA/FA so the walker skips the stub frame.
-    movq    8(%rax), %r9
-    movq    %r9, -24(%rbp)          // slot->pc  = managed caller RA
-    movq    (%rax), %r9
-    movq    %r9, -16(%rbp)          // slot->fa  = managed caller FA
-    movq    $2, -8(%rbp)            // slot->status = RISKY
 
     // AutoEnv Invoke: *(fn+8)(sret, fn, OuterTypeInfo=*(fn+0))
     // Win64: rcx=sret, rdx=this, r8=OuterTypeInfo; need 32-byte shadow.
