@@ -87,7 +87,7 @@ void MixedRegionManager::DumpRegionStats(const char* msg, bool dumpToError) cons
     dumpListStats("old regions", oldRegionList, false);
     dumpListStats("old from regions", oldFromRegionList, false);
     dumpListStats("ghost old from regions", ghostOldFromRegionList, false);
-    dumpListStats("promote regions", promoteRegionList, false);
+    dumpListStats("discretely forwarding regions", discreteForwardingRegionList, false);
     dumpListStats("ghost promote regions", ghostPromoteRegionList, false);
 }
 
@@ -102,12 +102,12 @@ size_t MixedRegionManager::ClassifyYoungRegions()
         if (fromRegion->GetRegionSize() != GetThreadLocalRegionSize()) {
             RemoveRegionLocked(&fromRegionList, fromRegion);
             fromRegion->SetPromotedFlag(1);
-            promoteRegionList.PrependRegion(fromRegion, RegionInfo::RegionType::FROM_PROMOTE_REGION);
+            discreteForwardingRegionList.PrependRegion(fromRegion, RegionInfo::RegionType::FROM_PROMOTE_REGION);
             return;
         }
         if (rawPtrCnt == 0 && fromRegion->IsPromoted()) {
             RemoveRegionLocked(&fromRegionList, fromRegion);
-            promoteRegionList.PrependRegion(fromRegion, RegionInfo::RegionType::FROM_PROMOTE_REGION);
+            discreteForwardingRegionList.PrependRegion(fromRegion, RegionInfo::RegionType::FROM_PROMOTE_REGION);
             return;
         }
         size_t threshold = static_cast<size_t>(exempt * fromRegion->GetRegionSize());
@@ -144,7 +144,7 @@ size_t MixedRegionManager::ClassifyYoungRegions()
 
     size_t newFromBytes = fromRegionList.GetUnitCount() * RegionInfo::UNIT_SIZE;
     size_t sweepableBytes = sweepableYoungRegionList.GetUnitCount() * RegionInfo::UNIT_SIZE;
-    size_t promoteBytes = promoteRegionList.GetUnitCount() * RegionInfo::UNIT_SIZE;
+    size_t promoteBytes = discreteForwardingRegionList.GetUnitCount() * RegionInfo::UNIT_SIZE;
     VLOG(REPORT, "select %zu B from %zu B to be region forwarded, %zu from %zu will be sweep, %zu will be promoted",
          forwardBytes, oldFromBytes, floatingGarbage, sweepableBytes, promoteBytes);
     return newFromBytes - forwardBytes;
@@ -179,7 +179,7 @@ private:
 class PromoteRegionsTask : public HeapWork {
 public:
     PromoteRegionsTask(MixedRegionManager& mgr, RegionList& promoteList, GCThreadPool* pool)
-        : mixedManager(mgr), promoteRegionList(promoteList), threadPool(pool) {}
+        : mixedManager(mgr), discreteForwardingRegionList(promoteList), threadPool(pool) {}
 
     ~PromoteRegionsTask() override = default;
 
@@ -187,18 +187,18 @@ public:
     {
         constexpr size_t BATCH = 10;
         for (size_t i = 0; i < BATCH; i++) {
-            RegionInfo* region = promoteRegionList.TakeHeadRegion(RegionInfo::RegionType::LONE_FROM_REGION);
+            RegionInfo* region = discreteForwardingRegionList.TakeHeadRegion(RegionInfo::RegionType::LONE_FROM_REGION);
             if (region == nullptr) {
                 return;
             }
             mixedManager.PromoteRegion(region);
         }
-        threadPool->AddWork(new (std::nothrow) PromoteRegionsTask(mixedManager, promoteRegionList, threadPool));
+        threadPool->AddWork(new (std::nothrow) PromoteRegionsTask(mixedManager, discreteForwardingRegionList, threadPool));
     }
 
 private:
     MixedRegionManager& mixedManager;
-    RegionList& promoteRegionList;
+    RegionList& discreteForwardingRegionList;
     GCThreadPool* threadPool;
 };
 
@@ -370,7 +370,7 @@ void MixedRegionManager::ForwardFromSpace(GCThreadPool* threadPool)
     if (threadPool == nullptr) {
         ForwardFromRegions();
         while (true) {
-            RegionInfo* region = promoteRegionList.TakeHeadRegion(RegionInfo::RegionType::LONE_FROM_REGION);
+            RegionInfo* region = discreteForwardingRegionList.TakeHeadRegion(RegionInfo::RegionType::LONE_FROM_REGION);
             if (region == nullptr) {
                 break;
             }
@@ -380,7 +380,7 @@ void MixedRegionManager::ForwardFromSpace(GCThreadPool* threadPool)
     }
     threadPool->Start();
     threadPool->AddWork(new (std::nothrow) ForwardFromSpaceTask(*this, fromRegionList, threadPool));
-    threadPool->AddWork(new (std::nothrow) PromoteRegionsTask(*this, promoteRegionList, threadPool));
+    threadPool->AddWork(new (std::nothrow) PromoteRegionsTask(*this, discreteForwardingRegionList, threadPool));
     threadPool->WaitFinish();
 
     Heap::GetHeap().GetAllocator().VisitAllocBuffers([this](AllocBuffer& buffer) {
