@@ -17,8 +17,8 @@
 namespace MapleRuntime {
 
 // EH frame for CJ_MCC_ExclusiveScope (ExclusiveScope.S).
-// The walker only visits the OS bridge; unwrap bridgeFA → stub FA, then restore
-// FP/SP as if the stub epilogue ran (heap SP, managed caller FP).
+// The walker only visits the bridge and restores FP/SP to the managed caller
+// in a single hop, as if both assembly epilogues have run: heap SP, managed caller FP.
 class ExclusiveScopeEHFrameInfo : public IEHFrameInfo, public FrameInfo {
 public:
     explicit ExclusiveScopeEHFrameInfo(const FrameInfo& info) : FrameInfo(info) {}
@@ -95,7 +95,7 @@ private:
         context.r11 = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(callerFa));
         context.lr = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(stubFa->returnAddress));
         // ExclusiveScopeFrameSize in ExclusiveScope.S (post-deallocate SP = FA + frame).
-        context.sp = static_cast<uint32_t>(stubFaAddr + 8);
+        context.sp = static_cast<uint32_t>(stubFaAddr + 0x10);
     }
 #else
     static void RestoreArch(CalleeSavedRegisterContext&, FrameAddress*, FrameAddress*)
