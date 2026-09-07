@@ -237,6 +237,32 @@ public class ScenarioBuilder<S> where S <: Any {
         this
     }
 
+    public func scoped(): ScopedScenarioBuilder {
+        if (_stateFactory.isNone()) {
+            throw IllegalStateException("scoped() method must be used only with explicit preceding .stateFactory(factory) call")
+        }
+        ScopedScenarioBuilder(this)
+    }
+
+    public func buildScoped(scopedBuilder: ScopedScenarioBuilder, scopedBuild: (S, ScopedScenarioBuilder) -> Unit): ConcurrentScenarioProducer<S> {
+        ConcurrentScenarioProducer<S> { providedScope =>
+            let scope = providedScope ?? _stateFactory.getOrThrow()()
+            scopedBuild(scope, scopedBuilder)
+            _iterations = scopedBuilder._iterations
+            if (let Some(afterBlock) <- scopedBuilder._afterBlock) {
+                _afterBlock = Some({ _ => afterBlock() })
+            }
+            if (let Some(verifyBlock) <- scopedBuilder._verifyBlock) {
+                _verifyBlock = Some({ _ => verifyBlock() })
+            }
+            if (let Some(name) <- scopedBuilder._name) {
+                _name = name
+            }
+            _consistencyModel = scopedBuilder._consistencyModel 
+            (scope, build())
+        }
+    }
+
     public func build(): ConcurrentScenario<S> {
         if (_actors.size == 0) {
             throw IllegalArgumentException("At least one actor is required")
@@ -317,6 +343,51 @@ public class ScenarioBuilder<S> where S <: Any {
             consistencyModel: _consistencyModel,
             parallelIterations: parallelMode
         )
+    }
+}
+
+// FIXME: Rename?
+public class ScopedScenarioBuilder {
+    protected var _iterations: Int64 = 1
+    protected var _afterBlock: ?() -> Unit = None
+    protected var _verifyBlock: ?() -> Bool = None
+    protected var _name: ?String = None
+    protected var _consistencyModel: ConsistencyModel = SequentialConsistency
+
+    public ScopedScenarioBuilder(protected let builder: Any) {}
+
+    // The number of iterations must not depend on state
+    public func iterations(n: Int64): ScopedScenarioBuilder {
+        if (n < 1) {
+            throw IllegalArgumentException("Iteration count must be at least 1")
+        }
+        _iterations = n
+        this
+    }
+
+    // The consistencyModel must not depend on state
+    public func consistencyModel(model: ConsistencyModel): ScopedScenarioBuilder {
+        _consistencyModel = model
+        this
+    }
+
+    public func after(body: () -> Unit): ScopedScenarioBuilder {
+        _afterBlock = Some(body)
+        this
+    }
+
+    public func verify(body: () -> Bool): ScopedScenarioBuilder {
+        _verifyBlock = Some(body)
+        this
+    }
+
+    public func name(name: String): ScopedScenarioBuilder {
+        _name = Some(name)
+        this
+    }
+
+    public func build<S>(scopedBuild: (S, ScopedScenarioBuilder) -> Unit): ConcurrentScenarioProducer<S> {
+        (this.builder as ScenarioBuilder<S>).getOrThrow().buildScoped(this, scopedBuild)
     }
 }
 

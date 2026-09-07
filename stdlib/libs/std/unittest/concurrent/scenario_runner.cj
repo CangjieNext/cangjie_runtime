@@ -20,12 +20,12 @@ import std.runtime.getProcessorCount
 protected class ScenarioRunner<S> where S <: Any {
     private let backoffGenerator: BackoffGenerator
 
-    protected ScenarioRunner(private let scenario: ConcurrentScenario<S>) {
+    protected ScenarioRunner(private let scenarioProducer: ConcurrentScenarioProducer<S>) {
         backoffGenerator = BackoffGenerator(random: Random())
     }
 
-    protected init(scenario: ConcurrentScenario<S>, backoffSeed: Int64) {
-        this.scenario = scenario
+    protected init(scenarioProducer: ConcurrentScenarioProducer<S>, backoffSeed: Int64) {
+        this.scenarioProducer = scenarioProducer
         backoffGenerator = BackoffGenerator(random: Random(UInt64(backoffSeed)))
     }
 
@@ -49,7 +49,7 @@ protected class ScenarioRunner<S> where S <: Any {
             return
         }
 
-        if (scenario.parallelIterations) {
+        if (scenarioProducer.parallelIterations) {
             executeIterationsParallel(iterations, verbose: verbose, callback: callback)
         } else {
             for (iter in 1..iterations) {
@@ -104,7 +104,7 @@ protected class ScenarioRunner<S> where S <: Any {
         // claim the idle processors, negating the benefit. The practical
         // workaround is to use more iterations in race-detection tests to
         // compensate for the lower per-iteration probability.
-        let threadCount = scenario.threadCount
+        let threadCount = scenarioProducer.threadCount
         let poolSize = if (procCount < 1 || threadCount < 1) {
             Int64(1)
         } else if (threadCount >= procCount) {
@@ -174,7 +174,7 @@ protected class ScenarioRunner<S> where S <: Any {
         // call returns the () placeholder. For typed scenarios, this returns a
         // fresh instance of the user's state type S.
         // stateFactory is guaranteed Some by ScenarioBuilder.build().
-        let state: S = scenario.stateFactory.getOrThrow()()
+        let (state, scenario) = scenarioProducer.get()
 
         let barrier = Barrier(scenario.threadCount + 1)
         let startSignal = HBClockCounter()
@@ -258,19 +258,19 @@ protected class ScenarioRunner<S> where S <: Any {
     }
 
     private func executeReset(): Unit {
-        if (let Some(block) <- scenario.resetBlock) {
+        if (let Some(block) <- scenarioProducer.resetBlock) {
             block()
         }
     }
 
     private func executeAfter(state: S): Unit {
-        if (let Some(block) <- scenario.afterBlock) {
+        if (let Some(block) <- scenarioProducer.get(state).afterBlock) {
             block(state)
         }
     }
 
     private func executeVerify(state: S): Bool {
-        match (scenario.verifyBlock) {
+        match (scenarioProducer.get(state).verifyBlock) {
             case Some(block) => block(state)
             case None => true
         }
