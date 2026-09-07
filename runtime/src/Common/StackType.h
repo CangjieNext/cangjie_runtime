@@ -456,6 +456,8 @@ public:
     bool UnwindToCallerContext(UnwindContext& caller) const;
     bool UnwindToCallerContextFromN2CStub(UnwindContext& caller) const;
 #endif
+    // Unwind the ExclusiveScope bridge frame to the managed caller.
+    void UnwindExclusiveBridgeToCaller(UnwindContext& caller) const;
 
     void GoIntoManagedCode();
     void GoIntoNativeCode(const uint32_t* pc, void* fa);
