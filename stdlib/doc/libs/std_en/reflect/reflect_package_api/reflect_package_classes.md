@@ -2083,7 +2083,7 @@ Type: [Collection](../../core/core_package_api/core_package_interfaces.md#interf
 public prop genericParams: Collection<GenericTypeInfo>
 ```
 
-Function: Retrieves the generic parameter information list of the instance member function corresponding to this [GlobalFunctionInfo](reflect_package_classes.md#class-globalfunctioninfo).
+Function: Retrieves the generic parameter information list of the global function corresponding to this [GlobalFunctionInfo](reflect_package_classes.md#class-globalfunctioninfo).
 
 Type: [Collection](../../core/core_package_api/core_package_interfaces.md#interface-collectiont)\<[GenericTypeInfo](reflect_package_classes.md#class-generictypeinfo)>
 
@@ -2506,7 +2506,7 @@ Type: [Collection](../../core/core_package_api/core_package_interfaces.md#interf
 
 Exceptions:
 
-- [InfoNotFoundException](./reflect_package_exceptions.md#class-infonotfoundexception) - Thrown when [GlobalFunctionInfo](reflect_package_classes.md#class-globalfunctioninfo) has no generic parameters.
+- [InfoNotFoundException](./reflect_package_exceptions.md#class-infonotfoundexception) - Thrown when [InstanceFunctionInfo](reflect_package_classes.md#class-instancefunctioninfo) has no generic parameters.
 
 ### prop modifiers
 
@@ -4108,13 +4108,13 @@ Type: [Collection](../../core/core_package_api/core_package_interfaces.md#interf
 public prop genericParams: Collection<GenericTypeInfo>
 ```
 
-Function: Retrieve the list of generic parameter information for the instance member function corresponding to this [StaticFunctionInfo](reflect_package_classes.md#class-staticfunctioninfo).
+Function: Retrieve the list of generic parameter information for the static member function corresponding to this [StaticFunctionInfo](reflect_package_classes.md#class-staticfunctioninfo).
 
 Type: [Collection](../../core/core_package_api/core_package_interfaces.md#interface-collectiont)\<[GenericTypeInfo](reflect_package_classes.md#class-generictypeinfo)>
 
 Exceptions:
 
-- [InfoNotFoundException](./reflect_package_exceptions.md#class-infonotfoundexception) - Thrown when the [GlobalFunctionInfo](reflect_package_classes.md#class-globalfunctioninfo) has no generic parameters.
+- [InfoNotFoundException](./reflect_package_exceptions.md#class-infonotfoundexception) - Thrown when the [StaticFunctionInfo](reflect_package_classes.md#class-staticfunctioninfo) has no generic parameters.
 
 ### prop modifiers
 

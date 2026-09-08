@@ -4699,7 +4699,7 @@ public prop genericParams: Collection<GenericTypeInfo>
 
 异常：
 
-- [InfoNotFoundException](./reflect_package_exceptions.md#class-infonotfoundexception) - [GlobalFunctionInfo](reflect_package_classes.md#class-globalfunctioninfo) 没有泛型参数时抛出异常。
+- [InfoNotFoundException](./reflect_package_exceptions.md#class-infonotfoundexception) - [InstanceFunctionInfo](reflect_package_classes.md#class-instancefunctioninfo) 没有泛型参数时抛出异常。
 
 示例：
 
@@ -9659,7 +9659,7 @@ main(): Unit {
 public prop genericParams: Collection<GenericTypeInfo>
 ```
 
-功能：获取该 [StaticFunctionInfo](reflect_package_classes.md#class-staticfunctioninfo) 对应的实例成员函数的泛型参数信息列表。
+功能：获取该 [StaticFunctionInfo](reflect_package_classes.md#class-staticfunctioninfo) 对应的静态成员函数的泛型参数信息列表。
 
 > **注意：**
 >
@@ -9669,7 +9669,7 @@ public prop genericParams: Collection<GenericTypeInfo>
 
 异常：
 
-- [InfoNotFoundException](./reflect_package_exceptions.md#class-infonotfoundexception) - [GlobalFunctionInfo](reflect_package_classes.md#class-globalfunctioninfo) 没有泛型参数时抛出异常。
+- [InfoNotFoundException](./reflect_package_exceptions.md#class-infonotfoundexception) - [StaticFunctionInfo](reflect_package_classes.md#class-staticfunctioninfo) 没有泛型参数时抛出异常。
 
 示例：
 
