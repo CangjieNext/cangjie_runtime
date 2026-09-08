@@ -746,7 +746,7 @@ class InstrumentedClass {
         tb.curlyBraces { tb =>
             let numConstructors = Box(0)
 
-            if (isConcurrentTest) {
+            if (isConcurrentTest && !concurrentOperations.isEmpty()) {
                 buildCreateScenariosGenerator(tb)
                 buildScenarios(tb)
             }
@@ -843,13 +843,7 @@ private func collectFuncDeclsWithMacro(macroKey: MacroKey, classDecl: ClassDecl)
 }
 
 private func collectConcurrentOperations(concurrentTest: ClassDecl, isConcurrentTest: Bool): Array<FuncDecl> {
-    let operations = collectFuncDeclsWithMacro(OPERATION_MACRO, concurrentTest)
-
-    if (isConcurrentTest && operations.size == 0) {
-        throw MacroException("Concurrent test must contain at least one @Operation annotated function")
-    }
-
-    operations
+    collectFuncDeclsWithMacro(OPERATION_MACRO, concurrentTest)
 }
 
 private func collectSingleFuncDeclWithMacro(macroKey: MacroKey, classDecl: ClassDecl): Option<FuncDecl> {

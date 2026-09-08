@@ -244,7 +244,7 @@ public class ScenarioBuilder<S> where S <: Any {
         ScopedScenarioBuilder(this)
     }
 
-    public func buildScoped(scopedBuilder: ScopedScenarioBuilder, scopedBuild: (S, ScopedScenarioBuilder) -> Unit): ConcurrentScenarioProducer<S> {
+    protected func buildScoped(scopedBuilder: ScopedScenarioBuilder, scopedBuild: (S, ScopedScenarioBuilder) -> Unit): ConcurrentScenarioProducer<S> {
         ConcurrentScenarioProducer<S> { providedScope =>
             let scope = providedScope ?? _stateFactory.getOrThrow()()
             scopedBuild(scope, scopedBuilder)
@@ -354,7 +354,7 @@ public class ScopedScenarioBuilder {
     protected var _name: ?String = None
     protected var _consistencyModel: ConsistencyModel = SequentialConsistency
 
-    public ScopedScenarioBuilder(protected let builder: Any) {}
+    protected ScopedScenarioBuilder(protected let builder: Any) {}
 
     // The number of iterations must not depend on state
     public func iterations(n: Int64): ScopedScenarioBuilder {
