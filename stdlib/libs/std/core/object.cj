@@ -29,6 +29,17 @@ public func refEq(a: Object, b: Object): Bool {
     return intrinsicRefEq(a, b)
 }
 
+/**
+ * Check whether two Objects are referencing to the same memory block.
+ * Accepts `@local?` receivers so that identity comparison is available for
+ * `@local!` instances (e.g. AST nodes inside a local region).
+ *
+ * @return true means they are the same Object.
+ */
+public func refEq(a: Object @local?, b: Object @local?): Bool {
+    return intrinsicRefEq(a, b)
+}
+
 // This function is only used by ArrayList type, and it is not intended to be documented in users' guide
 @Intrinsic
 public unsafe func zeroValue<T>(): T
@@ -37,7 +48,7 @@ public unsafe func zeroValue<T>(): T
 public unsafe func zeroValue2<T>(): T @local!
 
 @Intrinsic
-func intrinsicRefEq(a: Object, b: Object): Bool
+func intrinsicRefEq(a: Object @local?, b: Object @local?): Bool
 
 @When[backend == "cjnative"]
 @Intrinsic

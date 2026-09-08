@@ -195,6 +195,29 @@ public class Regex {
     }
 
     /**
+     * Attempts to check whether a `local!` input matches the pattern.
+     * Receiver stays `~local` so static/long-lived Regex instances can match region-bound strings.
+     */
+    public exclave func matches(input: String @local!): Bool {
+        unsafe {
+            let inputCString = LibC.mallocCString(input)
+            if (inputCString.isNull()) {
+                throw RegexException("Failed to mallocCString.")
+            }
+            let pcre2md = createMatchData(inputCString)
+            try {
+                let rc = CJ_REGEX_Match(this.re, inputCString, UIntNative(input.size), UIntNative(0), pcre2md)
+                throwIfMatchError(rc)
+                keepAlive(this)
+                return rc >= 0
+            } finally {
+                release(inputCString)
+                release(pcre2md)
+            }
+        }
+    }
+
+    /**
      * lazy getter of namedGroups, which only depending on the compiled pattern.
      * So this method can be invoked as soon as `Regex` is initialized.
      * return Map<String, Int64> indicates the mapping from group name to group index

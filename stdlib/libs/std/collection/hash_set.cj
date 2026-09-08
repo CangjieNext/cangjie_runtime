@@ -40,6 +40,11 @@ public class HashSet<T> <: Set<T> where T <: Hashable & Equatable<T> {
         myMap = HashMap<T, Unit>()
     }
 
+    @Frozen
+    public exclave init(this @local!) {
+        myMap = HashMap<T, Unit>() @local!
+    }
+
     /**
      * Construct a HashSet with an incoming iterator for initialization.
      *
@@ -82,6 +87,11 @@ public class HashSet<T> <: Set<T> where T <: Hashable & Equatable<T> {
         this.myMap = HashMap<T, Unit>(capacity)
     }
 
+    @Frozen
+    public exclave init(this @local!, capacity: Int64) {
+        this.myMap = HashMap<T, Unit>(capacity) @local!
+    }
+
     /**
      * Constructs a hash map with an incoming size and an initial element for initialization.
      *
@@ -105,6 +115,11 @@ public class HashSet<T> <: Set<T> where T <: Hashable & Equatable<T> {
      */
     @Frozen
     public func contains(element: T): Bool {
+        return myMap.contains(element)
+    }
+
+    @Frozen
+    public exclave func contains(this @local!, element: T @local!): Bool {
         return myMap.contains(element)
     }
 
@@ -155,6 +170,14 @@ public class HashSet<T> <: Set<T> where T <: Hashable & Equatable<T> {
         }
     }
 
+    @Frozen
+    public exclave func add(this @local!, element: T @local!): Bool {
+        return match (this.myMap.add(element, ())) {
+            case None => true
+            case _ => false
+        }
+    }
+
     /**
      * Removes the key-value pair corresponding to the key based on the specified key from this mapping, if one exists.
      *
@@ -182,6 +205,16 @@ public class HashSet<T> <: Set<T> where T <: Hashable & Equatable<T> {
     public func add(all!: Collection<T>): Unit {
         for (i in all) {
             this.myMap.add(i, ())
+        }
+    }
+
+    /**
+     * Add all elements from another local HashSet.
+     */
+    @Frozen
+    public exclave func add(this @local!, all!: HashSet<T> @local!): Unit {
+        for ((k, _) in all.myMap) {
+            this.myMap.add(k, ())
         }
     }
 
@@ -495,6 +528,11 @@ public class HashSet<T> <: Set<T> where T <: Hashable & Equatable<T> {
      */
     @Frozen
     public func isEmpty(): Bool {
+        return myMap.isEmpty()
+    }
+
+    @Frozen
+    public func isEmpty(this @local?): Bool {
         return myMap.isEmpty()
     }
 
