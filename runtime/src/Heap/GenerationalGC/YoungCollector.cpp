@@ -176,7 +176,7 @@ RefField<> YoungCollector::GetAndTryTagRefField(BaseObject* target) const
     }
 }
 
-bool YoungCollector::IsYoungHeapAddress(BaseObject* obj) const
+bool YoungCollector::IsYoungHeapAddress(const BaseObject* obj) const
 {
     if (Heap::IsHeapAddress(obj)) {
         auto regionInfo = RegionInfo::GetRegionInfoAt(reinterpret_cast<uintptr_t>(obj));
@@ -308,7 +308,7 @@ void YoungCollector::UpdateGCStats()
     MixedRegionSpace& space = static_cast<MixedRegionSpace&>(theAllocator);
     MixedRegionManager& manager = MixedRegionSpace::CastDown(space.GetRegionManager());
     const size_t maxCapacity = theAllocator.GetMaxCapacity();
-    const size_t youngCapacity = std::min(maxCapacity / 3, static_cast<size_t>(256 * MB));
+    const size_t youngCapacity = std::min(maxCapacity / 3, static_cast<size_t>(512 * MB));
     const size_t maxThreshold = youngCapacity * 2 / 3;
     const size_t used = manager.GetYoungUsedSize();
     const size_t predicted = static_cast<size_t>(stats.RefreshAllocationSpeed(TimeUtil::NanoSeconds()) *
@@ -322,6 +322,7 @@ void YoungCollector::UpdateGCStats()
 
 void YoungCollector::RefineFromSpace()
 {
+    MRT_PHASE_TIMER("Refine from space");
     GCStats& stats = GetGCStats();
     MixedRegionSpace& space = static_cast<MixedRegionSpace&>(theAllocator);
     stats.smallGarbageSize = space.ClassifyCandidateRegions();
@@ -329,6 +330,7 @@ void YoungCollector::RefineFromSpace()
 
 void YoungCollector::ResetForwardingData()
 {
+    MRT_PHASE_TIMER("Reset forwarding data");
     fwdTable.PrepareForwardTable(false);
 }
 

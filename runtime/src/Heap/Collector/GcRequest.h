@@ -29,7 +29,7 @@ enum GCReason : uint32_t {
     GC_REASON_BACKUP,      // backup gc is triggered if no other reason triggers gc for a long time.
     GC_REASON_HEU,         // Statistics show it is worth doing GC. Does not have to be immediate.
     GC_REASON_NATIVE,      // Native-Allocation-Registry shows it's worth doing GC.
-    GC_REASON_HEU_SYNC,    // Just wait one gc request to reduce heap fragmentation.
+    GC_REASON_HEU_EAGER,    // Can't be ignored because of gc interval.
     GC_REASON_NATIVE_SYNC, // Just wait one gc request to reduce native heap consumption.
     GC_REASON_FORCE,       // force gc is triggered when runtime triggers gc actively.
     GC_REASON_MIXED,       // mixed gc is triggered by the generational pacer.

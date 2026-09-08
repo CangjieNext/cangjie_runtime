@@ -39,7 +39,7 @@ public:
     }
 private:
     static constexpr size_t SLOT_REGION_CACHE_LIMIT = 3;
-    static constexpr size_t GC_GARBAGE_CACHE_LIMIT = 256 * KB;
+    static constexpr size_t GC_GARBAGE_CACHE_LIMIT = 2 * MB;
     static constexpr size_t MUTATOR_GARBAGE_CACHE_LIMIT = 2 * MB;
     void FlushSlotRegionCaches(MixedRegionManager& manager);
     void FlushGarbageRegionCache(MixedRegionManager& manager);

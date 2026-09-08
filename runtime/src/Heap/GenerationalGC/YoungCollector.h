@@ -37,6 +37,7 @@ public:
     BaseObject* TryForwardObject(BaseObject* fromVersion) override;
     BaseObject* FindToVersion(BaseObject* obj) const override;
     bool MarkObject(BaseObject* obj) const override;
+    bool IsTargetAddress(const BaseObject* obj) const override { return IsYoungHeapAddress(obj); }
     bool TryUpdateRefField(BaseObject* obj, RefField<>& field, BaseObject*& newRef) const override;
     bool TryForwardRefField(BaseObject* obj, RefField<>& field, BaseObject*& newRef) const override;
 
@@ -51,7 +52,6 @@ protected:
     void ProcessFinalizers() override;
     void RefineFromSpace() override;
     virtual void ConcurrentSweep();
-    virtual bool IsTargetAddress(BaseObject* obj) const { return IsYoungHeapAddress(obj); }
     virtual bool IsTargetRegion(const RegionInfo* region) const { return !region->IsOldRegion(); }
     void Preforward() override;
     virtual void AssembleCandidates()
@@ -68,7 +68,7 @@ protected:
 
 private:
     static constexpr uint8_t OLD_AGE = 5;
-    bool IsYoungHeapAddress(BaseObject* obj) const;
+    bool IsYoungHeapAddress(const BaseObject* obj) const;
     virtual void EnumRememberedRoots(RootSet& rootSet) const;
     void PreforwardRememberedRoots();
 };

@@ -52,6 +52,11 @@ public:
 
     BaseObject* FindToVersion(BaseObject* obj) const override { return currentCollector->FindToVersion(obj); }
 
+    bool IsTargetAddress(const BaseObject* obj) const override
+    {
+        return currentCollector != nullptr && currentCollector->IsTargetAddress(obj);
+    }
+
     bool IsOldPointer(RefField<>& ref) const override { return currentCollector->IsOldPointer(ref); }
     bool IsCurrentPointer(RefField<>& ref) const override { return currentCollector->IsCurrentPointer(ref); }
     bool IsFromObject(BaseObject* obj) const override { return currentCollector->IsFromObject(obj); }

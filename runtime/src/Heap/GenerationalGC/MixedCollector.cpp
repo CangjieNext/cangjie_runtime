@@ -180,7 +180,7 @@ BaseObject* MixedCollector::ForwardObject(BaseObject* fromVersion)
     return YoungCollector::ForwardObject(fromVersion);
 }
 
-bool MixedCollector::IsTargetAddress(BaseObject* obj) const
+bool MixedCollector::IsTargetAddress(const BaseObject* obj) const
 {
     return Heap::IsHeapAddress(obj);
 }
@@ -224,6 +224,7 @@ private:
 
 void MixedCollector::ClearDeadObjectRSetSlots()
 {
+    MRT_PHASE_TIMER("Clear dead object RSet slots");
     MixedRegionSpace& space = static_cast<MixedRegionSpace&>(theAllocator);
     MixedRegionManager& manager = MixedRegionSpace::CastDown(space.GetRegionManager());
     manager.GetOldSweptRegionList().VisitAllRegions([](RegionInfo* region) {

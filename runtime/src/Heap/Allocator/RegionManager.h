@@ -117,7 +117,7 @@ public:
 
     RegionManager& operator=(const RegionManager&) = delete;
 
-    RegionInfo* AllocateThreadLocalRegion(bool expectPhysicalMem = false);
+    RegionInfo* AllocateThreadLocalRegion(bool expectPhysicalMem = false, bool isLoose = false);
 
     void ForwardFromRegions(GCThreadPool* threadPool);
     void ForwardFromRegions();
@@ -148,7 +148,7 @@ public:
     virtual ~RegionManager() = default;
 
     // take a region with *num* units for allocation
-    RegionInfo* TakeRegion(size_t num, RegionInfo::UnitRole, bool expectPhysicalMem = false);
+    RegionInfo* TakeRegion(size_t num, RegionInfo::UnitRole, bool expectPhysicalMem = false, bool isLoose = false);
 
     uintptr_t AllocPinnedFromFreeList(size_t size);
 
