@@ -151,13 +151,13 @@ public:
             return;
         }
         Heap& heap = Heap::GetHeap();
+
         if (heap.IsGcStarted()) {
             return;
         }
-
         GenerationalGCStats& stats = static_cast<GenerationalGCStats&>(heap.GetCollector().GetGCStats());
         size_t maxCapacity = heap.GetMaxCapacity();
-        size_t youngCapacity = std::min(maxCapacity / 3, static_cast<size_t>(256 * MB));
+        size_t youngCapacity = std::min(maxCapacity / 3, static_cast<size_t>(512 * MB));
         size_t maxYoungThreshold = youngCapacity * 2 / 3;
         size_t maxMixedThreshold = maxCapacity * 2 / 3;
         size_t youngUsedSize = GetYoungUsedSize();
@@ -168,9 +168,8 @@ public:
             bool async = allUsedSize < maxMixedThreshold;
             heap.GetCollector().RequestGC(async ? GC_REASON_MIXED : GC_REASON_FORCE, async);
         } else if (youngReached) {
-            // bool async = youngUsedSize < maxYoungThreshold;
-            bool async = true;
-            heap.GetCollector().RequestGC(async ? GC_REASON_HEU : GC_REASON_HEU_SYNC, async);
+            bool async = youngUsedSize < maxYoungThreshold;
+            heap.GetCollector().RequestGC(async ? GC_REASON_HEU : GC_REASON_HEU_EAGER, async);
         }
     }
     size_t GetAllocatedSize() const override

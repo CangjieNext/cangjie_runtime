@@ -182,6 +182,7 @@ protected:
 
     void CollectPinnedGarbage()
     {
+        MRT_PHASE_TIMER("Collect pinned garbage");
         RegionSpace& space = reinterpret_cast<RegionSpace&>(theAllocator);
         GCStats& stats = GetGCStats();
         stats.pinnedSpaceSize = space.PinnedSpaceSize();

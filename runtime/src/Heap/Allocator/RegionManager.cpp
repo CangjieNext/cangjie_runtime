@@ -710,7 +710,7 @@ void RegionManager::CheckGC()
     }
 }
 
-RegionInfo* RegionManager::TakeRegion(size_t num, RegionInfo::UnitRole type, bool expectPhysicalMem)
+RegionInfo* RegionManager::TakeRegion(size_t num, RegionInfo::UnitRole type, bool expectPhysicalMem, bool isLoose)
 {
     CheckGC();
 
@@ -1094,7 +1094,7 @@ void RegionManager::DumpRegionStats(const char* msg, bool dumpToError) const
     TRACE_COUNT("CJRT_GC_unitCapacity", static_cast<size_t>(unitCapacity * decimalPrecision));
 }
 
-RegionInfo* RegionManager::AllocateThreadLocalRegion(bool expectPhysicalMem)
+RegionInfo* RegionManager::AllocateThreadLocalRegion(bool expectPhysicalMem, bool isLoose)
 {
     RegionInfo* region = TakeRegion(maxUnitCountPerRegion, RegionInfo::UnitRole::SMALL_SIZED_UNITS, expectPhysicalMem);
     if (region != nullptr) {

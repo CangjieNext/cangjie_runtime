@@ -141,12 +141,14 @@ RegionInfo* RemoveSmallestSlotRegion(RegionList& cache)
 
 MAddress GenerationAllocBuffer::AllocateYoungOnNewRegion(MixedRegionManager &manager, size_t totalSize)
 {
+    // Get region from local cache.
     RegionInfo* r = TakeGarbageRegion(manager, totalSize);
     if (r == nullptr) {
         CJThreadPreemptOffCntAdd();
         r = manager.AllocateThreadLocalRegion();
         CJThreadPreemptOffCntSub();
     }
+    // It means both local cache and global resource don't have enough regions.
     if (UNLIKELY(r == nullptr))
     {
         return 0;
@@ -156,13 +158,19 @@ MAddress GenerationAllocBuffer::AllocateYoungOnNewRegion(MixedRegionManager &man
         tlRegion = r;
         return r->Alloc(totalSize);
     }
+    // It means a compacted region is installed when allocating tl region.
     MAddress addr = tlRegion->Alloc(totalSize);
     if (addr != 0)
     {
+        // The compacted region can be used, so we make the region allocated just now cached.
         manager.RemoveThreadLocalRegion(r);
+        if (r->IsTraceRegion()) {
+            r->SetTraceRegionFlag(0);
+        }
         CacheGarbageRegion(manager, r);
         return addr;
     }
+    // The compacted region's capacity is not enough.
     manager.RemoveThreadLocalRegion(tlRegion);
     manager.EnlistFullThreadLocalRegion(tlRegion);
     tlRegion = r;
@@ -303,6 +311,8 @@ MAddress GenerationAllocBuffer::AllocateOldOnNewRegion(MixedRegionManager &manag
         return 0;
     }
     r->SetOldRegionFlag(1);
+    // Old region mustn't be allocated during tracing phase, so it shouldn't be tagged with tracing flag.
+    CHECK(!r->IsTraceRegion());
     if (oldAllocRegion == RegionInfo::NullRegion()) {
         oldAllocRegion = r;
         return r->Alloc(totalSize);

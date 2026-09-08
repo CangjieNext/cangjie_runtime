@@ -674,7 +674,7 @@ static RuntimeParam InitRuntimeParam()
                 // Default garbage ration is 50% of from space.
                 .garbageThreshold = InitPercentParameterIncl("cjGarbageThreshold", 0.0, 1.0, 0.5),
                 // Default GC interval is 150ms.
-                .gcInterval = InitTimeParameter("cjGCInterval", 0, 10 * MILLI_SECOND_TO_NANO_SECOND),
+                .gcInterval = InitTimeParameter("cjGCInterval", 0, 150 * MILLI_SECOND_TO_NANO_SECOND),
                 // Default backup GC interval is 240s.
                 .backupGCInterval = InitTimeParameter("cjBackupGCInterval", 0, 240 * SECOND_TO_NANO_SECOND),
                 // Default GC thread factor is 2.

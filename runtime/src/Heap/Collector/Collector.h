@@ -89,6 +89,7 @@ public:
     virtual BaseObject* ForwardObject(BaseObject*) { std::abort(); }
 
     virtual bool ShouldIgnoreRequest(GCRequest& quest) = 0;
+    virtual bool IsTargetAddress(const BaseObject* obj) const;
     virtual bool IsFromObject(BaseObject*) const { std::abort(); }
     virtual bool IsGhostFromObject(BaseObject*) const { std::abort(); }
     virtual bool IsUnmovableFromObject(BaseObject*) const { std::abort(); }

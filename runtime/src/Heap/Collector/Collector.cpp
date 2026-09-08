@@ -53,4 +53,8 @@ Collector::Collector() {}
 const char* Collector::GetCollectorName() const { return COLLECTOR_NAME[collectorType]; }
 
 void Collector::RequestGC(GCReason reason, bool async) { RequestGCInternal(reason, async); }
+bool Collector::IsTargetAddress(const BaseObject* obj) const
+{
+    return Heap::IsHeapAddress(obj);
+}
 } // namespace MapleRuntime.

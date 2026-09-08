@@ -68,6 +68,7 @@ public:
 
     size_t CollectLargeGarbage() override
     {
+        MRT_PHASE_TIMER("Collect large garbage");
         return CastDown(GetRegionManager()).CollectLargeGarbage();
     }
 

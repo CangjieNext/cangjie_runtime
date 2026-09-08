@@ -27,7 +27,7 @@ public:
     void EnumAndTagRawRoot(ObjectRef& ref, RootSet& rootSet) const override;
     RefField<> GetAndTryTagRefField(BaseObject* target) const override;
     BaseObject* ForwardObject(BaseObject* fromVersion) override;
-    bool IsTargetAddress(BaseObject* obj) const override;
+    bool IsTargetAddress(const BaseObject* obj) const override;
 protected:
     void EnumRememberedRoots(RootSet& rootSet) const override;
     void ResetForwardingData() override;

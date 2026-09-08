@@ -145,8 +145,8 @@ size_t MixedRegionManager::ClassifyYoungRegions()
     size_t newFromBytes = fromRegionList.GetUnitCount() * RegionInfo::UNIT_SIZE;
     size_t sweepableBytes = sweepableYoungRegionList.GetUnitCount() * RegionInfo::UNIT_SIZE;
     size_t promoteBytes = discreteForwardingRegionList.GetUnitCount() * RegionInfo::UNIT_SIZE;
-    VLOG(REPORT, "select %zu B from %zu B to be region forwarded, %zu from %zu will be sweep, %zu will be promoted",
-         forwardBytes, oldFromBytes, floatingGarbage, sweepableBytes, promoteBytes);
+    VLOG(REPORT, "select %zu B from %zu B to be region forwarded, %zu will be sweep, %zu will be object moved",
+         forwardBytes, oldFromBytes, sweepableBytes, promoteBytes);
     return newFromBytes - forwardBytes;
 }
 
@@ -259,7 +259,7 @@ size_t MixedRegionManager::CollectRegion(RegionInfo* region)
 
 size_t MixedRegionManager::CollectLargeGarbage()
 {
-    constexpr size_t regionsPerTask = 20;
+    constexpr size_t regionsPerTask = 100;
     std::atomic<size_t> garbageSize{0};
     GCThreadPool* threadPool = Heap::GetHeap().GetCollectorResources().GetThreadPool();
     while (true) {
