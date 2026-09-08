@@ -393,7 +393,7 @@ void YoungCollector::ConcurrentSweep()
     MixedRegionSpace& space = static_cast<MixedRegionSpace&>(theAllocator);
     MixedRegionManager& manager = MixedRegionSpace::CastDown(space.GetRegionManager());
     threadPool->Start();
-    constexpr size_t regionsPerTask = 20;
+    constexpr size_t regionsPerTask = 10;
     while (true) {
         RegionList* local = new (std::nothrow) RegionList("young sweep task regions");
         CHECK_DETAIL(local != nullptr, "failed to allocate young sweep task list");

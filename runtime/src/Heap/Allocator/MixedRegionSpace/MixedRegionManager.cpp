@@ -14,6 +14,8 @@
 #include "HeapWork.h"
 #include "GcThreadPool.h"
 #include "ObjectModel/RefField.inline.h"
+#include <set>
+#include <utility>
 #include <unistd.h>
 
 namespace MapleRuntime {
@@ -150,56 +152,61 @@ size_t MixedRegionManager::ClassifyYoungRegions()
     return newFromBytes - forwardBytes;
 }
 
+namespace {
+constexpr size_t FORWARD_REGION_BATCH_SIZE = 10;
+
+std::set<RegionInfo*> TakeForwardRegionBatch(RegionList& regionList, RegionInfo::RegionType regionType)
+{
+    std::set<RegionInfo*> regions;
+    std::lock_guard<std::mutex> lock(regionList.GetListMutex());
+    for (size_t i = 0; i < FORWARD_REGION_BATCH_SIZE; ++i) {
+        RegionInfo* region = regionList.TakeHeadRegionNoLock();
+        if (region == nullptr) {
+            break;
+        }
+        region->SetRegionType(regionType);
+        regions.insert(region);
+    }
+    return regions;
+}
+} // namespace
+
 class ForwardFromSpaceTask : public HeapWork {
 public:
-    ForwardFromSpaceTask(RegionManager& mgr, RegionList& from, GCThreadPool* pool)
-        : regionManager(mgr), fromRegionList(from), threadPool(pool) {}
+    ForwardFromSpaceTask(RegionManager& mgr, std::set<RegionInfo*>&& regions)
+        : regionManager(mgr), regions(std::move(regions)) {}
 
     ~ForwardFromSpaceTask() override = default;
 
     void Execute(size_t) override
     {
-        constexpr size_t batch = 10;
-        for (size_t i = 0; i < batch; ++i) {
-            RegionInfo* region = fromRegionList.TakeHeadRegion(RegionInfo::RegionType::LONE_FROM_REGION);
-            if (region == nullptr) {
-                return;
-            }
+        for (RegionInfo* region : regions) {
             regionManager.ForwardRegion(region);
         }
-        threadPool->AddWork(new (std::nothrow) ForwardFromSpaceTask(regionManager, fromRegionList, threadPool));
     }
 
 private:
     RegionManager& regionManager;
-    RegionList& fromRegionList;
-    GCThreadPool* threadPool;
+    std::set<RegionInfo*> regions;
 };
 
 class PromoteRegionsTask : public HeapWork {
 public:
-    PromoteRegionsTask(MixedRegionManager& mgr, RegionList& promoteList, GCThreadPool* pool)
-        : mixedManager(mgr), discreteForwardingRegionList(promoteList), threadPool(pool) {}
+    PromoteRegionsTask(MixedRegionManager& mgr, std::set<RegionInfo*>&& regions)
+        : mixedManager(mgr), regions(std::move(regions)) {}
 
     ~PromoteRegionsTask() override = default;
 
     void Execute(size_t) override
     {
-        constexpr size_t BATCH = 10;
-        for (size_t i = 0; i < BATCH; i++) {
-            RegionInfo* region = discreteForwardingRegionList.TakeHeadRegion(RegionInfo::RegionType::LONE_FROM_REGION);
-            if (region == nullptr) {
-                return;
-            }
+        for (RegionInfo* region : regions) {
             mixedManager.PromoteRegion(region);
         }
-        threadPool->AddWork(new (std::nothrow) PromoteRegionsTask(mixedManager, discreteForwardingRegionList, threadPool));
     }
 
 private:
     MixedRegionManager& mixedManager;
-    RegionList& discreteForwardingRegionList;
-    GCThreadPool* threadPool;
+    std::set<RegionInfo*> regions;
 };
 
 bool MixedRegionManager::RoutePromoteRegion(RegionInfo* fromRegion)
@@ -259,7 +266,7 @@ size_t MixedRegionManager::CollectRegion(RegionInfo* region)
 
 size_t MixedRegionManager::CollectLargeGarbage()
 {
-    constexpr size_t regionsPerTask = 100;
+    constexpr size_t regionsPerTask = 10;
     std::atomic<size_t> garbageSize{0};
     GCThreadPool* threadPool = Heap::GetHeap().GetCollectorResources().GetThreadPool();
     while (true) {
@@ -380,8 +387,26 @@ void MixedRegionManager::ForwardFromSpace(GCThreadPool* threadPool)
         return;
     }
     threadPool->Start();
-    threadPool->AddWork(new (std::nothrow) ForwardFromSpaceTask(*this, fromRegionList, threadPool));
-    threadPool->AddWork(new (std::nothrow) PromoteRegionsTask(*this, discreteForwardingRegionList, threadPool));
+    while (true) {
+        std::set<RegionInfo*> regions = TakeForwardRegionBatch(fromRegionList,
+                                                                RegionInfo::RegionType::LONE_FROM_REGION);
+        if (regions.empty()) {
+            break;
+        }
+        HeapWork* task = new (std::nothrow) ForwardFromSpaceTask(*this, std::move(regions));
+        CHECK_DETAIL(task != nullptr, "failed to allocate forward region task");
+        threadPool->AddWork(task);
+    }
+    while (true) {
+        std::set<RegionInfo*> regions = TakeForwardRegionBatch(discreteForwardingRegionList,
+                                                                RegionInfo::RegionType::LONE_FROM_REGION);
+        if (regions.empty()) {
+            break;
+        }
+        HeapWork* task = new (std::nothrow) PromoteRegionsTask(*this, std::move(regions));
+        CHECK_DETAIL(task != nullptr, "failed to allocate promote region task");
+        threadPool->AddWork(task);
+    }
     threadPool->WaitFinish();
 
     Heap::GetHeap().GetAllocator().VisitAllocBuffers([this](AllocBuffer& buffer) {

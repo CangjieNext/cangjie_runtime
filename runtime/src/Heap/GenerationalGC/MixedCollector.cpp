@@ -246,7 +246,7 @@ void MixedCollector::ConcurrentSweep()
     }
     MixedRegionSpace& space = static_cast<MixedRegionSpace&>(theAllocator);
     MixedRegionManager& manager = MixedRegionSpace::CastDown(space.GetRegionManager());
-    constexpr size_t regionsPerTask = 20;
+    constexpr size_t regionsPerTask = 10;
     while (true) {
         RegionList* local = new (std::nothrow) RegionList("old sweep task regions");
         CHECK_DETAIL(local != nullptr, "failed to allocate old sweep task list");
