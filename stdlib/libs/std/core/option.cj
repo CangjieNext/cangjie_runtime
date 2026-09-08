@@ -51,10 +51,52 @@ public enum Option<T> {
     }
 
     @Frozen
+    public func isNone(this @local!): Bool {
+        match (this) {
+            case None => true
+            case Some(_) => false
+        }
+    }
+
+    @Frozen
     public func isSome(): Bool {
         match (this) {
             case Some(_) => true
             case None => false
+        }
+    }
+
+    @Frozen
+    public func isSome(this @local!): Bool {
+        match (this) {
+            case Some(_) => true
+            case None => false
+        }
+    }
+
+    /*
+     * @throws NoneValueException if the value of Option is None
+     */
+    @Frozen
+    public func getOrThrow(this @local!): T @local! {
+        exclave {
+            match (this) {
+                case Some(v) => v
+                case None => throw NoneValueException()
+            }
+        }
+    }
+
+    /*
+     * @throws input Exception if the value of Option is None
+     */
+    @Frozen
+    public func getOrThrow(this @local!, exception: () -> Exception): T @local! {
+        exclave {
+            match (this) {
+                case Some(v) => v
+                case None => throw exception()
+            }
         }
     }
 
@@ -88,10 +130,28 @@ public func ifSome<T>(o: Option<T>, action: (T) -> Unit): Unit {
     }
 }
 
+public func ifSome<T>(o: Option<T> @local!, action: (T @local!) -> Unit): Unit {
+    exclave {
+        match (o) {
+            case Some(v) => action(v)
+            case None => ()
+        }
+    }
+}
+
 public func ifNone<T>(o: Option<T>, action: () -> Unit): Unit {
     match (o) {
         case Some(v) => ()
         case None => action()
+    }
+}
+
+public func ifNone<T>(o: Option<T> @local!, action: () -> Unit): Unit {
+    exclave {
+        match (o) {
+            case Some(v) => ()
+            case None => action()
+        }
     }
 }
 
@@ -128,7 +188,6 @@ extend<T> Option<T> <: Hashable where T <: Hashable {
         }
     }
 }
-
 extend<T> Option<Option<T>> {
     public func flatten(): Option<T> {
         match (this) {

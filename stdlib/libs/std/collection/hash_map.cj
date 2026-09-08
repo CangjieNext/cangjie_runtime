@@ -933,6 +933,23 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
         return false
     }
 
+    @Frozen
+    public exclave func contains(this @local!, key: K @local!): Bool {
+        if (appendIndex - freeSize == 0) {
+            return false
+        }
+        let hash: Int64 = getHash(key.hashCode())
+        let index: Int64 = getIndex(hash, buckets.size)
+        var bucket: Int64 = buckets[index]
+        while (bucket >= 0) {
+            if (hash == entries[bucket].hash && key == entries[bucket].key) {
+                return true
+            }
+            bucket = entries[bucket].next
+        }
+        return false
+    }
+
     /**
      * Copy a HashMap.
      *
