@@ -736,6 +736,9 @@ RegionInfo* RegionManager::TakeRegion(size_t num, RegionInfo::UnitRole type, boo
 
     RegionInfo* region = freeRegionManager.TakeRegion(num, type, expectPhysicalMem);
     if (region != nullptr) {
+        if (!IsGcThread() && Heap::GetHeap().IsGcStarted()) {
+            RecordMutatorAssistRegionBytes(region->GetRegionSize());
+        }
         if (num >= HUGE_PAGE) {
             TagHugePage(region, num);
         }

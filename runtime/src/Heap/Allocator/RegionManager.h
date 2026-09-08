@@ -8,6 +8,7 @@
 #define MRT_REGION_MANAGER_H
 
 #include <list>
+#include <atomic>
 #include <map>
 #include <set>
 #include <thread>
@@ -277,6 +278,21 @@ public:
     size_t GetThreadLocalRegionSize() const
     {
         return maxUnitCountPerRegion * RegionInfo::UNIT_SIZE;
+    }
+
+    void ResetMutatorAssistRegionBytes()
+    {
+        mutatorAssistRegionBytes.store(0, std::memory_order_relaxed);
+    }
+
+    void RecordMutatorAssistRegionBytes(size_t bytes)
+    {
+        mutatorAssistRegionBytes.fetch_add(bytes, std::memory_order_relaxed);
+    }
+
+    size_t GetMutatorAssistRegionBytes() const
+    {
+        return mutatorAssistRegionBytes.load(std::memory_order_relaxed);
     }
 
     virtual size_t CollectRegion(RegionInfo* region)
@@ -614,6 +630,7 @@ protected:
     size_t maxUnitCountPerRegion = MAX_UNIT_COUNT_PER_REGION;   // max units count for threadLocal buffer.
     size_t maxUnitCountPerPinnedRegion = maxUnitCountPerRegion; // max units count for pinned region.
     size_t largeObjectThreshold;
+    std::atomic<size_t> mutatorAssistRegionBytes { 0 };
     double fromSpaceGarbageThreshold = 0.5; // 0.5: default garbage ratio.
     double exemptedRegionThreshold;
 #if defined(__EULER__)

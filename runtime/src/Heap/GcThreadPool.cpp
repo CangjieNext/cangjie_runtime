@@ -216,6 +216,9 @@ void GCThreadPool::AddWork(HeapWork* task)
 
 bool GCThreadPool::TryExecuteOneTask(size_t threadId)
 {
+    if (!tryExecuteOneTaskEnabled.load(std::memory_order_acquire)) {
+        return false;
+    }
     if (externalTaskExecuting) {
         return false;
     }

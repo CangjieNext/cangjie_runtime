@@ -12,7 +12,6 @@
 #include "RememberSet.h"
 
 namespace MapleRuntime {
-
 void YoungCollector::TraceHeap()
 {
     WorkStack workStack = NewWorkStack();

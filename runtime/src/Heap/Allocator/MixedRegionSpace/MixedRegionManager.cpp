@@ -250,6 +250,7 @@ size_t MixedRegionManager::CollectRegion(RegionInfo* region)
     region->LockWriteRegion();
     size_t collectedSize = region->IsLargeRegion() ? region->GetRegionSize()
                                                     : region->GetRegionSize() - region->GetLiveByteCount();
+    region->SetRegionType(RegionInfo::RegionType::FREE_REGION);
     region->UnlockWriteRegion();
     GenerationAllocBuffer* buffer = GenerationAllocBuffer::GetGenerationAllocBuffer();
     buffer->CacheGarbageRegion(*this, region);

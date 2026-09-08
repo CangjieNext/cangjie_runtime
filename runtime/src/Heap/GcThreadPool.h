@@ -92,6 +92,11 @@ public:
     // Let an external thread take and execute one task from the running pool.
     bool TryExecuteOneTask(size_t threadId = 0);
 
+    void SetTryExecuteOneTaskEnabled(bool enabled)
+    {
+        tryExecuteOneTaskEnabled.store(enabled, std::memory_order_release);
+    }
+
     // Start thread pool, notify all sleep threads to get to work
     void Start();
 
@@ -151,6 +156,8 @@ private:
 
     // Number of tasks taken from the queue and currently executed by external threads.
     size_t externalExecutingTaskNum = 0;
+
+    std::atomic<bool> tryExecuteOneTaskEnabled { false };
 
     // single lock
     std::mutex poolMutex;
