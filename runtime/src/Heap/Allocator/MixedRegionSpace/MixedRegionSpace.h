@@ -16,6 +16,8 @@
 #include "MixedRegionManager.h"
 #include "Mutator/MutatorManager.h"
 
+#include <algorithm>
+
 namespace MapleRuntime {
 
 class MixedRegionSpace : public RegionSpace {
@@ -71,24 +73,37 @@ public:
 
     MAddress TryAllocateOnce(size_t allocSize, AllocType allocType) override
     {
-        constexpr size_t mutatorAssistInterval = 4 * KB;
+        constexpr size_t assistBaseInterval = 16 * KB;
         thread_local size_t allocationBalance = 0;
         Heap& heap = Heap::GetHeap();
         if (!IsGcThread() && heap.IsGcStarted()) {
+            // ScopedEnterSaferegion enterSaferegion(true);
             allocationBalance += allocSize;
-        } else {
-            allocationBalance = 0;
-        }
-        if (allocationBalance >= mutatorAssistInterval) {
-            allocationBalance = 0;
-            GCPhase currentPhase = heap.GetGCPhase();
-            if (currentPhase != GCPhase::GC_PHASE_ENUM &&
-                currentPhase != GCPhase::GC_PHASE_GENERATION_ENUM) {
+            RegionManager& manager = GetRegionManager();
+            const size_t gcStartAllocated = heap.GetCollector().GetGCStats().liveBytesBeforeGC;
+            const size_t assistBytes = manager.GetMutatorAssistRegionBytes();
+            const size_t assistBudget = gcStartAllocated / 2;
+            bool shouldAssist = false;
+            if (gcStartAllocated != 0) {
+                if (assistBytes >= assistBudget) {
+                    shouldAssist = true;
+                } else {
+                    const size_t effectiveAssistBytes = std::min(assistBytes, assistBudget);
+                    const size_t dynamicInterval = std::max<size_t>(
+                        assistBaseInterval / 4,
+                        assistBaseInterval - (assistBaseInterval * effectiveAssistBytes / assistBudget));
+                    shouldAssist = allocationBalance >= dynamicInterval;
+                }
+            }
+            if (shouldAssist) {
+                allocationBalance = 0;
                 GCThreadPool* threadPool = heap.GetCollectorResources().GetThreadPool();
                 if (threadPool != nullptr) {
                     (void)threadPool->TryExecuteOneTask(static_cast<size_t>(GetTid()));
                 }
             }
+        } else {
+            allocationBalance = 0;
         }
         if (allocType == AllocType::MOVEABLE_OBJECT && allocSize < GetRegionManager().GetLargeObjectThreshold()) {
             AllocBuffer* allocBuffer = AllocBuffer::GetOrCreateAllocBuffer();

@@ -8,6 +8,7 @@
 
 #include "Common/Runtime.h"
 #include "Concurrency/Concurrency.h"
+#include "Allocator/RegionSpace.h"
 #include "Heap/Allocator/AllocBuffer.h"
 #include "ObjectModel/RefField.inline.h"
 
@@ -401,7 +402,7 @@ void TracingCollector::DoTracing(WorkStack& workStack, WorkStack& foreignRootsSe
 
     GCThreadPool* threadPool = GetThreadPool();
     MRT_ASSERT(threadPool != nullptr, "null thread pool");
-
+    threadPool->SetTryExecuteOneTaskEnabled(true);
     // use fewer threads and lower priority for concurrent mark.
     const int32_t stwWorkers = threadPool->GetMaxActiveThreadNum();
     const int32_t maxWorkers = GetGCThreadCount(true) - 1;
@@ -482,17 +483,17 @@ bool TracingCollector::MarkSatbBuffer(WorkStack& workStack)
     visitSatbObj();
     uint64_t iterationCnt = 0;
     uint64_t iterationStartTime = TimeUtil::NanoSeconds();
+    GCThreadPool* threadPool = GetThreadPool();
+    threadPool->SetTryExecuteOneTaskEnabled(false);
     do {
         if (++iterationCnt > maxIterationLoopNum && (TimeUtil::NanoSeconds() - iterationStartTime) > maxIterationTime) {
             ScopedStopTheWorld stw("MarkSatbBuffer timeout", true, GCPhase::GC_PHASE_CLEAR_SATB_BUFFER);
             VLOG(REPORT, "MarkSatbBuffer is done for timeout");
-            GCThreadPool* threadPool = GetThreadPool();
             WorkStack tmp;
             TracingImpl(workStack, tmp, (workStack.size() > MAX_MARKING_WORK_SIZE) || (threadPool->GetWorkCount() > 0));
             return workStack.empty();
         }
         if (LIKELY(!workStack.empty())) {
-            GCThreadPool* threadPool = GetThreadPool();
             WorkStack tmp;
             TracingImpl(workStack, tmp, (workStack.size() > MAX_MARKING_WORK_SIZE) || (threadPool->GetWorkCount() > 0));
         }
@@ -502,6 +503,7 @@ bool TracingCollector::MarkSatbBuffer(WorkStack& workStack)
             visitSatbObj();
         }
     } while (!workStack.empty());
+    threadPool->SetTryExecuteOneTaskEnabled(true);
     return true;
 }
 
@@ -652,14 +654,20 @@ void TracingCollector::DumpRoots(LogType logType)
 
 void TracingCollector::PreGarbageCollection(bool isConcurrent)
 {
+    Heap& heap = Heap::GetHeap();
+    size_t allocatedSize = heap.GetAllocatedSize();
+    GetGCStats().liveBytesBeforeGC = allocatedSize;
     VLOG(REPORT, "Begin GC log. GCReason: %s, Current allocated %s, Current threshold %s, current tag %u",
-         g_gcRequests[gcReason].name, Pretty(Heap::GetHeap().GetAllocatedSize()).Str(),
+         g_gcRequests[gcReason].name, Pretty(allocatedSize).Str(),
          Pretty(GetPacingThreshold()).Str(), GetCurrentTagID());
+
+    static_cast<RegionSpace&>(heap.GetAllocator()).GetRegionManager().ResetMutatorAssistRegionBytes();
 
     // SatbBuffer should be initialized before concurrent enumeration.
     SatbBuffer::Instance().Init();
     // prepare thread pool.
     GCThreadPool* threadPool = GetThreadPool();
+    threadPool->SetTryExecuteOneTaskEnabled(false);
     const int32_t threadCount = GetGCThreadCount(isConcurrent);
     MRT_ASSERT(threadCount >= 1, "unexpected thread count");
 #if defined(__linux__) || defined(hongmeng)
