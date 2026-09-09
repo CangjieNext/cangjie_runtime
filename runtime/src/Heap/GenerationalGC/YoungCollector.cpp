@@ -349,9 +349,10 @@ void YoungCollector::PostTrace()
 
     RefineFromSpace();
     CollectPinnedGarbage();
-    CollectLargeGarbage();
     ClearDeadObjectRSetSlots();
     ResetForwardingData();
+    // We want to move old age large object to old space, so it should be invoked after preparing from space.
+    CollectLargeGarbage();
 }
 
 class SweepTask : public HeapWork {

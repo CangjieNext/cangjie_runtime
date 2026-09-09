@@ -615,15 +615,15 @@ void RegionManager::AssembleSmallGarbageCandidates()
 
 void RegionManager::AssembleLargeGarbageCandidates()
 {
-    oldLargeRegionList.MergeRegionList(recentLargeRegionList, RegionInfo::RegionType::LARGE_REGION);
-    for (RegionInfo* region = oldLargeRegionList.GetHeadRegion(); region != nullptr; region = region->GetNextRegion()) {
+    largeRegionList.MergeRegionList(recentLargeRegionList, RegionInfo::RegionType::LARGE_REGION);
+    for (RegionInfo* region = largeRegionList.GetHeadRegion(); region != nullptr; region = region->GetNextRegion()) {
         region->ClearLiveInfo();
     }
 }
 
 void RegionManager::AssemblePinnedGarbageCandidates(bool collectAll)
 {
-    oldPinnedRegionList.MergeRegionList(recentPinnedRegionList, RegionInfo::RegionType::FULL_PINNED_REGION);
+    pinnedRegionList.MergeRegionList(recentPinnedRegionList, RegionInfo::RegionType::FULL_PINNED_REGION);
 }
 void RemoveRegionLocked(RegionList* regionList, RegionInfo* region)
 {
@@ -716,7 +716,9 @@ RegionInfo* RegionManager::TakeRegion(size_t num, RegionInfo::UnitRole type, boo
 
     // check for allocation since we do not want gc threads and mutators do any harm to each other.
     size_t size = num * RegionInfo::UNIT_SIZE;
-    RequestForRegion(size);
+    if (!RequestForRegion(size, isLoose)) {
+        return nullptr;
+    }
 
 #if !defined(__OHOS__)
     RegionInfo* head = garbageRegionList.TakeHeadRegion();
@@ -843,12 +845,12 @@ size_t RegionManager::CollectPinnedGarbage()
         freePinnedSlotLists.Clear();
     }
     size_t garbageSize = 0;
-    RegionInfo* region = oldPinnedRegionList.GetHeadRegion();
+    RegionInfo* region = pinnedRegionList.GetHeadRegion();
     while (region != nullptr) {
         if (region->GetLiveByteCount() == 0) {
             RegionInfo* del = region;
             region = region->GetNextRegion();
-            oldPinnedRegionList.DeleteRegion(del);
+            pinnedRegionList.DeleteRegion(del);
 
             auto fixToObj = [](BaseObject* obj) { ReleaseNativeResource(obj); };
             del->VisitAllObjects(fixToObj);
@@ -866,7 +868,7 @@ size_t RegionManager::CollectPinnedGarbage()
 size_t RegionManager::CollectLargeGarbage()
 {
     size_t garbageSize = 0;
-    RegionInfo* region = oldLargeRegionList.GetHeadRegion();
+    RegionInfo* region = largeRegionList.GetHeadRegion();
     while (region != nullptr) {
         // for large region, the offset of obj is 0
         if (!region->IsSurvivedObject(0)) {
@@ -875,7 +877,7 @@ size_t RegionManager::CollectLargeGarbage()
 
             RegionInfo* del = region;
             region = region->GetNextRegion();
-            oldLargeRegionList.DeleteRegion(del);
+            largeRegionList.DeleteRegion(del);
             if (del->GetRegionSize() > RegionInfo::LARGE_OBJECT_RELEASE_THRESHOLD) {
                 garbageSize += ReleaseRegion(del);
             } else {
@@ -938,10 +940,10 @@ void RegionManager::DumpRegionStats(const char* msg, bool dumpToError) const
     size_t garbageSize = garbageUnits * RegionInfo::UNIT_SIZE;
     size_t allocGarbageSize = garbageRegionList.GetAllocatedSize();
 
-    size_t pinnedRegions = oldPinnedRegionList.GetRegionCount();
-    size_t pinnedUnits = oldPinnedRegionList.GetUnitCount();
+    size_t pinnedRegions = pinnedRegionList.GetRegionCount();
+    size_t pinnedUnits = pinnedRegionList.GetUnitCount();
     size_t pinnedSize = pinnedUnits * RegionInfo::UNIT_SIZE;
-    size_t allocPinnedSize = oldPinnedRegionList.GetAllocatedSize();
+    size_t allocPinnedSize = pinnedRegionList.GetAllocatedSize();
 
     size_t recentPinnedRegions = recentPinnedRegionList.GetRegionCount();
     size_t recentPinnedUnits = recentPinnedRegionList.GetUnitCount();
@@ -953,10 +955,10 @@ void RegionManager::DumpRegionStats(const char* msg, bool dumpToError) const
     size_t rawPointerPinnedSize = rawPointerPinnedUnits * RegionInfo::UNIT_SIZE;
     size_t allocRawPointerPinnedSize = rawPointerPinnedRegionList.GetAllocatedSize();
 
-    size_t largeRegions = oldLargeRegionList.GetRegionCount();
-    size_t largeUnits = oldLargeRegionList.GetUnitCount();
+    size_t largeRegions = largeRegionList.GetRegionCount();
+    size_t largeUnits = largeRegionList.GetUnitCount();
     size_t largeSize = largeUnits * RegionInfo::UNIT_SIZE;
-    size_t allocLargeSize = oldLargeRegionList.GetAllocatedSize();
+    size_t allocLargeSize = largeRegionList.GetAllocatedSize();
 
     size_t recentlargeRegions = recentLargeRegionList.GetRegionCount();
     size_t recentlargeUnits = recentLargeRegionList.GetUnitCount();
@@ -1096,7 +1098,8 @@ void RegionManager::DumpRegionStats(const char* msg, bool dumpToError) const
 
 RegionInfo* RegionManager::AllocateThreadLocalRegion(bool expectPhysicalMem, bool isLoose)
 {
-    RegionInfo* region = TakeRegion(maxUnitCountPerRegion, RegionInfo::UnitRole::SMALL_SIZED_UNITS, expectPhysicalMem);
+    RegionInfo* region = TakeRegion(maxUnitCountPerRegion, RegionInfo::UnitRole::SMALL_SIZED_UNITS, expectPhysicalMem,
+                                    isLoose);
     if (region != nullptr) {
         {
             GCPhase phase = Heap::GetHeap().GetCollector().GetGCPhase();
@@ -1114,11 +1117,12 @@ RegionInfo* RegionManager::AllocateThreadLocalRegion(bool expectPhysicalMem, boo
     return region;
 }
 
-void RegionManager::RequestForRegion(size_t size)
+bool RegionManager::RequestForRegion(size_t size, bool isLoose)
 {
+    (void)isLoose;
     if (IsGcThread()) {
         // gc thread is always permitted for allocation.
-        return;
+        return true;
     }
 
     Heap& heap = Heap::GetHeap();
@@ -1135,7 +1139,7 @@ void RegionManager::RequestForRegion(size_t size)
     uint64_t now = TimeUtil::NanoSeconds();
     if (prevRegionAllocTime + waitTime <= now) {
         prevRegionAllocTime = TimeUtil::NanoSeconds();
-        return;
+        return true;
     }
 
     uint64_t sleepTime = std::min<uint64_t>(CangjieRuntime::GetHeapParam().allocationWaitTime,
@@ -1143,6 +1147,7 @@ void RegionManager::RequestForRegion(size_t size)
     DLOG(ALLOC, "wait %zu ns to alloc %zu(B)", sleepTime, size);
     std::this_thread::sleep_for(std::chrono::nanoseconds{ sleepTime });
     prevRegionAllocTime = TimeUtil::NanoSeconds();
+    return true;
 }
 
 bool RegionManager::RouteOrCompactRegionImpl(RegionInfo* region)
@@ -1155,7 +1160,7 @@ bool RegionManager::RouteOrCompactRegionImpl(RegionInfo* region)
     CHECK(region != toRegion1);
     bool result;
     if (toRegion1 == RegionInfo::NullRegion()) {
-        toRegion1 = AllocateThreadLocalRegion();
+        toRegion1 = AllocateThreadLocalRegion(false, true);
         if (toRegion1 == nullptr) {
             CompactRegion(region);
             toRegion1 = region;
@@ -1203,7 +1208,7 @@ bool RegionManager::RouteOrCompactRegionImpl(RegionInfo* region)
         EnlistFullThreadLocalRegion(toRegion1);
     }
 
-    RegionInfo* toRegion2 = AllocateThreadLocalRegion();
+    RegionInfo* toRegion2 = AllocateThreadLocalRegion(false, true);
     CHECK(region != toRegion2);
     if (toRegion2 != nullptr) {
         toRegion1->Alloc(usedBytes1);

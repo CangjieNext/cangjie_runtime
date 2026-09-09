@@ -67,7 +67,7 @@ protected:
     }
 
 private:
-    static constexpr uint8_t OLD_AGE = 5;
+    static constexpr uint8_t OLD_AGE = 15;
     bool IsYoungHeapAddress(const BaseObject* obj) const;
     virtual void EnumRememberedRoots(RootSet& rootSet) const;
     void PreforwardRememberedRoots();

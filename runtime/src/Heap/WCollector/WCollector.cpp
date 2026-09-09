@@ -407,10 +407,12 @@ void WCollector::PostTrace()
     SatbBuffer::Instance().ClearBuffer();
     // reclaim large objects immediately after tracing is done.
     PrepareCycleRef();
-    CollectLargeGarbage();
     CollectPinnedGarbage();
     RefineFromSpace();
     fwdTable.PrepareForwardTable();
+    // We may move large objects to old region, so we nee to make sure their referents are
+    // being prepared to be forward.
+    CollectLargeGarbage();
 }
 
 void WCollector::Preforward()
