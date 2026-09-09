@@ -48,12 +48,15 @@ public:
     size_t ClassifyYoungRegions();
     bool RoutePromoteRegion(RegionInfo* fromRegion);
     void PromoteRegion(RegionInfo* fromRegion);
+    // Promote a whole region without copying its objects. This is usable for
+    // large regions and can be extended to small regions when appropriate.
+    void PromoteRegionInPlace(RegionInfo* region);
     void ForwardFromSpace(GCThreadPool* threadPool) override;
     size_t CollectRegion(RegionInfo* region) override;
     size_t CollectLargeGarbage();
     void MergeOldLargeRegionList(RegionList& regions)
     {
-        oldLargeRegionList.MergeRegionList(regions, RegionInfo::RegionType::LARGE_REGION);
+        largeRegionList.MergeRegionList(regions, RegionInfo::RegionType::LARGE_REGION);
     }
     void EnlistOldRegionList(RegionInfo* region) noexcept
     {
@@ -144,6 +147,23 @@ public:
         } else {
             PrepareYoungFromRegionList();
         }
+    }
+    bool RequestForRegion(size_t size, bool isLoose) override
+    {
+        if (!isLoose) {
+            return true;
+        }
+
+        Heap& heap = Heap::GetHeap();
+        const size_t gcStartAllocated = heap.GetCollector().GetGCStats().liveBytesBeforeGC;
+        if (gcStartAllocated != 0) {
+            const size_t currentAllocated = GetAllocatedSize();
+            const size_t growthLimit = gcStartAllocated + gcStartAllocated / 2;
+            if (currentAllocated > growthLimit || size > growthLimit - currentAllocated) {
+                return false;
+            }
+        }
+        return true;
     }
     void CheckGC() override
     {

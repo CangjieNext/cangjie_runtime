@@ -35,7 +35,9 @@ public:
             RegionInfo* next = region->GetNextRegion();
             if (!region->IsSurvivedObject(0)) {
                 tmpRegions->RemoveRegionNoLock(region);
-                if (region->GetRegionSize() > RegionInfo::LARGE_OBJECT_RELEASE_THRESHOLD) {
+                if (region->IsPromoted()) {
+                    regionManager.PromoteRegionInPlace(region);
+                } else if (region->GetRegionSize() > RegionInfo::LARGE_OBJECT_RELEASE_THRESHOLD) {
                     garbageSize += regionManager.ReleaseRegion(region);
                 } else {
                     garbageSize += regionManager.CollectRegion(region);
@@ -250,6 +252,43 @@ void MixedRegionManager::PromoteRegion(RegionInfo* fromRegion)
     }
 }
 
+void MixedRegionManager::PromoteRegionInPlace(RegionInfo* region)
+{
+    CHECK(region != nullptr);
+    CHECK(region->IsPromoted());
+
+    region->SetOldRegionFlag(1);
+    region->VisitAllObjects([region](BaseObject* object) {
+        object->ForEachRefField([region](RefField<>& field) {
+            RefField<> current(field);
+            BaseObject* target = current.GetTargetObject();
+            if (!Heap::IsHeapAddress(target)) {
+                return true;
+            }
+
+            RegionInfo* targetRegion = nullptr;
+            bool isOld = false;
+            if (current.IsTagged()) {
+                targetRegion = RegionInfo::GetGhostFromRegionAt(target);
+                if (targetRegion != nullptr) {
+                    isOld = targetRegion->IsOld0();
+                } else {
+                    targetRegion = RegionInfo::GetRegionInfoAt(target);
+                    isOld = targetRegion->IsOldRegion();
+                }
+            } else {
+                targetRegion = RegionInfo::GetRegionInfoAt(target);
+                isOld = targetRegion->IsOldRegion();
+            }
+            if (!isOld) {
+                RememberSet::Instance().Record(region, reinterpret_cast<uintptr_t>(&field));
+            }
+            return true;
+        });
+    });
+    oldRegionList.PrependRegion(region, RegionInfo::RegionType::SWEEP_REGION);
+}
+
 size_t MixedRegionManager::CollectRegion(RegionInfo* region)
 {
     DLOG(REGION, "collect region %p@[%#zx+%zu, %#zx) type %u", region, region->GetRegionStart(),
@@ -272,7 +311,7 @@ size_t MixedRegionManager::CollectLargeGarbage()
     while (true) {
         RegionList* tmpRegions = new (std::nothrow) RegionList("old large regions task");
         CHECK_DETAIL(tmpRegions != nullptr, "failed to allocate old large regions task list");
-        if (!oldLargeRegionList.SplitByRegionCount(*tmpRegions, regionsPerTask)) {
+        if (!largeRegionList.SplitByRegionCount(*tmpRegions, regionsPerTask)) {
             delete tmpRegions;
             break;
         }

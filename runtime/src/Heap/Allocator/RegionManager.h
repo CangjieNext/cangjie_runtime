@@ -108,8 +108,8 @@ public:
           fullTraceRegions("full trace regions"), fromRegionList("from regions"),
           ghostFromRegionList("ghost from regions"), unmovableFromRegionList("escaped from regions"),
           garbageRegionList("garbage regions"), recentPinnedRegionList("recent pinned regions"),
-          oldPinnedRegionList("old pinned regions"), rawPointerPinnedRegionList("raw pointer pinned regions"),
-          oldLargeRegionList("old large regions"), recentLargeRegionList("recent large regions"),
+          pinnedRegionList("pinned regions"), rawPointerPinnedRegionList("raw pointer pinned regions"),
+          largeRegionList("large regions"), recentLargeRegionList("recent large regions"),
           largeTraceRegions("large trace regions")
     {}
 
@@ -179,7 +179,6 @@ public:
 #endif
             RegionInfo* region = TakeRegion(needUnitCount, RegionInfo::UnitRole::SMALL_SIZED_UNITS);
             if (region == nullptr) {
-                regionListMutex.unlock();
                 return 0;
             }
             DLOG(REGION, "alloc pinned region @[0x%zx+%zu, 0x%zx) unit idx %zu type %u", region->GetRegionStart(),
@@ -258,7 +257,7 @@ public:
 
     void MergeRawPointerPinnedRegions()
     {
-        oldPinnedRegionList.MergeRegionList(rawPointerPinnedRegionList, RegionInfo::RegionType::FULL_PINNED_REGION);
+        pinnedRegionList.MergeRegionList(rawPointerPinnedRegionList, RegionInfo::RegionType::FULL_PINNED_REGION);
     }
 
     void CollectFromSpaceGarbage()
@@ -377,16 +376,16 @@ public:
 
     size_t GetSurvivedSize() const
     {
-        return fromRegionList.GetAllocatedSize() + oldPinnedRegionList.GetAllocatedSize() +
-            oldLargeRegionList.GetAllocatedSize();
+        return fromRegionList.GetAllocatedSize() + pinnedRegionList.GetAllocatedSize() +
+            largeRegionList.GetAllocatedSize();
     }
 
     virtual size_t GetUsedUnitCount() const
     {
         return
             fromRegionList.GetUnitCount() + unmovableFromRegionList.GetUnitCount() +
-            recentFullRegionList.GetUnitCount() + oldLargeRegionList.GetUnitCount() +
-            recentLargeRegionList.GetUnitCount() + oldPinnedRegionList.GetUnitCount() +
+            recentFullRegionList.GetUnitCount() + largeRegionList.GetUnitCount() +
+            recentLargeRegionList.GetUnitCount() + pinnedRegionList.GetUnitCount() +
             recentPinnedRegionList.GetUnitCount() + rawPointerPinnedRegionList.GetUnitCount() +
             largeTraceRegions.GetUnitCount() + fullTraceRegions.GetUnitCount() +
             tlRegionList.GetUnitCount();
@@ -400,7 +399,7 @@ public:
 
     inline size_t GetLargeObjectSize() const
     {
-        return oldLargeRegionList.GetAllocatedSize() + recentLargeRegionList.GetAllocatedSize();
+        return largeRegionList.GetAllocatedSize() + recentLargeRegionList.GetAllocatedSize();
     }
 
     virtual size_t GetAllocatedSize() const
@@ -416,8 +415,8 @@ public:
         Heap::GetHeap().GetAllocator().VisitAllocBuffers(visitor);
         // exclude garbageRegionList for live object set.
         return fromRegionList.GetAllocatedSize() + unmovableFromRegionList.GetAllocatedSize() +
-            recentFullRegionList.GetAllocatedSize() + oldLargeRegionList.GetAllocatedSize() +
-            recentLargeRegionList.GetAllocatedSize() + oldPinnedRegionList.GetAllocatedSize() +
+            recentFullRegionList.GetAllocatedSize() + largeRegionList.GetAllocatedSize() +
+            recentLargeRegionList.GetAllocatedSize() + pinnedRegionList.GetAllocatedSize() +
             recentPinnedRegionList.GetAllocatedSize() + rawPointerPinnedRegionList.GetAllocatedSize() +
             largeTraceRegions.GetAllocatedSize() + fullTraceRegions.GetAllocatedSize() +
             threadLocalSize;
@@ -427,7 +426,7 @@ public:
 
     inline size_t GetPinnedSpaceSize() const
     {
-        return oldPinnedRegionList.GetAllocatedSize() + recentPinnedRegionList.GetAllocatedSize();
+        return pinnedRegionList.GetAllocatedSize() + recentPinnedRegionList.GetAllocatedSize();
     }
 
     size_t GetLargeObjectThreshold() const { return largeObjectThreshold; }
@@ -435,7 +434,7 @@ public:
     void ClearFreePinnedSlots() { freePinnedSlotLists.Clear(); }
 
     // wait for a period of time to allocate region which will avoid harm to gc
-    void RequestForRegion(size_t size);
+    virtual bool RequestForRegion(size_t size, bool isLoose = false);
 
     void MergeRawPointerRegions(RegionList& smallSizeRegionList, RegionList& largeSizeRegionList)
     {
@@ -458,7 +457,7 @@ public:
 
         tlRegionList.ClearTraceRegionFlag();
         recentPinnedRegionList.ClearTraceRegionFlag();
-        oldPinnedRegionList.ClearTraceRegionFlag();
+        pinnedRegionList.ClearTraceRegionFlag();
     }
 
     void PrepareTrace()
@@ -548,9 +547,9 @@ public:
         ClearLiveInfo(fullTraceRegions);
         ClearLiveInfo(unmovableFromRegionList);
         ClearLiveInfo(recentPinnedRegionList);
-        ClearLiveInfo(oldPinnedRegionList);
+        ClearLiveInfo(pinnedRegionList);
         ClearLiveInfo(rawPointerPinnedRegionList);
-        ClearLiveInfo(oldLargeRegionList);
+        ClearLiveInfo(largeRegionList);
         ClearLiveInfo(recentLargeRegionList);
         ClearLiveInfo(largeTraceRegions);
     }
@@ -600,7 +599,7 @@ protected:
     // region lists for small-sized pinned objects which are not be moved during concurrent gc, but
     // may be moved during compaction.
     RegionList recentPinnedRegionList;
-    RegionList oldPinnedRegionList;
+    RegionList pinnedRegionList;
 
     // region lists for small-sized raw-pointer objects (i.e. future, monitor)
     // which can not be moved ever (even during compaction).
@@ -608,7 +607,7 @@ protected:
 
     // regions for large-sized objects.
     // large region is recorded here after large object is allocated.
-    RegionList oldLargeRegionList;
+    RegionList largeRegionList;
 
     // if large region is allocated when gc is not running, it is recorded here.
     RegionList recentLargeRegionList;
