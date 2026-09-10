@@ -351,12 +351,22 @@ Forward 阶段与普通 sweep 不同：region 可能在多个 worker 之间并�
 
 ```mermaid
 flowchart LR
-    A[持有 from/promote RegionList 锁] --> B[摘取最多 10 个 head region]
-    B --> C[DeleteRegionLocked: 断开 prev/next，更新计数]
-    C --> D[SetRegionType(LONE_FROM_REGION)]
-    D --> E[放入任务私有 std::set]
-    E --> F[释放 RegionList 锁]
-    F --> G[ForwardRegion / PromoteRegion]
+    subgraph LOCKED["RegionList 锁内"]
+        A["获取 from 或 promote 列表锁"] --> B["摘取最多 10 个 region"]
+        B --> C["断开链表并更新列表计数"]
+        C --> D["设置类型为 LONE_FROM_REGION"]
+        D --> E["保存到任务私有的 region 集合"]
+    end
+
+    subgraph UNLOCKED["RegionList 锁外"]
+        F["释放 RegionList 锁"] --> G{"处理方式"}
+        G -->|"普通 from region"| H["执行 ForwardRegion"]
+        G -->|"promote region"| I["执行 PromoteRegion"]
+        H --> J["转入最终 RegionList 或被回收"]
+        I --> J
+    end
+
+    E --> F
 ```
 
 这里有一个必须保持的设计约束：**region 一旦进入游离状态（`LONE_FROM_REGION`），就不能再用任何 RegionList 记录它。** 原因如下：
