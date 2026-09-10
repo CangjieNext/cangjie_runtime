@@ -779,45 +779,50 @@ func wyhash(arr: RawArray<UInt8>, start: Int64, size: Int64, see: UInt64) {
     }
     var a: UInt64
     var b: UInt64
-    match {
-        case size < 4 =>
-            a = (UInt64(arrayGetUnchecked(arr, start)) << 16) |
-                (UInt64(arrayGetUnchecked(arr, start + (size >> 1))) << 8) |
-                (UInt64(arrayGetUnchecked(arr, start + size - 1)))
-            b = 0
-        case size == 4 =>
-            a = r4(arr, start)
-            b = a
-        case size < 8 =>
-            a = r4(arr, start)
-            b = r4(arr, start + size - 4)
-        case size <= 16 =>
-            a = r8(arr, start)
-            b = r8(arr, start + size - 8)
-        case _ =>
-            var pos = start
-            var l = size
-            if (l > 48) {
-                var seed1 = seed
-                var seed2 = seed
+    // Acquire raw pointer once for direct memory access, avoiding repeated arrayGetUnchecked overhead
+    unsafe {
+        let ptr = acquireRawData<UInt8>(arr) + start
+        match {
+            case size < 4 =>
+                a = (UInt64(ptr.read()) << 16) |
+                    (UInt64(ptr.read(size >> 1)) << 8) |
+                    (UInt64(ptr.read(size - 1)))
+                b = 0
+            case size == 4 =>
+                a = r4(ptr)
+                b = a
+            case size < 8 =>
+                a = r4(ptr)
+                b = r4(ptr + size - 4)
+            case size <= 16 =>
+                a = r8(ptr)
+                b = r8(ptr + size - 8)
+            case _ =>
+                var pos: Int64 = 0
+                var l = size
+                if (l > 48) {
+                    var seed1 = seed
+                    var seed2 = seed
 
-                do {
-                    seed = mix(r8(arr, pos) ^ SECRET1, r8(arr, pos + 8) ^ seed)
-                    seed1 = mix(r8(arr, pos + 16) ^ SECRET2, r8(arr, pos + 24) ^ seed1)
-                    seed2 = mix(r8(arr, pos + 32) ^ SECRET3, r8(arr, pos + 40) ^ seed2)
-                    pos += 48
-                    l -= 48
-                } while (l > 48)
-                seed = seed ^ seed1 ^ seed2
-            }
+                    do {
+                        seed = mix(r8(ptr + pos) ^ SECRET1, r8(ptr + pos + 8) ^ seed)
+                        seed1 = mix(r8(ptr + pos + 16) ^ SECRET2, r8(ptr + pos + 24) ^ seed1)
+                        seed2 = mix(r8(ptr + pos + 32) ^ SECRET3, r8(ptr + pos + 40) ^ seed2)
+                        pos += 48
+                        l -= 48
+                    } while (l > 48)
+                    seed = seed ^ seed1 ^ seed2
+                }
 
-            while (l > 16) {
-                seed = mix(r8(arr, pos) ^ SECRET1, r8(arr, pos + 8) ^ seed)
-                l -= 16
-                pos += 16
-            }
-            a = r8(arr, pos + l - 16)
-            b = r8(arr, pos + l - 8)
+                while (l > 16) {
+                    seed = mix(r8(ptr + pos) ^ SECRET1, r8(ptr + pos + 8) ^ seed)
+                    l -= 16
+                    pos += 16
+                }
+                a = r8(ptr + pos + l - 16)
+                b = r8(ptr + pos + l - 8)
+        }
+        releaseRawData<UInt8>(arr, ptr - start)
     }
     a ^= SECRET1
     b ^= seed
@@ -851,21 +856,21 @@ func mix(A: UInt64, B: UInt64) {
 }
 
 @OverflowWrapping
-func r4(arr: RawArray<UInt8>, pos: Int64) {
-    (UInt64(arrayGetUnchecked(arr, pos)) << 24) |
-    (UInt64(arrayGetUnchecked(arr, pos + 1)) << 16) |
-    (UInt64(arrayGetUnchecked(arr, pos + 2)) << 8) |
-    UInt64(arrayGetUnchecked(arr, pos + 3))
+func r4(ptr: CPointer<UInt8>) {
+    (UInt64(ptr.read()) << 24) |
+    (UInt64(ptr.read(1)) << 16) |
+    (UInt64(ptr.read(2)) << 8) |
+    UInt64(ptr.read(3))
 }
 
 @OverflowWrapping
-func r8(arr: RawArray<UInt8>, pos: Int64) {
-    (UInt64(arrayGetUnchecked(arr, pos)) << 56) |
-    (UInt64(arrayGetUnchecked(arr, pos + 1)) << 48) |
-    (UInt64(arrayGetUnchecked(arr, pos + 2)) << 40) |
-    (UInt64(arrayGetUnchecked(arr, pos + 3)) << 32) |
-    (UInt64(arrayGetUnchecked(arr,pos + 4)) << 24) |
-    (UInt64(arrayGetUnchecked(arr, pos + 5)) << 16) |
-    (UInt64(arrayGetUnchecked(arr, pos + 6)) << 8) |
-        UInt64(arrayGetUnchecked(arr, pos + 7))
+func r8(ptr: CPointer<UInt8>) {
+    (UInt64(ptr.read()) << 56) |
+    (UInt64(ptr.read(1)) << 48) |
+    (UInt64(ptr.read(2)) << 40) |
+    (UInt64(ptr.read(3)) << 32) |
+    (UInt64(ptr.read(4)) << 24) |
+    (UInt64(ptr.read(5)) << 16) |
+    (UInt64(ptr.read(6)) << 8) |
+        UInt64(ptr.read(7))
 }
