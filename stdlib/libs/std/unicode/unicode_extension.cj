@@ -3351,8 +3351,18 @@ public interface UnicodeStringExtension {
 extend String <: UnicodeStringExtension {
     /**
      * Returns true if this string is empty or contains only whitespace Unicode, otherwise `false`.
+     *
+     * Performance optimization: for ASCII strings (the common case), we use a fast byte-level
+     * check via isAsciiBlank() which avoids UTF-8 decoding and Unicode range binary search.
+     * For non-ASCII strings, we fall back to the rune-based approach.
      */
     public func isBlank(): Bool {
+        // Fast path: ASCII strings can be checked at byte level without UTF-8 decoding.
+        // This avoids the overhead of StringRuneIterator and per-rune binary search in isWhiteSpace().
+        if (this.isAscii()) {
+            return this.isAsciiBlank()
+        }
+        // Slow path: non-ASCII strings need rune-by-rune Unicode whitespace checking
         for (i in this.runes()) {
             if (!i.isWhiteSpace()) {
                 return false
