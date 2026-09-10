@@ -365,6 +365,16 @@ Function: Used to parse the source code of a single Cangjie file and obtain a no
 >
 > Expanded Cangjie macro code must not contain package declarations or import statements. When using this function, if the input source code contains package declarations or import statements, the output [Program](ast_package_classes.md#class-program) node will also include them (in the [packageHeader](ast_package_classes.md#prop-packageheader) and [importLists](ast_package_classes.md#prop-importlists) properties). Therefore, this node cannot be directly returned as [Tokens](ast_package_classes.md#class-tokens) in macro functions.
 
+> **Note:**
+>
+> The parsing process is limited by the Cangjie thread stack size (controlled by the environment variable `cjStackSize`, with a default value of 128KB). When the nesting level of expressions or declarations in the source code to be parsed is too deep, a Segmentation fault may occur due to insufficient stack space. In this case, the issue can be resolved by increasing the value of `cjStackSize`, for example:
+>
+> ```shell
+> export cjStackSize=1gb
+> ```
+>
+> `cjStackSize` supports the units kb (KB), mb (MB), and gb (GB). The valid range is [64KB, 1GB] on Linux and [128KB, 1GB] on Windows. Values outside the range are invalid, and the default value will be used instead.
+
 Parameters:
 
 - input: [Tokens](ast_package_classes.md#class-tokens) - The lexical units of the source code to be parsed.
