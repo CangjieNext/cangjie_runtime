@@ -76,6 +76,9 @@ FinalizerProcessor::FinalizerProcessor()
     hasFinalizableJob.store(false, std::memory_order_relaxed);
     shouldReclaimHeapGarbage.store(false, std::memory_order_relaxed);
     shouldFeedHungryBuffers.store(false, std::memory_order_relaxed);
+    finalizedCount.store(0, std::memory_order_relaxed);
+    enqueuedCount.store(0, std::memory_order_relaxed);
+    fpState.store(FpState::IDLE, std::memory_order_relaxed);
 }
 
 void FinalizerProcessor::Run()
@@ -202,6 +205,7 @@ void FinalizerProcessor::EnqueueFinalizables(const std::function<bool(BaseObject
         --countLimit;
         if (finalizable(obj)) {
             finalizables.push_back(reinterpret_cast<BaseObject*>(tmpField.GetFieldValue()));
+            enqueuedCount.fetch_add(1, std::memory_order_relaxed);
             it = finalizers.erase(it);
         } else {
             ++it;
@@ -252,6 +256,7 @@ void FinalizerProcessor::ProcessFinalizableList()
         {
             std::lock_guard<std::mutex> l(listLock);
             itor = workingFinalizables.erase(itor);
+            finalizedCount.fetch_add(1, std::memory_order_relaxed);
         }
     }
 }
@@ -259,6 +264,7 @@ void FinalizerProcessor::ProcessFinalizableList()
 void FinalizerProcessor::ProcessFinalizables()
 {
     MRT_PHASE_TIMER("Finalizer", FINALIZE);
+    fpState.store(FpState::PROCESSING, std::memory_order_relaxed);
     {
         // we leave saferegion to avoid GC visit those changing queues.
         ScopedObjectAccess soa;
@@ -272,6 +278,7 @@ void FinalizerProcessor::ProcessFinalizables()
     if (finalizables.empty()) {
         hasFinalizableJob.store(false, std::memory_order_relaxed);
     }
+    fpState.store(FpState::IDLE, std::memory_order_relaxed);
 }
 
 void FinalizerProcessor::InitFinalizerCJThread()
