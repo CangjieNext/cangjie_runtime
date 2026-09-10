@@ -3357,6 +3357,12 @@ extend String <: UnicodeStringExtension {
      * For non-ASCII strings, we fall back to the rune-based approach.
      */
     public func isBlank(): Bool {
+        // Fast path: empty strings are blank by definition. Checking isEmpty first avoids
+        // isAscii()/isAsciiBlank() setup cost that showed up as ~15-20x slower than
+        // `isEmpty() || isBlank()` in community benchmarks (issue #582).
+        if (this.isEmpty()) {
+            return true
+        }
         // Fast path: ASCII strings can be checked at byte level without UTF-8 decoding.
         // This avoids the overhead of StringRuneIterator and per-rune binary search in isWhiteSpace().
         if (this.isAscii()) {
