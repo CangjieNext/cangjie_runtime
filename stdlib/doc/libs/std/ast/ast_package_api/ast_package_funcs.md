@@ -747,6 +747,16 @@ public func parseProgram(input: Tokens): Program
 >
 > 仓颉宏展开后的代码不允许出现包的声明和包导入语句。使用该函数时，若输入的源码中包含包声明或包导入语句，输出的 [Program](ast_package_classes.md#class-program) 节点中也会包含(在 [packageHeader](ast_package_classes.md#prop-packageheader) 和 [importLists](ast_package_classes.md#prop-importlists) 属性中)，因此不能在宏函数中直接将该节点返回为 [Tokens](ast_package_classes.md#class-tokens)。
 
+> **注意：**
+>
+> 解析过程受到仓颉线程栈大小（由环境变量 `cjStackSize` 控制，默认值为 128KB）的限制。当待解析源码中的表达式、声明等嵌套层级过深时，可能因栈空间不足而出现 Segmentation fault 报错。此时可以通过调大 `cjStackSize` 的值来解决，例如：
+>
+> ```shell
+> export cjStackSize=1gb
+> ```
+>
+> `cjStackSize` 支持单位为 kb（KB）、mb（MB）、gb（GB），设置范围为 Linux 平台下 [64KB, 1GB]、Windows 平台下 [128KB, 1GB]，超出范围的设置无效，仍旧使用默认值。
+
 参数：
 
 - input: [Tokens](ast_package_classes.md#class-tokens) - 待解析源码的词法单元。
