@@ -13,7 +13,6 @@
 #include "Heap/GcThreadPool.h"
 #include "Heap/HeapWork.h"
 #include "RememberSet.h"
-#include "Collector/CardTable.h"
 
 namespace MapleRuntime {
 
