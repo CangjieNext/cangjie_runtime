@@ -174,7 +174,9 @@ func createAnnotation(anno: Option<ASTFormat_Annotation>): Annotation {
     }
     var attrs: Tokens = Tokens()
     for (attr in annotation.GetAttrs()) {
-        attrs.append(Token(TokenKind.IDENTIFIER, attr.getOrThrow()))
+        if (let Some(v) <- attr) {
+            attrs.append(Token(getTokenKind(v.GetKind()), v.GetValue()).addPosition(v.GetPos()))
+        }
     }
     var cond = match (annotation.GetCondExpr()) {
         case Some(v) => Some<Expr>(generateExprAST(annotation.GetCondExpr()))
