@@ -9,6 +9,7 @@
 
 #include "ExceptionManager.inline.h"
 #include "ObjectManager.inline.h"
+#include "StackManager.h"
 #include "TypeInfoManager.h"
 namespace MapleRuntime {
 
@@ -492,8 +493,29 @@ bool CJFileLoader::DoInitImage(BaseFile* baseFile) const
             }
             if (ExceptionManager::HasPendingException()) {
                 ExceptionRef ex = ExceptionManager::GetPendingException();
-                LOG(RTLOG_ERROR, "Init Image fail! exception occurrence when init image, exception:%s ",
+                LOG(RTLOG_ERROR, "Init Image fail! exception occurrence when init image %s (init func %p), "
+                    "exception:%s ", baseFile->GetBaseName().Str(), reinterpret_cast<void*>(func),
                     ex->GetTypeInfo()->GetName());
+                if (mutator != nullptr) {
+                    ExceptionWrapper& eWrapper = mutator->GetExceptionWrapper();
+                    const char* exMsg = eWrapper.GetExceptionMessage();
+                    if (exMsg != nullptr && eWrapper.GetExceptionMessageLength() != 0) {
+                        LOG(RTLOG_ERROR, "exception message: %s", exMsg);
+                    }
+                    std::vector<StackTraceElement> stackTrace;
+                    constexpr int32_t frameInfoTripleLen = 3; // ip, startpc and funcDesc form one triple
+                    std::vector<uint64_t>& liteFrameInfos = eWrapper.GetLiteFrameInfos();
+                    // When some frames are folded, size is odd and the last element is a folded flag.
+                    if (liteFrameInfos.size() % frameInfoTripleLen == 1) {
+                        liteFrameInfos.pop_back();
+                    }
+                    StackManager::GetStackTraceByLiteFrameInfos(liteFrameInfos, stackTrace);
+                    for (const auto& ste : stackTrace) {
+                        LOG(RTLOG_ERROR, "\t at %s%s%s(%s:%ld)", ste.className.Str(),
+                            ste.className.Length() > 0 ? "." : "", ste.methodName.Str(), ste.fileName.Str(),
+                            ste.lineNumber);
+                    }
+                }
                 ExceptionManager::ClearPendingException();
                 return false;
             }
