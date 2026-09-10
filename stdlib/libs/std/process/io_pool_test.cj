@@ -13,12 +13,12 @@ import std.sync.*
 import std.time.*
 
 /*
- * IOPool concurrency tests (see IO调度池设计方案.md §6).
+ * BlockingCallPool concurrency tests (see IO调度池设计方案.md §6).
  *
  * These five cases verify the four headline properties of the pool:
  *   - lazy init        (testLazyInitNoWorkers)
  *   - lazy spawn       (testLazyWorkerSpawn)
- *   - basic state      (testIOPoolRunning)
+ *   - basic state      (testPoolRunning)
  *   - dynamic scaling  (testConcurrentEchoSubprocess)
  *   - read/write loop  (testConcurrentWriteToSubprocess)
  *
@@ -26,17 +26,17 @@ import std.time.*
  * unusable due to "coroutines scheduler stagnation" — see
  * `stdlib/libs/std/unittest/process.cj:93-95`.
  *
- * Entry point: `runIOPoolTests()` (no main() so this file can be
+ * Entry point: `runBlockingCallPoolTests()` (no main() so this file can be
  * compiled into the std.process library; the caller invokes
- * runIOPoolTests() from its own main).
+ * runBlockingCallPoolTests() from its own main).
  */
 
 /*
- * The IOPool singleton should be created with zero workers. No IO has
+ * The BlockingCallPool singleton should be created with zero workers. No IO has
  * been submitted yet, so lazy initialization must keep liveWorkers at 0.
  */
 public func testLazyInitNoWorkers(): Unit {
-    let live = IOPool.shared.liveWorkers.load()
+    let live = BlockingCallPool.shared.liveWorkers.load()
     if (live != 0) {
         throw IllegalStateException("Expected liveWorkers==0 on lazy init, got ${live}")
     }
@@ -45,9 +45,9 @@ public func testLazyInitNoWorkers(): Unit {
 /*
  * Running state must be true for workerLoop() to spin.
  */
-public func testIOPoolRunning(): Unit {
-    if (!IOPool.shared.running) {
-        throw IllegalStateException("Expected IOPool.shared.running == true")
+public func testPoolRunning(): Unit {
+    if (!BlockingCallPool.shared.running) {
+        throw IllegalStateException("Expected BlockingCallPool.shared.running == true")
     }
 }
 
@@ -55,11 +55,11 @@ public func testIOPoolRunning(): Unit {
  * After the first IO submission, at least one worker pthread must have
  * been spawned. We trigger this by launching an `echo` subprocess with
  * stdOut redirected to a Pipe and reading its output through
- * PipeInputStream, which routes through IOPool.submitRead().
+ * PipeInputStream, which routes through BlockingCallPool.submitRead().
  */
 @When[os != "Windows" && os != "iOS"]
 public func testLazyWorkerSpawn(): Unit {
-    let before = IOPool.shared.liveWorkers.load()
+    let before = BlockingCallPool.shared.liveWorkers.load()
 
     let p = launch("echo", Array<String>(["hello"]))
     try {
@@ -80,7 +80,7 @@ public func testLazyWorkerSpawn(): Unit {
         p.wait()
     }
 
-    let after = IOPool.shared.liveWorkers.load()
+    let after = BlockingCallPool.shared.liveWorkers.load()
     if (after < before) {
         throw IllegalStateException("liveWorkers decreased: ${before} -> ${after}")
     }
@@ -88,9 +88,9 @@ public func testLazyWorkerSpawn(): Unit {
 
 /*
  * 8 coroutines concurrently read stdout from 8 `echo` subprocesses.
- * This stresses the dynamic-scaling path: once busyCount reaches
- * INLINE_THRESHOLD(8), submissions go through the Pool path and
- * ensureWorkerAvailable() spawns new pthreads up to maxWorkers.
+ * This stresses the dynamic-scaling path: submissions go through the
+ * Pool path and ensureWorkerAvailable() spawns new pthreads up to
+ * maxWorkers.
  */
 @When[os != "Windows" && os != "iOS"]
 public func testConcurrentEchoSubprocess(): Unit {
@@ -131,7 +131,7 @@ public func testConcurrentEchoSubprocess(): Unit {
 /*
  * A single coroutine writes a known buffer into a `cat` subprocess's
  * stdin and reads the same bytes back from stdout. Exercises the full
- * write -> read loop through IOPool.submitWrite() / submitRead().
+ * write -> read loop through BlockingCallPool.submitWrite() / submitRead().
  */
 @When[os != "Windows" && os != "iOS"]
 public func testConcurrentWriteToSubprocess(): Unit {
@@ -177,12 +177,12 @@ public func testConcurrentWriteToSubprocess(): Unit {
  * the 2s idle timeout in workerLoop to fire, then assert liveWorkers==0.
  */
 @When[os != "Windows" && os != "iOS"]
-public func runIOPoolTests(): Unit {
+public func runBlockingCallPoolTests(): Unit {
     testLazyInitNoWorkers()
     println("testLazyInitNoWorkers: PASS")
 
-    testIOPoolRunning()
-    println("testIOPoolRunning: PASS")
+    testPoolRunning()
+    println("testPoolRunning: PASS")
 
     testLazyWorkerSpawn()
     println("testLazyWorkerSpawn: PASS")
@@ -194,7 +194,7 @@ public func runIOPoolTests(): Unit {
     println("testConcurrentWriteToSubprocess: PASS")
 
     sleep(Duration.second * 3)
-    let live = IOPool.shared.liveWorkers.load()
+    let live = BlockingCallPool.shared.liveWorkers.load()
     if (live != 0) {
         println("WARNING: expected liveWorkers==0 after 3s idle, got ${live}")
     } else {
@@ -203,12 +203,12 @@ public func runIOPoolTests(): Unit {
 }
 
 @When[os == "Windows" || os == "iOS"]
-public func runIOPoolTests(): Unit {
+public func runBlockingCallPoolTests(): Unit {
     testLazyInitNoWorkers()
     println("testLazyInitNoWorkers: PASS")
 
-    testIOPoolRunning()
-    println("testIOPoolRunning: PASS")
+    testPoolRunning()
+    println("testPoolRunning: PASS")
 
-    println("(remaining tests skipped on Windows/iOS — IOPool requires pthread)")
+    println("(remaining tests skipped on Windows/iOS — BlockingCallPool requires pthread)")
 }

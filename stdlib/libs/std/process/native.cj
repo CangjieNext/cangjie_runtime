@@ -78,7 +78,7 @@ foreign {
     func CJ_OS_FileWrite(fd: IntNative, buffer: CPointer<Byte>, maxLen: UIntNative): Bool // -1: failed, (>=0): the size of buffer be written
 
     // IO Pool - create a single OS-level worker thread (pthread) for blocking IO.
-    // Called on-demand by IOPool.ensureWorkerAvailable() (lazy spawn / dynamic scaling).
+    // Called on-demand by BlockingCallPool.ensureWorkerAvailable() (lazy spawn / dynamic scaling).
     func CJ_IOPool_CreateWorker(): Int32
 
     func getenv(name: CString): CString

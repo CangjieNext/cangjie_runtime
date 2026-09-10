@@ -13,67 +13,44 @@ import std.sync.*
 import std.time.*
 
 /*
- * IO Task kind: Read or Write.
+ * Non-generic interface for queue storage. The worker loop dispatches
+ * through this interface without knowing the concrete result type.
  */
-enum IOTaskKind {
-    | Read
-    | Write
+interface IBlockingTask {
+    func execute(): Unit
 }
 
 /*
- * A single blocking IO operation submitted to IOPool.
+ * A generic blocking task submitted to BlockingCallPool.
  *
  * The submitting coroutine constructs the task, enqueues it, then calls
- * waitAndGetReadResult() / waitAndCheckWriteResult() which park the
- * coroutine on `cond` until the worker pthread fills in the result.
+ * waitResult() which parks the coroutine on `cond` until the worker
+ * pthread fills in the result.
  */
-class IOTask {
-    let kind: IOTaskKind
-    let fd: IntNative
-    let buffer: Array<Byte>
-
+class BlockingTask<T> <: IBlockingTask {
+    let action: () -> T
     let mtx = Mutex()
     let cond: Condition
-
-    var readResult: Int64 = -1
-    var writeSuccess: Bool = false
+    var result: ?T = None
     var completed: Bool = false
 
-    init(kind!: IOTaskKind, fd!: IntNative, buffer!: Array<Byte>) {
-        this.kind = kind
-        this.fd = fd
-        this.buffer = buffer
+    init(action: () -> T) {
+        this.action = action
         synchronized (this.mtx) {
             this.cond = this.mtx.condition()
         }
     }
 
     /*
-     * Executed by a worker pthread: performs the blocking C call (outside
+     * Executed by a worker pthread: performs the blocking call (outside
      * the lock), then writes the result under `mtx` and notifies the
      * waiting coroutine. The mutex unlock -> lock pair provides
      * happens-before, so the coroutine observes the final field values.
      */
-    func execute(): Unit {
-        var r: Int64 = -1
-        var ok: Bool = false
-        match (this.kind) {
-            case Read =>
-                unsafe {
-                    var bufPtr = acquireArrayRawData(this.buffer)
-                    r = CJ_OS_FileRead(this.fd, bufPtr.pointer, UIntNative(this.buffer.size))
-                    releaseArrayRawData(bufPtr)
-                }
-            case Write =>
-                unsafe {
-                    var bufPtr = acquireArrayRawData(this.buffer)
-                    ok = CJ_OS_FileWrite(this.fd, bufPtr.pointer, UIntNative(this.buffer.size))
-                    releaseArrayRawData(bufPtr)
-                }
-        }
+    public func execute(): Unit {
+        let r = this.action()
         synchronized (this.mtx) {
-            this.readResult = r
-            this.writeSuccess = ok
+            this.result = Some(r)
             this.completed = true
             this.cond.notifyAll()
         }
@@ -81,55 +58,52 @@ class IOTask {
 
     /*
      * Called by the submitting coroutine: parks until `completed` is set
-     * by the worker, then returns the read result.
+     * by the worker, then returns the result.
      */
-    func waitAndGetReadResult(): Int64 {
+    func waitResult(): T {
         synchronized (this.mtx) {
             while (!this.completed) {
                 this.cond.wait()
             }
-            return this.readResult
-        }
-    }
-
-    /*
-     * Called by the submitting coroutine: parks until `completed` is set
-     * by the worker, then returns whether the write fully succeeded.
-     */
-    func waitAndCheckWriteResult(): Bool {
-        synchronized (this.mtx) {
-            while (!this.completed) {
-                this.cond.wait()
-            }
-            return this.writeSuccess
+            return this.result.getOrThrow()
         }
     }
 }
 
 /*
- * IO Pool singleton.
+ * Blocking Call Pool singleton.
  *
- * Dispatch strategy (see IO调度池设计方案.md §4.2.3):
- *   - busyCount < INLINE_THRESHOLD(8): inline fast path, the submitting
- *     coroutine runs the blocking C call directly on its current OS
- *     thread. Zero allocation, zero thread hop.
- *   - busyCount >= INLINE_THRESHOLD: Pool path. Construct an IOTask,
+ * Offloads blocking syscalls from the M:N scheduler's OS threads to
+ * dedicated pthreads. The submitting coroutine parks (releasing its
+ * OS thread to the scheduler) while the worker pthread blocks in the
+ * syscall. When the syscall completes, the worker writes the result
+ * and notifies the coroutine.
+ *
+ * Dispatch strategy:
+ *   - busyCount < INLINE_THRESHOLD(0): inline fast path, the submitting
+ *     coroutine runs the blocking call directly on its current OS
+ *     thread. The runtime's syscall handoff mechanism (schmon) will
+ *     spawn a replacement thread if this one blocks.
+ *   - busyCount >= INLINE_THRESHOLD: Pool path. Construct a BlockingTask,
  *     enqueue, ensure a worker is available (lazy spawn / dynamic
  *     scaling), then park the coroutine.
  *
  * Workers are pthreads created via CJ_IOPool_CreateWorker(); they enter
- * CJ_IOPool_WorkerLoop() -> IOPool.workerLoop(). Each worker dequeues a
- * task with a 2s timeout; on timeout and empty queue it decrements
- * liveWorkers and exits the pthread.
+ * CJ_IOPool_WorkerLoop() -> BlockingCallPool.workerLoop(). Each worker
+ * dequeues a task with a 2s timeout; on timeout and empty queue it
+ * decrements liveWorkers and exits the pthread.
+ *
+ * Shutdown is auto-registered via CJ_CORE_AddAtexitCallback in init(),
+ * ensuring workers exit cleanly before runtime shutdown.
  */
 @When[os != "Windows"]
-public class IOPool {
-    public static let shared = IOPool()
+class BlockingCallPool {
+    static let shared = BlockingCallPool()
 
-    let taskQueue = LinkedBlockingQueue<IOTask>()
+    let taskQueue = LinkedBlockingQueue<IBlockingTask>()
 
     let busyCount = AtomicInt32(0)
-    static const INLINE_THRESHOLD: Int32 = 8
+    static const INLINE_THRESHOLD: Int32 = 0
 
     let liveWorkers = AtomicInt32(0)
     let idleCount = AtomicInt32(0)
@@ -138,7 +112,34 @@ public class IOPool {
     var running: Bool = true
     static const IDLE_TIMEOUT_SEC: Int64 = 2
 
-    private init() {}
+    private init() {
+        CJ_CORE_AddAtexitCallback({ => this.shutdown() })
+    }
+
+    /*
+     * Shutdown the pool: stop accepting new tasks, drain idle workers,
+     * and wait for all workers to exit.
+     *
+     * Auto-registered via CJ_CORE_AddAtexitCallback in init(). Runs before
+     * runtime shutdown (FiniCJRuntime) to ensure workers exit cleanly via
+     * the normal waitqueue wake path, not via ScheduleNonDefaultThreadExit's
+     * direct SemaphorePost (which bypasses waitqueue node/timer cleanup
+     * and causes heap corruption).
+     */
+    func shutdown(): Unit {
+        this.running = false
+        // Wake all idle workers by adding dummy tasks so they exit via
+        // the normal remove() path (WaitqueueWakeOne cleans up node+timer).
+        while (this.idleCount.load() > 0) {
+            let dummy = BlockingTask<Unit>({ => })
+            this.taskQueue.add(dummy)
+            sleep(Duration.millisecond * 1)
+        }
+        // Wait for all workers to exit
+        while (this.liveWorkers.load() > 0) {
+            sleep(Duration.millisecond * 10)
+        }
+    }
 
     /*
      * Ensure at least one idle worker is available before the submitting
@@ -157,14 +158,14 @@ public class IOPool {
             }
 
             let current = this.liveWorkers.load()
-            if (current >= IOPool.maxWorkers) { // TODO：just return without any info？
+            if (current >= BlockingCallPool.maxWorkers) {
                 return
             }
 
             this.liveWorkers.fetchAdd(1)
             let ret = unsafe { CJ_IOPool_CreateWorker() }
             if (ret != 0) {
-                this.liveWorkers.fetchSub(1) // TODO：just return without any info？
+                this.liveWorkers.fetchSub(1)
             }
         }
     }
@@ -178,82 +179,82 @@ public class IOPool {
      * 4. timeout + empty queue -> liveWorkers-- -> break (pthread exits)
      * 5. got task -> execute() -> busyCount-- -> loop
      */
-    public static func workerLoop(): Unit {
-        let pool = IOPool.shared
+    static func workerLoop(): Unit {
+        let pool = BlockingCallPool.shared
         while (pool.running) {
             pool.idleCount.fetchAdd(1)
 
-            let taskOpt = pool.taskQueue.remove(Duration.second * IOPool.IDLE_TIMEOUT_SEC)
+            let taskOpt = pool.taskQueue.remove(Duration.second * BlockingCallPool.IDLE_TIMEOUT_SEC)
 
             pool.idleCount.fetchSub(1)
 
-            match (taskOpt) {
-                case Some(task) =>
-                    task.execute()
-                case None =>
-                    if (pool.taskQueue.peek().isNone()) {
-                        pool.liveWorkers.fetchSub(1)
-                        break
-                    }
-                    continue
+            if (taskOpt.isNone()) {
+                if (pool.taskQueue.peek().isNone()) {
+                    pool.liveWorkers.fetchSub(1)
+                    break
+                }
+                if (!pool.running) {
+                    pool.liveWorkers.fetchSub(1)
+                    break
+                }
+                continue
             }
+
+            if (!pool.running) {
+                pool.liveWorkers.fetchSub(1)
+                break
+            }
+
+            taskOpt.getOrThrow().execute()
+
             pool.busyCount.fetchSub(1)
         }
     }
 
     /*
-     * Submit a read. Inline fast path when busyCount < INLINE_THRESHOLD;
-     * otherwise enqueue an IOTask and park the coroutine.
+     * Submit a generic blocking call. Inline fast path when
+     * busyCount < INLINE_THRESHOLD; otherwise enqueue a BlockingTask
+     * and park the coroutine.
      */
-    public func submitRead(fd: IntNative, buffer: Array<Byte>): Int64 {
+    func submit<T>(task: () -> T): T {
         let cur = this.busyCount.fetchAdd(1)
-        if (cur < IOPool.INLINE_THRESHOLD) {
-            let r = unsafe {
+        if (cur < BlockingCallPool.INLINE_THRESHOLD) {
+            let r = task()
+            this.busyCount.fetchSub(1)
+            return r
+        }
+        let bt = BlockingTask<T>(task)
+        this.taskQueue.add(bt)
+        this.ensureWorkerAvailable()
+        return bt.waitResult()
+    }
+
+    /*
+     * Convenience: submit a read. Thin wrapper over submit<Int64>.
+     */
+    func submitRead(fd: IntNative, buffer: Array<Byte>): Int64 {
+        return this.submit<Int64>({ =>
+            unsafe {
                 let bufPtr = acquireArrayRawData(buffer)
                 let readSize = CJ_OS_FileRead(fd, bufPtr.pointer, UIntNative(buffer.size))
                 releaseArrayRawData(bufPtr)
                 readSize
             }
-            this.busyCount.fetchSub(1)
-            return r
-        }
-        let task = IOTask(kind: Read, fd: fd, buffer: buffer)
-        this.taskQueue.add(task)
-        this.ensureWorkerAvailable()
-        return task.waitAndGetReadResult()
+        })
     }
 
     /*
-     * Submit a write. Inline fast path when busyCount < INLINE_THRESHOLD;
-     * otherwise enqueue an IOTask and park the coroutine.
+     * Convenience: submit a write. Thin wrapper over submit<Bool>.
      */
-    public func submitWrite(fd: IntNative, buffer: Array<Byte>): Bool {
-        let cur = this.busyCount.fetchAdd(1)
-        if (cur < IOPool.INLINE_THRESHOLD) {
-            let ok = unsafe {
+    func submitWrite(fd: IntNative, buffer: Array<Byte>): Bool {
+        return this.submit<Bool>({ =>
+            unsafe {
                 let bufPtr = acquireArrayRawData(buffer)
                 let success = CJ_OS_FileWrite(fd, bufPtr.pointer, UIntNative(buffer.size))
                 releaseArrayRawData(bufPtr)
                 success
             }
-            this.busyCount.fetchSub(1)
-            return ok
-        }
-        let task = IOTask(kind: Write, fd: fd, buffer: buffer)
-        this.taskQueue.add(task)
-        this.ensureWorkerAvailable()
-        return task.waitAndCheckWriteResult()
-    }
-
-    public func shutdown(): Unit {
-        this.running = false
-        while (this.liveWorkers.load() > 0) {
-            let dummy = IOTask(kind: Read, fd: (-1), buffer: Array<Byte>(1, repeat: 0))
-            this.taskQueue.add(dummy)
-        }
-        while (this.liveWorkers.load() > 0) {
-            sleep(Duration.millisecond * 10)
-        }
+        })
     }
 }
 
@@ -264,5 +265,5 @@ public class IOPool {
 @When[os != "Windows"]
 @C
 func CJ_IOPool_WorkerLoop(): Unit {
-    IOPool.workerLoop()
+    BlockingCallPool.workerLoop()
 }
