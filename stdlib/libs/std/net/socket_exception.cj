@@ -29,7 +29,7 @@ public class SocketException <: IOException {
     }
 
     static func throwClosedException(): Nothing {
-        throw SocketException("Socket is already closed.")
+        throw SocketException("Socket is already closed")
     }
 
     static func notYetConnected(): Nothing {
