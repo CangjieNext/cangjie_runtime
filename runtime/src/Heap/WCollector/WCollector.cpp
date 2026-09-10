@@ -546,7 +546,6 @@ void WCollector::DoGarbageCollection()
     ForwardDataManager::GetForwardDataManager().SetTagID(currentTagID);
 
     CollectSmallSpace();
-    ForwardDataManager::GetForwardDataManager().UnbindPreviousLiveInfo();
 }
 
 void WCollector::MarkNewObject(BaseObject* obj)
@@ -667,6 +666,11 @@ void WCollector::CollectSmallSpace()
 #if defined(__EULER__)
     Heap::GetHeap().GetAllocator().TryReclaimGarbageMemory();
 #endif
+    // Notify FP to asynchronously reclaim garbage region metadata (madvise etc).
+    // The heap verifier's walker (HeapVerifier::WalkHeap) is immune to this
+    // concurrent metadata rewrite: it navigates ghost regions via frozen
+    // 0-suffix extents and crawls free/subordinate units without reading
+    // ownerRegion (spec 2026-09-10-heap-verify-walker-design.md).
     collectorResources.GetFinalizerProcessor().NotifyToReclaimGarbage();
 }
 

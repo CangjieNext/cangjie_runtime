@@ -9,6 +9,7 @@
 #include "Common/Runtime.h"
 #include "Concurrency/Concurrency.h"
 #include "Allocator/RegionSpace.h"
+#include "Collector/ForwardDataManager.h"
 #include "Heap/Allocator/AllocBuffer.h"
 #include "ObjectModel/RefField.inline.h"
 
@@ -663,6 +664,11 @@ void TracingCollector::PreGarbageCollection(bool isConcurrent)
 
     static_cast<RegionSpace&>(heap.GetAllocator()).GetRegionManager().ResetMutatorAssistRegionBytes();
 
+    // FP activity snapshot must precede any verification/GC work (spec 7.2).
+    FinalizerProcessor& fp = Heap::GetHeap().GetFinalizerProcessor();
+    fpSnapshot.finalizedCount = fp.GetFinalizedCount();
+    fpSnapshot.enqueuedCount = fp.GetEnqueuedCount();
+
     // SatbBuffer should be initialized before concurrent enumeration.
     SatbBuffer::Instance().Init();
     // prepare thread pool.
@@ -681,6 +687,18 @@ void TracingCollector::PreGarbageCollection(bool isConcurrent)
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
     DumpBeforeGC();
 #endif
+    if (HeapVerifier::IsPreVerifyEnabled()) {
+        if (MutatorManager::Instance().WorldStopped()) {
+            HeapVerifier("pre-GC", fpSnapshot).Verify();
+        } else {
+            ScopedStopTheWorld stw("pre-verify");
+            HeapVerifier("pre-GC", fpSnapshot).Verify();
+        }
+    }
+    // Deferred from the end of the previous cycle's DoGarbageCollection: pre-verify
+    // above reads the previous cycle's mark bitmaps, which must still be bound here.
+    // Runs before any of this cycle's marking work allocates new LiveInfo.
+    ForwardDataManager::GetForwardDataManager().UnbindPreviousLiveInfo();
     TRACE_COUNT("CJRT_pre_GC_HeapSize", Heap::GetHeap().GetAllocatedSize());
 }
 
@@ -690,6 +708,14 @@ void TracingCollector::PostGarbageCollection(uint64_t gcIndex)
     TransitionToGCPhase(GetPostGarbageCollectionPhase(), true);
     SatbBuffer::Instance().ReclaimALLPages();
     PagePool::Instance().Trim();
+    if (HeapVerifier::IsPostVerifyEnabled()) {
+        if (MutatorManager::Instance().WorldStopped()) {
+            HeapVerifier("post-GC", fpSnapshot).Verify();
+        } else {
+            ScopedStopTheWorld stw("post-verify");
+            HeapVerifier("post-GC", fpSnapshot).Verify();
+        }
+    }
     collectorResources.NotifyGCFinished(gcIndex);
 
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)

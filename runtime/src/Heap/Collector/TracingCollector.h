@@ -17,6 +17,7 @@
 #include "Heap/Allocator/RegionSpace.h"
 #include "Heap/Collector/ForwardDataManager.h"
 #include "Mutator/MutatorManager.h"
+#include "Heap/HeapVerifier.h"
 
 // set 1 to enable concurrent mark test.
 #define MRT_TEST_CONCURRENT_MARK (false)
@@ -322,6 +323,9 @@ protected:
     }
 
     Allocator& theAllocator;
+
+    // FP activity counters snapshotted at cycle start; shared by pre/post verifiers.
+    HeapVerifier::FpSnapshot fpSnapshot {};
 
     // A collectorResources provides the resources that the tracing collector need,
     // such as gc thread/threadPool, gc task queue.

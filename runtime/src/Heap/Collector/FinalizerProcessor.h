@@ -79,6 +79,10 @@ public:
     void EnqueueFinalizables(const std::function<bool(BaseObject*)>& finalizable, U32 countLimit = UINT_MAX);
     void RegisterFinalizer(BaseObject* obj);
     void RegisterFinalizers(ManagedList<BaseObject*>& objs);
+    // Heap verification diagnostics accessors.
+    uint64_t GetFinalizedCount() const { return finalizedCount.load(std::memory_order_relaxed); }
+    uint64_t GetEnqueuedCount() const { return enqueuedCount.load(std::memory_order_relaxed); }
+    bool IsProcessing() const { return fpState.load(std::memory_order_relaxed) == FpState::PROCESSING; }
     bool IsRunning() const { return running; }
     uint32_t GetTid() const { return tid; }
 
@@ -123,6 +127,12 @@ private:
     std::atomic<bool> hasFinalizableJob;
     std::atomic<bool> shouldReclaimHeapGarbage;
     std::atomic<bool> shouldFeedHungryBuffers;
+    // Heap verification (pre/post-GC) diagnostics: cumulative counters.
+    // Relaxed order is sufficient: diagnostic reporting only.
+    std::atomic<uint64_t> finalizedCount {0};
+    std::atomic<uint64_t> enqueuedCount {0};
+    enum class FpState : uint8_t { IDLE, PROCESSING };
+    std::atomic<FpState> fpState {FpState::IDLE};
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
     // stats
     void LogAfterProcess();

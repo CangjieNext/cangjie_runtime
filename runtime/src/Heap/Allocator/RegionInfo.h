@@ -685,6 +685,28 @@ public:
         return GetRegionInfoAt(reinterpret_cast<uintptr_t>(obj));
     }
 
+    // Read the unit role at the given heap address WITHOUT following
+    // ownerRegion. Unlike GetRegionInfoAt, this is safe to call on units
+    // whose metadata is being concurrently rewritten by the finalizer
+    // processor's reclaim/feed jobs (InitSubordinateUnit writes role before
+    // owner; a null/stale owner is never read here). Used by the heap
+    // verifier's walker to decide crawl-vs-visit.
+    static UnitRole GetUnitRoleAt(uintptr_t allocAddr)
+    {
+        UnitInfo* unit = RegionInfo::UnitInfo::GetUnitInfoAt(allocAddr);
+        return unit->GetUnitRole();
+    }
+
+    // For a unit at the given heap address whose role has been determined to
+    // be a leader role (via GetUnitRoleAt), return the RegionInfo. The caller
+    // MUST have checked the role first — this cast is only valid for leader
+    // units (for subordinates, the RegionInfo is the owner, which may be
+    // mid-write by FP and must not be followed).
+    static RegionInfo* GetLeaderRegionInfoAt(uintptr_t allocAddr)
+    {
+        return reinterpret_cast<RegionInfo*>(UnitInfo::GetUnitInfoAt(allocAddr));
+    }
+
     static bool InGhostFromRegion(BaseObject* obj)
     {
         UnitInfo* unit = RegionInfo::UnitInfo::GetUnitInfoAt(reinterpret_cast<uintptr_t>(obj));
