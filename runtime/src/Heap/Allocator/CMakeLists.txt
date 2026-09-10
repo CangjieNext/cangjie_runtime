@@ -11,7 +11,6 @@ set(SRC_LIST
     "RegionSpace.cpp"
     "RegionManager.cpp"
     "CartesianTree.cpp"
-    "MixedRegionSpace/MixedRegionSpace.cpp"
     "MixedRegionSpace/MixedRegionManager.cpp"
 )
 

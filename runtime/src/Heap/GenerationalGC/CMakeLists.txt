@@ -9,7 +9,6 @@ set(SRC_LIST
     "MixedCollector.cpp"
     "RememberSet.cpp"
     "RSetUpdateBarrier.cpp"
-    "GenerationBarriers.cpp"
     "GenerationEnumBarrier.cpp"
     "GenerationTraceBarrier.cpp"
     "GenerationIdleBarrier.cpp"

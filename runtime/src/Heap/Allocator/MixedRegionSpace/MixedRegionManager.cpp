@@ -7,7 +7,6 @@
 #include "MixedRegionManager.h"
 #include "GenerationalGC/GenerationAllocBuffer.h"
 #include "Collector/CopyCollector.h"
-#include "Collector/CardTable.h"
 #include "Collector/TracingCollector.h"
 #include "GenerationalGC/RememberSet.h"
 #include "Heap/Heap.h"
