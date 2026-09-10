@@ -96,7 +96,7 @@ class PipeOutputStream <: OutputStream & Resource {
      */
     @When[os != "Windows"]
     private func directWrite(buffer: Array<Byte>): Unit {
-        let success = IOPool.shared.submitWrite(this._fileDescriptor._fileHandle, buffer)
+        let success = BlockingCallPool.shared.submitWrite(this._fileDescriptor._fileHandle, buffer)
         if (!success) {
             throw ProcessException("The stream write error.")
         }
@@ -165,7 +165,7 @@ class PipeInputStream <: InputStream & Resource {
      */
     @When[os != "Windows"]
     private func directRead(buffer: Array<Byte>): Int64 {
-        return IOPool.shared.submitRead(this._fileDescriptor._fileHandle, buffer)
+        return BlockingCallPool.shared.submitRead(this._fileDescriptor._fileHandle, buffer)
     }
 
     @When[os == "Windows"]
