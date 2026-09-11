@@ -78,6 +78,32 @@ public struct Array<T> {
     }
 
     @Frozen
+    exclave init(this @local!, elements: Collection<T> @local!) {
+        start = 0
+        let raw = rawArrayAllocate2<T>(elements.size)
+        var i: Int64 = 0
+        for (elem in elements) {
+            arraySet2<T>(raw, i, elem)
+            i = i + 1
+        }
+        rawptr = raw
+        len = arraySize(raw)
+    }
+
+    @Frozen
+    exclave init(this @local?, elements: Collection<T> @local?) {
+        start = 0
+        let raw = rawArrayAllocate3<T>(elements.size)
+        var i: Int64 = 0
+        for (elem in elements) {
+            arraySet3<T>(raw, i, elem)
+            i = i + 1
+        }
+        rawptr = raw
+        len = arraySize(raw)
+    }
+
+    @Frozen
     public init(size: Int64, initElement: (Int64) -> T) {
         this.start = 0
         let raw = rawArrayAllocate<T>(size)
@@ -87,19 +113,31 @@ public struct Array<T> {
     }
 
     @Frozen
-    public init(this @local!, size: Int64, initElement: (Int64) -> T @local!) {
-        exclave {
-            this.start = 0
-            let raw = rawArrayAllocate2<T>(size)
-            var i: Int64 = 0
-            while (i < size) {
-                let v: T @local! = initElement(i)
-                arraySet2<T>(raw, i, v)
-                i = i + 1
-            }
-            this.rawptr = raw
-            this.len = size
+    public exclave init(this @local!, size: Int64, initElement: (Int64) -> T @local!) {
+        start = 0
+        let raw = rawArrayAllocate2<T>(size)
+        var i: Int64 = 0
+        while (i < size) {
+            let v: T @local! = initElement(i)
+            arraySet2<T>(raw, i, v)
+            i = i + 1
         }
+        rawptr = raw
+        len = size
+    }
+
+    @Frozen
+    public exclave init(this @local?, size: Int64, initElement: (Int64) -> T @local?) {
+        start = 0
+        let raw = rawArrayAllocate3<T>(size)
+        var i: Int64 = 0
+        while (i < size) {
+            let v: T @local? = initElement(i)
+            arraySet3<T>(raw, i, v)
+            i = i + 1
+        }
+        rawptr = raw
+        len = size
     }
 
     @Frozen
