@@ -142,6 +142,11 @@ def generate_cmake_defs(args):
         result.append("-DCMAKE_ANDROID_NDK=" + os.path.join(args.target_toolchain, "../../../../.."))
         result.append("-DCMAKE_ANDROID_API=" + (android_api_level if android_api_level else ""))
 
+    if args.target and "x86_64-linux-android" in args.target:
+        android_api_level = re.match(r'x86_64-linux-android(\d{2})?', args.target).group(1)
+        result.append("-DCMAKE_ANDROID_NDK=" + os.path.join(args.target_toolchain, "../../../../.."))
+        result.append("-DCMAKE_ANDROID_API=" + (android_api_level if android_api_level else ""))
+
     if args.target and "arm-linux-android" in args.target:
         android_api_level = "23"
         result.append("-DCMAKE_ANDROID_NDK=" + os.path.join(args.target_toolchain, "../../../../.."))
