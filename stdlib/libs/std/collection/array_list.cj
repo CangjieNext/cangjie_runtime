@@ -389,13 +389,13 @@ public class ArrayList<T> <: List<T> {
         if (!range.hasStart) {
             start = 0
         }
-        // If start >= end, do nothing.
-        if (start >= end) {
-            return
-        }
         if (start < 0 || end < 0 || end > this.mySize) {
             throw IndexOutOfBoundsException(
                 "The size of ArrayList is ${this.size}, but the start is ${start} and the end is ${end}.")
+        }
+        // If start >= end, do nothing.
+        if (start >= end) {
+            return
         }
 
         let moveLen = this.mySize - end
