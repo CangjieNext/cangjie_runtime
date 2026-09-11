@@ -44,8 +44,9 @@ func arraySet<T>(rawArr: RawArray<T>, index: Int64, element: T): Unit
 @Intrinsic
 func arraySet2<T>(rawArr: RawArray<T> @local!, index: Int64, element: T @local!): Unit
 
+// Either T is Copyable, or this is called in constructor. Otherwise the behaviour is undefined.
 @Intrinsic
-func arraySet3<T>(rawArr: RawArray<T> @local?, index: Int64, element: T @local?): Unit where T <: Copyable
+func arraySet3<T>(rawArr: RawArray<T> @local?, index: Int64, element: T @local?): Unit
 
 @Intrinsic
 func arrayGetUnchecked<T>(rawArr: RawArray<T>, index: Int64): T
@@ -62,8 +63,9 @@ func arraySetUnchecked<T>(rawArr: RawArray<T>, index: Int64, element: T): Unit
 @Intrinsic
 func arraySetUnchecked2<T>(rawArr: RawArray<T> @local!, index: Int64, element: T @local!): Unit
 
+// Either T is Copyable, or this is called in constructor. Otherwise the behaviour is undefined.
 @Intrinsic
-func arraySetUnchecked3<T>(rawArr: RawArray<T> @local?, index: Int64, element: T @local?): Unit where T <: Copyable
+func arraySetUnchecked3<T>(rawArr: RawArray<T> @local?, index: Int64, element: T @local?): Unit
 
 @Intrinsic
 func arraySize<T>(rawArr: RawArray<T> @local?): Int64

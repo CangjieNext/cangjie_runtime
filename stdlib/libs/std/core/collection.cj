@@ -18,11 +18,25 @@ package std.core
 public interface Collection<T> <: Iterable<T> {
     // Returns the number of elements in this collection.
     prop size: Int64
+    prop size: Int64 @local? {
+        get() {
+            throw Exception()
+        }
+    }
 
     // Returns true if this collection contains no elements.
     func isEmpty(): Bool
+    func isEmpty(this @local?): Bool {
+        size == 0
+    }
 
     func toArray(): Array<T> {
         return Array<T>(this)
+    }
+    exclave func toArray(this @local!): Array<T> @local! {
+        Array<T>(this)
+    }
+    exclave func toArray(this @local?): Array<T> @local? {
+        Array<T>(this)
     }
 }
