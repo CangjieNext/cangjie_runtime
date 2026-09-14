@@ -403,9 +403,9 @@ extend<T> Array<T> where T <: Comparable<T> {
         // init temp data
         let mrl = this.getMinRunLength()
         var temp = TempArray(this.size, this[0])
-        let stackLen = Int64(log2(Float64(this.size) / Float64(mrl) + 2.0)) + 1
-        let startArr = Array<Int64>(stackLen, repeat: 0)
-        let lengthArr = Array<Int64>(stackLen, repeat: 0)
+        let stackLen = Int64(log2(Float64(this.size)) * 3.0 / 2.0) + 8
+        var startArr = Array<Int64>(stackLen, repeat: 0)
+        var lengthArr = Array<Int64>(stackLen, repeat: 0)
         var endIndex = -1
 
         var begin: Int64 = 0
@@ -425,6 +425,10 @@ extend<T> Array<T> where T <: Comparable<T> {
                 }
             }
             endIndex++
+            if (endIndex == startArr.size) {
+                startArr = growRunStack(startArr)
+                lengthArr = growRunStack(lengthArr)
+            }
             startArr[endIndex] = begin
             lengthArr[endIndex] = seqLen
             begin = begin + seqLen
@@ -798,9 +802,9 @@ extend<T> Array<T> {
         // init cmpTemp data
         let cmpMinRunLength = this.getMinRunLength()
         var cmpTemp = TempArray(this.size, this[0])
-        let cmpRunStackLen = Int64(log2(Float64(this.size) / Float64(cmpMinRunLength) + 2.0)) + 1
-        let cmpRunStartArr = Array<Int64>(cmpRunStackLen, repeat: 0)
-        let cmpRunLengthArr = Array<Int64>(cmpRunStackLen, repeat: 0)
+        let cmpRunStackLen = Int64(log2(Float64(this.size)) * 3.0 / 2.0) + 8
+        var cmpRunStartArr = Array<Int64>(cmpRunStackLen, repeat: 0)
+        var cmpRunLengthArr = Array<Int64>(cmpRunStackLen, repeat: 0)
         var cmpStackTop = -1
 
         var begin: Int64 = 0
@@ -820,6 +824,10 @@ extend<T> Array<T> {
                 }
             }
             cmpStackTop++
+            if (cmpStackTop == cmpRunStartArr.size) {
+                cmpRunStartArr = growRunStack(cmpRunStartArr)
+                cmpRunLengthArr = growRunStack(cmpRunLengthArr)
+            }
             cmpRunStartArr[cmpStackTop] = begin
             cmpRunLengthArr[cmpStackTop] = seqLen
             begin = begin + seqLen
@@ -859,6 +867,12 @@ class TempArray<T> {
 
 // Package-level merge helpers shared by both Array<T> extend blocks.
 // Extracted as free functions to avoid cross-extend-block private method visibility limits.
+
+private func growRunStack(stack: Array<Int64>): Array<Int64> {
+    let grown = Array<Int64>(stack.size * 2, repeat: 0)
+    stack.copyTo(grown, 0, 0, stack.size)
+    return grown
+}
 
 @OverflowWrapping
 private func moveLeftBufferPrefix<T>(dest: Array<T>, arr: Array<T>, target: Int64, leftCursor: Int64, count: Int64,
