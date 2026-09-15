@@ -9,6 +9,7 @@
 #include <cstdarg>
 #include <cstdio>
 #include <cstring>
+#include <dlfcn.h>
 
 #include "Allocator/Allocator.h"
 #include "Allocator/RegionInfo.h"
@@ -223,17 +224,23 @@ bool HeapVerifier::CheckTarget(const char* kind, BaseObject* holder, size_t offs
         return true; // legal null
     }
     if (!Heap::IsHeapAddress(reinterpret_cast<MAddress>(ref))) {
-        return true; // legal non-heap target (e.g. constant strings), collector does the same
+        // Non-heap target: distinguish a legal constant object (embedded in a
+        // loaded module's data section, e.g. RawArray<UInt8> string literals)
+        // from a corrupted reference via dladdr() — a pure address-range check
+        // against file-backed module mappings, NO dereference of ref (which
+        // would SEGV on a truly wild pointer to unmapped memory).
+        Dl_info info;
+        if (dladdr(reinterpret_cast<void*>(ref), &info) == 0) {
+            // Not in any loaded module's mapping: stack / malloc / anonymous
+            // mmap / unmapped — a heap ref must never point here.
+            // Diagnostic: dump the mapping via /proc/self/maps for triage.
+            RecordFailure("%s: %p<%s> offset %zu targets non-module %p (wild pointer?)", kind, holder,
+                          (holder != nullptr) ? holder->GetTypeInfo()->GetName() : "root", offset, ref);
+            DumpAddressMapping(reinterpret_cast<void*>(ref));
+            return false;
+        }
+        return true; // constant object in a loaded module's data section
     }
-    // Allocator::IsHeapObject is only declared under MRT_DEBUG (Allocator.h);
-    // every in-tree caller (e.g. TracingCollector::DumpRoots) uses the same guard.
-#if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
-    if (!Heap::GetHeap().GetAllocator().IsHeapObject(reinterpret_cast<MAddress>(ref))) {
-        RecordFailure("%s: %p<%s> offset %zu targets %p which is not a heap object", kind, holder,
-                      (holder != nullptr) ? holder->GetTypeInfo()->GetName() : "root", offset, ref);
-        return false;
-    }
-#endif
     if (!ref->IsValidObject()) {
         RecordFailure("%s: %p<%s> offset %zu targets %p with invalid header", kind, holder,
                       (holder != nullptr) ? holder->GetTypeInfo()->GetName() : "root", offset, ref);
@@ -244,6 +251,25 @@ bool HeapVerifier::CheckTarget(const char* kind, BaseObject* holder, size_t offs
                       (holder != nullptr) ? holder->GetTypeInfo()->GetName() : "root", offset, ref,
                       ref->GetTypeInfo()->GetName(), static_cast<int>(ref->GetStateWord().GetStateCode()));
         return false;
+    }
+    // Target-liveness gate: a live holder (already passed the holder bitmap
+    // gate in VerifyObject) must not reference a target in a garbage region
+    // (waiting for FP reclaim) — that would mean a marking or corruption bug.
+    // Resurrected objects are safe from this check: their regions are exempted
+    // from the garbage list BEFORE the merge (ExemptFromRegions runs in
+    // PostTrace, ahead of CollectFromSpaceGarbage), and IsSurvivedObject
+    // covers the resurrectBitmap.
+    RegionInfo::UnitRole role = RegionInfo::GetUnitRoleAt(reinterpret_cast<uintptr_t>(ref));
+    if (role != RegionInfo::UnitRole::FREE_UNITS && role != RegionInfo::UnitRole::SUBORDINATE_UNIT) {
+        RegionInfo* targetRegion = RegionInfo::GetLeaderRegionInfoAt(reinterpret_cast<uintptr_t>(ref));
+        if (targetRegion != nullptr && (targetRegion->IsGarbageRegion() || targetRegion->IsFreeRegion())) {
+            RecordFailure("%s: %p<%s> offset %zu targets %p<%s> in %s region (dangling reference to reclaimed object?)",
+                          kind, holder,
+                          (holder != nullptr) ? holder->GetTypeInfo()->GetName() : "root", offset, ref,
+                          ref->GetTypeInfo()->GetName(),
+                          targetRegion->IsGarbageRegion() ? "GARBAGE" : "FREE");
+            return false;
+        }
     }
     return true;
 }
@@ -296,5 +322,39 @@ void HeapVerifier::RecordFailure(const char* fmt, ...)
     (void)vsnprintf(buf, sizeof(buf), fmt, args);
     va_end(args);
     LOG(RTLOG_ERROR, "%s: %s", tag_, buf);
+}
+
+// Diagnostic for F4 (non-module target): log the /proc/self/maps line whose
+// [start, end) range contains addr, or state that addr is unmapped. Best
+// effort — open/parse failures degrade to a single ERROR line and never
+// disturb the verifier's own failure accounting (RecordFailure not used).
+void HeapVerifier::DumpAddressMapping(void* addr)
+{
+    FILE* file = std::fopen("/proc/self/maps", "r");
+    if (file == nullptr) {
+        LOG(RTLOG_ERROR, "HeapVerifier: cannot open /proc/self/maps for %p", addr);
+        return;
+    }
+    const size_t bufSize = 1024; // maps lines are < 512 bytes on supported platforms
+    char buf[bufSize];
+    const unsigned long target = static_cast<unsigned long>(reinterpret_cast<uintptr_t>(addr));
+    while (std::fgets(buf, bufSize, file) != nullptr) {
+        unsigned long start = 0;
+        unsigned long end = 0;
+        if (std::sscanf(buf, "%lx-%lx", &start, &end) != 2) {
+            continue;
+        }
+        if (target >= start && target < end) {
+            char* newLine = std::strchr(buf, '\n');
+            if (newLine != nullptr) {
+                *newLine = '\0';
+            }
+            LOG(RTLOG_ERROR, "HeapVerifier: %p in mapping: %s", addr, buf);
+            std::fclose(file);
+            return;
+        }
+    }
+    std::fclose(file);
+    LOG(RTLOG_ERROR, "HeapVerifier: %p is not in any mapping (unmapped hole)", addr);
 }
 } // namespace MapleRuntime

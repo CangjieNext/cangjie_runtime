@@ -64,6 +64,9 @@ private:
     static bool CheckStateCode(BaseObject* obj);
     void VerifyRoots();
     void RecordFailure(const char* fmt, ...);
+    // Diagnostic: log the /proc/self/maps line containing the given address
+    // (used to triage non-module targets reported by CheckTarget).
+    static void DumpAddressMapping(void* addr);
 
     const char* const tag_;
     const FpSnapshot fpSnapshot_;
