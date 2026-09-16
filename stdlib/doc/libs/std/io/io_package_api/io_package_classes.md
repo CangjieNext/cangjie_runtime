@@ -1882,11 +1882,11 @@ public func reserve(additional: Int64): Unit
 
 > **说明：**
 >
-> - 若入参 additional ≤ 0，不执行任何扩容操作。
+> - 若入参 additional < 0，抛出 IllegalArgumentException 异常。
 > - 若当前剩余容量 ≥ additional，不进行扩容，直接返回。
-> - 若当前剩余容量 < additional，则按以下两者计算最大者执行扩容：
->     - 1.原始容量的 1.5 倍（结果向下取整）
->     - 2.已使用容量 + additional。
+> - 否则按以下两者计算最大者执行扩容：
+>     - 1. 原始容量的 1.5 倍（结果向下取整）
+>     - 2. 处于读模式（length ≥ 0）时为「原始容量 + additional」；处于写模式（length < 0，由 seek 越过现有数据尾部触发）时为「已使用容量 + additional」。
 
 参数：
 

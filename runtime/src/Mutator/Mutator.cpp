@@ -166,6 +166,7 @@ void Mutator::InitProtectStackAddr()
 
 void Mutator::ResetMutator()
 {
+    CHECK_DETAIL(nativeFrameRoots.empty(), "native frame roots are not released");
     rawObject.object = nullptr;
     if (satbNode != nullptr) {
         SatbBuffer::Instance().RetireNode(satbNode);
@@ -273,6 +274,29 @@ void Mutator::VisitRawObjects(const RootVisitor& func)
     }
 }
 
+void Mutator::VisitNativeFrameRoots(const RootVisitor& func)
+{
+    for (ObjectRef& root : nativeFrameRoots) {
+        func(root);
+    }
+}
+
+ObjectRef* Mutator::AddNativeFrameRoot(BaseObject* obj)
+{
+    nativeFrameRoots.emplace_back(ObjectRef{ obj });
+    return &nativeFrameRoots.back();
+}
+
+void Mutator::RemoveNativeFrameRoot(ObjectRef* root)
+{
+    for (auto it = nativeFrameRoots.begin(); it != nativeFrameRoots.end(); ++it) {
+        if (&(*it) == root) {
+            nativeFrameRoots.erase(it);
+            return;
+        }
+    }
+}
+
 void Mutator::VisitHeapReferencesOnStack(const RootVisitor& rootVisitor, const DerivedPtrVisitor& derivedPtrVisitor)
 {
     MutatorLock();
@@ -295,6 +319,7 @@ void Mutator::VisitHeapReferences(const RootVisitor& rootVisitor, const DerivedP
 {
     VisitHeapReferencesOnStack(rootVisitor, derivedPtrVisitor);
     VisitExceptionRoots(rootVisitor);
+    VisitNativeFrameRoots(rootVisitor);
 }
 
 Mutator* Mutator::GetMutator() noexcept
