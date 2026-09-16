@@ -382,7 +382,7 @@ public func getProcessorCount(): Int64
 
 示例：
 
-<!-- verify -->
+<!-- run -->
 ```cangjie
 import std.runtime.*
 
