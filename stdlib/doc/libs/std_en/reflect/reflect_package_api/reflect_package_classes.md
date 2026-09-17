@@ -966,6 +966,12 @@ public prop parameters: ReadOnlyList<TypeInfo>
 
 Function: Retrieves the declared parameter type list of this enum constructor, in declaration order.
 
+> **Note:**
+>
+> Unsupported platforms: macOS, iOS.
+>
+> If the enum has only one constructor (case) and an associated value of that constructor has a zero-sized type (for example, a `struct` without members), the associated value is absent from runtime metadata and from the returned list (the count is 0), consistent with `destruct`, `construct`, and `apply` on the same constructor.
+
 Type: [ReadOnlyList](../../collection/collection_package_api/collection_package_interface.md#interface-readonlylistt)\<[TypeInfo](#class-typeinfo)>
 
 Example:
@@ -1075,6 +1081,12 @@ public func apply(args: Array<Any>): Any
 
 Function: Invokes this enum constructor with the given arguments and returns the constructed enum instance.
 
+> **Note:**
+>
+> Unsupported platforms: macOS, iOS.
+>
+> If the enum has only one constructor (case) and an associated value of that constructor has a zero-sized type (for example, a `struct` without members), the associated value is absent from runtime metadata: `args` must be an empty array (the count is treated as 0), consistent with `parameters` on the same constructor.
+
 Parameters:
 
 - args: [Array](../../core/core_package_api/core_package_structs.md#struct-arrayt)\<[Any](../../core/core_package_api/core_package_interfaces.md#interface-any)> - Argument list matching the constructor parameters in declaration order.
@@ -1129,6 +1141,8 @@ Function: Retrieves the associated value list of the given enum instance.
 > **Note:**
 >
 > Unsupported platforms: macOS, iOS.
+>
+> If the enum has only one constructor (case) and an associated value of that constructor has a zero-sized type (for example, a `struct` without members), the associated value does not appear in the returned list (the count is 0), consistent with `destruct`.
 
 
 Parameters:
@@ -1640,6 +1654,8 @@ Exceptions:
 > **Note:**
 >
 > Unsupported platforms: macOS, iOS.
+>
+> If the enum has only one constructor (case) and an associated value of that constructor has a zero-sized type (for example, a `struct` without members), the associated value is absent from runtime metadata: the `constructor` signature does not include it (a declaration `| C1(ZeroS)` yields signature `C1`), `args` must be an empty array, and the same constructor's `parameters` count is 0.
 
 Example:
 
@@ -1695,6 +1711,8 @@ Exceptions:
 > **Note:**
 >
 > Unsupported platforms: macOS, iOS.
+>
+> If the enum has only one constructor (case) and an associated value of that constructor has a zero-sized type (for example, a `struct` without members), the associated value occupies no runtime space and is absent from runtime metadata: the returned associated value list does not contain it (the count is 0), and the same constructor's `parameters`, `construct`, and `apply` all treat it as 0 parameters, consistent with the metadata queried via reflection. To distinguish "no associated value" from "an associated value of zero-sized type", do not rely on reflection results; use the type's own declaration instead.
 
 Example:
 
@@ -1747,6 +1765,8 @@ Returns:
 > **Note:**
 >
 > Unsupported platforms: macOS, iOS.
+>
+> If the enum has only one constructor (case) and an associated value of that constructor has a zero-sized type (for example, a `struct` without members), the associated value is absent from runtime metadata: pass `0` for `argsCount` when looking up that constructor; looking up by the declared associated-value count will not find it.
 
 Exceptions:
 

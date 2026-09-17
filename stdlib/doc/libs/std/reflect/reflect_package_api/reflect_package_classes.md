@@ -1767,6 +1767,8 @@ public prop parameters: ReadOnlyList<TypeInfo>
 > **注意：**
 >
 > 不支持平台：macOS、iOS。
+>
+> 如果枚举只有一个构造器（case），且该构造器的某个关联值类型是零尺寸类型（如无成员的 `struct`），则该关联值不出现在运行时元数据中，本属性返回的列表中也不包含它（参数数量为 0），与 `destruct`、`construct`、`apply` 的处理一致。
 
 类型：[ReadOnlyList](../../collection/collection_package_api/collection_package_interface.md#interface-readonlylistt)\<[TypeInfo](#class-typeinfo)>
 
@@ -1958,6 +1960,8 @@ public func apply(args: Array<Any>): Any
 > **注意：**
 >
 > 不支持平台：macOS、iOS。
+>
+> 如果枚举只有一个构造器（case），且该构造器的某个关联值类型是零尺寸类型（如无成员的 `struct`），则该关联值不出现在运行时元数据中，`args` 应传空数组（参数个数按 0 处理），与同一构造器的 `parameters` 一致。
 
 参数：
 
@@ -2149,6 +2153,8 @@ public func getAssociatedValues(instance: Any): ReadOnlyList<Any>
 > **注意：**
 >
 > 不支持平台：macOS、iOS。
+>
+> 如果枚举只有一个构造器（case），且该构造器的某个关联值类型是零尺寸类型（如无成员的 `struct`），则该关联值不会出现在返回列表中（关联值数量为 0），与 `destruct` 的处理一致。
 
 参数：
 
@@ -2535,6 +2541,8 @@ public func construct(constructor: String, args: Array<Any>): Any
 > **注意：**
 >
 > 不支持平台：macOS、iOS。
+>
+> 如果枚举只有一个构造器（case），且该构造器的某个关联值类型是零尺寸类型（如无成员的 `struct`），则该关联值不会出现在运行时元数据中：`constructor` 签名不含该参数（如声明为 `| C1(ZeroS)` 时签名为 `C1`），`args` 应传空数组，同一构造器的 `parameters` 数量也为 0。
 
 参数：
 
@@ -2590,6 +2598,8 @@ public func destruct(instance: Any): (EnumConstructorInfo, ReadOnlyList<Any>)
 > **注意：**
 >
 > 不支持平台：macOS、iOS。
+>
+> 如果枚举只有一个构造器（case），且该构造器的某个关联值类型是零尺寸类型（如无成员的 `struct`），则该关联值不会占用运行时空间，也不会出现在运行时元数据中：本接口返回的关联值列表中不包含该值（关联值数量为 0），同一构造器的 `parameters`、`construct`、`apply` 也一律按 0 个参数处理，与反射查询到的元数据保持一致。如需区分“无关联值”与“关联值为零尺寸类型”，请勿依赖反射结果，应使用类型本身的声明信息。
 
 参数：
 
@@ -2645,6 +2655,8 @@ public func getConstructor(constructor: String, argsCount!: Int64 = 0): EnumCons
 > **注意：**
 >
 > 不支持平台：macOS、iOS。
+>
+> 如果枚举只有一个构造器（case），且该构造器的某个关联值类型是零尺寸类型（如无成员的 `struct`），则该关联值不出现在运行时元数据中，查询该构造器时 `argsCount` 传 `0`；按声明的关联值个数查询会找不到构造器。
 
 参数：
 
