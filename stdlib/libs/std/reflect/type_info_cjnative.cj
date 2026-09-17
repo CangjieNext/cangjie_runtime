@@ -113,6 +113,10 @@ class InheritedAndExtendedMembers {}
  */
 sealed abstract class TypeInfo <: Equatable<TypeInfo> & Hashable & ToString {
     private static let CACHE = HashMap<String, TypeInfo>()
+    // Pointer-keyed integer memo consulted while holding TYPE_INFO_CREATE_LOCK. Keyed by
+    // the (globally unique) type-metadata address so a steady-state hit avoids the
+    // per-call uuid.toString() allocation and String hashing of the string cache.
+    private static let PTR_MEMO = HashMap<UIntNative, TypeInfo>()
 
     // this is a pointer to type metadata
     protected let _info: CPointer<Unit>
@@ -331,20 +335,28 @@ sealed abstract class TypeInfo <: Equatable<TypeInfo> & Hashable & ToString {
         if (typeInfoPointer.isNull()) {
             throw InfoNotFoundException("TypeInfo not found!")
         }
-        let isGenericTypeInfo: Bool = isGeneric(typeInfoPointer)
+        let ptrKey = typeInfoPointer.toUIntNative()
         synchronized(TYPE_INFO_CREATE_LOCK) {
-            if (isGenericTypeInfo) {
-                let qualifiedName = getQualifiedName(typeInfoPointer)
-                return CACHE.get(qualifiedName) ?? createGenericTypeInfo(typeInfoPointer, qualifiedName)
+            // Fast hit: the pointer-keyed memo short-circuits before any native
+            // isGeneric call, qualified-name build, or uuid.toString() allocation.
+            if (let Some(ti) <- PTR_MEMO.get(ptrKey)) {
+                return ti
             }
-
-            let uuid = unsafe { CPointer<Int32>(CPointer<Byte>(typeInfoPointer) + UUID_OFFSET).read().toString() }
-            return if (let Some(ti) <- CACHE.get(uuid)) {
-                ti
+            let isGenericTypeInfo: Bool = isGeneric(typeInfoPointer)
+            let typeInfo = if (isGenericTypeInfo) {
+                let qualifiedName = getQualifiedName(typeInfoPointer)
+                CACHE.get(qualifiedName) ?? createGenericTypeInfo(typeInfoPointer, qualifiedName)
             } else {
-                let qualifiedName = getQualifiedName(typeInfoPointer)
-                CACHE.get(qualifiedName) ?? createConcreteTypeInfo(typeInfoPointer, qualifiedName, uuid: uuid)
+                let uuid = unsafe { CPointer<Int32>(CPointer<Byte>(typeInfoPointer) + UUID_OFFSET).read().toString() }
+                if (let Some(ti) <- CACHE.get(uuid)) {
+                    ti
+                } else {
+                    let qualifiedName = getQualifiedName(typeInfoPointer)
+                    CACHE.get(qualifiedName) ?? createConcreteTypeInfo(typeInfoPointer, qualifiedName, uuid: uuid)
+                }
             }
+            PTR_MEMO.add(ptrKey, typeInfo)
+            return typeInfo
         }
     }
 
