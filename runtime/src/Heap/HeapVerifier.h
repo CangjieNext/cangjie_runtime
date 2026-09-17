@@ -9,6 +9,7 @@
 
 #include "Common/BaseObject.h"
 #include "Common/StateWord.h"
+#include <string>
 
 namespace MapleRuntime {
 
@@ -55,7 +56,7 @@ private:
     // Resolve a ref-field target the way the runtime reads it between GC cycles
     // (read-only IdleBarrier semantics): untagged -> raw; tagged -> forward-table
     // lookup with raw-address fallback when unroutable. Never writes/re-tags.
-    BaseObject* ResolveRef(RefField<>& field);
+    BaseObject* ResolveRef(RefField<>& field) const;
     // Core one-hop target check shared by ref-fields and roots (spec section 6.2).
     // Returns true when ok or legally skipped; false when a failure was recorded.
     bool CheckTarget(const char* kind, BaseObject* holder, size_t offset, BaseObject* ref);
@@ -67,9 +68,25 @@ private:
     // Diagnostic: log the /proc/self/maps line containing the given address
     // (used to triage non-module targets reported by CheckTarget).
     static void DumpAddressMapping(void* addr);
+    // Diagnostic (cjVerifyRootPath=1, off by default): on a verification
+    // failure, additionally trace and log the first shortest reference path
+    // from the root set to the offending object (ART precedent:
+    // Verification::FirstPathFromRootSet, verification.cc:206). Full
+    // reachable-graph BFS — only paid on the failure path, where the verifier
+    // aborts right after, so the O(heap) cost is acceptable.
+    static bool IsPathTraceEnabled();
+    // Failure-path hook: records (what, obj) for deferred tracing. Deferred on
+    // purpose — the failure may fire inside a Visit*Roots callback, and the
+    // BFS itself iterates the same root sources; re-entering that iteration
+    // from within its own callback deadlocks. FlushPathTraces runs after both
+    // WalkHeap and VerifyRoots have returned.
+    void MaybeTraceRootPath(const char* what, BaseObject* obj);
+    void FlushPathTraces();
+    std::string FirstPathFromRootSet(BaseObject* target) const;
 
     const char* const tag_;
     const FpSnapshot fpSnapshot_;
+    std::vector<std::pair<const char*, BaseObject*>> pendingPathTraces_;
     size_t failCount_ = 0;
     size_t objCount_ = 0;
     size_t rootCount_ = 0;
