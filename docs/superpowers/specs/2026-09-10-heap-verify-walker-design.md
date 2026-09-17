@@ -102,7 +102,7 @@ FP 侧行为**完全归位生产语义**（零 verify 感知）；GC 流程 `Not
 | 3 | gccount_01 | 性能 | 墙钟 ≈ 109s 或更低（等待消除）；仪表化统计 verify 次数/耗时 |
 | 4 | bench_finalizers | 性能 | 墙钟 ≈ 9s 或更低 |
 | 5 | 全量 HLT+LLT（600s 标准） | 综合 | 0 verify fatal；与基线对齐 |
-| 6 | 阴性注入复测 | 检测能力不回退 | fatal + 正确报告 |
+| 6 | 阴性注入复测 | 检测能力不回退 | fatal + 正确报告（**已执行 2026-09-15，8/8 通过，见 §12**） |
 
 ## 9. 预期收益
 
@@ -148,7 +148,7 @@ F7 的 liveness 门是**保守 best-effort**：仅当目标 unit 角色为 leade
 | ghost region 整段跳过 | WalkHeap 分支①按冻结 `regionEnd0` 跳过——**真尸体从不进 VerifyObject（连头都不查）** | :126 注释：corpses 零价值（ART `heap.cc:3328` 先例） |
 | 混合复用 region 的新对象 | 分支③遍历到带残留 ghost 位 unit 上的新对象 → :180 拦下：查头+状态、字段不查 | 可达路径：dirtyTree 相邻合并复用时 leader unit 无 ghost 位 + 成员 unit 带残留位（ghost 位/0 后缀跨回收存活，`InitRegionInfo` 不写）；新对象无位图，字段本就不可查 |
 | 位图门 | 非存活（floating garbage）对象的字段不查（:189），头+状态保留 | ADR-10；生产可达性前置过滤的复制 |
-| tagged ref 不可路由回退裸地址 | ResolveRef :218 回退，**非放行**——回退地址继续过 F4-F7 | tag 语义是"疏散前地址"而非"已搬迁"：exempted（`ExemptFromRegions` 先于 `PrepareForwardTable` 摘除、从未置 ghost 位）、pinned（`ClearGhostRegionBit`）、resurrect 对象打 tag 后从未移动，裸地址即对象本身；为 `IdleBarrier` 两级语义（`TryUpdateRefField` 失败 → `TryUntagRefField`）的只读复刻。补充：活对象持有指向可路由 region 内死 offset 的 tag 时，`GetRoute` 的 `CHECK(toRegion2Idx != INVALID_VALUE)`（`LiveInfo.cpp:20`）fail-fast 中止——真 corruption 信号，接受 |
+| tagged ref 不可路由回退裸地址 | ResolveRef :218 回退，**非放行**——回退地址继续过 F4-F7 | tag 语义是"疏散前地址"而非"已搬迁"：exempted（`ExemptFromRegions` 先于 `PrepareForwardTable` 摘除、从未置 ghost 位）、pinned（`ClearGhostRegionBit`）、resurrect 对象打 tag 后从未移动，裸地址即对象本身；为 `IdleBarrier` 两级语义（`TryUpdateRefField` 失败 → `TryUntagRefField`）的只读复刻。**位布局（2026-09-15 实测确认，RefField.h:167-176）**：x86_64 下 `address:48 + isTagged:1(bit48) + tagID:1(bit49)`——tag 在高位而非低位；`GetTargetObject()` 返回的 address 位域天然不含 tag 位，回退值即干净裸地址。补充：活对象持有指向可路由 region 内死 offset 的 tag 时，`GetRoute` 的 `CHECK(toRegion2Idx != INVALID_VALUE)`（`LiveInfo.cpp:20`）fail-fast 中止——真 corruption 信号，接受 |
 
 ### 10.3 失败后的处理（Verify，:65-92）
 
@@ -160,5 +160,97 @@ F7 的 liveness 门是**保守 best-effort**：仅当目标 unit 角色为 leade
 
 ### 10.4 已知问题与优化方向（未实施，待授权）
 
-- **`DumpAddressMapping` 未定义**：`HeapVerifier.h:69` 声明、`:239` 调用，全仓库无定义——F4 触发路径存在链接错误风险；
+- ~~**`DumpAddressMapping` 未定义**~~：**已于 2026-09-14 实现并验证**（`HeapVerifier.cpp:331-359`，读 `/proc/self/maps` 逐行匹配区间；best-effort，失败降级为单行 ERROR，不扰动 failCount）。F4 触发时输出 `HeapVerifier: %p in mapping: <maps行>` 或 `not in any mapping (unmapped hole)`；
 - **dladdr 性能**：每次调用走 glibc link_map 遍历 + dl 锁（百 ns~µs 级），字符串密集程序中非堆目标高频。优化方向：Verify 入口（STW 下模块集稳定）用 `dl_iterate_phdr` / `/proc/self/maps` 快照文件映射区间 → 排序数组二分（语义等价、纯内存无锁），可选叠加页粒度 memoization（字面量高度聚集）。**TypeInfo/TypeKind 判型不能替代**：需先 deref 目标读头，wild pointer 场景（恰是 F4 要抓的）SEGV；且"指向模块"这一合法性判据 TypeInfo 结构内无等价信息。TypeInfo 校验仅可作为区间判定之后的可选精化（抓"指向模块但非对象边界"），前提是先证实常量对象只有 RawArray 一种。
+
+## 11. 诊断增强：root-path 追溯（cjVerifyRootPath，2026-09-17 已实现并业务场景验证）
+
+对齐 ART `Verification::FirstPathFromRootSet`（`art/runtime/gc/verification.cc:206`）：任一 F1-F7 失败后，BFS 追溯**从根集到坏对象的首条最短引用路径**并输出，例如：
+
+```
+post-GC: root-path to target 0x...f090: root = 0x...f180<default:StackNode> -> +16 0x...f168<default:StackNode> -> ... -> +16 0x...f090<header-untrusted>
+```
+
+（业务场景实测：栈持有的链表 10 跳完整路径，`+16` 为字段偏移，坏对象以 `<header-untrusted>` 标注）
+
+- **开关**：`cjVerifyRootPath=1`，默认关；正常路径零成本零输出（RSS 对照实测 <0.3% 噪声）——仅在 `failCount_ > 0` 的崩溃路径上付费
+- **触发位置**：各失败点只 `MaybeTraceRootPath` 记入 pending；`Verify()` 末尾（WalkHeap+VerifyRoots 均返回后）`FlushPathTraces` 统一执行——**延迟是有意的**，见坑 1
+- **算法**：五源根集（static/export/concurrency/FP + **mutator 栈根**，见修复 1）入队 + BFS，节点池记录 `(obj, parentIdx, offset)`，命中 target 时**回溯构建路径串**——内存 O(N)，优于 ART 的逐跳字符串拼接（O(N×路径长)，其只在小型测试堆成立）
+- **展开 gate（追溯语义，故意宽于 VerifyObject）**：可信头 + 非 ghost 尸体；**刻意不用 mark-bitmap gate**——转发到 to-space 的对象与 TL bump 新分配都是"活但未标记"，套用 verify 的保守检查 gate 会剪断一切穿过转发对象的路径（实测教训）。最坏走进浮动垃圾的陈旧引用：只读诊断无害，预算兜底
+- **预算**：25 万节点封顶（`kMaxTraceNodes`）——时间（每节点 O(字段数)）与内存（~64B/节点含哈希集，~16MB）同时受限；耗尽输出 `<trace aborted: node budget of 250000 exceeded (target unreachable or path too deep)>`。
+  **定位（量化）**：512MB 堆按最小对象（8B StateWord 头）计约 6700 万对象，25 万预算覆盖率 ~0.4%；全覆盖需 ~4.3GB 节点池（大于堆本身 8 倍）——预算不是"调大即可"的参数，是 O(节点) 内存追踪算法的**必然约束**。若需覆盖全堆深度的路径，方向是复用 GC 标记位图的"父亲位图"方案（每对象 ~2bit、约 8MB，但要求 verify 时跑一次类标记遍历，属另一次设计变更）。
+- **实现中踩掉的两个坑（已固化在代码注释）**：
+  1. **嵌套死锁**：失败可能发生在 `Visit*Roots` 回调内部，而 BFS 又要迭代同一批根——从回调内重入同一迭代直接死锁（实测挂起 10 分钟）。延迟 flush 根治；
+  2. **堆外地址必须先过滤**：字段合法指向模块常量（.so 数据段），未过 `IsHeapAddress` 的地址流入 `IsSurvivedObject → GetRegionInfoAt` 会触发 runtime 的越界 `std::abort`。enqueue 前置堆地址 gate。
+- **实现过程中的两个功能修复（2026-09-17，业务场景验证驱动）**：
+  1. **栈根缺失（功能错误级）**：初版种子只含 VerifyRoots 的 4 类根，局部变量持有的链（业务代码最常见形态）整体不可见，`<no path>` 成为误导答案。修复：种子补 `MutatorManager::VisitAllMutators + VisitMutatorRoots`（GC remark 同源，TracingCollector.cpp:631，同 STW 语境）。修复前冒烟 case 恰好全部命中 static 直达的 runtime 内部对象（注入目标偏置），缺陷不可见；
+  2. **bitmap gate 剪断转发链**：见上"展开 gate"——post-GC 时 to-space 转发对象 `IsSurvivedObject=false`，初版 gate 在第一跳就断链。
+- **开销实测**（`logs/inject_probe/mt_*.log`、`biz_*.log`）：
+
+| 场景 | 耗时 | 内存 |
+|---|---|---|
+| 快速命中（10 跳业务链，post） | 1.3ms | ~0 |
+| 快速命中（static 链 11 跳） | ~284ms（含 300 万对象 verify 收尾） | ~0 |
+| 全图深路径（30 万跳链） | BFS ~364ms（25 万节点耗尽） | +16MB（预算封顶，RSS 77MB 含程序） |
+| 正常路径（无失败） | 0 | 0（三组 RSS 对照 <0.3% 噪声） |
+
+- **已知局限**：
+  - 多根并列时只输出首条最短路径（BFS+visited 先到先得，对齐 ART）；
+  - 预算耗尽的输出 `target unreachable or path too deep` 中，两种成因**无法区分**：目标真不可达（无引用链）与路径存在但超过 25 万步（B3 实测形态：30 万跳链尾，路径存在、预算内走不完）——读到 unreachable 不要直接推断"无引用链"；
+  - pre-GC 首轮的深路径：gate 放宽后 BFS 已不依赖 bitmap，**按设计**首轮深路径同样可追，但 B1/B2/B3 均以 post-GC 验证，pre 首轮未单独实测。
+
+## 12. 故障注入验证（2026-09-15/17 执行）
+
+### 12.1 注入机制
+
+语言层拿不到托管对象地址（无 `std.unsafe` 包、`std.core` 无 `Unsafe` 类——安全设计使然），注入下沉到 runtime：`HeapVerifier::WalkHeap` 分支③的 `VisitAllObjects` lambda 内、`VerifyObject(obj)` 之前插入 env 门控钩子（`MRT_HEAP_INJECT=<mode>`，未设置零开销），对 walker 首个到达对象做位级破坏——破坏与检查在同一次遍历内相邻，STW 下原子安全。**v2 扩展**（2026-09-17）：`MRT_HEAP_INJECT_TARGET=<TypeName子串>:<序号>` 指定「walker 第 N 个类型匹配对象」为破坏目标，用于业务对象验证（注入 patch 备份于 `logs/inject_patch_backup/`，非仓内代码）。
+
+| 模式 | 破坏动作 | 目标检查 |
+|---|---|---|
+| f2 | StateWord 低 48 位（TypeInfo 指针）清零、保留高 16 位状态 | F2（顺带 F5：坏对象同时被 root 引用） |
+| f3 | offset 6 状态码写 FORWARDED(3) | F3 |
+| f4 | 经 ForEachRefField 全部引用字段写 `0xdeadbeef000` | F4 + DumpAddressMapping |
+| f7 | 扫描定位 GARBAGE region 首对象，存活 holder 字段指向它 | F7 |
+| tagged | 同 f7 但置 isTagged 位（bit48） | ResolveRef tagged 路径 |
+| TARGET 模式 | 按「类型名子串:序号」选中业务对象执行 f2 破坏 | F2 + root-path 业务形态 |
+
+### 12.2 验证矩阵
+
+**冒烟级（2026-09-15，8/8）——目标均为 walker 首对象（runtime 内部对象、static 直达），证据力有限，详见 12.4 教训**：
+
+| # | 场景 | 结果 |
+|---|---|---|
+| 0 | 对照（verify 全开无注入） | ✅ 10 轮 passed 零误报 |
+| 1 | F2 头损坏 | ✅ abort + invalid header |
+| 2 | F3 状态非法 | ✅ abort + unexpected state |
+| 3 | F4 野指针 | ✅ abort + non-module + unmapped hole 诊断 |
+| 4 | F5 坏头目标 | ✅（f2 顺带） |
+| 5 | F7 悬挂引用 | ✅ abort + dangling reference |
+| 6 | 豁免不误报 | ✅ 常量引用零误报 |
+| 7 | tagged 双面 | ✅ 天然残留 1,284~22,944 个/轮全部正确解析；bit48 注入识别 + FindToVersion/fallback 双分支实测 |
+
+**业务场景级（2026-09-17，root-path 功能，TARGET 模式，`logs/inject_probe/biz_*.log`）**：
+
+| # | 场景 | 结果 |
+|---|---|---|
+| B1 | **栈根持有**：业务类 StackNode 链（main 局部变量），破坏链中部，期望多跳栈根路径 | ✅ `root = 链头<StackNode> -> +16 ×9 -> 坏对象<header-untrusted>`，1.3ms |
+| B2 | **static 根持有**：业务类 StaticNode 30 万链，破坏中部 | ✅ `root = StaticHolder -> +8 链头 -> +16 ×9 -> 坏对象` |
+| B3 | **深路径预算**：30 万跳链尾目标——路径存在但超出预算 | ✅ 走满 25 万节点后明确收手（报告 too deep），BFS ~364ms / +16MB 封顶 |
+| 对照 | verify+pathtrace 全开无注入 | ✅ 零输出（biz 与 f2 两程序） |
+
+**已知未覆盖缺口**（低优先）：F6 目标侧无独立注入；tagged 悬挂的确定性 F7 未复现（ghost region 死对象经 FindToVersion 返回算术 toObj，解析后合法放行——生产不存在此形态）。
+
+### 12.3 过程中的事实澄清（修正早前认知）
+
+1. **region 回收三档路径**：未满 TL region 的死对象原地躺到 region 满（copying 无原地清扫）；满 region 存活率 ≥0.80（Exemption threshold）豁免转发、死对象成浮动垃圾；<0.80 转发后整 region 标 GARBAGE → FP 拆解进 dirtyUnitTree。LARGE region 由 `CollectLargeGarbage` 在 PostTrace 直接标 GARBAGE（早于 forwarding 路径）。依据：`AssembleSmallGarbageCandidates`（RegionManager.cpp:443）、`ExemptFromRegions`（:480）、`CollectFromSpaceGarbage`（RegionManager.h:258）。
+2. **ghost+GARBAGE 叠加态**：转发产生的 GARBAGE region 同时带 ghost bit（`PrepareForwardableRegion` 先置，`DispelGhostFromRegion` 下轮才清）——**每轮 GC 都大量产生**，此前"F7 生产很少触发"的说法不成立。F7 检查（CheckTarget 直读 regionType）不受 walker Branch① ghost 跳过影响，看得见这些 region；但复用 walker 导航的扫描器若先查 ghost 会全部漏掉（实测教训：注入扫描盲区，修正后普通链表程序即可命中小对象 GARBAGE region）。
+3. **元数据区与对象数据区物理分离**（`RegionManager::Initialize`，RegionManager.cpp:376-385：`regionHeapStart = regionInfoAddr + metadataSize`）：FP 拆解只写元数据区，**物理上碰不到对象头**。注入期一次 SEGV 曾误归因于"FP 竞态覆盖对象头"，真因是注入字节序错误（tag 位误写低位）造成未对齐地址错位读。
+4. **FindToVersion 是区间算术路由**（`GetRoute = toRegion1Start + preLiveBytes`，LiveInfo.cpp:15-24）：对 ghost region 内死对象返回**非 null 的算术地址**而非 null——"活 holder 的 tagged 指向死对象"在生产不存在（死对象字段不被读），故无风险，但注入实验需知此语义。
+5. **转发产物不在 mark bitmap**（2026-09-17 新）：forwarding 后 to-space 对象 `IsSurvivedObject=false`——verify 主流程 :189 的 bitmap gate 因此**跳过转发对象的字段检查**（保守语义，可能是覆盖缺口，值得另行评估）；root-path 已通过放宽 gate 规避（见 §11）。
+6. **`_ = x` 丢弃表达式不构成活跃性使用**（2026-09-17 新，用例工程教训）：仅靠尾部 `_ = head` 保温的引用链会被编译器判死回收（栈根消失）；用例必须真实遍历链（如定期求和）以保持活跃。
+
+### 12.4 方法论教训（记录以防复发）
+
+- **验证目标偏置掩盖功能缺陷**：冒烟 8/8 的注入目标全是「walker 首对象」= runtime 内部对象（static 直达、零跳），业务对象/栈持有/多跳形态零覆盖——root-path 的栈根缺陷在此矩阵中不可见。功能验证的用例设计必须覆盖功能的**目标使用形态**，而非仅便利形态。
+- **归因先查布局事实再套已知主题**：SEGV 曾拿设计文档中最显眼的"FP 竞态"主题硬套（参见 12.3-3 的误归因）。
+- **实验脚手架（注入钩子/诊断日志）与功能代码严格分账**：注入 patch 始终以备份形式存在（`logs/inject_patch_backup/`），验证完毕即剥离，仓内只留功能本体。
