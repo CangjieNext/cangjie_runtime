@@ -329,21 +329,28 @@ TypeInfoManager::GenericTiDesc* TypeInfoManager::GenericTiDescHashMap::InsertGen
     const U32 h = desc.GetHash();
     const size_t bucketIdx = h % buckets.size();
     auto &bucket = buckets[bucketIdx];
+    // Allocate/construct the descriptor OUTSIDE the write lock so that the
+    // bucket's critical section only performs the (cheap) lookup + publish.
+    // All contenders on the same bucket previously serialized on memory
+    // allocation inside the lock, which is the dominant cost under concurrent
+    // generic type instantiation.
+    GenericTiDesc* newDesc = new (std::nothrow) GenericTiDesc(desc);
+    CHECK_DETAIL(newDesc != nullptr, "fail to allocate GenericTiDesc");
     bucket.rwLock.LockWrite();
     auto it = bucket.maps.find(h);
     if (it != bucket.maps.end()) {
         for (auto descIt = it->second.begin(); descIt != it->second.end(); ++descIt) {
             if (**descIt == desc) {
+                GenericTiDesc* existed = *descIt;
                 bucket.rwLock.UnlockWrite();
-                return *descIt;
+                delete newDesc;
+                return existed;
             }
         }
     }
-    GenericTiDesc* tiDesc = new (std::nothrow) GenericTiDesc(desc);
-    CHECK_DETAIL(tiDesc != nullptr, "fail to allocate GenericTiDesc");
-    bucket.maps[h].push_back(tiDesc);
+    bucket.maps[h].push_back(newDesc);
     bucket.rwLock.UnlockWrite();
-    return tiDesc;
+    return newDesc;
 }
 
 TypeInfoManager::GenericTiDesc* TypeInfoManager::GetTypeInfo(TypeTemplate* tt, U32 argSize, TypeInfo* args[])
@@ -372,7 +379,12 @@ TypeInfo* TypeInfoManager::GetOrCreateTypeInfo(TypeTemplate* tt, U32 argSize, Ty
         }
         if (typeInfoDesc->IsNotCreated() && typeInfoDesc->tid.load() == currentTid) {
             CreatedTypeInfo(typeInfoDesc, tt, argSize, args);
+            continue;
         }
+        // Another thread owns the creation of this descriptor. Yield instead of
+        // busy-spinning, so the creator can make progress and we avoid burning
+        // CPU while waiting for the TYPEINFO_INITED state.
+        sched_yield();
     } while (true);
 }
 
