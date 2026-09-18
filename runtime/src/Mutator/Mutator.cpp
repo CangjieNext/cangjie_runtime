@@ -167,6 +167,15 @@ void Mutator::InitProtectStackAddr()
     ThreadLocal::SetProtectAddr(reinterpret_cast<uint8_t*>(reinterpret_cast<uintptr_t>(stackBoundAddr) + reversedSize));
 }
 
+void ReleaseMutatorLocalAllocatorData(Mutator& mutator)
+{
+    if (mutator.GetLocalObjectAllocatorData() == nullptr) {
+        return;
+    }
+    RegionSpace& regionSpace = reinterpret_cast<RegionSpace&>(Heap::GetHeap().GetAllocator());
+    regionSpace.GetLocalObjectAllocator().OnMutatorExit(mutator);
+}
+
 void Mutator::ResetMutator()
 {
     CHECK_DETAIL(nativeFrameRoots.empty(), "native frame roots are not released");
@@ -178,6 +187,7 @@ void Mutator::ResetMutator()
     if (!pendingHeapFinalizers.empty()) {
         Heap::GetHeap().GetFinalizerProcessor().RegisterFinalizers(pendingHeapFinalizers);
     }
+    ReleaseMutatorLocalAllocatorData(*this);
     uwContext.Reset();
     exceptionWrapper.ClearInfo();
 }
@@ -573,7 +583,7 @@ inline void Mutator::GcPhaseEnum(GCPhase newPhase)
             AllocBuffer* buffer = AllocBuffer::GetOrCreateAllocBuffer();
             buffer->PushRoot(obj);
             DLOG(ENUM, "enum stack root RefField @%p: %p", &refFieldAddr, obj);
-        } else if (UNLIKELY(IsLocalObject(obj, this))) {
+        } else if (UNLIKELY(IsLocalObject(obj))) {
             // Native local objects are not tracing-heap roots. Their heap references
             // are visited through the local-region root registry below.
             return;
@@ -588,7 +598,7 @@ inline void Mutator::GcPhaseEnum(GCPhase newPhase)
             AllocBuffer* buffer = AllocBuffer::GetOrCreateAllocBuffer();
             buffer->PushRoot(obj);
             DLOG(ENUM, "enum stack root @%p: %p", &root, obj);
-        } else if (UNLIKELY(IsLocalObject(obj, this))) {
+        } else if (UNLIKELY(IsLocalObject(obj))) {
             // Native local objects are scanned through the local-region registry;
             // do not mark or relocate the local pointer as a heap root.
             return;
@@ -626,7 +636,7 @@ inline void Mutator::GCPhasePreForward(GCPhase newPhase)
             if (!rootFieldSet.insert((void*)(&refFieldAddr)).second) { return; }
             BaseObject* toObj = collector.ForwardObject(oldObj);
             if (oldObj != toObj) { refFieldAddr.SetTargetObject(toObj); }
-        } else if (UNLIKELY(!Heap::IsHeapAddress(oldObj) && IsLocalObject(oldObj, this))) {
+        } else if (UNLIKELY(!Heap::IsHeapAddress(oldObj) && IsLocalObject(oldObj))) {
             // Local objects are non-moving. Their heap fields are forwarded when
             // the local-region root registry is visited.
             return;
@@ -642,7 +652,7 @@ inline void Mutator::GCPhasePreForward(GCPhase newPhase)
             if (!rootFieldSet.insert((void*)(&root)).second) { return; }
             BaseObject* toObj = collector.ForwardObject(oldObj);
             if (oldObj != toObj) { root.object = toObj; }
-        } else if (UNLIKELY(!Heap::IsHeapAddress(oldObj) && IsLocalObject(oldObj, this))) {
+        } else if (UNLIKELY(!Heap::IsHeapAddress(oldObj) && IsLocalObject(oldObj))) {
             // Local objects are non-moving. Their heap fields are forwarded when
             // the local-region root registry is visited.
             return;

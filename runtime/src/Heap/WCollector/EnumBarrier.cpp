@@ -332,10 +332,11 @@ void EnumBarrier::CopyStructArray(BaseObject* dstObj, MAddress dstField, MIndex 
 
 void EnumBarrier::WriteGeneric(const ObjectPtr obj, void* fieldPtr, const ObjectPtr src, size_t size) const
 {
-    // todo del
+#if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
     if (UNLIKELY(IsLocalObject(obj) || IsLocalObject(src))) {
         LOG(RTLOG_FATAL, "EnumBarrier::WriteGeneric does not support local object: obj %p, src %p", obj, src);
     }
+#endif
     if ((obj != nullptr && !obj->HasRefField()) || (!Heap::IsHeapAddress(obj) && !Heap::IsHeapAddress(src))) {
         CHECK_DETAIL(memcpy_s(fieldPtr, size,
                               reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(src) + TYPEINFO_PTR_SIZE),
@@ -370,9 +371,6 @@ void EnumBarrier::WriteGeneric(const ObjectPtr obj, void* fieldPtr, const Object
 
 void EnumBarrier::ReadGeneric(const ObjectPtr dstObj, ObjectPtr obj, void* fieldPtr, size_t size) const
 {
-    if (TryReadGenericWithLocalObject(dstObj, obj, fieldPtr, size)) {
-        return;
-    }
     if (!Heap::IsHeapAddress(dstObj) && !Heap::IsHeapAddress(obj)) {
         CHECK_DETAIL(memcpy_s(reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(dstObj) + TYPEINFO_PTR_SIZE), size,
                               fieldPtr, size) == EOK,
