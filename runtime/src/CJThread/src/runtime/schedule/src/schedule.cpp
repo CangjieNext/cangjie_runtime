@@ -1630,7 +1630,7 @@ void ScheduleAllCJThreadVisitImpl(AllCJThreadListProcFunc visitor, void *handle,
         DULINK_FOR_EACH_ITEM(scheduleCJThreadNode, &g_scheduleManager.allCJThreadList) {
             cjthread = DULINK_ENTRY(scheduleCJThreadNode, struct CJThread, allCJThreadDulink);
             void *arg = cjthread->argStart;
-            if (arg != nullptr) {
+            if (cjthread->state != CJTHREAD_IDLE && arg != nullptr) {
                 visitor(arg, handle);
             }
         }
