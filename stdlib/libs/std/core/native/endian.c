@@ -74,9 +74,9 @@ extern uint8_t CJ_PlatformEndian(void)
 {
     if (O32_HOST_ORDER == O32_BIG_ENDIAN) {
         return PLATFORM_BIG_ENDIAN;
-    } else if (O32_HOST_ORDER == PLATFORM_LITTLE_ENDIAN) {
+    } else if (O32_HOST_ORDER == O32_LITTLE_ENDIAN) {
         return PLATFORM_LITTLE_ENDIAN;
-    } else if (O32_HOST_ORDER == PLATFORM_PDP_ENDIAN) {
+    } else if (O32_HOST_ORDER == O32_PDP_ENDIAN) {
         return PLATFORM_PDP_ENDIAN;
     } else if (O32_HOST_ORDER == O32_HONEYWELL_ENDIAN) {
         return PLATFORM_UNKNOWN_BYTEORDER;
