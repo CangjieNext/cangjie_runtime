@@ -16,16 +16,32 @@ public type BlockingQueue<E> = LinkedBlockingQueue<E>
 
 /**
  * BlockingQueue is a concurrent queue with a blocking mechanism and supports a user-specified upper bound of capacity.
+ *
+ * Performance optimization note:
+ * The previous implementation acquired a `Monitor` for *every* `tryAdd` /
+ * `tryRemove` call, even when the queue was neither full nor empty. That forced
+ * all producers to serialize on one lock and all consumers on another, which
+ * dominated the cost of high-throughput producer/consumer workloads.
+ *
+ * This version keeps the same capacity-bounded, blocked-on-full/empty semantics,
+ * but makes the common (non-full / non-empty) path fully lock-free:
+ *   - Producers reserve a slot with a CAS on `reserved` (bounded by `capacity`),
+ *     commit the element, then publish it with a `count.fetchAdd`.
+ *   - Consumers claim an element with a CAS on `count`, then dequeue it and free
+ *     the slot with `reserved.fetchSub`.
+ * The two `Monitor`s are now used *only* to park threads when the queue is full
+ * (producers) or empty (consumers), and to deliver the wake-up signal. This
+ * decouples producers from consumers on the hot path and removes the per-op
+ * monitor round-trips.
  */
 public class LinkedBlockingQueue<E> {
-    public let capacity: Int64 // the capacity of the queue	 
+    public let capacity: Int64 // the capacity of the queue
     private let takeMonitor = Monitor() // Monitor for blocking consumers when the queue is empty
     private let putMonitor = Monitor() // Monitor for blocking producers when the queue is full
-    private let putQsize = AtomicInt64(0) // Number of elements that are enqueuing.
-    private let takeQsize = AtomicInt64(0) // Number of elements that are being dequeued.
     private let front: AtomicReference<Block<E>> // head of BlockingQueue.
     private let rear: AtomicReference<Block<E>> // tail of BlockingQueue.
-    private let count = AtomicInt64(0)
+    private let count = AtomicInt64(0) // Number of committed elements in the queue.
+    private let reserved = AtomicInt64(0) // Number of reserved slots (<= capacity).
 
     public init(capacity: Int64) {
         if (capacity <= 0) {
@@ -111,22 +127,16 @@ public class LinkedBlockingQueue<E> {
     }
 
     public func add(element: E): Unit {
-        var prevCount: Int64 = -1
+        if (tryAdd(element)) {
+            return
+        }
         putMonitor.lock()
         try {
-            while (count.load() == capacity) {
+            while (!tryAdd(element)) {
                 putMonitor.wait()
-            }
-            enqueueUnsafe(element)
-            prevCount = count.fetchAdd(1)
-            if (prevCount + 1 < capacity) {
-                putMonitor.notify()
             }
         } finally {
             putMonitor.unlock()
-        }
-        if (prevCount == 0) {
-            signalNotEmpty()
         }
     }
 
@@ -147,31 +157,27 @@ public class LinkedBlockingQueue<E> {
     }
 
     public func add(element: E, timeout: Duration): Bool {
-        var prevCount: Int64 = -1
+        if (tryAdd(element)) {
+            return true
+        }
         putMonitor.lock()
         try {
             var remaining = timeout
-            while (count.load() == capacity) {
+            while (true) {
+                if (tryAdd(element)) {
+                    return true
+                }
                 if (remaining <= Duration.Zero) {
                     return false
                 }
                 let startTime = MonoTime.now()
-                let _ = putMonitor.wait(timeout: remaining)
+                putMonitor.wait(timeout: remaining)
                 let endTime = MonoTime.now()
                 remaining -= endTime - startTime
-            }
-            enqueueUnsafe(element)
-            prevCount = count.fetchAdd(1)
-            if (prevCount + 1 < capacity) {
-                putMonitor.notify()
             }
         } finally {
             putMonitor.unlock()
         }
-        if (prevCount == 0) {
-            signalNotEmpty()
-        }
-        return true
     }
 
     /**
@@ -190,25 +196,21 @@ public class LinkedBlockingQueue<E> {
     }
 
     public func remove(): E {
-        var prevCount: Int64 = -1
-        var value: E
+        if (let Some(e) <- tryRemove()) {
+            return e
+        }
         takeMonitor.lock()
         try {
-            while (count.load() == 0) {
+            while (true) {
+                if (let Some(e) <- tryRemove()) {
+                    return e
+                }
                 takeMonitor.wait()
-            }
-            value = dequeueUnsafe()
-            prevCount = count.fetchSub(1)
-            if (prevCount > 1) {
-                takeMonitor.notify()
             }
         } finally {
             takeMonitor.unlock()
         }
-        if (prevCount == capacity) {
-            signalNotFull()
-        }
-        return value
+        throw Exception("Unreachable code.")
     }
 
     /**
@@ -227,32 +229,27 @@ public class LinkedBlockingQueue<E> {
     }
 
     public func remove(timeout: Duration): Option<E> {
-        var prevCount: Int64 = -1
-        var value: Option<E> = None
+        if (let Some(e) <- tryRemove()) {
+            return Some(e)
+        }
         takeMonitor.lock()
         try {
             var remaining = timeout
-            while (count.load() == 0) {
+            while (true) {
+                if (let Some(e) <- tryRemove()) {
+                    return Some(e)
+                }
                 if (remaining <= Duration.Zero) {
                     return None<E>
                 }
                 let startTime = MonoTime.now()
-                let _ = takeMonitor.wait(timeout: remaining)
+                takeMonitor.wait(timeout: remaining)
                 let endTime = MonoTime.now()
                 remaining -= endTime - startTime
-            }
-            value = Some(dequeueUnsafe())
-            prevCount = count.fetchSub(1)
-            if (prevCount > 1) {
-                takeMonitor.notify()
             }
         } finally {
             takeMonitor.unlock()
         }
-        if (prevCount == capacity) {
-            signalNotFull()
-        }
-        return value
     }
 
     /**
@@ -299,23 +296,20 @@ public class LinkedBlockingQueue<E> {
     }
 
     public func tryAdd(element: E): Bool {
-        if (count.load() == capacity) {
-            return false
-        }
-        var prevCount: Int64 = -1
-        putMonitor.lock()
-        try {
-            if (count.load() == capacity) {
+        // Reserve a slot without holding any lock. The CAS bounds the number of
+        // in-flight elements to `capacity`.
+        while (true) {
+            let r = reserved.load()
+            if (r >= capacity) {
                 return false
             }
-            enqueueUnsafe(element)
-            prevCount = count.fetchAdd(1)
-            if (prevCount + 1 < capacity) {
-                putMonitor.notify()
+            if (reserved.compareAndSwap(r, r + 1)) {
+                break
             }
-        } finally {
-            putMonitor.unlock()
         }
+
+        enqueueUnsafe(element)
+        let prevCount = count.fetchAdd(1)
         if (prevCount == 0) {
             signalNotEmpty()
         }
@@ -336,28 +330,21 @@ public class LinkedBlockingQueue<E> {
     }
 
     public func tryRemove(): Option<E> {
-        if (count.load() == 0) {
-            return None<E>
-        }
-        var value: Option<E> = None
-        var prevCount: Int64 = -1
-        takeMonitor.lock()
-        try {
-            if (count.load() == 0) {
+        while (true) {
+            let c = count.load()
+            if (c == 0) {
                 return None<E>
             }
-            value = Some(dequeueUnsafe())
-            prevCount = count.fetchSub(1)
-            if (prevCount > 1) {
-                takeMonitor.notify()
+            if (count.compareAndSwap(c, c - 1)) {
+                let value = dequeueUnsafe()
+                reserved.fetchSub(1)
+                if (c == capacity) {
+                    signalNotFull()
+                }
+                return Some(value)
             }
-        } finally {
-            takeMonitor.unlock()
         }
-        if (prevCount == capacity) {
-            signalNotFull()
-        }
-        return value
+        return None<E>
     }
 
     private func enqueueUnsafe(element: E): Unit {
