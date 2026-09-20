@@ -69,6 +69,8 @@ class NotifyOnce {
 class SyncNode {
     let n = NotifyOnce()
     var next: ?SyncNode = None
+    var prev: ?SyncNode = None
+    var dead: Bool = false
 }
 
 // SyncList is used to achieve "unpark-all" behaviour
@@ -78,7 +80,37 @@ class SyncList {
 
     private func addWaiter(node: SyncNode) {
         node.next = head
+        if (let Some(h) <- head) {
+            h.prev = node
+        }
         head = node
+    }
+
+    // Remove a (possibly dead) node from the linked list.
+    // Must be called while holding `m`.
+    private func removeNode(node: SyncNode) {
+        if (let Some(p) <- node.prev) {
+            p.next = node.next
+        } else {
+            head = node.next
+        }
+        if (let Some(n) <- node.next) {
+            n.prev = node.prev
+        }
+        node.next = None
+        node.prev = None
+    }
+
+    // Mark a node as dead and remove it from the list.
+    // Used when a timed wait times out so the stale node can no longer
+    // consume a subsequent `notifyOne`.
+    private func markDead(node: SyncNode) {
+        synchronized(m) {
+            if (!node.dead) {
+                node.dead = true
+                removeNode(node)
+            }
+        }
     }
 
     func waitIf(pred: () -> Bool, timeout!: Duration = Duration.Max): Unit {
@@ -93,6 +125,10 @@ class SyncList {
             addWaiter(node)
         }
         node.n.wait(timeout: timeout)
+        if (!node.n.notified) {
+            // timed out: the node was not signalled, remove it if still linked
+            markDead(node)
+        }
     }
 
     func waitInLock(unlock: () -> Unit, timeout!: Duration = Duration.Max): Bool {
@@ -101,14 +137,37 @@ class SyncList {
             addWaiter(node)
         }
         unlock()
-        node.n.wait(timeout: timeout)
+        let ok = node.n.wait(timeout: timeout)
+        if (!ok) {
+            markDead(node)
+        }
+        return ok
     }
 
     // Release one sema and remove it from the head of queue
     func notifyOne(): Bool {
         synchronized(m) {
+            // Skip any stale (dead) nodes lingering at the head: a timed-out
+            // waiter's node must not consume this wake-up.
+            while (true) {
+                if (let Some(current) <- head) {
+                    if (current.dead) {
+                        head = current.next
+                        if (let Some(n) <- current.next) {
+                            n.prev = None
+                        }
+                        current.next = None
+                        continue
+                    }
+                }
+                break
+            }
             if (let Some(current) <- head) {
                 head = current.next
+                if (let Some(n) <- current.next) {
+                    n.prev = None
+                }
+                current.next = None
                 current.n.notify()
                 return true
             }
@@ -125,7 +184,13 @@ class SyncList {
             }
             while (let Some(current) <- head) {
                 head = current.next
-                current.n.notify()
+                if (let Some(n) <- current.next) {
+                    n.prev = None
+                }
+                current.next = None
+                if (!current.dead) {
+                    current.n.notify()
+                }
             }
             return true
         }
