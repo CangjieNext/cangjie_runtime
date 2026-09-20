@@ -72,7 +72,7 @@ public class ArrayBlockingQueue<E> {
 
         this.capacity = capacity
         buffer = Array(capacity, repeat: unsafe { zeroValue<E>() })
-        state = Array<AtomicUInt64>(capacity) { _ => AtomicUInt64(UInt64(WRITEABLE_EVEN)) }
+        state = Array<AtomicUInt64>(capacity, { _ => AtomicUInt64(UInt64(WRITEABLE_EVEN)) })
         unsignedCapacity = UInt64(capacity)
     }
 
@@ -88,7 +88,7 @@ public class ArrayBlockingQueue<E> {
 
         this.capacity = capacity
         buffer = Array(capacity, repeat: unsafe { zeroValue<E>() })
-        state = Array<AtomicUInt64>(capacity) { _ => AtomicUInt64(UInt64(WRITEABLE_EVEN)) }
+        state = Array<AtomicUInt64>(capacity, { _ => AtomicUInt64(UInt64(WRITEABLE_EVEN)) })
         unsignedCapacity = UInt64(capacity)
 
         for (e in elements) {
@@ -365,6 +365,7 @@ public class ArrayBlockingQueue<E> {
         return None<E>
     }
 
+    @OverflowWrapping
     private func isFull(): Bool {
         if (allocated.load() >= reserved.load() + unsignedCapacity) {
             return true
