@@ -857,20 +857,24 @@ func mix(A: UInt64, B: UInt64) {
 
 @OverflowWrapping
 func r4(ptr: CPointer<UInt8>) {
-    (UInt64(ptr.read()) << 24) |
-    (UInt64(ptr.read(1)) << 16) |
-    (UInt64(ptr.read(2)) << 8) |
-    UInt64(ptr.read(3))
+    unsafe {
+        (UInt64(ptr.read()) << 24) |
+        (UInt64(ptr.read(1)) << 16) |
+        (UInt64(ptr.read(2)) << 8) |
+        UInt64(ptr.read(3))
+    }
 }
 
 @OverflowWrapping
 func r8(ptr: CPointer<UInt8>) {
-    (UInt64(ptr.read()) << 56) |
-    (UInt64(ptr.read(1)) << 48) |
-    (UInt64(ptr.read(2)) << 40) |
-    (UInt64(ptr.read(3)) << 32) |
-    (UInt64(ptr.read(4)) << 24) |
-    (UInt64(ptr.read(5)) << 16) |
-    (UInt64(ptr.read(6)) << 8) |
+    unsafe {
+        (UInt64(ptr.read()) << 56) |
+        (UInt64(ptr.read(1)) << 48) |
+        (UInt64(ptr.read(2)) << 40) |
+        (UInt64(ptr.read(3)) << 32) |
+        (UInt64(ptr.read(4)) << 24) |
+        (UInt64(ptr.read(5)) << 16) |
+        (UInt64(ptr.read(6)) << 8) |
         UInt64(ptr.read(7))
+    }
 }
