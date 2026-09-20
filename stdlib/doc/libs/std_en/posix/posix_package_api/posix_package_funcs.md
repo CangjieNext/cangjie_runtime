@@ -319,10 +319,6 @@ Returns:
 
 - [Int32](../../core/core_package_api/core_package_intrinsics.md#int32) - Returns `0` on success, `-1` on failure.
 
-Exceptions:
-
-- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Throws exception when function parameter `path` contains null characters.
-
 ## func fchmodat(Int32, String, UInt32, Int32) <sup>(deprecated)</sup>
 
 ```cangjie

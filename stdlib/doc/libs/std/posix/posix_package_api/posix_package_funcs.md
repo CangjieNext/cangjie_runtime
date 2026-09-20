@@ -758,10 +758,6 @@ public func fchmod(fd: Int32, mode: UInt32): Int32
 
 - [Int32](../../core/core_package_api/core_package_intrinsics.md#int32) - 操作成功时返回 `0`，失败时返回 `-1`。
 
-异常：
-
-- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 当函数参数 `path` 包含空字符时，抛出异常。
-
 示例：
 
 <!-- verify -->
