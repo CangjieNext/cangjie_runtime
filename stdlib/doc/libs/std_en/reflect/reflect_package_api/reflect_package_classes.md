@@ -2615,7 +2615,7 @@ Returns:
 Exceptions:
 
 - [InvocationTargetException](reflect_package_exceptions.md#class-invocationtargetexception) - Thrown if the corresponding member function is `abstract` or has no function body.
-- [InvacationTargetException](reflect_package_exceptions.md#class-invocationtargetexception) - Thrown if a non-generic function calls this method.
+- [InvocationTargetException](reflect_package_exceptions.md#class-invocationtargetexception) - Thrown if a non-generic function calls this method.
 - [IllegalTypeException](reflect_package_exceptions.md#class-illegaltypeexception) - Thrown if the runtime type of `instance` does not match the type of the corresponding member function.
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown if the number of arguments in `args` does not match the number of parameters in the corresponding member function.
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown if the number of parameters in `genericTypeArgs` does not match the number of generic parameters in `genericParams` of the corresponding member function.

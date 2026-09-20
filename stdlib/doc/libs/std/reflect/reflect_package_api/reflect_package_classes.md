@@ -5086,7 +5086,7 @@ public func apply(instance: Any, genericTypeArgs: Array<TypeInfo>, args: Array<A
 异常：
 
 - [InvocationTargetException](reflect_package_exceptions.md#class-invocationtargetexception) - 如果该函数信息对应的成员函数是 `abstract` 或不存在函数体，则会抛出异常。
-- [InvacationTargetException](reflect_package_exceptions.md#class-invocationtargetexception) - 如果非泛型函数调用了此方法，则抛出异常。
+- [InvocationTargetException](reflect_package_exceptions.md#class-invocationtargetexception) - 如果非泛型函数调用了此方法，则抛出异常。
 - [IllegalTypeException](reflect_package_exceptions.md#class-illegaltypeexception) - 如果入参实例运行时类型与该成员函数信息所对应的成员函数所属的类型不相同，则抛出异常。
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 如果实参列表中的实参的数目与该成员函数信息所对应的成员函数的形参列表中的形参的数目不等，则抛出异常。
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 如果函数泛型参数列表 `genericTypeArgs` 中的参数数目与该成员函数信息所对应的成员函数的泛型参数列表 `genericParams` 中的参数数目不等，则抛出异常。
