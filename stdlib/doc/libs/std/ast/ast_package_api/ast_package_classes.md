@@ -4783,10 +4783,6 @@ public mut prop content: ArrayList<FeatureId>
 
 类型：[ArrayList](../../collection/collection_package_api/collection_package_class.md#class-arraylistt)\<[featuresId](ast_package_classes.md#class-featureid)>
 
-异常：
-
-- [ASTException](ast_package_exceptions.md#class-astexception) - 当配置的不是一组 feature id 时抛出异常。
-
 ### prop lCurl
 
 ```cangjie
