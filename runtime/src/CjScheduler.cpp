@@ -23,6 +23,7 @@
 #include "Base/Panic.h"
 #include "Cangjie.h"
 #include "CangjieRuntime.h"
+#include "Heap/Allocator/AllocBuffer.h"
 #include "Mutator/MutatorManager.h"
 #include "RuntimeConfig.h"
 #include "schedule.h"
@@ -553,6 +554,12 @@ void* NewFinalizerCJThread()
     // Init finalizer mutator
     Mutator* mutator = static_cast<Mutator*>(CJThreadGetMutator());
     CHECK_DETAIL(mutator != nullptr, "create is null when create finalizer cjthread");
+    // Create the AllocBuffer before taking the mutator management lock. This path goes through the
+    // global allocator and may block for a long time; holding the read lock across it would starve
+    // StopTheWorld's write lock acquisition. BindMutator will take the fast path once the buffer exists.
+    if (UNLIKELY(ThreadLocal::GetThreadLocalData()->buffer == nullptr)) {
+        (void)AllocBuffer::GetOrCreateAllocBuffer();
+    }
     MutatorManager::Instance().MutatorManagementRLock();
     mutator->InitTid();
     mutator->SetManagedContext(false);
