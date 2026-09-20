@@ -27,7 +27,7 @@ public enum Endian {
             match (code) {
                 case 1 => Big
                 case 2 => Little
-                case _ => throw Exception("Platform endian detection failed.")
+                case _ => throw UnsupportedException("Platform endian detection failed.")
             }
         }
     }
