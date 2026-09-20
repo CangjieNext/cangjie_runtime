@@ -133,7 +133,7 @@ public class LinkedBlockingQueue<E> {
         putMonitor.lock()
         try {
             while (!tryAdd(element)) {
-                putMonitor.wait()
+                let _ = putMonitor.wait()
             }
         } finally {
             putMonitor.unlock()
@@ -171,7 +171,7 @@ public class LinkedBlockingQueue<E> {
                     return false
                 }
                 let startTime = MonoTime.now()
-                putMonitor.wait(timeout: remaining)
+                let _ = putMonitor.wait(timeout: remaining)
                 let endTime = MonoTime.now()
                 remaining -= endTime - startTime
             }
@@ -205,7 +205,7 @@ public class LinkedBlockingQueue<E> {
                 if (let Some(e) <- tryRemove()) {
                     return e
                 }
-                takeMonitor.wait()
+                let _ = takeMonitor.wait()
             }
         } finally {
             takeMonitor.unlock()
@@ -243,7 +243,7 @@ public class LinkedBlockingQueue<E> {
                     return None<E>
                 }
                 let startTime = MonoTime.now()
-                takeMonitor.wait(timeout: remaining)
+                let _ = takeMonitor.wait(timeout: remaining)
                 let endTime = MonoTime.now()
                 remaining -= endTime - startTime
             }

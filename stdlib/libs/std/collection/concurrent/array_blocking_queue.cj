@@ -136,7 +136,7 @@ public class ArrayBlockingQueue<E> {
         receiveMonitor.lock()
         sendQSize.fetchAdd(1)
         if (isFull()) {
-            receiveMonitor.wait()
+            let _ = receiveMonitor.wait()
         }
         sendQSize.fetchSub(1)
         receiveMonitor.unlock()
@@ -146,7 +146,7 @@ public class ArrayBlockingQueue<E> {
         receiveMonitor.lock()
         let startTime = MonoTime.now()
         sendQSize.fetchAdd(1)
-        receiveMonitor.wait(timeout: timeout)
+        let _ = receiveMonitor.wait(timeout: timeout)
         sendQSize.fetchSub(1)
         let endTime = MonoTime.now()
         receiveMonitor.unlock()
@@ -196,11 +196,10 @@ public class ArrayBlockingQueue<E> {
     }
 
     private func waitForReadableSlot(): Unit {
-
         sendMonitor.lock()
         receiveQSize.fetchAdd(1)
         if (size == 0) {
-            sendMonitor.wait()
+            let _ = sendMonitor.wait()
         }
         receiveQSize.fetchSub(1)
         sendMonitor.unlock()
@@ -210,7 +209,7 @@ public class ArrayBlockingQueue<E> {
         sendMonitor.lock()
         let startTime = MonoTime.now()
         receiveQSize.fetchAdd(1)
-        sendMonitor.wait(timeout: timeout)
+        let _ = sendMonitor.wait(timeout: timeout)
         receiveQSize.fetchSub(1)
         let endTime = MonoTime.now()
         sendMonitor.unlock()
@@ -366,7 +365,6 @@ public class ArrayBlockingQueue<E> {
         return None<E>
     }
 
-    @OverflowWrapping
     private func isFull(): Bool {
         if (allocated.load() >= reserved.load() + unsignedCapacity) {
             return true
@@ -410,7 +408,7 @@ func lockState(roundBit: UInt8): UInt8 {
 /**
  * Justify whether the round and the state are matching the expectations.
  */
-func matchState(round: UInt64, roundBit: UInt8, state: UInt8, expectState: UInt8): Bool {
+func matchState(round: UInt64, roundBit: UInt8, state: UInt8, expectState: UInt8) {
     if (UInt8(round & 1) == roundBit && state == expectState) {
         return true
     }
