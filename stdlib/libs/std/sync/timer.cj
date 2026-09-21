@@ -41,6 +41,7 @@ public class Timer <: Equatable<Timer> & Hashable {
     let task: () -> ?Duration
     var endTime: MonoTime
     var isEnabled = true
+    var isCancelled = false
 
     init(delay: Duration, task: () -> ?Duration) {
         let realDelay = if (delay > Duration.Zero) {
@@ -199,6 +200,7 @@ public class Timer <: Equatable<Timer> & Hashable {
         // Because the impact of repeatedly setting disable and increasing the number of cancels by 1 is controllable.
         if (isEnabled) {
             isEnabled = false
+            isCancelled = true
             scheduler.addCancelCount()
         }
     }
@@ -225,6 +227,11 @@ public class Timer <: Equatable<Timer> & Hashable {
     }
 
     func reload(duration: Duration): Unit {
+        if (isCancelled) {
+            // The timer was cancelled while its task was running;
+            // cancel() returning means the task must not run again.
+            return
+        }
         endTime = MonoTime.now() + duration
         isEnabled = true
         scheduler.add(this)
@@ -429,7 +436,11 @@ class TimerScheduler {
     private func schedule(): Unit {
         if (heap.isEmpty) {
             synchronized(monitor) {
-                if (queue.isEmpty()) {
+                // Loop to close the lost-notify window: a concurrent add()
+                // enqueuing between the isEmpty check and the wait would
+                // otherwise leave the scheduler parked forever (its notify
+                // was dropped). Re-check after wakeup.
+                while (queue.isEmpty()) {
                     monitor.wait()
                 }
             }
@@ -449,12 +460,34 @@ class TimerScheduler {
             return
         }
         synchronized(monitor) {
+            // Close the lost-notify window: a concurrent add() may have
+            // enqueued a timer with an EARLIER deadline between the top-read
+            // (`time = MonoTime.now()`, above) and this wait. That notify was
+            // dropped (we were not parked), so re-check the queue before
+            // committing to sleep; the new timer may already have been
+            // consumed into the heap by another scheduler pass, so also
+            // compare the heap top. If earlier work arrived, loop back and
+            // consume it.
+            var earlierWork = !queue.isEmpty()
+            if (!heap.isEmpty) {
+                if (heap.top().endTime < timer.endTime) {
+                    earlierWork = true
+                }
+            }
+            if (earlierWork) {
+                return
+            }
             monitor.wait(timeout: timer.endTime - time)
         }
     }
 
     private func execute(timer: Timer) {
         spawn {
+            if (timer.isCancelled) {
+                // cancel() already returned before this spawn ran the task:
+                // the associated task must not be scheduled to run.
+                return
+            }
             var duration: ?Duration
             try {
                 duration = timer.task()

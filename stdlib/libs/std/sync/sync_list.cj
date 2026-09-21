@@ -8,7 +8,7 @@
 
 package std.sync
 
-import std.time.DateTime
+import std.time.MonoTime
 
 const MAX_TIMEOUT_NS: Int64 = 0x7FFF_FFFF_FFFF_FFFF
 let MAX_TIMEOUT_DURATION: Duration = Duration.nanosecond * MAX_TIMEOUT_NS
@@ -49,9 +49,12 @@ class NotifyOnce {
         synchronized(m) {
             // In case of spurious-wakeup, we should put `wait` inside a while loop.
             while (!notified && restOfTimeout > Duration.Zero) {
-                let startTime = DateTime.nowUTC()
-                m.wait(timeout: timeout)
-                let endTime = DateTime.nowUTC()
+                // Use a monotonic clock to compute the remaining timeout:
+                // wall-clock steps (NTP, manual date changes) must not distort
+                // the duration of a timed wait.
+                let startTime = MonoTime.now()
+                m.wait(timeout: restOfTimeout)
+                let endTime = MonoTime.now()
                 restOfTimeout -= (endTime - startTime)
             }
         }
