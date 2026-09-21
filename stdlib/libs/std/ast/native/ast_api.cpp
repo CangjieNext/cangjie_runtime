@@ -50,6 +50,16 @@ bool GetCompileCjd(void* fptr)
     return mc->ci->invocation.globalOptions.compileCjd;
 }
 
+/// get the enableEH compile option from MacroCall* if not null
+bool GetCompileEH(void* fptr)
+{
+    if (!fptr) {
+        return false;
+    }
+    auto mc = reinterpret_cast<MacroCall*>(fptr);
+    return mc->ci->invocation.globalOptions.enableEH;
+}
+
 std::string ParseWithError(
     void* fptr, const std::vector<Token> oldTokens, ParseKind kind, ScopeKind scopeKind = ScopeKind::UNKNOWN_SCOPE)
 {
@@ -177,6 +187,9 @@ ParseRes* CJ_AST_Lex(void* fptr, const char* code, int64_t codeLen)
     diag.SetDisableWarning(true);
     std::string cangjieCode(code, static_cast<size_t>(codeLen));
     Lexer lex(cangjieCode, diag, sm, false, false);
+    // Follow the host compilation's --enable-eh so EH keywords are not demoted
+    // to identifiers when lexing macro input during macro expansion.
+    lex.SetEHEnabled(GetCompileEH(fptr));
     std::vector<Token> tokens{};
 
     MacroCall* macCall = nullptr;
