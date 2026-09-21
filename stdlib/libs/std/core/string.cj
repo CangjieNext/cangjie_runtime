@@ -299,6 +299,13 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
         intrinsicBuiltInCopyTo3<UInt8>(this.myData, newRawPtr, Int64(start), 0, Int64(length))
         return String(newRawPtr, 0, length)
     }
+    @Frozen
+    public exclave func toString(this @local?): String @local! {
+        let newRawPtr = rawArrayAllocate2<UInt8>(this.size)
+        rawArrayInitByValue3<UInt8>(newRawPtr, this.size, 0)
+        intrinsicBuiltInCopyTo3<UInt8>(this.myData, newRawPtr, Int64(start), 0, Int64(length))
+        String(newRawPtr, 0, length)
+    }
 
     @Frozen
     public func iterator(): Iterator<Byte> {
