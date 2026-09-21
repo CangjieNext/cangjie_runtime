@@ -134,7 +134,7 @@ public class CardinalitySelector<A> where A <: ActionSelector {}
 此接口提供的 API 提供的验证能力如下：
 
 - 桩签名的调用次数超过指定次数将立即抛出 [ExpectationFailedException](./unittest_mock_package_exceptions.md#class-expectationfailedexception) 。
-- 桩签名的调用次数不足时，框架将在测试用例执行完成后抛出 [ExceptionFailedException](./unittest_mock_package_exceptions.md#class-expectationfailedexception) 。
+- 桩签名的调用次数不足时，框架将在测试用例执行完成后抛出 [ExpectationFailedException](./unittest_mock_package_exceptions.md#class-expectationfailedexception) 。
 
 示例：
 
@@ -187,7 +187,7 @@ public func atLeastOnce(): Unit
 
 异常：
 
-- [ExceptionFailedException](./unittest_mock_package_exceptions.md#class-expectationfailedexception) - 验证“桩行为”执行次数不到一次时，抛出异常。
+- [ExpectationFailedException](./unittest_mock_package_exceptions.md#class-expectationfailedexception) - 验证“桩行为”执行次数不到一次时，抛出异常。
 
 ### func atLeastTimes(Int64)
 
@@ -203,7 +203,7 @@ public func atLeastTimes(minTimesExpected: Int64): Unit
 
 异常：
 
-- [ExceptionFailedException](./unittest_mock_package_exceptions.md#class-expectationfailedexception) - 验证“桩行为”执行少于指定次数时，抛出异常。
+- [ExpectationFailedException](./unittest_mock_package_exceptions.md#class-expectationfailedexception) - 验证“桩行为”执行少于指定次数时，抛出异常。
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 当作为`minTimesExpected`参数传递的数字为负数时，抛出异常。
 
 ### func once()
@@ -220,7 +220,7 @@ public func once(): Continuation<A>
 
 异常：
 
-- [ExceptionFailedException](./unittest_mock_package_exceptions.md#class-expectationfailedexception) - 验证“桩行为”执行次数超过一次时，立即抛出异常。
+- [ExpectationFailedException](./unittest_mock_package_exceptions.md#class-expectationfailedexception) - 验证“桩行为”执行次数超过一次时，立即抛出异常。
 
 ### func times(Int64)
 
@@ -240,7 +240,7 @@ public func times(expectedTimes: Int64): Continuation<A>
 
 异常：
 
-- [ExceptionFailedException](./unittest_mock_package_exceptions.md#class-expectationfailedexception) - 验证“桩行为”执行次数不是指定次数时，抛出异常。
+- [ExpectationFailedException](./unittest_mock_package_exceptions.md#class-expectationfailedexception) - 验证“桩行为”执行次数不是指定次数时，抛出异常。
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 当作为`expectedTimes`参数传递的数字为负数时，抛出异常。
 
 ### func times(Int64, Int64)
@@ -258,7 +258,7 @@ public func times(min!: Int64, max!: Int64): Unit
 
 异常：
 
-- [ExceptionFailedException](./unittest_mock_package_exceptions.md#class-expectationfailedexception) - 验证“桩行为”执行次数不是指定次数范围时，抛出异常。
+- [ExpectationFailedException](./unittest_mock_package_exceptions.md#class-expectationfailedexception) - 验证“桩行为”执行次数不是指定次数范围时，抛出异常。
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 当传入的`min`或`max`参数为负数时，抛出异常。
 
 ## class ConfigureMock

@@ -134,7 +134,7 @@ For convenience, the most recent behavior of a stub signature is referred to as 
 The verification capabilities provided by the APIs in this interface are as follows:
 
 - If the call count of the stub signature exceeds the specified number, an [ExpectationFailedException](./unittest_mock_package_exceptions.md#class-expectationfailedexception) will be thrown immediately.
-- If the call count of the stub signature is insufficient, the framework will throw an [ExceptionFailedException](./unittest_mock_package_exceptions.md#class-expectationfailedexception) after the test case execution is completed.
+- If the call count of the stub signature is insufficient, the framework will throw an [ExpectationFailedException](./unittest_mock_package_exceptions.md#class-expectationfailedexception) after the test case execution is completed.
 
 Example:
 
@@ -186,7 +186,7 @@ Function: Defines that the "stub behavior" must be executed at least once. Throw
 
 Exceptions:
 
-- [ExceptionFailedException](./unittest_mock_package_exceptions.md#class-expectationfailedexception) - Thrown when the "stub behavior" is executed less than once.
+- [ExpectationFailedException](./unittest_mock_package_exceptions.md#class-expectationfailedexception) - Thrown when the "stub behavior" is executed less than once.
 
 ### func atLeastTimes(Int64)
 
@@ -202,7 +202,7 @@ Parameters:
 
 Exceptions:
 
-- [ExceptionFailedException](./unittest_mock_package_exceptions.md#class-expectationfailedexception) - Thrown when the "stub behavior" is executed fewer times than specified.
+- [ExpectationFailedException](./unittest_mock_package_exceptions.md#class-expectationfailedexception) - Thrown when the "stub behavior" is executed fewer times than specified.
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown when a negative number is passed as the `minTimesExpected` parameter.
 
 ### func once()
@@ -219,7 +219,7 @@ Returns:
 
 Exceptions:
 
-- [ExceptionFailedException](./unittest_mock_package_exceptions.md#class-expectationfailedexception) - Thrown immediately if the "stub behavior" is executed more than once.
+- [ExpectationFailedException](./unittest_mock_package_exceptions.md#class-expectationfailedexception) - Thrown immediately if the "stub behavior" is executed more than once.
 
 ### func times(Int64)
 
@@ -239,7 +239,7 @@ Returns:
 
 Exceptions:
 
-- [ExceptionFailedException](./unittest_mock_package_exceptions.md#class-expectationfailedexception) - Thrown when the "stub behavior" is not executed the specified number of times.
+- [ExpectationFailedException](./unittest_mock_package_exceptions.md#class-expectationfailedexception) - Thrown when the "stub behavior" is not executed the specified number of times.
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown when a negative number is passed as the `expectedTimes` parameter.
 
 ### func times(Int64, Int64)
@@ -257,7 +257,7 @@ Parameters:
 
 Exceptions:
 
-- [ExceptionFailedException](./unittest_mock_package_exceptions.md#class-expectationfailedexception) - Thrown when the "stub behavior" is not executed within the specified range.
+- [ExpectationFailedException](./unittest_mock_package_exceptions.md#class-expectationfailedexception) - Thrown when the "stub behavior" is not executed within the specified range.
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown when negative numbers are passed as the `min` or `max` parameters.
 
 ## class ConfigureMock
