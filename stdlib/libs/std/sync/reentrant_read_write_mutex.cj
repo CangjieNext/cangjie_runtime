@@ -229,7 +229,18 @@ class ReadWriteLockImpl {
             }
             // Increase shared counter
             incShareCount()
-            incThreadReadCount()
+            try {
+                incThreadReadCount()
+            } catch (e: Exception) {
+                // Roll back the share-count CAS so the lock is not poisoned
+                // (a post-CAS throw before bookkeeping would otherwise leak
+                // the share unit and starve writers forever).
+                state.fetchSub(SHARE_UNIT)
+                throw e
+            } catch (e: Error) {
+                state.fetchSub(SHARE_UNIT)
+                throw e
+            }
             return
         }
         // Case 2: if the current thread has held the read-mutex
@@ -241,7 +252,15 @@ class ReadWriteLockImpl {
             }
             // Increase shared counter
             incShareCount()
-            incThreadReadCount()
+            try {
+                incThreadReadCount()
+            } catch (e: Exception) {
+                state.fetchSub(SHARE_UNIT)
+                throw e
+            } catch (e: Error) {
+                state.fetchSub(SHARE_UNIT)
+                throw e
+            }
             return
         }
         while (true) {
@@ -263,7 +282,15 @@ class ReadWriteLockImpl {
                     throw IllegalSynchronizationStateException("Inconsistent state.")
                 }
                 if (state.compareAndSwap(currState, currState + SHARE_UNIT)) { // Succeed
-                    incThreadReadCount()
+                    try {
+                        incThreadReadCount()
+                    } catch (e: Exception) {
+                        state.fetchSub(SHARE_UNIT)
+                        throw e
+                    } catch (e: Error) {
+                        state.fetchSub(SHARE_UNIT)
+                        throw e
+                    }
                     return
                 }
                 // Fail; Do nothing; retry
@@ -278,7 +305,15 @@ class ReadWriteLockImpl {
             // state: | share count | write count |
             // Increase counters
             incShareCount()
-            incThreadReadCount()
+            try {
+                incThreadReadCount()
+            } catch (e: Exception) {
+                state.fetchSub(SHARE_UNIT)
+                throw e
+            } catch (e: Error) {
+                state.fetchSub(SHARE_UNIT)
+                throw e
+            }
             return true
         }
         while (true) {
@@ -293,7 +328,15 @@ class ReadWriteLockImpl {
                     throw IllegalSynchronizationStateException("Inconsistent state.")
                 }
                 if (state.compareAndSwap(currState, currState + SHARE_UNIT)) { // Succeed
-                    incThreadReadCount()
+                    try {
+                        incThreadReadCount()
+                    } catch (e: Exception) {
+                        state.fetchSub(SHARE_UNIT)
+                        throw e
+                    } catch (e: Error) {
+                        state.fetchSub(SHARE_UNIT)
+                        throw e
+                    }
                     return true
                 } else { // Fail
                     // Do nothing; retry
