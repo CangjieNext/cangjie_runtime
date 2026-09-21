@@ -689,8 +689,14 @@ public class ConcurrentHashMap<K, V> <: ConcurrentMap<K, V> & Collection<(K, V)>
 
         while (true) {
             if (curHT.tryGetBucket(index)) {
-                ret = curHT.buckets[index].copyAddIfAbsent(hash, key, value)
-                curHT.lockG.unlock(index)
+                try {
+                    ret = curHT.buckets[index].copyAddIfAbsent(hash, key, value)
+                } finally {
+                    // copyAddIfAbsent invokes the user-overridden == (entries.find)
+                    // which may throw: the stripe mutex must be released on every
+                    // path, otherwise later writers to this stripe block forever.
+                    curHT.lockG.unlock(index)
+                }
                 break
             }
             curHT = head.load()
