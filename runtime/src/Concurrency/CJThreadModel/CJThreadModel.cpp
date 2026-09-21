@@ -81,14 +81,21 @@ static void RegisterCJThreadHooks()
 
 static bool GetStackGuardFlagEnv()
 {
-    const char* env = std::getenv("MRT_STACK_CHECK");
-    if (env != nullptr) {
-        if (CString::ParseFlagFromEnv(env)) {
-            return true;
-        }
-        LOG(RTLOG_ERROR, "unsupported MRT_STACK_CHECK. Should set variable to 1 or true or TRUE\n");
-    }
+#if defined(__ANDROID__)
     return false;
+#else
+    static const bool stackGuardCheck = []() {
+        const char* env = std::getenv("MRT_STACK_CHECK");
+        if (env != nullptr) {
+            if (CString::ParseFlagFromEnv(env)) {
+                return true;
+            }
+            LOG(RTLOG_ERROR, "unsupported MRT_STACK_CHECK. Should set variable to 1 or true or TRUE\n");
+        }
+        return false;
+    }();
+    return stackGuardCheck;
+#endif
 }
 
 // ConcurrencyParam.processorNum set the processor number of scheduler, it is set as following ways:
