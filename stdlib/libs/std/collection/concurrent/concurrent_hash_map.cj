@@ -860,8 +860,14 @@ public class ConcurrentHashMap<K, V> <: ConcurrentMap<K, V> & Collection<(K, V)>
         var index = hash & (curHT.buckets.size - 1)
         while (true) {
             if (curHT.tryGetBucket(index)) {
-                ret = curHT.buckets[index].copyPut(hash, key, value)
-                curHT.lockG.unlock(index)
+                try {
+                    ret = curHT.buckets[index].copyPut(hash, key, value)
+                } finally {
+                    // The stripe mutex must be released even if the operation
+                    // throws, otherwise every later writer to this stripe
+                    // blocks forever in lockG.lock.
+                    curHT.lockG.unlock(index)
+                }
                 break
             }
             curHT = head.load()
@@ -879,8 +885,13 @@ public class ConcurrentHashMap<K, V> <: ConcurrentMap<K, V> & Collection<(K, V)>
         var index = hash & (curHT.buckets.size - 1)
         while (true) {
             if (curHT.tryGetBucket(index)) {
-                ret = curHT.buckets[index].copyReplace(hash, key, predicate, eval)
-                curHT.lockG.unlock(index)
+                try {
+                    ret = curHT.buckets[index].copyReplace(hash, key, predicate, eval)
+                } finally {
+                    // predicate/eval are user callbacks and may throw: the
+                    // stripe mutex must be released on every path.
+                    curHT.lockG.unlock(index)
+                }
                 break
             }
             curHT = head.load()
@@ -897,8 +908,13 @@ public class ConcurrentHashMap<K, V> <: ConcurrentMap<K, V> & Collection<(K, V)>
         var index = hash & (curHT.buckets.size - 1)
         while (true) {
             if (curHT.tryGetBucket(index)) {
-                ret = curHT.buckets[index].copyRemove(hash, key, predicate)
-                curHT.lockG.unlock(index)
+                try {
+                    ret = curHT.buckets[index].copyRemove(hash, key, predicate)
+                } finally {
+                    // predicate is a user callback and may throw: the stripe
+                    // mutex must be released on every path.
+                    curHT.lockG.unlock(index)
+                }
                 break
             }
             curHT = head.load()
@@ -920,8 +936,14 @@ public class ConcurrentHashMap<K, V> <: ConcurrentMap<K, V> & Collection<(K, V)>
 
         while (true) {
             if (curHT.tryGetBucket(index)) {
-                (ret, resize) = curHT.buckets[index].copyEntryView(hash, key, fn)
-                curHT.lockG.unlock(index)
+                try {
+                    (ret, resize) = curHT.buckets[index].copyEntryView(hash, key, fn)
+                } finally {
+                    // fn is a user callback and may throw: the stripe mutex
+                    // must be released on every path, otherwise every later
+                    // writer to this stripe blocks forever in lockG.lock.
+                    curHT.lockG.unlock(index)
+                }
                 break
             }
             curHT = head.load()
