@@ -117,7 +117,8 @@ public class Directory {
         func walkFuncWrapper(cstr: CString): Bool {
             let fileName = cstr.toString()
             unsafe { LibC.free(cstr) }
-            let fullPathName = String.join([absPathStr, fileName], delimiter: SLASH_STRING)
+            let joinParts: Array<String> = [absPathStr, fileName]
+            let fullPathName = String.join(joinParts, delimiter: SLASH_STRING)
             f(FileInfo(Path(fullPathName), false))
         }
 
@@ -155,7 +156,8 @@ public class Directory {
         if (containsSlash(name)) {
             throw FSException("The name `${name}` contains path information.")
         }
-        let pathStr = String.join([parent, name], delimiter: SLASH_STRING)
+        let pathParts: Array<String> = [parent, name]
+        let pathStr = String.join(pathParts, delimiter: SLASH_STRING)
         if (exists(pathStr)) {
             throw FSException("The name `${name}` of directory `${pathStr}` is already exists.")
         }

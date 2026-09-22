@@ -40,11 +40,6 @@ public class HashSet<T> <: Set<T> where T <: Hashable & Equatable<T> {
         myMap = HashMap<T, Unit>()
     }
 
-    @Frozen
-    public exclave init(this @local!) {
-        myMap = HashMap<T, Unit>()
-    }
-
     /**
      * Construct a HashSet with an incoming iterator for initialization.
      *
@@ -86,10 +81,24 @@ public class HashSet<T> <: Set<T> where T <: Hashable & Equatable<T> {
     public init(capacity: Int64) {
         this.myMap = HashMap<T, Unit>(capacity)
     }
+    @Frozen
+    public exclave init(this @local!) {
+        myMap = HashMap<T, Unit>() @local!
+    }
 
     @Frozen
     public exclave init(this @local!, capacity: Int64) {
-        this.myMap = HashMap<T, Unit>(capacity)
+        myMap = HashMap<T, Unit>(capacity) @local!
+    }
+
+    @Frozen
+    public exclave init(this @local!, elements: Array<T> @local!) {
+        myMap = HashMap<T, Unit>(elements.size) @local!
+        for (index in 0..elements.size) {
+            let value: T @local! = elements[index]
+            let unit: Unit @local! = ()
+            myMap.add(value, unit)
+        }
     }
 
     /**
@@ -117,9 +126,10 @@ public class HashSet<T> <: Set<T> where T <: Hashable & Equatable<T> {
     public func contains(element: T): Bool {
         return myMap.contains(element)
     }
-
+    // local-mode @local? contains（C1 修复后恢复；2026-09-14）
+    // 泛型 T @local? 的 == 分派已随 C1 修复恢复正常（repros/final_evidence.cj 验证）。
     @Frozen
-    public exclave func contains(this @local!, element: T @local!): Bool {
+    public func contains(this @local?, element: T @local?): Bool {
         return myMap.contains(element)
     }
 
@@ -169,10 +179,10 @@ public class HashSet<T> <: Set<T> where T <: Hashable & Equatable<T> {
             case _ => false
         }
     }
-
     @Frozen
     public exclave func add(this @local!, element: T @local!): Bool {
-        return match (this.myMap.add(element, ())) {
+        let unit: Unit @local! = ()
+        return match (this.myMap.add(element, unit)) {
             case None => true
             case _ => false
         }
@@ -205,16 +215,6 @@ public class HashSet<T> <: Set<T> where T <: Hashable & Equatable<T> {
     public func add(all!: Collection<T>): Unit {
         for (i in all) {
             this.myMap.add(i, ())
-        }
-    }
-
-    /**
-     * Add all elements from another local HashSet.
-     */
-    @Frozen
-    public exclave func add(this @local!, all!: HashSet<T> @local!): Unit {
-        for ((k, _) in all.myMap) {
-            this.myMap.add(k, ())
         }
     }
 
@@ -504,6 +504,15 @@ public class HashSet<T> <: Set<T> where T <: Hashable & Equatable<T> {
     public func iterator(): Iterator<T> {
         return this.myMap.keys().iterator()
     }
+    @Frozen
+    public exclave func iterator(this @local!): Iterator<T> @local! {
+        HashSetIterator<T>(this.myMap.iterator()) @local!
+    }
+
+    @Frozen
+    public exclave func iterator(this @local?): Iterator<T> @local? {
+        HashSetIterator<T>(this.myMap.iterator()) @local?
+    }
 
     /**
      * Returns sizes of key-value.
@@ -516,6 +525,12 @@ public class HashSet<T> <: Set<T> where T <: Hashable & Equatable<T> {
     public prop size: Int64 {
         get() {
             return this.myMap.size
+        }
+    }
+    @Frozen
+    public prop size: Int64 @local? {
+        get() {
+            this.myMap.size
         }
     }
 
@@ -531,6 +546,7 @@ public class HashSet<T> <: Set<T> where T <: Hashable & Equatable<T> {
         return myMap.isEmpty()
     }
 
+    // local-mode @local? 判定（2026-09-15 补，B3 不对称修复）
     @Frozen
     public func isEmpty(this @local?): Bool {
         return myMap.isEmpty()
@@ -544,6 +560,16 @@ public class HashSet<T> <: Set<T> where T <: Hashable & Equatable<T> {
     @Frozen
     public func toArray(): Array<T> {
         return myMap.keys().toArray()
+    }
+    @Frozen
+    public exclave func toArray(this @local!): Array<T> @local! {
+        let result: Array<T> @local! = Array<T>(this.size, repeat: unsafe { zeroValue2<T>() }) @local!
+        var index = 0
+        for (value in this) {
+            result[index] = value
+            index++
+        }
+        result
     }
 
     /**
@@ -611,6 +637,48 @@ public class HashSet<T> <: Set<T> where T <: Hashable & Equatable<T> {
             result.add(key)
         }
         return result
+    }
+}
+class HashSetIterator<T> <: Iterator<T> where T <: Hashable & Equatable<T> {
+    private let mapIterator: HashMapIterator<T, Unit>
+
+    @Frozen
+    init(mapIterator: HashMapIterator<T, Unit>) {
+        this.mapIterator = mapIterator
+    }
+
+    @Frozen
+    exclave init(this @local!, mapIterator: HashMapIterator<T, Unit> @local!) {
+        this.mapIterator = mapIterator
+    }
+
+    @Frozen
+    exclave init(this @local?, mapIterator: HashMapIterator<T, Unit> @local?) {
+        this.mapIterator = mapIterator
+    }
+
+    @Frozen
+    public func next(): Option<T> {
+        match (mapIterator.next()) {
+            case Some(value) => Some(value[0])
+            case None => None
+        }
+    }
+
+    @Frozen
+    public exclave func next(this @local!): Option<T> @local! {
+        match (mapIterator.next()) {
+            case Some(value) => Some<T>(value[0])
+            case None => None
+        }
+    }
+
+    @Frozen
+    public exclave func next(this @local?): Option<T> @local? {
+        if (let Some(value) <- mapIterator.next()) {
+            return Some<T>(value[0])
+        }
+        return None<T>
     }
 }
 

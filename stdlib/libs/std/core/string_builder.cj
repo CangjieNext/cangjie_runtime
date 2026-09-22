@@ -41,7 +41,11 @@ public class StringBuilder <: ToString {
         this.endIndex = 0
     }
 
-    public exclave init(this @local!) {
+    // local-mode:非 public 内部实现。闭环文档未将 StringBuilder 列为对外适配项;
+    // 用户侧经 Array.toString 等高层 API 间接使用,打印走 toHeap() 转 plain。
+    // 缓冲区 data 保持堆分配:实例生命周期可能超出 region,local 缓冲会悬垂;
+    // 且 plain 字段无法持有 @local! 数组(类型不匹配,实测)。
+    internal exclave init(this @local!) {
         this.data = Array<UInt8>(defaultCapacity, repeat: 0)
         this.endIndex = 0
     }
@@ -122,8 +126,10 @@ public class StringBuilder <: ToString {
         return String(this.data[0..this.endIndex])
     }
 
-    public exclave func toString(this @local?): String @local! {
-        var itemData: Array<UInt8> @local! = Array<UInt8>(this.endIndex, repeat: 0)
+    // local-mode:非 public 内部实现,仅供包内已授权适配(Array.toString(this @local?))
+    // 产出 String @local!;闭环文档未将 StringBuilder 列为对外适配项,故不设 public 形态。
+    internal exclave func toStringLocal(this @local!): String @local! {
+        let itemData: Array<UInt8> @local! = Array<UInt8>(this.endIndex, repeat: 0)
         this.data.copyTo(itemData, 0, 0, this.endIndex)
         String(itemData)
     }
@@ -161,6 +167,73 @@ public class StringBuilder <: ToString {
         this.endIndex += itemLen
     }
 
+    // local-mode:非 public 内部实现,供包内已授权适配(Array.toString(this @local?))
+    // 在 @local! 接收者上追加元素;闭环文档未将 StringBuilder 列为对外适配项,不设 public。
+    // 注意:不得以同名 plain 方法做"委托实现"——@local! 接收者下同名调用会递归解析到自身。
+    // local 接收者的扩容:重分配走 local 数组(cloneToLocal 语义)
+    internal exclave func growLocal(this @local!, minCapacity: Int64): Unit {
+        if (this.data.size - this.endIndex >= minCapacity) {
+            return
+        }
+        let oldCapacity = this.data.size
+        var newCapacity = oldCapacity + (oldCapacity >> 1)
+        if (newCapacity < this.endIndex + minCapacity) {
+            newCapacity = this.endIndex + minCapacity + (oldCapacity >> 1)
+        }
+        let itemData: Array<UInt8> @local! = Array<UInt8>(newCapacity, repeat: 0) @local!
+        this.data.copyTo(itemData, 0, 0, this.endIndex)
+        this.data = itemData
+    }
+
+    @OverflowWrapping
+    internal exclave func appendRune(this @local!, r: Rune): Unit {
+        let byte = UInt32(r)
+        if (byte <= UTF8_1_MAX) {
+            this.growLocal(1)
+            data[endIndex] = UInt8(byte)
+            this.endIndex++
+            return
+        }
+        let itemLen = Rune.utf8Size(r)
+        this.growLocal(itemLen)
+        var _ = Rune.intoUtf8Array(r, this.data, this.endIndex)
+        this.endIndex += itemLen
+    }
+
+    @OverflowWrapping
+    internal exclave func appendString(this @local!, str: String @local?): Unit {
+        if (str.isEmpty()) {
+            return
+        }
+        let strData = unsafe { str.rawData() }
+        let itemLen = strData.size
+        this.growLocal(itemLen)
+        strData.copyTo(this.data, 0, this.endIndex, itemLen)
+        this.endIndex += itemLen
+    }
+
+    // local-mode:高频值类型快路径。注意:不将 local 数组赋给 plain 字段 data
+    // (GC 扫描时字段元数据混乱,实测 SIGSEGV);统一走"格式化为 String @local!
+    // → appendString 拷字节"模板,中间分配由 region 快速回收。
+    internal exclave func appendValue<T>(this @local!, v: T @local?): Unit where T <: ToString {
+        this.appendString(v.toString())
+    }
+
+    // 参数收 String @local? 的重载:非 public。调用场景=编译器插值 desugar 中
+    // 片段为 String @local! 的 append(如 core 包内异常打印扩展);用户侧插值片段
+    // 均为 plain String(走 plain append(String)),或经 toHeap() 转换后再插值。
+    @OverflowWrapping
+    internal func append(str: String @local?): Unit {
+        if (str.isEmpty()) {
+            return
+        }
+        let strData = unsafe { str.rawData() }
+        let itemLen = strData.size
+        this.grow(itemLen)
+        strData.copyTo(this.data, 0, this.endIndex, itemLen)
+        this.endIndex += itemLen
+    }
+
     @OverflowWrapping
     @Frozen
     public func append(str: String): Unit {
@@ -170,27 +243,6 @@ public class StringBuilder <: ToString {
         var strData = unsafe { str.rawData() }
         var itemLen = strData.size
         this.grow(itemLen)
-        strData.copyTo(this.data, 0, this.endIndex, itemLen)
-        this.endIndex += itemLen
-    }
-
-    @OverflowWrapping
-    public func append(str: String @local?): Unit {
-        if (str.isEmpty()) {
-            return
-        }
-        let strData = unsafe { str.rawData() }
-        let itemLen = strData.size
-        if (this.data.size - this.endIndex < itemLen) {
-            let oldCapacity = this.data.size
-            var newCapacity = oldCapacity + (oldCapacity >> 1)
-            if (newCapacity < this.endIndex + itemLen) {
-                newCapacity = this.endIndex + itemLen + (oldCapacity >> 1)
-            }
-            let itemData = Array<UInt8>(newCapacity, repeat: 0)
-            this.data.copyTo(itemData, 0, 0, this.endIndex)
-            this.data = itemData
-        }
         strData.copyTo(this.data, 0, this.endIndex, itemLen)
         this.endIndex += itemLen
     }
@@ -265,10 +317,6 @@ public class StringBuilder <: ToString {
             case b: Bool => this.append(b)
             case _ => this.append(v.toString())
         }
-    }
-
-    public exclave func append<T>(this @local!, v: T @local?): Unit where T <: ToString {
-        this.append(v.toString())
     }
 
     @Frozen

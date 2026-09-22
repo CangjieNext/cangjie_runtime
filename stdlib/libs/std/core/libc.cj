@@ -127,6 +127,7 @@ public struct LibC {
         }
     }
 
+
     public unsafe static func free(cstr: CString): Unit {
         var ptr = cstr.getChars()
         freeWrapper(CPointer<Unit>(ptr))

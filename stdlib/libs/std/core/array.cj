@@ -26,6 +26,17 @@ public struct Array<T> {
     }
 
     @Frozen
+    public exclave func toRawArray(this @local!): RawArray<T> @local! {
+        if (len == 0) {
+            return rawArrayAllocate2<T>(0)
+        }
+        let newRawPtr = rawArrayAllocate2<T>(len)
+        rawArrayInitByValue2(newRawPtr, len, unsafe { zeroValue2<T>() })
+        intrinsicBuiltInCopyTo2<T>(this.rawptr, newRawPtr, this.start, 0, len)
+        newRawPtr
+    }
+
+    @Frozen
     public const init() {
         this.start = 0
         this.rawptr = rawArrayAllocate<T>(0)
@@ -69,25 +80,7 @@ public struct Array<T> {
     }
 
     @Frozen
-    init(elements: Collection<T>) {
-        this.start = 0
-        let raw = rawArrayAllocate<T>(elements.size)
-        arrayInitByCollection(raw, elements)
-        this.rawptr = raw
-        this.len = arraySize(raw)
-    }
-
-    @Frozen
-    public init(size: Int64, initElement: (Int64) -> T) {
-        this.start = 0
-        let raw = rawArrayAllocate<T>(size)
-        arrayInitByFunction(raw, initElement)
-        this.rawptr = raw
-        this.len = size
-    }
-
-    @Frozen
-    public init(this @local!, size: Int64, initElement: (Int64) -> T @local!) {
+    public init(this @local!, size: Int64, initElement: ((Int64) -> T @local!) @local?) {
         exclave {
             this.start = 0
             let raw = rawArrayAllocate2<T>(size)
@@ -100,6 +93,43 @@ public struct Array<T> {
             this.rawptr = raw
             this.len = size
         }
+    }
+
+    @Frozen
+    init(elements: Collection<T>) {
+        this.start = 0
+        let raw = rawArrayAllocate<T>(elements.size)
+        arrayInitByCollection(raw, elements)
+        this.rawptr = raw
+        this.len = arraySize(raw)
+    }
+
+    // 提案 8 节：@local! 版 Collection 构造。`Collection<T> @local!` 上的接口成员
+    // （size / iterator / toArray）分派不被编译器支持（同 array_list.cj:251 记录的限制），
+    // 故按具体类型 match 取数据，其余 Collection 实现显式报错，由调用方先转 Array<T>。
+    // 提案 §3.4.1 ctor-4:非 public(仅本包数据转换方法内部使用)
+    @Frozen
+    init(this @local!, elements: Collection<T> @local!) {
+        exclave {
+            match (elements) {
+                case arr: Array<T> =>
+                    let copy: Array<T> @local! = arr.clone()
+                    this.rawptr = copy.rawptr
+                    this.start = copy.start
+                    this.len = copy.len
+                case _ =>
+                    throw IllegalArgumentException("Unsupported collection type for @local! Array init.")
+            }
+        }
+    }
+
+    @Frozen
+    public init(size: Int64, initElement: (Int64) -> T) {
+        this.start = 0
+        let raw = rawArrayAllocate<T>(size)
+        arrayInitByFunction(raw, initElement)
+        this.rawptr = raw
+        this.len = size
     }
 
     @Frozen
@@ -123,6 +153,16 @@ public struct Array<T> {
         this.len = len
     }
 
+    // 提案 8 节的 @local? 基础构造（elements: Collection<T>、size + initElement）在当前
+    // 编译器上无法实现，两个限制叠加：
+    // （1）写 `@local?` raw 只能走 arraySet3 / rawArrayInitByValue3，它们要求 T <: Copyable，
+    //       而成员上不能给所属类型的类型参数加约束（error: unexpected 'where' in
+    //       non-generic declaration）；
+    // （2）`extend` 块内不允许声明构造函数（error: unexpected constructor in extend body），
+    //       因此 Copyable 约束版也无法放进下面的 extend<T> Array<T> where T <: Copyable。
+    // 现行替代：`Array<T>() @local?` 先建空实例，再用 cloneToLocal /
+    // copyTo(this @local?, dst @local?, ...) 填充内容。
+
     @Frozen
     public prop first: Option<T> {
         get() {
@@ -143,6 +183,54 @@ public struct Array<T> {
         }
     }
 
+    @Frozen
+    public prop first: Option<T> @local! {
+        get() {
+            exclave {
+                if (this.len == 0) {
+                    return None<T>
+                }
+                Some<T>(arrayGetUnchecked2<T>(this.rawptr, start))
+            }
+        }
+    }
+
+    @Frozen
+    public prop first: Option<T> @local? {
+        get() {
+            exclave {
+                if (this.len == 0) {
+                    return None<T>
+                }
+                Some<T>(arrayGetUnchecked3<T>(this.rawptr, start))
+            }
+        }
+    }
+
+    @Frozen
+    public prop last: Option<T> @local! {
+        get() {
+            exclave {
+                if (this.len == 0) {
+                    return None<T>
+                }
+                Some<T>(arrayGetUnchecked2<T>(this.rawptr, start + this.len - 1))
+            }
+        }
+    }
+
+    @Frozen
+    public prop last: Option<T> @local? {
+        get() {
+            exclave {
+                if (this.len == 0) {
+                    return None<T>
+                }
+                Some<T>(arrayGetUnchecked3<T>(this.rawptr, start + this.len - 1))
+            }
+        }
+    }
+
     /**
      * @return slice of this Array
      * @throws IndexOutOfBoundsException if `start` is negative, or `len` is negative,
@@ -150,7 +238,7 @@ public struct Array<T> {
      */
     @Frozen
     public func slice(start: Int64, len: Int64): Array<T> {
-        if (start < 0 || len < 0 || (start + len) > this.len) {
+        if (start < 0 || len < 0 || start > this.len || len > this.len - start) {
             throw IndexOutOfBoundsException(arraySliceOutOfBoundsExceptionMessage(this.len, start, len))
         }
         return Array(this.rawptr, this.start + start, len)
@@ -158,7 +246,17 @@ public struct Array<T> {
 
     @Frozen
     public func slice(this @local!, start: Int64, len: Int64): Array<T> @local! {
-        if (start < 0 || len < 0 || (start + len) > this.len) {
+        if (start < 0 || len < 0 || start > this.len || len > this.len - start) {
+            throw IndexOutOfBoundsException(arraySliceOutOfBoundsExceptionMessage(this.len, start, len))
+        }
+        exclave {
+            Array(this.rawptr, this.start + start, len)
+        }
+    }
+
+    @Frozen
+    public func slice(this @local?, start: Int64, len: Int64): Array<T> @local? {
+        if (start < 0 || len < 0 || start > this.len || len > this.len - start) {
             throw IndexOutOfBoundsException(arraySliceOutOfBoundsExceptionMessage(this.len, start, len))
         }
         exclave {
@@ -271,12 +369,12 @@ public struct Array<T> {
     }
 
     @Frozen
-    public exclave operator func [](this @local!, range: Range<Int64>): Array<T> @local! {
+    public exclave operator func [](this @local!, range: Range<Int64> @local?): Array<T> @local! {
         rangeSlice(range, this.len)
     }
 
     @Frozen
-    public exclave operator func [](this @local?, range: Range<Int64>): Array<T> @local? {
+    public exclave operator func [](this @local?, range: Range<Int64> @local?): Array<T> @local? {
         rangeSlice(range, this.len)
     }
 
@@ -284,6 +382,13 @@ public struct Array<T> {
     public func fill(value: T): Unit {
         for (i in 0..this.len) {
             arraySetUnchecked(this.rawptr, this.start + i, value)
+        }
+    }
+
+    @Frozen
+    public exclave func fill(this @local!, value: T @local!): Unit {
+        for (i in 0..this.len) {
+            arraySetUnchecked2<T>(this.rawptr, this.start + i, value)
         }
     }
 
@@ -344,6 +449,21 @@ public struct Array<T> {
         }
     }
 
+    /** Reverse array elements in place. */
+    @Frozen
+    @OverflowWrapping
+    public exclave func reverse(this @local!): Unit {
+        var i: Int64 = start
+        var j: Int64 = start + len - 1
+        while (i < j) {
+            let tmp: T @local! = arrayGetUnchecked2(rawptr, i)
+            arraySetUnchecked2(rawptr, i, arrayGetUnchecked2(rawptr, j))
+            arraySetUnchecked2(rawptr, j, tmp)
+            i = i + 1
+            j = j - 1
+        }
+    }
+
     /**
      * Special processing is performed for 0 in the following cases:
      * When Range is 0..(excluding 0..=)(that is, start=0, hasStart=true, hasStop=false, isClosed=false)
@@ -377,7 +497,7 @@ public struct Array<T> {
     }
 
     @Frozen
-    private func rangeSlice(this @local!, range: Range<Int64>, _: Int64): Array<T> @local! {
+    private func rangeSlice(this @local!, range: Range<Int64> @local?, _: Int64): Array<T> @local! {
         if (range.step != 1) {
             throw IllegalArgumentException(arrayInvalidRangeStepExceptionMessage(range.step))
         }
@@ -392,7 +512,7 @@ public struct Array<T> {
     }
 
     @Frozen
-    private func rangeSlice(this @local?, range: Range<Int64>, _: Int64): Array<T> @local? {
+    private func rangeSlice(this @local?, range: Range<Int64> @local?, _: Int64): Array<T> @local? {
         if (range.step != 1) {
             throw IllegalArgumentException(arrayInvalidRangeStepExceptionMessage(range.step))
         }
@@ -443,7 +563,7 @@ public struct Array<T> {
 
     @Frozen
     @OverflowWrapping
-    const func normalize(this @local?, range: Range<Int64>): (Int64, Int64) {
+    const func normalize(this @local?, range: Range<Int64> @local?): (Int64, Int64) {
         var start = if (range.hasStart) {
             range.start
         } else {
@@ -554,6 +674,39 @@ public struct Array<T> {
         return Array<T>(newSize, {i: Int64 => arr[start_ + step * i]})
     }
 
+    /**
+     * @throws IndexOutOfBoundsException if the `range` is invalid for this array.
+     */
+    @Frozen
+    @OverflowWrapping
+    public exclave func clone(this @local!, range: Range<Int64> @local?): Array<T> @local! {
+        let (start_, end_): (Int64, Int64) = normalize(range)
+        let step = range.step
+        if ((step > 0 && !isLegal(start_, end_)) || (step < 0 && !isLegal(end_ + 1, start_ + 1))) {
+            throw IndexOutOfBoundsException(arrayRangeOutOfBoundsExceptionMessage(
+                this.len, range.start, range.end, range.step, range.hasStart, range.hasEnd, range.isClosed))
+        }
+        let offset: Int64 = if (step > 0) {
+            -1
+        } else {
+            1
+        }
+        let newSize: Int64 = (end_ - start_ + step + offset) / step
+        if (step == 1 && newSize != 0) {
+            var newArr: Array<T> @local! = Array<T>(newSize, repeat: unsafe { zeroValue2<T>() })
+            intrinsicBuiltInCopyTo2<T>(this.rawptr, newArr.rawptr, this.start + start_, 0, newSize)
+            newArr
+        } else {
+            var newArr: Array<T> @local! = Array<T>(newSize, repeat: unsafe { zeroValue2<T>() })
+            for (i in 0..newSize) {
+                arraySet2<T>(
+                    newArr.rawptr, i, arrayGetUnchecked2<T>(this.rawptr, this.start + start_ + step * i)
+                )
+            }
+            newArr
+        }
+    }
+
     /*
      * @throws IllegalArgumentException if `copyLen` is negative.
      * @throws IndexOutOfBoundsException if `srcStart` or `dstStart` is negative, or `srcStart` is
@@ -654,6 +807,23 @@ public struct Array<T> {
     }
 
     @Frozen
+    public func concat(this @local!, other: Array<T> @local!): Array<T> @local! {
+        exclave {
+            if (this.len == 0) {
+                return other.clone()
+            }
+            if (other.len == 0) {
+                return this.clone()
+            }
+            let newSize = this.len + other.len
+            let newArr: Array<T> @local! = Array<T>(newSize, repeat: unsafe { zeroValue2<T>() })
+            intrinsicBuiltInCopyTo2<T>(this.rawptr, newArr.rawptr, this.start, 0, this.len)
+            intrinsicBuiltInCopyTo2<T>(other.rawptr, newArr.rawptr, other.start, this.len, other.len)
+            newArr
+        }
+    }
+
+    @Frozen
     @OverflowWrapping
     protected unsafe func getUnchecked(index: Int64): T {
         return arrayGetUnchecked(this.rawptr, start + index)
@@ -663,6 +833,12 @@ public struct Array<T> {
     @OverflowWrapping
     protected unsafe func getUnchecked(this @local!, index: Int64): T @local! {
         exclave { arrayGetUnchecked2<T>(this.rawptr, start + index) }
+    }
+
+    @Frozen
+    @OverflowWrapping
+    protected unsafe func getUnchecked(this @local?, index: Int64): T @local? {
+        exclave { arrayGetUnchecked3<T>(this.rawptr, start + index) }
     }
 
     @Frozen
@@ -693,6 +869,22 @@ public struct Array<T> {
     }
 
     @Frozen
+    public exclave func swap(this @local!, index1: Int64, index2: Int64): Unit {
+        if (index1 < 0 || len <= index1) {
+            throw IllegalArgumentException("Index1 is less than 0 or not less than the size of this array.")
+        }
+        if (index2 < 0 || len <= index2) {
+            throw IllegalArgumentException("Index2 is less than 0 or not less than the size of this array.")
+        }
+        if (index1 == index2) {
+            return
+        }
+        let tmp: T @local! = arrayGetUnchecked2(this.rawptr, start + index1)
+        arraySetUnchecked2(this.rawptr, start + index1, arrayGetUnchecked2(this.rawptr, start + index2))
+        arraySetUnchecked2(this.rawptr, start + index2, tmp)
+    }
+
+    @Frozen
     public func splitAt(mid: Int64): (Array<T>, Array<T>) {
         if (mid < 0 || this.len < mid) {
             throw IllegalArgumentException("Mid is less than 0 or not less than the size of this array.")
@@ -703,6 +895,21 @@ public struct Array<T> {
         let left = Array<T>(this.rawptr, this.start, mid)
         let right = Array<T>(this.rawptr, this.start + mid, this.len - mid)
         return (left, right)
+    }
+
+    @Frozen
+    public func splitAt(this @local!, mid: Int64): (Array<T>, Array<T>) @local! {
+        exclave {
+            if (mid < 0 || this.len < mid) {
+                throw IllegalArgumentException("Mid is less than 0 or not less than the size of this array.")
+            }
+            if (this.len == 0) {
+                return (this, this)
+            }
+            let left: Array<T> @local! = Array<T>(this.rawptr, this.start, mid)
+            let right: Array<T> @local! = Array<T>(this.rawptr, this.start + mid, this.len - mid)
+            (left, right)
+        }
     }
 
     @Frozen
@@ -723,8 +930,45 @@ public struct Array<T> {
     }
 
     @Frozen
+    public func repeat(this @local!, n: Int64): Array<T> @local! {
+        exclave {
+            if (n <= 0) {
+                throw IllegalArgumentException("N is less than or equal to 0.")
+            }
+            if (this.len == 0) {
+                return this
+            }
+            let newLen = this.len * n
+            let newRawPtr = rawArrayAllocate2<T>(newLen)
+            rawArrayInitByValue2(newRawPtr, newLen, unsafe { zeroValue2<T>() })
+            var i: Int64 = 0
+            while (i < n) {
+                intrinsicBuiltInCopyTo2<T>(this.rawptr, newRawPtr, this.start, this.len * i, this.len)
+                i = i + 1
+            }
+            Array<T>(newRawPtr, 0, newLen)
+        }
+    }
+
+    @Frozen
     public func map<R>(transform: (T) -> R): Array<R> {
         return Array<R>(this.len, {idx => transform(this[idx])})
+    }
+
+    @Frozen
+    public func map<R>(this @local!, transform: ((T @local!) -> R @local!) @local?): Array<R> @local! {
+        exclave {
+            let newRawPtr = rawArrayAllocate2<R>(this.len)
+            rawArrayInitByValue2(newRawPtr, this.len, unsafe { zeroValue2<R>() })
+            var i: Int64 = 0
+            while (i < this.len) {
+                let v: T @local! = arrayGetUnchecked2<T>(this.rawptr, start + i)
+                let r: R @local! = transform(v)
+                arraySet2<R>(newRawPtr, i, r)
+                i = i + 1
+            }
+            Array<R>(newRawPtr, 0, this.len)
+        }
     }
 
     /**
@@ -756,6 +1000,30 @@ public struct Array<T> {
         return Array<T>()
     }
 
+    @When[env != "ohos"]
+    public func step(this @local!, count: Int64): Array<T> @local! {
+        exclave {
+            if (count <= 0) {
+                throw IllegalArgumentException("Step count must be greater than 0!")
+            }
+
+            if (len == 0) {
+                return Array<T>()
+            }
+            let newSize: Int64 = (len + count - 1) / count
+            var newRawPtr = rawArrayAllocate2<T>(newSize)
+            rawArrayInitByValue2(newRawPtr, newSize, unsafe { zeroValue2<T>() })
+            let oldLastIndex: Int64 = (newSize - 1) * count
+            var j: Int64 = newSize - 1
+            for (i in oldLastIndex..=0 : -count) {
+                let value: T @local! = arrayGetUnchecked2<T>(this.rawptr, start + i)
+                arraySet2<T>(newRawPtr, j, value)
+                j--
+            }
+            Array<T>(newRawPtr, 0, newSize)
+        }
+    }
+
     /**
      * @description Extracts a specific number of elements from the array and returns a new array.
      * 
@@ -776,6 +1044,23 @@ public struct Array<T> {
         rawArrayInitByValue(newRawPtr, newLen, unsafe { zeroValue<T>() })
         intrinsicBuiltInCopyTo<T>(this.rawptr, newRawPtr, this.start, 0, newLen)
         return Array<T>(newRawPtr, 0, newLen)
+    }
+
+    @When[env != "ohos"]
+    public func take(this @local!, count: Int64): Array<T> @local! {
+        exclave {
+            if (count == 0) {
+                return Array<T>()
+            }
+            if (count < 0) {
+                throw IllegalArgumentException("take count must be greater than 0!")
+            }
+            let newLen = min(count, this.len)
+            let newRawPtr = rawArrayAllocate2<T>(newLen)
+            rawArrayInitByValue2(newRawPtr, newLen, unsafe { zeroValue2<T>() })
+            intrinsicBuiltInCopyTo2<T>(this.rawptr, newRawPtr, this.start, 0, newLen)
+            Array<T>(newRawPtr, 0, newLen)
+        }
     }
 
     /**
@@ -804,6 +1089,27 @@ public struct Array<T> {
         return Array<T>(newRawPtr, 0, newLen)
     }
 
+    @When[env != "ohos"]
+    public func skip(this @local!, count: Int64): Array<T> @local! {
+        exclave {
+            if (count < 0) {
+                throw IllegalArgumentException("skip count must be greater than 0!")
+            }
+            if (count == 0) {
+                return Array(this.rawptr, this.start, this.len)
+            }
+            let newLen = this.len - count
+            if (newLen <= 0) {
+                return Array<T>()
+            }
+
+            let newRawPtr = rawArrayAllocate2<T>(newLen)
+            rawArrayInitByValue2(newRawPtr, newLen, unsafe { zeroValue2<T>() })
+            intrinsicBuiltInCopyTo2<T>(this.rawptr, newRawPtr, this.start + count, 0, newLen)
+            Array<T>(newRawPtr, 0, newLen)
+        }
+    }
+
     /**
      * @description Returns a new array containing elements that satisfy the filtering condition.
      * 
@@ -828,6 +1134,28 @@ public struct Array<T> {
         return Array<T>(newRawPtr, 0, t)
     }
 
+    @When[env != "ohos"]
+    public func filter(this @local!, predicate: ((T @local?) -> Bool) @local?): Array<T> @local! {
+        exclave {
+            if (this.len == 0) {
+                return Array<T>()
+            }
+            var newRawPtr = rawArrayAllocate2<T>(this.len)
+            rawArrayInitByValue2(newRawPtr, this.len, unsafe { zeroValue2<T>() })
+            var t = 0
+            var i: Int64 = 0
+            while (i < this.len) {
+                let value: T @local! = arrayGetUnchecked2<T>(this.rawptr, start + i)
+                if (predicate(value)) {
+                    arraySet2<T>(newRawPtr, t, value)
+                    t++
+                }
+                i = i + 1
+            }
+            Array<T>(newRawPtr, 0, t)
+        }
+    }
+
     /**
      * @description Applies a transformation closure (transform) to each element in the array, where the closure returns an array, then "flattens" and concatenates all returned arrays into a single result array.
      * 
@@ -841,6 +1169,20 @@ public struct Array<T> {
             result = result.concat(transform(unsafe { getUnchecked(i) }))
         }
         return result
+    }
+
+    @When[env != "ohos"]
+    public func flatMap<R>(this @local!, transform: ((T @local!) -> Array<R> @local!) @local?): Array<R> @local! {
+        exclave {
+            var result: Array<R> @local! = Array<R>()
+            var i: Int64 = 0
+            while (i < this.len) {
+                let value: T @local! = arrayGetUnchecked2<T>(this.rawptr, start + i)
+                result = result.concat(transform(value))
+                i = i + 1
+            }
+            result
+        }
     }
 
     /**
@@ -871,6 +1213,30 @@ public struct Array<T> {
         return Array<R>(newRawPtr, 0, j)
     }
 
+    @When[env != "ohos"]
+    public func filterMap<R>(this @local!, transform: ((T @local!) -> Option<R> @local!) @local?): Array<R> @local! {
+        exclave {
+            if (this.len == 0) {
+                return Array<R>()
+            }
+
+            let newRawPtr = rawArrayAllocate2<R>(this.len)
+            rawArrayInitByValue2(newRawPtr, this.len, unsafe { zeroValue2<R>() })
+            var j = 0
+            var i: Int64 = 0
+            while (i < this.len) {
+                let value: T @local! = arrayGetUnchecked2<T>(this.rawptr, start + i)
+                let transformed: Option<R> @local! = transform(value)
+                if (let Some(v) <- transformed) {
+                    arraySet2<R>(newRawPtr, j, v)
+                    j++
+                }
+                i = i + 1
+            }
+            Array<R>(newRawPtr, 0, j)
+        }
+    }
+
     /**
      * @description Returns a new array with the given element inserted between every two elements.
      * 
@@ -894,6 +1260,25 @@ public struct Array<T> {
         return Array<T>(newRawPtr,0,newSize)
     }
 
+    @When[env != "ohos"]
+    public func intersperse(this @local!, separator: T @local!): Array<T> @local! {
+        exclave {
+            if (this.len < 2) {
+                return this.clone()
+            }
+            let newSize: Int64 = 2 * this.len - 1
+            let newRawPtr = rawArrayAllocate2<T>(newSize)
+            rawArrayInitByValue2(newRawPtr, newSize, unsafe { zeroValue2<T>() })
+
+            for (i in 0..this.len - 1) {
+                arraySet2<T>(newRawPtr, 2*i, arrayGetUnchecked2<T>(this.rawptr, start + i))
+                arraySet2<T>(newRawPtr, 2*i + 1, separator)
+            }
+            arraySet2<T>(newRawPtr, newSize - 1, arrayGetUnchecked2<T>(this.rawptr, start + this.len - 1))
+            Array<T>(newRawPtr,0,newSize)
+        }
+    }
+
     /**
      * @description Iterates over all elements and performs the given operation.
      * 
@@ -903,6 +1288,15 @@ public struct Array<T> {
     public func forEach(action: (T) -> Unit): Unit {
         for (i in 0..this.len) {
             action(unsafe{ getUnchecked(i) })
+        }
+    }
+
+    @When[env != "ohos"]
+    public exclave func forEach(this @local!, action: ((T @local!) -> Unit) @local?): Unit {
+        var i: Int64 = 0
+        while (i < this.len) {
+            action(arrayGetUnchecked2<T>(this.rawptr, start + i))
+            i = i + 1
         }
     }
 
@@ -922,6 +1316,18 @@ public struct Array<T> {
         return true
     }
 
+    @When[env != "ohos"]
+    public func all(this @local?, predicate: ((T @local?) -> Bool) @local?): Bool {
+        var i: Int64 = 0
+        while (i < this.len) {
+            if (!predicate(arrayGetUnchecked3<T>(this.rawptr, start + i))) {
+                return false
+            }
+            i = i + 1
+        }
+        true
+    }
+
     /**
      * @description Determine whether all elements in the array satisfy the condition.
      * 
@@ -936,6 +1342,18 @@ public struct Array<T> {
             }
         }
         return false
+    }
+
+    @When[env != "ohos"]
+    public func any(this @local?, predicate: ((T @local?) -> Bool) @local?): Bool {
+        var i: Int64 = 0
+        while (i < this.len) {
+            if (predicate(arrayGetUnchecked3<T>(this.rawptr, start + i))) {
+                return true
+            }
+            i = i + 1
+        }
+        false
     }
 
     /**
@@ -954,6 +1372,18 @@ public struct Array<T> {
         return true
     }
 
+    @When[env != "ohos"]
+    public func none(this @local?, predicate: ((T @local?) -> Bool) @local?): Bool {
+        var i: Int64 = 0
+        while (i < this.len) {
+            if (predicate(arrayGetUnchecked3<T>(this.rawptr, start + i))) {
+                return false
+            }
+            i = i + 1
+        }
+        true
+    }
+
     /**
      * @description Computes from left to right using the specified initial value.
      * 
@@ -968,6 +1398,19 @@ public struct Array<T> {
             result = operation(result, unsafe{getUnchecked(i)})
         }
         return result
+    }
+
+    @When[env != "ohos"]
+    public func fold<R>(this @local!, initial: R @local!, operation: ((R @local!, T @local!) -> R @local!) @local?): R @local! {
+        exclave {
+            var result: R @local! = initial
+            var i: Int64 = 0
+            while (i < this.len) {
+                result = operation(result, arrayGetUnchecked2<T>(this.rawptr, start + i))
+                i = i + 1
+            }
+            result
+        }
     }
 
     /**
@@ -986,6 +1429,22 @@ public struct Array<T> {
             result = operation(result, unsafe{getUnchecked(i)})
         }
         return result
+    }
+
+    @When[env != "ohos"]
+    public func reduce(this @local!, operation: ((T @local!, T @local!) -> T @local!) @local?): Option<T> @local! {
+        exclave {
+            if (this.len == 0) {
+                return None<T>
+            }
+            var result: T @local! = arrayGetUnchecked2<T>(this.rawptr, start)
+            var i: Int64 = 1
+            while (i < this.len) {
+                result = operation(result, arrayGetUnchecked2<T>(this.rawptr, start + i))
+                i = i + 1
+            }
+            Some<T>(result)
+        }
     }
 }
 
@@ -1010,6 +1469,21 @@ extend<T> Array<T> {
         return Array<(T,R)>(newRawPtr,0,newSize)
     }
 
+    @When[env != "ohos"]
+    public func zip<R>(this @local!, other: Array<R> @local!): Array<(T, R)> @local! {
+        exclave {
+            let newSize: Int64 = min(this.len, other.size)
+            let newRawPtr = rawArrayAllocate2<(T,R)>(newSize)
+            rawArrayInitByValue2(newRawPtr, newSize, unsafe { zeroValue2<(T,R)>() })
+            for (i in 0..newSize) {
+                let t: T @local! = arrayGetUnchecked2<T>(this.rawptr, start + i)
+                let r: R @local! = arrayGetUnchecked2<R>(other.rawptr, other.start + i)
+                arraySet2<(T,R)>(newRawPtr, i, (t, r))
+            }
+            Array<(T,R)>(newRawPtr,0,newSize)
+        }
+    }
+
     /**
      * @description Used to obtain an array with indices.
      * 
@@ -1026,6 +1500,21 @@ extend<T> Array<T> {
             arraySet(newRawPtr,i,(i,unsafe{getUnchecked(i)}))
         }
         return Array<(Int64,T)>(newRawPtr,0,this.len)
+    }
+
+    @When[env != "ohos"]
+    public func enumerate(this @local!): Array<(Int64, T)> @local! {
+        exclave {
+            if (this.len == 0) {
+                return Array<(Int64, T)>()
+            }
+            let newRawPtr = rawArrayAllocate2<(Int64,T)>(this.len)
+            rawArrayInitByValue2(newRawPtr, this.len, unsafe { zeroValue2<(Int64,T)>() })
+            for (i in this.len - 1..=0 : -1) {
+                arraySet2<(Int64,T)>(newRawPtr, i, (i, arrayGetUnchecked2<T>(this.rawptr, start + i)))
+            }
+            Array<(Int64,T)>(newRawPtr,0,this.len)
+        }
     }
 }
 
@@ -1045,6 +1534,25 @@ extend<T> Array<Array<T>> {
             newIdx += this[i].len
         }
         return Array<T>(newRawPtr, 0, newLen)
+    }
+
+    @Frozen
+    public func flatten(this @local!): Array<T> @local! {
+        exclave {
+            var newLen: Int64 = 0
+            for (i in 0..this.len) {
+                newLen += this[i].len
+            }
+            let newRawPtr = rawArrayAllocate2<T>(newLen)
+            rawArrayInitByValue2(newRawPtr, newLen, unsafe { zeroValue2<T>() })
+
+            var newIdx: Int64 = 0
+            for (i in 0..this.len) {
+                intrinsicBuiltInCopyTo2<T>(this[i].rawptr, newRawPtr, this[i].start, newIdx, this[i].len)
+                newIdx += this[i].len
+            }
+            Array<T>(newRawPtr, 0, newLen)
+        }
     }
 }
 
@@ -1093,7 +1601,7 @@ private func arrayInvalidRangeStepExceptionMessage(rangeStep: Int64): String {
 public interface Copyable {}
 
 extend<T> Array<T> where T <: Copyable {
-    public func cloneToNotLocal(this @local?): Array<T> {
+    internal func cloneToNotLocal(this @local?): Array<T> {
         if (len == 0) {
             return Array<T>()
         }
@@ -1103,18 +1611,10 @@ extend<T> Array<T> where T <: Copyable {
         return Array<T>(newRawPtr, 0, len)
     }
 
+    // 提案 6.1：[](index, value!) — 设置指定位置的值；T 是 Copyable，value 不需 local 标注
     @Frozen
     @OverflowWrapping
-    public func getRange(this @local?, index: Int64, value!: T @local?): Unit {
-        if (UInt64(index) >= UInt64(this.len)) {
-            throw IndexOutOfBoundsException(arrayIndexOutOfBoundsExceptionMessage(this.len, index))
-        }
-        arraySet3<T>(this.rawptr, start + index, value)
-    }
-
-    @Frozen
-    @OverflowWrapping
-    public exclave operator func [](this @local?, index: Int64, value!: T @local?): Unit {
+    public exclave operator func [](this @local?, index: Int64, value!: T): Unit {
         // Using type conversion to replace typical bounds checking,
         // if (index < 0 || index >= this.len), to a single comparison.
         // The negative value of index will be converted to a large positive number
@@ -1123,6 +1623,33 @@ extend<T> Array<T> where T <: Copyable {
             throw IndexOutOfBoundsException(arrayIndexOutOfBoundsExceptionMessage(this.len, index))
         }
         arraySetUnchecked3<T>(this.rawptr, start + index, value)
+    }
+
+    // 提案 6.1：[](range, value!) — 范围设置；T<:Copyable 逐元素复制
+    @Frozen
+    public exclave operator func [](this @local?, range: Range<Int64> @local?, value!: Array<T> @local?): Unit {
+        if (range.step != 1) {
+            throw IllegalArgumentException(arrayInvalidRangeStepExceptionMessage(range.step))
+        }
+        let (start_, end_): (Int64, Int64) = normalize(range)
+        if (!isLegal(start_, end_)) {
+            throw IndexOutOfBoundsException(arrayRangeOutOfBoundsExceptionMessage(
+                this.len, range.start, range.end, range.step, range.hasStart, range.hasEnd, range.isClosed))
+        }
+        let rangeSize = end_ - start_
+        if (rangeSize != value.size) {
+            throw IllegalArgumentException(arrayInvalidRangeSizeExceptionMessage(value.size, rangeSize))
+        }
+        for (i in 0..rangeSize) {
+            arraySet3<T>(this.rawptr, this.start + start_ + i, arrayGetUnchecked3<T>(value.rawptr, value.start + i))
+        }
+    }
+
+    @Frozen
+    public func fill(this @local?, value: T): Unit {
+        for (i in 0..this.len) {
+            arraySet3<T>(this.rawptr, this.start + i, value)
+        }
     }
 
     @Frozen
@@ -1159,6 +1686,45 @@ extend<T> Array<T> where T <: Copyable {
         intrinsicBuiltInCopyTo3<T>(this.rawptr, dst.rawptr, this.start + srcStart, dst.start + dstStart, copyLen)
     }
 
+    // 提案 6.1：swap — 交换两个位置元素
+    @Frozen
+    public func swap(this @local?, index1: Int64, index2: Int64): Unit {
+        if (index1 < 0 || this.len <= index1) {
+            throw IllegalArgumentException("Index1 is less than 0 or not less than the size of this array.")
+        }
+        if (index2 < 0 || this.len <= index2) {
+            throw IllegalArgumentException("Index2 is less than 0 or not less than the size of this array.")
+        }
+        if (index1 == index2) {
+            return
+        }
+        let tmp = arrayGetUnchecked3<T>(this.rawptr, this.start + index1)
+        arraySet3<T>(this.rawptr, this.start + index1, arrayGetUnchecked3<T>(this.rawptr, this.start + index2))
+        arraySet3<T>(this.rawptr, this.start + index2, tmp)
+    }
+
+    // 提案 6.1：reverse — 原地反转
+    @Frozen
+    @OverflowWrapping
+    public func reverse(this @local?): Unit {
+        var i: Int64 = this.start
+        var j: Int64 = this.start + this.len - 1
+        while (i < j) {
+            let tmp = arrayGetUnchecked3<T>(this.rawptr, i)
+            arraySet3<T>(this.rawptr, i, arrayGetUnchecked3<T>(this.rawptr, j))
+            arraySet3<T>(this.rawptr, j, tmp)
+            i = i + 1
+            j = j - 1
+        }
+    }
+
+    // 提案 6.1：setUnchecked — 保护方法
+    @Frozen
+    @OverflowWrapping
+    protected unsafe func setUnchecked(this @local?, index: Int64, element: T): Unit {
+        arraySetUnchecked3<T>(this.rawptr, this.start + index, element)
+    }
+
     @Frozen
     public func cloneToLocal(this @local?): Array<T> @local! {
         exclave {
@@ -1172,4 +1738,5 @@ extend<T> Array<T> where T <: Copyable {
             }
         }
     }
+
 }

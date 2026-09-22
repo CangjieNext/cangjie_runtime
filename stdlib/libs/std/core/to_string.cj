@@ -19,12 +19,12 @@ public interface ToString {
 
     /**
      * Returns a String @local! bound to the caller's region.
-     * Default implementation throws; concrete types bound to `local!`
-     * (e.g. via `append<T>(this @local!, v: T @local?)`) should override
-     * this to return a real `local!` String.
+     * Default implementation throws; concrete types should override
+     * this to return a real `local!` String (e.g. via raw-array copy,
+     * cf. String.toString / Array.toString implementations).
      */
     func toString(this @local?): String @local! {
-        throw Exception("ToString.toString(this @local?) not implemented")
+        throw UnImplementedException("Current Type does not implement 'toString' method for its @local? instance")
     }
 }
 
@@ -44,6 +44,7 @@ extend Int64 <: ToString {
         numberToString(unum, numLen, buffer)
         return String(buffer)
     }
+    @OverflowWrapping
     public exclave func toString(this @local?): String @local! {
         let (numLen, unum, buffer) = if (this < 0) {
             let unum = UInt64(-this)

@@ -66,6 +66,16 @@ extend<T> Array<T> <: Collection<T> {
         return ArrayIterator(this)
     }
 
+    @Frozen
+    public exclave func iterator(this @local!): Iterator<T> @local! {
+        ArrayIterator<T>(this) @local!
+    }
+
+    @Frozen
+    public exclave func iterator(this @local?): Iterator<T> @local? {
+        ArrayIterator<T>(this) @local?
+    }
+
     /**
      * Call 'size' on array type variable will be processed by compiler.
      * Only call based on 'Collection' type will use this function.
@@ -98,7 +108,17 @@ extend<T> Array<T> <: Collection<T> {
     public func toArray(): Array<T> {
         return this.clone()
     }
+
+    // 适配方案 Collection 接口适配（:1287）：新增 toArray(this @local!)。
+    // 语义与 non-local 版一致（独立拷贝），委托 clone(this @local!) 完成
+    // 新分配（rawArrayAllocate2）+ 逐份拷贝（intrinsicBuiltInCopyTo2）。
+    @Frozen
+    public exclave func toArray(this @local!): Array<T> @local! {
+        this.clone()
+    }
+
 }
+
 
 extend<T> Array<T> <: ToString where T <: ToString {
     @Frozen
@@ -115,6 +135,21 @@ extend<T> Array<T> <: ToString where T <: ToString {
         }
         sb.append(r']')
         return sb.toString()
+    }
+
+    @Frozen
+    public exclave func toString(this @local?): String @local! {
+        let sb: StringBuilder @local! = StringBuilder()
+        sb.appendRune(r'[')
+        if (size > 0) {
+            sb.appendValue(this[0])
+            for (i in 1..size) {
+                sb.appendString(", ")
+                sb.appendValue(this[i])
+            }
+        }
+        sb.appendRune(r']')
+        sb.toStringLocal()
     }
 }
 
@@ -416,6 +451,21 @@ extend<T> Array<T> <: Equatable<Array<T>> where T <: Equatable<T> {
         }
         return this
     }
+    // ---- local-mode @local? 判定类（提案 §8 D 类；C1/C2 修复后恢复实现）----
+
+
+    @Frozen
+    public func contains(this @local?, element: T @local?): Bool {
+        var i: Int64 = this.size - 1
+        while (i >= 0) {
+            if (this[i] == element) {
+                return true
+            }
+            i--
+        }
+        return false
+    }
+
 }
 
 /**
@@ -433,6 +483,20 @@ public class ArrayIterator<T> <: Iterator<T> {
         this.myPosition = 0
     }
 
+    @Frozen
+    public exclave init(this @local!, data: Array<T> @local!) {
+        this.myData = data
+        this.end = data.size
+        this.myPosition = 0
+    }
+
+    @Frozen
+    public exclave init(this @local?, data: Array<T> @local?) {
+        this.myData = data
+        this.end = data.size
+        this.myPosition = 0
+    }
+
     /** Returns the next element in the iteration. */
     @Frozen
     @OverflowWrapping
@@ -444,6 +508,30 @@ public class ArrayIterator<T> <: Iterator<T> {
         } else {
             return None
         }
+    }
+
+    /** Returns the next element in the iteration. */
+    @Frozen
+    @OverflowWrapping
+    public exclave func next(this @local!): Option<T> @local! {
+        if (this.myPosition < this.end) {
+            let v: T @local! = arrayGetUnchecked2<T>(this.myData.rawptr, this.myData.start + this.myPosition)
+            this.myPosition++
+            return Some<T>(v)
+        }
+        None<T>
+    }
+
+    /** Returns the next element in the iteration. */
+    @Frozen
+    @OverflowWrapping
+    public exclave func next(this @local?): Option<T> @local? {
+        if (this.myPosition < this.end) {
+            let v: T @local? = arrayGetUnchecked3<T>(this.myData.rawptr, this.myData.start + this.myPosition)
+            this.myPosition++
+            return Some<T>(v)
+        }
+        None<T>
     }
 }
 
@@ -498,4 +586,74 @@ public unsafe func releaseArrayRawData<T>(handle: CPointerHandle<T>): Unit where
 @Frozen
 public unsafe func releaseArrayRawData<T>(handle: CPointerHandle<T> @local?): Unit where T <: CType {
     releaseRawData2(handle.array.rawptr, handle.pointer - handle.array.start)
+}
+
+// 取回无标注的 `X`：写进一个 non-local 单元素 raw 再读出（X 是 Copyable，不含对象引用）。
+// 必须是文件级函数：写成 extend 成员会让内部类型参数与扩展的类型参数互相遮蔽，
+// 调用点会被解析成 `Array<T> @local?`（error: expected 'Struct-Array<Generics-T>',
+// found 'Struct-Array<Generics-T> @local?'）。
+@Frozen
+func deLocalizeElement<X>(element: X @local?): X where X <: Copyable {
+    let raw: RawArray<X> = rawArrayAllocate<X>(1)
+    arraySet3<X>(raw, 0, element)
+    let one: Array<X> = Array<X>(raw, 0, 1)
+    one[0]
+}
+
+/**
+ * 提案 8 节 D 类（判定/计数：indexOf、lastIndexOf）在 `@local?` 实例上的实现。
+ * 交付清单 = 策略问题闭环 §3.4.1 判定类列出的 7 个形态：
+ *   indexOf(element, fromIndex)、indexOf(elements)、indexOf(elements, fromIndex)、
+ *   lastIndexOf(element)、lastIndexOf(element, fromIndex)、lastIndexOf(elements)、
+ *   lastIndexOf(elements, fromIndex)。
+ *
+ * 与闭环签名的差异：这里多了 `T <: Copyable` 约束，并且实现方式是“先落到 non-local
+ * 副本、再原样分派给 heap 版”。依据是在重建的 local-mode SDK（编译器 305d17f9）上实测到的
+ * 三条现状：
+ *   1) `T @local?` 作接收者调用 `==` 会分派到 Equatable 为 `@local?` 实例准备的默认实现，
+ *      未自行适配 `==` 的具体类型直接抛 "UnImplementedException: Current Type does not
+ *      implement '==' method for its @local? instance"（探针 pf_generic_eq.cj：Int64 元素
+ *      正常、用户 class 元素抛错）。
+ *   2) `T @local?` 作实参传给 non-local 形参被拒绝（error: expected 'Generics-T',
+ *      found 'Generics-T @local?'），所以 half-mode 元素也无法直接喂给现成的比较。
+ *   3) 把 `T @local?` 写进 non-local 容器同样被拒绝，唯一可用的中转是 arraySet3，而它要求
+ *      T <: Copyable（向 half-mode 实例写入对象引用需要写屏障，Barrier::WriteGeneric 目前
+ *      遇到 local object 直接断言失败）。
+ * 落 non-local 副本后调用 heap 实现，可保证与 non-local 版逐条同语义，代价是一次 memcpy。
+ * 等 1)、2) 在编译器侧解决，可改回就地循环并去掉 Copyable 约束与拷贝。
+ *
+ * 闭环 §3.4.1 未列、本文件也不提供的形态：contains、无 fromIndex 的 indexOf(element)、
+ * `==` / `!=`（==/!= 另有 extend 遮蔽限制：error: extend member '==' is not allowed to
+ * shadow members of 'extend Array'）。`@local?` 接收者的相等比较由 Equal/NotEqual 接口
+ * 默认实现承担（未适配 == 的类型运行时抛 UnImplementedException，按 §4.2.5/修改建议 #4
+ * 的统一策略）。
+ */
+extend<T> Array<T> where T <: Copyable & Equatable<T> {
+    public func indexOf(this @local?, element: T @local?, fromIndex: Int64): Option<Int64> {
+        return this.cloneToNotLocal().indexOf(deLocalizeElement<T>(element), fromIndex)
+    }
+
+    public func indexOf(this @local?, elements: Array<T> @local?): Option<Int64> {
+        return this.cloneToNotLocal().indexOf(elements.cloneToNotLocal())
+    }
+
+    public func indexOf(this @local?, elements: Array<T> @local?, fromIndex: Int64): Option<Int64> {
+        return this.cloneToNotLocal().indexOf(elements.cloneToNotLocal(), fromIndex)
+    }
+
+    public func lastIndexOf(this @local?, element: T @local?): Option<Int64> {
+        return this.cloneToNotLocal().lastIndexOf(deLocalizeElement<T>(element))
+    }
+
+    public func lastIndexOf(this @local?, element: T @local?, fromIndex: Int64): Option<Int64> {
+        return this.cloneToNotLocal().lastIndexOf(deLocalizeElement<T>(element), fromIndex)
+    }
+
+    public func lastIndexOf(this @local?, elements: Array<T> @local?): Option<Int64> {
+        return this.cloneToNotLocal().lastIndexOf(elements.cloneToNotLocal())
+    }
+
+    public func lastIndexOf(this @local?, elements: Array<T> @local?, fromIndex: Int64): Option<Int64> {
+        return this.cloneToNotLocal().lastIndexOf(elements.cloneToNotLocal(), fromIndex)
+    }
 }

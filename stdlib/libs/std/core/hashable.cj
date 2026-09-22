@@ -11,7 +11,7 @@ package std.core
 public interface Hashable {
     func hashCode(): Int64
     func hashCode(this @local?): Int64 {
-        throw Exception()
+        throw UnImplementedException("Current Type does not implement 'hashCode' method for its @local? instance")
     }
 }
 
@@ -726,6 +726,17 @@ extend Float16 <: Hashable {
 
 extend<T> Range<T> <: Hashable where T <: Hashable & Countable<T> & Comparable<T> & Equatable<T> {
     public func hashCode(): Int64 {
+        var dfh: DefaultHasher = DefaultHasher()
+        dfh.write(start.hashCode())
+        dfh.write(end.hashCode())
+        dfh.write(step.hashCode())
+        dfh.write(isClosed.hashCode())
+        return dfh.finish()
+    }
+
+    // local-mode @local? 覆写(2026-09-18 恢复):原暂缓因 NEW-R1(local 分配
+    // 无 region 崩溃),modal-type 编译器已修复方法 prelude 分配,实测通过。
+    public func hashCode(this @local?): Int64 {
         var dfh: DefaultHasher = DefaultHasher()
         dfh.write(start.hashCode())
         dfh.write(end.hashCode())

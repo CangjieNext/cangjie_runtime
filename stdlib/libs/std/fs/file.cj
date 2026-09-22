@@ -211,6 +211,78 @@ public class File <: Resource & IOStream & Seekable {
         return readBytes
     }
 
+    // local-mode 覆写(2026-09-18 补):InputStream.read(buffer @local!) 接口默认体是
+    // 裸 Exception(),导致 File.readFromLocal 端到端断链(P0)。内联 plain read 逻辑——
+    // 仅操作 plain 资源字段与 C 互操作,无 local 分配;plain private 方法在 @local!
+    // 接收者上不可直接调用,故不采用委托。
+    public exclave func read(this @local!, buffer: Array<Byte> @local!): Int64 {
+        if (!isHandleValid(_fileDescriptor._fileHandle)) {
+            throw FSException("File not opened, can not to read.")
+        }
+        if (!_canRead) {
+            throw FSException("File does not have the read permission.")
+        }
+        if (buffer.size == 0) {
+            throw IllegalArgumentException("The buffer is empty.")
+        }
+        let readBytes: Int64 = unsafe {
+            let bufPtr: CPointerHandle<Byte> @local? = acquireArrayRawData<Byte>(buffer)
+            let n: Int64 = CJ_FS_FileRead(_fileDescriptor._fileHandle, bufPtr.pointer, UIntNative(buffer.size))
+            releaseArrayRawData(bufPtr)
+            n
+        }
+        if (readBytes == 0) {
+            return 0
+        } else if (readBytes < 0) {
+            throw FSException("File read error, return ${readBytes} bytes.")
+        }
+        return readBytes
+    }
+
+    // local-mode 覆写(2026-09-18 补):Seekable.seek 接口默认体为裸 Exception()。
+    // 内联 plain seek 逻辑(同上理由)。
+    public exclave func seek(this @local!, sp: SeekPosition): Int64 {
+        if (!canSeekLocal()) {
+            throw FSException("File can not seek.")
+        }
+        var (whence, offset): (Int32, Int64) = match (sp) {
+            case Current(cOffset) => (SEEK_CUR, cOffset)
+            case Begin(bOffset) => (SEEK_SET, bOffset)
+            case End(eOffset) => (SEEK_END, eOffset)
+        }
+        let val: Int64 = unsafe { CJ_FS_Seek(_fileDescriptor._fileHandle, whence, offset) }
+        if (val < 0) {
+            throw FSException("Failed to seek file: errno is ${0 - val}.")
+        }
+        return val
+    }
+
+    // local-mode:内联 plain canSeek 逻辑(仅字段读取与 isClosed 判定)。
+    internal exclave func canSeekLocal(this @local!): Bool {
+        if (isClosedLocal()) {
+            return false
+        }
+        return _canSeek
+    }
+
+    internal exclave func isClosedLocal(this @local!): Bool {
+        !isHandleValid(_fileDescriptor._fileHandle)
+    }
+
+    // local-mode 覆写(2026-09-18 补):Seekable.length 接口默认体为裸 Exception()。
+    // 内联 plain getsize 逻辑(仅字段 + C 互操作;plain 方法/prop 在 @local! 接收者上不可调用)。
+    public prop length: Int64 @local! {
+        get() {
+            exclave {
+                if (!isHandleValid(_fileDescriptor._fileHandle)) {
+                    -1
+                } else {
+                    unsafe { CJ_FS_GetFileSize(_fileDescriptor._fileHandle) }
+                }
+            }
+        }
+    }
+
     /**
      * @throws FSException if system failed to write the file
      * @throws FSException if file is not opened
@@ -385,13 +457,16 @@ public class File <: Resource & IOStream & Seekable {
         }
     }
     public static exclave func readFromLocal(path: String): Array<Byte> @local! {
-        var file = File(path, Read)
-        try {
-            readToEndLocal(file)
-        } finally {
-            file.close()
-        }
+        // 2026-09-18 重写:原"泛型 readToEndLocal(file)"在当前编译器上有两处阻断——
+        // (1) plain File 经泛型 T 调 Seekable.length @local! 会被 modal 重载决议路由到接口默认体(throw);
+        // (2) plain 实例无法调 exclave(this @local!) 成员,也无法把 @local! buffer 传给 plain read 参数。
+        // 现行方案:plain 侧用成熟 readFrom 读全量,再经 initElement 闭包搬运进 local 数组。
+        // 代价:数据先落 GC 堆再复制进 local region;待编译器解决 plain→local 泛型借用后可恢复流式实现。
+        let plainData: Array<Byte> = File.readFrom(path)
+        return Array<Byte>(plainData.size, {i => plainData[i]}) @local!
     }
+
+
 
     /**
      * @throws FSException while path is empty.

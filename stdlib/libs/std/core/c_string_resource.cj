@@ -241,6 +241,7 @@ extend CString <: ToString {
         return String(data)
     }
 
+
     public func asResource(): CStringResource {
         return CStringResource(this)
     }

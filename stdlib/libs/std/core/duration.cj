@@ -230,6 +230,15 @@ public struct Duration <: ToString & Hashable & Comparable<Duration> {
                 return sb.toString()
         }
     }
+    // local-mode @local? toString【暂缓登记 2026-09-17,实测复现】:
+    // plain 体依赖 append(days, "d") 链式拼接;在 @local? 接收者上任何 append
+    // 传参(含 Int64/String 具体重载、Rune)都触发 call-prelude 装箱(NEW-R1
+    // 同族)或字面量隐式转换自递归,运行即 StackOverflowError。已尝试并否决:
+    // exclave+SB 模板(崩)、appendUnit exclave 自由函数辅助(编译不过:无法把
+    // @local! 实参传 @local! 形参)、纯 byte 手工拼接(numberToString 为包内
+    // plain 侧,无法在 @local? 域调用)。恢复前提 = Option 登记的三项编译器修复;
+    // 成功路径参考 Ordering(直接 return 字面量)/CString(纯字节拷贝,零 append)。
+    // 注:appendUnit 辅助保留在文件尾(extend StringBuilder 后),修复后可直接复用。
 
     /**
      * Obtain the hash value of the current Duration instance.
@@ -237,6 +246,15 @@ public struct Duration <: ToString & Hashable & Comparable<Duration> {
      * @return Int64 - Hash value of the current Duration instance.
      */
     public func hashCode(): Int64 {
+        var dfh: DefaultHasher = DefaultHasher()
+        dfh.write(this.sec)
+        dfh.write(this.ns)
+        dfh.finish()
+    }
+
+    // local-mode @local? 覆写(2026-09-18 补齐 G8):NEW-R1 修复后 DefaultHasher
+    // 的 local 分配可用;移除 09-15 的暂缓登记。
+    public func hashCode(this @local?): Int64 {
         var dfh: DefaultHasher = DefaultHasher()
         dfh.write(this.sec)
         dfh.write(this.ns)
@@ -838,6 +856,16 @@ extend StringBuilder {
             this.append(unit)
         }
         return this
+    }
+}
+
+// local-mode 辅助（2026-09-17):extend StringBuilder 的 append(num, unit) 是
+// 非 exclave 成员,不能在 @local? 上下文调用(NEW-R1 同款 call-prelude 风险),
+// 抽成包内 exclave 自由函数,接收者/字符串均经参数传递。
+exclave func appendUnit(sb: StringBuilder @local!, num: Int64, unit: String @local?): Unit {
+    if (num != 0) {
+        sb.appendValue<Int64>(num)
+        sb.appendString(unit)
     }
 }
 

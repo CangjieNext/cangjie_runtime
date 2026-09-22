@@ -36,7 +36,7 @@ public interface InputStream {
      */
     func read(buffer: Array<Byte>): Int64
     func read(buffer: Array<Byte> @local!): Int64 {
-        throw Exception()
+        throw UnImplementedException("local-mode default implementation not overridden")
     }
 }
 
@@ -51,7 +51,7 @@ public interface OutputStream {
      */
     func write(buffer: Array<Byte>): Unit
     func write(this @local!, buffer: Array<Byte> @local!): Unit {
-        throw Exception()
+        throw UnImplementedException("local-mode default implementation not overridden")
     }
 
     /**
@@ -78,7 +78,7 @@ public interface Seekable {
      */
     func seek(sp: SeekPosition): Int64
     func seek(this @local!, sp: SeekPosition): Int64 {
-        throw Exception()
+        throw UnImplementedException("local-mode default implementation not overridden")
     }
 
     /**

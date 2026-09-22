@@ -933,8 +933,11 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
         return false
     }
 
+    // local-mode @local? contains（C1 修复后恢复；2026-09-14）
+    // 与 plain contains 同一探测链；差异仅在 key 以 @local? 参与比较，
+    // hashCode/== 均走类型的 @local? 覆写（Hashable/Equatable 适配层已提供）。
     @Frozen
-    public exclave func contains(this @local!, key: K @local!): Bool {
+    public func contains(this @local?, key: K @local?): Bool {
         if (appendIndex - freeSize == 0) {
             return false
         }

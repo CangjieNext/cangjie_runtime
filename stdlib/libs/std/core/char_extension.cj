@@ -311,4 +311,45 @@ extend Rune <: Comparable<Rune> {
             case _ => Ordering.EQ
         }
     }
+
+    // @local? 覆写（2026-09-15 补齐 G1）：泛型 T @local? 比较分派需要具体类型提供本签名条目
+    public func compare(this @local?, other: Rune @local?): Ordering {
+        let a: Rune = this
+        let b: Rune = other
+        match {
+            case a < b => Ordering.LT
+            case a > b => Ordering.GT
+            case _ => Ordering.EQ
+        }
+    }
+    public operator func ==(this @local?, other: Rune @local?): Bool {
+        let a: Rune = this
+        let b: Rune = other
+        a == b
+    }
+    public operator func !=(this @local?, other: Rune @local?): Bool {
+        let a: Rune = this
+        let b: Rune = other
+        a != b
+    }
+    public operator func <(this @local?, other: Rune @local?): Bool {
+        let a: Rune = this
+        let b: Rune = other
+        a < b
+    }
+    public operator func >(this @local?, other: Rune @local?): Bool {
+        let a: Rune = this
+        let b: Rune = other
+        a > b
+    }
+    public operator func <=(this @local?, other: Rune @local?): Bool {
+        let a: Rune = this
+        let b: Rune = other
+        a <= b
+    }
+    public operator func >=(this @local?, other: Rune @local?): Bool {
+        let a: Rune = this
+        let b: Rune = other
+        a >= b
+    }
 }

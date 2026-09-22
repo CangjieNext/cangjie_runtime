@@ -58,6 +58,12 @@ public enum Option<T> {
         }
     }
 
+    /*
+     * @throws NoneValueException if the value of Option is None
+     */
+    /*
+     * @throws input Exception if the value of Option is None
+     */
     public func map<R>(transform: (T) -> R): Option<R> {
         match (this) {
             case Some(v) => Some(transform(v))
@@ -118,10 +124,28 @@ extend<T> Option<T> <: ToString where T <: ToString {
             case None => "None"
         }
     }
+    // local-mode @local? toString【暂缓登记 2026-09-17,实测复现】:
+    // 实现"exclave + StringBuilder @local! + append(v)"后运行即 StackOverflowError:
+    //   (a) sb.append(v)/append(字面量) 的参数传递触发编译器 call-prelude 装箱
+    //       (NEW-R1 同族),装箱的 MCC_NewLocalObject 分配失败重试耗尽 CJ 栈;
+    //   (b) String 字面量→String @local! 的隐式转换函数生成为无界自递归
+    //       (gdb 实测 0x60a44→0x60bc0→0x60a44 无限深帧);
+    //   (c) 泛型 T @local? 上的 v.toString() 分派落错 vtable(NEW-C1 残余)。
+    // 对照:Array.toString(this @local?) 同模板当前编译器亦崩(2026-09-17 实测,
+    // 0914 SDK 同)——该缺陷先于本登记存在。恢复前提 = (a)(b) 修复;
+    // 参考 Ordering/CString 的成功路径(直接 return 字面量 / 纯字节拷贝,零 append)。
 }
 
 extend<T> Option<T> <: Hashable where T <: Hashable {
     public func hashCode(): Int64 {
+        return match (this) {
+            case Some(v) => v.hashCode()
+            case None => 0
+        }
+    }
+
+    // local-mode @local? 覆写(2026-09-18 补齐 G8):NEW-R1 修复后 local 分配可用。
+    public func hashCode(this @local?): Int64 {
         return match (this) {
             case Some(v) => v.hashCode()
             case None => 0

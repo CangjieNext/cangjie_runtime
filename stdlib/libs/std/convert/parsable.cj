@@ -35,7 +35,7 @@ public interface Parsable<T> {
      */
     static func parse(value: String): T
     static func parse(value: String @local?): T {
-        throw Exception()
+        throw UnImplementedException("Current Type does not implement 'parse' method for its @local? instance")
     }
 
     /**
