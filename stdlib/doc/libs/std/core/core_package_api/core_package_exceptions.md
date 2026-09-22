@@ -1283,6 +1283,100 @@ main() {
 }
 ```
 
+## class UnImplementedException
+
+```cangjie
+public class UnImplementedException <: Exception {
+    public init()
+    public init(message: String)
+}
+```
+
+功能：local mode 适配的默认实现抛出的异常，表示当前类型尚未提供显式的 `@local!` 或 `@local?` 重载。
+
+该异常是接口级 local mode 适配的标准兜底实现（如 [ToString](core_package_interfaces.md#interface-tostring) 的 `toString(this @local?)`、[Iterable](core_package_interfaces.md#interface-iterablee) 的 `iterator(this @local!/?)`、[Iterator](core_package_classes.md#class-iteratort) 的 `next(this @local!/?` 等）。当具体类型未覆写对应的 local mode 方法时，默认实现将抛出 `UnImplementedException`，以便开发者立即获知缺失适配的类型、方法与模式。
+
+父类型：
+
+- [Exception](#class-exception)
+
+### init()
+
+```cangjie
+public init()
+```
+
+功能：构造一个默认的 [UnImplementedException](core_package_exceptions.md#class-unimplementedexception) 实例，默认异常信息为 "UnImplementedException"。
+
+示例：
+
+<!-- run -->
+```cangjie
+main() {
+    // 使用默认构造函数创建UnImplementedException实例
+    let exception = UnImplementedException()
+}
+```
+
+### init(String)
+
+```cangjie
+public init(message: String)
+```
+
+功能：根据指定异常信息构造 [UnImplementedException](core_package_exceptions.md#class-unimplementedexception) 实例。
+
+参数：
+
+- message: [String](core_package_structs.md#struct-string) - 异常提示信息。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    try {
+        throw UnImplementedException("test message")
+    } catch (e: UnImplementedException) {
+        println("caught: ${e.message}")
+        println("cls: ${e.getClassName()}")
+    }
+}
+```
+
+运行结果：
+
+```text
+caught: test message
+cls: UnImplementedException
+```
+
+### func getClassName()
+
+```cangjie
+public override func getClassName(): String
+```
+
+功能：获得类名。
+
+返回值：
+
+- [String](core_package_structs.md#struct-string) - 类名 "UnImplementedException"。
+
+示例：
+
+<!-- code_no_check -->
+```cangjie
+// 此示例只做展示，假设抛出 UnImplementedException
+main() {
+    try {
+        // 假设某个 @local? 接口默认实现被调用
+    } catch (e: UnImplementedException) {
+        println(e.getClassName())
+    }
+}
+```
+
 ## class UnsupportedException
 
 ```cangjie

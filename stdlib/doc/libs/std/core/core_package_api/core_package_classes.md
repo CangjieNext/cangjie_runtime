@@ -527,6 +527,41 @@ box3 hashCode: 100
 box1 and box2 have same hashCode: true
 ```
 
+#### func hashCode(this @local?)
+
+```cangjie
+public func hashCode(this @local?): Int64
+```
+
+功能：计算当前 `@local?` [Box](core_package_classes.md#class-boxt) 对象的哈希值。
+
+实际上该值为 [Box](core_package_classes.md#class-boxt) 中封装的 `T` 类型实例的哈希值。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+
+返回值：
+
+- [Int64](core_package_intrinsics.md#int64) - 当前 [Box](core_package_classes.md#class-boxt) 对象的哈希值。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let b: Box<Int64> @local? = Box(42)
+    let h = b.hashCode()
+    println("h=${h}")
+}
+```
+
+运行结果：
+
+```text
+h=42
+```
+
 ### extend\<T> Box\<T> <: ToString where T <: ToString
 
 ```cangjie
@@ -831,6 +866,22 @@ public class MyIterator<T> <: Iterator<T> {
 抽象的子类完成了初始化
 ```
 
+### init(this @local!)
+
+```cangjie
+public exclave init(this @local!)
+```
+
+功能：在 local region 中构造一个 `@local!` 的 [Iterator](core_package_classes.md#class-iteratort)\<T> 对象。
+
+### init(this @local?)
+
+```cangjie
+public exclave init(this @local?)
+```
+
+功能：在 local region 中构造一个 `@local?` 的 [Iterator](core_package_classes.md#class-iteratort)\<T> 对象。
+
 ### func iterator()
 
 ```cangjie
@@ -878,6 +929,38 @@ Iterators are the same object
 打印迭代器 iter2 的第四个元素: None
 ```
 
+### func iterator(this @local!)
+
+```cangjie
+public func iterator(this @local!): Iterator<T> @local!
+```
+
+功能：返回迭代器自身，返回值保持 `@local!` 模式。
+
+参数：
+
+- this @local! - 接收者为 `@local!` 实例。
+
+返回值：
+
+- [Iterator](core_package_classes.md#class-iteratort)\<T> @local! - 迭代器自身。
+
+### func iterator(this @local?)
+
+```cangjie
+public func iterator(this @local?): Iterator<T> @local?
+```
+
+功能：返回迭代器自身，返回值保持 `@local?` 模式。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+
+返回值：
+
+- [Iterator](core_package_classes.md#class-iteratort)\<T> @local? - 迭代器自身。
+
 ### func next()
 
 ```cangjie
@@ -918,6 +1001,42 @@ main(): Int64 {
 4
 5
 ```
+
+### func next(this @local!)
+
+```cangjie
+public open func next(this @local!): ?T @local!
+```
+
+功能：获取迭代过程中的下一个 `@local!` 元素。
+
+该函数是 local mode 适配的默认实现，未覆写时抛出 [UnImplementedException](core_package_exceptions.md#class-unimplementedexception)。
+
+参数：
+
+- this @local! - 接收者为 `@local!` 实例。
+
+返回值：
+
+- [Option](core_package_enums.md#enum-optiont)\<T> @local! - 迭代过程中的下一个元素。
+
+### func next(this @local?)
+
+```cangjie
+public open func next(this @local?): ?T @local?
+```
+
+功能：获取迭代过程中的下一个 `@local?` 元素。
+
+该函数是 local mode 适配的默认实现，未覆写时抛出 [UnImplementedException](core_package_exceptions.md#class-unimplementedexception)。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+
+返回值：
+
+- [Option](core_package_enums.md#enum-optiont)\<T> @local? - 迭代过程中的下一个元素。
 
 ### extend\<T> Iterator\<T>
 
@@ -2102,6 +2221,8 @@ true
 ```cangjie
 public open class Object <: Any {
     public const init()
+    public exclave const init(this @local!)
+    public exclave const init(this @local?)
 }
 ```
 
@@ -2128,6 +2249,22 @@ main(): Int64 {
     return 0
 }
 ```
+
+### init(this @local!)
+
+```cangjie
+public exclave const init(this @local!)
+```
+
+功能：在 local region 中构造一个 `object` 实例。
+
+### init(this @local?)
+
+```cangjie
+public exclave const init(this @local?)
+```
+
+功能：在 local region 中构造一个 `@local?` 的 `object` 实例。
 
 ## class RangeIterator\<T> <: Iterator\<T> where T <: Countable\<T> & Comparable\<T> & Equatable\<T>
 

@@ -575,6 +575,60 @@ func toArray(): Array<T>
 
 - [Array](core_package_structs.md#struct-arrayt)\<T> - 转换得到的数组。
 
+### func isEmpty(this @local?)
+
+```cangjie
+func isEmpty(this @local?): Bool
+```
+
+功能：判断当前 `@local?` 集合是否为空。
+
+该函数是 local mode 适配的默认实现，未覆写时抛出 [UnImplementedException](core_package_exceptions.md#class-unimplementedexception)。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果为空返回 true，否则返回 false。
+
+### func toArray(this @local?)
+
+```cangjie
+func toArray(this @local?): Array<T> @local?
+```
+
+功能：将当前 `@local?` 集合转为 `@local?` 数组类型。
+
+该函数是 local mode 适配的默认实现，未覆写时抛出 [UnImplementedException](core_package_exceptions.md#class-unimplementedexception)。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+
+返回值：
+
+- [Array](core_package_structs.md#struct-arrayt)\<T> @local? - 转换得到的 `@local?` 数组。
+
+### func toArray(this @local!)
+
+```cangjie
+func toArray(this @local!): Array<T> @local!
+```
+
+功能：将当前 `@local!` 集合转为 `@local!` 数组类型。
+
+该函数是 local mode 适配的默认实现，未覆写时抛出 [UnImplementedException](core_package_exceptions.md#class-unimplementedexception)。
+
+参数：
+
+- this @local! - 接收者为 `@local!` 实例。
+
+返回值：
+
+- [Array](core_package_structs.md#struct-arrayt)\<T> @local! - 转换得到的 `@local!` 数组。
+
 ## interface Comparable\<T>
 
 ```cangjie
@@ -691,6 +745,110 @@ operator func >=(other: T): Bool
 参数：
 
 - other: T - 待与当前实例比较的另一个实例。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果大于等于，返回 true，否则返回 false。
+
+### func compare(this @local?, T @local?)
+
+```cangjie
+func compare(this @local?, other: T @local?): Ordering
+```
+
+功能：判断当前 `@local?` 实例与参数指定的 `@local?` 实例的大小关系。
+
+该函数是 local mode 适配的默认实现，未覆写时抛出 [UnImplementedException](core_package_exceptions.md#class-unimplementedexception)。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+- other: T @local? - 待比较的另一个 `@local?` 实例。
+
+返回值：
+
+- [Ordering](core_package_enums.md#enum-ordering) - 大小比较结果。
+
+### func ==(this @local?, T @local?)
+
+```cangjie
+operator func ==(this @local?, other: T @local?): Bool
+```
+
+功能：判断当前 `@local?` 实例与参数指定的 `@local?` 实例是否相等，该函数是此接口的 `@local?` 默认实现函数，基于 `compare(this @local?, other @local?)` 的返回值确定结果。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+- other: T @local? - 待比较的另一个 `@local?` 实例。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
+
+### func <(this @local?, T @local?)
+
+```cangjie
+operator func <(this @local?, other: T @local?): Bool
+```
+
+功能：判断当前 `@local?` 实例是否小于参数指定的 `@local?` 实例，该函数是此接口的 `@local?` 默认实现函数。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+- other: T @local? - 待比较的另一个 `@local?` 实例。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果小于，返回 true，否则返回 false。
+
+### func >(this @local?, T @local?)
+
+```cangjie
+operator func >(this @local?, other: T @local?): Bool
+```
+
+功能：判断当前 `@local?` 实例是否大于参数指定的 `@local?` 实例，该函数是此接口的 `@local?` 默认实现函数。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+- other: T @local? - 待比较的另一个 `@local?` 实例。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果大于，返回 true，否则返回 false。
+
+### func <=(this @local?, T @local?)
+
+```cangjie
+operator func <=(this @local?, other: T @local?): Bool
+```
+
+功能：判断当前 `@local?` 实例是否小于等于参数指定的 `@local?` 实例，该函数是此接口的 `@local?` 默认实现函数。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+- other: T @local? - 待比较的另一个 `@local?` 实例。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果小于等于，返回 true，否则返回 false。
+
+### func >=(this @local?, T @local?)
+
+```cangjie
+operator func >=(this @local?, other: T @local?): Bool
+```
+
+功能：判断当前 `@local?` 实例是否大于等于参数指定的 `@local?` 实例，该函数是此接口的 `@local?` 默认实现函数。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+- other: T @local? - 待比较的另一个 `@local?` 实例。
 
 返回值：
 
@@ -912,6 +1070,42 @@ operator func ==(other: T): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
 
+### operator func ==(this @local!, T @local!)
+
+```cangjie
+operator func ==(this @local!, other: T @local!): Bool
+```
+
+功能：判断当前 `@local!` 实例与指定 `@local!` 实例是否相等。
+
+该函数是 local mode 适配的默认实现，未覆写时抛出 [UnImplementedException](core_package_exceptions.md#class-unimplementedexception)。
+
+参数：
+
+- other: T @local! - 待比较的另一个 `@local!` 实例。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
+
+### operator func ==(this @local?, T @local!)
+
+```cangjie
+operator func ==(this @local?, other: T @local?): Bool
+```
+
+功能：判断当前 `@local?` 实例与指定 `@local?` 实例是否相等。
+
+该函数是 local mode 适配的默认实现，未覆写时抛出 [UnImplementedException](core_package_exceptions.md#class-unimplementedexception)。
+
+参数：
+
+- other: T @local? - 待比较的另一个 `@local?` 实例。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
+
 ## interface Equatable\<T>
 
 ```cangjie
@@ -942,6 +1136,42 @@ operator func !=(other: T): Bool
 参数：
 
 - other: T - 待比较的另一个实例。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
+
+### operator func !=(this @local!, T @local!)
+
+```cangjie
+operator func !=(this @local!, other: T @local!): Bool
+```
+
+功能：判断当前 `@local!` 实例与指定 `@local!` 实例是否不相等。
+
+该函数是 local mode 适配的默认实现，未覆写时抛出 [UnImplementedException](core_package_exceptions.md#class-unimplementedexception)。
+
+参数：
+
+- other: T @local! - 待比较的另一个 `@local!` 实例。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
+
+### operator func !=(this @local?, T @local!)
+
+```cangjie
+operator func !=(this @local?, other: T @local?): Bool
+```
+
+功能：判断当前 `@local?` 实例与指定 `@local?` 实例是否不相等。
+
+该函数是 local mode 适配的默认实现，未覆写时抛出 [UnImplementedException](core_package_exceptions.md#class-unimplementedexception)。
+
+参数：
+
+- other: T @local? - 待比较的另一个 `@local?` 实例。
 
 返回值：
 
@@ -1018,6 +1248,24 @@ func hashCode(): Int64
 ```
 
 功能：获得实例类型的哈希值。
+
+返回值：
+
+- [Int64](core_package_intrinsics.md#int64) - 返回实例类型的哈希值。
+
+### func hashCode(this @local?)
+
+```cangjie
+func hashCode(this @local?): Int64
+```
+
+功能：计算当前 `@local?` 实例的哈希值。
+
+该函数是 local mode 适配的默认实现，未覆写时抛出 [UnImplementedException](core_package_exceptions.md#class-unimplementedexception)。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
 
 返回值：
 
@@ -1262,6 +1510,42 @@ func iterator(): Iterator<E>
 
 - [Iterator](core_package_classes.md#class-iteratort)\<E> - 迭代器。
 
+### func iterator(this @local!)
+
+```cangjie
+func iterator(this @local!): Iterator<E> @local!
+```
+
+功能：获取当前 `@local!` 实例的迭代器，返回的迭代器与当前实例绑定在同一个 local region 中。
+
+该函数是 local mode 适配的默认实现，未覆写时抛出 [UnImplementedException](core_package_exceptions.md#class-unimplementedexception)。
+
+参数：
+
+- this @local! - 接收者为 `@local!` 实例。
+
+返回值：
+
+- [Iterator](core_package_classes.md#class-iteratort)\<E> @local! - 迭代器。
+
+### func iterator(this @local?)
+
+```cangjie
+func iterator(this @local?): Iterator<E> @local?
+```
+
+功能：获取当前 `@local?` 实例的迭代器，返回的迭代器与当前实例绑定在同一个 local region 中。
+
+该函数是 local mode 适配的默认实现，未覆写时抛出 [UnImplementedException](core_package_exceptions.md#class-unimplementedexception)。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+
+返回值：
+
+- [Iterator](core_package_classes.md#class-iteratort)\<E> @local? - 迭代器。
+
 ## interface Less\<T>
 
 ```cangjie
@@ -1429,3 +1713,21 @@ func toString(): String
 返回值：
 
 - [String](core_package_structs.md#struct-string) - 返回实例类型的字符串表示。
+
+### func toString(this @local?)
+
+```cangjie
+func toString(this @local?): String @local!
+```
+
+功能：将当前 `@local?` 实例转换为可输出的字符串，返回的字符串与当前实例绑定在同一个 local region 中。
+
+该函数是 local mode 适配的默认实现，未覆写时抛出 [UnImplementedException](core_package_exceptions.md#class-unimplementedexception)；具体类型（如 [String](core_package_structs.md#struct-string)、[Array](core_package_structs.md#struct-arrayt)\<T>、数值类型等）已提供 `@local?` 覆写实现。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+
+返回值：
+
+- [String](core_package_structs.md#struct-string) @local! - 返回实例类型的字符串表示。
