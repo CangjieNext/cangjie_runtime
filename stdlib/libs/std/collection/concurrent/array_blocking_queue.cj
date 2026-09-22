@@ -12,22 +12,22 @@ import std.sync.*
 import std.time.*
 
 /**
- * Performance optimization note:
- * The previous implementation kept the per-slot state in a `CPointer<UInt8>`
- * array that was manipulated through `@FastNative` foreign functions
- * (`CjStdSyncStateLoad/Store/Cas`). Every enqueue/dequeue paid several
- * cross-language (Cangjie -> C) calls, which dominated the cost in tight
- * producer/consumer loops.
- *
- * This version stores the per-slot state directly in an
- * `Array<AtomicUInt64>` and uses the native, inlinable atomic intrinsics of
- * `std.sync`. The locking algorithm (round-bit based MPMC ring buffer) is
- * unchanged; only the storage backend of the slot state is replaced, which
- * removes the foreign-function call overhead from the hot path.
- *
- * The lower 8 bits of each `AtomicUInt64` hold the original 3-bit slot state
- * (`STATE_BITS` + `ROUND_BIT`), exactly as before.
+ * In ArrayBlockingQueue, 'state' array is defined as a C array.
+ * state_init is a foreign function to assign 0 to all elements in 'state'.
+ * state_load, state_store and state_compareAndSwap are foreign functions to operate array 'state'.
  */
+@FastNative
+foreign func CjStdSyncStateInit(capacity: Int64): CPointer<UInt8>
+
+@FastNative
+foreign func CjStdSyncStateLoad(ptr: CPointer<UInt8>, index: Int64): UInt8
+
+@FastNative
+foreign func CjStdSyncStateStore(ptr: CPointer<UInt8>, index: Int64, state: UInt8): Unit
+
+@FastNative
+foreign func CjStdSyncStateCas(ptr: CPointer<UInt8>, index: Int64, expectedState: UInt8, desiredState: UInt8): Bool
+
 const STATE_BITS: UInt8 = 3
 const ROUND_BIT: UInt8 = 2
 
@@ -54,10 +54,10 @@ const LOCK_ODD: UInt8 = (1 << ROUND_BIT) | LOCK
 public class ArrayBlockingQueue<E> {
     public let capacity: Int64 // the capacity of the queue
     let buffer: Array<E> // buffer to store the elements in the queue
-    let state: Array<AtomicUInt64> // per-slot state (lower 8 bits used), native atomics
+    let state: CPointer<UInt8> // the state of the corresponding place in the buffer
 
-    let allocated = AtomicUInt64(0) // index in buffer for the next producer
-    let reserved = AtomicUInt64(0) // index in buffer for the next consumer
+    let allocated: AtomicUInt64 = AtomicUInt64(0) // index in buffer for the next producer
+    let reserved: AtomicUInt64 = AtomicUInt64(0) // index in buffer for the next consumer
     let sendQSize = AtomicUInt64(0) // Number of elements that are enqueuing
     let receiveQSize = AtomicUInt64(0) // Number of elements that are being dequeued
     let sendMonitor = Monitor() // Monitor for blocking the fail receivers
@@ -72,7 +72,11 @@ public class ArrayBlockingQueue<E> {
 
         this.capacity = capacity
         buffer = Array(capacity, repeat: unsafe { zeroValue<E>() })
-        state = Array<AtomicUInt64>(capacity, { _ => AtomicUInt64(UInt64(WRITEABLE_EVEN)) })
+        state = unsafe { CjStdSyncStateInit(capacity) }
+        if (state.isNull()) {
+            throw IllegalMemoryException("Failed to allocate memory for capacity '${capacity}'.")
+        }
+
         unsignedCapacity = UInt64(capacity)
     }
 
@@ -88,12 +92,20 @@ public class ArrayBlockingQueue<E> {
 
         this.capacity = capacity
         buffer = Array(capacity, repeat: unsafe { zeroValue<E>() })
-        state = Array<AtomicUInt64>(capacity, { _ => AtomicUInt64(UInt64(WRITEABLE_EVEN)) })
+        state = unsafe { CjStdSyncStateInit(capacity) }
+        if (state.isNull()) {
+            throw IllegalMemoryException("Failed to allocate memory for capacity '${capacity}'.")
+        }
+
         unsignedCapacity = UInt64(capacity)
 
         for (e in elements) {
             tryEnqueue(e)
         }
+    }
+
+    ~init() {
+        unsafe { LibC.free(state) }
     }
 
     /**
@@ -136,7 +148,7 @@ public class ArrayBlockingQueue<E> {
         receiveMonitor.lock()
         sendQSize.fetchAdd(1)
         if (isFull()) {
-            let _ = receiveMonitor.wait()
+            receiveMonitor.wait()
         }
         sendQSize.fetchSub(1)
         receiveMonitor.unlock()
@@ -146,7 +158,7 @@ public class ArrayBlockingQueue<E> {
         receiveMonitor.lock()
         let startTime = MonoTime.now()
         sendQSize.fetchAdd(1)
-        let _ = receiveMonitor.wait(timeout: timeout)
+        receiveMonitor.wait(timeout: timeout)
         sendQSize.fetchSub(1)
         let endTime = MonoTime.now()
         receiveMonitor.unlock()
@@ -196,10 +208,11 @@ public class ArrayBlockingQueue<E> {
     }
 
     private func waitForReadableSlot(): Unit {
+
         sendMonitor.lock()
         receiveQSize.fetchAdd(1)
         if (size == 0) {
-            let _ = sendMonitor.wait()
+            sendMonitor.wait()
         }
         receiveQSize.fetchSub(1)
         sendMonitor.unlock()
@@ -209,7 +222,7 @@ public class ArrayBlockingQueue<E> {
         sendMonitor.lock()
         let startTime = MonoTime.now()
         receiveQSize.fetchAdd(1)
-        let _ = sendMonitor.wait(timeout: timeout)
+        sendMonitor.wait(timeout: timeout)
         receiveQSize.fetchSub(1)
         let endTime = MonoTime.now()
         sendMonitor.unlock()
@@ -252,17 +265,17 @@ public class ArrayBlockingQueue<E> {
         while (true) {
             let roundIndex = reserved.load() // LP: if returns 'None<E>'
             let index = getIndex(roundIndex)
-            let roundState = UInt8(state[index].load())
+            let roundState = unsafe { CjStdSyncStateLoad(state, index) }
             let roundBit = roundState >> ROUND_BIT
 
             if ((roundState & STATE_BITS) == READABLE) {
-                if (state[index].compareAndSwap(UInt64(roundState), UInt64(lockState(roundBit)))) {
+                if (unsafe { CjStdSyncStateCas(state, index, roundState, lockState(roundBit)) }) {
                     if (reserved.load() == roundIndex) { // LP: if returns 'Some(e)'
                         let e = buffer[index]
-                        state[index].store(UInt64(roundState))
+                        unsafe { CjStdSyncStateStore(state, index, roundState) }
                         return Some(e)
                     } else {
-                        state[index].store(UInt64(roundState))
+                        unsafe { CjStdSyncStateStore(state, index, roundState) }
                     }
                 }
             } else if (roundIndex >= allocated.load()) {
@@ -293,7 +306,7 @@ public class ArrayBlockingQueue<E> {
             let roundIndex = allocated.load() // LP: if returns 'false'
             let round = getRound(roundIndex)
             let index = getIndex(roundIndex)
-            let roundState = UInt8(state[index].load())
+            let roundState = unsafe { CjStdSyncStateLoad(state, index) }
             let roundBit = roundState >> ROUND_BIT
 
             if (matchState(round, roundBit, roundState & STATE_BITS, WRITEABLE)) {
@@ -302,7 +315,7 @@ public class ArrayBlockingQueue<E> {
                 }
 
                 buffer[index] = element
-                state[index].store(UInt64(readableState(roundBit)))
+                unsafe { CjStdSyncStateStore(state, index, readableState(roundBit)) }
 
                 if (receiveQSize.load() != 0) {
                     sendMonitor.lock()
@@ -336,7 +349,7 @@ public class ArrayBlockingQueue<E> {
             let roundIndex = reserved.load() // LP: if returns 'None<E>'
             let round = getRound(roundIndex)
             let index = getIndex(roundIndex)
-            let roundState = UInt8(state[index].load())
+            let roundState = unsafe { CjStdSyncStateLoad(state, index) }
             let roundBit = roundState >> ROUND_BIT
 
             if (matchState(round, roundBit, roundState & STATE_BITS, READABLE)) {
@@ -346,11 +359,7 @@ public class ArrayBlockingQueue<E> {
 
                 let e = buffer[index]
                 buffer[index] = unsafe { zeroValue<E>() }
-                // The consumer now exclusively owns slot `index` (it has reserved
-                // `reserved`), so no other thread can be transitioning this slot's
-                // state. A plain store (instead of a CAS loop) is therefore safe
-                // and avoids an unnecessary atomic RMW on the dequeue hot path.
-                state[index].store(UInt64(writeableState(roundBit)))
+                while (!unsafe { CjStdSyncStateCas(state, index, roundState, writeableState(roundBit)) }) {}
 
                 if (sendQSize.load() != 0) {
                     receiveMonitor.lock()

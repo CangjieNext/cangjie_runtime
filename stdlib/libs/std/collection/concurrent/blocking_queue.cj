@@ -33,6 +33,11 @@ public type BlockingQueue<E> = LinkedBlockingQueue<E>
  * (producers) or empty (consumers), and to deliver the wake-up signal. This
  * decouples producers from consumers on the hot path and removes the per-op
  * monitor round-trips.
+ *
+ * IMPORTANT: signalNotEmpty / signalNotFull are called AFTER releasing the
+ * putMonitor / takeMonitor to avoid ABBA deadlock (add holds putMonitor and
+ * would acquire takeMonitor via signalNotEmpty, while remove holds takeMonitor
+ * and would acquire putMonitor via signalNotFull).
  */
 public class LinkedBlockingQueue<E> {
     public let capacity: Int64 // the capacity of the queue
@@ -127,17 +132,22 @@ public class LinkedBlockingQueue<E> {
     }
 
     public func add(element: E): Unit {
+        // 无锁快路径：直接尝试入队
         if (tryAdd(element)) {
+            // 入队成功后在锁外通知消费者，避免 putMonitor→takeMonitor 交叉加锁死锁
+            signalNotEmpty()
             return
         }
         putMonitor.lock()
         try {
-            while (!tryAdd(element)) {
+            while (!tryAddLocked(element)) {
                 let _ = putMonitor.wait()
             }
         } finally {
             putMonitor.unlock()
         }
+        // 锁已释放，安全通知消费者
+        signalNotEmpty()
     }
 
     /**
@@ -157,15 +167,18 @@ public class LinkedBlockingQueue<E> {
     }
 
     public func add(element: E, timeout: Duration): Bool {
+        // 无锁快路径
         if (tryAdd(element)) {
+            signalNotEmpty()
             return true
         }
         putMonitor.lock()
         try {
             var remaining = timeout
             while (true) {
-                if (tryAdd(element)) {
-                    return true
+                if (tryAddLocked(element)) {
+                    // 在 finally 释放锁后通知
+                    break
                 }
                 if (remaining <= Duration.Zero) {
                     return false
@@ -178,6 +191,8 @@ public class LinkedBlockingQueue<E> {
         } finally {
             putMonitor.unlock()
         }
+        signalNotEmpty()
+        return true
     }
 
     /**
@@ -196,13 +211,18 @@ public class LinkedBlockingQueue<E> {
     }
 
     public func remove(): E {
+        // 无锁快路径
         if (let Some(e) <- tryRemove()) {
+            signalNotFull()
             return e
         }
         takeMonitor.lock()
         try {
             while (true) {
-                if (let Some(e) <- tryRemove()) {
+                if (let Some(e) <- tryRemoveLocked()) {
+                    // 在 finally 释放锁后通知
+                    takeMonitor.unlock()
+                    signalNotFull()
                     return e
                 }
                 let _ = takeMonitor.wait()
@@ -210,7 +230,6 @@ public class LinkedBlockingQueue<E> {
         } finally {
             takeMonitor.unlock()
         }
-        throw Exception("Unreachable code.")
     }
 
     /**
@@ -229,15 +248,21 @@ public class LinkedBlockingQueue<E> {
     }
 
     public func remove(timeout: Duration): Option<E> {
+        // 无锁快路径
         if (let Some(e) <- tryRemove()) {
+            signalNotFull()
             return Some(e)
         }
+        var success = false
+        var result: Option<E> = None<E>
         takeMonitor.lock()
         try {
             var remaining = timeout
             while (true) {
-                if (let Some(e) <- tryRemove()) {
-                    return Some(e)
+                if (let Some(e) <- tryRemoveLocked()) {
+                    result = Some(e)
+                    success = true
+                    break
                 }
                 if (remaining <= Duration.Zero) {
                     return None<E>
@@ -250,6 +275,10 @@ public class LinkedBlockingQueue<E> {
         } finally {
             takeMonitor.unlock()
         }
+        if (success) {
+            signalNotFull()
+        }
+        return result
     }
 
     /**
@@ -295,24 +324,31 @@ public class LinkedBlockingQueue<E> {
         return tryAdd(element)
     }
 
+    // 无锁快路径版 tryAdd：不在任何 Monitor 锁内调用
     public func tryAdd(element: E): Bool {
-        // Reserve a slot without holding any lock. The CAS bounds the number of
-        // in-flight elements to `capacity`.
         while (true) {
             let r = reserved.load()
             if (r >= capacity) {
                 return false
             }
             if (reserved.compareAndSwap(r, r + 1)) {
-                break
+                enqueueUnsafe(element)
+                count.fetchAdd(1)
+                return true
             }
         }
+    }
 
-        enqueueUnsafe(element)
-        let prevCount = count.fetchAdd(1)
-        if (prevCount == 0) {
-            signalNotEmpty()
+    // 锁内版 tryAdd：已在 putMonitor 保护下，只做 CAS + 入队，不发送信号
+    private func tryAddLocked(element: E): Bool {
+        let r = reserved.load()
+        if (r >= capacity) {
+            return false
         }
+        // 锁内无需 CAS 循环，putMonitor 已保证串行
+        reserved.fetchAdd(1)
+        enqueueUnsafe(element)
+        count.fetchAdd(1)
         return true
     }
 
@@ -329,6 +365,7 @@ public class LinkedBlockingQueue<E> {
         return tryRemove()
     }
 
+    // 无锁快路径版 tryRemove：不在任何 Monitor 锁内调用
     public func tryRemove(): Option<E> {
         while (true) {
             let c = count.load()
@@ -338,13 +375,22 @@ public class LinkedBlockingQueue<E> {
             if (count.compareAndSwap(c, c - 1)) {
                 let value = dequeueUnsafe()
                 reserved.fetchSub(1)
-                if (c == capacity) {
-                    signalNotFull()
-                }
                 return Some(value)
             }
         }
-        return None<E>
+    }
+
+    // 锁内版 tryRemove：已在 takeMonitor 保护下，只做 CAS + 出队，不发送信号
+    private func tryRemoveLocked(): Option<E> {
+        let c = count.load()
+        if (c == 0) {
+            return None<E>
+        }
+        // 锁内无需 CAS 循环，takeMonitor 已保证串行
+        count.fetchSub(1)
+        let value = dequeueUnsafe()
+        reserved.fetchSub(1)
+        return Some(value)
     }
 
     private func enqueueUnsafe(element: E): Unit {
