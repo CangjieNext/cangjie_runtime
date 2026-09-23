@@ -34,6 +34,8 @@ function(make_cangjie_lib target_name)
 
     set(clang_compiler "${CMAKE_C_COMPILER}")
     if(OHOS)
+        list(APPEND flags_to_compile -z max-page-size=${OHOS_MAX_PAGE_SIZE})
+        list(APPEND flags_to_compile -Bsymbolic-functions)
         list(APPEND flags_to_compile -z relro -z now -z noexecstack)
         # Unfortunately, a bug in library `winpthread` our ld.lld depends causes deadlock occasionally
         # while linking. We disable multi-threading for now until we have a work-around.
@@ -45,6 +47,7 @@ function(make_cangjie_lib target_name)
         set(linker_ld_library_path "$ENV{CANGJIE_HOME}/third_party/llvm/lib")
     elseif(NOT MINGW)
         list(APPEND flags_to_compile "-Wl,-z,relro,-z,now,-z,noexecstack")
+        list(APPEND flags_to_compile "-Wl,-Bsymbolic-functions") 
         if(ANDROID OR CANGJIE_HWASAN_SUPPORT)
             # We need use our lld since we have modification to make it link properly,
             # otherwise it will has false alignment and finally lead to a SEGV when load std-lib.
@@ -281,7 +284,7 @@ function(make_cangjie_lib target_name)
 
         set(link_std_libraries_flag)
         if(ANDROID)
-            list(APPEND link_std_libraries_flag ${ANDROID_16K_LINKER_FLAGS})
+            list(APPEND link_std_libraries_flag ${ANDROID_16K_LINKER_FLAGS} ${ANDROID_4K_LINKER_FLAGS})
         endif()
         foreach(library_name ${CANGJIE_LIBRARY_CANGJIE_STD_LIB_DEPENDS})
             set(lib_link_option "cangjie-${library_name}")
