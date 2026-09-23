@@ -268,6 +268,10 @@ function(add_cangjie_library target_name)
             list(APPEND COMPILE_BC_CMD "-O0")
         else()
             list(APPEND COMPILE_CMD "$<IF:$<CONFIG:MinSizeRel>,-Os,-O2>")
+            # MergeFunctions is opt-in in the compiler; enable it for the release
+            # stdlib build. Not added to COMPILE_BC_CMD (LTO prelink) because the
+            # LTO postlink already merges functions.
+            list(APPEND COMPILE_CMD "--opt-options=-enable-merge-functions")
             # .bc files is for LTO mode and LTO mode does not support -Os and -Oz.
             list(APPEND COMPILE_BC_CMD "-O2")
         endif()
