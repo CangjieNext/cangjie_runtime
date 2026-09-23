@@ -4258,16 +4258,19 @@ main() {
     a.add(5)
     let b: ArrayList<Int64> @local! = ArrayList<Int64>() @local!
     b.add(6)
+    let c: ArrayList<Int64> @local! = ArrayList<Int64>() @local!
+    c.add(5)
     let aq: ArrayList<Int64> @local? = a
-    let bq: ArrayList<Int64> @local? = b
-    println("ne=${aq != bq}")
+    println("ne1=${aq != b}")
+    println("ne2=${aq != c}")
 }
 ```
 
 运行结果：
 
 ```text
-ne=false
+ne1=true
+ne2=false
 ```
 
 #### operator func !=(ArrayList\<T>)

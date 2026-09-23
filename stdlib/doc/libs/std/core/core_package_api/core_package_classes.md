@@ -550,9 +550,9 @@ public func hashCode(this @local?): Int64
 <!-- verify -->
 ```cangjie
 main() {
-    let b: Box<Int64> @local? = Box(42)
-    let h = b.hashCode()
-    println("h=${h}")
+    let arr: Array<Box<Int64>> @local? = [Box<Int64>(42)]
+    let b: Box<Int64> @local? = arr[0]
+    println("h=${b.hashCode()}")
 }
 ```
 

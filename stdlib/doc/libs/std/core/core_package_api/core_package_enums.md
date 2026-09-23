@@ -844,12 +844,12 @@ public func hashCode(this @local?): Int64
 <!-- verify -->
 ```cangjie
 main() {
-    let o: Option<Int64> @local? = Some(5)
-    let h = o.hashCode()
-    println("h=${h}")
-    let n: Option<Int64> @local? = None
-    let h2 = n.hashCode()
-    println("h2=${h2}")
+    let arr: Array<Int64> @local? = [5, 6, 7]
+    let o: Option<Int64> @local? = arr.first
+    println("h=${o.hashCode()}")
+    let empty: Array<Int64> @local? = []
+    let n: Option<Int64> @local? = empty.first
+    println("h2=${n.hashCode()}")
 }
 ```
 
