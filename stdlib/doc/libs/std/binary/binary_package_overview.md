@@ -21,3 +21,9 @@
 | [BigEndianOrder\<T>](./binary_package_api/binary_package_interfaces.md#interface-bigendianordert) | 大端序字节序列转换接口。 |
 | [LittleEndianOrder\<T>](./binary_package_api/binary_package_interfaces.md#interface-littleendianordert) | 小端序字节序列转换接口。 |
 | [SwapEndianOrder\<T>](./binary_package_api/binary_package_interfaces.md#interface-swapendianordert) | 反转字节顺序接口。       |
+
+### 扩展
+
+| 扩展名                                                       | 功能                     |
+| ------------------------------------------------------------ | ------------------------ |
+| [extend UInt64 <: BigEndianOrder\<UInt64> & LittleEndianOrder\<UInt64> & SwapEndianOrder\<UInt64>](./binary_package_api/binary_package_extends.md#extend-uint64--bigendianorderuint64--littleendianorderuint64--swapendianorderuint64) | 为 UInt64 扩展 BigEndianOrder、LittleEndianOrder、SwapEndianOrder 接口。 |

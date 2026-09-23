@@ -38,6 +38,7 @@
         - [自定义访问函数遍历 AST 对象示例](std/ast/ast_samples/traverse.md)
 - [std.binary](std/binary/binary_package_overview.md)
     - [接口](std/binary/binary_package_api/binary_package_interfaces.md)
+    - [扩展](std/binary/binary_package_api/binary_package_extends.md)
 - [std.collection](std/collection/collection_package_overview.md)
     - [函数](std/collection/collection_package_api/collection_package_function.md)
     - [接口](std/collection/collection_package_api/collection_package_interface.md)
