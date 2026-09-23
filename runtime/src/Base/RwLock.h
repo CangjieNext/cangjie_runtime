@@ -67,6 +67,10 @@ public:
         lockCount.store(0, std::memory_order_release);
     }
 
+    // Returns the current lock state: 0 unlocked, WRITE_LOCKED (-1) write locked,
+    // positive value is the number of concurrent readers.
+    int GetLockCount() const { return lockCount.load(std::memory_order_acquire); }
+
 private:
     // 0: unlocked
     // -1: write locked

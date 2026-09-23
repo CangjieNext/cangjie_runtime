@@ -560,7 +560,7 @@ void* NewFinalizerCJThread()
     if (UNLIKELY(ThreadLocal::GetThreadLocalData()->buffer == nullptr)) {
         (void)AllocBuffer::GetOrCreateAllocBuffer();
     }
-    MutatorManager::Instance().MutatorManagementRLock();
+    MutatorManager::Instance().MutatorManagementRLock(MutatorReadSite::FINALIZER_BIND);
     mutator->InitTid();
     mutator->SetManagedContext(false);
     MutatorManager::Instance().BindMutator(*mutator);
@@ -580,7 +580,7 @@ void EndFinalizerCJThread()
     auto* schedule = reinterpret_cast<ScheduleHandle>(ThreadLocal::GetSchedule());
     Mutator* mutator = ThreadLocal::GetMutator();
     CHECK_DETAIL(mutator != nullptr, "EndFinalizerCJThread with null mutator");
-    MutatorManager::Instance().MutatorManagementRLock();
+    MutatorManager::Instance().MutatorManagementRLock(MutatorReadSite::END_FINALIZER);
     (void)mutator->LeaveSaferegion();
     mutator->ResetMutator();
     MutatorManager::Instance().UnbindMutator(*mutator);

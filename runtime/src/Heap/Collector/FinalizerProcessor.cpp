@@ -131,7 +131,7 @@ void FinalizerProcessor::Init()
 {
     // Only start the finalizer worker thread here. Its CJThread identity is created on demand
     // so it does not consume the earliest CJThread id before any finalize work exists.
-    MutatorManager::Instance().MutatorManagementRLock();
+    MutatorManager::Instance().MutatorManagementRLock(MutatorReadSite::FINALIZER_INIT);
     fpMutator = nullptr;
     MutatorManager::Instance().MutatorManagementRUnlock();
     running = true;
@@ -142,7 +142,7 @@ void FinalizerProcessor::Init()
 
 void FinalizerProcessor::Fini()
 {
-    MutatorManager::Instance().MutatorManagementRLock();
+    MutatorManager::Instance().MutatorManagementRLock(MutatorReadSite::FINALIZER_FINI);
     fpMutator = nullptr;
     MutatorManager::Instance().MutatorManagementRUnlock();
     // Finalizer may exit without ever running a finalize task, so only tear down the CJThread
@@ -288,7 +288,7 @@ void FinalizerProcessor::InitFinalizerCJThread()
     (void)mutator->EnterSaferegion(true);
     tid = mutator->GetTid();
 
-    MutatorManager::Instance().MutatorManagementRLock();
+    MutatorManager::Instance().MutatorManagementRLock(MutatorReadSite::FINALIZER_INIT);
     fpMutator = mutator;
     MutatorManager::Instance().MutatorManagementRUnlock();
     finalizerCJThreadInitialized = true;

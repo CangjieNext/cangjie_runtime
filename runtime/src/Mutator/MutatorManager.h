@@ -19,6 +19,7 @@
 #include "Base/RwLock.h"
 #include "Common/PageAllocator.h"
 #include "Mutator.h"
+#include "MutatorReadTracker.h"
 #if defined(__linux__) || defined(hongmeng) || defined(__APPLE__)
 #include "SafepointPageManager.h"
 #endif
@@ -88,9 +89,13 @@ public:
         return mutatorManagementRWLock.TryLockWrite();
     }
 
-    bool TryAcquireMutatorManagementRLock()
+    bool TryAcquireMutatorManagementRLock(MutatorReadSite site = MutatorReadSite::UNKNOWN)
     {
-        return mutatorManagementRWLock.TryLockRead();
+        bool acquired = mutatorManagementRWLock.TryLockRead();
+        if (acquired) {
+            mutatorReadTracker.OnReadLock(site);
+        }
+        return acquired;
     }
 
     void AcquireMutatorManagementWLock();
@@ -215,9 +220,17 @@ public:
     const SafepointPageManager* GetSafepointPageManager() const { return safepointPageManager; }
 #endif
 
-    void MutatorManagementRLock() { mutatorManagementRWLock.LockRead(); }
+    void MutatorManagementRLock(MutatorReadSite site = MutatorReadSite::UNKNOWN)
+    {
+        mutatorManagementRWLock.LockRead();
+        mutatorReadTracker.OnReadLock(site);
+    }
 
-    void MutatorManagementRUnlock() { mutatorManagementRWLock.UnlockRead(); }
+    void MutatorManagementRUnlock()
+    {
+        mutatorManagementRWLock.UnlockRead();
+        mutatorReadTracker.OnUnlockRead();
+    }
 
     void MutatorManagementWLock() { mutatorManagementRWLock.LockWrite(); }
 
@@ -238,6 +251,17 @@ private:
 
     // guard mutator set for stop-the-world/light-sync
     RwLock mutatorManagementRWLock;
+
+    // Tracks the readers of mutatorManagementRWLock so that a writer that times
+    // out can find the reader that has been holding the lock the longest.
+    MutatorReadTracker mutatorReadTracker;
+
+    // Emit a one-shot timeout summary and, when a single long-held reader can be
+    // validated, send it a targeted SIGABRT for the crash board. The timeout
+    // still terminates the process: without a reliable reader target it aborts
+    // the waiter, preserving the original terminate-on-timeout behavior. Never
+    // acquires the write lock.
+    void ReportMutatorLockTimeout(const char* waitReason);
 
     // count of mutators need to be suspended for stw/lsync.
     // this field is also used as futex wait/wakeup word for stw/lsync.

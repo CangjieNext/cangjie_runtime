@@ -7,7 +7,10 @@
 
 #include "MutatorManager.h"
 
+#include <cstdlib>
+#include <csignal>
 #include <thread>
+#include "Base/SysCall.h"
 #include "Base/TimeUtils.h"
 #include "Common/Runtime.h"
 #include "Concurrency/ConcurrencyModel.h"
@@ -90,14 +93,14 @@ Mutator* MutatorManager::CreateMutator()
     if (mutator == nullptr) {
         mutator = new (std::nothrow) Mutator();
         CHECK_DETAIL(mutator != nullptr, "new Mutator failed");
-        MutatorManagementRLock();
+        MutatorManagementRLock(MutatorReadSite::CREATE_MUTATOR);
         mutator->Init();
         mutator->InitTid();
         BindMutator(*mutator);
         mutator->SetMutatorPhase(Heap::GetHeap().GetGCPhase());
         ConcurrencyModel::SetMutator(mutator);
     } else {
-        MutatorManagementRLock();
+        MutatorManagementRLock(MutatorReadSite::CREATE_MUTATOR);
         mutator->Init();
         mutator->InitTid();
         BindMutator(*mutator);
@@ -133,7 +136,7 @@ void MutatorManager::DestroyExpiredMutators()
 
 void MutatorManager::DestroyMutator(Mutator* mutator)
 {
-    if (TryAcquireMutatorManagementRLock()) {
+    if (TryAcquireMutatorManagementRLock(MutatorReadSite::DESTROY_MUTATOR)) {
         delete mutator; // call ~Mutator() under mutatorListLock
         MutatorManagementRUnlock();
     } else {
@@ -156,7 +159,7 @@ Mutator* MutatorManager::CreateRuntimeMutator(ThreadType threadType)
         mutator = new (std::nothrow) Mutator();
     }
     CHECK_DETAIL(mutator != nullptr, "create mutator out of native memory");
-    MutatorManagementRLock();
+    MutatorManagementRLock(MutatorReadSite::CREATE_RUNTIME_MUTATOR);
 #ifdef INTERPRETER_ENABLED
     mutator->markAsRuntimeMutator();
 #endif
@@ -183,7 +186,7 @@ void MutatorManager::DestroyRuntimeMutator(ThreadType threadType)
     Mutator* mutator = ThreadLocal::GetMutator();
     CHECK_DETAIL(mutator != nullptr, "Fini UpdateThreads with null mutator");
 
-    MutatorManagementRLock();
+    MutatorManagementRLock(MutatorReadSite::DESTROY_RUNTIME_MUTATOR);
     (void)mutator->LeaveSaferegion();
     // fp mutator is a static instance, we can't delete it, we reset the mutator to avoid invalid memory
     // access when static instance destruction.
@@ -209,16 +212,55 @@ void MutatorManager::Init()
 
 MutatorManager& MutatorManager::Instance() noexcept { return Runtime::Current().GetMutatorManager(); }
 
+// Emit a one-shot timeout summary. If a reader is still holding the read lock,
+// target the one that has held it the longest with SIGABRT so the crash board
+// shows the reader stack; otherwise fall back to aborting the waiter (the
+// original terminate-on-timeout behavior).
+void MutatorManager::ReportMutatorLockTimeout(const char* waitReason)
+{
+    const uint64_t nowNs = TimeUtil::NanoSeconds();
+    const pid_t waiterTid = static_cast<pid_t>(MapleRuntime::GetTid());
+    const int lockCount = mutatorManagementRWLock.GetLockCount();
+
+    ReaderInfo longest;
+    const bool found = mutatorReadTracker.SelectLongest(nowNs, longest);
+    const uint64_t holdMs = found ? ((nowNs - longest.startNs) / MILLI_SECOND_TO_NANO_SECOND) : 0;
+
+    LOG(RTLOG_ERROR,
+        "CANGJIE-MUTATOR-TIMEOUT wait_reason=%s waiter_tid=%d lock_count=%d reader_count=%u "
+        "longest_tid=%d longest_hold_ms=%u longest_site=%s",
+        waitReason, static_cast<int>(waiterTid), lockCount,
+        static_cast<unsigned>(mutatorReadTracker.ReaderCount()),
+        found ? static_cast<int>(longest.tid) : 0, static_cast<unsigned>(holdMs),
+        found ? MutatorReadTracker::SiteName(longest.site) : "NONE");
+
+    if (lockCount > 0 && found) {
+        LOG(RTLOG_ERROR, "CANGJIE-MUTATOR-TIMEOUT target target_tid=%d hold_ms=%u action=send_sigabrt",
+            static_cast<int>(longest.tid), static_cast<unsigned>(holdMs));
+        const int rc = SendThreadSignal(longest.tid, SIGABRT);
+        LOG(RTLOG_ERROR, "CANGJIE-MUTATOR-TIMEOUT target-result target_tid=%d rc=%d",
+            static_cast<int>(longest.tid), rc);
+        return;
+    }
+
+    LOG(RTLOG_FATAL,
+        "CANGJIE-MUTATOR-TIMEOUT target target_tid=0 action=target_unavailable "
+        "faulting_thread=waiter waiter_tid=%d reason=%s",
+        static_cast<int>(waiterTid), waitReason);
+}
+
 void MutatorManager::AcquireMutatorManagementWLock()
 {
     uint64_t start = TimeUtil::NanoSeconds();
+    bool reported = false;
     bool acquired = TryAcquireMutatorManagementWLock();
     while (!acquired) {
         TimeUtil::SleepForNano(WAIT_LOCK_INTERVAL);
         acquired = TryAcquireMutatorManagementWLock();
         uint64_t now = TimeUtil::NanoSeconds();
-        if (!acquired && ((now - start) / SECOND_TO_NANO_SECOND > WAIT_LOCK_TIMEOUT)) {
-            LOG(RTLOG_FATAL, "Wait mutator list lock timeout");
+        if (!acquired && !reported && ((now - start) / SECOND_TO_NANO_SECOND > WAIT_LOCK_TIMEOUT)) {
+            reported = true;
+            ReportMutatorLockTimeout("stw");
         }
     }
 }
@@ -226,13 +268,15 @@ void MutatorManager::AcquireMutatorManagementWLock()
 bool MutatorManager::AcquireMutatorManagementWLockForCpuProfile()
 {
     uint64_t start = TimeUtil::NanoSeconds();
+    bool reported = false;
     bool acquired = TryAcquireMutatorManagementWLock();
     while (!acquired) {
         TimeUtil::SleepForNano(WAIT_LOCK_INTERVAL);
         acquired = TryAcquireMutatorManagementWLock();
         uint64_t now = TimeUtil::NanoSeconds();
-        if (!acquired && ((now - start) / SECOND_TO_NANO_SECOND > WAIT_LOCK_TIMEOUT)) {
-            LOG(RTLOG_FATAL, "Wait mutator list lock timeout");
+        if (!acquired && !reported && ((now - start) / SECOND_TO_NANO_SECOND > WAIT_LOCK_TIMEOUT)) {
+            reported = true;
+            ReportMutatorLockTimeout("cpu_profile");
         }
         if (!CpuProfiler::GetInstance().GetGenerator().GetIsStart()) {
             break;
