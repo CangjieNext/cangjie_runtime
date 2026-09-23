@@ -33,3 +33,10 @@ set(CMAKE_RANLIB "${CANGJIE_TARGET_TOOLCHAIN}/llvm-ranlib")
 set(TARGET_TRIPLE_DIRECTORY_PREFIX "linux_ohos_arm")
  
 set(LINKER_OPTION_PREFIX)
+
+# Maximum page size used to align shared objects. OHOS currently runs with
+# 4 KB pages; bump this value (e.g. to 16384) if OHOS adopts a larger page
+# size, otherwise the produced .so cannot be mapped at the larger page
+# granularity. Android already uses 16 KB for the same reason
+# (see ANDROID_16K_LINKER_FLAGS).
+set(OHOS_MAX_PAGE_SIZE 4096)
