@@ -132,7 +132,7 @@ FP 侧行为**完全归位生产语义**（零 verify 感知）；GC 流程 `Not
 
 | # | 条件 | 报错信息（均带 `kind/holder<type>/offset` 前缀） | 备注 |
 |---|---|---|---|
-| F4 | 目标非堆地址且 dladdr 不命中（:233）——栈/malloc/匿名 mmap/未映射 | `targets non-module %p (wild pointer?)` | **唯一不 deref 目标的检查**；dladdr 命中（模块常量对象，如 RawArray<UInt8> 字面量）→ 合法放行（:242） |
+| F4 | 目标非堆地址且 dladdr 不命中——栈/malloc/匿名 mmap/未映射 | `targets non-module %p (wild pointer?)` | **唯一不 deref 目标的检查**；**opt-in：cjVerifyNonHeap（默认关，2026-09-23 起，见 §10.5）**——关=全平台容忍非堆目标且跳过 dladdr；开=dladdr 命中（模块常量对象，如 RawArray<UInt8> 字面量）与注册原生根放行，门控平台另查栈区间 |
 | F5 | 目标在堆内但对象头损坏（:244） | `targets %p with invalid header` | |
 | F6 | 目标状态码非法且在 ghost region 外（:249） | `targets %p<%s> in state %d outside ghost from-region` | |
 | F7 | 活对象/根的目标落在 GARBAGE/FREE region（:265） | `targets %p<%s> in %s region (dangling reference to reclaimed object?)` | 悬垂引用两种时态：GARBAGE=判死待 FP 回收，FREE=已回收进 dirtyTree；复活对象靠 ExemptFromRegions 前置豁免免于误报 |
@@ -144,7 +144,7 @@ F7 的 liveness 门是**保守 best-effort**：仅当目标 unit 角色为 leade
 | 场景 | 机制 | 依据 |
 |---|---|---|
 | null 引用 | :223 直接通过 | |
-| 模块常量对象 | dladdr 命中已加载模块映射（:242） | 字符串字面量等 |
+| 模块常量对象 | dladdr 命中已加载模块映射——仅在 cjVerifyNonHeap=1 时才查询（默认关连 dladdr 都跳过） | 字符串字面量等 |
 | ghost region 整段跳过 | WalkHeap 分支①按冻结 `regionEnd0` 跳过——**真尸体从不进 VerifyObject（连头都不查）** | :126 注释：corpses 零价值（ART `heap.cc:3328` 先例） |
 | 混合复用 region 的新对象 | 分支③遍历到带残留 ghost 位 unit 上的新对象 → :180 拦下：查头+状态、字段不查 | 可达路径：dirtyTree 相邻合并复用时 leader unit 无 ghost 位 + 成员 unit 带残留位（ghost 位/0 后缀跨回收存活，`InitRegionInfo` 不写）；新对象无位图，字段本就不可查 |
 | 位图门 | 非存活（floating garbage）对象的字段不查（:189），头+状态保留 | ADR-10；生产可达性前置过滤的复制 |
@@ -161,7 +161,20 @@ F7 的 liveness 门是**保守 best-effort**：仅当目标 unit 角色为 leade
 ### 10.4 已知问题与优化方向（未实施，待授权）
 
 - ~~**`DumpAddressMapping` 未定义**~~：**已于 2026-09-14 实现并验证**（`HeapVerifier.cpp:331-359`，读 `/proc/self/maps` 逐行匹配区间；best-effort，失败降级为单行 ERROR，不扰动 failCount）。F4 触发时输出 `HeapVerifier: %p in mapping: <maps行>` 或 `not in any mapping (unmapped hole)`；
-- **dladdr 性能**：每次调用走 glibc link_map 遍历 + dl 锁（百 ns~µs 级），字符串密集程序中非堆目标高频。优化方向：Verify 入口（STW 下模块集稳定）用 `dl_iterate_phdr` / `/proc/self/maps` 快照文件映射区间 → 排序数组二分（语义等价、纯内存无锁），可选叠加页粒度 memoization（字面量高度聚集）。**TypeInfo/TypeKind 判型不能替代**：需先 deref 目标读头，wild pointer 场景（恰是 F4 要抓的）SEGV；且"指向模块"这一合法性判据 TypeInfo 结构内无等价信息。TypeInfo 校验仅可作为区间判定之后的可选精化（抓"指向模块但非对象边界"），前提是先证实常量对象只有 RawArray 一种。
+- **dladdr 性能**（**已缓解 2026-09-23**：`cjVerifyNonHeap` 默认关，非堆目标连 dladdr 都跳过——全量实测 HLT per-case 总和 −14.3%；开启时的下列优化方向保留）：每次调用走 glibc link_map 遍历 + dl 锁（百 ns~µs 级），字符串密集程序中非堆目标高频。优化方向：Verify 入口（STW 下模块集稳定）用 `dl_iterate_phdr` / `/proc/self/maps` 快照文件映射区间 → 排序数组二分（语义等价、纯内存无锁），可选叠加页粒度 memoization（字面量高度聚集）。**TypeInfo/TypeKind 判型不能替代**：需先 deref 目标读头，wild pointer 场景（恰是 F4 要抓的）SEGV；且"指向模块"这一合法性判据 TypeInfo 结构内无等价信息。TypeInfo 校验仅可作为区间判定之后的可选精化（抓"指向模块但非对象边界"），前提是先证实常量对象只有 RawArray 一种。
+
+### 10.5 F4 非堆检查开关（cjVerifyNonHeap，2026-09-23 已实现并全量验证）
+
+F4 从"平台门控"改为 **env opt-in**（`cjVerifyNonHeap`，"1"/"true"/"on"，默认关，进程级缓存；`HeapVerifier::IsNonHeapVerifyEnabled`，HeapVerifier.h:86 / .cpp:88）。设计动机：① dladdr 消歧有实测成本（§10.4，全量 −14.3% HLT per-case）；② 平台门控后 Linux 本就整体放弃——"查不查"的决定权交给显式选项，与其他 cjVerify* 开关语义统一（ADR-4）。
+
+| 状态 | 行为 |
+|---|---|
+| 关（默认） | 非堆目标一律容忍（TraceRefField give-up 同语义），**连 dladdr 分类也跳过**；全平台统一（OHOS/ANDROID 原"无条件查"同改 opt-in） |
+| 开 | 全平台严查：模块常量（dladdr 命中）与注册原生根（futureSet）放行不变；`#if OHOS/ANDROID` 另有 ScheduleIsCJThreadStackAddr 栈区间放行；其余报 F4 |
+
+已知代价（显式开启即接受）：Linux 等扩容平台无完备栈 oracle，闭包捕获槽持有栈地址的形态（escape-analyzed receiver）会误报。
+
+验证：单元级 4/4（csv_case 默认关 PASS / 开=1 时 F4 abort rc=134、offset 24 即闭包 slot3；math_gate 开=1 时 PASS=原生根放行有效；helloworld 四变量 PASS）；全量 71,611 例（verify 三变量 + NonHeap 关）vs 9/22 同配置：正确性零漂移（flaky 池轮换、零代码归因回归），墙钟 4h28→4h05，**verify 三变量全开净开销 +9%→≈+0.5%**。明细：`logs/compare_report_20260923_vs0911.txt` / `_vs0922ref.txt`，per-case：`logs/cost_time_20260923_verifyall/`。
 
 ## 11. 诊断增强：root-path 追溯（cjVerifyRootPath，2026-09-17 已实现并业务场景验证）
 
