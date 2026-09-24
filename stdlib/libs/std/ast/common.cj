@@ -144,9 +144,60 @@ public func compareTokens(tokens1: Tokens, tokens2: Tokens): Bool {
     return true
 }
 
+// Check the value of identifier-like tokens (no fixed literal in PATTERNS) against
+// lexical identifier rules, so that e.g. Token(TokenKind.IDENTIFIER, "1") is rejected.
+// Non-ASCII runes are accepted conservatively: the lexer supports Unicode identifiers,
+// but std.core has no XID tables to verify them precisely.
+func isValidIdentifierValue(k: TokenKind, v: String): Bool {
+    // Empty value is used as the default placeholder of identifier tokens.
+    if (v == "") {
+        return true
+    }
+    let chars = v.toRuneArray()
+    var start = 0
+    if (k == TokenKind.DOLLAR_IDENTIFIER) {
+        // DOLLAR_IDENTIFIER value is '$' followed by an identifier.
+        if (chars[0] != r'$') {
+            return false
+        }
+        start = 1
+        if (chars.size - start == 0) {
+            return false
+        }
+    }
+    var end = chars.size
+    // Raw identifier form: `...`
+    if (end - start > 1 && chars[start] == r'`' && chars[end - 1] == r'`') {
+        start = start + 1
+        end = end - 1
+        if (end - start == 0) {
+            return false
+        }
+    }
+    for (i in start..end) {
+        let r = chars[i]
+        if (!r.isAscii()) {
+            continue
+        }
+        if (i == start) {
+            if (!r.isAsciiLetter() && r != r'_') {
+                return false
+            }
+        } else if (!r.isAsciiLetter() && !r.isAsciiNumber() && r != r'_') {
+            return false
+        }
+    }
+    return true
+}
+
 func checkKindValue(k: TokenKind, v: String): Bool {
     let kv: String = getTokenLiteral(k)
     if (kv == "" || k == TokenKind.UNIT_LITERAL) {
+        // Identifier-like tokens carry caller-provided content instead of a fixed
+        // literal; validate the content lexically instead of skipping the check.
+        if (k == TokenKind.IDENTIFIER || k == TokenKind.DOLLAR_IDENTIFIER) {
+            return isValidIdentifierValue(k, v)
+        }
         return true
     }
     if (k == TokenKind.NL && (v == "\n" || v == "\r\n")) {
