@@ -177,6 +177,12 @@ public struct Token <: ToBytes {
     }
 }
 
+// Create a token without the kind/value consistency check. For package-internal
+// constructions that carry non-lexical values, e.g. dotted macro call names.
+func createUncheckedToken(k: TokenKind, v: String): Token {
+    return Token(k, v, 0, 0, 0)
+}
+
 func refreshPos(token: Token, f: UInt32, l: Int32, c: Int32): Token {
     var tk: Token
     if (let Some(macroObjPtr) <- MACRO_OBJECT.get()) {

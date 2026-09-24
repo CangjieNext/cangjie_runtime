@@ -297,7 +297,8 @@ func createMacroExpand(nodeInvocation: Option<ASTFormat_MacroInvocation>, isDecl
     }
     var pos = invocation.GetAtPos()
     var key = Token(TokenKind.AT).addPosition(pos)
-    var packageIdentifier: Token = Token(TokenKind.IDENTIFIER, invocation.GetFullName()).addPosition(
+    // GetFullName() is a dotted macro call name (e.g. p1.p2.M), not a lexical identifier.
+    var packageIdentifier: Token = createUncheckedToken(TokenKind.IDENTIFIER, invocation.GetFullName()).addPosition(
         invocation.GetIdentifierPos())
     var identifier = Token(TokenKind.IDENTIFIER, invocation.GetIdentifier()).addPosition(invocation.GetIdentifierPos())
     var lSquare: Token = Token()
@@ -512,9 +513,10 @@ func createImportContent(content: Option<ASTFormat_ImportContent>): ImportConten
                 let asPos = v.GetAsPos()
                 importAlias.append(Token(TokenKind.AS, "as", asPos.fileId, asPos.line, asPos.column))
                 let asIdentPos = v.GetAsIdentifierPos()
+                // The alias is stored unquoted, so a raw alias keeps its non-lexical form.
                 importAlias.append(
-                    Token(TokenKind.IDENTIFIER, v.GetAsIdentifier(), asIdentPos.fileId, asIdentPos.line,
-                        asIdentPos.column))
+                    createUncheckedToken(TokenKind.IDENTIFIER, v.GetAsIdentifier())
+                    .addPosition(asIdentPos.fileId, asIdentPos.line, asIdentPos.column))
             }
             var items: ArrayList<ImportContent> = ArrayList<ImportContent>()
             var commas = Tokens()
