@@ -56,6 +56,21 @@ static std::mutex g_mtx;
 static size_t g_sysmemSize = 1U * MapleRuntime::GB;
 static std::set<uintptr_t> futureSet;
 
+namespace MapleRuntime {
+// Read-only query over the existing RunCJTask* future registry, for the heap
+// verifier's F4 check: a live FutureImpl handle is a legal native (non-heap)
+// value to find in a scanned root slot (LWTData.obj of a native CJ task
+// thread). The registry itself predates verification — GetTaskRet and
+// ReleaseHandle validate their handles through the same set.
+// extern "C++": this translation unit sits inside CANGJIE_RT_API_DECLS_BEGIN
+// (extern "C"); C++ linkage is required to match the HeapVerifier declaration.
+extern "C++" bool IsRegisteredNativeRoot(uintptr_t addr)
+{
+    std::lock_guard<std::mutex> lck(g_mtx);
+    return futureSet.find(addr) != futureSet.end();
+}
+} // namespace MapleRuntime
+
 static void CheckSysmemSize()
 {
 #if defined(_WIN64)

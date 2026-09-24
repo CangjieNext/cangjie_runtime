@@ -26,8 +26,21 @@
 #include "Concurrency/Concurrency.h"
 #include "Heap.h"
 #include "Mutator/MutatorManager.h"
+#include "schedule.h"
 
 namespace MapleRuntime {
+
+// Defined in CangjieRuntimeApi.cpp: read-only query over the RunCJTask* future
+// registry. Native CJ task threads legally carry their malloc'd FutureImpl
+// handle in a scanned root slot (LWTData.obj) for the task's whole lifetime.
+bool IsRegisteredNativeRoot(uintptr_t addr);
+
+// Declared in schedule.h: read-only query over the scheduler's cjthread registry.
+// Covers a stack in every lifecycle state — borrowed by a running task, or pooled
+// idle awaiting reuse (pooled stacks keep their mappings; the scheduler frees a
+// stack only on teardown, size mismatch, or growth replacement). This recognizes
+// capture slots holding escape-analyzed, stack-allocated receivers even after the
+// owning task finished and returned its stack to the pool.
 
 namespace {
 // "1"/"true"/"on" (case-insensitive) => true; unset/anything else => false.
@@ -69,6 +82,12 @@ bool HeapVerifier::IsPostVerifyEnabled()
 bool HeapVerifier::IsPathTraceEnabled()
 {
     static const bool enabled = IsTruthyEnv("cjVerifyRootPath");
+    return enabled;
+}
+
+bool HeapVerifier::IsNonHeapVerifyEnabled()
+{
+    static const bool enabled = IsTruthyEnv("cjVerifyNonHeap");
     return enabled;
 }
 
@@ -242,6 +261,13 @@ bool HeapVerifier::CheckTarget(const char* kind, BaseObject* holder, size_t offs
         return true; // legal null
     }
     if (!Heap::IsHeapAddress(reinterpret_cast<MAddress>(ref))) {
+        // F4 (non-heap target examination) is opt-in via cjVerifyNonHeap
+        // (default off): tolerate non-heap targets exactly like the collector
+        // does (TraceRefField give-up). Skipped entirely when off — the dladdr
+        // classification below exists only to feed this check.
+        if (!IsNonHeapVerifyEnabled()) {
+            return true;
+        }
         // Non-heap target: distinguish a legal constant object (embedded in a
         // loaded module's data section, e.g. RawArray<UInt8> string literals)
         // from a corrupted reference via dladdr() — a pure address-range check
@@ -250,7 +276,40 @@ bool HeapVerifier::CheckTarget(const char* kind, BaseObject* holder, size_t offs
         Dl_info info;
         if (dladdr(reinterpret_cast<void*>(ref), &info) == 0) {
             // Not in any loaded module's mapping: stack / malloc / anonymous
-            // mmap / unmapped — a heap ref must never point here.
+            // mmap / unmapped. Two legal forms exist. (1) A registered native
+            // root: RunCJTask*'s FutureImpl handle (malloc'd, tracked in the
+            // future registry) riding in LWTData.obj. The collector ignores
+            // non-heap root values the same way (WCollector::EnumAndTagRawRoot).
+            if (IsRegisteredNativeRoot(reinterpret_cast<uintptr_t>(ref))) {
+                return true;
+            }
+            // (2) A reference to a stack-allocated object — e.g. an
+            // escape-analyzed receiver whose address only lives in
+            // never-dereferenced closure capture slots, whose owning task may
+            // long have finished. Recognizable only where the stack oracle is
+            // complete — mirroring the compiler's own decision (ToolOptions.cpp
+            // passes --cj-stack-grow=false for OHOS and ANDROID triples). This
+            // runtime library is built per platform, so the conditional is
+            // compile-time, not a runtime flag.
+#if defined(__OHOS__) || defined(__ANDROID__)
+            // Growth is compiled out of generated code: a CJThread stack is never
+            // replaced (the old mapping freed at growth time) and a thread never
+            // fails the pool-reuse size condition at task end — every stack stays
+            // mapped and registered for the process lifetime, making the
+            // allCJThreadList oracle complete.
+            if (ScheduleIsCJThreadStackAddr(reinterpret_cast<void*>(ref))) {
+                return true;
+            }
+#else
+            // Growth-capable target (default on Linux etc.): growth frees the old
+            // stack mapping the moment it replaces it, and a grown thread is
+            // destroyed instead of pooled at task end — either event leaves
+            // capture slots pointing at addresses no surviving data structure can
+            // vouch for, so the allCJThreadList oracle is incomplete and form (2)
+            // cannot be recognized here. cjVerifyNonHeap=1 on such a platform
+            // opts into strict reporting with this known false-positive form.
+#endif
+            // Anything else is a wild pointer a heap ref must never point to.
             // Diagnostic: dump the mapping via /proc/self/maps for triage.
             RecordFailure("%s: %p<%s> offset %zu targets non-module %p (wild pointer?)", kind, holder,
                           (holder != nullptr) ? holder->GetTypeInfo()->GetName() : "root", offset, ref);
