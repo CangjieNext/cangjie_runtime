@@ -429,7 +429,7 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
     @Frozen
     public init(capacity: Int64) {
         if (capacity < 0) {
-            throw IllegalArgumentException("Invalid size of HashMap: ${capacity}.")
+            throw IllegalArgumentException("Invalid capacity '${capacity}': expected a non-negative value.")
         }
         let bucketSize = capacity + (capacity >> 1)
         buckets = Array<Int64>(tableSizeFor(bucketSize), repeat: -1)
@@ -449,7 +449,7 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
     @Frozen
     public init(size: Int64, initElement: (Int64) -> (K, V)) {
         if (size < 0) {
-            throw IllegalArgumentException("Invalid size of HashMap: ${size}.")
+            throw IllegalArgumentException("Invalid size '${size}': expected a non-negative value.")
         } else {
             buckets = Array<Int64>(tableSizeFor(size), repeat: -1)
             entries = Array<HashMapEntry<K, V>>(size, repeat: HashMapEntry<K, V>())
@@ -719,7 +719,7 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
     /**
      * Reserves capacity for at least additional more elements to be inserted in this hashmap.
      * If the additional parameter is negative, the hash map does not change.
-     * If the additional parameter plus the size of the hashmap is smaller than the capacity of the  array, the hashmap does not change.
+     * If the additional parameter plus the size of the hashmap is less than or equal to the capacity of the array, the hashmap does not change.
      *
      * @param additional ensure that there is sufficient capacity. additional indicates the quantity to be added.
      *
@@ -727,7 +727,7 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
      */
     @Frozen
     public func reserve(additional: Int64): Unit {
-        if (additional <= 0 || size + additional < capacity) {
+        if (additional <= 0 || size + additional <= capacity) {
             return
         }
 
@@ -1013,7 +1013,7 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
     @Frozen
     public operator func [](key: K): V {
         return match (get(key)) {
-            case None => throw NoneValueException("Value does not exist!\n")
+            case None => throw NoneValueException("Value does not exist.")
             case Some(val) => val
         }
     }
