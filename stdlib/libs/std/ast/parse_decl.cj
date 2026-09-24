@@ -131,7 +131,12 @@ func createDeclBase(keyWord: Token, declBase: ASTFormat_DeclBase): Decl {
     let modSrc = declBase.GetModifiers()
     var mods: ArrayList<Modifier> = ArrayList<Modifier>(modSrc.size, {i => createModifier(modSrc[i])})
     var key = keyWord.addPosition(declBase.GetKeywordPos())
-    var indentifier = Token(TokenKind.IDENTIFIER, declBase.GetIdentifier()).addPosition(declBase.GetIdentifierPos())
+    // The identifier comes from the compiler FlatBuffer and is trusted data. It
+    // may carry a non-lexical value by design, e.g. the operator text of an
+    // 'operator func ==' decl or the '~init' of a finalizer, so skip the
+    // kind/value lexical check here.
+    var indentifier = createUncheckedToken(TokenKind.IDENTIFIER, declBase.GetIdentifier()).addPosition(
+        declBase.GetIdentifierPos())
     var (param, constraint, constraintCommas, isGeneric) = generateGenericInfo(declBase.GetGeneric())
     var genericParam: Option<GenericParam> = param
     // Solve some special node

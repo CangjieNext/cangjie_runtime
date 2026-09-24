@@ -2022,19 +2022,20 @@ public class TypeAliasDecl <: Decl {
 // DOT positions are derived from the original pkgIdentifier token.
 private func appendMacroQualifiedIdentifier(ret: Tokens, pkgIdentifier: Token): Tokens {
     var out = ret
+    // Segments of a dotted macro call name, possibly raw identifier fragments.
     let identArray = pkgIdentifier.value.split(".")
     let identPos = pkgIdentifier.pos
     var identColumn = identPos.column
     for (i in 0..identArray.size - 1) {
         let identifier = identArray[i]
-        out = out.append(Token(TokenKind.IDENTIFIER, identifier).addPosition(identPos))
+        out = out.append(createUncheckedToken(TokenKind.IDENTIFIER, identifier).addPosition(identPos))
         identColumn = identColumn + Int32(identifier.size)
         out = out.append(Token(TokenKind.DOT).addPosition(identPos.fileID, identPos.line, identColumn))
         identColumn++
     }
     if (identArray.size > 0) {
         let identifier = identArray[identArray.size - 1]
-        out = out + Token(TokenKind.IDENTIFIER, identifier).addPosition(identPos.fileID, identPos.line, identColumn)
+        out = out + createUncheckedToken(TokenKind.IDENTIFIER, identifier).addPosition(identPos.fileID, identPos.line, identColumn)
     }
     out
 }
@@ -2128,7 +2129,9 @@ public class MacroExpandDecl <: Decl {
         set(v) {
             pkgIdentifier_ = v
             if (let Some(index) <- v.value.lastIndexOf(".")) {
-                identifier_ = Token(TokenKind.IDENTIFIER, v.value.split(".", removeEmpty: true).last.getOrThrow())
+                // The last segment may be a raw identifier fragment.
+                identifier_ = createUncheckedToken(TokenKind.IDENTIFIER,
+                    v.value.split(".", removeEmpty: true).last.getOrThrow())
                 .addPosition(v.pos.fileID, v.pos.line, v.pos.column + Int32(index) + 1)
             } else {
                 identifier_ = v
@@ -2143,7 +2146,8 @@ public class MacroExpandDecl <: Decl {
             let prefix = pkgIdentifier_.value.removeSuffix(identifier_.value)
             identifier_ = v
             let pos = pkgIdentifier_.pos
-            pkgIdentifier_ = Token(TokenKind.IDENTIFIER, prefix + v.value).addPosition(pos)
+            // The result is a dotted macro call name, not a lexical identifier.
+            pkgIdentifier_ = createUncheckedToken(TokenKind.IDENTIFIER, prefix + v.value).addPosition(pos)
         }
     }
     public mut prop lSquare: Token {
@@ -2301,7 +2305,9 @@ public class MacroExpandParam <: FuncParam {
         set(v) {
             pkgIdentifier_ = v
             if (let Some(index) <- v.value.lastIndexOf(".")) {
-                identifier_ = Token(TokenKind.IDENTIFIER, v.value.split(".", removeEmpty: true).last.getOrThrow())
+                // The last segment may be a raw identifier fragment.
+                identifier_ = createUncheckedToken(TokenKind.IDENTIFIER,
+                    v.value.split(".", removeEmpty: true).last.getOrThrow())
                 .addPosition(v.pos.fileID, v.pos.line, v.pos.column + Int32(index) + 1)
             } else {
                 identifier_ = v
@@ -2316,7 +2322,8 @@ public class MacroExpandParam <: FuncParam {
             let prefix = pkgIdentifier_.value.removeSuffix(identifier_.value)
             identifier_ = v
             let pos = pkgIdentifier_.pos
-            pkgIdentifier_ = Token(TokenKind.IDENTIFIER, prefix + v.value).addPosition(pos)
+            // The result is a dotted macro call name, not a lexical identifier.
+            pkgIdentifier_ = createUncheckedToken(TokenKind.IDENTIFIER, prefix + v.value).addPosition(pos)
         }
     }
     public mut prop lSquare: Token {
