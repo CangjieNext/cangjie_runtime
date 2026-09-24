@@ -4224,14 +4224,14 @@ public class MacroExpandExpr <: Expr {
         var identColumn = identPos.column
         for (i in 0..identArray.size - 1) {
             let identifier = identArray[i]
-            ret = ret + Token(TokenKind.IDENTIFIER, identifier).addPosition(identPos)
+            ret = ret + createUncheckedToken(TokenKind.IDENTIFIER, identifier).addPosition(identPos)
             identColumn = identColumn + Int32(identifier.size)
             ret = ret + Token(TokenKind.DOT).addPosition(identPos.fileID, identPos.line, identColumn)
             identColumn++
         }
         if (identArray.size > 0) {
             let identifier = identArray[identArray.size - 1]
-            ret = ret + Token(TokenKind.IDENTIFIER, identifier).addPosition(identPos.fileID, identPos.line, identColumn)
+            ret = ret + createUncheckedToken(TokenKind.IDENTIFIER, identifier).addPosition(identPos.fileID, identPos.line, identColumn)
         }
         if (isValidToken(lSquare_) && isValidToken(rSquare_)) {
             ret.append(lSquare_).append(macroAttrs_).append(rSquare_)

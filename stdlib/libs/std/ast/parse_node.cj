@@ -297,7 +297,8 @@ func createMacroExpand(nodeInvocation: Option<ASTFormat_MacroInvocation>, isDecl
     }
     var pos = invocation.GetAtPos()
     var key = Token(TokenKind.AT).addPosition(pos)
-    var packageIdentifier: Token = Token(TokenKind.IDENTIFIER, invocation.GetFullName()).addPosition(
+    // GetFullName() is a dotted macro call name (e.g. p1.p2.M), not a lexical identifier.
+    var packageIdentifier: Token = createUncheckedToken(TokenKind.IDENTIFIER, invocation.GetFullName()).addPosition(
         invocation.GetIdentifierPos())
     var identifier = Token(TokenKind.IDENTIFIER, invocation.GetIdentifier()).addPosition(invocation.GetIdentifierPos())
     var lSquare: Token = Token()
