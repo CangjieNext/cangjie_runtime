@@ -75,6 +75,15 @@ private:
     // reachable-graph BFS — only paid on the failure path, where the verifier
     // aborts right after, so the O(heap) cost is acceptable.
     static bool IsPathTraceEnabled();
+    // F4 (non-heap target examination) is opt-in via cjVerifyNonHeap
+    // ("1"/"true"/"on", case-insensitive, default off): report ref-fields and
+    // roots whose target is a non-heap, non-module address as wild pointers.
+    // Legal passes: module constants (dladdr) and registered native roots
+    // (futureSet) on every platform; CJThread stack captures additionally on
+    // stack-growth-free platforms (OHOS/ANDROID, complete allCJThreadList
+    // oracle). Default off tolerates non-heap targets exactly like the
+    // collector does (TraceRefField give-up).
+    static bool IsNonHeapVerifyEnabled();
     // Failure-path hook: records (what, obj) for deferred tracing. Deferred on
     // purpose — the failure may fire inside a Visit*Roots callback, and the
     // BFS itself iterates the same root sources; re-entering that iteration

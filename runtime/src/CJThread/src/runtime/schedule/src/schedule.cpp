@@ -1646,6 +1646,29 @@ void ScheduleAllCJThreadVisitImpl(AllCJThreadListProcFunc visitor, void *handle,
     pthread_mutex_unlock(&g_scheduleManager.allCJThreadListLock);
 }
 
+bool ScheduleIsCJThreadStackAddr(void *addr)
+{
+    struct CJThread *cjthread;
+    struct Dulink *scheduleCJThreadNode = nullptr;
+    char *stackTop;
+    bool found = false;
+
+    if (addr == nullptr) {
+        return false;
+    }
+    pthread_mutex_lock(&g_scheduleManager.allCJThreadListLock);
+    DULINK_FOR_EACH_ITEM(scheduleCJThreadNode, &g_scheduleManager.allCJThreadList) {
+        cjthread = DULINK_ENTRY(scheduleCJThreadNode, struct CJThread, allCJThreadDulink);
+        stackTop = (char *)cjthread->stack.stackTopAddr;
+        if ((char *)addr > stackTop && (char *)addr < stackTop + cjthread->stack.stackSize) {
+            found = true;
+            break;
+        }
+    }
+    pthread_mutex_unlock(&g_scheduleManager.allCJThreadListLock);
+    return found;
+}
+
 unsigned long long ScheduleCJThreadCountPublic(CJthreadStatePublic state)
 {
     struct CJThread *cjthread;

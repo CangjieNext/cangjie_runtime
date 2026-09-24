@@ -1012,6 +1012,16 @@ void ScheduleAllCJThreadVisit(AllCJThreadListProcFunc visitor, void *handle);
 void ScheduleAllCJThreadVisitMutator(AllCJThreadListProcFunc visitor, void *handle);
 
 /**
+ * @brief Check whether an address falls within any cjthread's stack range.
+ * @par Description: Read-only query over the global cjthread list covering stacks in
+ * every lifecycle state (borrowed by a running task or pooled idle awaiting reuse).
+ * Thread-safe (takes the cjthread list lock); never allocates or mutates state.
+ * @param addr    [IN] Address to check
+ * @return true when addr lies within some cjthread's [stackTopAddr, stackTopAddr + stackSize)
+ */
+bool ScheduleIsCJThreadStackAddr(void *addr);
+
+/**
  * @brief Preemption detection function
  * @par Description: The preemption detection function is provided to check whether the
  * current cjthread can be preempted. If the preemption conditions are met, preemption occurs.
