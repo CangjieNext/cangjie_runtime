@@ -324,16 +324,32 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
         var i = fromIndex
         let rawptr = this.myData
         var begin = Int64(this.start) + i
+
+        // Main loop: process 128 bytes (4 x 32B SIMD blocks) per iteration
+        while (i + VECTOR_OFFSET_32 * 4 <= size) {
+            let r0: Int64 = vectorIndexByte32(rawptr, begin, b)
+            let r1: Int64 = vectorIndexByte32(rawptr, begin + VECTOR_OFFSET_32, b)
+            let r2: Int64 = vectorIndexByte32(rawptr, begin + VECTOR_OFFSET_32 * 2, b)
+            let r3: Int64 = vectorIndexByte32(rawptr, begin + VECTOR_OFFSET_32 * 3, b)
+            if (r0 != VECTOR_OFFSET_32) { return i + r0 }
+            if (r1 != VECTOR_OFFSET_32) { return i + VECTOR_OFFSET_32 + r1 }
+            if (r2 != VECTOR_OFFSET_32) { return i + VECTOR_OFFSET_32 * 2 + r2 }
+            if (r3 != VECTOR_OFFSET_32) { return i + VECTOR_OFFSET_32 * 3 + r3 }
+            i += VECTOR_OFFSET_32 * 4
+            begin += VECTOR_OFFSET_32 * 4
+        }
+
+        // Tail: process remaining 32B blocks
         while (i + VECTOR_OFFSET_32 <= size) {
             let vecCmpRes: Int64 = vectorIndexByte32(rawptr, begin, b)
-            // when any position byte is matched, return a value different from 32
-            if (vecCmpRes != 32) {
+            if (vecCmpRes != VECTOR_OFFSET_32) {
                 return i + vecCmpRes
             }
             i += VECTOR_OFFSET_32
             begin += VECTOR_OFFSET_32
         }
 
+        // Tail: process remaining bytes one-by-one
         for (j in i..size) {
             if (arrayGetUnchecked(this.myData, Int64(this.start) + j) == b) {
                 return j
