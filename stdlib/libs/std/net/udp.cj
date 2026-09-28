@@ -154,7 +154,7 @@ public class UdpSocket <: DatagramSocket {
 
         if (remote.family != localAddress.family) {
             throw IllegalArgumentException(
-                "remote address kind (${remote.family}) should have the same address family as local (${localAddress.family})")
+                "Remote address kind (${remote.family}) should have the same address family as local (${localAddress.family}).")
         }
 
         impl.connectToRemote(remote)
@@ -199,16 +199,16 @@ public class UdpSocket <: DatagramSocket {
     public override func sendTo(recipient: SocketAddress, payload: Array<Byte>): Unit {
         throwIfIPv4ZeroOnWindows(
             recipient as IPSocketAddress ?? throw IllegalArgumentException(
-                "recipient address kind (${recipient.family}) should have " +
-                    "the same address family as local (${localAddress.family})"))
+                "Recipient address kind (${recipient.family}) should have " +
+                    "the same address family as local (${localAddress.family})."))
 
         if (payload.size > 65507) {
             throw SocketException("Cannot send datagram larger than 65507 bytes.")
         }
         if (recipient.family != impl.kind) {
             throw IllegalArgumentException(
-                "recipient address kind (${recipient.family}) should have " +
-                    "the same address family as local (${localAddress.family})")
+                "Recipient address kind (${recipient.family}) should have " +
+                    "the same address family as local (${localAddress.family}).")
         }
 
         impl.send(payload, recipient)
@@ -406,7 +406,7 @@ public class UdpSocket <: DatagramSocket {
     private static func checkAddress(address: SocketAddress, name: String): SocketAddress {
         if (!(address is IPSocketAddress)) {
             throw IllegalArgumentException(
-                "${name} should be either IPv4 or IPv6 but got ${address.family}: ${address}")
+                "${name} should be either IPv4 or IPv6 but got ${address.family}: ${address}.")
         }
         return address
     }
