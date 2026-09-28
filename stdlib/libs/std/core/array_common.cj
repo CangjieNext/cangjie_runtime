@@ -601,7 +601,8 @@ public unsafe func releaseArrayRawData<T>(handle: CPointerHandle<T> @local?): Un
  * 实现方式：**就地循环**——用 arrayGetUnchecked3 逐个取出 `T @local?` 元素与目标比较，
  * 不做 non-local 副本，故只需 `T <: Equatable<T>`（旧版走 cloneToNotLocal + deLocalizeElement
  * 需额外 `T <: Copyable`；2026-09-28 重探确认不再必要——旧版两条依据：(1) `@local?` 元素
- * 写入 non-local 容器需 arraySet3 的 Copyable 约束，(2) `T @local?` 传给 plain 形参被拒，
+ * 写入 non-local 容器受 Array Copyable 扩展的约束（旧版误记为「arraySet3 的 Copyable 约束」；
+ * arraySet3 本身无约束，带约束的是公开写入器与 arraySetUnchecked3），(2) `T @local?` 传给 plain 形参被拒，
  * 在就地写法下都不触发）。实测：非 Copyable 的 class 元素（自适配 == @local?）命中/未命中/
  * fromIndex 全部正确；未适配 == @local? 的类型经 Equatable 默认体抛 UnimplementedException
  * （与 §4.2.5/修改建议 #4 的统一策略一致）。

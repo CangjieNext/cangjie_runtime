@@ -260,7 +260,9 @@ public class ArrayList<T> <: List<T> {
     @Frozen
     public exclave init(this @local?, elements: Array<T> @local?) {
         // 注意：@local? 版暂为共享引用（T 无约束时 @local? 上下文无可用的
-        // non-local 拷贝手段——copyTo 需 @local! 接收者、逐元素写需 arraySet3）。
+        // non-local 拷贝手段——Array 的 copyTo/slice/cloneToLocal 均在 Copyable 扩展内
+        // （array.cj:1709 起），公开的 `[]=(this @local?, ...)` 元素写入器同样受该约束；
+        // std.core 的 arraySet3 虽无约束但对本包不可达）。
         // slice/[](range) @local? 的写穿透风险在缺陷清单登记，@local! 版已改拷贝。
         myData = elements
         mySize = elements.size

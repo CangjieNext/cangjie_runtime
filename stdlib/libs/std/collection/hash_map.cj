@@ -487,6 +487,38 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
             putWithoutResize(i[0], i[1])
         }
     }
+    @Frozen
+    public exclave init(this @local!, elements: Collection<(K, V)> @local!) {
+        // Collection 的 size 无 local 形态（文档 §9 只列 isEmpty(@local?)/toArray），
+        // 故不做 size 预分配：以默认容量起步，由 add 按需扩容（resize）。
+        buckets = Array<Int64>(DEFAULT_CAPACITY, repeat: -1)
+        entries = Array<HashMapEntry<K, V>>(DEFAULT_CAPACITY, repeat: HashMapEntry<K, V>() @local!)
+        for ((k, v) in elements) {
+            add(k, v)
+        }
+    }
+
+    @Frozen
+    public exclave init(this @local?, elements: Collection<(K, V)> @local?) {
+        // 与 ArrayList init(this @local?, Collection)（array_list.cj:290）同手法：
+        // @local? 上下文无元素写入手段——Array 的 `[]=(this @local?, ...)` 写入器位于
+        // `extend<T> Array<T> where T <: Copyable`（array.cj:1714），K/V 无该约束故不可用
+        // （注意 arraySet3 本身已无 Copyable 约束，限制在公开写入器与 std.collection
+        // 不可达的内建之间；arraySetUnchecked3/rawArrayInitByValue3 仍带约束）。
+        // 故仅对本包可识别的 HashMap 共享内部结构，其余显式拒绝，避免静默丢失元素。
+        match (elements) {
+            case map: HashMap<K, V> =>
+                buckets = map.buckets
+                entries = map.entries
+                appendIndex = map.appendIndex
+                freeIndex = map.freeIndex
+                freeSize = map.freeSize
+                modCount = map.modCount
+            case _ =>
+                throw IllegalArgumentException("Unsupported collection type for @local? HashMap init.")
+        }
+    }
+
 
     /**
      * Initializes a hashmap with an incoming list for initialization.
@@ -504,6 +536,26 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
             putWithoutResize(i[0], i[1])
         }
     }
+    @Frozen
+    public exclave init(this @local!, elements: Array<(K, V)> @local!) {
+        let bucketSize: Int64 = elements.size + (elements.size >> 1)
+        buckets = Array<Int64>(tableSizeFor(bucketSize), repeat: -1)
+        entries = Array<HashMapEntry<K, V>>(elements.size, repeat: HashMapEntry<K, V>() @local!)
+        for ((k, v) in elements) {
+            add(k, v)
+        }
+    }
+
+    @Frozen
+    public exclave init(this @local?, elements: Array<(K, V)> @local?) {
+        // @local? 源的元素为 (K, V) @local?，无法写入本地哈希表：Array 的
+        // `[]=(this @local?, ...)` 写入器在 Copyable 扩展内（array.cj:1714），K/V 无该
+        // 约束；`Collection<T> @local?` 的 iterator()/size 分派亦不受编译器支持。
+        // 按既定回退规则显式拒绝，不静默丢弃元素；需要该构造时请改用
+        // init(this @local!, elements:)。
+        throw IllegalArgumentException("Unsupported element source for @local? HashMap init: use the @local! overload.")
+    }
+
 
     /**
      * Initializes a HashMap with an incoming @p DEFAULT_CAPACITY for initialization.
@@ -556,6 +608,28 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
             }
         }
     }
+    @Frozen
+    public exclave init(this @local!, size: Int64, initElement: (Int64) -> (K, V) @local!) {
+        if (size < 0) {
+            throw IllegalArgumentException("Invalid size of HashMap: ${size}.")
+        } else {
+            buckets = Array<Int64>(tableSizeFor(size), repeat: -1)
+            entries = Array<HashMapEntry<K, V>>(size, repeat: HashMapEntry<K, V>() @local!)
+            for (i in 0..size) {
+                let element: (K, V) @local! = initElement(i)
+                add(element[0], element[1])
+            }
+        }
+    }
+
+    @Frozen
+    public exclave init(this @local?, size: Int64, initElement: (Int64) -> (K, V) @local?) {
+        // 闭包产出 (K, V) @local?，而本地哈希表的元素写入要求 @local!（Array 的
+        // @local? 写入器在 Copyable 扩展内，array.cj:1714；K/V 无该约束）。
+        // 按既定回退规则显式拒绝，不静默丢弃元素。
+        throw IllegalArgumentException("Unsupported element source for @local? HashMap init: use the @local! overload.")
+    }
+
 
     @Frozen
     private init(other: HashMap<K, V>) {
@@ -741,6 +815,21 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
         }
         return HashMapEntryView<K, V>(true, key, hash, entryIndex, this)
     }
+    @Frozen
+    public exclave func entryView(this @local!, key: K @local?): MapEntryView<K, V> @local! {
+        // 已知编译器限制：MapEntryView 接口要求 plain 的 key/value 属性，而返回的本地视图
+        // 必须持有 `@local!` 的 map 引用；编译器禁止把局部 map 引用存入普通字段
+        // （字段不能标注 locality，接收者带 locality 时字段写入又要求同局部性的值）。
+        // 按既定回退规则显式拒绝，而非返回语义错误的视图。
+        throw UnimplementedException("HashMap.entryView() is unavailable in local mode: " +
+            "MapEntryView requires plain key/value properties, which cannot hold a local map reference.")
+    }
+
+    @Frozen
+    public exclave func entryView(this @local?, key: K @local?): MapEntryView<K, V> @local? {
+        throw UnimplementedException("HashMap.entryView() is unavailable in local mode: " +
+            "MapEntryView requires plain key/value properties, which cannot hold a local map reference.")
+    }
 
     /**
      * Transfer specified elements for traversal and assign values in sequence.
@@ -755,6 +844,12 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
         if (all.size > entries.size) {
             resize(all.size)
         }
+        for ((k, v) in all) {
+            add(k, v)
+        }
+    }
+    @Frozen
+    public exclave func add(this @local!, all!: Collection<(K, V)> @local!) {
         for ((k, v) in all) {
             add(k, v)
         }
@@ -797,6 +892,35 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
         }
         return None
     }
+    @Frozen
+    @OverflowWrapping
+    public exclave func remove(this @local!, key: K @local?): Option<V> @local! {
+        let NULL_KEY: K @local! = unsafe { zeroValue2<K>() }
+        let NULL_VALUE: V @local! = unsafe { zeroValue2<V>() }
+        let hash: Int64 = getHash(key.hashCode())
+        let index: Int64 = getIndex(hash, buckets.size)
+        var bucket: Int64 = buckets[index]
+        var pre: Int64 = -1
+        while (bucket >= 0) {
+            if (hash == entries[bucket].hash && key == entries[bucket].key) {
+                if (pre < 0) {
+                    buckets[index] = entries[bucket].next
+                } else {
+                    let temp = entries[pre]
+                    entries[pre] = HashMapEntry<K, V>(temp.hash, entries[bucket].next, temp.key, temp.value) @local!
+                }
+                let removeEnt: V @local! = entries[bucket].value
+                entries[bucket] = HashMapEntry<K, V>(-1, freeIndex, NULL_KEY, NULL_VALUE) @local!
+                freeIndex = bucket
+                freeSize++
+                modCount++
+                return Option<V>.Some(removeEnt) @local!
+            }
+            pre = bucket
+            bucket = entries[bucket].next
+        }
+        return Option<V>.None
+    }
 
     /**
      * Traverse the set of transferred keys and delete them based on the traversal result.
@@ -807,6 +931,12 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
      */
     @Frozen
     public func remove(all!: Collection<K>): Unit {
+        for (key in all) {
+            remove(key)
+        }
+    }
+    @Frozen
+    public exclave func remove(this @local!, all!: Collection<K> @local?) {
         for (key in all) {
             remove(key)
         }
@@ -855,6 +985,42 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
             }
         }
     }
+    @Frozen
+    @OverflowWrapping
+    public exclave func removeIf(this @local!, predicate: ((K @local?, V @local?) -> Bool) @local?) {
+        let NULL_KEY: K @local! = unsafe { zeroValue2<K>() }
+        let NULL_VALUE: V @local! = unsafe { zeroValue2<V>() }
+        var lockVersion = modCount
+        for (i in 0..buckets.size where buckets[i] != -1) {
+            var next: Int64 = buckets[i]
+            var pre: Int64 = -1
+            while (next >= 0) {
+                let item = entries[next]
+                if (predicate(item.key, item.value)) {
+                    if (lockVersion != modCount) {
+                        throw ConcurrentModificationException("The predicate cannot contain a modify operation.")
+                    }
+                    if (pre < 0) {
+                        buckets[i] = item.next
+                    } else {
+                        let temp = entries[pre]
+                        entries[pre] = HashMapEntry<K, V>(temp.hash, item.next, temp.key, temp.value) @local!
+                    }
+                    entries[next] = HashMapEntry<K, V>(-1, freeIndex, NULL_KEY, NULL_VALUE) @local!
+                    freeIndex = next
+                    freeSize++
+                    modCount++
+                    lockVersion++
+                } else {
+                    if (lockVersion != modCount) {
+                        throw ConcurrentModificationException("The predicate cannot contain a modify operation.")
+                    }
+                    pre = next
+                }
+                next = item.next
+            }
+        }
+    }
 
     /**
      * Clear all key-value pairs.
@@ -877,6 +1043,20 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
         appendIndex = 0
         freeSize = 0
     }
+    @Frozen
+    @OverflowWrapping
+    public exclave func clear(this @local!) {
+        for (i in 0..entries.size where entries[i].hash >= 0) {
+            entries[i] = HashMapEntry<K, V>() @local!
+        }
+        for (i in 0..buckets.size where buckets[i] != -1) {
+            buckets[i] = -1
+        }
+        modCount++
+        freeIndex = -1
+        appendIndex = 0
+        freeSize = 0
+    }
 
     /**
      * Reserves capacity for at least additional more elements to be inserted in this hashmap.
@@ -893,6 +1073,14 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
             return
         }
 
+        resize(size + additional)
+        modCount++
+    }
+    @Frozen
+    public exclave func reserve(this @local!, additional: Int64) {
+        if (additional <= 0 || size + additional < capacity) {
+            return
+        }
         resize(size + additional)
         modCount++
     }
@@ -924,6 +1112,15 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
     public func contains(all!: Collection<K>): Bool {
         for (key in all where !contains(key)) {
             return false
+        }
+        return true
+    }
+    @Frozen
+    public func contains(this @local?, all!: Collection<K> @local?): Bool {
+        for (key in all) {
+            if (!contains(key)) {
+                return false
+            }
         }
         return true
     }
@@ -984,6 +1181,24 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
     public func clone(): HashMap<K, V> {
         return HashMap<K, V>(this)
     }
+    @Frozen
+    public exclave func clone(this @local!): HashMap<K, V> @local! {
+        // 编译器限制：HashMapEntry<K, V> 含无约束 K/V，无法整数组拷贝——Array 的
+        // copyTo/cloneToLocal 位于 `extend<T> Array<T> where T <: Copyable`
+        // （array.cj:1709）。改按 add 逐条复制，保证结果独立于源（写不穿透）。
+        let c: HashMap<K, V> @local! = HashMap<K, V>(size) @local!
+        for ((k, v) in this) {
+            c.add(k, v)
+        }
+        c
+    }
+
+    @Frozen
+    public exclave func clone(this @local?): HashMap<K, V> @local? {
+        // @local? 形态下元素为 @local?，无法写入本地新表；显式拒绝（见 toArray 说明）。
+        throw UnimplementedException("HashMap.clone() is unavailable for a @local? receiver; " +
+            "use the @local! form.")
+    }
 
     /**
      * Returns the Set view of all keys in this HashMap.
@@ -996,6 +1211,15 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
     public func keys(): EquatableCollection<K> {
         return HashMapKeys<K, V>(this)
     }
+    @Frozen
+    public exclave func keys(this @local!): EquatableCollection<K> @local! {
+        HashMapKeysLocal<K, V>(this) @local!
+    }
+
+    @Frozen
+    public exclave func keys(this @local?): EquatableCollection<K> @local? {
+        HashMapKeysLocal<K, V>(this) @local?
+    }
 
     /**
      * Returns the Set view of all values in this HashMap.
@@ -1007,6 +1231,15 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
     @Frozen
     public func values(): Collection<V> {
         return HashMapValues<K, V>(this)
+    }
+    @Frozen
+    public exclave func values(this @local!): Collection<V> @local! {
+        HashMapValuesLocal<K, V>(this) @local!
+    }
+
+    @Frozen
+    public exclave func values(this @local?): Collection<V> @local? {
+        HashMapValuesLocal<K, V>(this) @local?
     }
 
     /**
@@ -1026,6 +1259,19 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
         }
         return newMap
     }
+    @Frozen
+    public exclave func mapValues<R>(this @local!, transform: ((K @local?, V @local?) -> R @local!) @local?):
+        HashMap<K, R> @local! {
+        let newMap: HashMap<K, R> @local! = HashMap<K, R>() @local!
+        let size: Int64 = entries.size
+        for (i in 0..size) {
+            if (entries[i].hash >= 0) {
+                let nv: R @local! = transform(entries[i].key, entries[i].value)
+                newMap.add(entries[i].key, nv)
+            }
+        }
+        newMap
+    }
 
     /**
      * @description Performs mapping on this HashMap and returns a new HashMap.
@@ -1043,6 +1289,19 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
             }
         }
         return newMap
+    }
+    @Frozen
+    public exclave func mapValues<R>(this @local!, transform: ((V @local?) -> R @local!) @local?):
+        HashMap<K, R> @local! {
+        let newMap: HashMap<K, R> @local! = HashMap<K, R>() @local!
+        let size: Int64 = entries.size
+        for (i in 0..size) {
+            if (entries[i].hash >= 0) {
+                let nv: R @local! = transform(entries[i].value)
+                newMap.add(entries[i].key, nv)
+            }
+        }
+        newMap
     }
 
     /**
@@ -1062,6 +1321,18 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
         }
         return newMap
     }
+    @Frozen
+    public exclave func filter(this @local!, predicate: ((K @local?, V @local?) -> Bool) @local?):
+        HashMap<K, V> @local! {
+        let newMap: HashMap<K, V> @local! = HashMap<K, V>() @local!
+        let size: Int64 = entries.size
+        for (i in 0..size) {
+            if (entries[i].hash >= 0 && predicate(entries[i].key, entries[i].value)) {
+                newMap.add(entries[i].key, entries[i].value)
+            }
+        }
+        newMap
+    }
 
     /**
      * @description Iterates over all key-value pairs and performs the given operation.
@@ -1080,7 +1351,7 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
     }
 
     @Frozen
-    public exclave func forEach(this @local!, action: (K @local!, V @local!) -> Unit) {
+    public exclave func forEach(this @local!, action: ((K @local!, V @local!) -> Unit) @local?) {
         let size: Int64 = entries.size
         for (i in 0..size) {
             if (entries[i].hash >= 0) {
@@ -1090,7 +1361,7 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
     }
 
     @Frozen
-    public func forEach(this @local?, action: (K @local?, V @local?) -> Unit) {
+    public func forEach(this @local?, action: ((K @local?, V @local?) -> Unit) @local?) {
         let size: Int64 = entries.size
         for (i in 0..size) {
             if (entries[i].hash >= 0) {
@@ -1107,6 +1378,16 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
      */
     @When[env != "ohos"]
     public func all(predicate: (K, V) -> Bool): Bool {
+        let size: Int64 = entries.size
+        for (i in 0..size) {
+            if (entries[i].hash >= 0 && !predicate(entries[i].key, entries[i].value)) {
+                return false
+            }
+        }
+        return true
+    }
+    @Frozen
+    public func all(this @local?, predicate: ((K @local?, V @local?) -> Bool) @local?): Bool {
         let size: Int64 = entries.size
         for (i in 0..size) {
             if (entries[i].hash >= 0 && !predicate(entries[i].key, entries[i].value)) {
@@ -1132,6 +1413,16 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
         }
         return false
     }
+    @Frozen
+    public func any(this @local?, predicate: ((K @local?, V @local?) -> Bool) @local?) : Bool {
+        let size: Int64 = entries.size
+        for (i in 0..size) {
+            if (entries[i].hash >= 0 && predicate(entries[i].key, entries[i].value)) {
+                return true
+            }
+        }
+        return false
+    }
 
     /**
      * @description Determine whether all key-value pairs in the HashMap do not satisfy the condition.
@@ -1141,6 +1432,16 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
      */
     @When[env != "ohos"]
     public func none(predicate: (K, V) -> Bool): Bool {
+        let size: Int64 = entries.size
+        for (i in 0..size) {
+            if (entries[i].hash >= 0 && predicate(entries[i].key, entries[i].value)) {
+                return false
+            }
+        }
+        return true
+    }
+    @Frozen
+    public func none(this @local?, predicate: ((K @local?, V @local?) -> Bool) @local?) : Bool {
         let size: Int64 = entries.size
         for (i in 0..size) {
             if (entries[i].hash >= 0 && predicate(entries[i].key, entries[i].value)) {
@@ -1167,6 +1468,18 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
             }
         }
         return result
+    }
+    @Frozen
+    public exclave func fold<R>(this @local!, initial: R @local!,
+        operation: ((R @local!, K @local?, V @local?) -> R @local!) @local?): R @local! {
+        var result: R @local! = initial
+        let size: Int64 = entries.size
+        for (i in 0..size) {
+            if (entries[i].hash >= 0) {
+                result = operation(result, entries[i].key, entries[i].value)
+            }
+        }
+        result
     }
 
     /**
@@ -1201,6 +1514,34 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
             index++
         }
         return result
+    }
+    @Frozen
+    public exclave func reduce(this @local!, operation: ((V @local!, V @local?) -> V @local!) @local?):
+        Option<V> @local! {
+        if (size == 0) {
+            return Option<V>.None
+        }
+        let len: Int64 = entries.size
+        var index = 0
+        var result: V @local! = unsafe { zeroValue2<V>() }
+        while (index < len) {
+            if (entries[index].hash >= 0) {
+                result = entries[index].value
+                index++
+                break
+            }
+            index++
+        }
+        if (size == 1) {
+            return Option<V>.Some(result) @local!
+        }
+        while (index < len) {
+            if (entries[index].hash >= 0) {
+                result = operation(result, entries[index].value)
+            }
+            index++
+        }
+        Option<V>.Some(result) @local!
     }
 
     /**
@@ -1396,6 +1737,32 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
         }
         return arr
     }
+    @Frozen
+    public exclave func toArray(this @local!): Array<(K, V)> @local! {
+        let arr: Array<(K, V)> @local! =
+            Array<(K, V)>(size, repeat: unsafe { (zeroValue2<K>(), zeroValue2<V>()) }) @local!
+        var index = 0
+        var pos = 0
+        while (index < size) {
+            if (entries[pos].hash >= 0) {
+                let pair: (K, V) @local! = (entries[pos].key, entries[pos].value)
+                arr[index] = pair
+                index++
+            }
+            pos++
+        }
+        arr
+    }
+
+    @Frozen
+    public exclave func toArray(this @local?): Array<(K, V)> @local? {
+        // 编译器限制：@local? 接收者读出的 key/value 为 @local?，无法写入新数组——
+        // Array 的 `[]=(this @local?, ...)` 写入器在 Copyable 扩展内（array.cj:1714），
+        // (K, V) 无该约束。
+        // 按既定回退规则显式拒绝；需要数组时请在 @local! 形态上调用。
+        throw UnimplementedException("HashMap.toArray() is unavailable for a @local? receiver; " +
+            "call it on the @local! form.")
+    }
 
     /*
      * Initializes or doubles the table size.
@@ -1551,6 +1918,24 @@ extend<K, V> HashMap<K, V> <: ToString where V <: ToString, K <: ToString {
         unsafe { sb.appendFromUtf8Unchecked(")]".toArray()) }
         return sb.toString()
     }
+
+    // 提案 §19：toString(this @local?): String @local!。
+    // StringBuilder 的 local 接口仅 std.core 包内可见，故此处只用公开 local API：
+    // 本地迭代 + String.+(this @local!, others: String @local?) + ToString.toString(@local?)。
+    @Frozen
+    public exclave func toString(this @local?): String @local! {
+        var result: String @local! = "["
+        var first = true
+        for ((k, v) in this) {
+            if (!first) {
+                result = result + ", "
+            }
+            first = false
+            result = result + "(" + k.toString() + ", " + v.toString() + ")"
+        }
+        result = result + "]"
+        return result
+    }
 }
 
 /**
@@ -1582,6 +1967,24 @@ extend<K, V> HashMap<K, V> <: Equatable<HashMap<K, V>> where V <: Equatable<V> {
     }
 
     @Frozen
+    public operator func ==(this @local?, right: HashMap<K, V> @local?): Bool {
+        if (this.size != right.size) {
+            return false
+        }
+        for ((k, v) in this) {
+            match (right.get(k)) {
+                case Some(rv) =>
+                    if (v != rv) {
+                        return false
+                    }
+                case None =>
+                    return false
+            }
+        }
+        return true
+    }
+
+    @Frozen
     public operator func !=(right: HashMap<K, V>): Bool {
         if (size != right.size) {
             return true
@@ -1603,6 +2006,287 @@ extend<K, V> HashMap<K, V> <: Equatable<HashMap<K, V>> where V <: Equatable<V> {
  * This is a hashmap iterator used to iterate effects.
  *
  * @since 0.18.4
+ */
+
+/**
+ * HashMap keys 的 local 视图（§19 keys(@local!/@local?) 的返回类型）。
+ * 与 plain HashMapKeys 同语义，仅持有 `@local!`/`@local?` 形态的 map 引用。
+ */
+class HashMapKeysLocal<K, V> <: EquatableCollection<K> where K <: Hashable & Equatable<K> {
+    private let map: HashMap<K, V>
+
+    @Frozen
+    exclave init(this @local!, m: HashMap<K, V> @local!) {
+        map = m
+    }
+
+    @Frozen
+    exclave init(this @local?, m: HashMap<K, V> @local?) {
+        map = m
+    }
+
+    @Frozen
+    public prop size: Int64 {
+        get() {
+            map.size
+        }
+    }
+
+    @Frozen
+    public func isEmpty(): Bool {
+        map.isEmpty()
+    }
+
+    @Frozen
+    public func isEmpty(this @local?): Bool {
+        map.isEmpty()
+    }
+
+    @Frozen
+    public func contains(element: K): Bool {
+        map.contains(element)
+    }
+
+    @Frozen
+    public func contains(all!: Collection<K>): Bool {
+        map.contains(all: all)
+    }
+
+    @Frozen
+    public func iterator(): Iterator<K> {
+        map.iterator().map<K> {i: (K, V) => i[0]}
+    }
+
+    @Frozen
+    public exclave func iterator(this @local!): Iterator<K> @local! {
+        HashMapKeysIteratorLocal<K, V>(map) @local!
+    }
+
+    @Frozen
+    public exclave func iterator(this @local?): Iterator<K> @local? {
+        HashMapKeysIteratorLocal<K, V>(map) @local?
+    }
+
+    @Frozen
+    public exclave func toArray(this @local!): Array<K> @local! {
+        let n: Int64 = map.size
+        let arr: Array<K> @local! = Array<K>(n, repeat: unsafe { zeroValue2<K>() }) @local!
+        var index = 0
+        var pos = 0
+        while (index < n) {
+            if (map.entries[pos].hash >= 0) {
+                let e: K @local! = map.entries[pos].key
+                arr[index] = e
+                index++
+            }
+            pos++
+        }
+        arr
+    }
+
+    @Frozen
+    public exclave func toArray(this @local?): Array<K> @local? {
+        // 编译器限制：@local? 接收者读出的元素为 K @local?，无法写入新数组——Array 的
+        // `[]=(this @local?, ...)` 写入器在 Copyable 扩展内（array.cj:1714），K 无该约束
+        // （arraySet3 本身已无约束，但它对 std.collection 不可达）。
+        // 按既定回退规则显式拒绝而非静默丢元素；需要数组时请在 @local! 形态上调用。
+        throw UnimplementedException("HashMap.keys(...).toArray() is unavailable for a @local? receiver; " +
+            "call it on the @local! form.")
+    }
+}
+
+/**
+ * keys 视图的本地迭代器（按 entries 顺序产出 key）。
+ */
+class HashMapKeysIteratorLocal<K, V> <: Iterator<K> where K <: Hashable & Equatable<K> {
+    private let data: HashMap<K, V>
+    private var pos: Int64 = 0
+
+    @Frozen
+    exclave init(this @local!, d: HashMap<K, V> @local!) {
+        data = d
+        pos = 0
+    }
+
+    @Frozen
+    exclave init(this @local?, d: HashMap<K, V> @local?) {
+        data = d
+        pos = 0
+    }
+
+    @Frozen
+    public func next(): Option<K> {
+        throw UnimplementedException("Use the local-mode overload of 'next'.")
+    }
+
+    @Frozen
+    public exclave func next(this @local!): Option<K> @local! {
+        let n: Int64 = data.entries.size
+        while (pos < n && data.entries[pos].hash < 0) {
+            pos++
+        }
+        if (pos >= n) {
+            return Option<K>.None
+        }
+        let k: K @local! = data.entries[pos].key
+        pos++
+        Option<K>.Some(k) @local!
+    }
+
+    @Frozen
+    public exclave func next(this @local?): Option<K> @local? {
+        let n: Int64 = data.entries.size
+        while (pos < n && data.entries[pos].hash < 0) {
+            pos++
+        }
+        if (pos >= n) {
+            return Option<K>.None
+        }
+        let k: K @local? = data.entries[pos].key
+        pos++
+        let r: Option<K> @local? = Option<K>.Some(k)
+        r
+    }
+}
+
+/**
+ * HashMap values 的 local 视图（§19 values(@local!/@local?) 的返回类型）。
+ */
+class HashMapValuesLocal<K, V> <: Collection<V> where K <: Hashable & Equatable<K> {
+    private let map: HashMap<K, V>
+
+    @Frozen
+    exclave init(this @local!, m: HashMap<K, V> @local!) {
+        map = m
+    }
+
+    @Frozen
+    exclave init(this @local?, m: HashMap<K, V> @local?) {
+        map = m
+    }
+
+    @Frozen
+    public prop size: Int64 {
+        get() {
+            map.size
+        }
+    }
+
+    @Frozen
+    public func isEmpty(): Bool {
+        map.isEmpty()
+    }
+
+    @Frozen
+    public func isEmpty(this @local?): Bool {
+        map.isEmpty()
+    }
+
+    @Frozen
+    public func iterator(): Iterator<V> {
+        map.iterator().map<V> {i: (K, V) => i[1]}
+    }
+
+    @Frozen
+    public exclave func iterator(this @local!): Iterator<V> @local! {
+        HashMapValuesIteratorLocal<K, V>(map) @local!
+    }
+
+    @Frozen
+    public exclave func iterator(this @local?): Iterator<V> @local? {
+        HashMapValuesIteratorLocal<K, V>(map) @local?
+    }
+
+    @Frozen
+    public exclave func toArray(this @local!): Array<V> @local! {
+        let n: Int64 = map.size
+        let arr: Array<V> @local! = Array<V>(n, repeat: unsafe { zeroValue2<V>() }) @local!
+        var index = 0
+        var pos = 0
+        while (index < n) {
+            if (map.entries[pos].hash >= 0) {
+                let e: V @local! = map.entries[pos].value
+                arr[index] = e
+                index++
+            }
+            pos++
+        }
+        arr
+    }
+
+    @Frozen
+    public exclave func toArray(this @local?): Array<V> @local? {
+        // 同 HashMapKeysLocal.toArray(@local?)：@local? 元素无法写入新数组（Array 的
+        // @local? 写入器位于 Copyable 扩展内）。
+        throw UnimplementedException("HashMap.values(...).toArray() is unavailable for a @local? receiver; " +
+            "call it on the @local! form.")
+    }
+}
+
+/**
+ * values 视图的本地迭代器（按 entries 顺序产出 value）。
+ */
+class HashMapValuesIteratorLocal<K, V> <: Iterator<V> where K <: Hashable & Equatable<K> {
+    private let data: HashMap<K, V>
+    private var pos: Int64 = 0
+
+    @Frozen
+    exclave init(this @local!, d: HashMap<K, V> @local!) {
+        data = d
+        pos = 0
+    }
+
+    @Frozen
+    exclave init(this @local?, d: HashMap<K, V> @local?) {
+        data = d
+        pos = 0
+    }
+
+    @Frozen
+    public func next(): Option<V> {
+        throw UnimplementedException("Use the local-mode overload of 'next'.")
+    }
+
+    @Frozen
+    public exclave func next(this @local!): Option<V> @local! {
+        let n: Int64 = data.entries.size
+        while (pos < n && data.entries[pos].hash < 0) {
+            pos++
+        }
+        if (pos >= n) {
+            return Option<V>.None
+        }
+        let v: V @local! = data.entries[pos].value
+        pos++
+        Option<V>.Some(v) @local!
+    }
+
+    @Frozen
+    public exclave func next(this @local?): Option<V> @local? {
+        let n: Int64 = data.entries.size
+        while (pos < n && data.entries[pos].hash < 0) {
+            pos++
+        }
+        if (pos >= n) {
+            return Option<V>.None
+        }
+        let v: V @local? = data.entries[pos].value
+        pos++
+        let r: Option<V> @local? = Option<V>.Some(v)
+        r
+    }
+}
+
+/**
+ * HashMap entryView 的 local 视图（§19 entryView(@local!/@local?) 的返回类型）。
+ */
+
+
+
+
+
+/**
+ * HashMap toArray 元素写入不可行时的占位（见 toArray 注释）。
  */
 public class HashMapIterator<K, V> <: Iterator<(K, V)> where K <: Hashable & Equatable<K> {
     /* Define an empty set */
