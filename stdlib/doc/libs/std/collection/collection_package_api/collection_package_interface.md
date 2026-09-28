@@ -291,7 +291,7 @@ public interface ListOfCopyable<T> <: ReadOnlyList<T> where T <: Copyable {
 
 功能：该接口表示可变列表，为 `@local?` 实例提供元素写入与标量删除能力，仅当元素类型 `T` 是 Copyable 时可用。
 
-由于 `@local?` 实例禁止重绑 non-Copyable 成员字段（编译器报 "cannot assign to member of @local? value of non copy type"），需要扩容的操作（`add` 家族、`reserve`）只能覆盖“容量足够”的分支：容量不足时抛出 [UnImplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception)。需要真正扩容的调用方需先将实例转换为 `@local!` 再操作。
+由于 `@local?` 实例禁止重绑 non-Copyable 成员字段（编译器报 "cannot assign to member of @local? value of non copy type"），需要扩容的操作（`add` 家族、`reserve`）只能覆盖“容量足够”的分支：容量不足时抛出 [UnimplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception)。需要真正扩容的调用方需先将实例转换为 `@local!` 再操作。
 
 该接口是 [ArrayList](collection_package_class.md#class-arraylistt)\<T> 在 local mode 下的适配接口，`ArrayList` 已通过 `extend<T> ArrayList<T> <: ListOfCopyable<T> where T <: Copyable` 提供全部实现。
 
@@ -305,7 +305,7 @@ public interface ListOfCopyable<T> <: ReadOnlyList<T> where T <: Copyable {
 func add(this @local?, element: T): Unit
 ```
 
-功能：将指定元素添加到当前 `@local?` 列表的尾部。容量不足时抛出 [UnImplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception)。
+功能：将指定元素添加到当前 `@local?` 列表的尾部。容量不足时抛出 [UnimplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception)。
 
 参数：
 
@@ -318,7 +318,7 @@ func add(this @local?, element: T): Unit
 func add(this @local?, all!: Collection<T> @local?): Unit
 ```
 
-功能：将 `@local?` 集合中的所有元素添加到当前 `@local?` 列表的尾部。容量不足时抛出 [UnImplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception)。
+功能：将 `@local?` 集合中的所有元素添加到当前 `@local?` 列表的尾部。容量不足时抛出 [UnimplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception)。
 
 参数：
 
@@ -331,7 +331,7 @@ func add(this @local?, all!: Collection<T> @local?): Unit
 func add(this @local?, element: T, at!: Int64): Unit
 ```
 
-功能：将指定元素插入到当前 `@local?` 列表的指定位置。容量不足时抛出 [UnImplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception)。
+功能：将指定元素插入到当前 `@local?` 列表的指定位置。容量不足时抛出 [UnimplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception)。
 
 参数：
 
@@ -345,7 +345,7 @@ func add(this @local?, element: T, at!: Int64): Unit
 func add(this @local?, all!: Collection<T> @local?, at!: Int64): Unit
 ```
 
-功能：将 `@local?` 集合中的所有元素插入到当前 `@local?` 列表的指定位置。容量不足时抛出 [UnImplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception)。
+功能：将 `@local?` 集合中的所有元素插入到当前 `@local?` 列表的指定位置。容量不足时抛出 [UnimplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception)。
 
 参数：
 

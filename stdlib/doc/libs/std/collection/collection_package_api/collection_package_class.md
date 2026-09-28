@@ -4558,7 +4558,7 @@ public func add(this @local?, element: T): Unit
 
 > **注意：**
 >
-> 当需要扩容时，此方法将抛出 `UnImplementedException`。扩容操作请在 `@local!` 模式下使用 `add` 方法完成。
+> 当需要扩容时，此方法将抛出 `UnimplementedException`。扩容操作请在 `@local!` 模式下使用 `add` 方法完成。
 
 参数：
 
@@ -4567,7 +4567,7 @@ public func add(this @local?, element: T): Unit
 
 异常：
 
-- [UnImplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception) - 当需要扩容时，抛出异常。
+- [UnimplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception) - 当需要扩容时，抛出异常。
 
 示例：
 
@@ -4603,7 +4603,7 @@ public func add(this @local?, element: T, at!: Int64): Unit
 
 > **注意：**
 >
-> 当需要扩容时，此方法将抛出 `UnImplementedException`。扩容操作请在 `@local!` 模式下使用 `add` 方法完成。
+> 当需要扩容时，此方法将抛出 `UnimplementedException`。扩容操作请在 `@local!` 模式下使用 `add` 方法完成。
 
 参数：
 
@@ -4614,7 +4614,7 @@ public func add(this @local?, element: T, at!: Int64): Unit
 异常：
 
 - [IndexOutOfBoundsException](../../core/core_package_api/core_package_exceptions.md#class-indexoutofboundsexception) - 当 at 小于 0 或大于列表大小，抛出异常。
-- [UnImplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception) - 当需要扩容时，抛出异常。
+- [UnimplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception) - 当需要扩容时，抛出异常。
 
 示例：
 
@@ -4652,7 +4652,7 @@ public func add(this @local?, all!: Collection<T> @local?): Unit
 
 > **注意：**
 >
-> 当需要扩容时，此方法将抛出 `UnImplementedException`。扩容操作请在 `@local!` 模式下使用 `add` 方法完成。
+> 当需要扩容时，此方法将抛出 `UnimplementedException`。扩容操作请在 `@local!` 模式下使用 `add` 方法完成。
 
 参数：
 
@@ -4661,7 +4661,7 @@ public func add(this @local?, all!: Collection<T> @local?): Unit
 
 异常：
 
-- [UnImplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception) - 当需要扩容时，抛出异常。
+- [UnimplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception) - 当需要扩容时，抛出异常。
 
 示例：
 
@@ -4697,7 +4697,7 @@ public func add(this @local?, all!: Collection<T> @local?, at!: Int64): Unit
 
 > **注意：**
 >
-> 当需要扩容时，此方法将抛出 `UnImplementedException`。扩容操作请在 `@local!` 模式下使用 `add` 方法完成。
+> 当需要扩容时，此方法将抛出 `UnimplementedException`。扩容操作请在 `@local!` 模式下使用 `add` 方法完成。
 
 参数：
 
@@ -4708,7 +4708,7 @@ public func add(this @local?, all!: Collection<T> @local?, at!: Int64): Unit
 异常：
 
 - [IndexOutOfBoundsException](../../core/core_package_api/core_package_exceptions.md#class-indexoutofboundsexception) - 当 at 小于 0 或大于列表大小，抛出异常。
-- [UnImplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception) - 当需要扩容时，抛出异常。
+- [UnimplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception) - 当需要扩容时，抛出异常。
 
 示例：
 
@@ -4744,7 +4744,7 @@ public func reserve(this @local?, additional: Int64): Unit
 
 > **注意：**
 >
-> 当需要扩容时，此方法将抛出 `UnImplementedException`。扩容操作请在 `@local!` 模式下使用 `add` 方法完成。
+> 当需要扩容时，此方法将抛出 `UnimplementedException`。扩容操作请在 `@local!` 模式下使用 `add` 方法完成。
 
 参数：
 
@@ -4754,7 +4754,7 @@ public func reserve(this @local?, additional: Int64): Unit
 异常：
 
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 当 additional 小于 0，抛出异常。
-- [UnImplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception) - 当需要扩容时，抛出异常。
+- [UnimplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception) - 当需要扩容时，抛出异常。
 
 示例：
 
@@ -7213,7 +7213,7 @@ public exclave func get(this @local!, key: K @local!): ?V @local!
 
 > **注意：**
 >
-> 当前版本存在已知缺陷：当 K 为数值类型时，由于数值类型未提供 `==` 的 `@local!` 覆写，`get` 内部的相等性判断会走 [Equal](../../core/core_package_api/core_package_interfaces.md#interface-equalt) 接口默认实现并抛出 [UnImplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception)；当 K 为 String 等引用类型时，添加元素后调用 `get` 可能触发运行时写屏障缺陷导致进程异常中止。请以实际 SDK 版本行为为准，或使用 `contains` / `forEach` 等替代方式。
+> 当前版本存在已知缺陷：当 K 为数值类型时，由于数值类型未提供 `==` 的 `@local!` 覆写，`get` 内部的相等性判断会走 [Equal](../../core/core_package_api/core_package_interfaces.md#interface-equalt) 接口默认实现并抛出 [UnimplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception)；当 K 为 String 等引用类型时，添加元素后调用 `get` 可能触发运行时写屏障缺陷导致进程异常中止。请以实际 SDK 版本行为为准，或使用 `contains` / `forEach` 等替代方式。
 
 参数：
 
@@ -8069,7 +8069,7 @@ public exclave operator func [](this @local!, key: K @local!): V @local!
 
 > **注意：**
 >
-> 当前版本存在已知缺陷：当 K 为数值类型时，由于数值类型未提供 `==` 的 `@local!` 覆写，内部的相等性判断会走 [Equal](../../core/core_package_api/core_package_interfaces.md#interface-equalt) 接口默认实现并抛出 [UnImplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception)。请以实际 SDK 版本行为为准。
+> 当前版本存在已知缺陷：当 K 为数值类型时，由于数值类型未提供 `==` 的 `@local!` 覆写，内部的相等性判断会走 [Equal](../../core/core_package_api/core_package_interfaces.md#interface-equalt) 接口默认实现并抛出 [UnimplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception)。请以实际 SDK 版本行为为准。
 
 参数：
 
@@ -8436,7 +8436,7 @@ public exclave func next(this @local!): ?(K, V) @local!
 
 功能：返回当前 `@local!` 迭代器中的下一个元素。
 
-该函数是 local mode 适配的默认实现，未覆写时抛出 [UnImplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception)。
+该函数是 local mode 适配的默认实现，未覆写时抛出 [UnimplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception)。
 
 参数：
 
@@ -8458,7 +8458,7 @@ public exclave func next(this @local?): ?(K, V) @local?
 
 功能：返回当前 `@local?` 迭代器中的下一个元素。
 
-该函数是 local mode 适配的默认实现，未覆写时抛出 [UnImplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception)。
+该函数是 local mode 适配的默认实现，未覆写时抛出 [UnimplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception)。
 
 参数：
 

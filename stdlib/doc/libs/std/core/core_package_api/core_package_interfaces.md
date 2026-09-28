@@ -583,7 +583,7 @@ func isEmpty(this @local?): Bool
 
 功能：判断当前 `@local?` 集合是否为空。
 
-该函数是 local mode 适配的默认实现，未覆写时抛出 [UnImplementedException](core_package_exceptions.md#class-unimplementedexception)。
+该函数是 local mode 适配的默认实现，未覆写时抛出 [UnimplementedException](core_package_exceptions.md#class-unimplementedexception)。
 
 参数：
 
@@ -601,7 +601,7 @@ func toArray(this @local?): Array<T> @local?
 
 功能：将当前 `@local?` 集合转为 `@local?` 数组类型。
 
-该函数是 local mode 适配的默认实现，未覆写时抛出 [UnImplementedException](core_package_exceptions.md#class-unimplementedexception)。
+该函数是 local mode 适配的默认实现，未覆写时抛出 [UnimplementedException](core_package_exceptions.md#class-unimplementedexception)。
 
 参数：
 
@@ -619,7 +619,7 @@ func toArray(this @local!): Array<T> @local!
 
 功能：将当前 `@local!` 集合转为 `@local!` 数组类型。
 
-该函数是 local mode 适配的默认实现，未覆写时抛出 [UnImplementedException](core_package_exceptions.md#class-unimplementedexception)。
+该函数是 local mode 适配的默认实现，未覆写时抛出 [UnimplementedException](core_package_exceptions.md#class-unimplementedexception)。
 
 参数：
 
@@ -758,7 +758,7 @@ func compare(this @local?, other: T @local?): Ordering
 
 功能：判断当前 `@local?` 实例与参数指定的 `@local?` 实例的大小关系。
 
-该函数是 local mode 适配的默认实现，未覆写时抛出 [UnImplementedException](core_package_exceptions.md#class-unimplementedexception)。
+该函数是 local mode 适配的默认实现，未覆写时抛出 [UnimplementedException](core_package_exceptions.md#class-unimplementedexception)。
 
 参数：
 
@@ -1078,7 +1078,7 @@ operator func ==(this @local!, other: T @local!): Bool
 
 功能：判断当前 `@local!` 实例与指定 `@local!` 实例是否相等。
 
-该函数是 local mode 适配的默认实现，未覆写时抛出 [UnImplementedException](core_package_exceptions.md#class-unimplementedexception)。
+该函数是 local mode 适配的默认实现，未覆写时抛出 [UnimplementedException](core_package_exceptions.md#class-unimplementedexception)。
 
 参数：
 
@@ -1096,7 +1096,7 @@ operator func ==(this @local?, other: T @local?): Bool
 
 功能：判断当前 `@local?` 实例与指定 `@local?` 实例是否相等。
 
-该函数是 local mode 适配的默认实现，未覆写时抛出 [UnImplementedException](core_package_exceptions.md#class-unimplementedexception)。
+该函数是 local mode 适配的默认实现，未覆写时抛出 [UnimplementedException](core_package_exceptions.md#class-unimplementedexception)。
 
 参数：
 
@@ -1149,7 +1149,7 @@ operator func !=(this @local!, other: T @local!): Bool
 
 功能：判断当前 `@local!` 实例与指定 `@local!` 实例是否不相等。
 
-该函数是 local mode 适配的默认实现，未覆写时抛出 [UnImplementedException](core_package_exceptions.md#class-unimplementedexception)。
+该函数是 local mode 适配的默认实现，未覆写时抛出 [UnimplementedException](core_package_exceptions.md#class-unimplementedexception)。
 
 参数：
 
@@ -1167,7 +1167,7 @@ operator func !=(this @local?, other: T @local?): Bool
 
 功能：判断当前 `@local?` 实例与指定 `@local?` 实例是否不相等。
 
-该函数是 local mode 适配的默认实现，未覆写时抛出 [UnImplementedException](core_package_exceptions.md#class-unimplementedexception)。
+该函数是 local mode 适配的默认实现，未覆写时抛出 [UnimplementedException](core_package_exceptions.md#class-unimplementedexception)。
 
 参数：
 
@@ -1261,7 +1261,7 @@ func hashCode(this @local?): Int64
 
 功能：计算当前 `@local?` 实例的哈希值。
 
-该函数是 local mode 适配的默认实现，未覆写时抛出 [UnImplementedException](core_package_exceptions.md#class-unimplementedexception)。
+该函数是 local mode 适配的默认实现，未覆写时抛出 [UnimplementedException](core_package_exceptions.md#class-unimplementedexception)。
 
 参数：
 
@@ -1518,7 +1518,7 @@ func iterator(this @local!): Iterator<E> @local!
 
 功能：获取当前 `@local!` 实例的迭代器，返回的迭代器与当前实例绑定在同一个 local region 中。
 
-该函数是 local mode 适配的默认实现，未覆写时抛出 [UnImplementedException](core_package_exceptions.md#class-unimplementedexception)。
+该函数是 local mode 适配的默认实现，未覆写时抛出 [UnimplementedException](core_package_exceptions.md#class-unimplementedexception)。
 
 参数：
 
@@ -1536,7 +1536,7 @@ func iterator(this @local?): Iterator<E> @local?
 
 功能：获取当前 `@local?` 实例的迭代器，返回的迭代器与当前实例绑定在同一个 local region 中。
 
-该函数是 local mode 适配的默认实现，未覆写时抛出 [UnImplementedException](core_package_exceptions.md#class-unimplementedexception)。
+该函数是 local mode 适配的默认实现，未覆写时抛出 [UnimplementedException](core_package_exceptions.md#class-unimplementedexception)。
 
 参数：
 
@@ -1722,7 +1722,7 @@ func toString(this @local?): String @local!
 
 功能：将当前 `@local?` 实例转换为可输出的字符串，返回的字符串与当前实例绑定在同一个 local region 中。
 
-该函数是 local mode 适配的默认实现，未覆写时抛出 [UnImplementedException](core_package_exceptions.md#class-unimplementedexception)；具体类型（如 [String](core_package_structs.md#struct-string)、[Array](core_package_structs.md#struct-arrayt)\<T>、数值类型等）已提供 `@local?` 覆写实现。
+该函数是 local mode 适配的默认实现，未覆写时抛出 [UnimplementedException](core_package_exceptions.md#class-unimplementedexception)；具体类型（如 [String](core_package_structs.md#struct-string)、[Array](core_package_structs.md#struct-arrayt)\<T>、数值类型等）已提供 `@local?` 覆写实现。
 
 参数：
 

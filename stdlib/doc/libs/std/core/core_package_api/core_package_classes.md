@@ -1010,7 +1010,7 @@ public open func next(this @local!): ?T @local!
 
 功能：获取迭代过程中的下一个 `@local!` 元素。
 
-该函数是 local mode 适配的默认实现，未覆写时抛出 [UnImplementedException](core_package_exceptions.md#class-unimplementedexception)。
+该函数是 local mode 适配的默认实现，未覆写时抛出 [UnimplementedException](core_package_exceptions.md#class-unimplementedexception)。
 
 参数：
 
@@ -1028,7 +1028,7 @@ public open func next(this @local?): ?T @local?
 
 功能：获取迭代过程中的下一个 `@local?` 元素。
 
-该函数是 local mode 适配的默认实现，未覆写时抛出 [UnImplementedException](core_package_exceptions.md#class-unimplementedexception)。
+该函数是 local mode 适配的默认实现，未覆写时抛出 [UnimplementedException](core_package_exceptions.md#class-unimplementedexception)。
 
 参数：
 

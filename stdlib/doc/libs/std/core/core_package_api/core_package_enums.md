@@ -1290,7 +1290,7 @@ public func toString(this @local?): String @local!
 
 > **注意：**
 >
-> 当前编译器/运行时版本下，`Ordering` 枚举的 `@local?` 分派存在已知缺陷：在部分调用形态下该方法可能抛出 [UnImplementedException](core_package_exceptions.md#class-unimplementedexception)（默认实现未被覆写分派命中），请以实际 SDK 版本行为为准。
+> 当前编译器/运行时版本下，`Ordering` 枚举的 `@local?` 分派存在已知缺陷：在部分调用形态下该方法可能抛出 [UnimplementedException](core_package_exceptions.md#class-unimplementedexception)（默认实现未被覆写分派命中），请以实际 SDK 版本行为为准。
 
 参数：
 
