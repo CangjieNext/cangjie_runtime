@@ -265,9 +265,12 @@ public interface Comparable<T> <: Equatable<T> & Less<T> & Greater<T> & LessOrEq
     }
 
     func compare(this @local?, other: T @local?): Ordering {
-        throw UnImplementedException("Current Type does not implement 'compare' method for its @local? instance")
+        throw UnimplementedException("Current Type does not implement 'compare' method for its @local? instance")
     }
 
+    // 支撑面（刻意保留，依赖发现）：静态 `Comparable<T> @local?` 接收者的 == 分派
+    // 落到此默认体（compare EQ→true）。既有用例 test_comparable_hashable_local.cj:387
+    // 依赖该行为（2026-09-24 删除后 LLT 转红，按审计 D2 阶梯恢复保留）；审计 §5.2。
     operator func ==(this @local?, other: T @local?): Bool {
         return match (this.compare(other)) {
             case EQ => true

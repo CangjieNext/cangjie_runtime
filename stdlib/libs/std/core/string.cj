@@ -360,6 +360,19 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
         intrinsicBuiltInCopyTo2<Byte>(this.myData, newRawPtr, Int64(this.start), 0, Int64(length))
         return Array<Byte>(newRawPtr, 0, size)
     }
+    // gap audit 2026-09-24 #21‡ / §4（G5）：Collection.toArray(this @local?) 的 String
+    // 覆写。独立拷贝语义与 @local! 版一致；全程 @local? 定型（rawArrayAllocate3 +
+    // rawArrayInitByValue3 + intrinsicBuiltInCopyTo3 + RawArray @local? 版构造），
+    // 避免 @local! 值在返回位置拓宽（编译器拒绝 "cannot return expression of
+    // internal @local! mode"）与 RawArray 构造二义（@local! 实参同时匹配
+    // @local!/@local? 两个构造候选）。
+    @Frozen
+    public exclave func toArray(this @local?): Array<Byte> @local? {
+        let newRawPtr = rawArrayAllocate3<UInt8>(Int64(length))
+        rawArrayInitByValue3<UInt8>(newRawPtr, Int64(length), 0)
+        intrinsicBuiltInCopyTo3<Byte>(this.myData, newRawPtr, Int64(this.start), 0, Int64(length))
+        return Array<Byte>(newRawPtr, 0, Int64(length))
+    }
 
     @Frozen
     public func toString(): String {
@@ -406,6 +419,13 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
     public exclave func runes(this @local!): Iterator<Rune> @local! {
         return StringRuneIterator(StringIteratorData(unsafe { rawData() }) @local!) @local!
     }
+    // gap audit 2026-09-24 #11 / §9.1(a)：@local? 版 runes。迭代器侧 @local? 形态
+    // 已具备（StringIteratorData/StringRuneIterator 的 exclave init 与 next @local?），
+    // 与 iterator(this @local?) 同形（:396-399）。
+    @Frozen
+    public exclave func runes(this @local?): Iterator<Rune> @local? {
+        return StringRuneIterator(StringIteratorData(unsafe { rawData() }) @local?) @local?
+    }
 
     @Frozen
     public func lines(): Iterator<String> {
@@ -414,6 +434,11 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
     @Frozen
     public exclave func lines(this @local!): Iterator<String> @local! {
         return StringLineIterator(StringIteratorData(unsafe { rawData() }) @local!) @local!
+    }
+    // gap audit 2026-09-24 #12 / §9.1(a)：@local? 版 lines，同 runes @local?。
+    @Frozen
+    public exclave func lines(this @local?): Iterator<String> @local? {
+        return StringLineIterator(StringIteratorData(unsafe { rawData() }) @local?) @local?
     }
 
     // Returns the byte counts of this string.
@@ -604,6 +629,21 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
         result
     }
 
+    // URL 文档 §15：indexOf 的 @local? 版本（镜像 @local! 版的逐字节扫描手法，
+    // CMP-10 同源限制一并适用）。返回 plain Option<Int64>，与 get(this @local?)
+    // 的 Option 构造先例（:286）同形；非 exclave 声明同 get/contains 等 plain 返回成员。
+    @Frozen
+    public func indexOf(this @local?, b: Byte): Option<Int64> {
+        var i: Int64 = 0
+        while (i < size) {
+            if (arrayGetUnchecked3<UInt8>(this.myData, Int64(this.start) + i) == b) {
+                return Some<Int64>(i)
+            }
+            i = i + 1
+        }
+        return None<Int64>
+    }
+
     // Returns the index of the first occurrence of the specified byte at or after the specified index.
     // Returns `Option<Int64>.None` if the specified byte is absent at or after the specified index.
     @Frozen
@@ -745,7 +785,37 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
         result
     }
 
-    // Returns the index of the last occurrence of the specified byte.
+    // URL 文档 §15：indexOf(str) 的 @local? 版本（镜像 @local! 版的逐字节扫描手法，
+    // CMP-10 同源限制一并适用）。返回 plain Option<Int64>，构造先例同 indexOf(this @local?, b)。
+    @Frozen
+    public func indexOf(this @local?, str: String @local?): Option<Int64> {
+        if (str.size == 0) {
+            return Some<Int64>(0)
+        }
+        if (this.size < str.size) {
+            return None<Int64>
+        }
+        var i: Int64 = 0
+        while (i <= this.size - str.size) {
+            var matched: Bool = true
+            var j: Int64 = 0
+            while (j < str.size) {
+                if (arrayGetUnchecked3<UInt8>(this.myData, Int64(this.start) + i + j) !=
+                    arrayGetUnchecked3<UInt8>(str.myData, Int64(str.start) + j)) {
+                    matched = false
+                    break
+                }
+                j = j + 1
+            }
+            if (matched) {
+                return Some<Int64>(i)
+            }
+            i = i + 1
+        }
+        return None<Int64>
+    }
+
+    // Returns the last occurrence of the specified byte.
     // Return `Option<Int64>.None` if specified byte is absent.
     @Frozen
     public func lastIndexOf(b: Byte): Option<Int64> {
@@ -1435,10 +1505,6 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
     public exclave func trimAscii(this @local!): String @local! {
         trimAsciiStart().trimAsciiEnd()
     }
-    @Frozen
-    public exclave func trimAscii(this @local?): String @local? {
-        trimAsciiStart().trimAsciiEnd()
-    }
 
     @Frozen
     @OverflowWrapping
@@ -1474,23 +1540,6 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
         }
         String(myData, this.start + UInt32(start), length - UInt32(start))
     }
-    @Frozen
-    @OverflowWrapping
-    public exclave func trimAsciiStart(this  @local?): String @local? {
-        var start: Int64 = 0
-        var foundFirst: Bool = false
-        for (i in 0..size) {
-            if (!arrayGetUnchecked3(myData, i + Int64(this.start)).isAsciiWhiteSpace()) {
-                start = i
-                foundFirst = true
-                break
-            }
-        }
-        if (!foundFirst) {
-            return String() @local!
-        }
-        String(myData, this.start + UInt32(start), length - UInt32(start))
-    }
 
     @Frozen
     @OverflowWrapping
@@ -1516,23 +1565,6 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
         var foundLast: Bool = false
         for (i in end..-1 : -1) {
             if (!arrayGetUnchecked2(myData, i + Int64(this.start)).isAsciiWhiteSpace()) {
-                end = i
-                foundLast = true
-                break
-            }
-        }
-        if (!foundLast) {
-            return String() @local!
-        }
-        String(myData, this.start, UInt32(end) + 1)
-    }
-    @Frozen
-    @OverflowWrapping
-    public exclave func trimAsciiEnd(this @local?): String @local? {
-        var end: Int64 = size - 1
-        var foundLast: Bool = false
-        for (i in end..-1 : -1) {
-            if (!arrayGetUnchecked3(myData, i + Int64(this.start)).isAsciiWhiteSpace()) {
                 end = i
                 foundLast = true
                 break
@@ -2296,6 +2328,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
         }
         return compareBytes(this.myData, Int64(this.start), other.myData, Int64(other.start), Int64(this.length)) == 0
     }
+    // 支撑面(刻意保留):HashMap @local! 的 K @local! 相等比较经接口分派落到此覆写;审计 §3#6/§5.2 登记项。
     @Frozen
     public exclave operator const func ==(this @local!, other: String @local!): Bool {
         if (this.length != other.length) {
@@ -2571,10 +2604,12 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
         return String(bytes)
     }
 
-    // 提案 9.2：@local! 版 join（strArray @local! 入参，返回 String @local!）
+    // 提案 9.2：@local! 版 join（strArray @local! 入参，返回 String @local!）。
+    // URL 文档 §15：@local! 版无 delimiter 默认值（默认值 String.empty 是 heap 静态，
+    // 不能作为 local 上下文的缺省实参），调用方须显式传 delimiter。
     @Frozen
     @OverflowWrapping
-    public exclave static func join(strArray: Array<String> @local!, delimiter!: String = String.empty): String @local! {
+    public exclave static func join(strArray: Array<String> @local!, delimiter!: String): String @local! {
         let strArraySize: Int64 = strArray.size
         if (strArraySize == 0) {
             return String() @local!

@@ -27,13 +27,13 @@ public interface Collection<T> <: Iterable<T> {
     }
 
     func isEmpty(this @local?): Bool {
-        throw UnImplementedException("Current Type does not implement 'isEmpty' method for its @local? instance")
+        throw UnimplementedException("Current Type does not implement 'isEmpty' method for its @local? instance")
     }
 
     func toArray(this @local?): Array<T> @local? {
-        throw UnImplementedException("Current Type does not implement 'toArray' method for its @local? instance")
+        throw UnimplementedException("Current Type does not implement 'toArray' method for its @local? instance")
     }
     func toArray(this @local!): Array<T> @local! {
-        throw UnImplementedException("Current Type does not implement 'toArray' method for its @local! instance")
+        throw UnimplementedException("Current Type does not implement 'toArray' method for its @local! instance")
     }
 }

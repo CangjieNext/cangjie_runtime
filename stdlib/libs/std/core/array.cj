@@ -95,6 +95,27 @@ public struct Array<T> {
         }
     }
 
+    // URL 文档 §14（:448）ctor-6 的 @local? 形态：已解锁（2026-09-28 删约束后实装）。
+    // 文档原签名闭包返回 `T @local?`：rawArrayAllocate3 分配 @local? raw，元素经
+    // arraySet3（约束删除后 unconstrained）逐个写入，raw 赋给 @local? 实例字段
+    // （同空构造 :56 的先例）。@local! 闭包变体（:83，this @local! 接收者）保留为
+    // 既有公开重载。调用限制与 @local! 版相同：`@local?` 模式 lambda 不能捕获
+    // `@local!` 变量，闭包只能引用 plain/@local? 捕获或纯计算。
+    @Frozen
+    public init(this @local?, size: Int64, initElement: ((Int64) -> T @local?) @local?) {
+        exclave {
+            this.start = 0
+            let raw = rawArrayAllocate3<T>(size)
+            var i: Int64 = 0
+            while (i < size) {
+                arraySet3<T>(raw, i, initElement(i))
+                i = i + 1
+            }
+            this.rawptr = raw
+            this.len = size
+        }
+    }
+
     @Frozen
     init(elements: Collection<T>) {
         this.start = 0
@@ -119,6 +140,24 @@ public struct Array<T> {
                     this.len = copy.len
                 case _ =>
                     throw IllegalArgumentException("Unsupported collection type for @local! Array init.")
+            }
+        }
+    }
+
+    // URL 文档 §14（:445）：init(this @local?, elements: Collection<T> @local?)。
+    // NEW-C2 重探（2026-09-28）：不复制元素，按 ArrayList init(this @local?,
+    // Collection)（array_list.cj:290）同一手法共享引用（写穿透风险登记同前），
+    // 无需 T <: Copyable。
+    @Frozen
+    init(this @local?, elements: Collection<T> @local?) {
+        exclave {
+            match (elements) {
+                case arr: Array<T> =>
+                    this.rawptr = arr.rawptr
+                    this.start = arr.start
+                    this.len = arr.len
+                case _ =>
+                    throw IllegalArgumentException("Unsupported collection type for @local? Array init.")
             }
         }
     }
@@ -153,15 +192,10 @@ public struct Array<T> {
         this.len = len
     }
 
-    // 提案 8 节的 @local? 基础构造（elements: Collection<T>、size + initElement）在当前
-    // 编译器上无法实现，两个限制叠加：
-    // （1）写 `@local?` raw 只能走 arraySet3 / rawArrayInitByValue3，它们要求 T <: Copyable，
-    //       而成员上不能给所属类型的类型参数加约束（error: unexpected 'where' in
-    //       non-generic declaration）；
-    // （2）`extend` 块内不允许声明构造函数（error: unexpected constructor in extend body），
-    //       因此 Copyable 约束版也无法放进下面的 extend<T> Array<T> where T <: Copyable。
-    // 现行替代：`Array<T>() @local?` 先建空实例，再用 cloneToLocal /
-    // copyTo(this @local?, dst @local?, ...) 填充内容。
+    // 提案 8 节的 @local? 基础构造（elements: Collection<T>、size + initElement）：
+    // 曾因内建 Copyable 约束受阻（详见 2026-09-24 登记），2026-09-28 删除
+    // array_intrinsic.cj 的 4 个 `*3` 内建约束后均已实装——Collection 版（:152，
+    // 共享引用），size+initElement 版（:105，rawArrayAllocate3 + arraySet3）。
 
     @Frozen
     public prop first: Option<T> {
@@ -646,6 +680,59 @@ public struct Array<T> {
         }
     }
 
+    // URL 文档 §14（:473）clone(this @local?)：已解锁（2026-09-28 删约束后实装）。
+    // @local? 源 → 本地独立拷贝：rawArrayAllocate3 分配 + intrinsicBuiltInCopyTo3
+    // （约束删除后 unconstrained）整段拷贝，经 exclave init(this @local?,
+    // RawArray<T> @local?, ...)（:193）构造新实例；len==0 走空构造。
+    @Frozen
+    public func clone(this @local?): Array<T> @local? {
+        exclave {
+            if (len == 0) {
+                Array<T>()
+            } else {
+                let raw = rawArrayAllocate3<T>(len)
+                intrinsicBuiltInCopyTo3<T>(this.rawptr, raw, this.start, 0, len)
+                Array<T>(raw, 0, len)
+            }
+        }
+    }
+
+    // URL 文档 §14（:485）clone(this @local?, range)：已解锁（2026-09-28 删约束后实装）。
+    // 镜像 clone(this @local!, range) 逻辑，"2" 系列换 "3" 系列（unconstrained）；
+    // 步长 != 1 或空结果时逐元素 arrayGetUnchecked3/arraySet3。范围校验同 @local! 版，
+    // 走 normalize(this @local?)/isLegal(this @local?)（:609/:579）。
+    @Frozen
+    @OverflowWrapping
+    public func clone(this @local?, range: Range<Int64> @local?): Array<T> @local? {
+        let (start_, end_): (Int64, Int64) = normalize(range)
+        let step = range.step
+        if ((step > 0 && !isLegal(start_, end_)) || (step < 0 && !isLegal(end_ + 1, start_ + 1))) {
+            throw IndexOutOfBoundsException(arrayRangeOutOfBoundsExceptionMessage(
+                this.len, range.start, range.end, range.step, range.hasStart, range.hasEnd, range.isClosed))
+        }
+        let offset: Int64 = if (step > 0) {
+            -1
+        } else {
+            1
+        }
+        let newSize: Int64 = (end_ - start_ + step + offset) / step
+        exclave {
+            if (step == 1 && newSize != 0) {
+                let raw = rawArrayAllocate3<T>(newSize)
+                intrinsicBuiltInCopyTo3<T>(this.rawptr, raw, this.start + start_, 0, newSize)
+                Array<T>(raw, 0, newSize)
+            } else {
+                let raw = rawArrayAllocate3<T>(newSize)
+                var i: Int64 = 0
+                while (i < newSize) {
+                    arraySet3<T>(raw, i, arrayGetUnchecked3<T>(this.rawptr, this.start + start_ + step * i))
+                    i = i + 1
+                }
+                Array<T>(raw, 0, newSize)
+            }
+        }
+    }
+
     /*
      * @throws IndexOutOfBoundsException if the `range` is invalid for this array.
      */
@@ -908,6 +995,24 @@ public struct Array<T> {
             }
             let left: Array<T> @local! = Array<T>(this.rawptr, this.start, mid)
             let right: Array<T> @local! = Array<T>(this.rawptr, this.start + mid, this.len - mid)
+            (left, right)
+        }
+    }
+
+    // URL 文档 §14（:518）：splitAt(this @local?)。NEW-C2 重探（2026-09-28）：
+    // plain/@local! splitAt 均为视图语义（共享 rawptr，无元素拷贝），@local? 版
+    // 同样无需 Copyable，镜像 @local! 版实现。
+    @Frozen
+    public func splitAt(this @local?, mid: Int64): (Array<T>, Array<T>) @local? {
+        exclave {
+            if (mid < 0 || this.len < mid) {
+                throw IllegalArgumentException("Mid is less than 0 or not less than the size of this array.")
+            }
+            if (this.len == 0) {
+                return (this, this)
+            }
+            let left: Array<T> @local? = Array<T>(this.rawptr, this.start, mid)
+            let right: Array<T> @local? = Array<T>(this.rawptr, this.start + mid, this.len - mid)
             (left, right)
         }
     }
@@ -1598,18 +1703,10 @@ private func arrayInvalidRangeStepExceptionMessage(rangeStep: Int64): String {
     "Illegal step ${rangeStep}, step should be 1."
 }
 
+// 交付登记(审计 §5.2/§9.3):Copyable 是 Array/ArrayList @local? Copyable 扩展(URL 文档 §7.13 A 条目)的公共约束类型,必须保持 public。
 public interface Copyable {}
 
 extend<T> Array<T> where T <: Copyable {
-    internal func cloneToNotLocal(this @local?): Array<T> {
-        if (len == 0) {
-            return Array<T>()
-        }
-        let newRawPtr = rawArrayAllocate<T>(len)
-        rawArrayInitByValue(newRawPtr, len, unsafe { zeroValue<T>() })
-        intrinsicBuiltInCopyTo3<T>(this.rawptr, newRawPtr, this.start, 0, len)
-        return Array<T>(newRawPtr, 0, len)
-    }
 
     // 提案 6.1：[](index, value!) — 设置指定位置的值；T 是 Copyable，value 不需 local 标注
     @Frozen

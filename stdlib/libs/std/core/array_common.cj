@@ -484,14 +484,14 @@ public class ArrayIterator<T> <: Iterator<T> {
     }
 
     @Frozen
-    public exclave init(this @local!, data: Array<T> @local!) {
+    internal exclave init(this @local!, data: Array<T> @local!) {
         this.myData = data
         this.end = data.size
         this.myPosition = 0
     }
 
     @Frozen
-    public exclave init(this @local?, data: Array<T> @local?) {
+    internal exclave init(this @local?, data: Array<T> @local?) {
         this.myData = data
         this.end = data.size
         this.myPosition = 0
@@ -545,18 +545,15 @@ public struct CPointerHandle<T> where T <: CType {
         array = Array<T>()
     }
 
-    public exclave init(this @local?) {
-        pointer = CPointer<T>()
-        array = Array<T>()
-    }
-
     // @Deprecated[message: "Use global function `public unsafe func acquireArrayRawData<T>(arr: Array<T>): CPointerHandle<T> where T <: CType` instead."]
     public init(ptr: CPointer<T>, arr: Array<T>) {
         this.pointer = ptr
         this.array = arr
     }
 
-    public exclave init(this @local?, ptr: CPointer<T> @local?, arr: Array<T> @local?) {
+    // gap audit 2026-09-24 D1b/8c：本构造降为 internal——唯一构造点是同包
+    // acquireArrayRawData @local?（:577）。
+    internal exclave init(this @local?, ptr: CPointer<T> @local?, arr: Array<T> @local?) {
         pointer = ptr
         array = arr
     }
@@ -574,6 +571,13 @@ public unsafe func acquireArrayRawData<T>(arr: Array<T>): CPointerHandle<T> wher
 }
 
 @Frozen
+// 支撑面(刻意保留 public,2026-09-28 修正 9-24 的 D1b/8e 降级决策):cangjie_stdx 的
+// @local! 上下文(package internal handle / encoding.json write_buffer 等)以 @local!
+// 数组实参调用本重载——plain 版收不了 @local! 实参,@local? 版一旦降为 internal,
+// stdx 立即编译失败(2026-09-28 Server 构建实测:stdx.encoding.json 6 处
+// "unable to infer generic argument ... impossible to match parameter type
+// 'Struct-Array<Generics-T>'" / "expected 'Struct-Array<UInt8>', found '... @local!'")。
+// stdlib 内部仅 string_common.cj 的 String @local? 搜索路径使用。
 public exclave unsafe func acquireArrayRawData<T>(arr: Array<T> @local?): CPointerHandle<T> @local? where T <: CType {
     CPointerHandle<T>(acquireRawData2<T>(arr.rawptr) + arr.start, arr)
 }
@@ -584,76 +588,165 @@ public unsafe func releaseArrayRawData<T>(handle: CPointerHandle<T>): Unit where
 }
 
 @Frozen
+// 支撑面(刻意保留 public,同 acquireArrayRawData @local?)。
 public unsafe func releaseArrayRawData<T>(handle: CPointerHandle<T> @local?): Unit where T <: CType {
     releaseRawData2(handle.array.rawptr, handle.pointer - handle.array.start)
 }
 
-// 取回无标注的 `X`：写进一个 non-local 单元素 raw 再读出（X 是 Copyable，不含对象引用）。
-// 必须是文件级函数：写成 extend 成员会让内部类型参数与扩展的类型参数互相遮蔽，
-// 调用点会被解析成 `Array<T> @local?`（error: expected 'Struct-Array<Generics-T>',
-// found 'Struct-Array<Generics-T> @local?'）。
-@Frozen
-func deLocalizeElement<X>(element: X @local?): X where X <: Copyable {
-    let raw: RawArray<X> = rawArrayAllocate<X>(1)
-    arraySet3<X>(raw, 0, element)
-    let one: Array<X> = Array<X>(raw, 0, 1)
-    one[0]
-}
 
 /**
  * 提案 8 节 D 类（判定/计数：indexOf、lastIndexOf）在 `@local?` 实例上的实现。
- * 交付清单 = 策略问题闭环 §3.4.1 判定类列出的 7 个形态：
- *   indexOf(element, fromIndex)、indexOf(elements)、indexOf(elements, fromIndex)、
- *   lastIndexOf(element)、lastIndexOf(element, fromIndex)、lastIndexOf(elements)、
- *   lastIndexOf(elements, fromIndex)。
+ * 交付清单 = 策略问题闭环 §3.4.1 判定类列出的 7 个形态。
  *
- * 与闭环签名的差异：这里多了 `T <: Copyable` 约束，并且实现方式是“先落到 non-local
- * 副本、再原样分派给 heap 版”。依据是在重建的 local-mode SDK（编译器 305d17f9）上实测到的
- * 三条现状：
- *   1) `T @local?` 作接收者调用 `==` 会分派到 Equatable 为 `@local?` 实例准备的默认实现，
- *      未自行适配 `==` 的具体类型直接抛 "UnImplementedException: Current Type does not
- *      implement '==' method for its @local? instance"（探针 pf_generic_eq.cj：Int64 元素
- *      正常、用户 class 元素抛错）。
- *   2) `T @local?` 作实参传给 non-local 形参被拒绝（error: expected 'Generics-T',
- *      found 'Generics-T @local?'），所以 half-mode 元素也无法直接喂给现成的比较。
- *   3) 把 `T @local?` 写进 non-local 容器同样被拒绝，唯一可用的中转是 arraySet3，而它要求
- *      T <: Copyable（向 half-mode 实例写入对象引用需要写屏障，Barrier::WriteGeneric 目前
- *      遇到 local object 直接断言失败）。
- * 落 non-local 副本后调用 heap 实现，可保证与 non-local 版逐条同语义，代价是一次 memcpy。
- * 等 1)、2) 在编译器侧解决，可改回就地循环并去掉 Copyable 约束与拷贝。
+ * 实现方式：**就地循环**——用 arrayGetUnchecked3 逐个取出 `T @local?` 元素与目标比较，
+ * 不做 non-local 副本，故只需 `T <: Equatable<T>`（旧版走 cloneToNotLocal + deLocalizeElement
+ * 需额外 `T <: Copyable`；2026-09-28 重探确认不再必要——旧版两条依据：(1) `@local?` 元素
+ * 写入 non-local 容器需 arraySet3 的 Copyable 约束，(2) `T @local?` 传给 plain 形参被拒，
+ * 在就地写法下都不触发）。实测：非 Copyable 的 class 元素（自适配 == @local?）命中/未命中/
+ * fromIndex 全部正确；未适配 == @local? 的类型经 Equatable 默认体抛 UnimplementedException
+ * （与 §4.2.5/修改建议 #4 的统一策略一致）。
  *
  * 闭环 §3.4.1 未列、本文件也不提供的形态：contains、无 fromIndex 的 indexOf(element)、
  * `==` / `!=`（==/!= 另有 extend 遮蔽限制：error: extend member '==' is not allowed to
- * shadow members of 'extend Array'）。`@local?` 接收者的相等比较由 Equal/NotEqual 接口
- * 默认实现承担（未适配 == 的类型运行时抛 UnImplementedException，按 §4.2.5/修改建议 #4
- * 的统一策略）。
+ * shadow members of 'extend Array'）。
  */
-extend<T> Array<T> where T <: Copyable & Equatable<T> {
+extend<T> Array<T> where T <: Equatable<T> {
     public func indexOf(this @local?, element: T @local?, fromIndex: Int64): Option<Int64> {
-        return this.cloneToNotLocal().indexOf(deLocalizeElement<T>(element), fromIndex)
+        if (this.len == 0 || fromIndex >= this.len) {
+            return None
+        }
+        let start = if (fromIndex >= 0) {
+            fromIndex
+        } else {
+            0
+        }
+        for (i in start..this.len) {
+            if (arrayGetUnchecked3<T>(this.rawptr, this.start + i) == element) {
+                return Some(i)
+            }
+        }
+        return None
     }
 
     public func indexOf(this @local?, elements: Array<T> @local?): Option<Int64> {
-        return this.cloneToNotLocal().indexOf(elements.cloneToNotLocal())
+        if (this.len < elements.len) {
+            return None
+        }
+        for (i in 0..(this.len - elements.len + 1)) {
+            var matched: Bool = true
+            for (j in 0..elements.len) {
+                if (arrayGetUnchecked3<T>(this.rawptr, this.start + i + j) !=
+                    arrayGetUnchecked3<T>(elements.rawptr, elements.start + j)) {
+                    matched = false
+                    break
+                }
+            }
+            if (matched) {
+                return Some(i)
+            }
+        }
+        return None
     }
 
     public func indexOf(this @local?, elements: Array<T> @local?, fromIndex: Int64): Option<Int64> {
-        return this.cloneToNotLocal().indexOf(elements.cloneToNotLocal(), fromIndex)
+        if (this.len < elements.len || fromIndex >= this.len) {
+            return None
+        }
+        let start = if (fromIndex >= 0) {
+            fromIndex
+        } else {
+            0
+        }
+        if (start > this.len - elements.len) {
+            return None
+        }
+        for (i in start..(this.len - elements.len + 1)) {
+            var matched: Bool = true
+            for (j in 0..elements.len) {
+                if (arrayGetUnchecked3<T>(this.rawptr, this.start + i + j) !=
+                    arrayGetUnchecked3<T>(elements.rawptr, elements.start + j)) {
+                    matched = false
+                    break
+                }
+            }
+            if (matched) {
+                return Some(i)
+            }
+        }
+        return None
     }
 
     public func lastIndexOf(this @local?, element: T @local?): Option<Int64> {
-        return this.cloneToNotLocal().lastIndexOf(deLocalizeElement<T>(element))
+        if (this.len == 0) {
+            return None
+        }
+        for (i in this.len - 1..=0 : -1) {
+            if (arrayGetUnchecked3<T>(this.rawptr, this.start + i) == element) {
+                return Some(i)
+            }
+        }
+        return None
     }
 
     public func lastIndexOf(this @local?, element: T @local?, fromIndex: Int64): Option<Int64> {
-        return this.cloneToNotLocal().lastIndexOf(deLocalizeElement<T>(element), fromIndex)
+        if (this.len == 0 || fromIndex >= this.len) {
+            return None
+        }
+        let start = if (fromIndex >= 0) {
+            fromIndex
+        } else {
+            0
+        }
+        for (i in this.len - 1..=start : -1) {
+            if (arrayGetUnchecked3<T>(this.rawptr, this.start + i) == element) {
+                return Some(i)
+            }
+        }
+        return None
     }
 
     public func lastIndexOf(this @local?, elements: Array<T> @local?): Option<Int64> {
-        return this.cloneToNotLocal().lastIndexOf(elements.cloneToNotLocal())
+        if (this.len < elements.len) {
+            return None
+        }
+        for (i in (this.len - elements.len)..=0 : -1) {
+            var matched: Bool = true
+            for (j in 0..elements.len) {
+                if (arrayGetUnchecked3<T>(this.rawptr, this.start + i + j) !=
+                    arrayGetUnchecked3<T>(elements.rawptr, elements.start + j)) {
+                    matched = false
+                    break
+                }
+            }
+            if (matched) {
+                return Some(i)
+            }
+        }
+        return None
     }
 
     public func lastIndexOf(this @local?, elements: Array<T> @local?, fromIndex: Int64): Option<Int64> {
-        return this.cloneToNotLocal().lastIndexOf(elements.cloneToNotLocal(), fromIndex)
+        if (this.len < elements.len || fromIndex >= this.len) {
+            return None
+        }
+        let start = if (fromIndex >= 0) {
+            fromIndex
+        } else {
+            0
+        }
+        for (i in (this.len - elements.len)..=start : -1) {
+            var matched: Bool = true
+            for (j in 0..elements.len) {
+                if (arrayGetUnchecked3<T>(this.rawptr, this.start + i + j) !=
+                    arrayGetUnchecked3<T>(elements.rawptr, elements.start + j)) {
+                    matched = false
+                    break
+                }
+            }
+            if (matched) {
+                return Some(i)
+            }
+        }
+        return None
     }
 }

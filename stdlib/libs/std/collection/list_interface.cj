@@ -22,6 +22,19 @@ public interface ReadOnlyList<T> <: Collection<T> {
     operator func [](index: Int64): T
     operator func [](this @local!, index: Int64): T @local!
     operator func [](this @local?, index: Int64): T @local?
+    // gap audit 2026-09-24 #2–5：first/last 的 @local!/@local? 接口声明（doc §10），
+    // 抽象声明。ArrayList 已有四形态实现（array_list.cj first/last prop 组），静态
+    // ReadOnlyList 接收者经此分派到具体覆写（NEW-C1 已修复，2026-09-24 探针验证）。
+    // 注：不能用带 throw 默认体的形态——默认体使 @local? 成员成为"具体"候选，
+    // 重载决议在任意接收者模式（含 plain）下都压过 plain prop（探针 probe_f 实测：
+    // plain 接收者 first 绑到 @local? 版，显式 Option<T> 标注也无法选回 plain，
+    // test_readonlylist_local.cj 的 plain 契约被破坏）；抽象声明无此问题（probe_e 实测）。
+    // 代价：非 ArrayList 的 ReadOnlyList/List 泛型 conformer 需补实现义务
+    // （本仓库内仅 std.sort 测试的 MyArrayList <: List 两处，已同步补齐）。
+    prop first: ?T @local!
+    prop first: ?T @local?
+    prop last: ?T @local!
+    prop last: ?T @local?
 }
 
 public interface List<T> <: ReadOnlyList<T> {
@@ -53,7 +66,7 @@ public interface List<T> <: ReadOnlyList<T> {
  * `add` 家族在本接口中声明，但 `@local?` 实现只能覆盖“容量足够”的分支：扩容需要把
  * 新的 `Array<T>` 赋回 `myData`，而 `@local?` 实例禁止重绑 non-Copyable 成员
  * （"cannot assign to member of @local? value of non copy type outside its constructor
- * and finalizer"）。因此需要扩容时按提案 7 节抛 `UnImplementedException`；`reserve`
+ * and finalizer"）。因此需要扩容时按提案 7 节抛 `UnimplementedException`；`reserve`
  * 同样只在容量已足够时为空操作。要真正扩容的调用方需先把实例转成 `@local!`。
  */
 public interface ListOfCopyable<T> <: ReadOnlyList<T> where T <: Copyable {

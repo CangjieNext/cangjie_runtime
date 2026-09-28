@@ -587,14 +587,34 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
         }
         return None
     }
+    // 审计 2026-09-24 ⚠️#17 处置：@local! 版 get 的键参数放宽为 K @local?（对齐文档
+    // 《总览》§18 与文档先行写法）；K 的 hashCode/== 均有 @local? 形态，@local! 实参
+    // 经隐式拓宽传入；@local? 键 + @local? 接收者的场景用下方 get(this @local?, key: K @local?)。
     @Frozen
-    public exclave func get(this @local!, key: K @local!): ?V @local! {
+    public exclave func get(this @local!, key: K @local?): ?V @local! {
         let hash: Int64 = getHash(key.hashCode())
         let index: Int64 = getIndex(hash, buckets.size)
         var bucket: Int64 = buckets[index]
         while (bucket >= 0) {
             if (hash == entries[bucket].hash && key == entries[bucket].key) {
                 return entries[bucket].value
+            }
+            bucket = entries[bucket].next
+        }
+        return None
+    }
+    // gap audit 2026-09-24 #19 / §9.1(c)（= #4）：@local? 版 get。与
+    // contains(this @local?, key: K @local?)（:940）同一探测链，hashCode/== 走类型的
+    // @local? 覆写；命中返回 value，未命中返回 None。语义与 get(this @local!)（:591）
+    // 一致（键参数同为 K @local?），仅接收者 locality 放宽。
+    @Frozen
+    public exclave func get(this @local?, key: K @local?): Option<V> @local? {
+        let hash: Int64 = getHash(key.hashCode())
+        let index: Int64 = getIndex(hash, buckets.size)
+        var bucket: Int64 = buckets[index]
+        while (bucket >= 0) {
+            if (hash == entries[bucket].hash && key == entries[bucket].key) {
+                return Some(entries[bucket].value)
             }
             bucket = entries[bucket].next
         }
@@ -1201,7 +1221,24 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
         }
     }
     @Frozen
-    public exclave operator func [](this @local!, key: K @local!): V @local! {
+    public exclave operator func [](this @local!, key: K @local?): V @local! {
+        let hash: Int64 = getHash(key.hashCode())
+        let index: Int64 = getIndex(hash, buckets.size)
+        var bucket: Int64 = buckets[index]
+        while (bucket >= 0) {
+            if (hash == entries[bucket].hash && key == entries[bucket].key) {
+                return entries[bucket].value
+            }
+            bucket = entries[bucket].next
+        }
+        throw NoneValueException("Value does not exist!\n")
+    }
+    // gap audit 2026-09-24 #19 附带：@local? 版下标读取。与
+    // get(this @local?, key: K @local?)（:611）同一探测链，hashCode/== 走类型的
+    // @local? 覆写；命中返回 value，未命中抛 NoneValueException。语义与
+    // @local! 版（:1224）一致，仅接收者与键的 locality 放宽。
+    @Frozen
+    public exclave operator func [](this @local?, key: K @local?): V @local? {
         let hash: Int64 = getHash(key.hashCode())
         let index: Int64 = getIndex(hash, buckets.size)
         var bucket: Int64 = buckets[index]

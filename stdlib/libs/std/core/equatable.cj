@@ -8,23 +8,24 @@
 
 package std.core
 
+// @local! 默认体(==/!=)是 @local! 操作数相等比较的编译/分派面(HashMap @local! 泛型 == 依赖),刻意保留;审计 §5.2。
 public interface Equal<T> {
     operator func ==(other: T): Bool
     operator func ==(this @local!, other: T @local!): Bool {
-        throw UnImplementedException("Current Type does not implement '==' method for its @local! instance")
+        throw UnimplementedException("Current Type does not implement '==' method for its @local! instance")
     }
     operator func ==(this @local?, other: T @local?): Bool {
-        throw UnImplementedException("Current Type does not implement '==' method for its @local? instance")
+        throw UnimplementedException("Current Type does not implement '==' method for its @local? instance")
     }
 }
 
 public interface NotEqual<T> {
     operator func !=(other: T): Bool
     operator func !=(this @local!, other: T @local!): Bool {
-        throw UnImplementedException("Current Type does not implement '!=' method for its @local! instance")
+        throw UnimplementedException("Current Type does not implement '!=' method for its @local! instance")
     }
     operator func !=(this @local?, other: T @local?): Bool {
-        throw UnImplementedException("Current Type does not implement '!=' method for its @local? instance")
+        throw UnimplementedException("Current Type does not implement '!=' method for its @local? instance")
     }
 }
 
@@ -34,10 +35,13 @@ public interface Equatable<T> <: Equal<T> & NotEqual<T> {
     }
     operator func !=(this @local!, other: T @local!): Bool {
         // exclave { !(this == other) }
-        throw UnImplementedException("Current Type does not implement '!=' method for its @local! instance")
+        throw UnimplementedException("Current Type does not implement '!=' method for its @local! instance")
     }
+    // URL 文档 §8：Equatable 的 != @local? 默认实现——委托 ==（== @local? 覆写或其
+    // 默认链），不再抛异常。类型只实现 == 时 != 经此默认体推导；两者皆未适配时
+    // 经 == @local? 默认体抛 UnimplementedException。
     operator func !=(this @local?, other: T @local?): Bool {
-        throw UnImplementedException("Current Type does not implement '!=' method for its @local? instance")
+        !(this == other)
     }
 }
 

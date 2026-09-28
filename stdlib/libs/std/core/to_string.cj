@@ -24,7 +24,7 @@ public interface ToString {
      * cf. String.toString / Array.toString implementations).
      */
     func toString(this @local?): String @local! {
-        throw UnImplementedException("Current Type does not implement 'toString' method for its @local? instance")
+        throw UnimplementedException("Current Type does not implement 'toString' method for its @local? instance")
     }
 }
 

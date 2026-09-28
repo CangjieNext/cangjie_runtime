@@ -210,6 +210,22 @@ public class ArrayList<T> <: List<T> {
         mySize = size
     }
 
+    // URL 文档 §16（:1339）ctor-6 的 @local? 形态：已解锁（2026-09-28 删约束后实装）。
+    // 文档原签名闭包返回 `T @local?`，委托 Array 的 @local? initElement 构造
+    // （array.cj :105，同日实装），结果经 let 绑定赋给 myData（同 init(this @local?,
+    // elements) :263 的字段赋值先例）。@local! 闭包变体（:205，this @local! 接收者）
+    // 保留为既有公开重载。调用限制同 @local! 版：`@local?` 模式 lambda 不能捕获
+    // `@local!` 变量，闭包只能引用 plain/@local? 捕获或纯计算。
+    @Frozen
+    public exclave init(this @local?, size: Int64, initElement: ((Int64) -> T @local?) @local?) {
+        if (size < 0) {
+            throw IllegalArgumentException("Invalid size of ArrayList: ${size}.")
+        }
+        let arr: Array<T> @local? = Array<T>(size, initElement) @local?
+        myData = arr
+        mySize = size
+    }
+
     @Frozen
     private init(elements: Array<T>) {
         myData = elements.clone()
@@ -265,6 +281,23 @@ public class ArrayList<T> <: List<T> {
                 throw IllegalArgumentException("Unsupported collection type for @local! ArrayList init.")
         }
     }
+    // gap audit 2026-09-24 #17 / §9.1(b)：@local? 版 Collection 构造，与 @local! 版
+    // （:256）同形：接口接收者上的 size/toArray 分派不受支持，故按具体类型 match；
+    // @local? 上下文无拷贝手段，均为共享引用（写穿透风险登记同 :245 的
+    // init(this @local?, elements: Array<T> @local?)）。
+    @Frozen
+    public exclave init(this @local?, elements: Collection<T> @local?) {
+        match (elements) {
+            case arr: Array<T> =>
+                myData = arr
+                mySize = arr.size
+            case list: ArrayList<T> =>
+                myData = list.myData
+                mySize = list.mySize
+            case _ =>
+                throw IllegalArgumentException("Unsupported collection type for @local? ArrayList init.")
+        }
+    }
 
     /**
      * Statically generate an ArrayList with the specified Array.
@@ -316,6 +349,20 @@ public class ArrayList<T> <: List<T> {
         let newArr: Array<T> @local! = Array<T>(mySize, repeat: unsafe { zeroValue2<T>() })
         this.myData.copyTo(newArr, 0, 0, mySize)
         newArr
+    }
+
+    // gap audit 2026-09-24 #16 / §9.1(d)：URL 文档 §16（:1352）toArray(this @local?)：
+    // 已解锁（2026-09-28 删约束后实装）。覆写 Collection.toArray(this @local?) 默认体
+    // 只能在 class 体进行（extend 内同名成员报 "extend member 'toArray' is not
+    // allowed to shadow members"）。实现：myData 先 slice(0, mySize) 出 [0, mySize)
+    // 视图（slice(this @local?)，array.cj:301），再经 clone(this @local?)
+    // （array.cj:688，同日实装，rawArrayAllocate3 + intrinsicBuiltInCopyTo3）落成
+    // 独立拷贝。不走 Array(size, initElement) 委托：泛型 T 的 @local? lambda 返回
+    // `T @local?` 表达式被编译器拒绝（"cannot return expression of internal @local?
+    // mode"，探针 2026-09-28），而 slice+clone 全程用既有 @local? 成员、无 lambda。
+    @Frozen
+    public exclave func toArray(this @local?): Array<T> @local? {
+        this.myData.slice(0, mySize).clone()
     }
 
     /**
@@ -3137,7 +3184,7 @@ extend<T> ArrayList<T> <: ListOfCopyable<T> where T <: Copyable {
     }
 
     // ==================== 提案 6.2：@local? 版设置方法 ====================
-    // 容量足够时按 Copyable 扩展逐元素写入；需要扩容的分支抛 UnImplementedException
+    // 容量足够时按 Copyable 扩展逐元素写入；需要扩容的分支抛 UnimplementedException
     // （提案 7 节的降级约定）。原因：`@local?` 类实例禁止重绑 non-Copyable 成员——
     // "cannot assign to member of @local? value of non copy type outside its constructor
     // and finalizer"（实测三种写法：赋 heap Array、赋新建 @local! Array、exclave 内赋值，
@@ -3147,7 +3194,7 @@ extend<T> ArrayList<T> <: ListOfCopyable<T> where T <: Copyable {
     @Frozen
     public func add(this @local?, element: T): Unit {
         if (mySize == myData.size) {
-            throw UnImplementedException(localGrowUnsupportedMessage("add"))
+            throw UnimplementedException(localGrowUnsupportedMessage("add"))
         }
         this.myData[mySize] = element
         mySize++
@@ -3163,7 +3210,7 @@ extend<T> ArrayList<T> <: ListOfCopyable<T> where T <: Copyable {
             throw IndexOutOfBoundsException("index: ${at}, size: ${mySize}")
         }
         if (mySize == myData.size) {
-            throw UnImplementedException(localGrowUnsupportedMessage("add"))
+            throw UnimplementedException(localGrowUnsupportedMessage("add"))
         }
         this.myData.copyTo(this.myData, at, at + 1, mySize - at)
         this.myData[at] = element
@@ -3185,7 +3232,7 @@ extend<T> ArrayList<T> <: ListOfCopyable<T> where T <: Copyable {
             return
         }
         if (mySize + cSize > myData.size) {
-            throw UnImplementedException(localGrowUnsupportedMessage("add"))
+            throw UnimplementedException(localGrowUnsupportedMessage("add"))
         }
         match (all) {
             case arr: Array<T> => arr.copyTo(this.myData, 0, mySize, cSize)
@@ -3213,7 +3260,7 @@ extend<T> ArrayList<T> <: ListOfCopyable<T> where T <: Copyable {
             return
         }
         if (mySize + cSize > myData.size) {
-            throw UnImplementedException(localGrowUnsupportedMessage("add"))
+            throw UnimplementedException(localGrowUnsupportedMessage("add"))
         }
         this.myData.copyTo(this.myData, at, at + cSize, mySize - at)
         match (all) {
@@ -3232,7 +3279,7 @@ extend<T> ArrayList<T> <: ListOfCopyable<T> where T <: Copyable {
         if (myData.size - mySize >= additional) {
             return
         }
-        throw UnImplementedException(localGrowUnsupportedMessage("reserve"))
+        throw UnimplementedException(localGrowUnsupportedMessage("reserve"))
     }
 
     // 提案 6.2：@local? 版 reverse（纯元素交换，不需要扩容，完整可用）
@@ -3249,6 +3296,25 @@ extend<T> ArrayList<T> <: ListOfCopyable<T> where T <: Copyable {
             j--
         }
         myVersion++
+    }
+
+    // gap audit 2026-09-24 #16 / §9.1(d)：@local? 版 toArray 曾受阻（L6：class 体
+    // 无 Copyable 约束、extend 禁 shadow 接口成员）。2026-09-28 删约束后已实装于
+    // class 体（toArray(this @local?)，委托 Array 的 @local? initElement 构造拷贝），
+    // 本 extend 不再承载该成员。
+
+    // gap audit 2026-09-24 #15 / §9.1(d)：@local? 版 clone，与 @local! 版（:1557）
+    // 同形：拷贝整个 myData（保留 capacity），经 init(this @local?, Array<T> @local?)
+    // （:245）构造，再按 mySize 修正长度（mySize 是 Copyable 字段，@local? 实例上可赋值，
+    // 同 ListOfCopyable 中 mySize-- / mySize++ 的先例）。声明为 exclave（@local? class
+    // 值只能从 exclave 函数返回）；@local! 拷贝结果经 let 绑定拓宽为 @local?（实参/let
+    // 位置拓宽合法，返回位置非法）。
+    @Frozen
+    public exclave func clone(this @local?): ArrayList<T> @local? {
+        let newData: Array<T> @local? = myData.cloneToLocal()
+        let newArr: ArrayList<T> @local? = ArrayList<T>(newData) @local?
+        newArr.mySize = mySize
+        newArr
     }
 }
 
