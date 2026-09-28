@@ -244,15 +244,28 @@ bool IsCJRomSdkNamespace()
 
 const char* GetCJEnvFile()
 {
-#ifdef __arm__
-    return "/system/lib/platformsdk/libcj_environment.z.so";
-#else
-    return "/system/lib64/platformsdk/libcj_environment.z.so";
-#endif
+    // Resolve the CJ environment library by name so that the linker can locate
+    // it through the search paths of the target namespace instead of relying on
+    // a hard-coded absolute path.
+    return "libcj_environment.z.so";
 }
 
 void* OpenCJEnvFile(const char* cjEnvFile)
 {
+    // The runtime runs in the "cj_rom_sdk" namespace and cannot rely on its own
+    // library search paths to find the application-side CJ environment library.
+    // Open it in the default namespace first, then fall back to the current one.
+    Dl_namespace dlns;
+    if (dlns_get("default", &dlns) == 0) {
+        void* handle = dlopen_ns(&dlns, cjEnvFile, RTLD_NOW);
+        if (handle != nullptr) {
+            return handle;
+        }
+        LOG(RTLOG_ERROR, "LoaderManager::RegisterLoadFunc: dlopen_ns %s in default namespace fail\n", cjEnvFile);
+    } else {
+        LOG(RTLOG_ERROR, "LoaderManager::RegisterLoadFunc: dlns_get default namespace fail\n");
+    }
+
     void* handle = dlopen(cjEnvFile, RTLD_NOW);
     if (handle == nullptr) {
         LOG(RTLOG_ERROR, "LoaderManager::RegisterLoadFunc: dlopen %s fail\n", cjEnvFile);
