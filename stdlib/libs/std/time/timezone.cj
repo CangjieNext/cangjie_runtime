@@ -639,9 +639,14 @@ func parseTZName(footer: String): (String, String) {
     // The size of the footer is determined to be greater than zero
     let strLen = footer.size
     if (footer[0] == b'<') {
-        for (i in 0..strLen) {
+        for (i in 1..strLen) {
             if (footer[i] == b'>') {
-                return (footer[..(i + 1)], footer[(i + 1)..])
+                // The angle brackets are POSIX TZ delimiters for abbreviations
+                // that contain digits, not part of the abbreviation itself.
+                if (i <= 3) {
+                    throw InvalidDataException("Failed to parse the timezone data.")
+                }
+                return (footer[1..i], footer[(i + 1)..])
             }
         }
         throw InvalidDataException("Failed to parse the timezone data.")
