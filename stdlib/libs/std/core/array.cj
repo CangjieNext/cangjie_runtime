@@ -1823,7 +1823,7 @@ extend<T> Array<T> where T <: Copyable {
     }
 
     @Frozen
-    public func cloneToLocal(this @local?): Array<T> @local! {
+    internal func cloneToLocal(this @local?): Array<T> @local! {
         exclave {
             if (len == 0) {
                 Array<T>()

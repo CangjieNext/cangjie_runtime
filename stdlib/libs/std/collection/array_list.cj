@@ -3309,7 +3309,7 @@ extend<T> ArrayList<T> <: ListOfCopyable<T> where T <: Copyable {
     // 位置拓宽合法，返回位置非法）。
     @Frozen
     public exclave func clone(this @local?): ArrayList<T> @local? {
-        let newData: Array<T> @local? = myData.cloneToLocal()
+        let newData: Array<T> @local? = myData.clone()
         let newArr: ArrayList<T> @local? = ArrayList<T>(newData) @local?
         newArr.mySize = mySize
         newArr

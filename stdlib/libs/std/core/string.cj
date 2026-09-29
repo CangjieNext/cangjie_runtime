@@ -585,7 +585,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
     }
 
     @Frozen
-    public exclave unsafe func rawData(this @local?): Array<Byte> @local? {
+    internal exclave unsafe func rawData(this @local?): Array<Byte> @local? {
         Array<Byte>(myData, Int64(start), Int64(length))
     }
 
