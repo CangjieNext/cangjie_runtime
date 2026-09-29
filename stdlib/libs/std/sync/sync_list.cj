@@ -39,7 +39,15 @@ class NotifyOnce {
         } else {
             waitWithTimeout(timeout)
         }
-        return notified
+        return isNotified()
+    }
+
+    // Read `notified` while holding `m`: callers that decide list surgery on
+    // this value must not read it cross-lock (data race).
+    func isNotified(): Bool {
+        synchronized(m) {
+            return notified
+        }
     }
 
     private func waitWithoutTimeout(): Unit {
@@ -73,7 +81,11 @@ class SyncNode {
     let n = NotifyOnce()
     var next: ?SyncNode = None
     var prev: ?SyncNode = None
-    var dead: Bool = false
+    // Whether the node is currently linked into the list. Only mutated while
+    // holding `m`; `markDead` may only remove a node whose `linked` is still
+    // true (a node popped by notifyOne/notifyAll has been dequeued and must
+    // not be touched again by the timing-out waiter).
+    var linked: Bool = false
 }
 
 // SyncList is used to achieve "unpark-all" behaviour
@@ -87,6 +99,7 @@ class SyncList {
             h.prev = node
         }
         head = node
+        node.linked = true
     }
 
     // Remove a (possibly dead) node from the linked list.
@@ -109,8 +122,12 @@ class SyncList {
     // consume a subsequent `notifyOne`.
     private func markDead(node: SyncNode) {
         synchronized(m) {
-            if (!node.dead) {
-                node.dead = true
+            // Only touch the list if the node is still linked: a node already
+            // popped by notifyOne/notifyAll has been dequeued by the notifier
+            // and any list surgery here would corrupt the queue (e.g. clearing
+            // `head` and orphaning waiters enqueued in between).
+            if (node.linked) {
+                node.linked = false
                 removeNode(node)
             }
         }
@@ -128,7 +145,7 @@ class SyncList {
             addWaiter(node)
         }
         node.n.wait(timeout: timeout)
-        if (!node.n.notified) {
+        if (!node.n.isNotified()) {
             // timed out: the node was not signalled, remove it if still linked
             markDead(node)
         }
@@ -139,8 +156,17 @@ class SyncList {
         synchronized(m) {
             addWaiter(node)
         }
-        unlock()
-        let ok = node.n.wait(timeout: timeout)
+        var ok = false
+        try {
+            unlock()
+            ok = node.n.wait(timeout: timeout)
+        } catch (e: Exception) {
+            // The node was already enqueued; if `unlock` fails we must still
+            // take the timed-out path so the node does not linger in the list
+            // (which would re-introduce lost wakeups for later waiters).
+            markDead(node)
+            throw e
+        }
         if (!ok) {
             markDead(node)
         }
@@ -150,27 +176,13 @@ class SyncList {
     // Release one sema and remove it from the head of queue
     func notifyOne(): Bool {
         synchronized(m) {
-            // Skip any stale (dead) nodes lingering at the head: a timed-out
-            // waiter's node must not consume this wake-up.
-            while (true) {
-                if (let Some(current) <- head) {
-                    if (current.dead) {
-                        head = current.next
-                        if (let Some(n) <- current.next) {
-                            n.prev = None
-                        }
-                        current.next = None
-                        continue
-                    }
-                }
-                break
-            }
             if (let Some(current) <- head) {
                 head = current.next
                 if (let Some(n) <- current.next) {
                     n.prev = None
                 }
                 current.next = None
+                current.linked = false
                 current.n.notify()
                 return true
             }
@@ -191,9 +203,8 @@ class SyncList {
                     n.prev = None
                 }
                 current.next = None
-                if (!current.dead) {
-                    current.n.notify()
-                }
+                current.linked = false
+                current.n.notify()
             }
             return true
         }
