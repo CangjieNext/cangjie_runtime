@@ -280,7 +280,18 @@ public class ArrayList<T> <: List<T> {
                 myData = list.myData
                 mySize = list.mySize
             case _ =>
-                throw IllegalArgumentException("Unsupported collection type for @local! ArrayList init.")
+                // 通用回退：接口接收者上的 size 无 local 形态，但 toArray(this @local!)
+                // 可正常分派（实测）。构造器内不能调用 add（成员未初始化完），
+                // 故先取本地数组，再用 myData/mySize 直接填充。
+                let src: Array<T> @local! = elements.toArray()
+                let buf: Array<T> @local! = Array<T>(src.size, repeat: unsafe { zeroValue2<T>() }) @local!
+                var i: Int64 = 0
+                while (i < src.size) {
+                    buf[i] = src[i]
+                    i++
+                }
+                myData = buf
+                mySize = src.size
         }
     }
     // gap audit 2026-09-24 #17 / §9.1(b)：@local? 版 Collection 构造，与 @local! 版

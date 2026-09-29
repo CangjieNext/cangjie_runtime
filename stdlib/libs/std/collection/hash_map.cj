@@ -493,8 +493,15 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
         // 故不做 size 预分配：以默认容量起步，由 add 按需扩容（resize）。
         buckets = Array<Int64>(DEFAULT_CAPACITY, repeat: -1)
         entries = Array<HashMapEntry<K, V>>(DEFAULT_CAPACITY, repeat: HashMapEntry<K, V>() @local!)
-        for ((k, v) in elements) {
-            add(k, v)
+        // 不用 `for ((k, v) in elements)`：这会经 Iterable.iterator(this @local!) 的接口
+        // 默认体，对未自适配该重载的类型报 IllegalStateException（运行期才发现）。
+        // 改走 toArray(this @local!)（实测可正常分派），对任意实现了它的 Collection 生效。
+        let src: Array<(K, V)> @local! = elements.toArray()
+        var i: Int64 = 0
+        while (i < src.size) {
+            let pair: (K, V) @local! = src[i]
+            add(pair[0], pair[1])
+            i++
         }
     }
 
