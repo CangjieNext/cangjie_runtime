@@ -322,10 +322,6 @@ public class ArrayList<T> <: List<T> {
     public unsafe func getRawArray(): Array<T> {
         return this.myData
     }
-    @Frozen
-    public unsafe func getRawArray(this @local?): Array<T> @local? {
-        return this.myData
-    }
 
     /**
      * Returns the element in this ArrayList as an Array.
