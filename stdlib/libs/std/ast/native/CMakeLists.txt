@@ -47,7 +47,7 @@ set(AST_GENERATED_CJ ${AST_CJ_DIR}/${FILENAME}_generated.cj)
 
 add_custom_command(
     OUTPUT ${FLATC_CJ_OUTPUT} ${AST_GENERATED_CJ}
-    COMMAND ${FLATC_EXECUTABLE} ARGS --no-warnings --cangjie -o "${CMAKE_BINARY_DIR}" ${SCHEMA_SRC}
+    COMMAND ${FLATC_EXECUTABLE} ARGS --no-warnings --cangjie --cangjie-package std.ast -o "${CMAKE_BINARY_DIR}" ${SCHEMA_SRC}
     COMMAND ${CMAKE_COMMAND} -E copy_if_different ${FLATC_CJ_OUTPUT} ${AST_GENERATED_CJ}
     DEPENDS ${FLATC_EXECUTABLE} ${SCHEMA_SRC}
     COMMENT "generate and install StdAstFormat_generated.cj"
