@@ -10,6 +10,18 @@ sort 包提供数组类型的排序函数。
 
 此外，本包提供辅助接口 `SortByExtension（未来版本即将废弃）` 和 `SortExtension（未来版本即将废弃）`，可用来为其他类型实现与排序相关的函数。
 
+## 浮点数排序说明
+
+浮点类型（Float16、Float32、Float64）中的 NaN 与任何值（包括其自身）的比较结果均为 `false`（IEEE 754 语义），因此 NaN 不满足 `Comparable` 所要求的全序关系。
+
+使用不传入比较函数的排序函数（如 [sort\<T>(Array\<T>, Bool, Bool)](./sort_package_api/sort_package_funcs.md#func-sorttarrayt-bool-bool-where-t--comparablet)）对包含 NaN 的浮点数组进行**升序**排序时：
+
+- 所有非 NaN 元素按升序排列；
+- 所有 NaN 排在数组末尾（视为最大值）；
+- 稳定排序（`stable: true`）下，NaN 之间的相对顺序与排序前保持一致。
+
+使用 `by`/`lessThan`/`key` 比较函数版本或指定 `descending: true` 排序时，元素次序完全由比较函数决定。若比较函数对某些元素返回相等（例如 `Float64.compare` 对 NaN 恒返回 `Ordering.EQ`，破坏全序要求），此类场景下排序结果的元素次序是未定义的，但排序过程保证终止、不抛出异常且不丢失元素。
+
 ## API 列表
 
 ### 函数
