@@ -9,7 +9,12 @@ set(FLATBUFFERS_TOOLCHAIN_DIR $ENV{CANGJIE_HOME}/third_party/flatbuffers)
 set(FLATBUFFERS_INCLUDE_DIR ${FLATBUFFERS_TOOLCHAIN_DIR}/include)
 set(SCHEMA_SRC $ENV{CANGJIE_HOME}/schema/StdAstFormat.fbs)
 get_filename_component(FILENAME ${SCHEMA_SRC} NAME_WE)
-set(FLATC_EXECUTABLE ${FLATBUFFERS_TOOLCHAIN_DIR}/bin/flatc)
+# flatc runs on the build host, so the host platform decides the executable name.
+if(CMAKE_HOST_WIN32)
+    set(FLATC_EXECUTABLE ${FLATBUFFERS_TOOLCHAIN_DIR}/bin/flatc.exe)
+else()
+    set(FLATC_EXECUTABLE ${FLATBUFFERS_TOOLCHAIN_DIR}/bin/flatc)
+endif()
 
 if(NOT EXISTS ${FLATC_EXECUTABLE})
     message(FATAL_ERROR "flatc not found at ${FLATC_EXECUTABLE}. Build cangjie_compiler and source envsetup.sh first.")
@@ -47,7 +52,7 @@ set(AST_GENERATED_CJ ${AST_CJ_DIR}/${FILENAME}_generated.cj)
 
 add_custom_command(
     OUTPUT ${FLATC_CJ_OUTPUT} ${AST_GENERATED_CJ}
-    COMMAND ${FLATC_EXECUTABLE} ARGS --no-warnings --cangjie -o "${CMAKE_BINARY_DIR}" ${SCHEMA_SRC}
+    COMMAND ${FLATC_EXECUTABLE} ARGS --no-warnings --cangjie --cangjie-package std.ast -o "${CMAKE_BINARY_DIR}" ${SCHEMA_SRC}
     COMMAND ${CMAKE_COMMAND} -E copy_if_different ${FLATC_CJ_OUTPUT} ${AST_GENERATED_CJ}
     DEPENDS ${FLATC_EXECUTABLE} ${SCHEMA_SRC}
     COMMENT "generate and install StdAstFormat_generated.cj"
