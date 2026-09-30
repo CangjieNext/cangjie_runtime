@@ -8,6 +8,26 @@
 
 package std.sort
 
+// Float must be dispatched BEFORE the isAscending/isDescending short-circuit
+// checks in `unstableSort`: NaN compares false against everything, so those
+// checks may wrongly treat a NaN-carrying array as already sorted and skip
+// the sort entirely.
+func tryPrimitiveFloatUnstableSort<T>(data: Array<T>): Bool where T <: Comparable<T> {
+    if (let Some(concreteData) <- (data as Array<Float16>)) {
+        primitiveUnstableSortFloat16(concreteData)
+        return true
+    }
+    if (let Some(concreteData) <- (data as Array<Float32>)) {
+        primitiveUnstableSortFloat32(concreteData)
+        return true
+    }
+    if (let Some(concreteData) <- (data as Array<Float64>)) {
+        primitiveUnstableSortFloat64(concreteData)
+        return true
+    }
+    return false
+}
+
 func tryPrimitiveUnstableSort<T>(data: Array<T>): Bool where T <: Comparable<T> {
     if (let Some(concreteData) <- (data as Array<Int8>)) {
         primitiveUnstableSortInt8(concreteData)
@@ -47,18 +67,6 @@ func tryPrimitiveUnstableSort<T>(data: Array<T>): Bool where T <: Comparable<T> 
     }
     if (let Some(concreteData) <- (data as Array<UIntNative>)) {
         primitiveUnstableSortUIntNative(concreteData)
-        return true
-    }
-    if (let Some(concreteData) <- (data as Array<Float16>)) {
-        primitiveUnstableSortFloat16(concreteData)
-        return true
-    }
-    if (let Some(concreteData) <- (data as Array<Float32>)) {
-        primitiveUnstableSortFloat32(concreteData)
-        return true
-    }
-    if (let Some(concreteData) <- (data as Array<Float64>)) {
-        primitiveUnstableSortFloat64(concreteData)
         return true
     }
     if (let Some(concreteData) <- (data as Array<Rune>)) {
@@ -208,28 +216,222 @@ private func primitiveStableSortUIntNative(data: Array<UIntNative>): Unit {
     data.timSort()
 }
 
+// NaN is incomparable with any value under IEEE-754 (every comparison returns
+// false), so letting NaN take part in the partition/merge loops may stall or
+// crash the sort. For Float arrays the fast paths first move all NaN to the
+// tail and sort only the non-NaN prefix, which makes the result deterministic:
+// non-NaN values sorted ascending, all NaN at the end (like Java's
+// Arrays.sort). The unstable variants partition in place; the stable variants
+// preserve the relative order of both the non-NaN values and the NaN values.
+
 private func primitiveUnstableSortFloat16(data: Array<Float16>): Unit {
-    data.introSort(0, data.size - 1, data.depth())
+    var left = 0
+    var right = data.size
+    while (left < right) {
+        if (data[left] != data[left]) {
+            right--
+            let t = data[left]
+            data[left] = data[right]
+            data[right] = t
+        } else {
+            left++
+        }
+    }
+    if (left <= 1) {
+        return
+    }
+    // Short-circuit on the non-NaN prefix (it is NaN-free, so comparisons are exact)
+    var i = 0
+    while (i < left - 1 && !(data[i] > data[i + 1])) {
+        i++
+    }
+    if (i == left - 1) {
+        return
+    }
+    i = 0
+    while (i < left - 1 && !(data[i] < data[i + 1])) {
+        i++
+    }
+    if (i == left - 1) {
+        data.reverseRange(0, left - 1)
+        return
+    }
+    data.introSort(0, left - 1, data.depth())
 }
 
 private func primitiveStableSortFloat16(data: Array<Float16>): Unit {
-    data.timSort()
+    var nonNaNCount = 0
+    for (i in 0..data.size) {
+        if (!(data[i] != data[i])) {
+            nonNaNCount++
+        }
+    }
+    if (nonNaNCount == data.size) {
+        data.timSort()
+        return
+    }
+    let nanCount = data.size - nonNaNCount
+    let sorted = Array<Float16>(nonNaNCount, repeat: 0.0)
+    let nanTail = Array<Float16>(nanCount, repeat: 0.0)
+    var i = 0
+    var j = 0
+    for (k in 0..data.size) {
+        let x = data[k]
+        if (x != x) {
+            nanTail[j] = x
+            j++
+        } else {
+            sorted[i] = x
+            i++
+        }
+    }
+    sorted.timSort()
+    for (k in 0..nonNaNCount) {
+        data[k] = sorted[k]
+    }
+    for (k in 0..nanCount) {
+        data[nonNaNCount + k] = nanTail[k]
+    }
 }
 
 private func primitiveUnstableSortFloat32(data: Array<Float32>): Unit {
-    data.introSort(0, data.size - 1, data.depth())
+    var left = 0
+    var right = data.size
+    while (left < right) {
+        if (data[left] != data[left]) {
+            right--
+            let t = data[left]
+            data[left] = data[right]
+            data[right] = t
+        } else {
+            left++
+        }
+    }
+    if (left <= 1) {
+        return
+    }
+    // Short-circuit on the non-NaN prefix (it is NaN-free, so comparisons are exact)
+    var i = 0
+    while (i < left - 1 && !(data[i] > data[i + 1])) {
+        i++
+    }
+    if (i == left - 1) {
+        return
+    }
+    i = 0
+    while (i < left - 1 && !(data[i] < data[i + 1])) {
+        i++
+    }
+    if (i == left - 1) {
+        data.reverseRange(0, left - 1)
+        return
+    }
+    data.introSort(0, left - 1, data.depth())
 }
 
 private func primitiveStableSortFloat32(data: Array<Float32>): Unit {
-    data.timSort()
+    var nonNaNCount = 0
+    for (i in 0..data.size) {
+        if (!(data[i] != data[i])) {
+            nonNaNCount++
+        }
+    }
+    if (nonNaNCount == data.size) {
+        data.timSort()
+        return
+    }
+    let nanCount = data.size - nonNaNCount
+    let sorted = Array<Float32>(nonNaNCount, repeat: 0.0)
+    let nanTail = Array<Float32>(nanCount, repeat: 0.0)
+    var i = 0
+    var j = 0
+    for (k in 0..data.size) {
+        let x = data[k]
+        if (x != x) {
+            nanTail[j] = x
+            j++
+        } else {
+            sorted[i] = x
+            i++
+        }
+    }
+    sorted.timSort()
+    for (k in 0..nonNaNCount) {
+        data[k] = sorted[k]
+    }
+    for (k in 0..nanCount) {
+        data[nonNaNCount + k] = nanTail[k]
+    }
 }
 
 private func primitiveUnstableSortFloat64(data: Array<Float64>): Unit {
-    data.introSort(0, data.size - 1, data.depth())
+    var left = 0
+    var right = data.size
+    while (left < right) {
+        if (data[left] != data[left]) {
+            right--
+            let t = data[left]
+            data[left] = data[right]
+            data[right] = t
+        } else {
+            left++
+        }
+    }
+    if (left <= 1) {
+        return
+    }
+    // Short-circuit on the non-NaN prefix (it is NaN-free, so comparisons are exact)
+    var i = 0
+    while (i < left - 1 && !(data[i] > data[i + 1])) {
+        i++
+    }
+    if (i == left - 1) {
+        return
+    }
+    i = 0
+    while (i < left - 1 && !(data[i] < data[i + 1])) {
+        i++
+    }
+    if (i == left - 1) {
+        data.reverseRange(0, left - 1)
+        return
+    }
+    data.introSort(0, left - 1, data.depth())
 }
 
 private func primitiveStableSortFloat64(data: Array<Float64>): Unit {
-    data.timSort()
+    var nonNaNCount = 0
+    for (i in 0..data.size) {
+        if (!(data[i] != data[i])) {
+            nonNaNCount++
+        }
+    }
+    if (nonNaNCount == data.size) {
+        data.timSort()
+        return
+    }
+    let nanCount = data.size - nonNaNCount
+    let sorted = Array<Float64>(nonNaNCount, repeat: 0.0)
+    let nanTail = Array<Float64>(nanCount, repeat: 0.0)
+    var i = 0
+    var j = 0
+    for (k in 0..data.size) {
+        let x = data[k]
+        if (x != x) {
+            nanTail[j] = x
+            j++
+        } else {
+            sorted[i] = x
+            i++
+        }
+    }
+    sorted.timSort()
+    for (k in 0..nonNaNCount) {
+        data[k] = sorted[k]
+    }
+    for (k in 0..nanCount) {
+        data[nonNaNCount + k] = nanTail[k]
+    }
 }
 
 private func primitiveUnstableSortRune(data: Array<Rune>): Unit {
