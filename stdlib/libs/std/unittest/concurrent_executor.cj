@@ -95,7 +95,7 @@ class ConcurrentExecutor<T, S> <: Executor where S <: Any {
             formatArguments(failures, param),
             generationStep - 1,
             strategy.currentReduction,
-            configuration.randomSeed,
+            configuration.get(KeyRandomSeed.randomSeed),
         )
     }
 

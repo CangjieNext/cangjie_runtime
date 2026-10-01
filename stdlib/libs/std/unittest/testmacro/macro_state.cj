@@ -70,6 +70,21 @@ class MacroStorage {
         result
     }
 
+    /**
+     * Checks whether the declaration carries attributes with the given prefix. Used to recognize the
+     * attributes of the macro of another macro package, whose values are not stored in this one.
+     */
+    static func hasAttrsWithPrefix(decl: Decl, prefix: String): Bool {
+        for (anno in decl.annotations) {
+            for (attr in anno.attributes) {
+                if (attr.value.startsWith(prefix)) {
+                    return true
+                }
+            }
+        }
+        return false
+    }
+
     static func markTestGenerated(tb: TokensBuilder) {
         tb.append(testGeneratedPrefix)
     }

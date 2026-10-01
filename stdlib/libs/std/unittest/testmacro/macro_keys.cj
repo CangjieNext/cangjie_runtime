@@ -17,18 +17,10 @@ let TEST_BUILDER_MACRO = MacroKey.create("@TestBuilder", Function, TestEntity, c
 let TEST_TEMPLATE_MACRO = MacroKey.create("@TestTemplate", Class, TestEntity, conflicts: [TEST_MACRO],
     placement: TopLevel, allowedModifiers: [ABSTRACT])
 
-let CONCURRENT_TEST_MACRO = MacroKey.create("@ConcurrentTest", Class, TestEntity, placement: TopLevel, conflicts: [TEST_MACRO])
-let OPERATION_MACRO = MacroKey.create("@Operation", Function, Concurrent, placement: InsideParent([CONCURRENT_TEST_MACRO]), conflicts: [])
-let GROUP_MACRO = MacroKey.create("@Group", Function, Concurrent, placement: InsideParent([CONCURRENT_TEST_MACRO]), conflicts: [])
-let VERIFY_MACRO = MacroKey.create("@Verify", Function, Concurrent, placement: InsideParent([CONCURRENT_TEST_MACRO]), conflicts: [OPERATION_MACRO])
-let AFTER_MACRO = MacroKey.create("@After", Function, Concurrent, placement: InsideParent([CONCURRENT_TEST_MACRO]), conflicts: [VERIFY_MACRO, OPERATION_MACRO])
-
 // actual keys that are written to @Attribute section
 let SKIP_MACRO = MacroKey.create("@Skip", ClassOrFunction, Configuration)
 let TESTCASE_MACRO = MacroKey.create("@TestCase", Function, TestEntity,
-    placement: InsideParent([TEST_MACRO, TEST_TEMPLATE_MACRO, CONCURRENT_TEST_MACRO]))
-let STRESS_TEST_MACRO = MacroKey.create("@StressTest", Function, TestEntity,
-    placement: InsideParent([CONCURRENT_TEST_MACRO]), conflicts: [TESTCASE_MACRO])
+    placement: InsideParent([TEST_MACRO, TEST_TEMPLATE_MACRO]))
 let CONFIGURE_MACRO = MacroKey.create("@Configure", ClassOrFunction, Configuration, repeatable: true)
 let TYPES_MACRO = MacroKey.create("@Types", ClassOrFunction, Configuration,
     conflicts: [TEST_BUILDER_MACRO, TEST_TEMPLATE_MACRO])
@@ -80,17 +72,10 @@ let TEST_TEMPLATE_VERIFIER: Verifier = {
         case _ => ()
     }
 }
-let GROUP_VERIFIER: Verifier = {
-    _: MacroAttrs, decl: Decl, errors: MacroErrors =>
-    if (!decl.has(OPERATION_MACRO)) {
-        errors.add("@Group macro must be used together with @Operation macro")
-    }
-}
 let VERIFIERS = HashMap<MacroKey, Verifier>(
     (TYPES_MACRO, TYPES_VERIFIER),
     (TEST_MACRO, TEST_VERIFIER),
     (TEST_TEMPLATE_MACRO, TEST_TEMPLATE_VERIFIER),
-    (GROUP_MACRO, GROUP_VERIFIER),
 )
 
 enum MacroKind {
@@ -98,7 +83,6 @@ enum MacroKind {
     | Configuration // configures an existing runnable entity
     | Lifecycle // controls lifecycle and cannot have any other annotations apart from other lifecycle annotations
     | Assertion // registers custom assertion function and prevents other annotations being put
-    | Concurrent // markers for member declarations for concurrent test configuration
 }
 
 enum MacroPlacement {
@@ -193,7 +177,6 @@ struct MacroKey <: ToString & Equatable<MacroKey> & Hashable {
             case (Configuration, Configuration) => true
             case (Lifecycle, Lifecycle) => true
             case (Assertion, Assertion) => true
-            case (Concurrent, Concurrent) => true
             case _ => false
         }
     }
@@ -245,24 +228,19 @@ struct MacroKey <: ToString & Equatable<MacroKey> & Hashable {
             }
         }
 
-        checkOnlyOfKindIfAny(attrs, errors, MacroKind.Lifecycle)
-        checkOnlyOfKindIfAny(attrs, errors, MacroKind.Concurrent)
+        let lifecycleKeys = attrs.keys() |> filter { it: MacroKey => it.isOfKind(Lifecycle) } |> collectArray
+        let nonLifecycleKeys = attrs.keys() |> filter { it: MacroKey => !it.isOfKind(Lifecycle) } |> collectArray
+        for (lifecycleKey in lifecycleKeys) {
+            for (nonLifecycleKey in nonLifecycleKeys) {
+                errors.add("${lifecycleKey} macro can't be used together with ${nonLifecycleKey}.")
+            }
+        }
 
         let assertionKeys = attrs.keys() |> filter { it: MacroKey => it.isOfKind(Assertion) } |> collectArray
         let nonAssertionKeysCount = attrs.keys() |> filter { it: MacroKey => !it.isOfKind(Assertion) } |> count
 
         if (assertionKeys.size != 0 && nonAssertionKeysCount != 0) {
             errors.add("${assertionKeys[0]} macro can't be used together with any other macro.")
-        }
-    }
-
-    private static func checkOnlyOfKindIfAny(attrs: MacroAttrs, errors: MacroErrors, kind: MacroKind) {
-        let keys = attrs.keys() |> filter { it: MacroKey => it.isOfKind(kind) } |> collectArray
-        let otherKeys = attrs.keys() |> filter { it: MacroKey => !it.isOfKind(kind) } |> collectArray
-        for (key in keys) {
-            for (otherKey in otherKeys) {
-                errors.add("${key} macro can't be used together with ${otherKey}.")
-            }
         }
     }
 
@@ -332,7 +310,6 @@ enum MacroTarget <: ToString {
     | Class
     | Function
     | ClassOrFunction
-    | Variable
 
     func accepts(decl: Decl): Bool {
         match ((this, decl)) {
@@ -340,7 +317,6 @@ enum MacroTarget <: ToString {
             case (Function, f: FuncDecl) where !f.isConstructor => true
             case (ClassOrFunction, _: ClassDecl) => true
             case (Class, _: ClassDecl) => true
-            case (Variable, _: VarDecl) => true
             case _ => false
         }
     }
@@ -350,7 +326,6 @@ enum MacroTarget <: ToString {
             case Class => "class"
             case Function => "function"
             case ClassOrFunction => "class or function"
-            case Variable => "variable"
         }
     }
 }
