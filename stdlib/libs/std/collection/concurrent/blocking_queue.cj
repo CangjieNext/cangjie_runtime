@@ -328,10 +328,12 @@ public class LinkedBlockingQueue<E> {
 
     // 无锁快路径版 tryAdd：不在任何 Monitor 锁内调用
     public func tryAdd(element: E): Bool {
+        // 用 break 而非 return 退出"满"分支：Cangjie 中 while(true) 作为函数尾表达式时
+        // 类型被判定为 Unit，必须让循环存在可达出口并在循环后统一 return，才能满足 Bool 返回类型
         while (true) {
             let r: Int64 = reserved.load()
             if (r >= capacity) {
-                return false
+                break
             }
             let next: Int64 = r + 1
             if (reserved.compareAndSwap(r, next)) {
@@ -340,6 +342,7 @@ public class LinkedBlockingQueue<E> {
                 return true
             }
         }
+        return false
     }
 
     // 锁内版 tryAdd：已在 putMonitor 保护下，只做 CAS + 入队，不发送信号
@@ -370,10 +373,11 @@ public class LinkedBlockingQueue<E> {
 
     // 无锁快路径版 tryRemove：不在任何 Monitor 锁内调用
     public func tryRemove(): Option<E> {
+        // 同 tryAdd：用 break 让 while(true) 具备可达出口，循环后统一 return Option<E>
         while (true) {
             let c: Int64 = count.load()
             if (c == 0) {
-                return None<E>
+                break
             }
             let next: Int64 = c - 1
             if (count.compareAndSwap(c, next)) {
@@ -382,6 +386,7 @@ public class LinkedBlockingQueue<E> {
                 return Some(value)
             }
         }
+        return None<E>
     }
 
     // 锁内版 tryRemove：已在 takeMonitor 保护下，只做 CAS + 出队，不发送信号
