@@ -217,19 +217,21 @@ public class LinkedBlockingQueue<E> {
             return e
         }
         takeMonitor.lock()
+        var result: Option<E> = None<E>
         try {
             while (true) {
                 if (let Some(e) <- tryRemoveLocked()) {
-                    // 在 finally 释放锁后通知
-                    takeMonitor.unlock()
-                    signalNotFull()
-                    return e
+                    result = Some(e)
+                    break
                 }
                 let _ = takeMonitor.wait()
             }
         } finally {
             takeMonitor.unlock()
         }
+        // 锁已释放，安全通知生产者
+        signalNotFull()
+        return result.unwrap()
     }
 
     /**
