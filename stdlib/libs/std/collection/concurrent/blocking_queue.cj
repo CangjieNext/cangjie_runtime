@@ -231,7 +231,7 @@ public class LinkedBlockingQueue<E> {
         }
         // 锁已释放，安全通知生产者
         signalNotFull()
-        return result.unwrap()
+        return result.getOrThrow()
     }
 
     /**
@@ -329,11 +329,12 @@ public class LinkedBlockingQueue<E> {
     // 无锁快路径版 tryAdd：不在任何 Monitor 锁内调用
     public func tryAdd(element: E): Bool {
         while (true) {
-            let r = reserved.load()
+            let r: Int64 = reserved.load()
             if (r >= capacity) {
                 return false
             }
-            if (reserved.compareAndSwap(r, r + 1)) {
+            let next: Int64 = r + 1
+            if (reserved.compareAndSwap(r, next)) {
                 enqueueUnsafe(element)
                 count.fetchAdd(1)
                 return true
@@ -370,11 +371,12 @@ public class LinkedBlockingQueue<E> {
     // 无锁快路径版 tryRemove：不在任何 Monitor 锁内调用
     public func tryRemove(): Option<E> {
         while (true) {
-            let c = count.load()
+            let c: Int64 = count.load()
             if (c == 0) {
                 return None<E>
             }
-            if (count.compareAndSwap(c, c - 1)) {
+            let next: Int64 = c - 1
+            if (count.compareAndSwap(c, next)) {
                 let value = dequeueUnsafe()
                 reserved.fetchSub(1)
                 return Some(value)
