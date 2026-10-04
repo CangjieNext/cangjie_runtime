@@ -25,10 +25,15 @@ public type BlockingQueue<E> = LinkedBlockingQueue<E>
  *
  * This version keeps the same capacity-bounded, blocked-on-full/empty semantics,
  * but makes the common (non-full / non-empty) path fully lock-free:
- *   - Producers reserve a slot with a CAS on `reserved` (bounded by `capacity`),
+ *   - Producers reserve a slot with a CAS on `putQsize` (bounded by `capacity`),
  *     commit the element, then publish it with a `count.fetchAdd`.
  *   - Consumers claim an element with a CAS on `count`, then dequeue it and free
- *     the slot with `reserved.fetchSub`.
+ *     the slot with `putQsize.fetchSub`.
+ *
+ * `putQsize` is reused as the reservation counter on purpose: it was already
+ * declared (but unused) upstream with exactly this meaning, so reusing it keeps
+ * the field order and types of this class unchanged and therefore keeps the
+ * ABI of std.collection.concurrent intact.
  * The two `Monitor`s are now used *only* to park threads when the queue is full
  * (producers) or empty (consumers), and to deliver the wake-up signal. This
  * decouples producers from consumers on the hot path and removes the per-op
@@ -43,10 +48,13 @@ public class LinkedBlockingQueue<E> {
     public let capacity: Int64 // the capacity of the queue
     private let takeMonitor = Monitor() // Monitor for blocking consumers when the queue is empty
     private let putMonitor = Monitor() // Monitor for blocking producers when the queue is full
+    // 复用上游"声明但未使用"的 putQsize 作为槽位预约计数器：语义与原名一致，
+    // 且保持字段顺序/类型不变，避免 std.collection.concurrent 出现 ABI 不兼容变更
+    private let putQsize = AtomicInt64(0) // Number of reserved slots (0 <= putQsize <= capacity).
+    private let takeQsize = AtomicInt64(0) // Reserved for ABI compatibility; unused by this implementation.
     private let front: AtomicReference<Block<E>> // head of BlockingQueue.
     private let rear: AtomicReference<Block<E>> // tail of BlockingQueue.
     private let count = AtomicInt64(0) // Number of committed elements in the queue.
-    private let reserved = AtomicInt64(0) // Number of reserved slots (<= capacity).
 
     public init(capacity: Int64) {
         if (capacity <= 0) {
@@ -331,12 +339,12 @@ public class LinkedBlockingQueue<E> {
         // 用 break 而非 return 退出"满"分支：Cangjie 中 while(true) 作为函数尾表达式时
         // 类型被判定为 Unit，必须让循环存在可达出口并在循环后统一 return，才能满足 Bool 返回类型
         while (true) {
-            let r: Int64 = reserved.load()
+            let r: Int64 = putQsize.load()
             if (r >= capacity) {
                 break
             }
             let next: Int64 = r + 1
-            if (reserved.compareAndSwap(r, next)) {
+            if (putQsize.compareAndSwap(r, next)) {
                 enqueueUnsafe(element)
                 count.fetchAdd(1)
                 return true
@@ -347,12 +355,12 @@ public class LinkedBlockingQueue<E> {
 
     // 锁内版 tryAdd：已在 putMonitor 保护下，只做 CAS + 入队，不发送信号
     private func tryAddLocked(element: E): Bool {
-        let r = reserved.load()
+        let r = putQsize.load()
         if (r >= capacity) {
             return false
         }
         // 锁内无需 CAS 循环，putMonitor 已保证串行
-        reserved.fetchAdd(1)
+        putQsize.fetchAdd(1)
         enqueueUnsafe(element)
         count.fetchAdd(1)
         return true
@@ -382,7 +390,7 @@ public class LinkedBlockingQueue<E> {
             let next: Int64 = c - 1
             if (count.compareAndSwap(c, next)) {
                 let value = dequeueUnsafe()
-                reserved.fetchSub(1)
+                putQsize.fetchSub(1)
                 return Some(value)
             }
         }
@@ -398,7 +406,7 @@ public class LinkedBlockingQueue<E> {
         // 锁内无需 CAS 循环，takeMonitor 已保证串行
         count.fetchSub(1)
         let value = dequeueUnsafe()
-        reserved.fetchSub(1)
+        putQsize.fetchSub(1)
         return Some(value)
     }
 
