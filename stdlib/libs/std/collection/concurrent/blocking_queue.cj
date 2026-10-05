@@ -43,6 +43,15 @@ public type BlockingQueue<E> = LinkedBlockingQueue<E>
  * putMonitor / takeMonitor to avoid ABBA deadlock (add holds putMonitor and
  * would acquire takeMonitor via signalNotEmpty, while remove holds takeMonitor
  * and would acquire putMonitor via signalNotFull).
+ *
+ * IMPORTANT (capacity/element counters): every mutation of `putQsize` / `count`
+ * must go through the SAME CAS-based atomic protocol used by the lock-free fast
+ * path, no matter whether the caller is on the fast path or on the blocking
+ * path. The putMonitor / takeMonitor only serialize the *blocking* producers or
+ * consumers among themselves; they do NOT exclude a thread that is concurrently
+ * running the lock-free fast path. Using a plain fetchAdd/fetchSub inside the
+ * monitors would therefore race with the CAS loop and corrupt the counters
+ * (putQsize could exceed capacity, or count could go negative).
  */
 public class LinkedBlockingQueue<E> {
     public let capacity: Int64 // the capacity of the queue
@@ -148,7 +157,10 @@ public class LinkedBlockingQueue<E> {
         }
         putMonitor.lock()
         try {
-            while (!tryAddLocked(element)) {
+            // 等待循环里必须复用无锁版 tryAdd（用 CAS 预约槽位），不能再用“锁内直接 fetchAdd”的版本：
+            // putMonitor 只串行化“走阻塞路径的生产者”，无法与同时走无锁快路径的生产者互斥，
+            // 二者并发修改 putQsize 会把它加到超过 capacity，导致队列排空后生产者仍误判为“满”而永久阻塞
+            while (!tryAdd(element)) {
                 let _ = putMonitor.wait()
             }
         } finally {
@@ -184,7 +196,8 @@ public class LinkedBlockingQueue<E> {
         try {
             var remaining = timeout
             while (true) {
-                if (tryAddLocked(element)) {
+                // 同 add(element)：必须复用无锁版 tryAdd，保证 putQsize 始终由 CAS 预约，容量计数才不会被改坏
+                if (tryAdd(element)) {
                     // 在 finally 释放锁后通知
                     break
                 }
@@ -228,7 +241,10 @@ public class LinkedBlockingQueue<E> {
         var result: Option<E> = None<E>
         try {
             while (true) {
-                if (let Some(e) <- tryRemoveLocked()) {
+                // 等待循环里必须复用无锁版 tryRemove（用 CAS 认领元素），不能再用“锁内直接 fetchSub”的版本：
+                // takeMonitor 只串行化“走阻塞路径的消费者”，无法与同时走无锁快路径的消费者互斥，
+                // 二者并发修改 count 会把它减成负数，导致从空队列出队并抛出 "Unreachable code"
+                if (let Some(e) <- tryRemove()) {
                     result = Some(e)
                     break
                 }
@@ -269,7 +285,8 @@ public class LinkedBlockingQueue<E> {
         try {
             var remaining = timeout
             while (true) {
-                if (let Some(e) <- tryRemoveLocked()) {
+                // 同 remove()：必须复用无锁版 tryRemove，保证 count 始终由 CAS 认领，元素计数才不会被改坏
+                if (let Some(e) <- tryRemove()) {
                     result = Some(e)
                     success = true
                     break
@@ -353,19 +370,6 @@ public class LinkedBlockingQueue<E> {
         return false
     }
 
-    // 锁内版 tryAdd：已在 putMonitor 保护下，只做 CAS + 入队，不发送信号
-    private func tryAddLocked(element: E): Bool {
-        let r = putQsize.load()
-        if (r >= capacity) {
-            return false
-        }
-        // 锁内无需 CAS 循环，putMonitor 已保证串行
-        putQsize.fetchAdd(1)
-        enqueueUnsafe(element)
-        count.fetchAdd(1)
-        return true
-    }
-
     /**
      * Non-blocking method to get and remove the head of the queue.
      * A successful 'tryDequeue' will await blocked threads calling 'enqueue'.
@@ -395,19 +399,6 @@ public class LinkedBlockingQueue<E> {
             }
         }
         return None<E>
-    }
-
-    // 锁内版 tryRemove：已在 takeMonitor 保护下，只做 CAS + 出队，不发送信号
-    private func tryRemoveLocked(): Option<E> {
-        let c = count.load()
-        if (c == 0) {
-            return None<E>
-        }
-        // 锁内无需 CAS 循环，takeMonitor 已保证串行
-        count.fetchSub(1)
-        let value = dequeueUnsafe()
-        putQsize.fetchSub(1)
-        return Some(value)
     }
 
     private func enqueueUnsafe(element: E): Unit {
