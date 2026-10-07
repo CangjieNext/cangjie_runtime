@@ -1,0 +1,1075 @@
+/*
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
+ * This source file is part of the Cangjie project, licensed under Apache-2.0
+ * with Runtime Library Exception.
+ *
+ * See https://cangjie-lang.cn/pages/LICENSE for license information.
+ */
+
+package std.reflect
+
+import std.collection.*
+
+public class GenericTypeInfo <: TypeInfo & Equatable<GenericTypeInfo> {
+    public operator func ==(other: GenericTypeInfo): Bool {
+        return this.name == other.name
+    }
+    init(cp: CPointer<Unit>) {
+        super(cp)
+    }
+}
+
+func getGenericParameters(info: CPointer<Unit>): ArrayList<GenericTypeInfo> {
+    let genericParametersNum = getNumOfGenericParameters(info)
+    if (genericParametersNum == 0) {
+        return ArrayList<GenericTypeInfo>()
+    }
+
+    return ArrayList<GenericTypeInfo>(
+        Int64(genericParametersNum),
+        {
+            index =>
+                let pointer = getGenericParameterInfo(info, UInt32(index))
+                if (pointer.isNull()) {
+                    throw InfoNotFoundException("Failed to get generic parameter info at index ${index}.")
+                }
+                GenericTypeInfo(pointer)
+        }
+    )
+}
+
+func getAnnotations(info: CPointer<Unit>): Collection<Annotation> {
+    match (getMethodAnnotations(info, TypeInfo.of<Array<Object>>()._info)) {
+        case arr: Array<Annotation> => arr
+        case _ => Array<Annotation>()
+    }
+}
+
+func appendModifiers(sb: StringBuilder, modifiers: Collection<ModifierInfo>): Unit {
+    for (m in modifiers) {
+        sb.append(m)
+        sb.append(" ")
+    }
+}
+
+func appendParameters(sb: StringBuilder, parameters: ReadOnlyList<ParameterInfo>): Unit {
+    sb.append("(")
+    for (index in 0..parameters.size) {
+        sb.append(parameters[index])
+        if (index < parameters.size - 1) {
+            sb.append(", ")
+        }
+    }
+    sb.append(")")
+}
+
+func functionToString(
+    modifiers: Collection<ModifierInfo>,
+    name: String,
+    parameters: ReadOnlyList<ParameterInfo>,
+    returnType: TypeInfo
+): String {
+    let sb = StringBuilder()
+    appendModifiers(sb, modifiers)
+    sb.append("func ")
+    sb.append(name)
+    appendParameters(sb, parameters)
+    sb.append(": ")
+    sb.append(returnType)
+    sb.toString()
+}
+
+func functionToString(name: String, parameters: ReadOnlyList<ParameterInfo>, returnType: TypeInfo): String {
+    let sb = StringBuilder()
+    sb.append("func ")
+    sb.append(name)
+    appendParameters(sb, parameters)
+    sb.append(": ")
+    sb.append(returnType)
+    sb.toString()
+}
+
+func propertyToString(modifiers: Collection<ModifierInfo>, name: String, typeInfo: TypeInfo): String {
+    let sb = StringBuilder()
+    appendModifiers(sb, modifiers)
+    sb.append("prop ")
+    sb.append(name)
+    sb.append(": ")
+    sb.append(typeInfo)
+    sb.toString()
+}
+
+func constructorToString(parameters: ReadOnlyList<ParameterInfo>): String {
+    let sb = StringBuilder(constructorName)
+    appendParameters(sb, parameters)
+    sb.toString()
+}
+
+func checkApplyWithGenericTypeArgs(genericParams: Collection<GenericTypeInfo>): Unit {
+    if (genericParams.size == 0) {
+        throw InvocationTargetException("The function cannot be applied with 'genericTypeArgs'.")
+    }
+}
+
+func getGenericTypeArgInfos(genericTypeArgs: Array<TypeInfo>): Array<CPointer<Unit>> {
+    ArrayList<CPointer<Unit>>(Int64(genericTypeArgs.size)) {index => genericTypeArgs[index]._info}.toArray()
+}
+
+func checkMethodGenericArgs(info: CPointer<Unit>, genericArgInfos: Array<CPointer<Unit>>, args: Array<Any>): Unit {
+    if (!checkMethodActualArgs(info, genericArgInfos, args)) {
+        throw IllegalTypeException("Parameter type mismatch for generic function invocation.")
+    }
+}
+
+func checkStaticDeclaringType(thisType: TypeInfo, declaringTypeInfo: CPointer<Unit>): Unit {
+    let name = TypeInfo.getOrCreate(declaringTypeInfo).qualifiedName
+    if (thisType.qualifiedName != name) {
+        throw IllegalArgumentException("Invalid type info: expected '${thisType.qualifiedName}', got '${name}'.")
+    }
+}
+
+func getCachedReflectInfo<T>(cache: Option<T>, load: () -> T, store: (T) -> Unit): T {
+    match (cache) {
+        case Some(res) => res
+        case None =>
+            let res = load()
+            store(res)
+            res
+    }
+}
+
+func getCachedGenericParameters(
+    info: CPointer<Unit>,
+    cache: Option<Collection<GenericTypeInfo>>,
+    store: (Collection<GenericTypeInfo>) -> Unit
+): Collection<GenericTypeInfo> {
+    match (cache) {
+        case Some(params) => params
+        case None =>
+            let params = getGenericParameters(info)
+            if (params.size > 0) {
+                store(params)
+            }
+            params
+    }
+}
+
+func withMutableModifier(modifiers: Collection<ModifierInfo>): Collection<ModifierInfo> {
+    let array = ArrayList<ModifierInfo>(modifiers)
+    array.add(ModifierInfo.Mut)
+    array.toArray()
+}
+
+func getPropertyReturnTypeInfo(
+    cache: Option<TypeInfo>,
+    loadReturnType: () -> TypeInfo,
+    store: (TypeInfo) -> Unit
+): TypeInfo {
+    getCachedReflectInfo(cache, loadReturnType, store)
+}
+
+func getPropertyModifiers(
+    cache: Option<Collection<ModifierInfo>>,
+    loadGetterModifiers: () -> Collection<ModifierInfo>,
+    mutable: Bool,
+    store: (Collection<ModifierInfo>) -> Unit
+): Collection<ModifierInfo> {
+    getCachedReflectInfo(
+        cache,
+        {
+            =>
+                let getterModifiers = loadGetterModifiers()
+                if (mutable) {
+                    withMutableModifier(getterModifiers)
+                } else {
+                    getterModifiers
+                }
+        },
+        store
+    )
+}
+
+func getPropertyAnnotations(
+    cache: Option<Collection<Annotation>>,
+    loadGetterInfo: () -> CPointer<Unit>,
+    store: (Collection<Annotation>) -> Unit
+): Collection<Annotation> {
+    getCachedReflectInfo(cache, {=> getAnnotations(loadGetterInfo())}, store)
+}
+
+/**
+ * Contains the reflective information about instance functions.
+ */
+public class InstanceFunctionInfo <: Equatable<InstanceFunctionInfo> & Hashable & ToString {
+    let _info: CPointer<Unit>
+    var _name: Option<String> = None
+    var _parameters: Option<ArrayList<ParameterInfo>> = None
+    var _returnType: Option<TypeInfo> = None
+    var _modifiers: Option<Collection<ModifierInfo>> = None
+    var _annotations: Option<Collection<Annotation>> = None
+    var _genericParams: Option<Collection<GenericTypeInfo>> = None
+    var _declaringTypeInfo: CPointer<Unit>
+    init(cp: CPointer<Unit>, info: CPointer<Unit>) {
+        _info = cp
+        _declaringTypeInfo = info
+    }
+
+    public prop genericParams: Collection<GenericTypeInfo> {
+        get() {
+            getCachedGenericParameters(_info, _genericParams) {
+                typeParameters: Collection<GenericTypeInfo> => _genericParams = Some(typeParameters)
+            }
+        }
+    }
+
+    /**
+     * Returns the name of instance function.
+     */
+    public prop name: String {
+        get() {
+            _name.getOrThrow()
+        }
+    }
+
+    /**
+     * Returns the parameters accepted by this instance function.
+     */
+    public prop parameters: ReadOnlyList<ParameterInfo> {
+        get() {
+            getCachedReflectInfo(_parameters, {=> getParameters(_info)}) {
+                parameterInfos: ArrayList<ParameterInfo> => _parameters = parameterInfos
+            }
+        }
+    }
+
+    /**
+     * Returns the value type produced by this instance function.
+     */
+    public prop returnType: TypeInfo {
+        get() {
+            getCachedReflectInfo(_returnType, {=> TypeInfo.getOrCreate(getMethodReturnType(_info))}) {
+                resultType: TypeInfo => _returnType = resultType
+            }
+        }
+    }
+
+    /**
+     * Returns modifiers attached to this instance function.
+     */
+    public prop modifiers: Collection<ModifierInfo> {
+        get() {
+            getCachedReflectInfo(_modifiers, {=> ModifierInfo.byMask(getMethodModifier(_info))}) {
+                modifierInfos: Collection<ModifierInfo> => _modifiers = modifierInfos
+            }
+        }
+    }
+
+    /**
+     * Returns annotations attached to this instance function.
+     */
+    public prop annotations: Collection<Annotation> {
+        get() {
+            getCachedReflectInfo(_annotations, {=> getAnnotations(_info)}) {
+                annotationInfos: Collection<Annotation> => _annotations = annotationInfos
+            }
+        }
+    }
+
+    /**
+     * Returns true if instance function is 'public', false otherwise.
+     */
+    public func isOpen(): Bool {
+        containsModifier(modifiers, ModifierInfo.Open)
+    }
+
+    /**
+     * Returns true if instance function is 'abstract', false otherwise.
+     */
+    public func isAbstract(): Bool {
+        containsModifier(modifiers, ModifierInfo.Abstract)
+    }
+
+    /**
+     * Makes a call of public instance function with incoming args for incoming instance.
+     *
+     * @param args parameter list.
+     *
+     * @throw IllegalArgumentException, if the number of input parameters is different from the number of invoked function parameters.
+     * @throw IllegalTypeException, if the input parameter type does not match the required parameter type.
+     * @throw InvocationTargetException, if an exception is thrown when the function is abstract.
+     */
+    public func apply(instance: Any, args: Array<Any>): Any {
+        let nullEntryPointer = methodEntryPointIsNull(_info)
+        if (isAbstract() && nullEntryPointer) {
+            throw InvocationTargetException("Cannot invoke abstract function '${name}'.")
+        }
+
+        try {
+            if (genericParams.size > 0) {
+                throw InvocationTargetException("Generic function '${name}' requires 'genericTypeArgs' to invoke.")
+            }
+        } catch (_: InfoNotFoundException) {
+            throw InvocationTargetException("Generic function '${name}' requires 'genericTypeArgs' to invoke.")
+        }
+        checkArgsSizeAndType(parameters, args)
+        checkMethodDeclaringClassType(instance, _declaringTypeInfo)
+
+        applyCJInstanceMethod(_info, instance, args)
+    }
+
+    public func apply(instance: Any, genericTypeArgs: Array<TypeInfo>, args: Array<Any>): Any {
+        checkApplyWithGenericTypeArgs(genericParams)
+
+        let nullEntryPointer = methodEntryPointIsNull(_info)
+        if (isAbstract() && nullEntryPointer) {
+            throw InvocationTargetException("Cannot invoke abstract function '${name}'.")
+        }
+
+        checkParamaterSize(genericParams, parameters.size, genericTypeArgs, args)
+        checkMethodDeclaringClassType(instance, _declaringTypeInfo)
+
+        let gArgs = getGenericTypeArgInfos(genericTypeArgs)
+        checkMethodGenericArgs(_info, gArgs, args)
+
+        applyCJGenericInstanceMethod(_info, instance, gArgs, args)
+    }
+
+    /**
+     * Searches annotations declared on this instance function by annotation type.
+     */
+    public func findAnnotation<T>(): ?T where T <: Annotation {
+        findAnnotation<T>(annotations)
+    }
+
+    // Return all matching annotations while preserving the native metadata order.
+    public func findAllAnnotations<T>(): Array<T> where T <: Annotation {
+        findAllAnnotations<T>(annotations)
+    }
+
+    public func getAllAnnotations(): Array<Annotation> {
+        annotations.toArray()
+    }
+
+    public operator func ==(other: InstanceFunctionInfo): Bool {
+        this._info == other._info
+    }
+
+    public operator func !=(other: InstanceFunctionInfo): Bool {
+        !(this == other)
+    }
+
+    public func hashCode(): Int64 {
+        this._info.toUIntNative().hashCode()
+    }
+
+    public func toString(): String {
+        functionToString(modifiers, name, parameters, returnType)
+    }
+}
+
+/**
+ * Contains the reflective information about static functions.
+ */
+public class StaticFunctionInfo <: Equatable<StaticFunctionInfo> & Hashable & ToString {
+    let _info: CPointer<Unit>
+    var _name: Option<String> = None
+    var _parameters: Option<ArrayList<ParameterInfo>> = None
+    var _genericParams: Option<Collection<GenericTypeInfo>> = None
+    var _returnType: Option<TypeInfo> = None
+    var _modifiers: Option<Collection<ModifierInfo>> = None
+    var _annotations: Option<Collection<Annotation>> = None
+    var _declaringTypeInfo: CPointer<Unit>
+    init(cp: CPointer<Unit>, declaringTypeInfo: CPointer<Unit>) {
+        _info = cp
+        _declaringTypeInfo = declaringTypeInfo
+    }
+
+    public prop genericParams: Collection<GenericTypeInfo> {
+        get() {
+            getCachedGenericParameters(_info, _genericParams) {
+                staticTypeParams: Collection<GenericTypeInfo> => _genericParams = Some(staticTypeParams)
+            }
+        }
+    }
+
+    /**
+     * Returns the declared name of this static function.
+     */
+    public prop name: String {
+        get() {
+            _name.getOrThrow()
+        }
+    }
+
+    /**
+     * Returns the parameter list accepted by this static function.
+     */
+    public prop parameters: ReadOnlyList<ParameterInfo> {
+        get() {
+            getCachedReflectInfo(_parameters, {=> getParameters(_info)}) {
+                staticParameters: ArrayList<ParameterInfo> => _parameters = staticParameters
+            }
+        }
+    }
+
+    /**
+     * Returns the value type produced by this static function.
+     */
+    public prop returnType: TypeInfo {
+        get() {
+            getCachedReflectInfo(_returnType, {=> TypeInfo.getOrCreate(getMethodReturnType(_info))}) {
+                staticReturnType: TypeInfo => _returnType = staticReturnType
+            }
+        }
+    }
+
+    /**
+     * Returns modifiers attached to this static function.
+     */
+    public prop modifiers: Collection<ModifierInfo> {
+        get() {
+            getCachedReflectInfo(_modifiers, {=> ModifierInfo.byMask(getMethodModifier(_info))}) {
+                staticModifiers: Collection<ModifierInfo> => _modifiers = staticModifiers
+            }
+        }
+    }
+
+    /**
+     * Returns annotations attached to this static function.
+     */
+    public prop annotations: Collection<Annotation> {
+        get() {
+            getCachedReflectInfo(_annotations, {=> getAnnotations(_info)}) {
+                staticAnnotations: Collection<Annotation> => _annotations = staticAnnotations
+            }
+        }
+    }
+
+    /**
+     * Makes a call of static function with incoming args.
+     *
+     * @param args parameter list.
+     *
+     * @throw IllegalArgumentException, if the number of input parameters is different from the number of invoked function parameters.
+     * @throw IllegalTypeException, if the input parameter type does not match the required parameter type.
+     */
+    public func apply(thisType: TypeInfo, args: Array<Any>): Any {
+        try {
+            if (genericParams.size > 0) {
+                throw InvocationTargetException("Generic function '${name}' requires 'genericTypeArgs' to invoke.")
+            }
+        } catch (_: InfoNotFoundException) {
+            throw InvocationTargetException("Generic function '${name}' requires 'genericTypeArgs' to invoke.")
+        }
+
+        if (methodEntryPointIsNull(_info)) {
+            throw InfoNotFoundException("Failed to find method entry for static function '${_name.getOrThrow()}'.")
+        }
+
+        checkStaticDeclaringType(thisType, _declaringTypeInfo)
+        checkArgsSizeAndType(parameters, args)
+        applyCJStaticMethod(_info, args, thisType._info)
+    }
+
+    public func apply(thisType: TypeInfo, genericTypeArgs: Array<TypeInfo>, args: Array<Any>): Any {
+        checkApplyWithGenericTypeArgs(genericParams)
+
+        if (methodEntryPointIsNull(_info)) {
+            throw InfoNotFoundException("Failed to find method entry for static function '${_name.getOrThrow()}'.")
+        }
+
+        checkStaticDeclaringType(thisType, _declaringTypeInfo)
+        checkParamaterSize(genericParams, parameters.size, genericTypeArgs, args)
+
+        let gArgs = getGenericTypeArgInfos(genericTypeArgs)
+        checkMethodGenericArgs(_info, gArgs, args)
+
+        applyCJGenericStaticMethod(_info, gArgs, args, thisType._info)
+    }
+
+    /**
+     * Searches the static function's annotation by incoming name.
+     */
+    public func findAnnotation<T>(): ?T where T <: Annotation {
+        findAnnotation<T>(annotations)
+    }
+
+    // Static functions expose the annotation collection from their native metadata.
+    public func findAllAnnotations<T>(): Array<T> where T <: Annotation {
+        findAllAnnotations<T>(annotations)
+    }
+
+    public func getAllAnnotations(): Array<Annotation> {
+        annotations.toArray()
+    }
+
+    public operator func ==(other: StaticFunctionInfo): Bool {
+        this._info == other._info
+    }
+
+    public operator func !=(other: StaticFunctionInfo): Bool {
+        !(this == other)
+    }
+
+    public func toString(): String {
+        functionToString(modifiers, name, parameters, returnType)
+    }
+
+    // Static function identity is represented by the runtime function info pointer.
+    public func hashCode(): Int64 {
+        this._info.toUIntNative().hashCode()
+    }
+}
+
+/**
+ * Contains the reflective information about instance properties.
+ */
+public class InstancePropertyInfo <: Equatable<InstancePropertyInfo> & Hashable & ToString {
+    let _name: String
+    // must have value
+    var _getterInfo: Option<InstanceFunctionInfo> = None
+    var _setterInfo: Option<InstanceFunctionInfo> = None
+    var _typeInfo: Option<TypeInfo> = None
+    var _modifiers: Option<Collection<ModifierInfo>> = None
+    var _annotations: Option<Collection<Annotation>> = None
+    var _declaringTypeInfo: CPointer<Unit>
+
+    init(name: String, declaringTypeInfo: CPointer<Unit>) {
+        _name = name
+        _declaringTypeInfo = declaringTypeInfo
+    }
+
+    /**
+     * Returns the name of instance property.
+     */
+    public prop name: String {
+        get() {
+            _name
+        }
+    }
+
+    /**
+     * Gets the type reported by the getter of the instance property.
+     */
+    public prop typeInfo: TypeInfo {
+        get() {
+            getPropertyReturnTypeInfo(_typeInfo, {=> (_getterInfo?.returnType).getOrThrow()}) {
+                resolvedType: TypeInfo => _typeInfo = resolvedType
+            }
+        }
+    }
+
+    /**
+     * Gets the modifier list for the instance property, including mutability synthesized from the setter.
+     */
+    public prop modifiers: Collection<ModifierInfo> {
+        get() {
+            getPropertyModifiers(_modifiers, {=> (_getterInfo?.modifiers).getOrThrow()}, isMutable()) {
+                resolvedModifiers: Collection<ModifierInfo> => _modifiers = resolvedModifiers
+            }
+        }
+    }
+
+    /**
+     * Gets annotations attached to the getter that represents the instance property.
+     */
+    public prop annotations: Collection<Annotation> {
+        get() {
+            getPropertyAnnotations(_annotations, {=> _getterInfo.getOrThrow()._info}) {
+                resolvedAnnotations: Collection<Annotation> => _annotations = resolvedAnnotations
+            }
+        }
+    }
+
+    /**
+     * Returns true if instance property is 'public', false otherwise.
+     */
+    public func isOpen(): Bool {
+        containsModifier(modifiers, ModifierInfo.Open)
+    }
+
+    /**
+     * Returns true if instance property is 'abstract', false otherwise.
+     */
+    public func isAbstract(): Bool {
+        containsModifier(modifiers, ModifierInfo.Abstract)
+    }
+
+    /**
+     * Returns true if instance property is 'mut'
+     */
+    public func isMutable(): Bool {
+        _setterInfo.isSome()
+    }
+
+    /**
+     * Returns the instance property's value for incoming instance.
+     */
+    public func getValue(instance: Any): Any {
+        if (isAbstract()) {
+            throw UnsupportedException("Cannot get value from abstract property '${name}'.")
+        }
+        // instance type is checked in apply
+        if (let Some(v) <- _getterInfo) { // Getter must be implemented, no need to consider `None`
+            return v.apply(instance, Array<Any>())
+        }
+    }
+
+    /**
+     * Updates the instance property's value with incoming new value for incoming instance.
+     */
+    public func setValue(instance: Any, newValue: Any): Unit {
+        if (isAbstract()) {
+            throw IllegalSetException("Cannot modify abstract property '${name}'.")
+        }
+        if (!isMutable()) {
+            throw IllegalSetException("Cannot modify immutable property '${name}'.")
+        }
+
+        // instance type is checked in apply
+        match (_setterInfo) {
+            case Some(v) => v.apply(instance, Array<Any>(1, repeat: newValue))
+            case None => throw IllegalSetException("Cannot modify immutable property '${name}'.")
+        }
+    }
+
+    /**
+     * Finds an annotation declared on the getter that represents this instance property.
+     */
+    public func findAnnotation<T>(): ?T where T <: Annotation {
+        findAnnotation<T>(this.annotations)
+    }
+
+    // Return all matching instance getter annotations in metadata order.
+    public func findAllAnnotations<T>(): Array<T> where T <: Annotation {
+        findAllAnnotations<T>(this.annotations)
+    }
+
+    public func getAllAnnotations(): Array<Annotation> {
+        this.annotations.toArray()
+    }
+
+    public operator func ==(other: InstancePropertyInfo): Bool {
+        this._getterInfo.getOrThrow()._info == other._getterInfo.getOrThrow()._info
+    }
+
+    public operator func !=(other: InstancePropertyInfo): Bool {
+        !(this == other)
+    }
+
+    public func hashCode(): Int64 {
+        this._getterInfo.getOrThrow()._info.toUIntNative().hashCode()
+    }
+
+    public func toString(): String {
+        propertyToString(modifiers, name, typeInfo)
+    }
+
+    func setFunc(isGetter: Bool, pointer: CPointer<Unit>) {
+        if (isGetter) {
+            _getterInfo = InstanceFunctionInfo(pointer, _declaringTypeInfo)
+        } else {
+            _setterInfo = InstanceFunctionInfo(pointer, _declaringTypeInfo)
+        }
+    }
+}
+
+/**
+ * Contains the reflective information about static properties.
+ */
+public class StaticPropertyInfo <: Equatable<StaticPropertyInfo> & Hashable & ToString {
+    let _name: String
+    // must have value
+    var _getterInfo: Option<StaticFunctionInfo> = None
+    var _setterInfo: Option<StaticFunctionInfo> = None
+    var _typeInfo: Option<TypeInfo> = None
+    var _modifiers: Option<Collection<ModifierInfo>> = None
+    var _annotations: Option<Collection<Annotation>> = None
+    var _declaringTypeInfo: CPointer<Unit>
+    init(name: String, declaringTypeInfo: CPointer<Unit>) {
+        _name = name
+        _declaringTypeInfo = declaringTypeInfo
+    }
+
+    /**
+     * Returns the name of static property.
+     */
+    public prop name: String {
+        get() {
+            _name
+        }
+    }
+
+    /**
+     * Gets the type reported by the getter of the static property.
+     */
+    public prop typeInfo: TypeInfo {
+        get() {
+            getPropertyReturnTypeInfo(_typeInfo, {=> (_getterInfo?.returnType).getOrThrow()}) {
+                info: TypeInfo => _typeInfo = info
+            }
+        }
+    }
+
+    /**
+     * Gets the modifier list for the static property, including mutability synthesized from the setter.
+     */
+    public prop modifiers: Collection<ModifierInfo> {
+        get() {
+            getPropertyModifiers(_modifiers, {=> (_getterInfo?.modifiers).getOrThrow()}, isMutable()) {
+                infos: Collection<ModifierInfo> => _modifiers = infos
+            }
+        }
+    }
+
+    /**
+     * Gets annotations attached to the getter that represents the static property.
+     */
+    public prop annotations: Collection<Annotation> {
+        get() {
+            getPropertyAnnotations(_annotations, {=> _getterInfo.getOrThrow()._info}) {
+                infos: Collection<Annotation> => _annotations = infos
+            }
+        }
+    }
+
+    /**
+     * Returns true if static property is 'mut'
+     */
+    public func isMutable(): Bool {
+        _setterInfo.isSome()
+    }
+
+    /**
+     * Returns the static property's value for incoming instance.
+     */
+    public func getValue(): Any {
+        if (let Some(v) <- _getterInfo) { // getter must be implemented, no need to consider `None`
+            return v.apply(TypeInfo.getOrCreate(_declaringTypeInfo), Array<Any>())
+        }
+    }
+
+    /**
+     * Updates the static property's value with incoming new value for incoming instance.
+     */
+    public func setValue(newValue: Any): Unit {
+        if (!isMutable()) {
+            throw IllegalSetException("Cannot modify immutable property '${name}'.")
+        }
+        match (_setterInfo) {
+            case Some(v) => v.apply(TypeInfo.getOrCreate(_declaringTypeInfo), Array<Any>(1, repeat: newValue))
+            case None => throw IllegalSetException("Cannot modify immutable property '${name}'.")
+        }
+    }
+
+    /**
+     * Finds an annotation declared on the getter that represents this static property.
+     */
+    public func findAnnotation<T>(): ?T where T <: Annotation {
+        findAnnotation<T>(this.annotations)
+    }
+
+    // Return all matching static getter annotations in metadata order.
+    public func findAllAnnotations<T>(): Array<T> where T <: Annotation {
+        findAllAnnotations<T>(this.annotations)
+    }
+
+    public func getAllAnnotations(): Array<Annotation> {
+        this.annotations.toArray()
+    }
+
+    public operator func ==(other: StaticPropertyInfo): Bool {
+        let left = this._getterInfo.getOrThrow()._info
+        left == other._getterInfo.getOrThrow()._info
+    }
+
+    public operator func !=(other: StaticPropertyInfo): Bool {
+        !(this == other)
+    }
+
+    public func toString(): String {
+        propertyToString(modifiers, name, typeInfo)
+    }
+
+    // Static property identity follows its getter function info.
+    public func hashCode(): Int64 {
+        this._getterInfo.getOrThrow()._info.toUIntNative().hashCode()
+    }
+
+    func setFunc(isGetter: Bool, pointer: CPointer<Unit>) {
+        if (isGetter) {
+            _getterInfo = StaticFunctionInfo(pointer, _declaringTypeInfo)
+        } else {
+            _setterInfo = StaticFunctionInfo(pointer, _declaringTypeInfo)
+        }
+    }
+}
+
+/**
+ * Contains the reflective information about constructors.
+ */
+public class ConstructorInfo <: Equatable<ConstructorInfo> & Hashable & ToString {
+    let _info: CPointer<Unit>
+    var _parameters: Option<ArrayList<ParameterInfo>> = None
+    var _annotations: Option<Collection<Annotation>> = None
+    private var _isAbstract: Option<Bool> = None
+    var _declaringTypeInfo: CPointer<Unit>
+    init(infoPointer: CPointer<Unit>, declaringTypeInfo: CPointer<Unit>) {
+        _info = infoPointer
+        _declaringTypeInfo = declaringTypeInfo
+    }
+
+    /**
+     * Returns the list of parameters of constructor.
+     */
+    public prop parameters: ReadOnlyList<ParameterInfo> {
+        get() {
+            getCachedReflectInfo(_parameters, {=> getParameters(_info)}) {
+                constructorParameters: ArrayList<ParameterInfo> => _parameters = constructorParameters
+            }
+        }
+    }
+
+    /**
+     * Returns the collection of annotations of constructor.
+     */
+    public prop annotations: Collection<Annotation> {
+        get() {
+            getCachedReflectInfo(_annotations, {=> getAnnotations(_info)}) {
+                constructorAnnotations: Collection<Annotation> => _annotations = constructorAnnotations
+            }
+        }
+    }
+
+    private prop isAbstract: Bool {
+        get() {
+            match (_isAbstract) {
+                case Some(res) => res
+                case None =>
+                    let isDeclaringClassAbstract = ModifierInfo.isAbstract(getMethodModifier(_info)) ||
+                        ModifierInfo.isAbstract(getTypeInfoModifier(_declaringTypeInfo))
+
+                    _isAbstract = isDeclaringClassAbstract
+                    isDeclaringClassAbstract
+            }
+        }
+    }
+
+    /**
+     * Makes a call of constructor with incoming args.
+     *
+     * @param args parameter list.
+     *
+     * @throw IllegalArgumentException, if the number of input parameters is different from the number of invoked function parameters.
+     * @throw IllegalTypeException, if the input parameter type does not match the required parameter type.
+     * @throw InvocationTargetException, if the constructor is abstract
+     */
+    public func apply(args: Array<Any>): Any {
+        let nullEntryPointer = methodEntryPointIsNull(_info)
+        if (isAbstract || nullEntryPointer) {
+            throw InvocationTargetException("Cannot invoke abstract constructor.")
+        }
+
+        checkArgsSizeAndType(parameters, args)
+        applyCJStaticMethod(_info, args, CPointer<Unit>())
+    }
+
+    /**
+     * Searches the constructor's annotation by incoming name.
+     */
+    public func findAnnotation<T>(): ?T where T <: Annotation {
+        findAnnotation<T>(annotations)
+    }
+
+    // Constructor annotations are stored with the constructor metadata.
+    public func findAllAnnotations<T>(): Array<T> where T <: Annotation {
+        findAllAnnotations<T>(annotations)
+    }
+
+    public func getAllAnnotations(): Array<Annotation> {
+        annotations.toArray()
+    }
+
+    public operator func ==(other: ConstructorInfo): Bool {
+        this._info == other._info
+    }
+
+    public operator func !=(other: ConstructorInfo): Bool {
+        !(this == other)
+    }
+
+    public func hashCode(): Int64 {
+        this._info.toUIntNative().hashCode()
+    }
+
+    public func toString(): String {
+        constructorToString(parameters)
+    }
+}
+
+/**
+ * Contains the reflective information about global functions.
+ */
+public class GlobalFunctionInfo <: Equatable<GlobalFunctionInfo> & Hashable & ToString {
+    let _info: CPointer<Unit>
+    var _name: ?String = None
+    var _parameters: Option<ArrayList<ParameterInfo>> = None
+    var _genericParams = Option<Collection<GenericTypeInfo>>.None
+    var _returnType: Option<TypeInfo> = None
+    var _annotations: Option<Collection<Annotation>> = None
+
+    init(cp: CPointer<Unit>) {
+        _info = cp
+    }
+
+    public prop genericParams: Collection<GenericTypeInfo> {
+        get() {
+            getCachedGenericParameters(_info, _genericParams) {
+                globalTypeParams: Collection<GenericTypeInfo> => _genericParams = Some(globalTypeParams)
+            }
+        }
+    }
+
+    // Function name, overloaded functions have the same function name
+    public prop name: String {
+        get() {
+            _name.getOrThrow()
+        }
+    }
+
+    /**
+     * Returns the list of parameters of global function.
+     */
+    public prop parameters: ReadOnlyList<ParameterInfo> {
+        get() {
+            getCachedReflectInfo(_parameters, {=> getParameters(_info)}) {
+                globalParameters: ArrayList<ParameterInfo> => _parameters = globalParameters
+            }
+        }
+    }
+
+    /**
+     * Returns the return type of global function.
+     */
+    public prop returnType: TypeInfo {
+        get() {
+            getCachedReflectInfo(_returnType, {=> TypeInfo.getOrCreate(getMethodReturnType(_info))}) {
+                globalReturnType: TypeInfo => _returnType = globalReturnType
+            }
+        }
+    }
+
+    // Annotation, when there is no data, size is 0. Note that this api does not guarantee a constant traversal order.
+    public prop annotations: Collection<Annotation> {
+        get() {
+            getCachedReflectInfo(_annotations, {=> getAnnotations(_info)}) {
+                globalAnnotations: Collection<Annotation> => _annotations = globalAnnotations
+            }
+        }
+    }
+
+    /**
+     * Makes a call of global function with incoming args.
+     *
+     * @param args parameter list.
+     *
+     * @throw IllegalArgumentException, if the number of input parameters is different from the number of invoked function parameters.
+     * @throw IllegalTypeException, if the input parameter type does not match the required parameter type.
+     * @throw InvocationTargetException, if then generic parameter check failed.
+     */
+    public func apply(args: Array<Any>): Any {
+        try {
+            if (genericParams.size > 0) {
+                throw InvocationTargetException("Generic function '${name}' requires 'genericTypeArgs' to invoke.")
+            }
+        } catch (_: InfoNotFoundException) {
+            throw InvocationTargetException("Generic function '${name}' requires 'genericTypeArgs' to invoke.")
+        }
+        checkArgsSizeAndType(parameters, args)
+        applyCJStaticMethod(_info, args, CPointer<Unit>())
+    }
+
+    public func apply(genericTypeArgs: Array<TypeInfo>, args: Array<Any>): Any {
+        checkApplyWithGenericTypeArgs(genericParams)
+
+        checkParamaterSize(genericParams, parameters.size, genericTypeArgs, args)
+
+        let gArgs = getGenericTypeArgInfos(genericTypeArgs)
+        checkMethodGenericArgs(_info, gArgs, args)
+
+        applyCJGenericStaticMethod(_info, gArgs, args, CPointer<Unit>())
+    }
+
+    // Get the annotation by name, return None if not found
+    public func findAnnotation<T>(): ?T where T <: Annotation {
+        findAnnotation<T>(annotations)
+    }
+
+    // Global functions read annotations from their own native metadata entry.
+    public func findAllAnnotations<T>(): Array<T> where T <: Annotation {
+        findAllAnnotations<T>(annotations)
+    }
+
+    public func getAllAnnotations(): Array<Annotation> {
+        annotations.toArray()
+    }
+
+    public operator func ==(other: GlobalFunctionInfo): Bool {
+        this._info == other._info
+    }
+
+    public operator func !=(other: GlobalFunctionInfo): Bool {
+        !(this == other)
+    }
+
+    public func hashCode(): Int64 {
+        this._info.toUIntNative().hashCode()
+    }
+
+    public func toString(): String {
+        functionToString(name, parameters, returnType)
+    }
+}
+
+func getFuncName(parentPointer: CPointer<Unit>): String {
+    let pointer = getMethodName(parentPointer)
+    if (pointer.isNull()) {
+        throw InfoNotFoundException("Failed to get function name.")
+    }
+    CString(pointer).toString()
+}
+
+func getParameters(cp: CPointer<Unit>): ArrayList<ParameterInfo> {
+    let actualParametersNum = getNumOfActualParameters(cp)
+    ArrayList<ParameterInfo>(
+        Int64(actualParametersNum),
+        {
+            index =>
+                let pointer = getActualParameterInfo(cp, UInt32(index))
+                if (pointer.isNull()) {
+                    throw InfoNotFoundException("Failed to get parameter info at index ${index}.")
+                }
+                ParameterInfo(pointer)
+        }
+    )
+}
+
+func checkMethodDeclaringClassType(instance: Any, declaringTypeInfo: CPointer<Unit>): Unit {
+    let declaringClassTypeInfo = TypeInfo.getOrCreate(declaringTypeInfo)
+    let instanceTypeInfo = TypeInfo.of(instance)
+    if (declaringClassTypeInfo != instanceTypeInfo) {
+        throw IllegalTypeException(
+            "Invalid instance type: expected '${declaringClassTypeInfo}', got '${instanceTypeInfo}'.")
+    }
+}
+
+func checkParamaterSize(genericParams: Collection<GenericTypeInfo>, actualParamSize: Int64,
+    genericTypeParameters: Collection<TypeInfo>, args: Array<Any>): Unit {
+    if (genericTypeParameters.size != genericParams.size) {
+        throw IllegalArgumentException("Invalid generic type argument count: expected ${genericParams.size}, got ${genericTypeParameters.size}.")
+    }
+
+    if (args.size != actualParamSize) {
+        throw IllegalArgumentException("Invalid argument count: expected ${actualParamSize}, got ${args.size}.")
+    }
+}

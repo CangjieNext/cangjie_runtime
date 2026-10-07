@@ -1,0 +1,165 @@
+/*
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
+ * This source file is part of the Cangjie project, licensed under Apache-2.0
+ * with Runtime Library Exception.
+ *
+ * See https://cangjie-lang.cn/pages/LICENSE for license information.
+ */
+
+package std.reflect
+
+import std.collection.*
+
+/**
+ * Contains the reflective information about annotations.
+ */
+public type Annotation = Object
+
+func getTypeAnnotations(info: CPointer<Unit>): Collection<Annotation> {
+    match (getTypeInfoAnnotations(info, TypeInfo.of<Array<Object>>()._info)) {
+        case arr: Array<Annotation> => arr
+        case _ => Array<Annotation>()
+    }
+}
+
+/**
+ * Parses the input string as a TypeInfo array
+ *
+ * @param parameterTypes the parameter type part of the function type.
+ * It does not contain the parameter name, default value, or outermost parenthesis.
+ * @return TypeInfo array converted from a parameter type string.
+ *
+ * @throws IllegalArgumentException if the input string contains mismatched parentheses or an empty type name between commas
+ */
+public func parseParameterTypes(parameters: String): Array<TypeInfo> {
+    let parameterTypes = parameters.trimAscii()
+    if (parameterTypes.isEmpty()) {
+        return Array<TypeInfo>()
+    }
+    let arr = ArrayList<TypeInfo>()
+    var parentheses = 0
+    var angleBrackets = 0
+    var startChar = 0
+    for (index in 0..parameterTypes.size - 1) {
+        if (parentheses < 0 || angleBrackets < 0) {
+            throw IllegalArgumentException(
+                "Invalid value for 'parameterTypes': does not comply with the specifications.")
+        }
+        match (parameterTypes[index]) {
+            case '(' => parentheses++
+            case ')' => parentheses--
+            case '<' => angleBrackets++
+            case '>' => angleBrackets--
+            case _ => ()
+        }
+        if (parentheses != 0 || angleBrackets != 0 || parameterTypes[index] != b',') {
+            continue
+        }
+        let str = parameterTypes[startChar..index]
+        if (str.trimAscii().isEmpty()) {
+            throw IllegalArgumentException(
+                "Invalid value for 'parameterTypes': does not comply with the specifications.")
+        }
+        arr.add(TypeInfo.get(str.trimAscii()))
+        startChar = index + 1
+    }
+    arr.add(TypeInfo.get(parameterTypes[startChar..].trimAscii()))
+    return arr.toArray()
+}
+
+func getByNameAndParamTypes<T>(source: Iterable<T>, name: String, parameterTypes: Array<TypeInfo>, message: String,
+    nameAndParamsGetter: (T) -> (String, ReadOnlyList<ParameterInfo>)): T {
+    for (item in source) {
+        let (currName, currParams) = nameAndParamsGetter(item)
+        if (currName != name) {
+            continue
+        }
+        if (currParams.size != parameterTypes.size) {
+            continue
+        }
+        var sameParamTypes = true
+        for (paramIdx in 0..currParams.size) {
+            let currParamType = currParams[paramIdx].typeInfo
+            let otherParamType = parameterTypes[paramIdx]
+            if (currParamType != otherParamType) {
+                sameParamTypes = false
+                break
+            }
+        }
+        if (sameParamTypes) {
+            return item
+        }
+    }
+    throw InfoNotFoundException(message)
+}
+
+func getByName<T>(source: Iterable<T>, name: String, message: String, nameGetter: (T) -> String): T {
+    for (item in source) {
+        if (nameGetter(item) == name) {
+            return item
+        }
+    }
+    throw InfoNotFoundException(message)
+}
+
+func getTypeNameByQualifiedName(qualifiedName: String): String {
+    var str = qualifiedName
+    if (let Some(bracketIndex) <- qualifiedName.indexOf("<")) {
+        str = qualifiedName[..bracketIndex]
+    }
+    var pointIndex = str.lastIndexOf(".") ?? -1
+    return qualifiedName[pointIndex + 1..]
+}
+
+func checkArgsSizeAndType(parameters: ReadOnlyList<ParameterInfo>, args: Array<Any>): Unit {
+    if (parameters.size != args.size) {
+        throw IllegalArgumentException("Invalid argument count: expected ${parameters.size}, got ${args.size}.")
+    }
+    for (i in 0..args.size) {
+        if (!TypeInfo.of(args[i]).isSubtypeOf(parameters[i].typeInfo)) {
+            throw IllegalTypeException(
+                "Parameter type mismatch: expected '${parameters[i].typeInfo}', got '${TypeInfo.of(args[i])}'.")
+        }
+    }
+}
+
+func checkArgsSizeAndType(parameters: ReadOnlyList<TypeInfo>, args: Array<Any>): Unit {
+    if (parameters.size != args.size) {
+        throw IllegalArgumentException("Invalid argument count: expected ${parameters.size}, got ${args.size}.")
+    }
+    for (i in 0..args.size) {
+        if (!TypeInfo.of(args[i]).isSubtypeOf(parameters[i])) {
+            throw IllegalTypeException(
+                "Parameter type mismatch: expected '${parameters[i]}', got '${TypeInfo.of(args[i])}'.")
+        }
+    }
+}
+
+func checkValueType(newValue: Any, typeInfo: TypeInfo): Unit {
+    let valueTypeInfo = TypeInfo.of(newValue)
+    if (!valueTypeInfo.isSubtypeOf(typeInfo)) {
+        throw IllegalTypeException("Invalid type for 'newValue': expected '${typeInfo}', got '${valueTypeInfo}'.")
+    }
+}
+
+func findAnnotation<T>(annotations: Collection<Annotation>): Option<T> {
+    var ret: ?T = None<T>
+    var count: Int64 = 0
+
+    for (annotation in annotations where annotation is T) {
+        count += 1
+        if (count > 1) {
+            return None<T>
+        }
+        ret = annotation as T
+    }
+    ret
+}
+
+func findAllAnnotations<T>(annotations: Collection<Annotation>): Array<T> {
+    let ret = ArrayList<T>()
+    for (annotation in annotations where annotation is T) {
+        ret.add((annotation as T).getOrThrow())
+    }
+    ret.toArray()
+}
