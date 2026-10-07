@@ -149,18 +149,18 @@ public class LinkedBlockingQueue<E> {
     }
 
     public func add(element: E): Unit {
-        // 无锁快路径：直接尝试入队
+        // 快路径：公开 tryAdd 内部已包含“唤醒消费者”语义，这里不能再重复发信号
         if (tryAdd(element)) {
-            // 入队成功后在锁外通知消费者，避免 putMonitor→takeMonitor 交叉加锁死锁
-            signalNotEmpty()
             return
         }
         putMonitor.lock()
         try {
-            // 等待循环里必须复用无锁版 tryAdd（用 CAS 预约槽位），不能再用“锁内直接 fetchAdd”的版本：
+            // 等待循环里必须复用无锁核心 tryAddCore（用 CAS 预约槽位），不能再用“锁内直接 fetchAdd”的版本：
             // putMonitor 只串行化“走阻塞路径的生产者”，无法与同时走无锁快路径的生产者互斥，
-            // 二者并发修改 putQsize 会把它加到超过 capacity，导致队列排空后生产者仍误判为“满”而永久阻塞
-            while (!tryAdd(element)) {
+            // 二者并发修改 putQsize 会把它加到超过 capacity，导致队列排空后生产者仍误判为“满”而永久阻塞。
+            // 这里也不能改用公开 tryAdd：它会在持有 putMonitor 期间去抢 takeMonitor，
+            // 与 remove 侧形成 putMonitor↔takeMonitor 的 ABBA 死锁。
+            while (!tryAddCore(element)) {
                 let _ = putMonitor.wait()
             }
         } finally {
@@ -187,18 +187,17 @@ public class LinkedBlockingQueue<E> {
     }
 
     public func add(element: E, timeout: Duration): Bool {
-        // 无锁快路径
+        // 快路径：公开 tryAdd 已负责唤醒消费者
         if (tryAdd(element)) {
-            signalNotEmpty()
             return true
         }
         putMonitor.lock()
         try {
             var remaining = timeout
             while (true) {
-                // 同 add(element)：必须复用无锁版 tryAdd，保证 putQsize 始终由 CAS 预约，容量计数才不会被改坏
-                if (tryAdd(element)) {
-                    // 在 finally 释放锁后通知
+                // 同 add(element)：等待循环内只能用无锁核心 tryAddCore，
+                // 既保证 putQsize 始终由 CAS 预约，又避免在持有 putMonitor 时去抢 takeMonitor
+                if (tryAddCore(element)) {
                     break
                 }
                 if (remaining <= Duration.Zero) {
@@ -232,19 +231,19 @@ public class LinkedBlockingQueue<E> {
     }
 
     public func remove(): E {
-        // 无锁快路径
+        // 快路径：公开 tryRemove 已负责唤醒生产者
         if (let Some(e) <- tryRemove()) {
-            signalNotFull()
             return e
         }
         takeMonitor.lock()
         var result: Option<E> = None<E>
         try {
             while (true) {
-                // 等待循环里必须复用无锁版 tryRemove（用 CAS 认领元素），不能再用“锁内直接 fetchSub”的版本：
+                // 等待循环里必须复用无锁核心 tryRemoveCore（用 CAS 认领元素），不能再用“锁内直接 fetchSub”的版本：
                 // takeMonitor 只串行化“走阻塞路径的消费者”，无法与同时走无锁快路径的消费者互斥，
-                // 二者并发修改 count 会把它减成负数，导致从空队列出队并抛出 "Unreachable code"
-                if (let Some(e) <- tryRemove()) {
+                // 二者并发修改 count 会把它减成负数，导致从空队列出队并抛出 "Unreachable code"。
+                // 这里也不能改用公开 tryRemove：它会在持有 takeMonitor 期间去抢 putMonitor，形成 ABBA 死锁。
+                if (let Some(e) <- tryRemoveCore()) {
                     result = Some(e)
                     break
                 }
@@ -274,9 +273,8 @@ public class LinkedBlockingQueue<E> {
     }
 
     public func remove(timeout: Duration): Option<E> {
-        // 无锁快路径
+        // 快路径：公开 tryRemove 已负责唤醒生产者
         if (let Some(e) <- tryRemove()) {
-            signalNotFull()
             return Some(e)
         }
         var success = false
@@ -285,8 +283,9 @@ public class LinkedBlockingQueue<E> {
         try {
             var remaining = timeout
             while (true) {
-                // 同 remove()：必须复用无锁版 tryRemove，保证 count 始终由 CAS 认领，元素计数才不会被改坏
-                if (let Some(e) <- tryRemove()) {
+                // 同 remove()：等待循环内只能用无锁核心 tryRemoveCore，
+                // 保证 count 始终由 CAS 认领，且避免在持有 takeMonitor 时去抢 putMonitor
+                if (let Some(e) <- tryRemoveCore()) {
                     result = Some(e)
                     success = true
                     break
@@ -351,8 +350,10 @@ public class LinkedBlockingQueue<E> {
         return tryAdd(element)
     }
 
-    // 无锁快路径版 tryAdd：不在任何 Monitor 锁内调用
-    public func tryAdd(element: E): Bool {
+    // 无锁核心：只做入队与计数，绝不获取任何 Monitor。
+    // 之所以把“发信号”拆到外层：发信号需要获取对端 Monitor，而本核心会在 add 的
+    // putMonitor 等待循环内被调用，若在持锁时去抢 takeMonitor 就会形成 ABBA 死锁。
+    private func tryAddCore(element: E): Bool {
         // 用 break 而非 return 退出"满"分支：Cangjie 中 while(true) 作为函数尾表达式时
         // 类型被判定为 Unit，必须让循环存在可达出口并在循环后统一 return，才能满足 Bool 返回类型
         while (true) {
@@ -370,6 +371,17 @@ public class LinkedBlockingQueue<E> {
         return false
     }
 
+    public func tryAdd(element: E): Bool {
+        // 与上游语义对齐：非阻塞入队成功后必须唤醒阻塞在 remove() 上的消费者。
+        // 上游 tryAdd 在持有 putMonitor 的临界区内完成这件事；我们改为在无锁核心之外发信号，
+        // 否则“只用 tryAdd 生产、用 remove() 消费”的用法会让消费者永久挂起（丢失唤醒）。
+        if (tryAddCore(element)) {
+            signalNotEmpty()
+            return true
+        }
+        return false
+    }
+
     /**
      * Non-blocking method to get and remove the head of the queue.
      * A successful 'tryDequeue' will await blocked threads calling 'enqueue'.
@@ -383,8 +395,8 @@ public class LinkedBlockingQueue<E> {
         return tryRemove()
     }
 
-    // 无锁快路径版 tryRemove：不在任何 Monitor 锁内调用
-    public func tryRemove(): Option<E> {
+    // 无锁核心：只做出队与计数，绝不获取任何 Monitor（原因同 tryAddCore）
+    private func tryRemoveCore(): Option<E> {
         // 同 tryAdd：用 break 让 while(true) 具备可达出口，循环后统一 return Option<E>
         while (true) {
             let c: Int64 = count.load()
@@ -397,6 +409,16 @@ public class LinkedBlockingQueue<E> {
                 putQsize.fetchSub(1)
                 return Some(value)
             }
+        }
+        return None<E>
+    }
+
+    public func tryRemove(): Option<E> {
+        // 与上游语义对齐：非阻塞出队成功后必须唤醒阻塞在 add() 上的生产者，
+        // 否则“只用 tryRemove 消费、用 add 生产”的用法（如 ResourcePool）会让生产者永久挂起。
+        if (let Some(e) <- tryRemoveCore()) {
+            signalNotFull()
+            return Some(e)
         }
         return None<E>
     }
