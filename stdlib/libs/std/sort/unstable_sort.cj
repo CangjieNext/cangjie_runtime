@@ -20,6 +20,12 @@ public func unstableSort<T>(data: Array<T>): Unit where T <: Comparable<T> {
     if (data.size < 2) {
         return
     }
+    // Float arrays must be handled before the isAscending/isDescending checks:
+    // NaN compares false against everything, so those checks may wrongly treat
+    // a NaN-carrying array as already sorted and skip the sort entirely.
+    if (tryPrimitiveFloatUnstableSort(data)) {
+        return
+    }
     if (data.isAscending(0, data.size - 1)) {
         return
     }
@@ -141,7 +147,8 @@ extend<T> Array<T> where T <: Comparable<T> {
                 first = b
                 b++
                 break
-            } else if (tb > pivot) {
+            } else {
+                //(tb is greater than pivot, or incomparable with pivot such as NaN)
                 var continueBreak = false
                 while (b < e) {
                     let te = this[e]
@@ -180,7 +187,8 @@ extend<T> Array<T> where T <: Comparable<T> {
                 } else if (tb == pivot) {
                     pointNum++
                     b++
-                } else if (tb > pivot) {
+                } else {
+                    //(tb is greater than pivot, or incomparable with pivot such as NaN)
                     break
                 }
             }

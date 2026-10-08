@@ -265,6 +265,14 @@ extend<T> Array<T> where T <: Comparable<T> {
                 l1 -= c1
                 s2++
                 l2--
+                if (l1 == 0) {
+                    // The left run is exhausted (this may happen when the comparator
+                    // degenerates, e.g. sorting Float arrays containing NaN). The
+                    // remaining right-run elements already sit at their final
+                    // positions (ti == s2), so just stop here.
+                    continueBreak = true
+                    break
+                }
                 if (l1 == 1 || l2 == 0) {
                     continueBreak = true
                     break
@@ -368,6 +376,14 @@ extend<T> Array<T> where T <: Comparable<T> {
                 rightRest -= rightBatch
                 leftTail--
                 leftRest--
+                if (rightRest == 0) {
+                    // The right run is exhausted (this may happen when the comparator
+                    // degenerates, e.g. sorting Float arrays containing NaN). The
+                    // remaining left-run elements already sit at their final
+                    // positions, so just stop here.
+                    stopFromRight = true
+                    break
+                }
                 if (rightRest == 1 || leftRest == 0) {
                     stopFromRight = true
                     break
@@ -667,6 +683,14 @@ extend<T> Array<T> {
                 leftRemain -= leftCount
                 rightCursor++
                 rightRemain--
+                if (leftRemain == 0) {
+                    // The left run is exhausted (this may happen when the comparator
+                    // degenerates, e.g. sorting Float arrays containing NaN). The
+                    // remaining right-run elements already sit at their final
+                    // positions (targetIndex == rightCursor), so just stop here.
+                    shouldStop = true
+                    break
+                }
                 if (leftRemain == 1 || rightRemain == 0) {
                     shouldStop = true
                     break
@@ -772,6 +796,14 @@ extend<T> Array<T> {
                 cmpRightRest -= cmpRightBatch
                 cmpLeftTail--
                 cmpLeftRest--
+                if (cmpRightRest == 0) {
+                    // The right run is exhausted (this may happen when the comparator
+                    // degenerates, e.g. sorting Float arrays containing NaN). The
+                    // remaining left-run elements already sit at their final
+                    // positions, so just stop here.
+                    cmpStopFromRight = true
+                    break
+                }
                 if (cmpRightRest == 1 || cmpLeftRest == 0) {
                     cmpStopFromRight = true
                     break

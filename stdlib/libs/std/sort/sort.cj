@@ -21,18 +21,36 @@ import std.collection.*
 @Frozen
 public func sort<T>(data: Array<T>, stable!: Bool = false, descending!: Bool = false): Unit where T <: Comparable<T> {
     if (descending) {
-        let comparator = {l: T, r: T => r.compare(l)}
-        if (stable) {
-            stableSort(data, comparator)
-        } else {
-            unstableSort(data, comparator)
-        }
+        sortDescendingImpl(data, stable: stable)
     } else {
         if (stable) {
             stableSort(data)
         } else {
             unstableSort(data)
         }
+    }
+}
+
+// Shared descending entry for the global `sort` and the deprecated member
+// APIs (`Array.sortDescending`, `ArrayList.sortDescending`): Float arrays
+// must be intercepted before the comparator overloads, whose
+// isAscending/isDescending short-circuit checks NaN (comparing EQ against
+// everything) may fool into treating a NaN-carrying array as already sorted.
+// The indirection through a package-level function is required because
+// inside those member methods a bare call to `sort` would resolve to the
+// member itself, not to the global function. `internal` keeps it invisible
+// outside this module while letting std.collection reach it.
+internal func sortDescendingImpl<T>(data: Array<T>, stable!: Bool = false): Unit where T <: Comparable<T> {
+    if (stable) {
+        if (tryPrimitiveFloatStableSortDescending(data)) {
+            return
+        }
+        stableSort(data, {l: T, r: T => r.compare(l)})
+    } else {
+        if (tryPrimitiveFloatUnstableSortDescending(data)) {
+            return
+        }
+        unstableSort(data, {l: T, r: T => r.compare(l)})
     }
 }
 
@@ -364,17 +382,11 @@ extend<T> Array<T> <: SortExtension where T <: Comparable<T> {
 
     @Deprecated[message: "Use global function `public func sort<T>(data: Array<T>, stable!: Bool = false, descending!: Bool = false): Unit where T <: Comparable<T>` instead."]
     public func sortDescending(): Unit {
-        let comparator = {l: T, r: T => r.compare(l)}
-        unstableSort(this, comparator)
+        sortDescendingImpl(this)
     }
 
     @Deprecated[message: "Use global function `public func sort<T>(data: Array<T>, stable!: Bool = false, descending!: Bool = false): Unit where T <: Comparable<T>` instead."]
     public func sortDescending(stable!: Bool): Unit {
-        let comparator = {l: T, r: T => r.compare(l)}
-        if (stable) {
-            stableSort(this, comparator)
-        } else {
-            unstableSort(this, comparator)
-        }
+        sortDescendingImpl(this, stable: stable)
     }
 }

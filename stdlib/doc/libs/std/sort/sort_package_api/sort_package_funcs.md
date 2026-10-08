@@ -336,6 +336,8 @@ public func sort<T>(data: Array<T>, stable!: Bool = false, descending!: Bool = f
 
 功能：对数组进行排序。可根据入参指定是否要进行稳定排序，是升序还是降序。
 
+如果元素类型为浮点类型（Float16、Float32、Float64），其中 NaN 与任何值的比较结果均为 `false`，不满足全序关系。对包含 NaN 的浮点数组进行升序排序时，非 NaN 元素按升序排列，所有 NaN 排在数组末尾；进行降序排序时，非 NaN 元素按降序排列，所有 NaN 排在数组开头；稳定排序下 NaN 之间的相对顺序保持不变。
+
 参数：
 
 - data: [Array](../../core/core_package_api/core_package_structs.md#struct-arrayt)\<T> - 需要排序的数组。
@@ -544,6 +546,8 @@ public func sort<T>(data: ArrayList<T>, stable!: Bool = false, descending!: Bool
 ```
 
 功能：对 `ArrayList` 进行排序。可根据入参指定是否要进行稳定排序，是升序还是降序。
+
+如果元素类型为浮点类型（Float16、Float32、Float64），其中 NaN 与任何值的比较结果均为 `false`，不满足全序关系。对包含 NaN 的浮点数组进行升序排序时，非 NaN 元素按升序排列，所有 NaN 排在末尾；进行降序排序时，非 NaN 元素按降序排列，所有 NaN 排在开头；稳定排序下 NaN 之间的相对顺序保持不变。
 
 参数：
 
@@ -760,6 +764,8 @@ public func sort<T>(data: List<T>, stable!: Bool = false, descending!: Bool = fa
 ```
 
 功能：对 `List` 进行排序。可根据入参指定是否要进行稳定排序，是升序还是降序。
+
+如果元素类型为浮点类型（Float16、Float32、Float64），其中 NaN 与任何值的比较结果均为 `false`，不满足全序关系。对包含 NaN 的浮点数组进行升序排序时，非 NaN 元素按升序排列，所有 NaN 排在末尾；进行降序排序时，非 NaN 元素按降序排列，所有 NaN 排在开头；稳定排序下 NaN 之间的相对顺序保持不变。
 
 参数：
 

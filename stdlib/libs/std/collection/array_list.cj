@@ -1091,13 +1091,15 @@ extend<T> ArrayList<T> where T <: Comparable<T> {
     @Frozen
     @Deprecated[message: "Use global function `public func sort<T>(data: ArrayList<T>, stable!: Bool = false, descending!: Bool = false): Unit where T <: Comparable<T>` in std.sort instead."]
     public func sortDescending(stable!: Bool): Unit {
-        this.sortBy(stable: stable) {lhs: T, rhs: T => rhs.compare(lhs)}
+        sortDescendingImpl(this.myData[0..this.size], stable: stable)
+        myVersion++
     }
 
     @Frozen
     @Deprecated[message: "Use global function `public func sort<T>(data: ArrayList<T>, stable!: Bool = false, descending!: Bool = false): Unit where T <: Comparable<T>` in std.sort instead."]
     public func sortDescending(): Unit {
-        this.sortBy() {lhs: T, rhs: T => rhs.compare(lhs)}
+        sortDescendingImpl(this.myData[0..this.size])
+        myVersion++
     }
 }
 
@@ -1423,6 +1425,14 @@ extend<T> Array<T> {
                 l1 -= c1
                 s2++
                 l2--
+                if (l1 == 0) {
+                    // The left run is exhausted (this may happen when the comparator
+                    // degenerates, e.g. sorting Float arrays containing NaN). The
+                    // remaining right-run elements already sit at their final
+                    // positions (ti == s2), so just stop here.
+                    shouldStopPartition = true
+                    break
+                }
                 if (l1 == 1 || l2 == 0) {
                     shouldStopPartition = true
                     break
@@ -1558,6 +1568,14 @@ extend<T> Array<T> {
                 l2 -= c2
                 s1--
                 l1--
+                if (l2 == 0) {
+                    // The right run is exhausted (this may happen when the comparator
+                    // degenerates, e.g. sorting Float arrays containing NaN). The
+                    // remaining left-run elements already sit at their final
+                    // positions, so just stop here.
+                    shouldStopPartition = true
+                    break
+                }
                 if (l2 == 1 || l1 == 0) {
                     shouldStopPartition = true
                     break
@@ -1686,6 +1704,197 @@ func unstableSort<T>(data: Array<T>, compare: (T, T) -> Ordering): Unit {
         return
     }
     data.introSort(0, data.size - 1, data.depth(), compare)
+}
+
+// Shared descending entry for `ArrayList.sortDescending`: Float arrays must
+// be intercepted before the comparator overloads, whose isAscending/
+// isDescending short-circuit checks NaN (comparing EQ against everything)
+// may fool into treating a NaN-carrying array as already sorted.
+// std.collection cannot import std.sort (sort imports this package), so the
+// Float NaN handling below is self-contained and mirrors the semantics of
+// std.sort: under descending order NaN is treated as the largest value and
+// moved to the head of the array, while only the NaN-free suffix is sorted
+// with the reversed comparator (a total order holds there).
+func sortDescendingImpl<T>(data: Array<T>, stable!: Bool = false): Unit where T <: Comparable<T> {
+    if (data.size < 2) {
+        return
+    }
+    if (let Some(f16) <- (data as Array<Float16>)) {
+        sortFloat16Descending(f16, stable: stable)
+        return
+    }
+    if (let Some(f32) <- (data as Array<Float32>)) {
+        sortFloat32Descending(f32, stable: stable)
+        return
+    }
+    if (let Some(f64) <- (data as Array<Float64>)) {
+        sortFloat64Descending(f64, stable: stable)
+        return
+    }
+    if (stable) {
+        stableSort(data, {l: T, r: T => r.compare(l)})
+    } else {
+        unstableSort(data, {l: T, r: T => r.compare(l)})
+    }
+}
+
+private func sortFloat16Descending(data: Array<Float16>, stable!: Bool): Unit {
+    if (stable) {
+        var nonNaNCount = 0
+        for (i in 0..data.size) {
+            if (!(data[i] != data[i])) {
+                nonNaNCount++
+            }
+        }
+        if (nonNaNCount == data.size) {
+            stableSort(data, {l: Float16, r: Float16 => r.compare(l)})
+            return
+        }
+        let nanCount = data.size - nonNaNCount
+        let sorted = Array<Float16>(nonNaNCount, repeat: 0.0)
+        let nanHead = Array<Float16>(nanCount, repeat: 0.0)
+        var i = 0
+        var j = 0
+        for (k in 0..data.size) {
+            let x = data[k]
+            if (x != x) {
+                nanHead[j] = x
+                j++
+            } else {
+                sorted[i] = x
+                i++
+            }
+        }
+        stableSort(sorted, {l: Float16, r: Float16 => r.compare(l)})
+        for (k in 0..nanCount) {
+            data[k] = nanHead[k]
+        }
+        for (k in 0..nonNaNCount) {
+            data[nanCount + k] = sorted[k]
+        }
+        return
+    }
+    var left = 0
+    var right = data.size
+    while (left < right) {
+        if (data[left] != data[left]) {
+            left++
+        } else {
+            right--
+            let t = data[left]
+            data[left] = data[right]
+            data[right] = t
+        }
+    }
+    if (data.size - left > 1) {
+        unstableSort(data[left..data.size], {l: Float16, r: Float16 => r.compare(l)})
+    }
+}
+
+private func sortFloat32Descending(data: Array<Float32>, stable!: Bool): Unit {
+    if (stable) {
+        var nonNaNCount = 0
+        for (i in 0..data.size) {
+            if (!(data[i] != data[i])) {
+                nonNaNCount++
+            }
+        }
+        if (nonNaNCount == data.size) {
+            stableSort(data, {l: Float32, r: Float32 => r.compare(l)})
+            return
+        }
+        let nanCount = data.size - nonNaNCount
+        let sorted = Array<Float32>(nonNaNCount, repeat: 0.0)
+        let nanHead = Array<Float32>(nanCount, repeat: 0.0)
+        var i = 0
+        var j = 0
+        for (k in 0..data.size) {
+            let x = data[k]
+            if (x != x) {
+                nanHead[j] = x
+                j++
+            } else {
+                sorted[i] = x
+                i++
+            }
+        }
+        stableSort(sorted, {l: Float32, r: Float32 => r.compare(l)})
+        for (k in 0..nanCount) {
+            data[k] = nanHead[k]
+        }
+        for (k in 0..nonNaNCount) {
+            data[nanCount + k] = sorted[k]
+        }
+        return
+    }
+    var left = 0
+    var right = data.size
+    while (left < right) {
+        if (data[left] != data[left]) {
+            left++
+        } else {
+            right--
+            let t = data[left]
+            data[left] = data[right]
+            data[right] = t
+        }
+    }
+    if (data.size - left > 1) {
+        unstableSort(data[left..data.size], {l: Float32, r: Float32 => r.compare(l)})
+    }
+}
+
+private func sortFloat64Descending(data: Array<Float64>, stable!: Bool): Unit {
+    if (stable) {
+        var nonNaNCount = 0
+        for (i in 0..data.size) {
+            if (!(data[i] != data[i])) {
+                nonNaNCount++
+            }
+        }
+        if (nonNaNCount == data.size) {
+            stableSort(data, {l: Float64, r: Float64 => r.compare(l)})
+            return
+        }
+        let nanCount = data.size - nonNaNCount
+        let sorted = Array<Float64>(nonNaNCount, repeat: 0.0)
+        let nanHead = Array<Float64>(nanCount, repeat: 0.0)
+        var i = 0
+        var j = 0
+        for (k in 0..data.size) {
+            let x = data[k]
+            if (x != x) {
+                nanHead[j] = x
+                j++
+            } else {
+                sorted[i] = x
+                i++
+            }
+        }
+        stableSort(sorted, {l: Float64, r: Float64 => r.compare(l)})
+        for (k in 0..nanCount) {
+            data[k] = nanHead[k]
+        }
+        for (k in 0..nonNaNCount) {
+            data[nanCount + k] = sorted[k]
+        }
+        return
+    }
+    var left = 0
+    var right = data.size
+    while (left < right) {
+        if (data[left] != data[left]) {
+            left++
+        } else {
+            right--
+            let t = data[left]
+            data[left] = data[right]
+            data[right] = t
+        }
+    }
+    if (data.size - left > 1) {
+        unstableSort(data[left..data.size], {l: Float64, r: Float64 => r.compare(l)})
+    }
 }
 
 // Temporary code, deleted when @Deprecated ends
