@@ -285,7 +285,7 @@ make_cangjie_lib(
         std-sync
         std-sort
     OBJECTS ${output_cj_object_dir}/std/console.o
-    FLAGS -lcangjie-std-envFFI)
+    FLAGS -lcangjie-std-envFFI -Wl,--exclude-libs=libcangjie-std-envFFI.a)
 
 add_library(cangjie-std-console STATIC  $<TARGET_OBJECTS:cangjie-std-envFFI-objs> ${output_cj_object_dir}/std/console.o)
 install(TARGETS cangjie-std-console DESTINATION lib/${output_triple_name}_${CJNATIVE_BACKEND}${SANITIZER_SUBPATH})
@@ -318,7 +318,7 @@ make_cangjie_lib(
     CANGJIE_STD_LIB_INDIRECT_DEPENDS std-math
     OBJECTS ${output_cj_object_dir}/std/process.o
     FLAGS
-        -lcangjie-std-processFFI)
+        -lcangjie-std-processFFI -Wl,--exclude-libs=libcangjie-std-processFFI.a)
 
 add_library(
     cangjie-std-process STATIC
