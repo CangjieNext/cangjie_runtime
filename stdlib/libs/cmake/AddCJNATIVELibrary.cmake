@@ -340,7 +340,7 @@ make_cangjie_lib(
     OBJECTS ${output_cj_object_dir}/std/env.o
     FORCE_LINK_ARCHIVES
             cangjie-std-envFFI
-    FLAGS -lcangjie-std-processFFI)
+    FLAGS -lcangjie-std-processFFI -Wl,--exclude-libs=libcangjie-std-envFFI.a)
 
     add_and_combine_static_lib(
         OUTPUT_NAME libcangjie-std-env.a
