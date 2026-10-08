@@ -367,6 +367,10 @@ class HNode<K, V> where K <: Hashable & Equatable<K> {
     let version: Int64
     let migratingIndex = AtomicInt64(0)
     let migratedIndex = AtomicInt64(0)
+    /* Set when a stripe migration of this table failed with an exception (e.g.
+     * OutOfMemoryError): tells the thread elected to publish the next table to
+     * stop waiting for 'migratedIndex' convergence instead of spinning forever. */
+    let resizeAborted = AtomicBool(false)
     /**
      * The reference of the previous hash table,
      * which is the current hash table before the latest size extension.
@@ -428,15 +432,18 @@ class HNode<K, V> where K <: Hashable & Equatable<K> {
     func migrate(start: Int64, end: Int64, step: Int64): Unit {
         if (let Some(preHT) <- pre.load()) {
             lockG.lock(start)
-            for (index in start..end : step) {
-                if (buckets[index].refList().isSome()) {
-                    continue
+            try {
+                for (index in start..end : step) {
+                    if (buckets[index].refList().isSome()) {
+                        continue
+                    }
+                    let preIndex = index & (preHT.buckets.size - 1) // Index of bucket remains to be migrated
+                    preHT.freeze(preIndex)
+                    buckets[index].migrate(preHT.buckets[preIndex].refList(), buckets.size - 1, index)
                 }
-                let preIndex = index & (preHT.buckets.size - 1) // Index of bucket remains to be migrated
-                preHT.freeze(preIndex)
-                buckets[index].migrate(preHT.buckets[preIndex].refList(), buckets.size - 1, index)
+            } finally {
+                lockG.unlock(start)
             }
-            lockG.unlock(start)
         }
     }
 
@@ -454,7 +461,16 @@ class HNode<K, V> where K <: Hashable & Equatable<K> {
         if (let Some(preHT) <- pre.load()) {
             let preIndex = index & (preHT.buckets.size - 1) // Index of bucket remains to be migrated
             preHT.freeze(preIndex)
-            buckets[index].migrate(preHT.buckets[preIndex].refList(), buckets.size - 1, index)
+            try {
+                buckets[index].migrate(preHT.buckets[preIndex].refList(), buckets.size - 1, index)
+            } catch (e: Exception) {
+                /* The bucket allocation may throw: the lock must not leak. */
+                lockG.unlock(index)
+                throw e
+            } catch (e: Error) {
+                lockG.unlock(index)
+                throw e
+            }
         }
 
         return true
@@ -689,8 +705,11 @@ public class ConcurrentHashMap<K, V> <: ConcurrentMap<K, V> & Collection<(K, V)>
 
         while (true) {
             if (curHT.tryGetBucket(index)) {
-                ret = curHT.buckets[index].copyAddIfAbsent(hash, key, value)
-                curHT.lockG.unlock(index)
+                try {
+                    ret = curHT.buckets[index].copyAddIfAbsent(hash, key, value)
+                } finally {
+                    curHT.lockG.unlock(index)
+                }
                 break
             }
             curHT = head.load()
@@ -860,8 +879,11 @@ public class ConcurrentHashMap<K, V> <: ConcurrentMap<K, V> & Collection<(K, V)>
         var index = hash & (curHT.buckets.size - 1)
         while (true) {
             if (curHT.tryGetBucket(index)) {
-                ret = curHT.buckets[index].copyPut(hash, key, value)
-                curHT.lockG.unlock(index)
+                try {
+                    ret = curHT.buckets[index].copyPut(hash, key, value)
+                } finally {
+                    curHT.lockG.unlock(index)
+                }
                 break
             }
             curHT = head.load()
@@ -879,8 +901,11 @@ public class ConcurrentHashMap<K, V> <: ConcurrentMap<K, V> & Collection<(K, V)>
         var index = hash & (curHT.buckets.size - 1)
         while (true) {
             if (curHT.tryGetBucket(index)) {
-                ret = curHT.buckets[index].copyReplace(hash, key, predicate, eval)
-                curHT.lockG.unlock(index)
+                try {
+                    ret = curHT.buckets[index].copyReplace(hash, key, predicate, eval)
+                } finally {
+                    curHT.lockG.unlock(index)
+                }
                 break
             }
             curHT = head.load()
@@ -897,8 +922,11 @@ public class ConcurrentHashMap<K, V> <: ConcurrentMap<K, V> & Collection<(K, V)>
         var index = hash & (curHT.buckets.size - 1)
         while (true) {
             if (curHT.tryGetBucket(index)) {
-                ret = curHT.buckets[index].copyRemove(hash, key, predicate)
-                curHT.lockG.unlock(index)
+                try {
+                    ret = curHT.buckets[index].copyRemove(hash, key, predicate)
+                } finally {
+                    curHT.lockG.unlock(index)
+                }
                 break
             }
             curHT = head.load()
@@ -920,8 +948,11 @@ public class ConcurrentHashMap<K, V> <: ConcurrentMap<K, V> & Collection<(K, V)>
 
         while (true) {
             if (curHT.tryGetBucket(index)) {
-                (ret, resize) = curHT.buckets[index].copyEntryView(hash, key, fn)
-                curHT.lockG.unlock(index)
+                try {
+                    (ret, resize) = curHT.buckets[index].copyEntryView(hash, key, fn)
+                } finally {
+                    curHT.lockG.unlock(index)
+                }
                 break
             }
             curHT = head.load()
@@ -944,20 +975,59 @@ public class ConcurrentHashMap<K, V> <: ConcurrentMap<K, V> & Collection<(K, V)>
         /* Migrate all elements in previous hashtable, before resizing */
         var i = curHT.migratingIndex.fetchAdd(1)
         var migrateCnt = 0
-        while (i < concurrencyLevel) {
-            curHT.migrate(i, sz, concurrencyLevel)
-            migrateCnt++
-            i = curHT.migratingIndex.fetchAdd(1)
+        try {
+            while (i < concurrencyLevel) {
+                curHT.migrate(i, sz, concurrencyLevel)
+                migrateCnt++
+                i = curHT.migratingIndex.fetchAdd(1)
+            }
+        } catch (e: Exception) {
+            /* A stripe migration failed (e.g. an OutOfMemoryError from the
+             * bucket reallocation): publish the stripes completed so far,
+             * return the failed stripe claim so that a later resize can retry
+             * it, and release the thread elected to publish the next table
+             * from waiting for 'migratedIndex' convergence. The new table is
+             * NOT published this round, so the invariant that the previous
+             * table is fully migrated before 'head' advances is preserved and
+             * one-level read fallback stays correct. */
+            curHT.migratedIndex.fetchAdd(migrateCnt)
+            curHT.migratingIndex.compareAndSwap(i + 1, i)
+            curHT.resizeAborted.store(true)
+            throw e
+        } catch (e: Error) {
+            curHT.migratedIndex.fetchAdd(migrateCnt)
+            curHT.migratingIndex.compareAndSwap(i + 1, i)
+            curHT.resizeAborted.store(true)
+            throw e
         }
         curHT.migratedIndex.fetchAdd(migrateCnt)
         let newVersion = curHT.version + 1
         if (!curHNodeVersion.compareAndSwap(curHT.version, newVersion)) {
             return // There exists a thread allocating new hashtable, returns
         }
-        while (curHT.migratedIndex.load() < concurrencyLevel) {}
-        /* Allocate new hashtable */
-        curHT.pre.store(None<HNode<K, V>>)
-        head.store(HNode<K, V>(sz << 1, Some(curHT), lockG[newVersion & 1], newVersion))
+        while (curHT.migratedIndex.load() < concurrencyLevel) {
+            if (curHT.resizeAborted.load()) {
+                /* A stripe failed to migrate (e.g. OutOfMemoryError): give up
+                 * this round instead of spinning forever. A later resize can
+                 * retry the reclaimed stripe. */
+                curHNodeVersion.compareAndSwap(newVersion, curHT.version)
+                return
+            }
+        }
+        /* Allocate the new hashtable before detaching 'pre', so that an
+         * allocation failure cannot cut off the data of the buckets that are
+         * not migrated yet (they are still reachable through 'pre'). */
+        try {
+            let newHT = HNode<K, V>(sz << 1, Some(curHT), lockG[newVersion & 1], newVersion)
+            curHT.pre.store(None<HNode<K, V>>)
+            head.store(newHT)
+        } catch (e: Exception) {
+            curHNodeVersion.compareAndSwap(newVersion, curHT.version)
+            throw e
+        } catch (e: Error) {
+            curHNodeVersion.compareAndSwap(newVersion, curHT.version)
+            throw e
+        }
     }
 
     /*
