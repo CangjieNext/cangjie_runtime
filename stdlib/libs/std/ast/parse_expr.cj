@@ -136,7 +136,13 @@ func generateBlock(blockOption: Option<ASTFormat_Block>): Block {
     if (block.GetIsUnsafe()) {
         unSafe = Token(TokenKind.UNSAFE).addPosition(block.GetUnsafePos())
     }
-    return Block(lCurl, nodes, rCurl, unSafe)
+    var blockNode = Block(lCurl, nodes, rCurl, unSafe)
+    var nodeBase = match (block.GetBase()) {
+        case Some(v) => v
+        case None => throw ParseASTException()
+    }
+    addPositionInfo(blockNode, nodeBase)
+    return blockNode
 }
 
 func createBinaryExpr(expr: ASTFormat_Expr): Expr {
@@ -437,7 +443,9 @@ func generateMatchCase(mc: Option<ASTFormat_MatchCase>) {
     }
     var arrow = Token(TokenKind.DOUBLE_ARROW).addPosition(matchCase.GetArrowPos())
     var block = generateBlock(matchCase.GetExprOrDecls())
-    return MatchCase(keyWord, patterns, bitOrs, whereTk, patternGuard, arrow, block)
+    var matchCaseNode = MatchCase(keyWord, patterns, bitOrs, whereTk, patternGuard, arrow, block)
+    addPositionInfo(matchCaseNode, base)
+    return matchCaseNode
 }
 
 func generateMatchCaseOther(mco: Option<ASTFormat_MatchCaseOther>) {
@@ -454,7 +462,9 @@ func generateMatchCaseOther(mco: Option<ASTFormat_MatchCaseOther>) {
     var expr = Some<Expr>(generateExprAST(matchCaseOther.GetMatchExpr()))
     var arrow = Token(TokenKind.DOUBLE_ARROW).addPosition(matchCaseOther.GetArrowPos())
     var block = generateBlock(matchCaseOther.GetExprOrDecls())
-    return MatchCase(keyWord, expr, arrow, block)
+    var matchCaseOtherNode = MatchCase(keyWord, expr, arrow, block)
+    addPositionInfo(matchCaseOtherNode, base)
+    return matchCaseOtherNode
 }
 
 func createMatchExpr(expr: ASTFormat_Expr, exprBase: ASTFormat_NodeBase): Expr {

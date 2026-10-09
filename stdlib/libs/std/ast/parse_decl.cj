@@ -432,7 +432,9 @@ func createFuncParam(param: Option<ASTFormat_FuncParam>, index: Int64, length: I
         assign_ = Token(TokenKind.ASSIGN).addPosition(varDecl.GetAssignPos())
     }
     var isMemberParam = pm.GetIsMemberParam()
-    return FuncParam(declNode, not, colon, ty, assign_, expr, comma, isMemberParam)
+    var funcParamNode = FuncParam(declNode, not, colon, ty, assign_, expr, comma, isMemberParam)
+    addPositionInfo(funcParamNode, pm.GetNodeBase().getOrThrow())
+    return funcParamNode
 }
 
 func generateFuncParams(funcBody: ASTFormat_FuncBody): ArrayList<FuncParam> {
@@ -504,6 +506,10 @@ func createFuncBody(funcBody: Option<ASTFormat_FuncBody>) {
                 unsafe_ = Token(TokenKind.UNSAFE).addPosition(blockNode.GetUnsafePos())
             }
             var block = Block(lCurl, nodes, rCurl, unsafe_)
+            match (blockNode.GetBase()) {
+                case Some(v) => addPositionInfo(block, v)
+                case None => ()
+            }
             (funcParams, colon, ty, block, lParen, rParen)
         case None => (funcParams, colon, ty, Block(), lParen, rParen)
     }
