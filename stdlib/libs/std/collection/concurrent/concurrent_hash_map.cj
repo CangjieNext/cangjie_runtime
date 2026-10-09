@@ -100,14 +100,17 @@ class KVList<K, V> where K <: Equatable<K> {
         }
     }
 
-    func copyRemove(hash: Int64, key: K, predicate: (V) -> Bool): (KVList<K, V>, ?V) {
-        let i = contains(hash, key, predicate)
-        if (i == -1) {
-            return (this, None)
-        }
-
-        let copyList = copyRemoveUnChecked(i)
-        return (copyList, myData[i][2])
+    /**
+     * Runs @p predicate on the entry searched in this (snapshot) list and
+     * returns whether the entry should be removed.
+     *
+     * NOTE: the predicate may reentrantly modify the same bucket
+     * (std.sync.Mutex is reentrant), which makes this snapshot list stale.
+     * The caller must re-load the bucket's current list and remove the entry
+     * from it, instead of writing this snapshot back.
+     */
+    func removeIntent(hash: Int64, key: K, predicate: (V) -> Bool): Bool {
+        return contains(hash, key, predicate) != -1
     }
 
     func copyRemoveUnChecked(idx: Int64): KVList<K, V> {
@@ -121,18 +124,36 @@ class KVList<K, V> where K <: Equatable<K> {
         return copyList
     }
 
-    func copyReplace(hash: Int64, key: K, predicate: (V) -> Bool, eval: (V) -> V): (KVList<K, V>, ?V) {
+    /**
+     * Runs @p predicate and @p eval on the entry searched in this (snapshot)
+     * list and returns the new value to replace with, or None when the entry
+     * should be kept unchanged.
+     *
+     * NOTE: the callbacks may reentrantly modify the same bucket
+     * (std.sync.Mutex is reentrant), which makes this snapshot list stale.
+     * The caller must re-load the bucket's current list and apply the
+     * returned value to it, instead of writing this snapshot back.
+     */
+    func replaceIntent(hash: Int64, key: K, predicate: (V) -> Bool, eval: (V) -> V): ?V {
         let i = contains(hash, key, predicate)
         if (i == -1) {
-            return (this, None)
+            return None
         }
-
-        let copyList = KVList<K, V>(this)
-        copyList.myData[i] = (hash, key, eval(copyList.myData[i][2]))
-        return (copyList, myData[i][2])
+        return Some(eval(myData[i][2]))
     }
 
-    func copyEntryView(hash: Int64, key: K, fn: (entryView: MapEntryView<K, V>) -> Unit): (KVList<K, V>, ?V, ?Int64) {
+    /**
+     * Runs the user callback on an entry view built from this (snapshot) list
+     * and returns the user's final intent:
+     * - the value of the entry view after the callback;
+     * - whether the callback assigned a value to the entry view.
+     *
+     * NOTE: the callback may reentrantly modify the same bucket
+     * (std.sync.Mutex is reentrant), which makes this snapshot list stale.
+     * The caller must re-load the bucket's current list and apply the returned
+     * intent to it, instead of writing this snapshot back.
+     */
+    func entryViewIntent(hash: Int64, key: K, fn: (entryView: MapEntryView<K, V>) -> Unit): (?V, Bool) {
         let i = contains(hash, key)
         var entryView = if (i == -1) {
             ConcurrentHashMapEntryView<K, V>(key, None)
@@ -142,23 +163,7 @@ class KVList<K, V> where K <: Equatable<K> {
 
         fn(entryView)
 
-        match ((i == -1, entryView.value)) {
-            // nothing to do
-            case (true, None) => return (this, None, None)
-            // add
-            case (true, Some(v)) => return (copyInsert(hash, key, v), v, 1)
-            // remove
-            case (false, None) => return (copyRemoveUnChecked(i), None, -1)
-            case (false, Some(v)) =>
-                // nothing to do
-                if (!entryView.update) {
-                    return (this, v, None)
-                }
-                // replace
-                let copyList = KVList<K, V>(this)
-                copyList.myData[i] = (hash, key, v)
-                return (copyList, v, None)
-        }
+        return (entryView.value, entryView.update)
     }
 
     /**
@@ -287,18 +292,59 @@ struct Bucket<K, V> where K <: Equatable<K> {
     }
 
     func copyRemove(hash: Int64, key: K, predicate: (V) -> Bool): ?V {
-        if (let Some(entries) <- refList()) {
-            let (copyEntries, ret) = entries.copyRemove(hash, key, predicate)
-            atomic_ref_entries.store(copyEntries)
-            return ret
+        let entries = match (refList()) {
+            case Some(es) => es
+            case None => KVList<K, V>()
         }
-        return None
+        /*
+         * Run the user callback first: it may reentrantly modify this bucket
+         * (std.sync.Mutex is reentrant), which makes the snapshot `entries`
+         * stale. The removal is applied to the bucket's re-loaded current
+         * list below, so that reentrant modifications are preserved.
+         */
+        if (!entries.removeIntent(hash, key, predicate)) {
+            return None
+        }
+        let curList = match (refList()) {
+            case Some(es) => es
+            case None => KVList<K, V>()
+        }
+        let i = curList.contains(hash, key)
+        if (i == -1) {
+            return None
+        }
+        let ret = curList.myData[i][2]
+        let copyEntries = curList.copyRemoveUnChecked(i)
+        atomic_ref_entries.store(copyEntries)
+        return ret
     }
 
     func copyReplace(hash: Int64, key: K, predicate: (V) -> Bool, eval: (V) -> V): ?V {
-        if (let Some(entries) <- refList()) {
-            let (copyEntries, ret) = entries.copyReplace(hash, key, predicate, eval)
-            atomic_ref_entries.store(copyEntries)
+        let entries = match (refList()) {
+            case Some(es) => es
+            case None => KVList<K, V>()
+        }
+        /*
+         * Run the user callbacks first: they may reentrantly modify this
+         * bucket (std.sync.Mutex is reentrant), which makes the snapshot
+         * `entries` stale. The replacement is applied to the bucket's
+         * re-loaded current list below, so that reentrant modifications are
+         * preserved.
+         */
+        let newValue = entries.replaceIntent(hash, key, predicate, eval)
+        if (let Some(v) <- newValue) {
+            let curList = match (refList()) {
+                case Some(es) => es
+                case None => KVList<K, V>()
+            }
+            let i = curList.contains(hash, key)
+            if (i == -1) {
+                return None
+            }
+            let ret = curList.myData[i][2]
+            let copyList = KVList<K, V>(curList)
+            copyList.myData[i] = (hash, key, v)
+            atomic_ref_entries.store(copyList)
             return ret
         }
         return None
@@ -309,9 +355,41 @@ struct Bucket<K, V> where K <: Equatable<K> {
             case Some(es) => es
             case None => KVList<K, V>()
         }
-        let (copyEntries, value, resize) = entries.copyEntryView(hash, key, fn)
-        atomic_ref_entries.store(copyEntries)
-        return (value, resize)
+        /*
+         * Run the user callback first: it may reentrantly modify this bucket
+         * (std.sync.Mutex is reentrant), which makes the snapshot `entries`
+         * stale. The final intent is applied to the bucket's re-loaded
+         * current list below, so that reentrant modifications are preserved:
+         * - value = None: the entry is removed if it currently exists;
+         * - value = Some(v): the entry is inserted or replaced with v;
+         * - unassigned value: the bucket is kept untouched.
+         */
+        let (value, updated) = entries.entryViewIntent(hash, key, fn)
+        let curList = match (refList()) {
+            case Some(es) => es
+            case None => KVList<K, V>()
+        }
+        if (!updated) {
+            /* The callback only read the entry: keep the bucket as it is now. */
+            return (curList.find(hash, key), None)
+        }
+        match (value) {
+            // remove
+            case None =>
+                let i = curList.contains(hash, key)
+                if (i == -1) {
+                    return (None, None)
+                }
+                let copyEntries = curList.copyRemoveUnChecked(i)
+                atomic_ref_entries.store(copyEntries)
+                return (None, -1)
+            // add or replace
+            case Some(v) =>
+                let (copyEntries, old) = curList.copyPut(hash, key, v)
+                atomic_ref_entries.store(copyEntries)
+                let resize: ?Int64 = if (old.isNone()) { Some(1) } else { None }
+                return (Some(v), resize)
+        }
     }
 
     /**
