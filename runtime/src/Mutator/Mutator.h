@@ -74,6 +74,7 @@ public:
         observerCnt = 0;
         mutatorPhase.store(GCPhase::GC_PHASE_IDLE);
         inManagedContext.store(true);
+        localObjectAllocatorData = nullptr;
 
 #ifdef INTERPRETER_ENABLED
         InitInterpreterPart();
