@@ -9,11 +9,11 @@ public class ConsoleReader <: InputStream {}
 功能：提供从控制台读出数据并转换成字符或字符串的功能。
 
 该类型无法构造实例，只能通过 [getStdIn()](./env_package_funcs.md#func-getstdin) 获取实例。
-读操作是同步的，内部设有缓存区来保存控制台输入的内容，当到达控制台输入流的结尾时，控制台读取函数将返回`None`。
+读操作是同步的，内部设有缓存区来保存控制台输入的内容。到达输入流末尾且本次调用未读到数据时，返回可选类型的读取函数返回 `None`，`read(arr: Array<Byte>)` 返回 `0`。
 
 > **说明：**
 >
-> [ConsoleReader](./env_package_classes.md#class-consolereader) 只有一个实例，所有方法共享同一个缓存区，相关`read`方法返回`None`的情形有：
+> [ConsoleReader](./env_package_classes.md#class-consolereader) 只有一个实例，所有方法共享同一个缓存区。对于返回可选类型的读取函数，以下情形可能使后续读取返回 `None`：
 >
 > - 将标准输入重定向到文件时，读取到文件结尾 EOF。
 > - Linux 环境，按下 `Ctrl+D`。
@@ -68,7 +68,13 @@ main() {
 public func read(arr: Array<Byte>): Int64
 ```
 
-功能：从标准输入中读取并放入 `arr` 中。
+功能：从标准输入中读取最多 `arr.size` 个字节并放入 `arr` 中。
+
+单次调用不保证填满 `arr`。内部缓存已有数据时，将其中最多 `arr.size` 个字节复制到 `arr`，返回实际复制的字节数，不继续等待新的输入以填满数组。
+
+标准输入来自管道时，即使写端尚未关闭，读取也可能在数组未填满时返回。没有数据可读且未到达流末尾时，调用仍可能阻塞等待；终端输入还受行缓冲等设置的影响。
+
+若需要读满数组，应循环调用 `read`，将后续数据读入数组中尚未填充的部分，并累计实际读取的字节数。若在读满前返回 `0`，应停止循环并处理未读满的情况。
 
 > **注意：**
 >
@@ -80,7 +86,7 @@ public func read(arr: Array<Byte>): Int64
 
 返回值：
 
-- [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - 返回读取到的字节长度。
+- [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - 本次实际读取的字节数 `n`，满足 `0 <= n <= arr.size`。读取的数据存放在 `arr` 的前 `n` 个元素中。`arr` 为空，或到达输入流末尾且本次调用未读到数据时，返回 `0`。
 
 示例：
 
@@ -95,17 +101,20 @@ main() {
     // 创建一个字节数组用于读取数据
     let buffer: Array<Byte> = [0, 0, 0, 0, 0]
 
-    // 从标准输入读取数据到数组中
-    // 注意：在实际运行中，程序会等待用户输入 5 个 Byte，假设输入 abcde
-    stdin.read(buffer)
-    println("buffer 中的内容是 ${buffer}")
+    // 返回值可能小于 buffer.size，只处理本次实际读取的字节。
+    let readSize = stdin.read(buffer)
+    println("读取到的字节数：${readSize}")
+    if (readSize > 0) {
+        println("读取到的数据：${buffer.slice(0, readSize)}")
+    }
 }
 ```
 
-运行结果：
+将仅包含 `abc`（无换行符）的文件重定向为标准输入，输出示例：
 
 ```text
-buffer 中的内容是 [97, 98, 99, 100, 101]
+读取到的字节数：3
+读取到的数据：[97, 98, 99]
 ```
 
 ### func readln()

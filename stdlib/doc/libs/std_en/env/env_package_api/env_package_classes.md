@@ -9,11 +9,11 @@ public class ConsoleReader <: InputStream
 Function: Provides the capability to read data from the console and convert it into characters or strings.
 
 This type cannot be instantiated directly; instances can only be obtained via [getStdIn()](./env_package_funcs.md#func-getStdIn).  
-Read operations are synchronous, with an internal buffer storing console input content. When the end of the console input stream is reached, console reading functions will return `None`.
+Read operations are synchronous, with an internal buffer storing console input content. When the end of the input stream is reached and the current call has read no data, reading functions that return an optional type return `None`, while `read(arr: Array<Byte>)` returns `0`.
 
 > **Note:**
 >
-> There is only one instance of [ConsoleReader](./env_package_classes.md#class-consolereader), with all methods sharing the same buffer. The `read` methods return `None` under the following circumstances:
+> There is only one instance of [ConsoleReader](./env_package_classes.md#class-consolereader), with all methods sharing the same buffer. For reading functions that return an optional type, the following circumstances may cause subsequent reads to return `None`:
 >
 > - When standard input is redirected to a file and the end-of-file (EOF) is reached.
 > - In Linux environments, when `Ctrl+D` is pressed.
@@ -69,7 +69,13 @@ Input received: a
 public func read(arr: Array<Byte>): Int64
 ```
 
-Function: Reads from standard input and stores the data in `arr`.
+Function: Reads up to `arr.size` bytes from standard input and stores the data in `arr`.
+
+A single call does not guarantee that `arr` is filled. If the internal buffer contains data, the function copies up to `arr.size` bytes from it into `arr` and returns the number of bytes copied, without waiting for more input to fill the array.
+
+When standard input comes from a pipe, a read may return before the array is full even if the write end remains open. The call may still block when no data is available and the end of the stream has not been reached. Terminal input also depends on settings such as line buffering.
+
+To fill the array, repeatedly read into its unfilled portion and accumulate the byte counts. If a call returns `0` before the array is full, stop the loop and handle the incomplete read.
 
 > **Warning:**
 >
@@ -81,7 +87,7 @@ Parameters:
 
 Returns:
 
-- [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - Returns the number of bytes read.
+- [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - The number of bytes read by this call, `n`, where `0 <= n <= arr.size`. The data is stored in the first `n` elements of `arr`. Returns `0` if `arr` is empty, or if the end of the input stream is reached and the current call has read no data.
 
 Example:
 <!-- compile -->
@@ -90,21 +96,26 @@ Example:
 import std.env.*
 
 main() {
-    var arr = Array<Byte>(3, repeat: 0)
-    getStdOut().write("Please enter information: ")
-    getStdIn().read(arr) // Input: 567
-    getStdOut().write("Resulting array: ")
-    getStdOut().writeln(arr)
+    // Obtain the standard input stream.
+    let stdin = getStdIn()
 
-    return
+    // Create a byte array to receive data.
+    let buffer: Array<Byte> = [0, 0, 0, 0, 0]
+
+    // The return value may be less than buffer.size; process only the bytes read.
+    let readSize = stdin.read(buffer)
+    println("Bytes read: ${readSize}")
+    if (readSize > 0) {
+        println("Data read: ${buffer.slice(0, readSize)}")
+    }
 }
 ```
 
-Execution Result:
+With standard input redirected from a file containing only `abc` (without a newline), example output is:
 
 ```text
-Please enter information: 567
-Resulting array: 567
+Bytes read: 3
+Data read: [97, 98, 99]
 ```
 
 ### func readToEnd()
