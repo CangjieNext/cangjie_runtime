@@ -82,14 +82,13 @@ void WinModuleManager::ReadWinModuleAtInit()
 {
     // get windows PEB(Process Environment Block)
     PPEB ppeb = (PPEB)__readgsqword(0x60); // 60: gs:0x60 is the address of PEB
-    PLIST_ENTRY head = ppeb->Ldr->InMemoryOrderModuleList.Flink;
-    PLIST_ENTRY iterator = head;
-    do {
+    // The list head is a sentinel, not an LdrDataTableEntry.
+    PLIST_ENTRY head = &ppeb->Ldr->InMemoryOrderModuleList;
+    for (PLIST_ENTRY iterator = head->Flink; iterator != head; iterator = iterator->Flink) {
         Uptr entryAddress = reinterpret_cast<Uptr>(iterator) - offsetof(LdrDataTableEntry, inMemoryOrderLinks);
         LdrDataTableEntry* ldrDataEntry = reinterpret_cast<LdrDataTableEntry*>(entryAddress);
         // get moduleName
         if (ldrDataEntry->baseDllName.Buffer == nullptr) {
-            iterator = iterator->Flink;
             continue;
         }
         std::wstring wstr(ldrDataEntry->baseDllName.Buffer);
@@ -111,9 +110,7 @@ void WinModuleManager::ReadWinModuleAtInit()
             }
             winModules.emplace(winModule);
         }
-
-        iterator = iterator->Flink;
-    } while (iterator != head);
+    }
 }
 
 void WinModuleManager::ReadModuleInfo(HMODULE* moduleHandlers, int moduleHandlersCapacity)
