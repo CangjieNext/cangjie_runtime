@@ -6,6 +6,8 @@
 
 
 #include "TypeInfoManager.h"
+#include <new> // placement new (std::operator new(size_t, void*))
+
 #include "Base/CString.h"
 #include "Base/MemUtils.h"
 #include "ObjectModel/MClass.h"
@@ -150,9 +152,12 @@ void TypeInfoManager::Fini()
 {
     // release resources
     for (auto mTable : mTableList) {
-        delete mTable;
-        mTable = nullptr;
+        // MTableDesc lives in the arena (see AllocateMTableDesc), so it is destroyed in place
+        // instead of deleted: this releases what its members own (e.g. the mTable hash map)
+        // while the arena is still mapped.
+        mTable->~MTableDesc();
     }
+    mTableList.clear();
     for (auto m : mmapList) {
         FreeMMap(m.first, m.second);
     }
@@ -794,5 +799,23 @@ uintptr_t TypeInfoManager::Allocate(size_t size)
         addr = position.fetch_add(size);
     }
     return addr;
+}
+
+MTableDesc* TypeInfoManager::AllocateMTableDesc(BIT_TYPE bitmap)
+{
+    // MTableDesc is built in the TypeInfoManager arena instead of the C++ heap: heap pointers
+    // are tagged by HWASan/TBI on some targets, and a tagged MTableDesc* can carry 0x80 in the
+    // top byte, which is exactly the marker of the compiler's inline short bitmap kept in
+    // TypeInfo::mTableDesc. Arena memory is never tagged, so a real pointer keeps a clear top
+    // byte and is always distinguishable from a bitmap. The object is kept alive via mTableList
+    // and destroyed in place by Fini(), so it must not be deleted.
+    constexpr size_t descAlign = alignof(MTableDesc);
+    // Allocate() just bumps the arena cursor and does no alignment, so reserve the worst-case
+    // padding and round the block start up here. It aborts instead of returning null.
+    uintptr_t addr = MRT_ALIGN(Allocate(sizeof(MTableDesc) + descAlign - 1), descAlign);
+    // Placement new: only the constructor runs, at addr (std::operator new(size_t, void*) is
+    // `return __p;'), so nothing is allocated from the C++ heap. Do not replace it with
+    // `new (std::nothrow) MTableDesc(bitmap)', which would bring the tagged pointer back.
+    return new (reinterpret_cast<void*>(addr)) MTableDesc(bitmap);
 }
 } // namespace MapleRuntime
