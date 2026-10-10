@@ -19,6 +19,30 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib/${output_triple_name}
 set(output_cj_object_dir ${CMAKE_BINARY_DIR}/modules/${output_cj_object_dir})
 # file(MAKE_DIRECTORY ${output_cj_object_dir}/std)
 
+# Hide the duplicated CJ_* FFI exports in env/process/console shared libraries.
+# Darwin's ld64.lld and MinGW's linker reject --exclude-libs; OHOS invokes
+# ld.lld directly so the option must be passed without the -Wl, prefix
+# (LINKER_OPTION_PREFIX is empty for the OHOS toolchains).
+set(EXCLUDE_ENV_FFI_OPTION)
+set(EXCLUDE_PROCESS_FFI_OPTION)
+if(NOT DARWIN AND NOT MINGW)
+    set(EXCLUDE_ENV_FFI_OPTION ${LINKER_OPTION_PREFIX}--exclude-libs=libcangjie-std-envFFI.a)
+    set(EXCLUDE_PROCESS_FFI_OPTION ${LINKER_OPTION_PREFIX}--exclude-libs=libcangjie-std-processFFI.a)
+endif()
+# Darwin's ld64.lld rejects --exclude-libs and exports whole-archive force-load
+# members at default visibility. -load_hidden resolves the archive members as
+# hidden instead, so duplicated CJ_* FFI symbols stay out of the exported
+# symbol table the same way --exclude-libs does on ELF.
+# -load_hidden takes a literal archive path: it does no -l-style -L search,
+# so the target output locations are resolved via generator expressions.
+if(DARWIN)
+    set(ENV_FFI_LINK_FLAG -load_hidden $<TARGET_PROPERTY:cangjie-std-envFFI,COMBINED_STATIC_LIB_LOC>)
+    set(PROCESS_FFI_LINK_FLAG -load_hidden $<TARGET_FILE:cangjie-std-processFFI>)
+else()
+    set(ENV_FFI_LINK_FLAG -lcangjie-std-envFFI)
+    set(PROCESS_FFI_LINK_FLAG -lcangjie-std-processFFI)
+endif()
+
 make_cangjie_lib(
     std-core IS_SHARED
     DEPENDS cangjie${BACKEND_TYPE}Core cangjie-std-coreFFI
@@ -285,7 +309,7 @@ make_cangjie_lib(
         std-sync
         std-sort
     OBJECTS ${output_cj_object_dir}/std/console.o
-    FLAGS -lcangjie-std-envFFI)
+    FLAGS ${ENV_FFI_LINK_FLAG} ${EXCLUDE_ENV_FFI_OPTION})
 
 add_library(cangjie-std-console STATIC  $<TARGET_OBJECTS:cangjie-std-envFFI-objs> ${output_cj_object_dir}/std/console.o)
 install(TARGETS cangjie-std-console DESTINATION lib/${output_triple_name}_${CJNATIVE_BACKEND}${SANITIZER_SUBPATH})
@@ -318,7 +342,7 @@ make_cangjie_lib(
     CANGJIE_STD_LIB_INDIRECT_DEPENDS std-math
     OBJECTS ${output_cj_object_dir}/std/process.o
     FLAGS
-        -lcangjie-std-processFFI)
+        ${PROCESS_FFI_LINK_FLAG} ${EXCLUDE_PROCESS_FFI_OPTION})
 
 add_library(
     cangjie-std-process STATIC
@@ -338,9 +362,7 @@ make_cangjie_lib(
         std-sort
     CANGJIE_STD_LIB_INDIRECT_DEPENDS std-math
     OBJECTS ${output_cj_object_dir}/std/env.o
-    FORCE_LINK_ARCHIVES
-            cangjie-std-envFFI
-    FLAGS -lcangjie-std-processFFI)
+    FLAGS ${ENV_FFI_LINK_FLAG} ${PROCESS_FFI_LINK_FLAG} ${EXCLUDE_ENV_FFI_OPTION} ${EXCLUDE_PROCESS_FFI_OPTION})
 
     add_and_combine_static_lib(
         OUTPUT_NAME libcangjie-std-env.a
