@@ -416,6 +416,12 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
         return Int64(wyhash(myData, Int64(start), Int64(length), 0))
     }
 
+
+    @Frozen
+    @OverflowWrapping
+    public exclave func hashCode(this @local!): Int64 {
+        Int64(wyhash(myData, Int64(start), Int64(length), 0))
+    }
     @Frozen
     @OverflowWrapping
     public func hashCode(this @local?): Int64 {
@@ -430,6 +436,11 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
      */
     @Frozen
     public static func fromUtf8(utf8Data: Array<UInt8>): String {
+        checkInvalid(utf8Data.rawptr, utf8Data.start, utf8Data.start + utf8Data.size)
+        return String(utf8Data.clone())
+    }
+    @Frozen
+    public exclave static func fromUtf8(utf8Data: Array<UInt8> @local!): String @local! {
         checkInvalid(utf8Data.rawptr, utf8Data.start, utf8Data.start + utf8Data.size)
         return String(utf8Data.clone())
     }
@@ -1197,6 +1208,18 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
             releaseRawData<UInt8>(prefix.myData, handle2 - Int64(prefix.start))
         }
         return res == 0
+    }
+    @Frozen
+    @OverflowWrapping
+    public func startsWith(this @local?, prefix: String @local?): Bool {
+        let strLen: Int64 = prefix.size
+        if (strLen == 0) {
+            return true
+        }
+        if (size < strLen) {
+            return false
+        }
+        compareBytes(this.myData, Int64(this.start), prefix.myData, Int64(prefix.start), strLen) == 0
     }
 
     // Returns true if and only if this string ends with the given `suffix`.
