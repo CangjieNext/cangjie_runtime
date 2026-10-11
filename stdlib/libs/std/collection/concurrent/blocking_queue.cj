@@ -57,10 +57,10 @@ public class LinkedBlockingQueue<E> {
     public let capacity: Int64 // the capacity of the queue
     private let takeMonitor = Monitor() // Monitor for blocking consumers when the queue is empty
     private let putMonitor = Monitor() // Monitor for blocking producers when the queue is full
-    // 复用上游"声明但未使用"的 putQsize 作为槽位预约计数器：语义与原名一致，
-    // 且保持字段顺序/类型不变，避免 std.collection.concurrent 出现 ABI 不兼容变更
+    // putQsize 作为槽位预约计数器：0 <= putQsize <= capacity，用于在无锁快路径上
+    // 对"已预约但尚未提交"的槽位进行 bounded 控制，从而把生产者的预约动作和消费者的
+    // 认领动作与 Monitor 解耦，只在队列满/空时才落到 Monitor 上阻塞。
     private let putQsize = AtomicInt64(0) // Number of reserved slots (0 <= putQsize <= capacity).
-    private let takeQsize = AtomicInt64(0) // Reserved for ABI compatibility; unused by this implementation.
     private let front: AtomicReference<Block<E>> // head of BlockingQueue.
     private let rear: AtomicReference<Block<E>> // tail of BlockingQueue.
     private let count = AtomicInt64(0) // Number of committed elements in the queue.
