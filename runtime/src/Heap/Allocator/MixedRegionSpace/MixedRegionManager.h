@@ -56,7 +56,7 @@ public:
     size_t CollectLargeGarbage();
     void MergeOldLargeRegionList(RegionList& regions)
     {
-        largeRegionList.MergeRegionList(regions, RegionInfo::RegionType::LARGE_REGION);
+        recentLargeRegionList.MergeRegionList(regions, RegionInfo::RegionType::LARGE_REGION);
     }
     void EnlistOldRegionList(RegionInfo* region) noexcept
     {
