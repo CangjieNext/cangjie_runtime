@@ -592,6 +592,9 @@ extend Float16 <: Hashable {
         if (this.isInf()) {
             return false
         }
+        if (this < Float16.MinNormal && this > -Float16.MinNormal) {
+            return false
+        }
         return true
     }
 
