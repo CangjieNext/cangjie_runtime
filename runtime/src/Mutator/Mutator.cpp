@@ -28,6 +28,7 @@
 #include "CpuProfiler/CpuProfiler.h"
 #include "Base/LogFile.h"
 #include "Interpreter/InterpreterSpecific.h"
+#include "Heap/VerifyRootContext.h"
 
 namespace MapleRuntime {
 extern "C" uintptr_t MRT_GetThreadLocalData()
@@ -264,6 +265,21 @@ void Mutator::VisitStackRoots(const RootVisitor& func)
     VisitRawObjects(func);
     DecObserver();
     MutatorUnlock();
+}
+
+void Mutator::VisitRootsForVerify(const RootVisitor& visitor, VerifyRootContext& context)
+{
+    context.mutator = this;
+    MutatorLock();
+    if (IsManagedContext()) {
+        IncObserver();
+        StackManager::VisitStackRootsForVerify(uwContext, visitor, *this, context);
+        VisitRawObjects(visitor);
+        DecObserver();
+    }
+    MutatorUnlock();
+    VisitExceptionRoots(visitor);
+    VisitNativeFrameRoots(visitor);
 }
 
 void Mutator::VisitExceptionRoots(const RootVisitor& func)

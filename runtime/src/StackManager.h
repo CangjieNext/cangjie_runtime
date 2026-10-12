@@ -16,6 +16,8 @@
 #include "UnwindStack/StackInfo.h"
 
 namespace MapleRuntime {
+struct VerifyRootContext;
+
 class StackManager {
 public:
     StackManager();
@@ -71,6 +73,8 @@ public:
 
     // visit GC roots of current managed thread for tracing GC.
     static void VisitStackRoots(const UnwindContext& topFrame, const RootVisitor& func, Mutator& mutator);
+    __attribute__((visibility("hidden"))) static void VisitStackRootsForVerify(
+        const UnwindContext& topFrame, const RootVisitor& func, Mutator& mutator, VerifyRootContext& context);
     static void VisitHeapReferencesOnStack(const UnwindContext& topFrame, const RootVisitor& rootVisitor,
                                            const DerivedPtrVisitor& derivedPtrVisitor, Mutator& mutator);
 

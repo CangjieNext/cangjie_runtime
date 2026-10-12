@@ -58,6 +58,7 @@ enum LogType {
 #endif
     PROMOTE,
     SWEEP,
+    HEAP_VERIFY,
     LOG_TYPE_NUMBER
 };
 

@@ -5,6 +5,7 @@
 // See https://cangjie-lang.cn/pages/LICENSE for license information.
 
 #include "GcStackInfo.h"
+#include "Heap/VerifyRootContext.h"
 
 #include <stack>
 
@@ -14,13 +15,18 @@
 
 namespace MapleRuntime {
 #ifdef __arm__
-void GCStackInfo::VisitStackRoots(const RootVisitor& func, Mutator& mutator) const
+template<bool forVerify>
+void GCStackInfo::VisitStackRootsImpl(const RootVisitor& func, Mutator& mutator, VerifyRootContext* context) const
 {
     RegSlotsMap regSlotsMap;
     for (const auto& frame : stack) {
         switch (frame.GetFrameType()) {
             case FrameType::MANAGED: {
-                TracingCollector::VisitStackRoots(func, regSlotsMap, frame, mutator);
+                if (forVerify) {
+                    TracingCollector::VisitStackRootsForVerify(func, regSlotsMap, frame, *context);
+                } else {
+                    TracingCollector::VisitStackRoots(func, regSlotsMap, frame, mutator);
+                }
                 break;
             }
             case FrameType::STACKGROW:
@@ -114,13 +120,18 @@ void RecordStackInfo::VisitStackRoots(const RootVisitor &func, Mutator &mutator)
     }
 }
 #else
-void GCStackInfo::VisitStackRoots(const RootVisitor& func, Mutator& mutator) const
+template<bool forVerify>
+void GCStackInfo::VisitStackRootsImpl(const RootVisitor& func, Mutator& mutator, VerifyRootContext* context) const
 {
     RegSlotsMap regSlotsMap;
     for (const auto& frame : stack) {
         switch (frame.GetFrameType()) {
             case FrameType::MANAGED: {
-                TracingCollector::VisitStackRoots(func, regSlotsMap, frame, mutator);
+                if (forVerify) {
+                    TracingCollector::VisitStackRootsForVerify(func, regSlotsMap, frame, *context);
+                } else {
+                    TracingCollector::VisitStackRoots(func, regSlotsMap, frame, mutator);
+                }
                 break;
             }
             case FrameType::SAFEPOINT:
@@ -142,6 +153,9 @@ void GCStackInfo::VisitStackRoots(const RootVisitor& func, Mutator& mutator) con
     }
 
 #ifdef INTERPRETER_ENABLED
+    if (forVerify) {
+        context->ClearFrame();
+    }
     auto markingStackVisitor = [this, &func](DYN_VisitingState state) {
         for (const auto& frame : stack) {
             switch (frame.GetFrameType()) {
@@ -429,6 +443,17 @@ extern "C" MRT_EXPORT int CJ_MCC_InitCJthreadStackInfo(uint32_t maxStrSize, void
     }
 
     return realStackSize;
+}
+
+void GCStackInfo::VisitStackRoots(const RootVisitor& func, Mutator& mutator) const
+{
+    VisitStackRootsImpl<false>(func, mutator, nullptr);
+}
+
+void GCStackInfo::VisitStackRootsForVerify(const RootVisitor& func, Mutator& mutator,
+                                         VerifyRootContext& context) const
+{
+    VisitStackRootsImpl<true>(func, mutator, &context);
 }
 
 } // namespace MapleRuntime

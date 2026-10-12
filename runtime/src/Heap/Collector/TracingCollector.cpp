@@ -5,12 +5,14 @@
 // See https://cangjie-lang.cn/pages/LICENSE for license information.
 
 #include "TracingCollector.h"
+#include "Heap/HeapVerifier.h"
 
 #include "Common/Runtime.h"
 #include "Concurrency/Concurrency.h"
 #include "Allocator/RegionSpace.h"
 #include "Heap/Allocator/AllocBuffer.h"
 #include "ObjectModel/RefField.inline.h"
+#include "Heap/VerifyRootContext.h"
 
 namespace MapleRuntime {
 const size_t TracingCollector::MAX_MARKING_WORK_SIZE = 16; // fork task if bigger
@@ -214,6 +216,33 @@ void TracingCollector::VisitStackRoots(const RootVisitor& visitor, RegSlotsMap& 
     mutator.PushFrameInfoForTrace(gcInfo);
 #endif
     rootMap.RecordCalleeSaved(regSlotsMap);
+}
+
+void TracingCollector::VisitStackRootsForVerify(const RootVisitor& visitor, RegSlotsMap& regSlotsMap,
+                                               const FrameInfo& frame, VerifyRootContext& context)
+{
+    uintptr_t startIP = reinterpret_cast<uintptr_t>(frame.GetStartProc());
+    context.pc = reinterpret_cast<uintptr_t>(frame.mFrame.GetIP());
+    context.frame = reinterpret_cast<uintptr_t>(frame.mFrame.GetFA());
+    StackMapBuilder builder(startIP, context.pc, context.frame);
+    RootMap rootMap = builder.Build<RootMap>();
+    SlotDebugVisitor slotContext = [&context](SlotBias offset, const BaseObject*) {
+        context.location = VerifyRootContext::Location::STACK_SLOT;
+        context.slotOffset = offset;
+    };
+    RegDebugVisitor regContext = [&context](RegisterNum reg, const BaseObject*) {
+        context.location = VerifyRootContext::Location::REGISTER;
+        context.reg = reg;
+    };
+    if (rootMap.IsValid()) {
+        rootMap.VisitSlotRoots(visitor, slotContext);
+        if (!rootMap.VisitRegRoots(visitor, regContext, regSlotsMap)) {
+            LOG(RTLOG_FATAL, "wrong reg info, start ip: %p frame pc: %p",
+                reinterpret_cast<void*>(startIP), reinterpret_cast<void*>(context.pc));
+        }
+    }
+    rootMap.RecordCalleeSaved(regSlotsMap);
+    context.ClearFrame();
 }
 
 void TracingCollector::VisitHeapReferencesOnStack(const RootVisitor& rootVisitor,
@@ -655,6 +684,14 @@ void TracingCollector::DumpRoots(LogType logType)
 void TracingCollector::PreGarbageCollection(bool isConcurrent)
 {
     Heap& heap = Heap::GetHeap();
+
+    // Capture the input heap before any GC bookkeeping or phase transition.
+    // Comparing checkpoints narrows when corruption becomes detectable; it
+    // does not by itself establish whether the compiler or GC caused it.
+    if (HeapVerifier::IsEnabled()) {
+        (void)HeapVerifier::VerifyAt("pre-GC", g_gcCount + 1);
+    }
+
     size_t allocatedSize = heap.GetAllocatedSize();
     GetGCStats().liveBytesBeforeGC = allocatedSize;
     VLOG(REPORT, "Begin GC log. GCReason: %s, Current allocated %s, Current threshold %s, current tag %u",
@@ -690,6 +727,9 @@ void TracingCollector::PostGarbageCollection(uint64_t gcIndex)
     TransitionToGCPhase(GetPostGarbageCollectionPhase(), true);
     SatbBuffer::Instance().ReclaimALLPages();
     PagePool::Instance().Trim();
+    if (HeapVerifier::IsEnabled()) {
+        (void)HeapVerifier::VerifyAt("post-GC", g_gcCount + 1);
+    }
     collectorResources.NotifyGCFinished(gcIndex);
 
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)

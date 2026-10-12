@@ -32,6 +32,7 @@ extern "C" MRT_EXPORT bool MRT_LeaveSaferegion();
 extern "C" MRT_EXPORT bool MRT_CheckRuntimeFinished();
 
 class BaseObject;
+struct VerifyRootContext;
 
 class Mutator {
 public:
@@ -345,6 +346,9 @@ public:
         VisitExceptionRoots(visitor);
         VisitNativeFrameRoots(visitor);
     }
+
+    __attribute__((visibility("hidden"))) void VisitRootsForVerify(const RootVisitor& visitor,
+                                                                 VerifyRootContext& context);
 
     ObjectRef* AddNativeFrameRoot(BaseObject* obj);
     void RemoveNativeFrameRoot(ObjectRef* root);
