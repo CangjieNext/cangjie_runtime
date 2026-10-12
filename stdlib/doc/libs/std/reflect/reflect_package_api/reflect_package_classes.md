@@ -972,7 +972,7 @@ public prop parameters: ReadOnlyList<ParameterInfo>
 > **注意：**
 >
 > - 不支持平台：macOS、iOS。
-> - 不保证参数顺序，可根据 `ParameterInfo`的 `index` 属性确定参数实际位置。
+> - 不保证参数顺序，可根据 `ParameterInfo` 的 `index` 属性确定参数实际位置。
 
 类型：[ReadOnlyList](../../collection/collection_package_api/collection_package_interface.md#interface-readonlylistt)\<[ParameterInfo](reflect_package_classes.md#class-parameterinfo)>
 
@@ -2322,6 +2322,7 @@ false
 ```
 
 <!--DelEnd-->
+<!--Del-->
 ## class EnumTypeInfo
 
 ```cangjie
@@ -2691,6 +2692,8 @@ test.E.M2(Int64)
 test.E.M2(Int64, Int64)
 ```
 
+<!--DelEnd-->
+<!--Del-->
 ## class FunctionTypeInfo
 
 ```cangjie
@@ -2935,6 +2938,8 @@ main(): Unit {
 ```text
 3
 ```
+
+<!--DelEnd-->
 
 ## class GenericTypeInfo
 
@@ -3205,7 +3210,7 @@ public prop parameters: ReadOnlyList<ParameterInfo>
 > **注意：**
 >
 > - 不支持平台：macOS、iOS。
-> - 不保证参数顺序，可根据 `ParameterInfo`的 `index` 属性确定参数实际位置。
+> - 不保证参数顺序，可根据 `ParameterInfo` 的 `index` 属性确定参数实际位置。
 
 类型：[ReadOnlyList](../../collection/collection_package_api/collection_package_interface.md#interface-readonlylistt)\<[ParameterInfo](reflect_package_classes.md#class-parameterinfo)>
 
@@ -4863,7 +4868,7 @@ public prop parameters: ReadOnlyList<ParameterInfo>
 
 > **说明：**
 >
-> 不保证参数顺序，可根据 `ParameterInfo`的 `index` 属性确定参数实际位置。
+> 不保证参数顺序，可根据 `ParameterInfo` 的 `index` 属性确定参数实际位置。
 
 类型：[ReadOnlyList](../../collection/collection_package_api/collection_package_interface.md#interface-readonlylistt)\<[ParameterInfo](reflect_package_classes.md#class-parameterinfo)>
 
@@ -9820,7 +9825,7 @@ public prop parameters: ReadOnlyList<ParameterInfo>
 > **注意：**
 >
 > - 不支持平台：macOS、iOS。
-> - 不保证参数顺序，可根据 `ParameterInfo`的 `index` 属性确定参数实际位置。
+> - 不保证参数顺序，可根据 `ParameterInfo` 的 `index` 属性确定参数实际位置。
 
 类型：[ReadOnlyList](../../collection/collection_package_api/collection_package_interface.md#interface-readonlylistt)\<[ParameterInfo](reflect_package_classes.md#class-parameterinfo)>
 
@@ -13004,7 +13009,7 @@ sealed abstract class TypeInfo <: Equatable<TypeInfo> & Hashable & ToString
 
 > **说明：**
 >
-> 类型的限定名称为`(module_name/)?(default|package_name)(.package_name)*.(type_name)`。
+> 类型的限定名称为 `(module_name/)?(default|package_name)(.package_name)*.(type_name)`。
 
 父类型：
 

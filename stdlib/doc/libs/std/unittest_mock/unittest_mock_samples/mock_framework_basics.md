@@ -172,7 +172,7 @@ class RightsTest {
 | ---- | --- | ---- |
 | any() | 任何参数| `_` 符号|
 | `eq(value: Equatable)` | `value` 结构相等（ structural equality ，对象的值相等，不一定内存相同）的参数| 允许使用单个 `identifier` 和常量字面量|
-| `same(reference: Object)` | `reference` 引用相等（referential equality， 对象的引用相等，内存相同）的参数| 允许单个`identifier`|
+| `same(reference: Object)` | `reference` 引用相等（referential equality， 对象的引用相等，内存相同）的参数| 允许单个 `identifier`|
 | `ofType<T>()` | 仅匹配 `T` 类型的值| - |
 | `argThat(predicate: (T) -> Bool)` | 仅匹配由 `predicate` 筛选出的 `T` 类型的值| - |
 | none()   | 匹配选项类型的 `None` 值| - |
@@ -277,7 +277,7 @@ mock 框架提供 API 来指定桩操作。触发桩后，打桩声明会执行�
 
 ### 预期
 
-定义桩时会隐式或显式地向桩附加预期。桩**可以**定义期望的基数。**操作**（ `fails` 和 `returnsConcesecutively` 除外）返回`CardinalitySelector` 的实例，该实例可以使用**基数说明符**自定义预期。
+定义桩时会隐式或显式地向桩附加预期。桩**可以**定义期望的基数。**操作**（ `fails` 和 `returnsConcesecutively` 除外）返回 `CardinalitySelector` 的实例，该实例可以使用**基数说明符**自定义预期。
 
 **CardinalitySelector** 定义了如下函数：
 

@@ -377,7 +377,6 @@ main() {
     unsafe { cptr.write(2, 6) }
 
     println("The third element of the array is ${arr[2]} ")
-    // The first element of the array is 1
     unsafe { releaseArrayRawData<Int64>(cptrHandle) }
 }
 ```
@@ -1198,7 +1197,7 @@ Float16.Min 是否为常规数值: true
 public static prop MinDenormal: Float16
 ```
 
-功能：获取半精度浮点数的最小次正规数。最小的正的次正规数是以 IEEE 双精度格式表示的最小正数。
+功能：获取半精度浮点数的最小次正规数。
 
 类型：[Float16](./core_package_intrinsics.md#float16)
 
@@ -1209,18 +1208,18 @@ public static prop MinDenormal: Float16
 main() {
     // 测试 Float16.MinDenormal 属性
     let minDenormalValue = Float16.MinDenormal
-    println("Float16.MinDenormal 的值: ${minDenormalValue}")
 
-    // 验证它确实是最小次正规数
-    println("Float16.MinDenormal 是否为常规数值: ${minDenormalValue.isNormal()}")
+    // 验证它确实是最小次正规数：大于 0 且小于最小正规数
+    println("Float16.MinDenormal 是否大于 0: ${minDenormalValue > Float16(0.0)}")
+    println("Float16.MinDenormal 是否小于最小正规数: ${minDenormalValue < Float16.MinNormal}")
 }
 ```
 
 运行结果：
 
 ```text
-Float16.MinDenormal 的值: 0.000000
-Float16.MinDenormal 是否为常规数值: true
+Float16.MinDenormal 是否大于 0: true
+Float16.MinDenormal 是否小于最小正规数: true
 ```
 
 #### static prop MinNormal
@@ -1852,18 +1851,18 @@ public static prop MinDenormal: Float32
 main() {
     // 测试 Float32.MinDenormal 属性
     let minDenormalValue = Float32.MinDenormal
-    println("Float32.MinDenormal 的值: ${minDenormalValue}")
 
-    // 验证它确实是最小次正规数
-    println("Float32.MinDenormal 是否为常规数值: ${minDenormalValue.isNormal()}")
+    // 验证它确实是最小次正规数：大于 0 且小于最小正规数
+    println("Float32.MinDenormal 是否大于 0: ${minDenormalValue > Float32(0.0)}")
+    println("Float32.MinDenormal 是否小于最小正规数: ${minDenormalValue < Float32.MinNormal}")
 }
 ```
 
 运行结果：
 
 ```text
-Float32.MinDenormal 的值: 0.000000
-Float32.MinDenormal 是否为常规数值: false
+Float32.MinDenormal 是否大于 0: true
+Float32.MinDenormal 是否小于最小正规数: true
 ```
 
 #### static prop MinNormal
@@ -2489,18 +2488,18 @@ public static prop MinDenormal: Float64
 main() {
     // 测试 Float64.MinDenormal 属性
     let minDenormalValue = Float64.MinDenormal
-    println("Float64.MinDenormal 的值: ${minDenormalValue}")
 
-    // 验证它确实是最小次正规数
-    println("Float64.MinDenormal 是否为常规数值: ${minDenormalValue.isNormal()}")
+    // 验证它确实是最小次正规数：大于 0 且小于最小正规数
+    println("Float64.MinDenormal 是否大于 0: ${minDenormalValue > Float64(0.0)}")
+    println("Float64.MinDenormal 是否小于最小正规数: ${minDenormalValue < Float64.MinNormal}")
 }
 ```
 
 运行结果：
 
 ```text
-Float64.MinDenormal 的值: 0.000000
-Float64.MinDenormal 是否为常规数值: false
+Float64.MinDenormal 是否大于 0: true
+Float64.MinDenormal 是否小于最小正规数: true
 ```
 
 #### static prop MinNormal

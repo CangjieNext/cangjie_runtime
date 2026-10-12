@@ -109,7 +109,7 @@ core 包是标准库的核心包，提供了适用仓颉语言编程最基本的
 | [Greater\<T>](./core_package_api/core_package_interfaces.md#interface-greatert) | 该接口表示大于计算。 |
 | [LessOrEqual\<T>](./core_package_api/core_package_interfaces.md#interface-lessorequalt) | 该接口表示小于等于计算。 |
 | [GreaterOrEqual\<T>](./core_package_api/core_package_interfaces.md#interface-greaterorequalt) | 该接口表示大于等于计算。 |
-| [Comparable\<T>](./core_package_api/core_package_interfaces.md#interface-comparablet) | 该接口表示比较运算，是等于、小于、大于、小于等于、大于等于接口的集合体。 |
+| [Comparable\<T>](./core_package_api/core_package_interfaces.md#interface-comparablet) | 该接口表示比较运算，是等于、不等于、小于、大于、小于等于、大于等于接口的集合体。 |
 | [Equal\<T>](./core_package_api/core_package_interfaces.md#interface-equalt) | 该接口用于支持判等操作。 |
 | [NotEqual\<T>](./core_package_api/core_package_interfaces.md#interface-notequalt) | 该接口用于支持判不等操作。 |
 | [Equatable\<T>](./core_package_api/core_package_interfaces.md#interface-equatablet) | 该接口是判等和判不等两个接口的集合体。 |
@@ -127,11 +127,11 @@ core 包是标准库的核心包，提供了适用仓颉语言编程最基本的
 | [Box\<T>](./core_package_api/core_package_classes.md#class-boxt) | `Box` 类型提供了为其他类型添加一层 `class` 封装的能力。 |
 | [Future\<T>](./core_package_api/core_package_classes.md#class-futuret) | Future\<T> 实例代表一个仓颉线程任务，可用于获取仓颉线程的计算结果，向仓颉线程发送取消信号。 |
 | [Iterator\<T>](./core_package_api/core_package_classes.md#class-iteratort) | 该类表示迭代器，提供 `next` 方法支持对容器内的成员进行迭代遍历。 |
-| [Object](./core_package_api/core_package_classes.md#class-object) | 构造一个 `object` 实例。 |
+| [Object](./core_package_api/core_package_classes.md#class-object) | 是所有 `class` 的父类，所有 `class` 都默认继承它。 |
 | [RangeIterator\<T> <: Iterator\<T> where T <: Countable\<T> & Comparable\<T> & Equatable\<T>](./core_package_api/core_package_classes.md#class-rangeiteratort--iteratort-where-t--countablet--comparablet--equatablet) | `Range` 类型的迭代器，迭代功能详述见 `Iterable` 和 `Iterator` 接口说明。 |
 | [StackTraceElement](./core_package_api/core_package_classes.md#class-stacktraceelement) | 表示一个异常堆栈的具体信息，包括异常发生的类名、函数名、文件名、行号。 |
 | [StringBuilder](./core_package_api/core_package_classes.md#class-stringbuilder) | 该类主要用于字符串的构建。 |
-| [Thread](./core_package_api/core_package_classes.md#class-thread) | `Thread` 类代表一个仓颉类，可用于获取线程 ID 及名字、查询线程是否存在取消请求、注册线程未处理异常的处理函数等。 |
+| [Thread](./core_package_api/core_package_classes.md#class-thread) | `Thread` 类代表一个仓颉线程，可用于获取线程 ID 及名字、查询线程是否存在取消请求、注册线程未处理异常的处理函数等。 |
 | [ThreadLocal\<T>](./core_package_api/core_package_classes.md#class-threadlocalt) | 该类表示仓颉线程局部变量。 |
 | [ThreadSnapshot](./core_package_api/core_package_classes.md#class-threadsnapshot) | 该类用于获取当前线程或者所有线程的信息，包含名称、id、状态、调用栈。 |
 

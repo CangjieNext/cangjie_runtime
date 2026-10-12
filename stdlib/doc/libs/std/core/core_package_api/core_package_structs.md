@@ -2097,7 +2097,7 @@ Some(1)
 public func indexOf(elements: Array<T>, fromIndex: Int64): Option<Int64>
 ```
 
-功能：返回数组中在 `fromIndex`之后，子数组`elements` 出现的第一个位置，未找到返回 None。
+功能：返回数组中在 `fromIndex` 之后，子数组 `elements` 出现的第一个位置，未找到返回 None。
 
 函数会对 `fromIndex` 范围进行检查，`fromIndex` 小于 0 时，将会从第 0 位开始搜索，当 `fromIndex` 大于等于本数组的大小时，结果为 None。
 
@@ -2108,7 +2108,7 @@ public func indexOf(elements: Array<T>, fromIndex: Int64): Option<Int64>
 
 返回值：
 
-- [Option](core_package_enums.md#enum-optiont)\<[Int64](core_package_intrinsics.md#int64)> - 数组中在 `fromIndex`之后，子数组 `elements` 出现的第一个位置，未找到返回 None。
+- [Option](core_package_enums.md#enum-optiont)\<[Int64](core_package_intrinsics.md#int64)> - 数组中在 `fromIndex` 之后，子数组 `elements` 出现的第一个位置，未找到返回 None。
 
 示例：
 
@@ -2189,7 +2189,7 @@ First occurrence of "Hello": Some(0)
 public func indexOf(element: T, fromIndex: Int64): Option<Int64>
 ```
 
-功能：返回数组中在 `fromIndex`之后， `element` 出现的第一个位置，未找到返回 None。
+功能：返回数组中在 `fromIndex` 之后， `element` 出现的第一个位置，未找到返回 None。
 
 函数会从下标 `fromIndex` 开始查找，`fromIndex` 小于 0 时，将会从第 0 位开始搜索，当 `fromIndex` 大于等于本数组的大小时，结果为 None。
 
@@ -2200,7 +2200,7 @@ public func indexOf(element: T, fromIndex: Int64): Option<Int64>
 
 返回值：
 
-- [Option](core_package_enums.md#enum-optiont)\<[Int64](core_package_intrinsics.md#int64)> - 返回数组中在 `fromIndex`之后， `element` 出现的第一个位置，未找到返回 None。
+- [Option](core_package_enums.md#enum-optiont)\<[Int64](core_package_intrinsics.md#int64)> - 返回数组中在 `fromIndex` 之后， `element` 出现的第一个位置，未找到返回 None。
 
 示例：
 
@@ -6150,7 +6150,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
 > - `String` 类型仅支持 UTF-8 编码。
 > - `String` 的 `size`、下标访问（`[]`）、切片和迭代均基于 UTF-8 编码后的**字节**，而非字符。一个多字节字符（例如中文字符）由多个字节组成，字节下标可能落在某个字符的中间。
 > - 如需按字符（[Rune](./core_package_intrinsics.md#rune)）遍历或处理字符串，请使用 [runes](#func-runes) / [toRuneArray](#func-torunearray)。
-> - 出于 `String` 对象内存开销方面的优化，`String` 的长度被限制在 `4GB`大小，即 `String`的最大长度不超过 [UInt32 的最大值](./core_package_intrinsics.md#uint32)。
+> - 出于 `String` 对象内存开销方面的优化，`String` 的长度被限制在 `4GB` 大小，即 `String` 的最大长度不超过 [UInt32 的最大值](./core_package_intrinsics.md#uint32)。
 
 父类型：
 
