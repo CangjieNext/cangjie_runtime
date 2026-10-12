@@ -8,6 +8,7 @@
 #define MRT_LOCAL_OBJECT_ALLOCATOR_H
 
 #include <cstddef>
+#include <functional>
 
 #include "Common/BaseObject.h"
 #include "Common/TypeDef.h"
@@ -17,6 +18,29 @@ struct FrameAddress;
 class Mutator;
 class RegionInfo;
 class RegionManager;
+
+// Metadata exposed to inspection/debugging clients while a local region is
+// stopped-the-world.  The dump layer must not depend on a concrete allocator
+// region type, so only stable ownership and layout information is exported.
+struct LocalObjectInfo {
+    Mutator* ownerMutator = nullptr;
+    FrameAddress* ownerFrame = nullptr;
+    MAddress regionBase = 0;
+    size_t regionSize = 0;
+    bool isLargeRegion = false;
+    // Used only by VisitLocalRoots.  VisitLocalObjects leaves this at
+    // LOCAL_OBJECT.  Keeping the root source kind in the allocator metadata
+    // prevents the dump layer from confusing stack roots with registry roots.
+    enum class RootKind : uint8_t {
+        LOCAL_OBJECT,
+        FINALIZER,
+    } rootKind = RootKind::LOCAL_OBJECT;
+    // Finalizer state is meaningful only when rootKind == FINALIZER.
+    // Values are PENDING=0, RUNNING=1, DONE=2.
+    uint8_t finalizerState = 0;
+};
+
+using LocalObjectVisitor = std::function<void(Mutator&, BaseObject*, const LocalObjectInfo&)>;
 
 // Abstracts local object allocation from the backing storage.
 // A local region is a lifetime boundary. A backend may allocate one or more
@@ -73,6 +97,23 @@ public:
     // abnormal thread exit) are reclaimed without running finalizers, because
     // running user code during teardown can re-enter the runtime.
     virtual void OnMutatorExit(Mutator& mutator) = 0;
+    // Visits every object currently allocated in native local regions.  The
+    // default implementation deliberately does nothing for the heap-backed
+    // compatibility allocator; its concrete enumeration is reserved for a
+    // future implementation.
+    virtual void VisitLocalObjects(const LocalObjectVisitor& visitor) const
+    {
+        (void)visitor;
+    }
+
+    // Visits objects registered as local roots/finalizers.  This is separate
+    // from VisitLocalObjects because the registry is not an object inventory.
+    virtual void VisitLocalRoots(const LocalObjectVisitor& visitor) const
+    {
+        (void)visitor;
+    }
+
+    virtual bool HasLocalObjects() const { return false; }
 };
 } // namespace MapleRuntime
 
