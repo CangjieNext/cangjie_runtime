@@ -148,6 +148,15 @@ class RegionFreeSlotList {
 public:
     static constexpr size_t NUM_SLOTS = FreeSlotNode::NUM_SLOTS;
     static constexpr size_t MIN_SLOT_SIZE = sizeof(FreeSlotNode);
+    static constexpr uint32_t MAX_ENCODED_SLOT_SIZE =
+        (static_cast<uint32_t>(1U) << FreeSlotNode::SIZE_LEN) - 1U;
+    // Keep every split boundary aligned so that it can hold a FreeSlotNode.
+    static constexpr uint32_t MAX_SLOT_SIZE =
+        MAX_ENCODED_SLOT_SIZE & ~(static_cast<uint32_t>(MIN_SLOT_SIZE) - 1U);
+
+    static_assert((MIN_SLOT_SIZE & (MIN_SLOT_SIZE - 1U)) == 0, "slot alignment must be a power of two");
+    static_assert(MAX_SLOT_SIZE <= MAX_ENCODED_SLOT_SIZE, "slot size must fit in FreeSlotNode::size");
+    static_assert(MAX_SLOT_SIZE >= MIN_SLOT_SIZE, "encoded slot size is too small");
 
     RegionFreeSlotList() : regionStart_(0), heads_{}, maxSlotIndex_(NUM_SLOTS), totalSlotSize_(0) {}
 
@@ -177,16 +186,22 @@ public:
     {
         DCHECK(size >= MIN_SLOT_SIZE);
         totalSlotSize_ += size;
-        size_t slotIdx = FreeSlotNode::GetAlignedDownSlotIndex(size);
-        if (slotIdx >= NUM_SLOTS) {
-            slotIdx = NUM_SLOTS - 1;
-        }
-        uint32_t next = heads_[slotIdx];
-        heads_[slotIdx] = offset;
-        WriteSlotNode(offset, FreeSlotNode::MakeSlot(next, size));
-        if (maxSlotIndex_ == NUM_SLOTS || slotIdx > maxSlotIndex_) {
-            maxSlotIndex_ = slotIdx;
-        }
+
+        uint32_t remainingSize = size;
+        uint32_t currentOffset = offset;
+        do {
+            uint32_t slotSize = remainingSize > MAX_SLOT_SIZE ? MAX_SLOT_SIZE : remainingSize;
+            // Keep a final fragment large enough to hold its node. This only
+            // matters for a non-aligned caller; normal region sizes are 8-byte
+            // aligned, but preserving the invariant here avoids creating an
+            // unrepresentable tail.
+            if (remainingSize > slotSize && remainingSize - slotSize < MIN_SLOT_SIZE) {
+                slotSize -= static_cast<uint32_t>(MIN_SLOT_SIZE - (remainingSize - slotSize));
+            }
+            AddSingleSlot(currentOffset, slotSize);
+            currentOffset += slotSize;
+            remainingSize -= slotSize;
+        } while (remainingSize != 0);
     }
 
     uintptr_t AllocateSlot(size_t requestedSize, uintptr_t regionStart)
@@ -224,6 +239,9 @@ public:
                     uint32_t remainderSize = slotSize - static_cast<uint32_t>(requestedSize);
                     if (remainderSize >= MIN_SLOT_SIZE) {
                         AddSlot(remainderOffset, remainderSize);
+                        DLOG(SWEEP, "split and add slot [%p, %p)",
+                            reinterpret_cast<void*>(regionStart + remainderOffset),
+                            reinterpret_cast<void*>(regionStart + remainderOffset + remainderSize));
                     }
                 }
                 DLOG(SWEEP, "allocate slot [%p, %p) slotSize=%u requestedSize=%zu",
@@ -238,6 +256,22 @@ public:
 
 private:
     static constexpr uint32_t INVALID_OFFSET = std::numeric_limits<uint32_t>::max();
+
+    void AddSingleSlot(uint32_t offset, uint32_t size)
+    {
+        DCHECK(size >= MIN_SLOT_SIZE);
+        DCHECK(size <= MAX_ENCODED_SLOT_SIZE);
+        size_t slotIdx = FreeSlotNode::GetAlignedDownSlotIndex(size);
+        if (slotIdx >= NUM_SLOTS) {
+            slotIdx = NUM_SLOTS - 1;
+        }
+        uint32_t next = heads_[slotIdx];
+        heads_[slotIdx] = offset;
+        WriteSlotNode(offset, FreeSlotNode::MakeSlot(next, size));
+        if (maxSlotIndex_ == NUM_SLOTS || slotIdx > maxSlotIndex_) {
+            maxSlotIndex_ = slotIdx;
+        }
+    }
 
     uintptr_t regionStart_;
     std::array<uint32_t, NUM_SLOTS> heads_;

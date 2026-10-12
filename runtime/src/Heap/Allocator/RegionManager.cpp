@@ -176,6 +176,8 @@ bool RegionInfo::VisitLiveObjectsUntilFalse(const std::function<bool(BaseObject*
 
 void RegionInfo::SweepRegion()
 {
+    DLOG(SWEEP, "sweep region %p [%p, %p) enter: type %u liveBytes %u", this, GetRegionStart(),
+        GetRegionEnd(), static_cast<uint32_t>(GetRegionType()), static_cast<uint32_t>(GetLiveByteCount()));
     CHECK(!IsGhostFromRegion());
     RegionFreeSlotList* freeSlotList = GetFreeSlotList();
     if (freeSlotList == nullptr) {
@@ -191,6 +193,8 @@ void RegionInfo::SweepRegion()
                 ClearRSetSlots(GetRegionStart(), regionSize);
             }
             freeSlotList->AddSlot(0, static_cast<uint32_t>(regionSize));
+            DLOG(SWEEP, "sweep large region %p [%p, %p) add slot [0, %p)", this, GetRegionStart(),
+                GetRegionEnd(), GetRegionStart() + regionSize);
         }
         return;
     }
@@ -212,9 +216,9 @@ void RegionInfo::SweepRegion()
             if (inFreeRun) {
                 size_t freeSize = off - freeStartOff;
                 if (freeSize >= RegionFreeSlotList::MIN_SLOT_SIZE) {
-                    // DLOG(SWEEP, "sweep region %p [%p, %p) add slot [%p, %p)", this, GetRegionStart(),
-                    //     GetRegionEnd(), GetRegionStart() + freeStartOff,
-                    //     GetRegionStart() + freeStartOff + freeSize);
+                    DLOG(SWEEP, "sweep region %p [%p, %p) add slot [%p, %p)", this, GetRegionStart(),
+                        GetRegionEnd(), GetRegionStart() + freeStartOff,
+                        GetRegionStart() + freeStartOff + freeSize);
                     freeSlotList->AddSlot(static_cast<uint32_t>(freeStartOff), static_cast<uint32_t>(freeSize));
                 }
                 inFreeRun = false;
@@ -236,16 +240,16 @@ void RegionInfo::SweepRegion()
         size_t freeSize = regionSize - freeStartOff;
         memset(reinterpret_cast<void*>(freeStart), 0, freeSize);
         if (freeSize >= RegionFreeSlotList::MIN_SLOT_SIZE) {
-            // DLOG(SWEEP, "sweep region %p [%p, %p) add slot [%p, %p)", this, GetRegionStart(), GetRegionEnd(),
-            //     GetRegionStart() + freeStartOff, GetRegionStart() + freeStartOff + freeSize);
+            DLOG(SWEEP, "sweep region %p [%p, %p) add slot [%p, %p)", this, GetRegionStart(), GetRegionEnd(),
+                GetRegionStart() + freeStartOff, GetRegionStart() + freeStartOff + freeSize);
             freeSlotList->AddSlot(static_cast<uint32_t>(freeStartOff), static_cast<uint32_t>(freeSize));
         }
     } else if (off < regionSize) {
         size_t freeSize = regionSize - off;
         memset(reinterpret_cast<void*>(position), 0, freeSize);
         if (freeSize >= RegionFreeSlotList::MIN_SLOT_SIZE) {
-            // DLOG(SWEEP, "sweep region %p [%p, %p) add slot [%p, %p)", this, GetRegionStart(), GetRegionEnd(),
-            //     GetRegionStart() + off, GetRegionStart() + off + freeSize);
+            DLOG(SWEEP, "sweep region %p [%p, %p) add slot [%p, %p)", this, GetRegionStart(), GetRegionEnd(),
+                GetRegionStart() + off, GetRegionStart() + off + freeSize);
             freeSlotList->AddSlot(static_cast<uint32_t>(off), static_cast<uint32_t>(freeSize));
         }
     }
