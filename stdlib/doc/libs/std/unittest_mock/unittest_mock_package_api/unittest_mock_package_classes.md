@@ -204,7 +204,7 @@ public func atLeastTimes(minTimesExpected: Int64): Unit
 异常：
 
 - [ExceptionFailedException](./unittest_mock_package_exceptions.md#class-expectationfailedexception) - 验证“桩行为”执行少于指定次数时，抛出异常。
-- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 当作为`minTimesExpected`参数传递的数字为负数时，抛出异常。
+- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 当作为 `minTimesExpected` 参数传递的数字为负数时，抛出异常。
 
 ### func once()
 
@@ -241,7 +241,7 @@ public func times(expectedTimes: Int64): Continuation<A>
 异常：
 
 - [ExceptionFailedException](./unittest_mock_package_exceptions.md#class-expectationfailedexception) - 验证“桩行为”执行次数不是指定次数时，抛出异常。
-- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 当作为`expectedTimes`参数传递的数字为负数时，抛出异常。
+- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 当作为 `expectedTimes` 参数传递的数字为负数时，抛出异常。
 
 ### func times(Int64, Int64)
 
@@ -259,7 +259,7 @@ public func times(min!: Int64, max!: Int64): Unit
 异常：
 
 - [ExceptionFailedException](./unittest_mock_package_exceptions.md#class-expectationfailedexception) - 验证“桩行为”执行次数不是指定次数范围时，抛出异常。
-- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 当传入的`min`或`max`参数为负数时，抛出异常。
+- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 当传入的 `min` 或 `max` 参数为负数时，抛出异常。
 
 ## class ConfigureMock
 
@@ -1723,7 +1723,7 @@ public func atLeastTimes(minTimesExpected: Int64): VerifyStatement
 异常：
 
 - [MockFrameworkException](./unittest_mock_package_exceptions.md#class-mockframeworkexception) - 当对象已被指定过执行次数或已被传入过“验证动作”中时，将抛出异常。
-- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 当作为`minTimesExpected`参数传递的数字为负数时，抛出异常。
+- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 当作为 `minTimesExpected` 参数传递的数字为负数时，抛出异常。
 
 ### func once()
 
@@ -1760,7 +1760,7 @@ public func times(expectedTimes: Int64): VerifyStatement
 异常：
 
 - [MockFrameworkException](./unittest_mock_package_exceptions.md#class-mockframeworkexception) - 当对象已被指定过执行次数或已被传入过“验证动作”中时，将抛出异常。
-- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 当作为`expectedTimes`参数传递的数字为负数时，抛出异常。
+- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 当作为 `expectedTimes` 参数传递的数字为负数时，抛出异常。
 
 ### func times(Int64, Int64)
 
@@ -1782,7 +1782,7 @@ public func times(min!: Int64, max!: Int64): VerifyStatement
 异常：
 
 - [MockFrameworkException](./unittest_mock_package_exceptions.md#class-mockframeworkexception) - 当对象已被指定过执行次数或已被传入过“验证动作”中时，将抛出异常。
-- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 当传入的`min`或`max`参数为负数时，抛出异常。
+- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 当传入的 `min` 或 `max` 参数为负数时，抛出异常。
 
 ### static func fromStub\<R>(() -> R, Array\<ArgumentMatcher>, Option\<String>, String, String, Int64)
 

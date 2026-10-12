@@ -969,7 +969,7 @@ class MyTestSuite {
 ```
 
 此 DSL 可用于 `@Test`、`@Strategy`、`@Bench` 和 `@TestCase` 宏，其中 `@Test` 仅在顶级函数上时才可用。如果测试函数中同时存在 `@Bench` 和 `@TestCase` ，则只有 `@Bench` 可以包含 DSL 。
-在 DSL 语法中，`in` 之前的标识符（在上面的示例中为 `x` 、`y` 和 `z` ）必须直接对应于函数的参数，参数源（在上面的示例中为`source1` 、`source2` 和 `source3`）是任何有效的仓颉表达式（该表达式类型必须实现接口 [DataStrategy](../../unittest_common/unittest_common_package_api/unittest_common_package_interfaces.md#interface-datastrategyt)\<T> 或 [DataStrategyProcessor](../../unittest/unittest_package_api/unittest_package_classes.md#class-datastrategyprocessort)\<T>，详见下文）。
+在 DSL 语法中，`in` 之前的标识符（在上面的示例中为 `x` 、`y` 和 `z` ）必须直接对应于函数的参数，参数源（在上面的示例中为 `source1` 、`source2` 和 `source3`）是任何有效的仓颉表达式（该表达式类型必须实现接口 [DataStrategy](../../unittest_common/unittest_common_package_api/unittest_common_package_interfaces.md#interface-datastrategyt)\<T> 或 [DataStrategyProcessor](../../unittest/unittest_package_api/unittest_package_classes.md#class-datastrategyprocessort)\<T>，详见下文）。
 参数源的元素类型（此类型作为泛型参数 `T` 提供给接口 [DataStrategy](../../unittest_common/unittest_common_package_api/unittest_common_package_interfaces.md#interface-datastrategyt)\<T> ）必须与相应函数参数的类型严格相同。
 
 支持的参数源类型如下：

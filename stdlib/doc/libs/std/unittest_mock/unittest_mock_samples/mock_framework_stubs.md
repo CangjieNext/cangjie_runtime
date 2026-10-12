@@ -96,7 +96,7 @@ let isVisible = { c: Component => c.isVisible }
 桩声明中隐含了预期，因此更难处理共享桩。测试用例之间不能共享预期。
 可以声明桩的位置：
 
-* 测试用例主体（无论是 `@Test` 函数还是`@Test`类中的`@TestCase`）：检查预期。
+* 测试用例主体（无论是 `@Test` 函数还是 `@Test` 类中的 `@TestCase`）：检查预期。
 * 在 `@Test` 类的 `BeforeAll` 宏修饰的函数或者 `beforeAll` 函数中：在测试用例之间共享桩。这样的桩不能声明预期，预期也不会被检查。不允许使用基数说明符。只允许 `returns(value)`、`throws(exception)`、`fails()`、`callsOriginal()` 等*无状态*操作。可以将这些桩视为具有隐式 `anyTimes()` 基数。
 * 如果测试用例的预期相同，则可以在测试用例主体中提取和调用函数（测试类中非测试用例的成员函数）。
 
@@ -104,7 +104,7 @@ let isVisible = { c: Component => c.isVisible }
 >
 > 不要在测试类构造函数中声明桩。否则可能导致框架运行内部错误。
 
-在测试用例主体（`@Test`类中的`@TestCase`）中声明桩的示例：
+在测试用例主体（`@Test` 类中的 `@TestCase`）中声明桩的示例：
 
 <!--compile-testBar0-->
 ```cangjie
