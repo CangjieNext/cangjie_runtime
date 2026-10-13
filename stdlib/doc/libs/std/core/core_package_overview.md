@@ -91,7 +91,7 @@ core 包是标准库的核心包，提供了适用仓颉语言编程最基本的
 | [Float32](./core_package_api/core_package_intrinsics.md#float32) | 表示 32 位浮点数，符合 `IEEE 754` 中的单精度格式（`binary32`）。 |
 | [Float64](./core_package_api/core_package_intrinsics.md#float64) | 表示 64 位浮点数，符合 `IEEE 754` 中的双精度格式（`binary64`）。 |
 | [Bool](./core_package_api/core_package_intrinsics.md#bool) | 表示布尔类型，有 `true` 和 `false` 两种取值。 |
-| [Rune](./core_package_api/core_package_intrinsics.md#rune) | 表示 unicode 字符集中的字符。 |
+| [Rune](./core_package_api/core_package_intrinsics.md#rune) | 表示 Unicode 字符集中的字符。 |
 | [Unit](./core_package_api/core_package_intrinsics.md#unit) | 表示仓颉语言中只关心副作用而不关心值的表达式的类型。 |
 | [CPointer\<T>](./core_package_api/core_package_intrinsics.md#cpointert) | 表示 `T` 类型实例的指针，在与 C 语言互操作的场景下使用，对应 C 语言的 `T*`。 |
 | [CString](./core_package_api/core_package_intrinsics.md#cstring) | 表示 C 风格字符串，在与 C 语言互操作的场景下使用。 |
@@ -156,7 +156,7 @@ core 包是标准库的核心包，提供了适用仓颉语言编程最基本的
 | [DefaultHasher](./core_package_api/core_package_structs.md#struct-defaulthasher) | 该结构体提供了默认哈希算法实现。 |
 | [Duration](./core_package_api/core_package_structs.md#struct-duration) | 表示时间间隔，是一个描述一段时间的时间类型，提供了常用的静态实例，以及计算、比较等功能。 |
 | [LibC](./core_package_api/core_package_structs.md#struct-libc) | 提供了仓颉中较为高频使用的 C 接口，如申请、释放堆上 CType 实例。 |
-| [Range\<T> where T <: Countable\<T> & Comparable\<T> & Equatable\<T>](./core_package_api/core_package_structs.md#struct-ranget-where-t--countablet--comparablet--equatablet) | 该类是区间类型，用于表示一个拥有固定范围和步长的 `T` 的序列，要求 `T` 是可数的，有序的。 |
+| [Range\<T> where T <: Countable\<T> & Comparable\<T> & Equatable\<T>](./core_package_api/core_package_structs.md#struct-ranget-where-t--countablet--comparablet--equatablet) | 该结构体是区间类型，用于表示一个拥有固定范围和步长的 `T` 的序列，要求 `T` 是可数的，有序的。 |
 | [String](./core_package_api/core_package_structs.md#struct-string) | 该结构体表示仓颉字符串，提供了构造、查找、拼接等一系列字符串操作。 |
 
 ### 异常类

@@ -4319,7 +4319,7 @@ public func isMutable(): Bool
 
 返回值：
 
-- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 如果该全局变量可被修改则返回 `true` ，否则返回 `false`。
+- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 如果该全局变量可被修改则返回 `true`，否则返回 `false`。
 
 示例：
 
@@ -6343,7 +6343,7 @@ public func isMutable(): Bool
 
 返回值：
 
-- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 如果该实例成员属性信息所对应的实例成员属性可被修改则返回 `true` ，否则返回 `false`。
+- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 如果该实例成员属性信息所对应的实例成员属性可被修改则返回 `true`，否则返回 `false`。
 
 示例：
 
@@ -7236,7 +7236,7 @@ public func isMutable(): Bool
 
 返回值：
 
-- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 如果该实例成员变量信息所对应的实例成员变量可被修改则返回 `true` ，否则返回 `false`。
+- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 如果该实例成员变量信息所对应的实例成员变量可被修改则返回 `true`，否则返回 `false`。
 
 示例：
 
@@ -11074,7 +11074,7 @@ public func isMutable(): Bool
 
 返回值：
 
-- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 如果该静态成员属性信息所对应的静态成员属性可被修改则返回 `true` ，否则返回 `false`。
+- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 如果该静态成员属性信息所对应的静态成员属性可被修改则返回 `true`，否则返回 `false`。
 
 > **注意：**
 >
@@ -11892,7 +11892,7 @@ public func isMutable(): Bool
 
 返回值：
 
-- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 如果该静态成员变量信息所对应的静态成员变量可被修改则返回 `true` ，否则返回 `false`。
+- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 如果该静态成员变量信息所对应的静态成员变量可被修改则返回 `true`，否则返回 `false`。
 
 示例：
 

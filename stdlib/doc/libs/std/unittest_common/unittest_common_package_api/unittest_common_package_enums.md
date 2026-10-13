@@ -111,7 +111,7 @@ public operator func ==(that: Color): Bool
 
 返回值：
 
-- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 相等时返回 `true` ，否则返回 `false` 。
+- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 相等时返回 `true`，否则返回 `false` 。
 
 ### operator func !=(Color)
 
@@ -127,7 +127,7 @@ public operator func !=(that: Color): Bool
 
 返回值：
 
-- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 不相等时返回 `true` ，否则返回 `false` 。
+- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 不相等时返回 `true`，否则返回 `false` 。
 
 ## enum OptionValidity
 

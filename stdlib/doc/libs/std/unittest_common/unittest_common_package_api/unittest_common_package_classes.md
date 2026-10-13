@@ -705,7 +705,7 @@ public func isEmpty(): Bool
 
 返回值：
 
-- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 未有内容传入时返回 `true` ，否则返回 `false` 。
+- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 未有内容传入时返回 `true`，否则返回 `false` 。
 
 ### func pprint(PrettyPrinter)
 
