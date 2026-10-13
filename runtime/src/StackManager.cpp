@@ -76,9 +76,12 @@ extern "C" Uptr* g_runtimeDynamicEnd;
 #else
 extern "C" Uptr* g_runtimeStaticStart;
 extern "C" Uptr* g_runtimeStaticEnd;
-#ifdef _WIN64
+#if defined(_WIN64)
 extern "C" uintptr_t g_cjThreadStaticStart;
 extern "C" uintptr_t g_cjThreadStaticEnd;
+#elif defined(__IOS__)
+extern "C" unsigned long* g_cjThreadStaticStart;
+extern "C" unsigned long* g_cjThreadStaticEnd;
 #endif
 #endif
 
@@ -475,9 +478,15 @@ void StackManager::InitAddressScope()
 #if defined(__APPLE__) || defined(_WIN64) // MacOS, iOS, Windows
     StackManager::rtStartAddr = reinterpret_cast<Uptr>(g_runtimeStaticStart);
     StackManager::rtEndAddr = reinterpret_cast<Uptr>(g_runtimeStaticEnd);
-#ifdef _WIN64
+#if defined(_WIN64)
     StackManager::cjThreadStartAddr = static_cast<Uptr>(g_cjThreadStaticStart);
     StackManager::cjThreadEndAddr = static_cast<Uptr>(g_cjThreadStaticEnd);
+#elif defined(__IOS__)
+    // iOS: markers per archive (see os/Macos/Section.cpp). macOS keeps the
+    // legacy merged __cjrt_text range in rtStartAddr/rtEndAddr and leaves the
+    // cjthread pair unset.
+    StackManager::cjThreadStartAddr = reinterpret_cast<Uptr>(g_cjThreadStaticStart);
+    StackManager::cjThreadEndAddr = reinterpret_cast<Uptr>(g_cjThreadStaticEnd);
 #endif
 #else
     StackManager::rtStartAddr = reinterpret_cast<Uptr>(&g_runtimeStaticStart);

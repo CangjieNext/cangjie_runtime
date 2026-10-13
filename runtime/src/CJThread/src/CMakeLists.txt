@@ -47,24 +47,33 @@ add_subdirectory(trace)
 set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/../../output/temp/lib)
 
 
-add_library(cangjie-thread ${LIBTYPE}
-$<TARGET_OBJECTS:schedule>
-$<TARGET_OBJECTS:log>
-$<TARGET_OBJECTS:netpoll>
-$<TARGET_OBJECTS:basetime>
-$<TARGET_OBJECTS:timer>
-$<TARGET_OBJECTS:syscall>
-$<TARGET_OBJECTS:waitqueue>
-$<TARGET_OBJECTS:sema>
-$<TARGET_OBJECTS:external>
-)
+# CJThread text-range boundary markers (iOS only).
+#
+# For iOS static builds the marker objects must be the first and last members
+# of libcangjie-thread.a: the Apple linker lays pulled archive members in
+# member order, so the markers bracket every thread object and no link-order
+# contract is imposed on the application (see runtime/src/os/Macos/Section.cpp).
+# For shared iOS builds they are exported so the runtime glue object
+# (section.o) resolves them. The marker symbols are deliberately distinct from
+# the runtime archive markers: with identical names, only the first defining
+# archive member would ever be pulled and the second range would silently
+# collapse.
+#
+# macOS keeps the legacy __TEXT,__cjrt_text path: thread objects are renamed
+# via apple_rename_section.sh (merged with the runtime section there), so no
+# markers are produced for macOS.
+if (APPLE AND (${PLATFORM_NAME} STREQUAL "ios_cangjie" OR ${PLATFORM_NAME} STREQUAL "ios_simulator_aarch64_cangjie" OR
+     ${PLATFORM_NAME} STREQUAL "ios_cangjie_x86_64" OR ${PLATFORM_NAME} STREQUAL "ios_simulator_x86_64_cangjie"))
+    add_library(cjthread_text_start OBJECT ${CMAKE_CURRENT_SOURCE_DIR}/base/CjThreadTextStart.c)
+    add_library(cjthread_text_end OBJECT ${CMAKE_CURRENT_SOURCE_DIR}/base/CjThreadTextEnd.c)
+    set(CJTHREAD_TEXT_START_OBJ $<TARGET_OBJECTS:cjthread_text_start>)
+    set(CJTHREAD_TEXT_END_OBJ $<TARGET_OBJECTS:cjthread_text_end>)
+endif()
 
-if ((${PLATFORM_NAME} STREQUAL "ios_cangjie" OR ${PLATFORM_NAME} STREQUAL "ios_simulator_aarch64_cangjie" OR 
-     ${PLATFORM_NAME} STREQUAL "mac_x86_64_cangjie" OR ${PLATFORM_NAME} STREQUAL "mac_aarch64_cangjie" OR
-     ${PLATFORM_NAME} STREQUAL "ios_cangjie_x86_64" OR ${PLATFORM_NAME} STREQUAL "ios_simulator_x86_64_cangjie") AND 
+if (APPLE AND (${PLATFORM_NAME} STREQUAL "mac_x86_64_cangjie" OR ${PLATFORM_NAME} STREQUAL "mac_aarch64_cangjie") AND
     ("${APPLE_STATIC_BUILD}" STREQUAL "true"))
     add_custom_command(TARGET cangjie-thread PRE_BUILD
-        COMMAND sh ${CMAKE_SOURCE_DIR}/../../build/apple_rename_section.sh 
+        COMMAND sh ${CMAKE_SOURCE_DIR}/../../build/apple_rename_section.sh
             "${PLATFORM_NAME}"
             "${CMAKE_C_COMPILER}"
             "$<TARGET_OBJECTS:schedule>"
@@ -79,6 +88,20 @@ if ((${PLATFORM_NAME} STREQUAL "ios_cangjie" OR ${PLATFORM_NAME} STREQUAL "ios_s
         VERBATIM
     )
 endif()
+
+add_library(cangjie-thread ${LIBTYPE}
+${CJTHREAD_TEXT_START_OBJ}
+$<TARGET_OBJECTS:schedule>
+$<TARGET_OBJECTS:log>
+$<TARGET_OBJECTS:netpoll>
+$<TARGET_OBJECTS:basetime>
+$<TARGET_OBJECTS:timer>
+$<TARGET_OBJECTS:syscall>
+$<TARGET_OBJECTS:waitqueue>
+$<TARGET_OBJECTS:sema>
+$<TARGET_OBJECTS:external>
+${CJTHREAD_TEXT_END_OBJ}
+)
 
 if(${PLATFORM_NAME} STREQUAL "linux_aarch64_cangjie" OR ${PLATFORM_NAME} STREQUAL "linux_aarch64" OR
     ${PLATFORM_NAME} STREQUAL "linux12_x86_64_cangjie" OR ${PLATFORM_NAME} STREQUAL "linux12_x86_64_fuzz" OR

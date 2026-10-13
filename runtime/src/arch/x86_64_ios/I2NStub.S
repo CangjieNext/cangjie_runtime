@@ -33,7 +33,7 @@
 //   rbp - 248:  saferegion state
 //   rbp - 256:  padding for stack alignment
 
-    .section __TEXT,__cjrt_text,regular
+    .text
     .align 2
     .global _CJ_MCC_I2NStub
 _CJ_MCC_I2NStub:

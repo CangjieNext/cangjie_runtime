@@ -6,14 +6,36 @@
 
 
 #include <algorithm>
+#include <cassert>
 #include <cstdint>
+#include <cstdio>
 #include <dlfcn.h>
 #include <initializer_list>
 #include <mach-o/dyld.h>
 #include <mach-o/getsect.h>
-#include <cassert>
 
 extern "C" {
+// Runtime text range boundary markers (iOS only, see SetRuntimeRange below).
+//
+// The markers are embedded in the static archives themselves: _CJ_Text_Start /
+// _CJ_Text_End are the first / last members of libcangjie-runtime.a, and
+// _CJ_Thread_Text_Start / _CJ_Thread_Text_End are the first / last members of
+// libcangjie-thread.a. The Apple linker lays pulled archive members in archive
+// member order, so each archive is self-bracketed and no link-order contract
+// is imposed on the application. The ranges are consumed by
+// StackManager::IsRuntimeFrame during stack frame analysis.
+//
+// macOS keeps the legacy __TEXT,__cjrt_text section path: the rename step is
+// still active for macOS builds and the range below is read via
+// getsectiondata. The two paths are isolated by __IOS__, which config.cmake
+// defines for iOS and simulator builds only.
+#if defined(__IOS__)
+void _CJ_Text_Start(void);
+void _CJ_Text_End(void);
+void _CJ_Thread_Text_Start(void);
+void _CJ_Thread_Text_End(void);
+#endif
+
 // CJMetadataHeader
 unsigned long _CJMetadataSize;
 uintptr_t _CJMetadataStart;
@@ -101,6 +123,32 @@ int _CJMetaDataSize;
 unsigned long* g_runtimeStaticStart;
 unsigned long* g_runtimeStaticEnd;
 
+#if defined(__IOS__)
+unsigned long* g_cjThreadStaticStart;
+unsigned long* g_cjThreadStaticEnd;
+
+static void SetRuntimeRange(unsigned long** startOut, unsigned long** endOut,
+    const void* startSym, const void* endSym, const char* name)
+{
+    uintptr_t start = reinterpret_cast<uintptr_t>(startSym);
+    uintptr_t end = reinterpret_cast<uintptr_t>(endSym);
+    if (start == 0 || start >= end) {
+        // The boundary markers are missing or inverted. The text range cannot
+        // be established and stack frames would be misclassified. Fail loudly
+        // instead of silently degrading frame classification.
+        fprintf(stderr, "cangjie runtime: invalid %s text range markers "
+                        "(start=0x%llx, end=0x%llx). Check that the marker "
+                        "objects are the first/last members of the runtime "
+                        "static archives.\n", name,
+                static_cast<unsigned long long>(start),
+                static_cast<unsigned long long>(end));
+        abort();
+    }
+    *startOut = reinterpret_cast<unsigned long*>(start);
+    *endOut = reinterpret_cast<unsigned long*>(end);
+}
+#endif
+
 static void InitSectionInformation(const struct mach_header_64* mhp)
 {
     _CJMetadataStart =
@@ -137,11 +185,28 @@ static void InitSectionInformation(const struct mach_header_64* mhp)
     _CJReflectGI = reinterpret_cast<uintptr_t>(getsectiondata(mhp, "__CJ_METADATA", "__cjref_gi", &_CJReflectGISize));
     _CJTypeExt = reinterpret_cast<uintptr_t>(getsectiondata(mhp, "__CJ_METADATA", "__cjtype_ext", &_CJTypeExtSize));
 
+#if defined(__IOS__)
+    // iOS: runtime and CJThread text ranges from the archive markers. Each
+    // static archive carries its own first/last marker objects, so the ranges
+    // are bracketed by the archive member order that the Apple linker
+    // preserves. The markers replace the former dedicated __TEXT,__cjrt_text
+    // section, so all runtime code stays in the regular __TEXT,__text section.
+    SetRuntimeRange(&g_runtimeStaticStart, &g_runtimeStaticEnd,
+        reinterpret_cast<const void*>(&_CJ_Text_Start),
+        reinterpret_cast<const void*>(&_CJ_Text_End), "runtime");
+    SetRuntimeRange(&g_cjThreadStaticStart, &g_cjThreadStaticEnd,
+        reinterpret_cast<const void*>(&_CJ_Thread_Text_Start),
+        reinterpret_cast<const void*>(&_CJ_Thread_Text_End), "cjthread");
+#else
+    // macOS: legacy path. The build still renames runtime/text objects into
+    // __TEXT,__cjrt_text (see build/apple_rename_section.sh wired in
+    // CMakeLists.txt for MACOS_FLAG) and the range is the merged section.
     unsigned long _CJRuntimeTextSize;
     unsigned long _CJRuntimeText =
         reinterpret_cast<unsigned long>(getsectiondata(mhp, "__TEXT", "__cjrt_text", &_CJRuntimeTextSize));
     g_runtimeStaticStart = reinterpret_cast<unsigned long*>(_CJRuntimeText);
     g_runtimeStaticEnd = reinterpret_cast<unsigned long*>(_CJRuntimeText + _CJRuntimeTextSize);
+#endif
 }
 
 __attribute__((constructor)) void InitData()

@@ -92,7 +92,7 @@
 //                 | arg9         |
 //   stub sp  -->  | arg8         | <== MCC_N2CStub frame ends at here
 
-    .section __TEXT,__cjrt_text,regular
+    .text
     .align 2
     .global _CJ_MCC_N2CStub
 _CJ_MCC_N2CStub:
@@ -308,7 +308,7 @@ _unwindPCForN2CStub:
     ret
     .cfi_endproc
 
-.section __TEXT,__cjrt_text,regular
+    .text
 .align 2
 .global  _InitCJLibraryStub
 _InitCJLibraryStub:
@@ -329,7 +329,7 @@ _InitCJLibraryStub:
     ret
     .cfi_endproc
 
-.section __TEXT,__cjrt_text,regular
+    .text
 .align 2
 .global  _ExecuteCangjieStub
 _ExecuteCangjieStub:
@@ -342,7 +342,7 @@ _ExecuteCangjieStub:
     ret
     .cfi_endproc
 
-.section __TEXT,__cjrt_text,regular
+    .text
 .align 2
 .global  _ApplyCangjieMethodStub
 .global  _ApplyCangjieMethodStubFloat32
