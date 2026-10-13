@@ -219,7 +219,7 @@ public RandomDataProvider(private let configuration: Configuration)
 
 参数：
 
-- configuration: [Configuration](../../unittest_common/unittest_common_package_api/unittest_common_package_classes.md#class-configuration) - 配置对象，必须包含一个随机生成器，名称为 `random` ，类型为 random.[Random](../../random/random_package_api/random_package_classes.md#class-random)。
+- configuration: [Configuration](../../unittest_common/unittest_common_package_api/unittest_common_package_classes.md#class-configuration) - 配置对象，必须包含一个随机生成器，名称为 `random`，类型为 random.[Random](../../random/random_package_api/random_package_classes.md#class-random)。
 
 异常：
 

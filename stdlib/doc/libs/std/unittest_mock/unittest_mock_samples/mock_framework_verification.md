@@ -286,7 +286,7 @@ public class Verify {
 
 ## 验证错误
 
-验证失败时，会抛出 `VerificationFailedException` ，mock 框架会给出报告。不要捕获该异常。
+验证失败时，会抛出 `VerificationFailedException`，mock 框架会给出报告。不要捕获该异常。
 
 失败类型如下：
 

@@ -1012,7 +1012,7 @@ public override func matchesAny(arg: Any): Bool
 
 返回值：
 
-- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 当输入为 None 时返回 `true` ，否则返回 `false` 。
+- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 当输入为 None 时返回 `true`，否则返回 `false` 。
 
 ### extend NoneMatcher
 
@@ -1260,7 +1260,7 @@ public func matches(arg: T): Bool
 
 返回值：
 
-- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 若类型匹配则返回 `true` ，否则返回 `false` 。
+- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 若类型匹配则返回 `true`，否则返回 `false` 。
 
 ### func matchesAny(Any)
 
@@ -1276,7 +1276,7 @@ public override func matchesAny(arg: Any): Bool
 
 返回值：
 
-- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 若类型匹配则返回 `true` ，否则返回 `false` 。
+- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 若类型匹配则返回 `true`，否则返回 `false` 。
 
 ### extend\<T> TypedMatcher\<T>
 

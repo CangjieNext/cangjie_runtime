@@ -35,7 +35,7 @@ public func spy<T>(objectToSpyOn: T): T
 @On(storage.getComments(testId)).returns(testComments)
 ```
 
-示例中，如果 mock 对象 `storage` *接收*到 `getComments` 方法的调用，并且指定了参数 `testId` ，则返回 `testComments` 。
+示例中，如果 mock 对象 `storage` *接收*到 `getComments` 方法的调用，并且指定了参数 `testId`，则返回 `testComments` 。
 
 如上行为即为**打桩**，桩（Stub， 模拟还未实现或无法在测试环境中执行的组件）需在测试用例主体内部先定义。
 
@@ -337,7 +337,7 @@ Expectation failed
 
 <!-- 链接至续体 -->
 
-**续体**本身只提供了一个返回新 `ActionSelector` 的 `then()` 函数。链上的所有操作都适用相同的规则。如果调用了 `then()` ，则**必须**指定新的操作。
+**续体**本身只提供了一个返回新 `ActionSelector` 的 `then()` 函数。链上的所有操作都适用相同的规则。如果调用了 `then()`，则**必须**指定新的操作。
 
 总预期为各个链预期之和。如果在测试中指定了一个复杂的链，那么链的所有部分都会被触发。
 
@@ -386,7 +386,7 @@ let serviceSpy = spy(service)
 ### 使用 cjc 编译
 
 对于 **cjc** 来说，mock 是通过 `--mock` 标志来控制的。
-如果想 mock 特定包中的类 `p` ，添加 `--mock=on` 标志到 cjc 进行调用。
+如果想 mock 特定包中的类 `p`，添加 `--mock=on` 标志到 cjc 进行调用。
 
 > **说明：**
 >

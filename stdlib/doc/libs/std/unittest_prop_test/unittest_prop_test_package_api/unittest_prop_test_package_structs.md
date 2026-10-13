@@ -198,7 +198,7 @@ public operator func ==(other: TupleWrapper2<T0, T1>): Bool
 
 返回值：
 
-- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 相等时返回 `true` ，否则返回 `false` 。
+- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 相等时返回 `true`，否则返回 `false` 。
 
 #### operator func !=(TupleWrapper2\<T0, T1>)
 
@@ -214,7 +214,7 @@ public operator func !=(other: TupleWrapper2<T0, T1>): Bool
 
 返回值：
 
-- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 不相等时返回 `true` ，否则返回 `false` 。
+- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 不相等时返回 `true`，否则返回 `false` 。
 
 ### extend\<T0, T1> TupleWrapper2\<T0, T1> <: IndexAccess
 
@@ -388,7 +388,7 @@ public operator func ==(other: TupleWrapper3<T0, T1, T2>): Bool
 
 返回值：
 
-- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 相等时返回 `true` ，否则返回 `false` 。
+- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 相等时返回 `true`，否则返回 `false` 。
 
 #### operator func !=(TupleWrapper3\<T0, T1, T2>)
 
@@ -404,7 +404,7 @@ public operator func !=(other: TupleWrapper3<T0, T1, T2>): Bool
 
 返回值：
 
-- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 不相等时返回 `true` ，否则返回 `false` 。
+- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 不相等时返回 `true`，否则返回 `false` 。
 
 ### extend\<T0, T1, T2> TupleWrapper3\<T0, T1, T2> <: IndexAccess
 
@@ -579,7 +579,7 @@ public operator func ==(other: TupleWrapper4<T0, T1, T2, T3>): Bool
 
 返回值：
 
-- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 相等时返回 `true` ，否则返回 `false` 。
+- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 相等时返回 `true`，否则返回 `false` 。
 
 #### operator func !=(TupleWrapper4\<T0, T1, T2, T3>)
 
@@ -595,7 +595,7 @@ public operator func !=(other: TupleWrapper4<T0, T1, T2, T3>): Bool
 
 返回值：
 
-- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 不相等时返回 `true` ，否则返回 `false` 。
+- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 不相等时返回 `true`，否则返回 `false` 。
 
 ### extend\<T0, T1, T2, T3> TupleWrapper4\<T0, T1, T2, T3> <: IndexAccess
 
@@ -771,7 +771,7 @@ public operator func ==(other: TupleWrapper5<T0, T1, T2, T3, T4>): Bool
 
 返回值：
 
-- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 相等时返回 `true` ，否则返回 `false` 。
+- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 相等时返回 `true`，否则返回 `false` 。
 
 #### operator func !=(TupleWrapper5\<T0, T1, T2, T3, T4>)
 
@@ -787,7 +787,7 @@ public operator func !=(other: TupleWrapper5<T0, T1, T2, T3, T4>): Bool
 
 返回值：
 
-- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 不相等时返回 `true` ，否则返回 `false` 。
+- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 不相等时返回 `true`，否则返回 `false` 。
 
 ### extend\<T0, T1, T2, T3, T4> TupleWrapper5\<T0, T1, T2, T3, T4> <: IndexAccess
 

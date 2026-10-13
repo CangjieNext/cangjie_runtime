@@ -77,8 +77,8 @@ Summary: TOTAL: 2
 
 功能：`@Assert` 声明 Assert 断言，测试函数内部使用，断言失败停止用例。
 
-1. `@Assert(leftExpr, rightExpr)` ，比较 `leftExpr` 和 `rightExpr` 值是否相同。
-2. `@Assert(condition: Bool)` ，比较 `condition` 是否为 `true` ，即 `@Assert(condition: Bool)` 等同于 `@Assert(condition: Bool, true)` 。
+1. `@Assert(leftExpr, rightExpr)`，比较 `leftExpr` 和 `rightExpr` 值是否相同。
+2. `@Assert(condition: Bool)`，比较 `condition` 是否为 `true`，即 `@Assert(condition: Bool)` 等同于 `@Assert(condition: Bool, true)` 。
 3. `@Assert[customAssertion](arguments...)`, 使用指定的参数 `arguments` 调用 `customAssertion` 函数，详见 [`@CustomAssertion`](#customassertion-宏)。
 4. `@Assert(leftExpr, rightExpr, delta: deltaExpr)` 使用 delta 参数使能近似相等功能。
 5. `@Assert(leftExpr <comparison_operator> rightExpr, delta: deltaExpr)` 使用 delta 参数使能近似相等功能。
@@ -405,7 +405,7 @@ func testfunc() {
 
 > **注意：**
 >
-> 自定义 `@Expect` 将总是返回 `Unit` ，不论 `@CustomAssertion` 修饰的函数返回值为什么类型。
+> 自定义 `@Expect` 将总是返回 `Unit`，不论 `@CustomAssertion` 修饰的函数返回值为什么类型。
 
 ### 嵌套断言
 
@@ -470,8 +470,8 @@ func customTest() {
 
 功能：`@Expect` 声明 Expect 断言，测试函数内部使用，断言失败继续执行用例。
 
-1. `@Expect(leftExpr, rightExpr)` ，比较 `leftExpr` 和 `rightExpr` 是否相同。
-2. `@Expect(condition: Bool)` ，比较 `condition` 是否为 `true` ，即 `@Expect(condition: Bool)` 等同于 `@Expect(condition: Bool, true)` 。
+1. `@Expect(leftExpr, rightExpr)`，比较 `leftExpr` 和 `rightExpr` 是否相同。
+2. `@Expect(condition: Bool)`，比较 `condition` 是否为 `true`，即 `@Expect(condition: Bool)` 等同于 `@Expect(condition: Bool, true)` 。
 3. `@Expect[customAssertion](arguments...)`, 使用指定的参数 `arguments` 调用 `customAssertion` 函数。详见 [`@CustomAssertion`](#customassertion-宏)。
 4. `@Expect(leftExpr, rightExpr, delta: deltaExpr)` 使用 delta 参数使能近似相等功能。
 5. `@Expect(leftExpr <comparison_operator> rightExpr, delta: deltaExpr)` 使用 delta 参数使能近似相等功能。
@@ -646,12 +646,12 @@ Summary: TOTAL: 2
 
 ## `@PowerAssert` 宏
 
-1. `@PowerAssert(leftExpr, rightExpr)` ，比较 `leftExpr` 和 `rightExpr` 值是否相同。
-2. `@PowerAssert(condition: Bool)` ，比较 `condition` 是否为 `true` ，即 `@PowerAssert(condition: Bool)` 等同于 `@PowerAssert(condition: Bool, true)` 。
+1. `@PowerAssert(leftExpr, rightExpr)`，比较 `leftExpr` 和 `rightExpr` 值是否相同。
+2. `@PowerAssert(condition: Bool)`，比较 `condition` 是否为 `true`，即 `@PowerAssert(condition: Bool)` 等同于 `@PowerAssert(condition: Bool, true)` 。
 3. `@PowerAssert(leftExpr, rightExpr, delta: deltaExpr)` 使用 delta 参数使能近似相等功能。
 4. `@PowerAssert(leftExpr <comparison_operator> rightExpr, delta: deltaExpr)` 使用 delta 参数使能近似相等功能。
 
-`@PowerAssert` 宏对比 `@Assert` ，可显示表达式各个可被计算的子表达式的值的详细图表，包括步骤中的异常。
+`@PowerAssert` 宏对比 `@Assert`，可显示表达式各个可被计算的子表达式的值的详细图表，包括步骤中的异常。
 
 示例：
 
@@ -709,7 +709,7 @@ Summary: TOTAL: 1
 
 语法规则为 `@Skip[expr]` 。
 
-1. `expr` 暂只支持 `true` ，表达式为 `true` 时，跳过该测试，其他均为 `false` 。
+1. `expr` 暂只支持 `true`，表达式为 `true` 时，跳过该测试，其他均为 `false` 。
 2. 默认 `expr` 为 `true` 即 `@Skip[true]` == `@Skip` 。
 
 示例：
@@ -968,7 +968,7 @@ class MyTestSuite {
 }
 ```
 
-此 DSL 可用于 `@Test`、`@Strategy`、`@Bench` 和 `@TestCase` 宏，其中 `@Test` 仅在顶级函数上时才可用。如果测试函数中同时存在 `@Bench` 和 `@TestCase` ，则只有 `@Bench` 可以包含 DSL 。
+此 DSL 可用于 `@Test`、`@Strategy`、`@Bench` 和 `@TestCase` 宏，其中 `@Test` 仅在顶级函数上时才可用。如果测试函数中同时存在 `@Bench` 和 `@TestCase`，则只有 `@Bench` 可以包含 DSL 。
 在 DSL 语法中，`in` 之前的标识符（在上面的示例中为 `x` 、`y` 和 `z` ）必须直接对应于函数的参数，参数源（在上面的示例中为 `source1` 、`source2` 和 `source3`）是任何有效的仓颉表达式（该表达式类型必须实现接口 [DataStrategy](../../unittest_common/unittest_common_package_api/unittest_common_package_interfaces.md#interface-datastrategyt)\<T> 或 [DataStrategyProcessor](../../unittest/unittest_package_api/unittest_package_classes.md#class-datastrategyprocessort)\<T>，详见下文）。
 参数源的元素类型（此类型作为泛型参数 `T` 提供给接口 [DataStrategy](../../unittest_common/unittest_common_package_api/unittest_common_package_interfaces.md#interface-datastrategyt)\<T> ）必须与相应函数参数的类型严格相同。
 
@@ -994,7 +994,7 @@ class MyTestSuite {
 - 所有已支持类型的数组类型
 - 所有已支持类型的 [Option](../../core/core_package_api/core_package_enums.md#enum-optiont) 类型
 
-> 若需要新增其他的类型支持 `random()` ，可以让该类型扩展 [Arbitrary](../../unittest_prop_test/unittest_prop_test_package_api/unittest_prop_test_package_interfaces.md#interface-arbitraryt) 。
+> 若需要新增其他的类型支持 `random()`，可以让该类型扩展 [Arbitrary](../../unittest_prop_test/unittest_prop_test_package_api/unittest_prop_test_package_interfaces.md#interface-arbitraryt) 。
 > 在参数有多个值时，`beforeEach` / `afterEach` 不会在不同值下重复执行而仅会执行一次。若确实需要在每个值下做初始化和去初始化，需要在测试主体中写。对于性能测试方案， `@Strategy` 应该用于需要从基准中排除的设置代码。没有为这种情况提供特殊的 API，因为在大多数情况下，这样的代码依赖于特定的参数值。
 
 ## `@TestTemplate` 宏
