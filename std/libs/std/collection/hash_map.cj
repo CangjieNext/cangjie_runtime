@@ -14,10 +14,10 @@
 package std.collection
 
 struct HashMapEntry<K, V> {
-    public let hash: Int64
-    public let next: Int64
-    public let key: K
-    public let value: V
+    public var hash: Int64
+    public var next: Int64
+    public var key: K
+    public var value: V
 
     @Frozen
     init(h: Int64, n: Int64, k: K, v: V) {
@@ -320,8 +320,9 @@ class HashMapEntryView<K, V> <: MapEntryView<K, V> where K <: Hashable & Equatab
             lockVersion = map.modCount
             _isAbsent = false
         } else {
-            let temp = map.entries[index]
-            map.entries[index] = HashMapEntry<K, V>(temp.hash, temp.next, temp.key, v)
+            var e = map.entries[index]
+            e.value = v
+            map.entries[index] = e
         }
     }
 }
@@ -336,12 +337,6 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
 
     /* Max size of buckets. */
     private static const MAX_BUCKET_SIZE: Int64 = 4611686018427387904
-
-    /*
-     * Load factor of the HashMap.
-     * Capacity expansion when the usage more than 75%
-     */
-    private static const LOAD_FACTOR: Float32 = 0.75
 
     /*
      * default Initialized Capacity.
@@ -510,8 +505,9 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
         while (entryIndex >= 0) {
             if (hash == entries[entryIndex].hash && key == entries[entryIndex].key) {
                 let oldValue: Option<V> = Some(entries[entryIndex].value)
-                entries[entryIndex] = HashMapEntry<K, V>(entries[entryIndex].hash, entries[entryIndex].next,
-                    entries[entryIndex].key, value)
+                var e = entries[entryIndex]
+                e.value = value
+                entries[entryIndex] = e
                 return oldValue
             }
             entryIndex = entries[entryIndex].next
@@ -542,8 +538,9 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
         var entryIndex: Int64 = buckets[bucketIndex]
         while (entryIndex >= 0) {
             if (hash == entries[entryIndex].hash && key == entries[entryIndex].key) {
-                entries[entryIndex] = HashMapEntry<K, V>(entries[entryIndex].hash, entries[entryIndex].next,
-                    entries[entryIndex].key, value)
+                var e = entries[entryIndex]
+                e.value = value
+                entries[entryIndex] = e
                 return
             }
             entryIndex = entries[entryIndex].next
@@ -598,6 +595,44 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
     }
 
     /**
+     * Associates the specified @p value with the specified @p key in this map if the key is absent.
+     * This override performs a single hash/lookup pass instead of using Map.entryView,
+     * which avoids constructing an extra HashMapEntryView on the absent path and avoids
+     * a second hash computation. Behavior matches std.collection.Map.addIfAbsent.
+     *
+     * @since 0.59.3
+     */
+    @Frozen
+    @OverflowWrapping
+    public func addIfAbsent(key: K, value: V): ?V {
+        let hash: Int64 = getHash(key.hashCode())
+        var bucketIndex: Int64 = getIndex(hash, buckets.size)
+        var entryIndex: Int64 = buckets[bucketIndex]
+        while (entryIndex >= 0) {
+            if (hash == entries[entryIndex].hash && key == entries[entryIndex].key) {
+                return Some(entries[entryIndex].value)
+            }
+            entryIndex = entries[entryIndex].next
+        }
+        if (freeSize > 0) {
+            entryIndex = freeIndex
+            freeIndex = entries[entryIndex].next
+            freeSize--
+        } else {
+            if (resize(size + 1)) {
+                bucketIndex = getIndex(hash, buckets.size)
+            }
+            entryIndex = appendIndex
+            appendIndex++
+        }
+
+        entries[entryIndex] = HashMapEntry<K, V>(hash, buckets[bucketIndex], key, value)
+        modCount++
+        buckets[bucketIndex] = entryIndex
+        return None
+    }
+
+    /**
      * Removes the key-value pair corresponding to the key based on the specified key from this mapping, if one exists.
      *
      * @param key pass in the key to be deleted.
@@ -619,8 +654,9 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
                 if (pre < 0) {
                     buckets[index] = entries[bucket].next
                 } else {
-                    let temp = entries[pre]
-                    entries[pre] = HashMapEntry<K, V>(temp.hash, entries[bucket].next, temp.key, temp.value)
+                    var e = entries[pre]
+                    e.next = entries[bucket].next
+                    entries[pre] = e
                 }
                 let removeEnt: V = entries[bucket].value
                 entries[bucket] = HashMapEntry<K, V>(-1, freeIndex, NULL_KEY, NULL_VALUE)
@@ -674,8 +710,9 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
                     if (pre < 0) {
                         buckets[i] = item.next
                     } else {
-                        let temp = entries[pre]
-                        entries[pre] = HashMapEntry<K, V>(temp.hash, item.next, temp.key, temp.value)
+                        var e = entries[pre]
+                        e.next = item.next
+                        entries[pre] = e
                     }
                     entries[next] = HashMapEntry<K, V>(-1, freeIndex, NULL_KEY, NULL_VALUE)
                     freeIndex = next
@@ -977,7 +1014,7 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
     func resize(argCap: Int64): Bool {
         var isRehash: Bool = false
         let oldBucketsSize = buckets.size
-        let allowedBucketSize = Int64(Float32(oldBucketsSize) * LOAD_FACTOR)
+        let allowedBucketSize = oldBucketsSize - (oldBucketsSize >> 2)
 
         // Except for reserve, following two if condition would not be satisfied at the same time.
         if (argCap >= allowedBucketSize) {
@@ -986,8 +1023,9 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
             for (i in 0..entries.size) {
                 if (entries[i].hash >= 0) {
                     let bucket: Int64 = getIndex(entries[i].hash, newCapOfBuckets)
-                    entries[i] = HashMapEntry<K, V>(entries[i].hash, newBuckets[bucket], entries[i].key,
-                        entries[i].value)
+                    var e = entries[i]
+                    e.next = newBuckets[bucket]
+                    entries[i] = e
                     newBuckets[bucket] = i
                 }
             }
@@ -1045,7 +1083,9 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
         if (pre < 0) {
             buckets[index] = entries[pos].next
         } else {
-            entries[pre] = HashMapEntry<K, V>(entries[pre].hash, entries[pos].next, entries[pre].key, entries[pre].value)
+            var e = entries[pre]
+            e.next = entries[pos].next
+            entries[pre] = e
         }
         entries[pos] = HashMapEntry<K, V>(-1, freeIndex, unsafe { zeroValue<K>() }, unsafe { zeroValue<V>() })
         freeIndex = bucket
