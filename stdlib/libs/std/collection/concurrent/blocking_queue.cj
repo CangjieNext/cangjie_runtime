@@ -61,6 +61,7 @@ public class LinkedBlockingQueue<E> {
     // 对"已预约但尚未提交"的槽位进行 bounded 控制，从而把生产者的预约动作和消费者的
     // 认领动作与 Monitor 解耦，只在队列满/空时才落到 Monitor 上阻塞。
     private let putQsize = AtomicInt64(0) // Number of reserved slots (0 <= putQsize <= capacity).
+    private let takeQsize = AtomicInt64(0) // Number of elements that are being dequeued (kept for ABI compatibility).
     private let front: AtomicReference<Block<E>> // head of BlockingQueue.
     private let rear: AtomicReference<Block<E>> // tail of BlockingQueue.
     private let count = AtomicInt64(0) // Number of committed elements in the queue.
