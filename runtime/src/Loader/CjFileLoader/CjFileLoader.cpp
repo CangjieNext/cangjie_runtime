@@ -7,6 +7,10 @@
 
 #include "CjFileLoader.h"
 
+#if defined(__ANDROID__)
+#include <dlfcn.h>
+#endif
+
 #include "ExceptionManager.inline.h"
 #include "ObjectManager.inline.h"
 #include "TypeInfoManager.h"
@@ -392,6 +396,32 @@ void CJFileLoader::ClearLoadedFiles()
 bool CJFileLoader::LibInit(const char* libName)
 {
     BaseFile* baseFile = GetBaseFile(libName);
+#if defined(__ANDROID__)
+    if (baseFile == nullptr && libName != nullptr) {
+        // Android fallback for APK-direct-mapped modules. When an .so is mapped directly from an APK
+        // (extractNativeLibs=false), dladdr() reports the APK path, so the module's constructor
+        // registers the base file as "base.apk" and the name lookup above misses. Instead of
+        // renaming anything, resolve the module's metadata address through the dlopen handle and
+        // select the base file by exact metadata address. "_CJMetadataStart" is exported by every
+        // Cangjie module and its address equals BaseFile::GetFileMetaAddr(), so
+        // GetBaseFileByMetaAddr() matches precisely. No name, path or index is modified, and this
+        // also works for modules that were already loaded before this call.
+        CString reqBaseName = Os::Path::GetBaseName(libName);
+        auto handlerIt =
+            std::find_if(cjLibHandlers.begin(), cjLibHandlers.end(), [&reqBaseName](const LibNameToHandler& info) {
+                return reqBaseName == Os::Path::GetBaseName(info.baseName.Str());
+            });
+        if (handlerIt != cjLibHandlers.end() && handlerIt->handler != nullptr) {
+            void* metadata = dlsym(handlerIt->handler, "_CJMetadataStart");
+            if (metadata != nullptr) {
+                BaseFile* byMetaAddr = GetBaseFileByMetaAddr(reinterpret_cast<Uptr>(metadata));
+                if (byMetaAddr != nullptr && byMetaAddr->IsCompatible()) {
+                    baseFile = byMetaAddr;
+                }
+            }
+        }
+    }
+#endif
     if (baseFile == nullptr) {
         return false;
     }
