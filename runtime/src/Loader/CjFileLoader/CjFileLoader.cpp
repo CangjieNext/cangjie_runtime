@@ -7,6 +7,10 @@
 
 #include "CjFileLoader.h"
 
+#if defined(__ANDROID__)
+#include <dlfcn.h>
+#endif
+
 #include "ExceptionManager.inline.h"
 #include "ObjectManager.inline.h"
 #include "TypeInfoManager.h"
@@ -392,6 +396,32 @@ void CJFileLoader::ClearLoadedFiles()
 bool CJFileLoader::LibInit(const char* libName)
 {
     BaseFile* baseFile = GetBaseFile(libName);
+#if defined(__ANDROID__)
+    if (baseFile == nullptr && libName != nullptr) {
+        // Android fallback for APK-direct-mapped Cangjie modules. On Android 6 an .so mapped directly
+        // from an APK (extractNativeLibs=false) is reported by dladdr() as the APK path, so the module
+        // is registered as "base.apk" and the name lookup above misses (on Android 7+ the reported
+        // path already carries the .so name, so this fallback is not needed). Instead of renaming,
+        // resolve the module's metadata address through its dlopen handle via "_CJMetadataStart"
+        // (emitted by the Cangjie toolchain; its address equals BaseFile::GetFileMetaAddr()), then
+        // select the base file by exact metadata address. No name/path/index is changed and it also
+        // works for already-loaded modules; a missing symbol or no match keeps the original failure.
+        CString reqBaseName = Os::Path::GetBaseName(libName);
+        auto handlerIt =
+            std::find_if(cjLibHandlers.begin(), cjLibHandlers.end(), [&reqBaseName](const LibNameToHandler& info) {
+                return reqBaseName == Os::Path::GetBaseName(info.baseName.Str());
+            });
+        if (handlerIt != cjLibHandlers.end() && handlerIt->handler != nullptr) {
+            void* metadata = dlsym(handlerIt->handler, "_CJMetadataStart");
+            if (metadata != nullptr) {
+                BaseFile* byMetaAddr = GetBaseFileByMetaAddr(reinterpret_cast<Uptr>(metadata));
+                if (byMetaAddr != nullptr && byMetaAddr->IsCompatible()) {
+                    baseFile = byMetaAddr;
+                }
+            }
+        }
+    }
+#endif
     if (baseFile == nullptr) {
         return false;
     }
