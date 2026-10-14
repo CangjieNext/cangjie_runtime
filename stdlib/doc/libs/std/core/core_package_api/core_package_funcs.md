@@ -160,11 +160,7 @@ class Rectangle <: ToString {
 }
 
 main() {
-    try {
-        throw NegativeArraySizeException("I am an Exception!")
-    } catch (e: NegativeArraySizeException) {
-        eprint<Rectangle>(Rectangle(10, 20), flush: true)
-    }
+    eprint<Rectangle>(Rectangle(10, 20), flush: true)
 }
 ```
 
