@@ -21,6 +21,42 @@ public:
 
     void MergeRegionList(RegionList& regionList, RegionInfo::RegionType regionType);
 
+    void SplitList(RegionList& dst1, RegionList& dst2, size_t threshold);
+
+    bool SplitByRegionCount(RegionList& dst, size_t count)
+    {
+        std::lock_guard<std::mutex> lock(listMutex);
+        if (count == 0 || listHead == nullptr) {
+            return false;
+        }
+        RegionInfo* splitTail = listHead;
+        size_t splitCount = 1;
+        while (splitCount < count && splitTail->GetNextRegion() != nullptr) {
+            splitTail = splitTail->GetNextRegion();
+            ++splitCount;
+        }
+        RegionInfo* remainHead = splitTail->GetNextRegion();
+        splitTail->SetNextRegion(nullptr);
+        if (remainHead != nullptr) {
+            remainHead->SetPrevRegion(nullptr);
+        }
+        dst.listHead = listHead;
+        dst.listTail = splitTail;
+        dst.regionCount = splitCount;
+        dst.unitCount = 0;
+        for (RegionInfo* region = dst.listHead; region != nullptr; region = region->GetNextRegion()) {
+            dst.unitCount += region->GetUnitCount();
+        }
+        listHead = remainHead;
+        if (listHead == nullptr) {
+            listTail = nullptr;
+        }
+        regionCount -= splitCount;
+        unitCount -= dst.GetUnitCount();
+
+        return true;
+    }
+
     void DeleteRegion(RegionInfo* del)
     {
         if (del == nullptr) {
@@ -90,6 +126,16 @@ public:
         return currentHead;
     }
 
+    RegionInfo* TakeHeadRegionNoLock()
+    {
+        if (listHead == nullptr) {
+            return nullptr;
+        }
+        RegionInfo* currentHead = listHead;
+        DeleteRegionLocked(currentHead);
+        return currentHead;
+    }
+
     RegionInfo* TakeHeadRegion(RegionInfo::RegionType newType)
     {
         std::lock_guard<std::mutex> lg(listMutex);
@@ -136,6 +182,29 @@ public:
         std::lock_guard<std::mutex> lock(listMutex);
         for (RegionInfo* node = listHead; node != nullptr; node = node->GetNextRegion()) {
             node->SetRegionType(type);
+        }
+    }
+
+    void PrependRegionNoLock(RegionInfo* region, RegionInfo::RegionType type)
+    {
+        PrependRegionLocked(region, type);
+    }
+
+    void RemoveRegionNoLock(RegionInfo* region)
+    {
+        if (region != nullptr) {
+            DeleteRegionLocked(region);
+        }
+    }
+
+    void VisitAllRegionsUntilSuccNoLock(const std::function<bool(RegionInfo*)>& visitor)
+    {
+        for (RegionInfo* node = listHead; node != nullptr;) {
+            RegionInfo* next = node->GetNextRegion();
+            if (visitor(node)) {
+                return;
+            }
+            node = next;
         }
     }
 
