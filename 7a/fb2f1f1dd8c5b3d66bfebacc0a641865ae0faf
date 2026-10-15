@@ -1,0 +1,21 @@
+stdlib/libs/std/ast/native/ast_api.cpp
+  s_6da088aca49efc::t_00360fa4a5101d 109-111
+  s_6da088aca49efc::t_389c175bc1dd45 193-195
+  s_6da088aca49efc::t_fe410214b22692 53-62
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "7afb2f1f1dd8c5b3d66bfebacc0a641865ae0faf",
+  "prompts": {},
+  "sessions": {
+    "s_6da088aca49efc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c07d6510-5277-489b-b31d-3f916e893b13",
+        "model": "glm-5.3-flash"
+      },
+      "human_author": null
+    }
+  }
+}
