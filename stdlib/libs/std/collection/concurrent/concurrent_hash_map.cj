@@ -486,6 +486,22 @@ class ConcurrentHashMapEntryView<K, V> <: MapEntryView<K, V> {
             this._value = val
         }
     }
+
+    // MapEntryView 的 local 形态（map_interface.cj 新增抽象声明）：ConcurrentHashMap
+    // 未适配 local mode（无任何 local 成员），本地场景不存在合法实例，显式拒绝。
+    public prop key: K @local? {
+        get() {
+            throw UnimplementedException("ConcurrentHashMapEntryView does not support local mode")
+        }
+    }
+    public mut prop value: ?V @local! {
+        get() {
+            throw UnimplementedException("ConcurrentHashMapEntryView does not support local mode")
+        }
+        set(val) {
+            throw UnimplementedException("ConcurrentHashMapEntryView does not support local mode")
+        }
+    }
 }
 
 /**

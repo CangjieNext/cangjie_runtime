@@ -38,6 +38,16 @@ class ArrayListIterator<T> <: Iterator<T> {
         myData = data
         initVersion = data.myVersion
     }
+    @Frozen
+    exclave init(this @local!, data: ArrayList<T> @local!) {
+        myData = data
+        initVersion = data.myVersion
+    }
+    @Frozen
+    exclave init(this @local?, data: ArrayList<T> @local?) {
+        myData = data
+        initVersion = data.myVersion
+    }
 
     /**
      * Returns the next element in the iteration.
@@ -64,43 +74,36 @@ class ArrayListIterator<T> <: Iterator<T> {
         }
     }
     @Frozen
-    exclave init(this @local!, data: ArrayList<T> @local!) {
-        myData = data
-        initVersion = data.myVersion
-    }
-
-    @Frozen
-    exclave init(this @local?, data: ArrayList<T> @local?) {
-        myData = data
-        initVersion = data.myVersion
-    }
-
-    @Frozen
     @OverflowWrapping
-    public exclave func next(this @local!): Option<T> @local! {
+    public exclave func next(this @local!): ?T @local! {
         if (myData.myVersion != initVersion) {
             throw ConcurrentModificationException()
         }
-        if (this.myPosition < myData.size) {
-            let value: T @local! = myData.myData[myPosition]
-            this.myPosition++
-            return Some<T>(value)
-        }
-        None<T>
-    }
 
+        if (this.myPosition < myData.size) {
+            let v: Option<T> @local! = Option<T>.Some(unsafe { myData.myData.getUnchecked(myPosition) })
+            this.myPosition++
+            return v
+        } else {
+            let n: Option<T> @local! = Option<T>.None
+            return n
+        }
+    }
     @Frozen
     @OverflowWrapping
-    public exclave func next(this @local?): Option<T> @local? {
+    public exclave func next(this @local?): ?T @local? {
         if (myData.myVersion != initVersion) {
             throw ConcurrentModificationException()
         }
+
         if (this.myPosition < myData.size) {
-            let value: T @local? = myData.myData[myPosition]
+            let v: Option<T> @local? = Option<T>.Some(myData.myData[myPosition])
             this.myPosition++
-            return Some<T>(value)
+            return v
+        } else {
+            let n: Option<T> @local? = Option<T>.None
+            return n
         }
-        None<T>
     }
 }
 
@@ -294,9 +297,11 @@ public class ArrayList<T> <: List<T> {
                 mySize = src.size
         }
     }
-    // gap audit 2026-09-24 #17 / §9.1(b)：@local? 版 Collection 构造，与 @local! 版
-    // （:256）同形：接口接收者上的 size/toArray 分派不受支持，故按具体类型 match；
-    // @local? 上下文无拷贝手段，均为共享引用（写穿透风险登记同 :245 的
+    // gap audit 2026-09-24 #17 / §9.1(b)：@local? 版 Collection 构造。与 @local! 版
+    // （:277）对齐：Array/ArrayList 走具体类型分支；其余类型改走 `toArray(this @local?)`
+    // 通用回退（09-30 检视 #4 同款口径；早前无条件抛 IllegalArgumentException）。
+    // 未实现 toArray(this @local?) 的 Collection 会落接口默认体抛 UnimplementedException
+    // （可诊断），不再静默拒绝。@local? 上下文均为共享引用（写穿透风险登记见
     // init(this @local?, elements: Array<T> @local?)）。
     @Frozen
     public exclave init(this @local?, elements: Collection<T> @local?) {
@@ -308,7 +313,9 @@ public class ArrayList<T> <: List<T> {
                 myData = list.myData
                 mySize = list.mySize
             case _ =>
-                throw IllegalArgumentException("Unsupported collection type for @local? ArrayList init.")
+                let src: Array<T> @local? = elements.toArray()
+                myData = src
+                mySize = src.size
         }
     }
 
@@ -727,7 +734,7 @@ public class ArrayList<T> <: List<T> {
 
     // 提案 10.1：@local! 版 remove(range)
     @Frozen
-    public exclave func remove(this @local!, range: Range<Int64> @local?): Unit {
+    public exclave func remove(this @local!, range: Range<Int64>): Unit {
         if (range.step != 1) {
             throw IllegalArgumentException("the value of the step should be r'1'")
         }
@@ -1175,13 +1182,6 @@ public class ArrayList<T> <: List<T> {
             action(myData[i])
         }
     }
-    @When[env != "ohos"]
-    public exclave func forEach(this @local!, action: ((T @local!) -> Unit) @local?): Unit {
-        for (i in 0..mySize) {
-            action(myData[i])
-        }
-    }
-
     /**
      * @description Determine whether all elements in the ArrayList satisfy the condition.
      * 
@@ -3082,105 +3082,13 @@ extend<T> Array<T> {
 }
 
 /**
- * ArrayList implements ListOfCopyable for @local? instances where T <: Copyable (提案 6.2)。
+ * ArrayList @local? 实例的 Copyable 约束扩展（提案 6.2；原 ListOfCopyable 接口已移除，
+ * 成员保留为普通扩展方法）。
  * 编译器限制：@local? class 实例不能重绑 non-Copyable 字段、不能把 `T @local?` 值
  * 显式转无标。因此全部元素搬移用 Array.copyTo（Copyable 泛型下可行），
  * predicate 用 non-local 临时数组取无标值，零值回写用无标 zeroValue<T>()。
  */
-extend<T> ArrayList<T> <: ListOfCopyable<T> where T <: Copyable {
-    @Frozen
-    public func remove(this @local?, at!: Int64): T {
-        if (at < 0 || at >= mySize) {
-            throw IndexOutOfBoundsException(
-                "The size of ArrayList is ${this.size}, but the index is ${at}.")
-        }
-        let one: Array<T> = Array<T>(1, repeat: unsafe { zeroValue<T>() })
-        this.myData.copyTo(one, at, 0, 1)
-        let removed = one[0]
-        let len: Int64 = mySize - at - 1
-        this.myData.copyTo(this.myData, at + 1, at, len)
-        this.myData[mySize - 1] = unsafe { zeroValue<T>() }
-        mySize--
-        myVersion++
-        return removed
-    }
-
-    @Frozen
-    public func remove(this @local?, range: Range<Int64> @local?): Unit {
-        if (range.step != 1) {
-            throw IllegalArgumentException("the value of the step should be r'1'")
-        }
-
-        var start: Int64 = range.start
-        var end: Int64 = range.end
-        if (range.isClosed) {
-            end = end + 1
-        }
-
-        if (!range.hasEnd) {
-            end = this.mySize
-        }
-        if (!range.hasStart) {
-            start = 0
-        }
-        if (start >= end) {
-            return
-        }
-        if (start < 0 || end < 0 || end > this.mySize) {
-            throw IndexOutOfBoundsException(
-                "The size of ArrayList is ${this.size}, but the start is ${start} and the end is ${end}.")
-        }
-
-        let moveLen = this.mySize - end
-        let removeLen = end - start
-        this.myData.copyTo(this.myData, end, start, moveLen)
-        for (i in 0..removeLen) {
-            this.myData[mySize - i - 1] = unsafe { zeroValue<T>() }
-        }
-        mySize = mySize - removeLen
-        myVersion++
-    }
-
-    @Frozen
-    public func removeIf(this @local?, predicate: ((T) -> Bool) @local?): Unit {
-        let tmpArr: Array<T> = Array<T>(mySize, repeat: unsafe { zeroValue<T>() })
-        this.myData.copyTo(tmpArr, 0, 0, mySize)
-        var i: Int64 = 0
-        for (j in 0..mySize) {
-            let lockVersion = myVersion
-            let needDelete = predicate(tmpArr[j])
-            if (myVersion != lockVersion) {
-                throw ConcurrentModificationException("The predicate cannot contain a modify operation.")
-            }
-
-            if (!needDelete) {
-                if (i != j) {
-                    tmpArr[i] = tmpArr[j]
-                }
-                i++
-            }
-        }
-
-        tmpArr.copyTo(this.myData, 0, 0, i)
-        for (j in i..mySize) {
-            this.myData[j] = unsafe { zeroValue<T>() }
-        }
-        mySize = i
-        myVersion++
-    }
-
-    @Frozen
-    public func clear(this @local?): Unit {
-        if (mySize > 0) {
-            let zero: T = unsafe { zeroValue<T>() }
-            for (i in mySize - 1..=0 : -1) {
-                this.myData[i] = zero
-            }
-            mySize = 0
-        }
-        myVersion++
-    }
-
+extend<T> ArrayList<T> where T <: Copyable {
     @Frozen
     @OverflowWrapping
     public operator func [](this @local?, index: Int64, value!: T): Unit {
@@ -3189,121 +3097,6 @@ extend<T> ArrayList<T> <: ListOfCopyable<T> where T <: Copyable {
                 "The size of ArrayList is ${this.size}, but the index is ${index}.")
         }
         this.myData[index] = value
-        myVersion++
-    }
-
-    // ==================== 提案 6.2：@local? 版设置方法 ====================
-    // 容量足够时按 Copyable 扩展逐元素写入；需要扩容的分支抛 UnimplementedException
-    // （提案 7 节的降级约定）。原因：`@local?` 类实例禁止重绑 non-Copyable 成员——
-    // "cannot assign to member of @local? value of non copy type outside its constructor
-    // and finalizer"（实测三种写法：赋 heap Array、赋新建 @local! Array、exclave 内赋值，
-    // 全部被编译拒绝），而 grow 必须把新容量的 Array<T> 赋回 myData，故
-    // grow(this @local?) / reserve(this @local?) 的真实扩容无法实现。
-    // 需要增删容量的调用方应先把实例转成 @local!（Array.cloneToLocal）。
-    @Frozen
-    public func add(this @local?, element: T): Unit {
-        if (mySize == myData.size) {
-            throw UnimplementedException(localGrowUnsupportedMessage("add"))
-        }
-        this.myData[mySize] = element
-        mySize++
-        myVersion++
-    }
-
-    @Frozen
-    @OverflowWrapping
-    public func add(this @local?, element: T, at!: Int64): Unit {
-        // checkRangeInsert 是类体内的 private 成员，extend 块不可见（提案 6.2 的
-        // “成员可见性处理”即指此），故在此重实现同一检查。
-        if (at > mySize || at < 0) {
-            throw IndexOutOfBoundsException("index: ${at}, size: ${mySize}")
-        }
-        if (mySize == myData.size) {
-            throw UnimplementedException(localGrowUnsupportedMessage("add"))
-        }
-        this.myData.copyTo(this.myData, at, at + 1, mySize - at)
-        this.myData[at] = element
-        mySize++
-        myVersion++
-    }
-
-    @Frozen
-    public func add(this @local?, all!: Collection<T> @local?): Unit {
-        // `Collection<T> @local?` 上无法访问接口成员（size/toArray 分派不支持），
-        // 与 @local! 版同样改为 match 具体类型后在分支内取 size。
-        let cSize: Int64
-        match (all) {
-            case arr: Array<T> => cSize = arr.size
-            case arr: ArrayList<T> => cSize = arr.size
-            case _ => throw IllegalArgumentException("Unsupported collection type for @local? add.")
-        }
-        if (cSize <= 0) {
-            return
-        }
-        if (mySize + cSize > myData.size) {
-            throw UnimplementedException(localGrowUnsupportedMessage("add"))
-        }
-        match (all) {
-            case arr: Array<T> => arr.copyTo(this.myData, 0, mySize, cSize)
-            case arr: ArrayList<T> => arr.myData.copyTo(this.myData, 0, mySize, cSize)
-            case _ =>
-                throw IllegalArgumentException("Unsupported collection type for @local? add.")
-        }
-        mySize = mySize + cSize
-        myVersion++
-    }
-
-    @Frozen
-    @OverflowWrapping
-    public func add(this @local?, all!: Collection<T> @local?, at!: Int64): Unit {
-        if (at > mySize || at < 0) {
-            throw IndexOutOfBoundsException("index: ${at}, size: ${mySize}")
-        }
-        let cSize: Int64
-        match (all) {
-            case arr: Array<T> => cSize = arr.size
-            case arr: ArrayList<T> => cSize = arr.size
-            case _ => throw IllegalArgumentException("Unsupported collection type for @local? add(all, at).")
-        }
-        if (cSize <= 0) {
-            return
-        }
-        if (mySize + cSize > myData.size) {
-            throw UnimplementedException(localGrowUnsupportedMessage("add"))
-        }
-        this.myData.copyTo(this.myData, at, at + cSize, mySize - at)
-        match (all) {
-            case arr: Array<T> => arr.copyTo(this.myData, 0, at, cSize)
-            case arr: ArrayList<T> => arr.myData.copyTo(this.myData, 0, at, cSize)
-            case _ =>
-                throw IllegalArgumentException("Unsupported collection type for @local? add(all, at).")
-        }
-        mySize = mySize + cSize
-        myVersion++
-    }
-
-    // 提案 6.2：@local? 版 reserve（已满足时为空操作，需扩容时降级抛错）
-    @Frozen
-    public func reserve(this @local?, additional: Int64): Unit {
-        if (myData.size - mySize >= additional) {
-            return
-        }
-        throw UnimplementedException(localGrowUnsupportedMessage("reserve"))
-    }
-
-    // 提案 6.2：@local? 版 reverse（纯元素交换，不需要扩容，完整可用）
-    @Frozen
-    public func reverse(this @local?): Unit {
-        var i: Int64 = 0
-        var j: Int64 = mySize - 1
-        while (i < j) {
-            // 逐元素交换走 Array 的 Copyable 扩展：`this.myData[i] = this.myData[j]`
-            // 会被拒绝（"cannot assign to this subscript expression"，右值半模式元素需要
-            // `[]=(this @local?, index, value!: T @local?)` 重载才能落回 half-mode 数组）。
-            this.myData.swap(i, j)
-            i++
-            j--
-        }
         myVersion++
     }
 
@@ -3325,10 +3118,4 @@ extend<T> ArrayList<T> <: ListOfCopyable<T> where T <: Copyable {
         newArr.mySize = mySize
         newArr
     }
-}
-
-private func localGrowUnsupportedMessage(op: String): String {
-    "ArrayList.${op}(this @local?) cannot grow: the compiler forbids assigning a non-Copyable member "
-        + "of a @local? instance outside its constructor, and growing needs to rebind myData. "
-        + "Convert the instance to @local! (Array.cloneToLocal) before growing."
 }

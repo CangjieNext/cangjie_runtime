@@ -1197,6 +1197,22 @@ struct TreeMapEntryView<K, V> <: MapEntryView<K, V> where K <: Comparable<K> {
         }
     }
 
+    // MapEntryView 的 local 形态（map_interface.cj 新增抽象声明）：TreeMap 未适配
+    // local mode（无任何 local 成员），本地场景不存在合法实例，按既定回退规则显式拒绝。
+    public prop key: K @local? {
+        get() {
+            throw UnimplementedException("TreeMapEntryView does not support local mode")
+        }
+    }
+    public mut prop value: ?V @local! {
+        get() {
+            throw UnimplementedException("TreeMapEntryView does not support local mode")
+        }
+        set(v) {
+            throw UnimplementedException("TreeMapEntryView does not support local mode")
+        }
+    }
+
     func nextNode(): TreeMapEntryView<K, V> {
         let sr = this.map.successor(curNode)
         return TreeMapEntryView<K, V>(this.map, sr)

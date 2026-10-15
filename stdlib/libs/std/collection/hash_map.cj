@@ -563,7 +563,6 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
         throw IllegalArgumentException("Unsupported element source for @local? HashMap init: use the @local! overload.")
     }
 
-
     /**
      * Initializes a HashMap with an incoming @p DEFAULT_CAPACITY for initialization.
      *
@@ -801,6 +800,29 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
         buckets[bucketIndex] = entryIndex
     }
 
+    @Frozen
+    @OverflowWrapping
+    protected exclave func putWithoutResize(this @local!, key: K @local!, value: V @local!): Unit {
+        let hash: Int64 = getHash(key.hashCode())
+        var bucketIndex: Int64 = getIndex(hash, buckets.size)
+        var entryIndex: Int64 = buckets[bucketIndex]
+        while (entryIndex >= 0) {
+            if (hash == entries[entryIndex].hash && key == entries[entryIndex].key) {
+                entries[entryIndex] = HashMapEntry<K, V>(entries[entryIndex].hash, entries[entryIndex].next,
+                    entries[entryIndex].key, value) @local!
+                return
+            }
+            entryIndex = entries[entryIndex].next
+        }
+
+        entryIndex = appendIndex
+        appendIndex++
+
+        entries[entryIndex] = HashMapEntry<K, V>(hash, buckets[bucketIndex], key, value) @local!
+        modCount++
+        buckets[bucketIndex] = entryIndex
+    }
+
     /**
      * A view of a single entry in a hashmap, which can be empty or has a value.
      *
@@ -823,7 +845,7 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
         return HashMapEntryView<K, V>(true, key, hash, entryIndex, this)
     }
     @Frozen
-    public exclave func entryView(this @local!, key: K @local?): MapEntryView<K, V> @local! {
+    public exclave func entryView(this @local!, key: K @local!): MapEntryView<K, V> @local! {
         // 已知编译器限制：MapEntryView 接口要求 plain 的 key/value 属性，而返回的本地视图
         // 必须持有 `@local!` 的 map 引用；编译器禁止把局部 map 引用存入普通字段
         // （字段不能标注 locality，接收者带 locality 时字段写入又要求同局部性的值）。
@@ -833,7 +855,7 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
     }
 
     @Frozen
-    public exclave func entryView(this @local?, key: K @local?): MapEntryView<K, V> @local? {
+    public exclave func entryView(this @local?, key: K @local!): MapEntryView<K, V> @local? {
         throw UnimplementedException("HashMap.entryView() is unavailable in local mode: " +
             "MapEntryView requires plain key/value properties, which cannot hold a local map reference.")
     }
@@ -1200,13 +1222,6 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
         c
     }
 
-    @Frozen
-    public exclave func clone(this @local?): HashMap<K, V> @local? {
-        // @local? 形态下元素为 @local?，无法写入本地新表；显式拒绝（见 toArray 说明）。
-        throw UnimplementedException("HashMap.clone() is unavailable for a @local? receiver; " +
-            "use the @local! form.")
-    }
-
     /**
      * Returns the Set view of all keys in this HashMap.
      *
@@ -1349,16 +1364,6 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
     @When[env != "ohos"]
     @Frozen
     public func forEach(action: (K, V) -> Unit): Unit {
-        let size: Int64 = entries.size
-        for (i in 0..size) {
-            if (entries[i].hash >= 0) {
-                action(entries[i].key, entries[i].value)
-            }
-        }
-    }
-
-    @Frozen
-    public exclave func forEach(this @local!, action: ((K @local!, V @local!) -> Unit) @local?) {
         let size: Int64 = entries.size
         for (i in 0..size) {
             if (entries[i].hash >= 0) {
