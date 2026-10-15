@@ -520,7 +520,7 @@ public:
 
     void RemoveLocalFinalizer(BaseObject* obj);
 
-    void AddLocalRoot(BaseObject* obj);
+    void AddLocalRoot(BaseObject* obj, RefField<false>* field);
 
     void VisitLocalObjectAllocatorRoots(const RootVisitor& visitor);
 
