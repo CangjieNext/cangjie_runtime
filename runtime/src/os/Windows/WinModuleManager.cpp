@@ -82,9 +82,13 @@ void WinModuleManager::ReadWinModuleAtInit()
 {
     // get windows PEB(Process Environment Block)
     PPEB ppeb = (PPEB)__readgsqword(0x60); // 60: gs:0x60 is the address of PEB
-    PLIST_ENTRY head = ppeb->Ldr->InMemoryOrderModuleList.Flink;
-    PLIST_ENTRY iterator = head;
-    do {
+    // InMemoryOrderModuleList is a circular list whose head is the LIST_ENTRY embedded in PEB_LDR_DATA.
+    // Iterating has to start at head->Flink and stop when the iteration comes back to that head: using
+    // the first entry as the stop condition walks the list head itself as a module entry and reads
+    // baseDllName from unrelated memory right after PEB_LDR_DATA.
+    PLIST_ENTRY head = &ppeb->Ldr->InMemoryOrderModuleList;
+    PLIST_ENTRY iterator = head->Flink;
+    while (iterator != head) {
         Uptr entryAddress = reinterpret_cast<Uptr>(iterator) - offsetof(LdrDataTableEntry, inMemoryOrderLinks);
         LdrDataTableEntry* ldrDataEntry = reinterpret_cast<LdrDataTableEntry*>(entryAddress);
         // get moduleName
@@ -113,7 +117,7 @@ void WinModuleManager::ReadWinModuleAtInit()
         }
 
         iterator = iterator->Flink;
-    } while (iterator != head);
+    }
 }
 
 void WinModuleManager::ReadModuleInfo(HMODULE* moduleHandlers, int moduleHandlersCapacity)
