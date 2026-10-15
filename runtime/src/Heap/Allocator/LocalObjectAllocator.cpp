@@ -12,6 +12,7 @@
 #include "Base/CString.h"
 #include "Base/Globals.h"
 #include "Base/Log.h"
+#include "Base/MemUtils.h"
 #include "Common/NativeAllocator.h"
 #include "ExceptionManager.inline.h"
 #include "Heap/Heap.h"
@@ -21,8 +22,8 @@
 
 #include <algorithm>
 #include <atomic>
-#include <cstdlib>
 #include <cstdint>
+#include <cstdlib>
 #include <limits>
 #include <mutex>
 #include <new>
@@ -33,7 +34,9 @@ class LocalObjectRootRegistry {
 public:
     void AddFinalizer(BaseObject* obj);
     bool RunFinalizer(Mutator& mutator, BaseObject* obj);
-    void AddLocalRoot(BaseObject* obj);
+    void AddLocalRoot(BaseObject* obj, RefField<false>* field);
+    void VisitRegisteredObjects(
+        const std::function<void(BaseObject*, LocalObjectInfo::RootKind, uint8_t)>& visitor) const;
     void VisitLocalObjectRefFields(const RootVisitor& visitor) const;
     bool RunPendingFinalizers(Mutator& mutator);
 
@@ -49,13 +52,18 @@ private:
         FinalizerState state;
     };
 
+    struct LocalRootEntry {
+        BaseObject* owner;
+        RefField<false>* field;
+    };
+
     void VisitOneLocalObject(BaseObject* obj, const RootVisitor& visitor) const;
     bool RunFinalizerAt(Mutator& mutator, size_t idx);
 
     // DONE entries retain the object identity to reject accidental re-registration,
     // but are not visited as roots and can be compacted if churn becomes measurable.
     std::vector<FinalizerEntry> finalizers;
-    std::vector<BaseObject*> localRoots;
+    std::vector<LocalRootEntry> localRoots;
 };
 
 // Heap-backed local allocator. It preserves the current local region
@@ -80,7 +88,7 @@ public:
     }
     void AddFinalizer(Mutator& mutator, BaseObject* obj) override;
     void RemoveFinalizer(Mutator& mutator, BaseObject* obj) override;
-    void AddLocalRoot(Mutator& mutator, BaseObject* obj) override;
+    void AddLocalRoot(Mutator& mutator, BaseObject* obj, RefField<false>* field) override;
     void VisitLocalObjectRefFields(Mutator& mutator, const RootVisitor& visitor) override;
     void OnMutatorExit(Mutator& mutator) override;
 
@@ -121,11 +129,12 @@ private:
 // Native local allocator.  The active storage is a doubly-linked chunk list and
 // region lifetime is represented by an explicit frame snapshot (top chunk + bump
 // pointer). This keeps nested regions cheap: ending a region only rolls back the
-// suffix allocated after its snapshot. Detached default-sized chunks can
-// optionally be cached per mutator, but the cache is disabled by default.
+// suffix allocated after its snapshot.
 class NativeLocalObjectAllocator final : public LocalObjectAllocator {
 public:
-    NativeLocalObjectAllocator();
+    static constexpr size_t DEFAULT_REGION_LIMIT = 256 * MB;
+
+    explicit NativeLocalObjectAllocator(size_t regionLimit) : regionLimit(regionLimit) {}
     ~NativeLocalObjectAllocator() override = default;
 
     bool StartRegion(Mutator& mutator, FrameAddress* ownerFA) override;
@@ -136,9 +145,12 @@ public:
     size_t GetAllocatedObjectBytes() const override;
     void AddFinalizer(Mutator& mutator, BaseObject* obj) override;
     void RemoveFinalizer(Mutator& mutator, BaseObject* obj) override;
-    void AddLocalRoot(Mutator& mutator, BaseObject* obj) override;
+    void AddLocalRoot(Mutator& mutator, BaseObject* obj, RefField<false>* field) override;
     void VisitLocalObjectRefFields(Mutator& mutator, const RootVisitor& visitor) override;
     void OnMutatorExit(Mutator& mutator) override;
+    void VisitLocalObjects(const LocalObjectVisitor& visitor) const override;
+    void VisitLocalRoots(const LocalObjectVisitor& visitor) const override;
+    bool HasLocalObjects() const override { return true; }
 
 private:
     struct RegionFrame;
@@ -147,11 +159,9 @@ private:
         RegionChunk* next = nullptr;
         MAddress base = 0;
         MAddress top = 0;
-        MAddress end = 0;
         size_t capacity = 0;
-        void* memory = nullptr;
-        RegionFrame* ownerFrame = nullptr;
-        bool largeObject = false;
+
+        MAddress GetEnd() const { return base + capacity; }
     };
 
     struct RegionFrame {
@@ -159,46 +169,44 @@ private:
         uint8_t* top = nullptr;
         RegionChunk* chunk = nullptr;
         FrameAddress* ownerFA = nullptr;
+        size_t allocatedBytes = 0;
         LocalObjectRootRegistry rootRegistry;
     };
 
     struct MutatorData {
+        Mutator* ownerMutator = nullptr;
         RegionChunk* regionData = nullptr;
         RegionChunk* currentChunk = nullptr;
-        RegionChunk* freeChunks = nullptr;
         uint8_t* regionTop = nullptr;
         RegionFrame* currentFrame = nullptr;
     };
 
     static constexpr size_t DEFAULT_CHUNK_SIZE = 4 * KB;
 
-    static bool ReadRegionCacheFlag();
     ALWAYS_INLINE MutatorData* GetData(const Mutator& mutator) const
     {
         return static_cast<MutatorData*>(mutator.GetLocalObjectAllocatorData());
     }
     MutatorData* CreateData(Mutator& mutator);
-    RegionChunk* AllocateChunk(MutatorData& data, size_t minSize, RegionFrame* ownerFrame);
-    RegionChunk* TakeFreeChunk(MutatorData& data, size_t minSize);
-    void ReleaseChunk(MutatorData& data, RegionChunk* chunk);
-    void ReleaseFreeChunks(MutatorData& data);
+    RegionChunk* AllocateChunk(size_t minSize);
+    void ReleaseChunk(RegionChunk* chunk);
     void AppendActiveChunk(MutatorData& data, RegionChunk* chunk);
     void DetachActiveSuffix(MutatorData& data, RegionChunk* snapshotChunk);
-    ALWAYS_INLINE bool IsAddressInChunk(const RegionChunk& chunk, MAddress addr) const
-    {
-        // `addr` is the object address returned to the object model, while allocation starts at the preceding
-        // allocator header. The live interval therefore must use the chunk's bump pointer, not an exact large-object
-        // allocation address or the whole reserved capacity.
-        return addr >= chunk.base && addr < chunk.top;
-    }
-    RegionChunk* FindOwnerChunkForLocalRoot(MutatorData& data, MAddress addr) const;
+    void VisitObjectsInFrame(Mutator& mutator, const MutatorData& data, const RegionFrame& frame,
+                             const RegionFrame* child, const LocalObjectVisitor& visitor) const;
+    void VisitObjectsInChunk(Mutator& mutator, const RegionFrame& frame, const RegionChunk& chunk,
+                             MAddress begin, MAddress end,
+                             const LocalObjectVisitor& visitor) const;
+    RegionFrame* FindFrameOfObject(MutatorData& data, BaseObject* obj) const;
+    void VisitRootsInFrame(MutatorData& data, RegionFrame& frame, const LocalObjectVisitor& visitor) const;
     ALWAYS_INLINE MAddress TryAllocate(MutatorData& data, size_t size);
+    bool IsAllocationWithinFrameLimit(const RegionFrame& frame, size_t size) const;
     void RunFinalizers(Mutator& mutator, RegionFrame& frame);
     void EndTopFrame(Mutator& mutator, MutatorData& data);
 
     mutable std::mutex activeDataMtx;
     std::vector<MutatorData*> activeData;
-    const bool enableRegionCache = false;
+    const size_t regionLimit;
 };
 
 namespace {
@@ -253,23 +261,54 @@ bool LocalObjectRootRegistry::RunFinalizer(Mutator& mutator, BaseObject* obj)
     return false;
 }
 
-void LocalObjectRootRegistry::AddLocalRoot(BaseObject* obj)
+void LocalObjectRootRegistry::AddLocalRoot(BaseObject* obj, RefField<false>* field)
 {
-    if (obj == nullptr) {
+    if (obj == nullptr || field == nullptr) {
         return;
     }
-    for (BaseObject* localRoot : localRoots) {
-        if (localRoot == obj) {
+    for (const LocalRootEntry& localRoot : localRoots) {
+        if (localRoot.field == field) {
             return;
         }
     }
-    localRoots.push_back(obj);
+    localRoots.push_back({ obj, field });
+}
+
+void LocalObjectRootRegistry::VisitRegisteredObjects(
+    const std::function<void(BaseObject*, LocalObjectInfo::RootKind, uint8_t)>& visitor) const
+{
+    for (size_t idx = 0; idx < localRoots.size(); ++idx) {
+        BaseObject* obj = localRoots[idx].owner;
+        if (obj == nullptr) {
+            continue;
+        }
+        bool wasReported = false;
+        for (size_t prev = 0; prev < idx; ++prev) {
+            if (localRoots[prev].owner == obj) {
+                wasReported = true;
+                break;
+            }
+        }
+        if (!wasReported) {
+            visitor(obj, LocalObjectInfo::RootKind::LOCAL_OBJECT, 0);
+        }
+    }
+    for (const FinalizerEntry& entry : finalizers) {
+        if (entry.obj != nullptr && entry.state != FinalizerState::DONE) {
+            visitor(entry.obj, LocalObjectInfo::RootKind::FINALIZER,
+                    static_cast<uint8_t>(entry.state));
+        }
+    }
 }
 
 void LocalObjectRootRegistry::VisitLocalObjectRefFields(const RootVisitor& visitor) const
 {
-    for (BaseObject* localRoot : localRoots) {
-        VisitOneLocalObject(localRoot, visitor);
+    for (const LocalRootEntry& localRoot : localRoots) {
+        RefField<false>* field = localRoot.field;
+        if (field == nullptr || !Heap::IsHeapAddress(field->GetTargetObject())) {
+            continue;
+        }
+        visitor(reinterpret_cast<ObjectRef&>(*field));
     }
     for (const FinalizerEntry& entry : finalizers) {
         if (entry.state != FinalizerState::DONE) {
@@ -328,8 +367,18 @@ bool LocalObjectRootRegistry::RunFinalizerAt(Mutator& mutator, size_t idx)
 LocalObjectAllocator* LocalObjectAllocator::InitLocalObjectAllocator(RegionManager& regionManager)
 {
     (void)regionManager;
-    LocalObjectAllocator* localObjectAllocator = new (std::nothrow) NativeLocalObjectAllocator();
-    VLOG(LOCAL_REGION, "use native local object allocator");
+    size_t regionLimit = NativeLocalObjectAllocator::DEFAULT_REGION_LIMIT;
+    const char* env = std::getenv("cjLocalRegionMaxSize");
+    if (env != nullptr) {
+        size_t configuredLimit = CString::ParseSizeFromEnv(env);
+        if (configuredLimit == 0 || configuredLimit > std::numeric_limits<size_t>::max() / KB) {
+            LOG(RTLOG_ERROR, "Unsupported cjLocalRegionMaxSize parameter: %s. Use the default limit instead.", env);
+        } else {
+            regionLimit = configuredLimit * KB;
+        }
+    }
+    LocalObjectAllocator* localObjectAllocator = new (std::nothrow) NativeLocalObjectAllocator(regionLimit);
+    VLOG(LOCAL_REGION, "use native local object allocator with per-region limit %zu B", regionLimit);
     CHECK_DETAIL(localObjectAllocator != nullptr, "new local object allocator failed");
     return localObjectAllocator;
 }
@@ -469,15 +518,15 @@ void HeapLocalObjectAllocator::RemoveFinalizer(Mutator& mutator, BaseObject* obj
     }
 }
 
-void HeapLocalObjectAllocator::AddLocalRoot(Mutator& mutator, BaseObject* obj)
+void HeapLocalObjectAllocator::AddLocalRoot(Mutator& mutator, BaseObject* obj, RefField<false>* field)
 {
-    if (obj == nullptr) {
+    if (obj == nullptr || field == nullptr) {
         return;
     }
     LocalHeapBlock* block = FindBlockOfObject(mutator, obj);
     CHECK_DETAIL(block != nullptr, "add local root with non-local object %p", obj);
-    block->firstBlock->rootRegistry.AddLocalRoot(obj);
-    VLOG(LOCAL_REGION, "AddLocalRoot: mutator %p, block %p, obj %p", &mutator, block, obj);
+    block->firstBlock->rootRegistry.AddLocalRoot(obj, field);
+    VLOG(LOCAL_REGION, "AddLocalRoot: mutator %p, block %p, obj %p, field %p", &mutator, block, obj, field);
 }
 
 void HeapLocalObjectAllocator::VisitLocalObjectRefFields(Mutator& mutator, const RootVisitor& visitor)
@@ -588,19 +637,6 @@ void HeapLocalObjectAllocator::RecordReclamation(const LocalHeapBlock& block)
                  "local heap allocated bytes underflow: old %zu, reclaimed %zu", oldSize, block.allocatedBytes);
 }
 
-NativeLocalObjectAllocator::NativeLocalObjectAllocator() : enableRegionCache(ReadRegionCacheFlag())
-{
-    if (enableRegionCache) {
-        VLOG(LOCAL_REGION, "native local region chunk cache enabled");
-    }
-}
-
-bool NativeLocalObjectAllocator::ReadRegionCacheFlag()
-{
-    const char* env = std::getenv("MRT_NATIVE_LOCAL_REGION_CACHE");
-    return env != nullptr && CString::ParseFlagFromEnv(CString(env));
-}
-
 NativeLocalObjectAllocator::MutatorData* NativeLocalObjectAllocator::CreateData(Mutator& mutator)
 {
     MutatorData* data = GetData(mutator);
@@ -609,61 +645,33 @@ NativeLocalObjectAllocator::MutatorData* NativeLocalObjectAllocator::CreateData(
     }
     data = new (std::nothrow) MutatorData();
     CHECK_DETAIL(data != nullptr, "new native local mutator data failed");
+    data->ownerMutator = &mutator;
     mutator.SetLocalObjectAllocatorData(data);
     std::lock_guard<std::mutex> lock(activeDataMtx);
     activeData.push_back(data);
     return data;
 }
 
-NativeLocalObjectAllocator::RegionChunk* NativeLocalObjectAllocator::TakeFreeChunk(MutatorData& data,
-                                                                                       size_t minSize)
-{
-    RegionChunk* previous = nullptr;
-    RegionChunk* chunk = data.freeChunks;
-    while (chunk != nullptr) {
-        if (chunk->capacity >= minSize && !chunk->largeObject) {
-            if (previous == nullptr) {
-                data.freeChunks = chunk->next;
-            } else {
-                previous->next = chunk->next;
-            }
-            chunk->prev = nullptr;
-            chunk->next = nullptr;
-            return chunk;
-        }
-        previous = chunk;
-        chunk = chunk->next;
-    }
-    return nullptr;
-}
-
-NativeLocalObjectAllocator::RegionChunk* NativeLocalObjectAllocator::AllocateChunk(
-    MutatorData& data, size_t minSize, RegionFrame* ownerFrame)
+NativeLocalObjectAllocator::RegionChunk* NativeLocalObjectAllocator::AllocateChunk(size_t minSize)
 {
     size_t alignedSize = RoundUp<size_t>(minSize, Allocator::ALLOC_ALIGN);
     size_t capacity = std::max(DEFAULT_CHUNK_SIZE, alignedSize);
-    RegionChunk* chunk = nullptr;
-    if (enableRegionCache && capacity == DEFAULT_CHUNK_SIZE) {
-        chunk = TakeFreeChunk(data, capacity);
+    void* memory = NativeAllocator::NativeAlloc(capacity);
+    if (memory == nullptr) {
+        return nullptr;
     }
+    // NativeAllocator may return a chunk recycled from its thread cache.  A
+    // local object allocation only initializes its object header here, so a
+    // new chunk must not expose fields left by an earlier local region.
+    MemorySet(reinterpret_cast<uintptr_t>(memory), capacity, 0, capacity);
+    RegionChunk* chunk = new (std::nothrow) RegionChunk();
     if (chunk == nullptr) {
-        void* memory = NativeAllocator::NativeAlloc(capacity);
-        if (memory == nullptr) {
-            return nullptr;
-        }
-        chunk = new (std::nothrow) RegionChunk();
-        if (chunk == nullptr) {
-            NativeAllocator::NativeFree(memory, capacity);
-            return nullptr;
-        }
-        chunk->memory = memory;
-        chunk->base = reinterpret_cast<MAddress>(memory);
-        chunk->capacity = capacity;
-        chunk->end = chunk->base + capacity;
+        NativeAllocator::NativeFree(memory, capacity);
+        return nullptr;
     }
+    chunk->base = reinterpret_cast<MAddress>(memory);
+    chunk->capacity = capacity;
     chunk->top = chunk->base;
-    chunk->ownerFrame = ownerFrame;
-    chunk->largeObject = capacity != DEFAULT_CHUNK_SIZE;
     return chunk;
 }
 
@@ -681,31 +689,11 @@ void NativeLocalObjectAllocator::AppendActiveChunk(MutatorData& data, RegionChun
     data.regionTop = reinterpret_cast<uint8_t*>(chunk->top);
 }
 
-void NativeLocalObjectAllocator::ReleaseChunk(MutatorData& data, RegionChunk* chunk)
+void NativeLocalObjectAllocator::ReleaseChunk(RegionChunk* chunk)
 {
     CHECK_DETAIL(chunk != nullptr, "release null native chunk");
-    if (chunk->largeObject || !enableRegionCache) {
-        NativeAllocator::NativeFree(chunk->memory, chunk->capacity);
-        delete chunk;
-        return;
-    }
-    chunk->prev = nullptr;
-    chunk->ownerFrame = nullptr;
-    chunk->top = chunk->base;
-    chunk->next = data.freeChunks;
-    data.freeChunks = chunk;
-}
-
-void NativeLocalObjectAllocator::ReleaseFreeChunks(MutatorData& data)
-{
-    RegionChunk* chunk = data.freeChunks;
-    data.freeChunks = nullptr;
-    while (chunk != nullptr) {
-        RegionChunk* next = chunk->next;
-        NativeAllocator::NativeFree(chunk->memory, chunk->capacity);
-        delete chunk;
-        chunk = next;
-    }
+    NativeAllocator::NativeFree(reinterpret_cast<void*>(chunk->base), chunk->capacity);
+    delete chunk;
 }
 
 bool NativeLocalObjectAllocator::StartRegion(Mutator& mutator, FrameAddress* ownerFA)
@@ -720,17 +708,20 @@ bool NativeLocalObjectAllocator::StartRegion(Mutator& mutator, FrameAddress* own
     frame->chunk = data->currentChunk;
     frame->ownerFA = ownerFA;
 
-    // Always start a nested region on a fresh chunk.  This makes object,
-    // finalizer and root ownership unambiguous while retaining chunk reuse.
-    RegionChunk* chunk = AllocateChunk(*data, DEFAULT_CHUNK_SIZE, frame);
-    if (chunk == nullptr) {
-        delete frame;
-        return false;
+    // Reuse the active chunk when possible.  A frame's (chunk, top) snapshot
+    // precisely identifies the part of that chunk owned by the new frame.
+    // When it fills, Allocate() appends chunks as usual.
+    if (data->currentChunk == nullptr || data->currentChunk->top == data->currentChunk->GetEnd()) {
+        RegionChunk* chunk = AllocateChunk(DEFAULT_CHUNK_SIZE);
+        if (chunk == nullptr) {
+            delete frame;
+            return false;
+        }
+        AppendActiveChunk(*data, chunk);
     }
-    AppendActiveChunk(*data, chunk);
     data->currentFrame = frame;
-    VLOG(LOCAL_REGION, "StartNativeLocalRegion: mutator %p, frame %p, ownerFA %p, chunk %p, size %zu", &mutator,
-         frame, ownerFA, chunk, chunk->capacity);
+    VLOG(LOCAL_REGION, "StartNativeLocalRegion: mutator %p, frame %p, ownerFA %p, chunk %p, top %p", &mutator,
+         frame, ownerFA, data->currentChunk, reinterpret_cast<void*>(data->regionTop));
     return true;
 }
 
@@ -740,14 +731,19 @@ ALWAYS_INLINE MAddress NativeLocalObjectAllocator::TryAllocate(MutatorData& data
     if (chunk == nullptr) {
         return 0;
     }
-    size_t allocSize = RoundUp<size_t>(size, Allocator::ALLOC_ALIGN);
     MAddress addr = RoundUp<MAddress>(chunk->top, Allocator::ALLOC_ALIGN);
-    if (addr > chunk->end || allocSize > chunk->end - addr) {
+    MAddress end = chunk->GetEnd();
+    if (addr > end || size > end - addr) {
         return 0;
     }
-    chunk->top = addr + allocSize;
+    chunk->top = addr + size;
     data.regionTop = reinterpret_cast<uint8_t*>(chunk->top);
     return addr;
+}
+
+bool NativeLocalObjectAllocator::IsAllocationWithinFrameLimit(const RegionFrame& frame, size_t size) const
+{
+    return size <= regionLimit && frame.allocatedBytes <= regionLimit - size;
 }
 
 MAddress NativeLocalObjectAllocator::Allocate(Mutator& mutator, size_t size)
@@ -757,17 +753,31 @@ MAddress NativeLocalObjectAllocator::Allocate(Mutator& mutator, size_t size)
         LOG(RTLOG_ERROR, "alloc native local object without local object region");
         return 0;
     }
-    MAddress addr = TryAllocate(*data, size);
+    if (size > std::numeric_limits<size_t>::max() - (Allocator::ALLOC_ALIGN - 1U)) {
+        ExceptionManager::LocalRegionOutOfMemory();
+        return 0;
+    }
+    size_t allocSize = RoundUp<size_t>(size, Allocator::ALLOC_ALIGN);
+    RegionFrame& frame = *data->currentFrame;
+    if (UNLIKELY(!IsAllocationWithinFrameLimit(frame, allocSize))) {
+        VLOG(LOCAL_REGION, "native local region limit reached: mutator %p, frame %p, used %zu B, request %zu B, "
+             "limit %zu B", &mutator, &frame, frame.allocatedBytes, allocSize, regionLimit);
+        ExceptionManager::LocalRegionOutOfMemory();
+        return 0;
+    }
+    MAddress addr = TryAllocate(*data, allocSize);
     if (addr != 0) {
+        frame.allocatedBytes += allocSize;
         return addr;
     }
-    RegionChunk* chunk = AllocateChunk(*data, size, data->currentFrame);
+    RegionChunk* chunk = AllocateChunk(allocSize);
     if (chunk == nullptr) {
         return 0;
     }
     AppendActiveChunk(*data, chunk);
-    addr = TryAllocate(*data, size);
+    addr = TryAllocate(*data, allocSize);
     CHECK_DETAIL(addr != 0, "native local allocation failed after adding chunk");
+    frame.allocatedBytes += allocSize;
     VLOG(LOCAL_REGION, "AllocNativeLocalObject: mutator %p, chunk %p, obj %p, objSize %zu", &mutator, chunk,
          reinterpret_cast<void*>(addr), size);
     return addr;
@@ -785,7 +795,7 @@ void NativeLocalObjectAllocator::DetachActiveSuffix(MutatorData& data, RegionChu
     while (chunk != snapshotChunk) {
         CHECK_DETAIL(chunk != nullptr, "native region snapshot chunk not found");
         RegionChunk* prev = chunk->prev;
-        ReleaseChunk(data, chunk);
+        ReleaseChunk(chunk);
         chunk = prev;
     }
     if (snapshotChunk == nullptr) {
@@ -837,6 +847,20 @@ void NativeLocalObjectAllocator::EndTopFrame(Mutator& mutator, MutatorData& data
     CHECK_DETAIL(frame != nullptr, "end native top frame without active frame");
     RunFinalizers(mutator, *frame);
     DetachActiveSuffix(data, frame->chunk);
+    // Chunks appended by this frame have been released above and are cleared
+    // when AllocateChunk obtains them again.  The snapshot chunk remains
+    // active, however: rolling its bump pointer back would otherwise expose
+    // this frame's old object bytes to the next nested local region.
+    if (frame->chunk != nullptr) {
+        MAddress begin = reinterpret_cast<MAddress>(frame->top);
+        MAddress end = frame->chunk->top;
+        CHECK_DETAIL(begin >= frame->chunk->base && begin <= end && end <= frame->chunk->GetEnd(),
+                     "invalid native local rollback range [%p, %p) in chunk %p",
+                     reinterpret_cast<void*>(begin), reinterpret_cast<void*>(end), frame->chunk);
+        if (begin != end) {
+            MemorySet(begin, end - begin, 0, end - begin);
+        }
+    }
     data.regionTop = frame->top;
     data.currentChunk = frame->chunk;
     if (data.currentChunk != nullptr) {
@@ -857,19 +881,145 @@ void NativeLocalObjectAllocator::EndRegionsForFrame(Mutator& mutator, FrameAddre
     }
 }
 
-NativeLocalObjectAllocator::RegionChunk* NativeLocalObjectAllocator::FindOwnerChunkForLocalRoot(
-    MutatorData& data, MAddress addr) const
+void NativeLocalObjectAllocator::VisitLocalObjects(const LocalObjectVisitor& visitor) const
 {
-    if (data.currentChunk != nullptr && IsAddressInChunk(*data.currentChunk, addr)) {
-        return data.currentChunk;
+    if (!visitor) {
+        return;
     }
-    for (RegionChunk* chunk = data.currentChunk == nullptr ? nullptr : data.currentChunk->prev; chunk != nullptr;
-         chunk = chunk->prev) {
-        if (IsAddressInChunk(*chunk, addr)) {
-            return chunk;
+    CHECK_DETAIL(MutatorManager::Instance().WorldStopped(), "native local object visit requires STW");
+    std::lock_guard<std::mutex> lock(activeDataMtx);
+    for (MutatorData* data : activeData) {
+        if (data == nullptr || data->ownerMutator == nullptr) {
+            continue;
+        }
+        std::vector<RegionFrame*> frames;
+        for (RegionFrame* frame = data->currentFrame; frame != nullptr; frame = frame->prev) {
+            frames.push_back(frame);
+        }
+        for (size_t idx = frames.size(); idx > 0; --idx) {
+            RegionFrame* frame = frames[idx - 1];
+            RegionFrame* child = idx > 1 ? frames[idx - 2] : nullptr;
+            VisitObjectsInFrame(*data->ownerMutator, *data, *frame, child, visitor);
+        }
+    }
+}
+
+void NativeLocalObjectAllocator::VisitObjectsInFrame(Mutator& mutator, const MutatorData& data,
+                                                     const RegionFrame& frame, const RegionFrame* child,
+                                                     const LocalObjectVisitor& visitor) const
+{
+    RegionChunk* beginChunk = frame.chunk == nullptr ? data.regionData : frame.chunk;
+    MAddress begin = frame.chunk == nullptr ?
+        (beginChunk == nullptr ? 0 : beginChunk->base) : reinterpret_cast<MAddress>(frame.top);
+    RegionChunk* endChunk = child == nullptr ? data.currentChunk : child->chunk;
+    MAddress end = child == nullptr ?
+        (endChunk == nullptr ? 0 : endChunk->top) : reinterpret_cast<MAddress>(child->top);
+    if (beginChunk == nullptr || endChunk == nullptr) {
+        return;
+    }
+
+    for (RegionChunk* chunk = beginChunk; chunk != nullptr; chunk = chunk->next) {
+        MAddress chunkBegin = chunk == beginChunk ? begin : chunk->base;
+        MAddress chunkEnd = chunk == endChunk ? end : chunk->top;
+        if (chunkBegin > chunkEnd || chunkBegin < chunk->base || chunkEnd > chunk->top) {
+            LOG(RTLOG_ERROR, "invalid native local frame range [%p, %p) in chunk %p",
+                reinterpret_cast<void*>(chunkBegin), reinterpret_cast<void*>(chunkEnd), chunk);
+            return;
+        }
+        VisitObjectsInChunk(mutator, frame, *chunk, chunkBegin, chunkEnd, visitor);
+        if (chunk == endChunk) {
+            return;
+        }
+    }
+    LOG(RTLOG_ERROR, "native local frame end chunk %p is not reachable from begin chunk %p", endChunk, beginChunk);
+}
+
+void NativeLocalObjectAllocator::VisitObjectsInChunk(Mutator& mutator, const RegionFrame& frame,
+                                                     const RegionChunk& chunk, MAddress begin, MAddress end,
+                                                     const LocalObjectVisitor& visitor) const
+{
+    MAddress cursor = begin;
+    while (cursor < end) {
+        BaseObject* obj = reinterpret_cast<BaseObject*>(cursor);
+        size_t objSize = obj->GetSize();
+        if (objSize == 0 || objSize > end - cursor) {
+            LOG(RTLOG_ERROR, "invalid local object size %zu at %p in chunk %p", objSize,
+                reinterpret_cast<void*>(cursor), &chunk);
+            break;
+        }
+        LocalObjectInfo info { &mutator, frame.ownerFA, chunk.base, chunk.capacity,
+                               chunk.capacity > DEFAULT_CHUNK_SIZE };
+        visitor(mutator, obj, info);
+        cursor = RoundUp<MAddress>(cursor + objSize, Allocator::ALLOC_ALIGN);
+    }
+}
+
+NativeLocalObjectAllocator::RegionFrame* NativeLocalObjectAllocator::FindFrameOfObject(
+    MutatorData& data, BaseObject* obj) const
+{
+    if (obj == nullptr) {
+        return nullptr;
+    }
+    MAddress address = reinterpret_cast<MAddress>(obj);
+    RegionFrame* child = nullptr;
+    for (RegionFrame* frame = data.currentFrame; frame != nullptr; child = frame, frame = frame->prev) {
+        RegionChunk* beginChunk = frame->chunk == nullptr ? data.regionData : frame->chunk;
+        MAddress begin = frame->chunk == nullptr ?
+            (beginChunk == nullptr ? 0 : beginChunk->base) : reinterpret_cast<MAddress>(frame->top);
+        RegionChunk* endChunk = child == nullptr ? data.currentChunk : child->chunk;
+        MAddress end = child == nullptr ?
+            (endChunk == nullptr ? 0 : endChunk->top) : reinterpret_cast<MAddress>(child->top);
+        if (beginChunk == nullptr || endChunk == nullptr) {
+            continue;
+        }
+        for (RegionChunk* chunk = beginChunk; chunk != nullptr; chunk = chunk->next) {
+            MAddress chunkBegin = chunk == beginChunk ? begin : chunk->base;
+            MAddress chunkEnd = chunk == endChunk ? end : chunk->top;
+            if (chunkBegin > chunkEnd || chunkBegin < chunk->base || chunkEnd > chunk->top) {
+                LOG(RTLOG_ERROR, "invalid native local frame range [%p, %p) while locating object %p",
+                    reinterpret_cast<void*>(chunkBegin), reinterpret_cast<void*>(chunkEnd), obj);
+                return nullptr;
+            }
+            if (address >= chunkBegin && address < chunkEnd) {
+                return frame;
+            }
+            if (chunk == endChunk) {
+                break;
+            }
         }
     }
     return nullptr;
+}
+
+void NativeLocalObjectAllocator::VisitLocalRoots(const LocalObjectVisitor& visitor) const
+{
+    if (!visitor) {
+        return;
+    }
+    CHECK_DETAIL(MutatorManager::Instance().WorldStopped(), "native local root visit requires STW");
+    std::lock_guard<std::mutex> lock(activeDataMtx);
+    for (MutatorData* data : activeData) {
+        if (data == nullptr || data->ownerMutator == nullptr) {
+            continue;
+        }
+        for (RegionFrame* frame = data->currentFrame; frame != nullptr; frame = frame->prev) {
+            VisitRootsInFrame(*data, *frame, visitor);
+        }
+    }
+}
+
+void NativeLocalObjectAllocator::VisitRootsInFrame(MutatorData& data, RegionFrame& frame,
+                                                   const LocalObjectVisitor& visitor) const
+{
+    frame.rootRegistry.VisitRegisteredObjects(
+        [&data, &frame, &visitor](BaseObject* obj, LocalObjectInfo::RootKind rootKind, uint8_t finalizerState) {
+            LocalObjectInfo info;
+            info.ownerMutator = data.ownerMutator;
+            info.ownerFrame = frame.ownerFA;
+            info.rootKind = rootKind;
+            info.finalizerState = finalizerState;
+            visitor(*data.ownerMutator, obj, info);
+        });
 }
 
 void NativeLocalObjectAllocator::AddFinalizer(Mutator& mutator, BaseObject* obj)
@@ -878,16 +1028,12 @@ void NativeLocalObjectAllocator::AddFinalizer(Mutator& mutator, BaseObject* obj)
         return;
     }
     MutatorData* data = GetData(mutator);
-    RegionChunk* chunk = data == nullptr ? nullptr : data->currentChunk;
-    if (chunk == nullptr || chunk->ownerFrame == nullptr ||
-        !IsAddressInChunk(*chunk, reinterpret_cast<MAddress>(obj))) {
-        LOG(RTLOG_ERROR,
-            "add native local finalizer with object not in current chunk: obj %p, currentChunk %p, base %p, top %p",
-            obj, chunk, chunk == nullptr ? nullptr : reinterpret_cast<void*>(chunk->base),
-            chunk == nullptr ? nullptr : reinterpret_cast<void*>(chunk->top));
+    RegionFrame* frame = data == nullptr ? nullptr : data->currentFrame;
+    if (frame == nullptr) {
+        LOG(RTLOG_ERROR, "add native local finalizer without current frame: obj %p", obj);
         return;
     }
-    chunk->ownerFrame->rootRegistry.AddFinalizer(obj);
+    frame->rootRegistry.AddFinalizer(obj);
 }
 
 void NativeLocalObjectAllocator::RemoveFinalizer(Mutator& mutator, BaseObject* obj)
@@ -896,29 +1042,24 @@ void NativeLocalObjectAllocator::RemoveFinalizer(Mutator& mutator, BaseObject* o
         return;
     }
     MutatorData* data = GetData(mutator);
-    RegionChunk* chunk = data == nullptr ? nullptr : data->currentChunk;
-    if (chunk == nullptr || chunk->ownerFrame == nullptr ||
-        !IsAddressInChunk(*chunk, reinterpret_cast<MAddress>(obj))) {
-        LOG(RTLOG_ERROR,
-            "remove native local finalizer with object not in current chunk: obj %p, currentChunk %p, base %p, top %p",
-            obj, chunk, chunk == nullptr ? nullptr : reinterpret_cast<void*>(chunk->base),
-            chunk == nullptr ? nullptr : reinterpret_cast<void*>(chunk->top));
+    RegionFrame* frame = data == nullptr ? nullptr : data->currentFrame;
+    if (frame == nullptr) {
+        LOG(RTLOG_ERROR, "remove native local finalizer without current frame: obj %p", obj);
         return;
     }
-    (void)chunk->ownerFrame->rootRegistry.RunFinalizer(mutator, obj);
+    (void)frame->rootRegistry.RunFinalizer(mutator, obj);
 }
 
-void NativeLocalObjectAllocator::AddLocalRoot(Mutator& mutator, BaseObject* obj)
+void NativeLocalObjectAllocator::AddLocalRoot(Mutator& mutator, BaseObject* obj, RefField<false>* field)
 {
-    if (obj == nullptr) {
+    if (obj == nullptr || field == nullptr) {
         return;
     }
     MutatorData* data = GetData(mutator);
-    RegionChunk* chunk = data == nullptr ? nullptr :
-        FindOwnerChunkForLocalRoot(*data, reinterpret_cast<MAddress>(obj));
-    CHECK_DETAIL(chunk != nullptr && chunk->ownerFrame != nullptr,
-                 "add native local root with non-local object: %p", obj);
-    chunk->ownerFrame->rootRegistry.AddLocalRoot(obj);
+    CHECK_DETAIL(data != nullptr && data->currentFrame != nullptr,
+                 "add native local root without current frame: obj %p, field %p", obj, field);
+    RegionFrame* frame = FindFrameOfObject(*data, obj);
+    frame->rootRegistry.AddLocalRoot(obj, field);
 }
 
 void NativeLocalObjectAllocator::VisitLocalObjectRefFields(Mutator& mutator, const RootVisitor& visitor)
@@ -942,14 +1083,13 @@ size_t NativeLocalObjectAllocator::GetAllocatedObjectBytes() const
             continue;
         }
         for (RegionChunk* chunk = data->regionData; chunk != nullptr; chunk = chunk->next) {
-            CHECK_DETAIL(chunk->top >= chunk->base && chunk->top <= chunk->end,
+            CHECK_DETAIL(chunk->top >= chunk->base && chunk->top <= chunk->GetEnd(),
                          "invalid native local chunk range: base %p top %p end %p",
                          reinterpret_cast<void*>(chunk->base), reinterpret_cast<void*>(chunk->top),
-                         reinterpret_cast<void*>(chunk->end));
-            size_t usedBytes = chunk->top - chunk->base;
-            CHECK_DETAIL(total <= std::numeric_limits<size_t>::max() - usedBytes,
-                         "native local allocated bytes overflow");
-            total += usedBytes;
+                         reinterpret_cast<void*>(chunk->GetEnd()));
+            CHECK_DETAIL(total <= std::numeric_limits<size_t>::max() - chunk->capacity,
+                         "native local reserved bytes overflow");
+            total += chunk->capacity;
         }
     }
     return total;
@@ -964,11 +1104,10 @@ void NativeLocalObjectAllocator::OnMutatorExit(Mutator& mutator)
     RegionChunk* chunk = data->regionData;
     while (chunk != nullptr) {
         RegionChunk* next = chunk->next;
-        NativeAllocator::NativeFree(chunk->memory, chunk->capacity);
+        NativeAllocator::NativeFree(reinterpret_cast<void*>(chunk->base), chunk->capacity);
         delete chunk;
         chunk = next;
     }
-    ReleaseFreeChunks(*data);
     while (data->currentFrame != nullptr) {
         RegionFrame* frame = data->currentFrame;
         data->currentFrame = frame->prev;
