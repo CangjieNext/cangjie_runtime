@@ -134,8 +134,20 @@ public struct Path <: Equatable<Path> & Hashable & ToString {
             return
         }
         let specialPrefix = #"\??\"#
-        if (path.contains(specialPrefix)) {
-            throw IllegalArgumentException("Path `${path}` cannot contain `${specialPrefix}`!")
+        if (path.size < specialPrefix.size) {
+            return
+        }
+        for (i in 0..(path.size - specialPrefix.size + 1)) {
+            var matched = true
+            for (j in 0..specialPrefix.size) {
+                if (path[i + j] != specialPrefix[j]) {
+                    matched = false
+                    break
+                }
+            }
+            if (matched) {
+                throw IllegalArgumentException("Path `${path}` cannot contain `${specialPrefix}`!")
+            }
         }
     }
 
@@ -367,7 +379,6 @@ class PathValidator {
             throw IllegalArgumentException(generateExceptionMessage(name, "is empty", isInput))
         }
     }
-
     static func throwIfContainsNullByte(name: String, path: String, isInput: Bool): Unit {
         if (path.contains(NULL_BYTE)) {
             throw IllegalArgumentException(generateExceptionMessage(name, "value ${unsafe { path.rawData() }} contains null character", isInput))

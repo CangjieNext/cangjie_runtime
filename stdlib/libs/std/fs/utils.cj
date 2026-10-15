@@ -50,7 +50,7 @@ let TMP_FILE = "/tmpFileXXXXXX\0".toArray()
  */
 @When[os != "Windows"]
 func isAbsolutePath(path: String): Bool {
-    return isSlash(path[0])
+    path.size > 0 && isSlash(path[0])
 }
 
 @When[os != "Windows"]
@@ -129,7 +129,7 @@ const UNC_PACH_PREFIX = "\\\\.\\"
 func isAbsolutePath(path: String): Bool {
     // The size of path is 3 when path == "[a-z | A-Z]:\\xxxx"
     // "/xxx" or "\\xxx" is absolute path
-    return ((path.size >= 3) && path[0].isAsciiLetter() && (path[1] == b':') && isSlash(path[2])) ||
+    ((path.size >= 3) && path[0].isAsciiLetter() && (path[1] == b':') && isSlash(path[2])) ||
         (path.size >= 1 && isSlash(path[0]))
 }
 
@@ -206,8 +206,6 @@ func getParent(path: String): Path {
 
 func getFileName(path: String): String {
     let rootLen = getRootLen(path)
-    // skip trailing slashes
-    // end point to the first non slash rune from end, or rootLen - 1
     var end = path.size - 1
     while (end >= rootLen) {
         if (!isSlash(path[end])) {
@@ -215,7 +213,6 @@ func getFileName(path: String): String {
         }
         end--
     }
-    // find last slash
     var start = end
     while (start >= rootLen) {
         if (isSlash(path[start])) {
@@ -223,7 +220,7 @@ func getFileName(path: String): String {
         }
         start--
     }
-    return path[rootLen..end + 1]
+    path[rootLen..end + 1]
 }
 
 @When[os != "Windows"]
