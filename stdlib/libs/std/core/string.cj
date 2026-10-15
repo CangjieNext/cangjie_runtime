@@ -391,13 +391,6 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
         intrinsicBuiltInCopyTo3<UInt8>(this.myData, newRawPtr, Int64(start), 0, Int64(length))
         return String(newRawPtr, 0, length)
     }
-    public func toHeap(this @local?): String {
-        let newRawPtr = rawArrayAllocate<UInt8>(this.size)
-        rawArrayInitByValue3<UInt8>(newRawPtr, this.size, 0)
-        intrinsicBuiltInCopyTo3<UInt8>(this.myData, newRawPtr, Int64(start), 0, Int64(length))
-        return String(newRawPtr, 0, length)
-    }
-
     @Frozen
     public func iterator(): Iterator<Byte> {
         return StringByteIterator(StringIteratorData(unsafe { rawData() }))
@@ -544,6 +537,12 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
         return Int64(wyhash(myData, Int64(start), Int64(length), 0))
     }
 
+
+    @Frozen
+    @OverflowWrapping
+    public exclave func hashCode(this @local!): Int64 {
+        Int64(wyhash(myData, Int64(start), Int64(length), 0))
+    }
     @Frozen
     @OverflowWrapping
     public func hashCode(this @local?): Int64 {
@@ -558,6 +557,11 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
      */
     @Frozen
     public static func fromUtf8(utf8Data: Array<UInt8>): String {
+        checkInvalid(utf8Data.rawptr, utf8Data.start, utf8Data.start + utf8Data.size)
+        return String(utf8Data.clone())
+    }
+    @Frozen
+    public exclave static func fromUtf8(utf8Data: Array<UInt8> @local!): String @local! {
         checkInvalid(utf8Data.rawptr, utf8Data.start, utf8Data.start + utf8Data.size)
         return String(utf8Data.clone())
     }
@@ -585,7 +589,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
     }
 
     @Frozen
-    internal exclave unsafe func rawData(this @local?): Array<Byte> @local? {
+    public exclave unsafe func rawData(this @local?): Array<Byte> @local? {
         Array<Byte>(myData, Int64(start), Int64(length))
     }
 
@@ -594,11 +598,6 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
         let ret: Array<UInt8> @local! = utf8Data.cloneToLocal()
         String(ret)
     }
-    @Frozen
-    internal exclave unsafe static func fromUtf8UncheckedLocal(utf8Data: Array<Byte> @local?): String @local! {
-        String(utf8Data.cloneToLocal())
-    }
-
     // Returns the index of the first occurrence of the specified byte.
     // Return `Option<Int64>.None` if the specified byte is absent.
     @Frozen
@@ -608,27 +607,6 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
             case val => Some(val)
         }
     }
-    @Frozen
-    public exclave func indexOf(this @local!, b: Byte): Option<Int64> @local! {
-        // 显式 Some<T>(v) 构造在 @local! 上下文丢失 payload（CMP-3），
-        // 必须用变量初始化隐式包装：let result: Option<T> @local! = <T @local! 值>
-        var i: Int64 = 0
-        var found: Int64 = -1
-        while (i < size) {
-            if (arrayGetUnchecked2<UInt8>(this.myData, Int64(this.start) + i) == b) {
-                found = i
-                break
-            }
-            i = i + 1
-        }
-        if (found < 0) {
-            return None<Int64>
-        }
-        let idx: Int64 @local! = found
-        let result: Option<Int64> @local! = idx
-        result
-    }
-
     // URL 文档 §15：indexOf 的 @local? 版本（镜像 @local! 版的逐字节扫描手法，
     // CMP-10 同源限制一并适用）。返回 plain Option<Int64>，与 get(this @local?)
     // 的 Option 构造先例（:286）同形；非 exclave 声明同 get/contains 等 plain 返回成员。
@@ -747,42 +725,6 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
             return Option<Int64>.None
         }
         return Option<Int64>.Some(index)
-    }
-
-    @Frozen
-    public exclave func indexOf(this @local!, str: String @local?): Option<Int64> @local! {
-        // 同 indexOf(b)：隐式包装替代显式 Some 构造
-        if (str.size == 0) {
-            return Some<Int64>(0)
-        }
-        if (this.size < str.size) {
-            return None<Int64>
-        }
-        var i: Int64 = 0
-        var found: Int64 = -1
-        while (i <= this.size - str.size) {
-            var matched: Bool = true
-            var j: Int64 = 0
-            while (j < str.size) {
-                if (arrayGetUnchecked2<UInt8>(this.myData, Int64(this.start) + i + j) !=
-                    arrayGetUnchecked3<UInt8>(str.myData, Int64(str.start) + j)) {
-                    matched = false
-                    break
-                }
-                j = j + 1
-            }
-            if (matched) {
-                found = i
-                break
-            }
-            i = i + 1
-        }
-        if (found < 0) {
-            return None<Int64>
-        }
-        let idx: Int64 @local! = found
-        let result: Option<Int64> @local! = idx
-        result
     }
 
     // URL 文档 §15：indexOf(str) 的 @local? 版本（镜像 @local! 版的逐字节扫描手法，
@@ -910,7 +852,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
         }
         return this.splitOfString(str, -1, removeEmpty)
     }
-    
+
     // 提案 9.2：@local! 版 split。两遍扫描（先计数后填充），零拷贝切片。
     @Frozen
     @OverflowWrapping
@@ -1164,7 +1106,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
     // 提案 9.2：@local! 版 replace。纯循环逐位匹配，零 C 依赖。
     @Frozen
     @OverflowWrapping
-    public exclave func replace(this @local!, old: String @local!, new: String @local?): String @local! {
+    public exclave func replace(this @local!, old: String @local?, new: String @local?): String @local! {
         let oldLen: Int64 = old.size
         let newLen: Int64 = new.size
         if (size == 0) {
@@ -1839,7 +1781,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
         return String(itemBytes)
     }
     @Frozen
-    public exclave func padStart(this @local!, totalWidth: Int64, padding!: String = " "): String @local! {
+    public exclave func padStart(this @local!, totalWidth: Int64, padding!: String @local? = " "): String @local! {
         if (totalWidth < 0) {
             throw IllegalArgumentException("Negative totalWidth.")
         }
@@ -1913,7 +1855,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
         return String(itemBytes)
     }
     @Frozen
-    public exclave func padEnd(this @local!, totalWidth: Int64, padding!: String = " "): String @local! {
+    public exclave func padEnd(this @local!, totalWidth: Int64, padding!: String @local? = " "): String @local! {
         if (totalWidth < 0) {
             throw IllegalArgumentException("Negative totalWidth.")
         }
@@ -2433,7 +2375,6 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
     private exclave func sliceUnchecked(this @local!, startIndex: Int64, len: Int64): String @local! {
         String(Array<Byte>(myData, Int64(this.start) + startIndex, len) @local!) @local!
     }
-
     /**
      * @return the `String` value at the specified range.
      * @throws IllegalArgumentException if `step` is not equal to one.
@@ -2550,7 +2491,6 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
         }
         sliceUnchecked(start, end - start)
     }
-
     @Frozen
     @OverflowWrapping
     public static func join(strArray: Array<String>, delimiter!: String = String.empty): String {
@@ -2609,7 +2549,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
     // 不能作为 local 上下文的缺省实参），调用方须显式传 delimiter。
     @Frozen
     @OverflowWrapping
-    public exclave static func join(strArray: Array<String> @local!, delimiter!: String): String @local! {
+    public exclave static func join(strArray: Array<String> @local!, delimiter!: String @local?): String @local! {
         let strArraySize: Int64 = strArray.size
         if (strArraySize == 0) {
             return String() @local!

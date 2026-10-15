@@ -10,7 +10,7 @@ package std.core
 
 @Frozen
 @OverflowWrapping
-func arrayInitByCollection<T>(array: RawArray<T>, elements: Collection<T>): RawArray<T> {
+private func arrayInitByCollection<T>(array: RawArray<T>, elements: Collection<T>): RawArray<T> {
     var i: Int64 = 0
     let it: Iterator<T> = elements.iterator()
     while (true) {
@@ -28,7 +28,7 @@ func arrayInitByCollection<T>(array: RawArray<T>, elements: Collection<T>): RawA
  */
 @Frozen
 @OverflowWrapping
-func arrayInitByFunction<T>(array: RawArray<T>, initElement: (Int64) -> T): RawArray<T> {
+private func arrayInitByFunction<T>(array: RawArray<T>, initElement: (Int64) -> T): RawArray<T> {
     var i: Int64 = 0
     while (i < arraySize(array)) {
         arraySet(array, i, initElement(i))
@@ -451,21 +451,6 @@ extend<T> Array<T> <: Equatable<Array<T>> where T <: Equatable<T> {
         }
         return this
     }
-    // ---- local-mode @local? 判定类（提案 §8 D 类；C1/C2 修复后恢复实现）----
-
-
-    @Frozen
-    public func contains(this @local?, element: T @local?): Bool {
-        var i: Int64 = this.size - 1
-        while (i >= 0) {
-            if (this[i] == element) {
-                return true
-            }
-            i--
-        }
-        return false
-    }
-
 }
 
 /**
@@ -539,13 +524,13 @@ public struct CPointerHandle<T> where T <: CType {
     public let pointer: CPointer<T>
     public let array: Array<T>
 
-    // @Deprecated[message: "Use global function `public unsafe func acquireArrayRawData<T>(arr: Array<T>): CPointerHandle<T> where T <: CType` instead."]
+    @Deprecated[message: "Use global function `public unsafe func acquireArrayRawData<T>(arr: Array<T>): CPointerHandle<T> where T <: CType` instead."]
     public init() {
         pointer = CPointer<T>()
         array = Array<T>()
     }
 
-    // @Deprecated[message: "Use global function `public unsafe func acquireArrayRawData<T>(arr: Array<T>): CPointerHandle<T> where T <: CType` instead."]
+    @Deprecated[message: "Use global function `public unsafe func acquireArrayRawData<T>(arr: Array<T>): CPointerHandle<T> where T <: CType` instead."]
     public init(ptr: CPointer<T>, arr: Array<T>) {
         this.pointer = ptr
         this.array = arr

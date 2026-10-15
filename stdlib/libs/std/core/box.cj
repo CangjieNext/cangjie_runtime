@@ -20,11 +20,6 @@ extend<T> Box<T> <: Hashable where T <: Hashable {
     public func hashCode(): Int64 {
         return this.value.hashCode()
     }
-
-    // local-mode @local? 覆写(2026-09-18 补齐 G8)。
-    public func hashCode(this @local?): Int64 {
-        return this.value.hashCode()
-    }
 }
 
 extend<T> Box<T> <: Comparable<Box<T>> where T <: Comparable<T> {
@@ -68,8 +63,4 @@ extend<T> Box<T> <: ToString where T <: ToString {
     public func toString(): String {
         return this.value.toString()
     }
-    // local-mode @local? toString【暂缓登记 2026-09-17,实测复现】:
-    // 同 Option——append(this.value) 触发 call-prelude 装箱(NEW-R1 同族),
-    // 泛型 T @local? 的 toString 分派落错 vtable(NEW-C1 残余),运行即
-    // StackOverflowError。恢复前提同 Option 登记的三项编译器修复。
 }

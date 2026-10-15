@@ -166,9 +166,12 @@ extend Rune {
         return fromUtf8(arr.rawptr, arr.start + index, arr.start + arr.len)
     }
 
+    // 支撑面(包内,2026-10-15):doc-forced——StringRuneIterator.next(this @local!/@local?)
+    // (string_common.cj, doc-required String.iterator/runes 的实现体)以 local 形态的
+    // Array<UInt8> 调用本重载;stdx 调用方已改走 plain 路径,故降为包内可见。
     @OverflowWrapping
-    public static func fromUtf8(arr: Array<UInt8> @local?, index: Int64): (Rune, Int64) {
-        if (index >= arr.size) {
+    static func fromUtf8(arr: Array<UInt8> @local?, index: Int64): (Rune, Int64) {
+        if (index >= arr.len) {
             throw IllegalArgumentException("Invalid utf8 byte sequence.")
         }
         return fromUtf8(arr.rawptr, arr.start + index, arr.start + arr.len)
@@ -241,8 +244,11 @@ extend Rune {
         }
     }
 
+    // 支撑面(包内,2026-10-15):doc-forced——RunesToUtf8Bytes.getBytesLocal/
+    // getBytesLocalCollection(doc-required String 本地 Rune 集合构造函数的实现体)
+    // 以 local 形态的 Array<UInt8> 调用本重载;stdx 调用方已消除,故降为包内可见。
     @OverflowWrapping
-    public static func intoUtf8Array(c: Rune, arr: Array<UInt8> @local?, index: Int64): Int64 {
+    static func intoUtf8Array(c: Rune, arr: Array<UInt8> @local?, index: Int64): Int64 {
         var ch = UInt32(c)
         checkIndexValid(c, arr, index)
         if (ch <= UTF8_1_MAX) {
@@ -276,7 +282,7 @@ extend Rune {
             throw IllegalArgumentException("The index cannot be less than 0.")
         }
         let ch = UInt32(c)
-        let arrSize = arr.size
+        let arrSize = arr.len
         let lengthOfCharBytes = if (ch <= UTF8_1_MAX) {
             1
         } else if (ch <= UTF8_2_MAX) {
@@ -312,44 +318,4 @@ extend Rune <: Comparable<Rune> {
         }
     }
 
-    // @local? 覆写（2026-09-15 补齐 G1）：泛型 T @local? 比较分派需要具体类型提供本签名条目
-    public func compare(this @local?, other: Rune @local?): Ordering {
-        let a: Rune = this
-        let b: Rune = other
-        match {
-            case a < b => Ordering.LT
-            case a > b => Ordering.GT
-            case _ => Ordering.EQ
-        }
-    }
-    public operator func ==(this @local?, other: Rune @local?): Bool {
-        let a: Rune = this
-        let b: Rune = other
-        a == b
-    }
-    public operator func !=(this @local?, other: Rune @local?): Bool {
-        let a: Rune = this
-        let b: Rune = other
-        a != b
-    }
-    public operator func <(this @local?, other: Rune @local?): Bool {
-        let a: Rune = this
-        let b: Rune = other
-        a < b
-    }
-    public operator func >(this @local?, other: Rune @local?): Bool {
-        let a: Rune = this
-        let b: Rune = other
-        a > b
-    }
-    public operator func <=(this @local?, other: Rune @local?): Bool {
-        let a: Rune = this
-        let b: Rune = other
-        a <= b
-    }
-    public operator func >=(this @local?, other: Rune @local?): Bool {
-        let a: Rune = this
-        let b: Rune = other
-        a >= b
-    }
 }

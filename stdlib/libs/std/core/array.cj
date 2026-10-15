@@ -26,17 +26,6 @@ public struct Array<T> {
     }
 
     @Frozen
-    public exclave func toRawArray(this @local!): RawArray<T> @local! {
-        if (len == 0) {
-            return rawArrayAllocate2<T>(0)
-        }
-        let newRawPtr = rawArrayAllocate2<T>(len)
-        rawArrayInitByValue2(newRawPtr, len, unsafe { zeroValue2<T>() })
-        intrinsicBuiltInCopyTo2<T>(this.rawptr, newRawPtr, this.start, 0, len)
-        newRawPtr
-    }
-
-    @Frozen
     public const init() {
         this.start = 0
         this.rawptr = rawArrayAllocate<T>(0)
@@ -999,24 +988,6 @@ public struct Array<T> {
         }
     }
 
-    // URL 文档 §14（:518）：splitAt(this @local?)。NEW-C2 重探（2026-09-28）：
-    // plain/@local! splitAt 均为视图语义（共享 rawptr，无元素拷贝），@local? 版
-    // 同样无需 Copyable，镜像 @local! 版实现。
-    @Frozen
-    public func splitAt(this @local?, mid: Int64): (Array<T>, Array<T>) @local? {
-        exclave {
-            if (mid < 0 || this.len < mid) {
-                throw IllegalArgumentException("Mid is less than 0 or not less than the size of this array.")
-            }
-            if (this.len == 0) {
-                return (this, this)
-            }
-            let left: Array<T> @local? = Array<T>(this.rawptr, this.start, mid)
-            let right: Array<T> @local? = Array<T>(this.rawptr, this.start + mid, this.len - mid)
-            (left, right)
-        }
-    }
-
     @Frozen
     public func repeat(n: Int64): Array<T> {
         if (n <= 0) {
@@ -1536,21 +1507,6 @@ public struct Array<T> {
         return result
     }
 
-    @When[env != "ohos"]
-    public func reduce(this @local!, operation: ((T @local!, T @local!) -> T @local!) @local?): Option<T> @local! {
-        exclave {
-            if (this.len == 0) {
-                return None<T>
-            }
-            var result: T @local! = arrayGetUnchecked2<T>(this.rawptr, start)
-            var i: Int64 = 1
-            while (i < this.len) {
-                result = operation(result, arrayGetUnchecked2<T>(this.rawptr, start + i))
-                i = i + 1
-            }
-            Some<T>(result)
-        }
-    }
 }
 
 extend<T> Array<T> {
@@ -1574,21 +1530,6 @@ extend<T> Array<T> {
         return Array<(T,R)>(newRawPtr,0,newSize)
     }
 
-    @When[env != "ohos"]
-    public func zip<R>(this @local!, other: Array<R> @local!): Array<(T, R)> @local! {
-        exclave {
-            let newSize: Int64 = min(this.len, other.size)
-            let newRawPtr = rawArrayAllocate2<(T,R)>(newSize)
-            rawArrayInitByValue2(newRawPtr, newSize, unsafe { zeroValue2<(T,R)>() })
-            for (i in 0..newSize) {
-                let t: T @local! = arrayGetUnchecked2<T>(this.rawptr, start + i)
-                let r: R @local! = arrayGetUnchecked2<R>(other.rawptr, other.start + i)
-                arraySet2<(T,R)>(newRawPtr, i, (t, r))
-            }
-            Array<(T,R)>(newRawPtr,0,newSize)
-        }
-    }
-
     /**
      * @description Used to obtain an array with indices.
      * 
@@ -1607,20 +1548,6 @@ extend<T> Array<T> {
         return Array<(Int64,T)>(newRawPtr,0,this.len)
     }
 
-    @When[env != "ohos"]
-    public func enumerate(this @local!): Array<(Int64, T)> @local! {
-        exclave {
-            if (this.len == 0) {
-                return Array<(Int64, T)>()
-            }
-            let newRawPtr = rawArrayAllocate2<(Int64,T)>(this.len)
-            rawArrayInitByValue2(newRawPtr, this.len, unsafe { zeroValue2<(Int64,T)>() })
-            for (i in this.len - 1..=0 : -1) {
-                arraySet2<(Int64,T)>(newRawPtr, i, (i, arrayGetUnchecked2<T>(this.rawptr, start + i)))
-            }
-            Array<(Int64,T)>(newRawPtr,0,this.len)
-        }
-    }
 }
 
 extend<T> Array<Array<T>> {
@@ -1641,24 +1568,6 @@ extend<T> Array<Array<T>> {
         return Array<T>(newRawPtr, 0, newLen)
     }
 
-    @Frozen
-    public func flatten(this @local!): Array<T> @local! {
-        exclave {
-            var newLen: Int64 = 0
-            for (i in 0..this.len) {
-                newLen += this[i].len
-            }
-            let newRawPtr = rawArrayAllocate2<T>(newLen)
-            rawArrayInitByValue2(newRawPtr, newLen, unsafe { zeroValue2<T>() })
-
-            var newIdx: Int64 = 0
-            for (i in 0..this.len) {
-                intrinsicBuiltInCopyTo2<T>(this[i].rawptr, newRawPtr, this[i].start, newIdx, this[i].len)
-                newIdx += this[i].len
-            }
-            Array<T>(newRawPtr, 0, newLen)
-        }
-    }
 }
 
 private func rangeToString(arraySize: Int64, start: Int64, end: Int64,
@@ -1711,7 +1620,7 @@ extend<T> Array<T> where T <: Copyable {
     // 提案 6.1：[](index, value!) — 设置指定位置的值；T 是 Copyable，value 不需 local 标注
     @Frozen
     @OverflowWrapping
-    public exclave operator func [](this @local?, index: Int64, value!: T): Unit {
+    public operator func [](this @local?, index: Int64, value!: T): Unit {
         // Using type conversion to replace typical bounds checking,
         // if (index < 0 || index >= this.len), to a single comparison.
         // The negative value of index will be converted to a large positive number
@@ -1724,7 +1633,7 @@ extend<T> Array<T> where T <: Copyable {
 
     // 提案 6.1：[](range, value!) — 范围设置；T<:Copyable 逐元素复制
     @Frozen
-    public exclave operator func [](this @local?, range: Range<Int64> @local?, value!: Array<T> @local?): Unit {
+    public operator func [](this @local?, range: Range<Int64> @local?, value!: Array<T> @local?): Unit {
         if (range.step != 1) {
             throw IllegalArgumentException(arrayInvalidRangeStepExceptionMessage(range.step))
         }

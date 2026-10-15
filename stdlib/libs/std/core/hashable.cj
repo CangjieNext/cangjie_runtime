@@ -13,6 +13,9 @@ public interface Hashable {
     func hashCode(this @local?): Int64 {
         throw UnimplementedException("Current Type does not implement 'hashCode' method for its @local? instance")
     }
+    func hashCode(this @local!): Int64 {
+        throw UnimplementedException("Current Type does not implement 'hashCode' method for its @local! instance")
+    }
 }
 
 /**

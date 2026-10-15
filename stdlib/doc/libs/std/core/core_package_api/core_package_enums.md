@@ -1307,7 +1307,7 @@ public func toString(this @local?): String @local!
 main() {
     let ord: Ordering @local? = Ordering.LT
     let s: String @local! = ord.toString()
-    println(s.toHeap())
+    println(String(s))
 }
 ```
 

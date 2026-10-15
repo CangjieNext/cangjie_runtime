@@ -4616,7 +4616,7 @@ public exclave func toString(this @local?): String @local!
 
 > **注意：**
 >
-> 当前编译器版本下，`String @local!` 结果在参与字符串插值等操作时可能触发运行时 [StackOverflowError](core_package_exceptions.md#class-stackoverflowerror) 缺陷，建议仅在 local 上下文内传递该结果，输出前调用 `toHeap()` 转换为非 local 字符串。
+> 当前编译器版本下，`String @local!` 结果在参与字符串插值等操作时可能触发运行时 [StackOverflowError](core_package_exceptions.md#class-stackoverflowerror) 缺陷，建议仅在 local 上下文内传递该结果，输出前调用 `String(...)` 转换为非 local 字符串。
 
 参数：
 
@@ -4633,7 +4633,7 @@ public exclave func toString(this @local?): String @local!
 main() {
     let arr: Array<Int64> @local? = [1, 2, 3]
     let s: String @local! = arr.toString()
-    let heapS = s.toHeap()
+    let heapS = String(s)
     println(heapS)
 }
 ```
@@ -8121,7 +8121,7 @@ main() {
     let runes: Array<Rune> @local! = Array<Rune>(2, repeat: r'a') @local!
     runes[1] = r'b'
     let s: String @local! = String(runes)
-    println("Local string: '${s.toHeap()}'")
+    println("Local string: '${String(s)}'")
 }
 ```
 
@@ -8160,7 +8160,7 @@ main() {
     let runes: Array<Rune> @local! = Array<Rune>(2, repeat: r'a') @local!
     runes[1] = r'b'
     let s: String @local! = String(runes)
-    println("Local string from collection: '${s.toHeap()}'")
+    println("Local string from collection: '${String(s)}'")
 }
 ```
 
@@ -8190,7 +8190,7 @@ public exclave init(this @local!, value: String @local?)
 main() {
     let s: String @local! = "xyz"
     let s2: String @local! = String(s)
-    println("Copied local string: '${s2.toHeap()}'")
+    println("Copied local string: '${String(s2)}'")
 }
 ```
 
@@ -8483,7 +8483,7 @@ exclave func makeBytes(): Array<UInt8> @local? {
 main() {
     let bytes: Array<UInt8> @local? = makeBytes()
     let s: String @local! = String.fromUtf8(bytes)
-    println("s='${s.toHeap()}'")
+    println("s='${String(s)}'")
 }
 ```
 
@@ -9909,7 +9909,7 @@ main() {
     let lines = s.lines()
     let first = lines.next()
     if (let Some(v) <- first) {
-        let heapLine = v.toHeap()
+        let heapLine = String(v)
         println("line=${heapLine}")
     }
 }
@@ -10005,7 +10005,7 @@ public exclave func padEnd(this @local!, totalWidth: Int64, padding!: String = "
 main() {
     let s: String @local! = "7"
     let padded: String @local! = s.padStart(3, padding: "0")
-    println("padded=${padded.toHeap()}")
+    println("padded=${String(padded)}")
 }
 ```
 
@@ -10099,7 +10099,7 @@ public exclave func padStart(this @local!, totalWidth: Int64, padding!: String =
 main() {
     let s: String @local! = "Hi"
     let padded: String @local! = s.padStart(4, padding: "-")
-    println("padded=${padded.toHeap()}")
+    println("padded=${String(padded)}")
 }
 ```
 
@@ -10248,7 +10248,7 @@ public exclave func removePrefix(this @local!, prefix: String @local?): String @
 main() {
     let s: String @local! = "a,b"
     let removed: String @local! = s.removePrefix("a,")
-    println("removed=${removed.toHeap()}")
+    println("removed=${String(removed)}")
 }
 ```
 
@@ -10340,7 +10340,7 @@ public exclave func removeSuffix(this @local!, suffix: String @local?): String @
 main() {
     let s: String @local! = "a,b"
     let removed: String @local! = s.removeSuffix(",b")
-    println("removed=${removed.toHeap()}")
+    println("removed=${String(removed)}")
 }
 ```
 
@@ -10656,7 +10656,7 @@ public exclave func split(this @local!, str: String @local?, removeEmpty!: Bool 
 main() {
     let s: String @local! = "a,b,c"
     let parts: Array<String> @local! = s.split(",")
-    println("n=${parts.size} last=${parts[2].toHeap()}")
+    println("n=${parts.size} last=${String(parts[2])}")
 }
 ```
 
@@ -10925,7 +10925,7 @@ public exclave func toAsciiLower(this @local!): String @local!
 main() {
     let s: String @local! = "ABC"
     let lower: String @local! = s.toAsciiLower()
-    println("lower=${lower.toHeap()}")
+    println("lower=${String(lower)}")
 }
 ```
 
@@ -11016,7 +11016,7 @@ public exclave func toAsciiTitle(this @local!): String @local!
 main() {
     let s: String @local! = "hello world"
     let title: String @local! = s.toAsciiTitle()
-    println("title=${title.toHeap()}")
+    println("title=${String(title)}")
 }
 ```
 
@@ -11105,7 +11105,7 @@ public exclave func toAsciiUpper(this @local!): String @local!
 main() {
     let s: String @local! = "abc"
     let upper: String @local! = s.toAsciiUpper()
-    println("upper=${upper.toHeap()}")
+    println("upper=${String(upper)}")
 }
 ```
 
@@ -11244,7 +11244,7 @@ public exclave func toString(this @local?): String @local!
 
 > **说明：**
 >
-> 该方法是 [ToString](core_package_interfaces.md#interface-tostring) 接口在 String 类型上的 `@local?` 适配实现。`@local!` 结果如需打印或与堆上字符串交互，可调用 `toHeap()` 转换为非 local 字符串。
+> 该方法是 [ToString](core_package_interfaces.md#interface-tostring) 接口在 String 类型上的 `@local?` 适配实现。`@local!` 结果如需打印或与堆上字符串交互，可调用 `String(...)` 转换为非 local 字符串。
 
 参数：
 
@@ -11261,7 +11261,7 @@ public exclave func toString(this @local?): String @local!
 main() {
     let s: String @local? = "abc"
     let r: String @local! = s.toString()
-    println(r.toHeap())
+    println(String(r))
 }
 ```
 
@@ -11365,7 +11365,7 @@ public exclave func trimAscii(this @local!): String @local!
 main() {
     let s: String @local! = " Hello "
     let t: String @local! = s.trimAscii()
-    println("t=${t.toHeap()} len=${t.size}")
+    println("t=${String(t)} len=${t.size}")
 }
 ```
 
@@ -11487,7 +11487,7 @@ public exclave func trimAsciiEnd(this @local!): String @local!
 main() {
     let s: String @local! = " Hello "
     let e: String @local! = s.trimAsciiEnd()
-    println("e='${e.toHeap()}' len=${e.size}")
+    println("e='${String(e)}' len=${e.size}")
 }
 ```
 
@@ -11609,7 +11609,7 @@ public exclave func trimAsciiStart(this @local!): String @local!
 main() {
     let s: String @local! = " Hello "
     let p: String @local! = s.trimAsciiStart()
-    println("p='${p.toHeap()}' len=${p.size}")
+    println("p='${String(p)}' len=${p.size}")
 }
 ```
 
@@ -12443,7 +12443,7 @@ public operator const func [](this @local?, range: Range<Int64> @local?): String
 main() {
     let s: String @local? = "Hello"
     let slice: String @local? = s[1..3]
-    println("slice=${slice.toHeap()}")
+    println("slice=${String(slice)}")
 }
 ```
 
@@ -12490,7 +12490,7 @@ main() {
     let s: String @local! = "Hello"
     let r: Range<Int64> @local? = 1..3
     let slice: String @local! = s[r]
-    println("slice=${slice.toHeap()}")
+    println("slice=${String(slice)}")
 }
 ```
 
@@ -12796,7 +12796,7 @@ public exclave operator const func +(this @local!, other: String @local?): Strin
 main() {
     let s: String @local! = "Hello"
     let cat: String @local! = s + "!"
-    println("cat=${cat.toHeap()}")
+    println("cat=${String(cat)}")
 }
 ```
 
@@ -12834,7 +12834,7 @@ public exclave operator const func *(this @local!, count: Int64): String @local!
 main() {
     let s: String @local! = "ab"
     let rep: String @local! = s * 2
-    println("rep=${rep.toHeap()}")
+    println("rep=${String(rep)}")
 }
 ```
 

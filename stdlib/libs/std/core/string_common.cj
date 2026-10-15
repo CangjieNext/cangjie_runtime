@@ -269,34 +269,34 @@ class StringIteratorData {
 
     init(data: Array<UInt8>) {
         this.myData = data
-        this.end = myData.size
+        this.end = myData.len
         this.nextPos = 0
     }
 
     init(data: RawArray<UInt8>) {
         this.myData = toArray(data)
-        this.end = myData.size
+        this.end = myData.len
         this.nextPos = 0
     }
 
     exclave init(this @local!, data: Array<UInt8> @local!) {
         myData = data
-        end = myData.size
+        end = myData.len
         nextPos = 0
     }
     exclave init(this @local!, data: RawArray<UInt8> @local!) {
         this.myData = toArray(data)
-        this.end = myData.size
+        this.end = myData.len
         this.nextPos = 0
     }
     exclave init(this @local?, data: Array<UInt8> @local?) {
         myData = data
-        end = myData.size
+        end = myData.len
         nextPos = 0
     }
     exclave init(this @local?, data: RawArray<UInt8> @local?) {
         this.myData = toArray(data)
-        this.end = myData.size
+        this.end = myData.len
         this.nextPos = 0
     }
 }

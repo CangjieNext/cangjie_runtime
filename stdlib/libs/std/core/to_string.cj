@@ -67,7 +67,7 @@ extend IntNative <: ToString {
         return Int64(this).toString()
     }
     public exclave func toString(this @local?): String @local! {
-        Int64(this) @~local.toString()
+        Int64(this).toString()
     }
 }
 
@@ -76,7 +76,7 @@ extend Int32 <: ToString {
         return Int64(this).toString()
     }
     public exclave func toString(this @local?): String @local! {
-        Int64(this) @~local.toString()
+        Int64(this).toString()
     }
 }
 
@@ -85,7 +85,7 @@ extend Int16 <: ToString {
         return Int64(this).toString()
     }
     public exclave func toString(this @local?): String @local! {
-        Int64(this) @~local.toString()
+        Int64(this).toString()
     }
 }
 
@@ -94,7 +94,7 @@ extend Int8 <: ToString {
         return Int64(this).toString()
     }
     public exclave func toString(this @local?): String @local! {
-        Int64(this) @~local.toString()
+        Int64(this).toString()
     }
 }
 
@@ -119,7 +119,7 @@ extend UIntNative <: ToString {
         return UInt64(this).toString()
     }
     public exclave func toString(this @local?): String @local! {
-        UInt64(this) @local?.toString()
+        UInt64(this).toString()
     }
 }
 
@@ -128,7 +128,7 @@ extend UInt32 <: ToString {
         return UInt64(this).toString()
     }
     public exclave func toString(this @local?): String @local! {
-        UInt64(this) @local?.toString()
+        UInt64(this).toString()
     }
 }
 
@@ -137,7 +137,7 @@ extend UInt16 <: ToString {
         return UInt64(this).toString()
     }
     public exclave func toString(this @local?): String @local! {
-        UInt64(this) @local?.toString()
+        UInt64(this).toString()
     }
 }
 
@@ -146,7 +146,7 @@ extend UInt8 <: ToString {
         return UInt64(this).toString()
     }
     public exclave func toString(this @local?): String @local! {
-        UInt64(this) @local?.toString()
+        UInt64(this).toString()
     }
 }
 
@@ -176,7 +176,7 @@ extend Float32 <: ToString {
         return Float64(this).toString()
     }
     public exclave func toString(this @local?): String @local! {
-        Float64(this) @~local.toString()
+        Float64(this).toString()
     }
 }
 
@@ -185,7 +185,7 @@ extend Float16 <: ToString {
         return Float64(this).toString()
     }
     public exclave func toString(this @local?): String @local! {
-        Float64(this) @~local.toString()
+        Float64(this).toString()
     }
 }
 

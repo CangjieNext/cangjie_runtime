@@ -219,21 +219,6 @@ public class StringBuilder <: ToString {
         this.appendString(v.toString())
     }
 
-    // 参数收 String @local? 的重载:非 public。调用场景=编译器插值 desugar 中
-    // 片段为 String @local! 的 append(如 core 包内异常打印扩展);用户侧插值片段
-    // 均为 plain String(走 plain append(String)),或经 toHeap() 转换后再插值。
-    @OverflowWrapping
-    internal func append(str: String @local?): Unit {
-        if (str.isEmpty()) {
-            return
-        }
-        let strData = unsafe { str.rawData() }
-        let itemLen = strData.size
-        this.grow(itemLen)
-        strData.copyTo(this.data, 0, this.endIndex, itemLen)
-        this.endIndex += itemLen
-    }
-
     @OverflowWrapping
     @Frozen
     public func append(str: String): Unit {
@@ -513,6 +498,7 @@ func numberToString(number: UInt64, endIndex: Int64, buffer: Array<Byte>): Unit 
         buffer[next - 1] = digits100[i]
     }
 }
+
 @OverflowWrapping
 exclave func numberToString(number: UInt64, endIndex: Int64, buffer: Array<Byte> @local!): Unit {
     //make sure endindex is smaller then buffer.size
