@@ -269,8 +269,6 @@ public class ByteBuffer <: IOStream & Seekable {
         myData = itemData
     }
 
-    // gap audit 2026-09-24 9c：去掉接收者 @local? 注解——本函数被 plain grow/reserve 共享，
-    // @local? 接收者是 local 适配残留。
     private func checkGrowSize(oldSize: Int64, additional: Int64): Int64 {
         try {
             return oldSize + additional
