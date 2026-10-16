@@ -364,8 +364,15 @@ public class LinkedBlockingQueue<E> {
             }
             let next: Int64 = r + 1
             if (putQsize.compareAndSwap(r, next)) {
-                enqueueUnsafe(element)
-                count.fetchAdd(1)
+                // enqueueUnsafe 内部可能因 newBlock 堆分配抛异常（如 OOM）；
+                // 一旦失败必须把已预约的 putQsize 回补，否则队列容量被永久 -1。
+                try {
+                    enqueueUnsafe(element)
+                    count.fetchAdd(1)
+                } catch (e: Exception) {
+                    putQsize.fetchSub(1)
+                    throw e
+                }
                 return true
             }
         }
@@ -406,9 +413,16 @@ public class LinkedBlockingQueue<E> {
             }
             let next: Int64 = c - 1
             if (count.compareAndSwap(c, next)) {
-                let value = dequeueUnsafe()
-                putQsize.fetchSub(1)
-                return Some(value)
+                // dequeueUnsafe 的 "Unreachable code." 异常路径会抛异常；
+                // 一旦失败必须把已认领的 count 回补，否则元素丢失且 putQsize 泄漏。
+                try {
+                    let value = dequeueUnsafe()
+                    putQsize.fetchSub(1)
+                    return Some(value)
+                } catch (e: Exception) {
+                    count.fetchAdd(1)
+                    throw e
+                }
             }
         }
         return None<E>
