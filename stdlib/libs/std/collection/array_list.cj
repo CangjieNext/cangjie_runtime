@@ -1388,7 +1388,7 @@ public class ArrayList<T> <: List<T> {
     }
     @Frozen
     public exclave func slice(this @local?, range: Range<Int64>): ArrayList<T> @local? {
-        ArrayList<T>(myData[range])
+        ArrayList<T>(rangeSlice(this.myData, range, this.size))
     }
     @Frozen
     public exclave operator func [](this @local!, range: Range<Int64>): ArrayList<T> @local! {
@@ -1396,7 +1396,7 @@ public class ArrayList<T> <: List<T> {
     }
     @Frozen
     public exclave operator func [](this @local?, range: Range<Int64>): ArrayList<T> @local? {
-        ArrayList<T>(myData[range])
+        this.slice(range)
     }
 
     /**
@@ -1515,7 +1515,7 @@ public class ArrayList<T> <: List<T> {
 
         if (range.hasEnd) {
             if (range.isClosed) {
-                if (range.end > size) {
+                if (range.end >= size) {
                     throw IndexOutOfBoundsException(
                         "The closed end of the range ${range.end} is greater than or equal to the size ${size}.")
                 }

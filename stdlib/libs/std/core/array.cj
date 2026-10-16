@@ -1583,9 +1583,7 @@ extend<T> Array<T> where T <: Copyable {
         if (rangeSize != value.size) {
             throw IllegalArgumentException(arrayInvalidRangeSizeExceptionMessage(value.size, rangeSize))
         }
-        for (i in 0..rangeSize) {
-            arraySet3<T>(this.rawptr, this.start + start_ + i, arrayGetUnchecked3<T>(value.rawptr, value.start + i))
-        }
+        intrinsicBuiltInCopyTo3<T>(value.rawptr, this.rawptr, value.start, this.start + start_, rangeSize)
     }
 
     @Frozen

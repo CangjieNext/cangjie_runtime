@@ -506,12 +506,12 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
 
     @Frozen
     public exclave init(this @local?, elements: Collection<(K, V)> @local?) {
-        // An @local? context has no way to write elements (Array's `[]=(this @local?, ...)` writer is in the
-        // Copyable extension, K/V have no such constraint); only sharing the HashMap internal structure is possible; the rest is explicitly rejected.
+        // Copy the table storage together with its counters so changes through the
+        // source map cannot invalidate this map's size, bucket chains or free list.
         match (elements) {
             case map: HashMap<K, V> =>
-                buckets = map.buckets
-                entries = map.entries
+                buckets = map.buckets.clone()
+                entries = map.entries.clone()
                 appendIndex = map.appendIndex
                 freeIndex = map.freeIndex
                 freeSize = map.freeSize
@@ -2086,6 +2086,16 @@ class HashMapKeysLocal<K, V> <: EquatableCollection<K> where K <: Hashable & Equ
 
     @Frozen
     public func contains(all!: Collection<K>): Bool {
+        map.contains(all: all)
+    }
+
+    @Frozen
+    public func contains(this @local?, element: K @local?): Bool {
+        map.contains(element)
+    }
+
+    @Frozen
+    public func contains(this @local?, all!: Collection<K> @local?): Bool {
         map.contains(all: all)
     }
 
