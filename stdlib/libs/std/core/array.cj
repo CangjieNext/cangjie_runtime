@@ -499,7 +499,7 @@ public struct Array<T> {
     }
 
     @Frozen
-    private func rangeSlice(this @local!, range: Range<Int64> @local?, _: Int64): Array<T> @local! {
+    private func rangeSlice(this @local!, range: Range<Int64>, _: Int64): Array<T> @local! {
         if (range.step != 1) {
             throw IllegalArgumentException(arrayInvalidRangeStepExceptionMessage(range.step))
         }
@@ -514,7 +514,7 @@ public struct Array<T> {
     }
 
     @Frozen
-    private func rangeSlice(this @local?, range: Range<Int64> @local?, _: Int64): Array<T> @local? {
+    private func rangeSlice(this @local?, range: Range<Int64>, _: Int64): Array<T> @local? {
         if (range.step != 1) {
             throw IllegalArgumentException(arrayInvalidRangeStepExceptionMessage(range.step))
         }
@@ -565,7 +565,7 @@ public struct Array<T> {
 
     @Frozen
     @OverflowWrapping
-    const func normalize(this @local?, range: Range<Int64> @local?): (Int64, Int64) {
+    const func normalize(this @local?, range: Range<Int64>): (Int64, Int64) {
         var start = if (range.hasStart) {
             range.start
         } else {
