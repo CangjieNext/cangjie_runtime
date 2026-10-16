@@ -11,10 +11,10 @@ package std.core
 public interface Hashable {
     func hashCode(): Int64
     func hashCode(this @local?): Int64 {
-        throw UnImplementedException("Current Type does not implement 'hashCode' method for its @local? instance")
+        throw UnimplementedException("Current Type does not implement 'hashCode' method for its @local? instance")
     }
     func hashCode(this @local!): Int64 {
-        throw UnImplementedException("Current Type does not implement 'hashCode' method for its @local! instance")
+        throw UnimplementedException("Current Type does not implement 'hashCode' method for its @local! instance")
     }
 }
 
@@ -729,6 +729,15 @@ extend Float16 <: Hashable {
 
 extend<T> Range<T> <: Hashable where T <: Hashable & Countable<T> & Comparable<T> & Equatable<T> {
     public func hashCode(): Int64 {
+        var dfh: DefaultHasher = DefaultHasher()
+        dfh.write(start.hashCode())
+        dfh.write(end.hashCode())
+        dfh.write(step.hashCode())
+        dfh.write(isClosed.hashCode())
+        return dfh.finish()
+    }
+
+    public func hashCode(this @local?): Int64 {
         var dfh: DefaultHasher = DefaultHasher()
         dfh.write(start.hashCode())
         dfh.write(end.hashCode())

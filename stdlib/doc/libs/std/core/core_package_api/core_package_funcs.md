@@ -1547,15 +1547,17 @@ main() {
 ## func refEq(Object, Object)
 
 ```cangjie
-public func refEq(a: Object, b: Object): Bool
+public func refEq(a: Object @local?, b: Object @local?): Bool
 ```
 
 功能：判断两个 [Object](core_package_classes.md#class-object) 实例的内存地址是否相同。
 
+参数可以是 `@local?` 实例，因此该函数可用于比较 local 对象与堆对象、或两个 local 对象的引用关系。
+
 参数：
 
-- a: [Object](core_package_classes.md#class-object) - 一个 [Object](core_package_classes.md#class-object) 实例。
-- b: [Object](core_package_classes.md#class-object) - 另一个 [Object](core_package_classes.md#class-object) 实例。
+- a: [Object](core_package_classes.md#class-object) @local? - 一个 [Object](core_package_classes.md#class-object) 实例。
+- b: [Object](core_package_classes.md#class-object) @local? - 另一个 [Object](core_package_classes.md#class-object) 实例。
 
 返回值：
 
