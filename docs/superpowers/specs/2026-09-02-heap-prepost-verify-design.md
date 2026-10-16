@@ -1,7 +1,7 @@
 # GC 堆 Pre/Post 校验设计规格
 
 - 版本：v2.0（2026-09-03）
-- 状态：待实现
+- 状态：已实现（2026-09）；FP 握手机制（verifyRequested/metadataJobActive 等）已被 ADR-12 walker 方案（`2026-09-10-heap-verify-walker-design.md` §6 拆除清单）拆除，本文档保留作历史设计记录
 - 目标仓库：`cangjie_runtime_zb`（runtime 为 C++）
 - 参考实现：Android Runtime `-Xgc:preverify`/`-Xgc:postverify`（`art/runtime/gc/heap.cc` 的 `PreGcVerification`/`PostGcVerification`/`VerifyHeapReferences`）
 - 规范性用语：**必须**（MUST）、**不得**（MUST NOT）、**应当**（SHOULD）

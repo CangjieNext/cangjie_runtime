@@ -27,7 +27,7 @@ namespace MapleRuntime {
 class HeapVerifier {
 public:
     // FP activity counters snapshotted at GC cycle start; used to attribute
-    // verification failures (spec section 8.2).
+    // verification failures (ADR-11 section 8.2, retained per ADR-12 section 7).
     struct FpSnapshot {
         uint64_t finalizedCount = 0;
         uint64_t enqueuedCount = 0;
@@ -39,7 +39,7 @@ public:
     HeapVerifier(const char* tag, const FpSnapshot& fpSnapshot) : tag_(tag), fpSnapshot_(fpSnapshot) {}
     ~HeapVerifier() = default;
 
-    // Walks all heap objects and root sets (spec section 4.3).
+    // Walks all heap objects and root sets (ADR-12 section 10).
     // Requires STW held by the caller (mutators/finalizers frozen; FP's
     // metadata jobs run freely — the walker is immune to them by design).
     void Verify();
@@ -57,10 +57,10 @@ private:
     // (read-only IdleBarrier semantics): untagged -> raw; tagged -> forward-table
     // lookup with raw-address fallback when unroutable. Never writes/re-tags.
     BaseObject* ResolveRef(RefField<>& field) const;
-    // Core one-hop target check shared by ref-fields and roots (spec section 6.2).
+    // Core one-hop target check shared by ref-fields and roots (ADR-12 section 10.1).
     // Returns true when ok or legally skipped; false when a failure was recorded.
     bool CheckTarget(const char* kind, BaseObject* holder, size_t offset, BaseObject* ref);
-    // State code rule (spec section 6.3): NORMAL/LOCKED always legal;
+    // State code rule (ADR-12 section 10.1, F3/F6): NORMAL/LOCKED always legal;
     // FORWARDING/FORWARDED only inside ghost from-regions.
     static bool CheckStateCode(BaseObject* obj);
     void VerifyRoots();

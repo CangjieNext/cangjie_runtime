@@ -1,5 +1,7 @@
 # GC 堆 Pre/Post 校验 实现计划
 
+> 状态：已执行完毕（2026-09）。所实现的 FP 握手版已被 ADR-12 walker 方案（`specs/2026-09-10-heap-verify-walker-design.md`）取代；本文档保留作历史执行记录。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 按 spec `docs/superpowers/specs/2026-09-02-heap-prepost-verify-design.md` 实现 GC 周期 pre/post 堆校验（HeapVerifier 类 + FP 活动证据 + cjPreVerify/cjPostVerify 环境变量开关）。

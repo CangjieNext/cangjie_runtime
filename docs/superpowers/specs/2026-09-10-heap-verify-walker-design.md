@@ -1,9 +1,9 @@
 # Heap Verify Walker 方案设计（ADR-12）
 
 - 日期：2026-09-10
-- 状态：实现中
+- 状态：已实现并全量验证（默认 WGC 模式，`cjEnableGC` 未设或 =1）
 - 前置：`2026-09-02-heap-prepost-verify-design.md`（握手版，ADR-11）
-- 分支：`feature/heap-prepost-verify`
+- 分支：`feature/heap-verify-walker`
 
 ## 1. 背景与动机
 
@@ -56,8 +56,8 @@ cursor 从 regionHeapStart 推进到 inactiveZone（读一次，FP 可并发推�
 
 | # | 不变量 | 代码依据 | 违反后果 |
 |---|---|---|---|
-| 1 | `InitRegionInfo` 写序 regionEnd → regionType → unitRole（role 最后） | `RegionInfo.h:1182-1189` | 读到 leader 角色但 extent 未完成 → 游标跳飞 |
-| 2 | free 单元恒 1-unit | `ToFreeRegion → InitFreeRegion(idx, 1)`，`RegionInfo.h:1147` | +UNIT_SIZE 步长错误 → 游标失步 |
+| 1 | `InitRegionInfo` 写序 regionEnd → regionType → unitRole（role 最后） | `RegionInfo.h:1493-1514` | 读到 leader 角色但 extent 未完成 → 游标跳飞 |
+| 2 | free 单元恒 1-unit | `ToFreeRegion → InitFreeRegion(idx, 1)`，`RegionInfo.h:1460` | +UNIT_SIZE 步长错误 → 游标失步 |
 | 3 | 0 后缀字段 + ghost 位 FP 永不写 | `InitRegionInfo` 字段清单不含 0 后缀；惰性路由要求跨周期存活 | ghost 分支读到 FP 正在写的快照 → 撕裂 |
 | 4 | FP 作业不分配对象（STW 期间 FP-as-mutator 被停住） | FP 跑 CJ finalizer 时是正常 mutator | 新 region 非空 → 跳过有实际覆盖损失 |
 | 5 | 撕裂读只影响导航、不影响判定 | 规则①②只做 skip/advance，verdict 永远来自 VisitAllObjects 的完整 region | 撕裂读产生错误 verdict → 误报/漏检 |
@@ -70,7 +70,7 @@ cursor 从 regionHeapStart 推进到 inactiveZone（读一次，FP 可并发推�
 |---|---|---|
 | 本轮 GC 有效 region 的对象（to/exempted/pinned/large） | 完整检查（header + 位图门控引用） | 与握手版完全一致 |
 | ghost region（本轮尸体） | 跳过（0 后缀导航）——**真尸体从不进 VerifyObject，零检查** | 握手版也跳过（garbage 检查）——一致 |
-| FP 复用单元上的新 region（新分配对象） | 整块复用（leader 带 ghost 位）→ 跳过；**混合复用（dirtyTree 相邻合并出"leader 无位 + 成员带位"的新 extent）→ 分支③ `VisitAllObjects` 按当前 extent 遍历，带位 unit 上的新对象进 VerifyObject，被 `:180 InGhostFromRegion` 拦下：查头+状态、字段不查** | **实测零损失**：新对象无位图（引用本就不查）、header 必然合法 |
+| FP 复用单元上的新 region（新分配对象） | 整块复用（leader 带 ghost 位）→ 跳过；**混合复用（dirtyTree 相邻合并出"leader 无位 + 成员带位"的新 extent）→ 分支③ `VisitAllObjects` 按当前 extent 遍历，带位 unit 上的新对象进 VerifyObject，被 `:217 InGhostFromRegion` 拦下：查头+状态、字段不查** | **实测零损失**：新对象无位图（引用本就不查）、header 必然合法 |
 | 死循环/SEGV 风险单元（SUBORDINATE 中间态） | +UNIT_SIZE 爬行 | 消除（永不读 ownerRegion） |
 
 ## 6. 拆除清单
@@ -116,51 +116,51 @@ FP 侧行为**完全归位生产语义**（零 verify 感知）；GC 流程 `Not
 
 ## 10. 校验内容（实现核对版，2026-09-14）
 
-对照 `HeapVerifier.cpp` 逐行核对的完整清单。行号为核对时点锚点。
+对照 `HeapVerifier.cpp` 逐行核对的完整清单。行号为 2026-10-16 核对时点锚点（rebase 至 main c844ec75 之后）。
 
 ### 10.1 失败场景（共 7 类）
 
-**对象本体（VerifyObject，:164-195，仅来自 WalkHeap 分支③ 的 VisitAllObjects）**
+**对象本体（VerifyObject，:198-232，仅来自 WalkHeap 分支③ 的 VisitAllObjects）**
 
 | # | 条件 | 报错信息 | 后续处理 |
 |---|---|---|---|
-| F1 | walker 产出对象不在堆范围（:167） | `object %p from ForEachObj is outside heap range` | return |
-| F2 | 对象头损坏（:171） | `object %p has invalid header (null or corrupted TypeInfo)` | return，**跳过字段遍历**（头不可信） |
-| F3 | FORWARDING/FORWARDED/未知状态码出现在 ghost from-region 之外（:175，规则见 :277-290） | `object %p<%s> has unexpected state %d outside ghost from-region` | **继续字段遍历**（StateWord 与字段区独立） |
+| F1 | walker 产出对象不在堆范围（:201） | `object %p from ForEachObj is outside heap range` | return |
+| F2 | 对象头损坏（:206） | `object %p has invalid header (null or corrupted TypeInfo)` | return，**跳过字段遍历**（头不可信） |
+| F3 | FORWARDING/FORWARDED/未知状态码出现在 ghost from-region 之外（:211，规则见 :358-371） | `object %p<%s> has unexpected state %d outside ghost from-region` | **继续字段遍历**（StateWord 与字段区独立） |
 
-**引用目标（CheckTarget，:221-275，覆盖活对象 ref 字段 + 四类根 :292-314）**
+**引用目标（CheckTarget，:258-356，覆盖活对象 ref 字段 + 四类根 :373-395）**
 
 | # | 条件 | 报错信息（均带 `kind/holder<type>/offset` 前缀） | 备注 |
 |---|---|---|---|
 | F4 | 目标非堆地址且 dladdr 不命中——栈/malloc/匿名 mmap/未映射 | `targets non-module %p (wild pointer?)` | **唯一不 deref 目标的检查**；**opt-in：cjVerifyNonHeap（默认关，2026-09-23 起，见 §10.5）**——关=全平台容忍非堆目标且跳过 dladdr；开=dladdr 命中（模块常量对象，如 RawArray<UInt8> 字面量）与注册原生根放行，门控平台另查栈区间 |
-| F5 | 目标在堆内但对象头损坏（:244） | `targets %p with invalid header` | |
-| F6 | 目标状态码非法且在 ghost region 外（:249） | `targets %p<%s> in state %d outside ghost from-region` | |
-| F7 | 活对象/根的目标落在 GARBAGE/FREE region（:265） | `targets %p<%s> in %s region (dangling reference to reclaimed object?)` | 悬垂引用两种时态：GARBAGE=判死待 FP 回收，FREE=已回收进 dirtyTree；复活对象靠 ExemptFromRegions 前置豁免免于误报 |
+| F5 | 目标在堆内但对象头损坏（:322） | `targets %p with invalid header` | |
+| F6 | 目标状态码非法且在 ghost region 外（:328） | `targets %p<%s> in state %d outside ghost from-region` | |
+| F7 | 活对象/根的目标落在 GARBAGE/FREE region（:345） | `targets %p<%s> in %s region (dangling reference to reclaimed object?)` | 悬垂引用两种时态：GARBAGE=判死待 FP 回收，FREE=已回收进 dirtyTree；复活对象靠 ExemptFromRegions 前置豁免免于误报 |
 
-F7 的 liveness 门是**保守 best-effort**：仅当目标 unit 角色为 leader（:263）时读 leader 的 regionType；目标 unit 为 FREE_UNITS/SUBORDINATE_UNIT 时跳过——后者因 walker 安全规则禁止跟随 `ownerRegion`，前者单元级已回收（madvise 过的页已被 F5 头检查拦下）。
+F7 的 liveness 门是**保守 best-effort**：仅当目标 unit 角色为 leader（:342）时读 leader 的 regionType；目标 unit 为 FREE_UNITS/SUBORDINATE_UNIT 时跳过——后者因 walker 安全规则禁止跟随 `ownerRegion`，前者单元级已回收（madvise 过的页已被 F5 头检查拦下）。
 
 ### 10.2 合法放行场景（查但不报错）
 
 | 场景 | 机制 | 依据 |
 |---|---|---|
-| null 引用 | :223 直接通过 | |
+| null 引用 | :260 直接通过 | |
 | 模块常量对象 | dladdr 命中已加载模块映射——仅在 cjVerifyNonHeap=1 时才查询（默认关连 dladdr 都跳过） | 字符串字面量等 |
-| ghost region 整段跳过 | WalkHeap 分支①按冻结 `regionEnd0` 跳过——**真尸体从不进 VerifyObject（连头都不查）** | :126 注释：corpses 零价值（ART `heap.cc:3328` 先例） |
-| 混合复用 region 的新对象 | 分支③遍历到带残留 ghost 位 unit 上的新对象 → :180 拦下：查头+状态、字段不查 | 可达路径：dirtyTree 相邻合并复用时 leader unit 无 ghost 位 + 成员 unit 带残留位（ghost 位/0 后缀跨回收存活，`InitRegionInfo` 不写）；新对象无位图，字段本就不可查 |
-| 位图门 | 非存活（floating garbage）对象的字段不查（:189），头+状态保留 | ADR-10；生产可达性前置过滤的复制 |
-| tagged ref 不可路由回退裸地址 | ResolveRef :218 回退，**非放行**——回退地址继续过 F4-F7 | tag 语义是"疏散前地址"而非"已搬迁"：exempted（`ExemptFromRegions` 先于 `PrepareForwardTable` 摘除、从未置 ghost 位）、pinned（`ClearGhostRegionBit`）、resurrect 对象打 tag 后从未移动，裸地址即对象本身；为 `IdleBarrier` 两级语义（`TryUpdateRefField` 失败 → `TryUntagRefField`）的只读复刻。**位布局（2026-09-15 实测确认，RefField.h:167-176）**：x86_64 下 `address:48 + isTagged:1(bit48) + tagID:1(bit49)`——tag 在高位而非低位；`GetTargetObject()` 返回的 address 位域天然不含 tag 位，回退值即干净裸地址。补充：活对象持有指向可路由 region 内死 offset 的 tag 时，`GetRoute` 的 `CHECK(toRegion2Idx != INVALID_VALUE)`（`LiveInfo.cpp:20`）fail-fast 中止——真 corruption 信号，接受 |
+| ghost region 整段跳过 | WalkHeap 分支①按冻结 `regionEnd0` 跳过——**真尸体从不进 VerifyObject（连头都不查）** | :160 注释：corpses 零价值（ART `heap.cc:3328` 先例） |
+| 混合复用 region 的新对象 | 分支③遍历到带残留 ghost 位 unit 上的新对象 → :217 拦下：查头+状态、字段不查 | 可达路径：dirtyTree 相邻合并复用时 leader unit 无 ghost 位 + 成员 unit 带残留位（ghost 位/0 后缀跨回收存活，`InitRegionInfo` 不写）；新对象无位图，字段本就不可查 |
+| 位图门 | 非存活（floating garbage）对象的字段不查（:226），头+状态保留 | ADR-10；生产可达性前置过滤的复制 |
+| tagged ref 不可路由回退裸地址 | ResolveRef :247 回退，**非放行**——回退地址继续过 F4-F7 | tag 语义是"疏散前地址"而非"已搬迁"：exempted（`ExemptFromRegions` 先于 `PrepareForwardTable` 摘除、从未置 ghost 位）、pinned（`ClearGhostRegionBit`）、resurrect 对象打 tag 后从未移动，裸地址即对象本身；为 `IdleBarrier` 两级语义（`TryUpdateRefField` 失败 → `TryUntagRefField`）的只读复刻。**位布局（2026-09-15 实测确认，RefField.h:173-181）**：x86_64 下 `address:48 + isTagged:1(bit48) + tagID:1(bit49)`——tag 在高位而非低位；`GetTargetObject()` 返回的 address 位域天然不含 tag 位，回退值即干净裸地址。补充：活对象持有指向可路由 region 内死 offset 的 tag 时，`GetRoute` 的 `CHECK(toRegion2Idx != INVALID_VALUE)`（`LiveInfo.cpp:23`）fail-fast 中止——真 corruption 信号，接受 |
 
-### 10.3 失败后的处理（Verify，:65-92）
+### 10.3 失败后的处理（Verify，:94-126）
 
-1. 每条失败立即 `RTLOG_ERROR`（带 pre-GC/post-GC tag、holder 地址与 TypeInfo 名、字段偏移，`RecordFailure` :316-325）；
+1. 每条失败立即 `RTLOG_ERROR`（带 pre-GC/post-GC tag、holder 地址与 TypeInfo 名、字段偏移，`RecordFailure` :397-406）；
 2. 单次校验完整跑完（不在首个失败处中断），统计 `failCount_`；
 3. `failCount_ > 0` → 输出 FP 活动归因行（finalized/enqueued 周期增量、FP mid-run 实时态）；
 4. pre-GC 额外输出 `NOTE: heap was already corrupted BEFORE this GC cycle started`（区分本轮损坏 vs 上轮遗留）；
-5. `CHECK_DETAIL(false, ...)` → fatal 中止（:88）；通过则 VLOG 一行统计（对象数/根数/耗时）。
+5. `CHECK_DETAIL(false, ...)` → fatal 中止（:122）；通过则 VLOG 一行统计（对象数/根数/耗时）。
 
 ### 10.4 已知问题与优化方向（未实施，待授权）
 
-- ~~**`DumpAddressMapping` 未定义**~~：**已于 2026-09-14 实现并验证**（`HeapVerifier.cpp:331-359`，读 `/proc/self/maps` 逐行匹配区间；best-effort，失败降级为单行 ERROR，不扰动 failCount）。F4 触发时输出 `HeapVerifier: %p in mapping: <maps行>` 或 `not in any mapping (unmapped hole)`；
+- ~~**`DumpAddressMapping` 未定义**~~：**已于 2026-09-14 实现并验证**（`HeapVerifier.cpp:412-440`，读 `/proc/self/maps` 逐行匹配区间；best-effort，失败降级为单行 ERROR，不扰动 failCount）。F4 触发时输出 `HeapVerifier: %p in mapping: <maps行>` 或 `not in any mapping (unmapped hole)`；
 - **dladdr 性能**（**已缓解 2026-09-23**：`cjVerifyNonHeap` 默认关，非堆目标连 dladdr 都跳过——全量实测 HLT per-case 总和 −14.3%；开启时的下列优化方向保留）：每次调用走 glibc link_map 遍历 + dl 锁（百 ns~µs 级），字符串密集程序中非堆目标高频。优化方向：Verify 入口（STW 下模块集稳定）用 `dl_iterate_phdr` / `/proc/self/maps` 快照文件映射区间 → 排序数组二分（语义等价、纯内存无锁），可选叠加页粒度 memoization（字面量高度聚集）。**TypeInfo/TypeKind 判型不能替代**：需先 deref 目标读头，wild pointer 场景（恰是 F4 要抓的）SEGV；且"指向模块"这一合法性判据 TypeInfo 结构内无等价信息。TypeInfo 校验仅可作为区间判定之后的可选精化（抓"指向模块但非对象边界"），前提是先证实常量对象只有 RawArray 一种。
 
 ### 10.5 F4 非堆检查开关（cjVerifyNonHeap，2026-09-23 已实现并全量验证）
@@ -196,7 +196,7 @@ post-GC: root-path to target 0x...f090: root = 0x...f180<default:StackNode> -> +
   1. **嵌套死锁**：失败可能发生在 `Visit*Roots` 回调内部，而 BFS 又要迭代同一批根——从回调内重入同一迭代直接死锁（实测挂起 10 分钟）。延迟 flush 根治；
   2. **堆外地址必须先过滤**：字段合法指向模块常量（.so 数据段），未过 `IsHeapAddress` 的地址流入 `IsSurvivedObject → GetRegionInfoAt` 会触发 runtime 的越界 `std::abort`。enqueue 前置堆地址 gate。
 - **实现过程中的两个功能修复（2026-09-17，业务场景验证驱动）**：
-  1. **栈根缺失（功能错误级）**：初版种子只含 VerifyRoots 的 4 类根，局部变量持有的链（业务代码最常见形态）整体不可见，`<no path>` 成为误导答案。修复：种子补 `MutatorManager::VisitAllMutators + VisitMutatorRoots`（GC remark 同源，TracingCollector.cpp:631，同 STW 语境）。修复前冒烟 case 恰好全部命中 static 直达的 runtime 内部对象（注入目标偏置），缺陷不可见；
+  1. **栈根缺失（功能错误级）**：初版种子只含 VerifyRoots 的 4 类根，局部变量持有的链（业务代码最常见形态）整体不可见，`<no path>` 成为误导答案。修复：种子补 `MutatorManager::VisitAllMutators + VisitMutatorRoots`（GC remark 同源，TracingCollector.cpp:633，同 STW 语境）。修复前冒烟 case 恰好全部命中 static 直达的 runtime 内部对象（注入目标偏置），缺陷不可见；
   2. **bitmap gate 剪断转发链**：见上"展开 gate"——post-GC 时 to-space 转发对象 `IsSurvivedObject=false`，初版 gate 在第一跳就断链。
 - **开销实测**（`logs/inject_probe/mt_*.log`、`biz_*.log`）：
 
@@ -255,11 +255,11 @@ post-GC: root-path to target 0x...f090: root = 0x...f180<default:StackNode> -> +
 
 ### 12.3 过程中的事实澄清（修正早前认知）
 
-1. **region 回收三档路径**：未满 TL region 的死对象原地躺到 region 满（copying 无原地清扫）；满 region 存活率 ≥0.80（Exemption threshold）豁免转发、死对象成浮动垃圾；<0.80 转发后整 region 标 GARBAGE → FP 拆解进 dirtyUnitTree。LARGE region 由 `CollectLargeGarbage` 在 PostTrace 直接标 GARBAGE（早于 forwarding 路径）。依据：`AssembleSmallGarbageCandidates`（RegionManager.cpp:443）、`ExemptFromRegions`（:480）、`CollectFromSpaceGarbage`（RegionManager.h:258）。
+1. **region 回收三档路径**：未满 TL region 的死对象原地躺到 region 满（copying 无原地清扫）；满 region 存活率 ≥0.80（Exemption threshold）豁免转发、死对象成浮动垃圾；<0.80 转发后整 region 标 GARBAGE → FP 拆解进 dirtyUnitTree。LARGE region 由 `CollectLargeGarbage` 在 PostTrace 直接标 GARBAGE（早于 forwarding 路径）。依据：`AssembleSmallGarbageCandidates`（RegionManager.cpp:621）、`ExemptFromRegions`（:648）、`CollectFromSpaceGarbage`（RegionManager.h:264）。
 2. **ghost+GARBAGE 叠加态**：转发产生的 GARBAGE region 同时带 ghost bit（`PrepareForwardableRegion` 先置，`DispelGhostFromRegion` 下轮才清）——**每轮 GC 都大量产生**，此前"F7 生产很少触发"的说法不成立。F7 检查（CheckTarget 直读 regionType）不受 walker Branch① ghost 跳过影响，看得见这些 region；但复用 walker 导航的扫描器若先查 ghost 会全部漏掉（实测教训：注入扫描盲区，修正后普通链表程序即可命中小对象 GARBAGE region）。
-3. **元数据区与对象数据区物理分离**（`RegionManager::Initialize`，RegionManager.cpp:376-385：`regionHeapStart = regionInfoAddr + metadataSize`）：FP 拆解只写元数据区，**物理上碰不到对象头**。注入期一次 SEGV 曾误归因于"FP 竞态覆盖对象头"，真因是注入字节序错误（tag 位误写低位）造成未对齐地址错位读。
-4. **FindToVersion 是区间算术路由**（`GetRoute = toRegion1Start + preLiveBytes`，LiveInfo.cpp:15-24）：对 ghost region 内死对象返回**非 null 的算术地址**而非 null——"活 holder 的 tagged 指向死对象"在生产不存在（死对象字段不被读），故无风险，但注入实验需知此语义。
-5. **转发产物不在 mark bitmap**（2026-09-17 新）：forwarding 后 to-space 对象 `IsSurvivedObject=false`——verify 主流程 :189 的 bitmap gate 因此**跳过转发对象的字段检查**（保守语义，可能是覆盖缺口，值得另行评估）；root-path 已通过放宽 gate 规避（见 §11）。
+3. **元数据区与对象数据区物理分离**（`RegionManager::Initialize`，RegionManager.cpp:554-561：`regionHeapStart = regionInfoAddr + metadataSize`）：FP 拆解只写元数据区，**物理上碰不到对象头**。注入期一次 SEGV 曾误归因于"FP 竞态覆盖对象头"，真因是注入字节序错误（tag 位误写低位）造成未对齐地址错位读。
+4. **FindToVersion 是区间算术路由**（`GetRoute = toRegion1Start + preLiveBytes`，LiveInfo.cpp:15-25）：对 ghost region 内死对象返回**非 null 的算术地址**而非 null——"活 holder 的 tagged 指向死对象"在生产不存在（死对象字段不被读），故无风险，但注入实验需知此语义。
+5. **转发产物不在 mark bitmap**（2026-09-17 新）：forwarding 后 to-space 对象 `IsSurvivedObject=false`——verify 主流程 :226 的 bitmap gate 因此**跳过转发对象的字段检查**（保守语义，可能是覆盖缺口，值得另行评估）；root-path 已通过放宽 gate 规避（见 §11）。
 6. **`_ = x` 丢弃表达式不构成活跃性使用**（2026-09-17 新，用例工程教训）：仅靠尾部 `_ = head` 保温的引用链会被编译器判死回收（栈根消失）；用例必须真实遍历链（如定期求和）以保持活跃。
 
 ### 12.4 方法论教训（记录以防复发）

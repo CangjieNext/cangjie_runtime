@@ -206,20 +206,20 @@ void HeapVerifier::VerifyObject(BaseObject* obj)
     if (!obj->IsValidObject()) {
         RecordFailure("object %p has invalid header (null or corrupted TypeInfo)", obj);
         MaybeTraceRootPath("object", obj);
-        return; // header untrusted: skip ref-field traversal (spec 6.1)
+        return; // header untrusted: skip ref-field traversal (ADR-12 section 10.1, F2)
     }
     if (!CheckStateCode(obj)) {
         RecordFailure("object %p<%s> has unexpected state %d outside ghost from-region", obj,
                       obj->GetTypeInfo()->GetName(), static_cast<int>(obj->GetStateWord().GetStateCode()));
         MaybeTraceRootPath("object", obj);
-        // state failure does not preclude ref traversal (spec 6.1)
+        // state failure does not preclude ref traversal (ADR-12 section 10.1, F3)
     }
     if (RegionInfo::InGhostFromRegion(obj)) {
         return; // corpse: header+state already checked; its fields are pre-forwarding
                 // stale snapshots that may legally reference dead/unroutable objects
                 // (ART precedent heap.cc:3328 — do not verify garbage objects' refs).
     }
-    // Bitmap gate (spec 6.1 rule 5): only live (marked) objects get ref-field checks.
+    // Bitmap gate (ADR-12 section 10.2): only live (marked) objects get ref-field checks.
     // Floating garbage in exempted regions legally holds stale tagged refs (tag
     // wraparound, dead targets) — production never reads them; neither do we.
     // Header+state checks above still apply to everything.
@@ -240,7 +240,7 @@ void HeapVerifier::VerifyReference(BaseObject* holder, RefField<>& field)
 
 // Resolve a ref-field target the way the runtime reads it between GC cycles
 // (read-only version of IdleBarrier::ReadReference / TryUpdateRefFieldImpl,
-// IdleBarrier.cpp:19-40, WCollector.cpp:57-96): untagged -> raw; tagged ->
+// IdleBarrier.cpp:19-40, WCollector.cpp:56-96): untagged -> raw; tagged ->
 // forward-table lookup, raw-address fallback when unroutable (TryUntagRefField
 // semantics). Never writes/CASes. NOTE: tagged refs are NOT distinguished by
 // current/old era here — between cycles BOTH carry pre-forwarding addresses.
@@ -541,7 +541,7 @@ std::string HeapVerifier::FirstPathFromRootSet(BaseObject* target) const
     Runtime::Current().GetConcurrencyModel().VisitGCRoots(&rootVisitor);
     heap.GetFinalizerProcessor().VisitGCRoots(rootVisitor);
     // Mutator stack/exception/native-frame roots — the same source the GC's
-    // remark phase scans (TracingCollector.cpp:631, same STW context). Without
+    // remark phase scans (TracingCollector.cpp:633, same STW context). Without
     // these, objects held only by local variables — the most common holder
     // form in business code — are invisible to the BFS and "<no path>" becomes
     // a misleading answer.
