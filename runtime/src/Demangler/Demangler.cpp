@@ -183,7 +183,7 @@ T ReplaceString(T str, const char* pattern, const char* replacement)
     auto pos = str.Find(pattern);
     auto n = str.Length();
     auto pLen = strlen(pattern);
-    while (pos > -1 && n - pos - pLen > 0) {
+    while (pos > -1 && n >= static_cast<size_t>(pos) + pLen) {
         n = str.Length();
         str = str.SubStr(0, pos) + replacement + str.SubStr(pos + pLen, n - pos - pLen);
         pos = str.Find(pattern);
@@ -822,7 +822,7 @@ size_t Demangler<T>::DemangleManglingNumber()
     size_t power = 1;
     for (size_t index = content.Length() - 1;; index--) {
         bool matched = false;
-        for (size_t i = 0; i <= BASE62_CHARS_SIZE; i++) {
+        for (size_t i = 0; i < BASE62_CHARS_SIZE; i++) {
             if (content[index] == BASE62_CHARS[i]) {
                 value += i * power;
                 power *= BASE62_CHARS_SIZE;
@@ -862,7 +862,7 @@ void Demangler<T>::DemangleFileNameNumber()
 
     for (size_t index = content.Length() - 1;; index--) {
         bool matched = false;
-        for (size_t i = 0; i <= BASE62_CHARS_SIZE; i++) {
+        for (size_t i = 0; i < BASE62_CHARS_SIZE; i++) {
             if (content[index] == BASE62_CHARS[i]) {
                 matched = true;
                 break;
@@ -1231,6 +1231,10 @@ DemangleInfo<T> Demangler<T>::DemanglePrimitive()
     if (MatchForward(MANGLE_FLOAT16_PREFIX, strlen(MANGLE_FLOAT16_PREFIX))) {
         SkipString(MANGLE_FLOAT16_PREFIX); // skip "Dh"
     } else {
+        // 'D' alone is not a valid primitive; Float16 is encoded as "Dh".
+        if (ch == 'D') {
+            return Reject("invalid primitive type");
+        }
         SkipChar(ch);
     }
     DemangleInfo<T> di{ GetPrimitiveDemangleMap<T>(ch), TypeKind::PRIMITIVE };
