@@ -776,11 +776,14 @@ void* DynamicMethodInfo::ApplyCangjieMethod(void* argsArray)
     }
 
     size_t retObjSize = MRT_ALIGN(returnType->GetInstanceSize() + TYPEINFO_PTR_SIZE, TYPEINFO_PTR_SIZE);
-    ObjRef retObj = ObjectManager::NewObject(returnType, retObjSize, AllocType::RAW_POINTER_OBJECT);
+    ObjRef retObj = ObjectManager::NewObject(returnType, retObjSize, AllocType::PINNED_OBJECT);
     if (retObj == nullptr) {
         VLOG(REPORT, "ApplyCangjieMethod: new object failed and throw OutOfMemoryError");
         ExceptionManager::CheckAndThrowPendingException("ObjectManager::NewObject return nullptr");
     }
+    // A raw region can be committed by another CJThread on the allocating OSThread.
+    // Keep the return object address-stable and visible to GC across the reflected call.
+    scopedAllocBuffer.AddNativeFrameRoot(retObj);
 #if defined(__aarch64__)
 #else
     argValues.AddInt64(reinterpret_cast<I64>(&retObj));
