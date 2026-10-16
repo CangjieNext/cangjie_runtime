@@ -1449,7 +1449,7 @@ public class ArrayList<T> <: List<T> {
     }
 
     @Frozen
-    private exclave func rangeSlice(this @local!, arr: Array<T> @local!, range: Range<Int64> @local?, size: Int64): Array<T> @local! {
+    private exclave func rangeSlice(this @local!, arr: Array<T> @local!, range: Range<Int64>, size: Int64): Array<T> @local! {
         if (range.step != 1) {
             throw IllegalArgumentException("Illegal step ${range.step}, step should be 1.")
         }
@@ -1494,7 +1494,7 @@ public class ArrayList<T> <: List<T> {
     }
 
     @Frozen
-    private exclave func rangeSlice(this @local?, arr: Array<T> @local?, range: Range<Int64> @local?, size: Int64): Array<T> @local? {
+    private exclave func rangeSlice(this @local?, arr: Array<T> @local?, range: Range<Int64>, size: Int64): Array<T> @local? {
         if (range.step != 1) {
             throw IllegalArgumentException("Illegal step ${range.step}, step should be 1.")
         }

@@ -14,14 +14,34 @@
 package std.collection
 
 public interface MapEntryView<K, V> {
-    prop key: K
-    mut prop value: ?V
-
-    // Declared abstract: a throw-default body would make the @local? prop a concrete
-    // candidate that beats the plain prop for plain receivers, breaking the plain
-    // view.value reads in Map.addIfAbsent/replace.
-    prop key: K @local?
-    mut prop value: ?V @local!
+    prop key: K {
+        get() {
+            throw UnimplementedException("Current Type does not implement 'key' property")
+        }
+    }
+    mut prop value: ?V {
+        get() {
+            throw UnimplementedException("Current Type does not implement 'value' property")
+        }
+        set(v) {
+            throw UnimplementedException("Current Type does not implement 'value' property")
+        }
+    }
+    // The @local?/@local! forms carry throwing default bodies; the plain forms must also carry bodies so
+    // that a plain receiver resolves to the plain member instead of being captured by the @local? one.
+    prop key: K @local? {
+        get() {
+            throw UnimplementedException("Current Type does not implement 'key' property for its @local? instance")
+        }
+    }
+    mut prop value: ?V @local! {
+        get() {
+            throw UnimplementedException("Current Type does not implement 'value' property for its @local! instance")
+        }
+        set(v) {
+            throw UnimplementedException("Current Type does not implement 'value' property for its @local! instance")
+        }
+    }
 }
 
 public interface ReadOnlyMap<K, V> <: Collection<(K, V)> {
