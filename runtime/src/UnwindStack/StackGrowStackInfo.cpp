@@ -84,6 +84,14 @@ void StackGrowStackInfo::RecordStackPtrs(const StackPtrVisitor& traceAndFixPtrVi
                                     regSlotsMap, frame, mutator);
                 break;
             }
+            case FrameType::C2R_STUB:
+                // A C2R bridge saves the managed callee-saved registers in the
+                // same layout used by the normal GC stack scanner.  Stack
+                // expansion must restore these slots before visiting a caller
+                // frame whose stack map refers to them.
+                TracingCollector::RecordStubCalleeSaved(
+                    regSlotsMap, reinterpret_cast<Uptr>(frame.mFrame.GetFA()));
+                break;
 #ifdef INTERPRETER_ENABLED
             case FrameType::INTERPRETER_C2I:
                 RegRoot::RecordStubCalleeSaved(regSlotsMap, reinterpret_cast<Uptr>(frame.mFrame.GetFA()));

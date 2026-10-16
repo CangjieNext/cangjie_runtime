@@ -755,6 +755,20 @@ DynamicMethodInfo::DynamicMethodInfo(ObjRef obj)
     this->parameterTypes = &(funcType->GetTypeArgs()[1]);
 }
 
+static ObjRef CreateDynamicReturnObject(TypeInfo* returnType, ScopedAllocBuffer& scopedAllocBuffer)
+{
+    size_t size = MRT_ALIGN(returnType->GetInstanceSize() + TYPEINFO_PTR_SIZE, TYPEINFO_PTR_SIZE);
+    ObjRef retObj = ObjectManager::NewObject(returnType, size, AllocType::PINNED_OBJECT);
+    if (retObj == nullptr) {
+        VLOG(REPORT, "ApplyCangjieMethod: new object failed and throw OutOfMemoryError");
+        ExceptionManager::CheckAndThrowPendingException("ObjectManager::NewObject return nullptr");
+    }
+    // A raw region can be committed by another CJThread on the allocating OSThread.
+    // Keep the return object address-stable and visible to GC across the reflected call.
+    scopedAllocBuffer.AddNativeFrameRoot(retObj);
+    return retObj;
+}
+
 void* DynamicMethodInfo::ApplyCangjieMethod(void* argsArray)
 {
     if (argsArray == nullptr) {
@@ -775,12 +789,7 @@ void* DynamicMethodInfo::ApplyCangjieMethod(void* argsArray)
         LOG(RTLOG_FATAL, "DynamicMethodInfo: actualArgCount %d != parameterCount %d", actualArgCount, parameterCount);
     }
 
-    size_t retObjSize = MRT_ALIGN(returnType->GetInstanceSize() + TYPEINFO_PTR_SIZE, TYPEINFO_PTR_SIZE);
-    ObjRef retObj = ObjectManager::NewObject(returnType, retObjSize, AllocType::RAW_POINTER_OBJECT);
-    if (retObj == nullptr) {
-        VLOG(REPORT, "ApplyCangjieMethod: new object failed and throw OutOfMemoryError");
-        ExceptionManager::CheckAndThrowPendingException("ObjectManager::NewObject return nullptr");
-    }
+    ObjRef retObj = CreateDynamicReturnObject(returnType, scopedAllocBuffer);
 #if defined(__aarch64__)
 #else
     argValues.AddInt64(reinterpret_cast<I64>(&retObj));
