@@ -167,7 +167,7 @@ extend Rune {
     }
 
     @OverflowWrapping
-    public static func fromUtf8(arr: Array<UInt8> @local?, index: Int64): (Rune, Int64) {
+    static func fromUtf8(arr: Array<UInt8> @local?, index: Int64): (Rune, Int64) {
         if (index >= arr.size) {
             throw IllegalArgumentException("Invalid utf8 byte sequence.")
         }
@@ -242,7 +242,7 @@ extend Rune {
     }
 
     @OverflowWrapping
-    public static func intoUtf8Array(c: Rune, arr: Array<UInt8> @local?, index: Int64): Int64 {
+    static func intoUtf8Array(c: Rune, arr: Array<UInt8> @local?, index: Int64): Int64 {
         var ch = UInt32(c)
         checkIndexValid(c, arr, index)
         if (ch <= UTF8_1_MAX) {
@@ -311,4 +311,5 @@ extend Rune <: Comparable<Rune> {
             case _ => Ordering.EQ
         }
     }
+
 }
