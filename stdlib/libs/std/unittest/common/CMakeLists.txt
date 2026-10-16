@@ -13,4 +13,5 @@ set(UNITTEST_COMMON_SRCS
     pretty_table.cj
     util.cj
     unicode.cj
+    macro.cj
     CACHE INTERNAL "")
