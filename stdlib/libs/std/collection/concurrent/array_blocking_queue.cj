@@ -260,10 +260,13 @@ public class ArrayBlockingQueue<E> {
                 if (state[index].compareAndSwap(UInt64(roundState), UInt64(lockState(roundBit)))) {
                     if (reserved.load() == roundIndex) { // LP: if returns 'Some(e)'
                         let e = buffer[index]
-                        state[index].store(UInt64(roundState))
+                        // Restore LOCK -> READABLE via CAS (not a plain store) so we
+                        // never clobber a concurrent tryRemove that already moved this
+                        // slot to WRITEABLE. See secbot audit Pr1782/#3.
+                        state[index].compareAndSwap(UInt64(lockState(roundBit)), UInt64(roundState))
                         return Some(e)
                     } else {
-                        state[index].store(UInt64(roundState))
+                        state[index].compareAndSwap(UInt64(lockState(roundBit)), UInt64(roundState))
                     }
                 }
             } else if (roundIndex >= allocated.load()) {
@@ -347,11 +350,29 @@ public class ArrayBlockingQueue<E> {
 
                 let e = buffer[index]
                 buffer[index] = unsafe { zeroValue<E>() }
-                // The consumer now exclusively owns slot `index` (it has reserved
-                // `reserved`), so no other thread can be transitioning this slot's
-                // state. A plain store (instead of a CAS loop) is therefore safe
-                // and avoids an unnecessary atomic RMW on the dequeue hot path.
-                state[index].store(UInt64(writeableState(roundBit)))
+                // Transition this slot READABLE -> WRITEABLE for the next round.
+                // This consumer exclusively owns the slot (it claimed `reserved`),
+                // but `peek()` may hold a *transient* LOCK on it: peek() CAS-locks
+                // the slot WITHOUT claiming `reserved` (see peek()). A plain store
+                // here would race with peek's LOCK->restore and could leave the slot
+                // stuck READABLE, permanently spinning the next producer (secbot
+                // audit Pr1782/#3). So CAS to WRITEABLE, spinning only while peek
+                // holds the LOCK, until the slot converges to the next-round state.
+                let writeable = UInt64(writeableState(roundBit))
+                while (true) {
+                    let cur = state[index].load()
+                    if (cur == writeable) {
+                        break
+                    }
+                    if (cur == UInt64(roundState)) {
+                        if (state[index].compareAndSwap(cur, writeable)) {
+                            break
+                        }
+                        continue
+                    }
+                    // cur is LOCK held by a peek(): spin until peek releases it back.
+                    continue
+                }
 
                 if (sendQSize.load() != 0) {
                     receiveMonitor.lock()
