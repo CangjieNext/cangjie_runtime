@@ -154,11 +154,19 @@ public class ArrayBlockingQueue<E> {
         receiveMonitor.unlock()
     }
 
+    // Mirrors the non-timeout variant: after registering in 'sendQSize',
+    // recheck the condition before the (timed) wait. Notifiers read the
+    // waiter counters without holding the monitor, so a waiter that skips
+    // this recheck can enter 'wait' after a notifier observed an empty
+    // waiter set: no notify is issued and the caller sleeps the whole
+    // timeout even though a slot is already writable (lost wakeup).
     private func waitForWritableSlot(timeout: Duration): Duration {
         receiveMonitor.lock()
         let startTime = MonoTime.now()
         sendQSize.fetchAdd(1)
-        receiveMonitor.wait(timeout: timeout)
+        while (isFull()) {
+            receiveMonitor.wait(timeout: timeout)
+        }
         sendQSize.fetchSub(1)
         let endTime = MonoTime.now()
         receiveMonitor.unlock()
@@ -222,11 +230,19 @@ public class ArrayBlockingQueue<E> {
         sendMonitor.unlock()
     }
 
+    // Mirrors the non-timeout variant: after registering in 'receiveQSize',
+    // recheck the condition before the (timed) wait. Notifiers read the
+    // waiter counters without holding the monitor, so a waiter that skips
+    // this recheck can enter 'wait' after a notifier observed an empty
+    // waiter set: no notify is issued and the caller sleeps the whole
+    // timeout even though an element is already readable (lost wakeup).
     private func waitForReadableSlot(timeout: Duration): Duration {
         sendMonitor.lock()
         let startTime = MonoTime.now()
         receiveQSize.fetchAdd(1)
-        sendMonitor.wait(timeout: timeout)
+        while (size == 0) {
+            sendMonitor.wait(timeout: timeout)
+        }
         receiveQSize.fetchSub(1)
         let endTime = MonoTime.now()
         sendMonitor.unlock()
