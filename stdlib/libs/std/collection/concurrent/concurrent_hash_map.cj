@@ -367,6 +367,18 @@ class HNode<K, V> where K <: Hashable & Equatable<K> {
     let version: Int64
     let migratingIndex = AtomicInt64(0)
     let migratedIndex = AtomicInt64(0)
+    /* Set when a stripe migration of this table failed with an exception
+     * (e.g. OutOfMemoryError): tells the thread elected to publish the next
+     * table to stop waiting for 'migratedIndex' convergence instead of
+     * spinning forever. AtomicBool (not a plain field): adding an internal
+     * field to this class changes its object layout and metadata, which
+     * breaks forward dynamic compatibility when a binary compiled against
+     * the new std loads the old std .so (observed in the compatibility
+     * matrix for the first attempt of this fix, PR !1820) - the fix
+     * therefore reuses the SAME member set. Atomic also guarantees the
+     * spin loop re-reads it every iteration instead of hoisting the load
+     * out of the loop. */
+    let resizeAborted = AtomicBool(false)
     /**
      * The reference of the previous hash table,
      * which is the current hash table before the latest size extension.
@@ -428,36 +440,58 @@ class HNode<K, V> where K <: Hashable & Equatable<K> {
     func migrate(start: Int64, end: Int64, step: Int64): Unit {
         if (let Some(preHT) <- pre.load()) {
             lockG.lock(start)
-            for (index in start..end : step) {
-                if (buckets[index].refList().isSome()) {
-                    continue
+            try {
+                for (index in start..end : step) {
+                    if (buckets[index].refList().isSome()) {
+                        continue
+                    }
+                    let preIndex = index & (preHT.buckets.size - 1) // Index of bucket remains to be migrated
+                    preHT.freeze(preIndex)
+                    buckets[index].migrate(preHT.buckets[preIndex].refList(), buckets.size - 1, index)
                 }
-                let preIndex = index & (preHT.buckets.size - 1) // Index of bucket remains to be migrated
-                preHT.freeze(preIndex)
-                buckets[index].migrate(preHT.buckets[preIndex].refList(), buckets.size - 1, index)
+            } finally {
+                /* A mid-migration throw (e.g. OutOfMemoryError from the
+                 * bucket-transfer allocation) must not leak this stripe
+                 * mutex: later writers hashing to the stripe would block
+                 * on it forever. */
+                lockG.unlock(start)
             }
-            lockG.unlock(start)
         }
     }
 
     func tryGetBucket(index: Int64): Bool {
         lockG.lock(index)
-        if (freezeFlags[index]) {
-            lockG.unlock(index)
-            return false
-        }
+        /* Tracks whether THIS function still owns the stripe mutex. On a
+         * 'true' return the lock is handed over to the caller (whose
+         * try/finally releases it), so it is released here only on the
+         * 'false' return or when a throw propagates. */
+        var owned = true
+        try {
+            if (freezeFlags[index]) {
+                return false
+            }
 
-        if (buckets[index].refList().isSome()) {
+            if (buckets[index].refList().isSome()) {
+                owned = false // hand the lock over to the caller
+                return true
+            }
+
+            if (let Some(preHT) <- pre.load()) {
+                let preIndex = index & (preHT.buckets.size - 1) // Index of bucket remains to be migrated
+                preHT.freeze(preIndex)
+                buckets[index].migrate(preHT.buckets[preIndex].refList(), buckets.size - 1, index)
+            }
+
+            owned = false // hand the lock over to the caller
             return true
+        } finally {
+            /* Releases exactly when this function still owns the lock: the
+             * 'false' return and any throw (e.g. an OutOfMemoryError from
+             * the migration transfer). */
+            if (owned) {
+                lockG.unlock(index)
+            }
         }
-
-        if (let Some(preHT) <- pre.load()) {
-            let preIndex = index & (preHT.buckets.size - 1) // Index of bucket remains to be migrated
-            preHT.freeze(preIndex)
-            buckets[index].migrate(preHT.buckets[preIndex].refList(), buckets.size - 1, index)
-        }
-
-        return true
     }
 }
 
@@ -689,8 +723,14 @@ public class ConcurrentHashMap<K, V> <: ConcurrentMap<K, V> & Collection<(K, V)>
 
         while (true) {
             if (curHT.tryGetBucket(index)) {
-                ret = curHT.buckets[index].copyAddIfAbsent(hash, key, value)
-                curHT.lockG.unlock(index)
+                try {
+                    ret = curHT.buckets[index].copyAddIfAbsent(hash, key, value)
+                } finally {
+                    /* copyAddIfAbsent performs bucket allocations that can
+                     * throw (e.g. OutOfMemoryError): never leak the stripe
+                     * mutex tryGetBucket handed over to us. */
+                    curHT.lockG.unlock(index)
+                }
                 break
             }
             curHT = head.load()
@@ -860,8 +900,14 @@ public class ConcurrentHashMap<K, V> <: ConcurrentMap<K, V> & Collection<(K, V)>
         var index = hash & (curHT.buckets.size - 1)
         while (true) {
             if (curHT.tryGetBucket(index)) {
-                ret = curHT.buckets[index].copyPut(hash, key, value)
-                curHT.lockG.unlock(index)
+                try {
+                    ret = curHT.buckets[index].copyPut(hash, key, value)
+                } finally {
+                    /* copyPut performs bucket allocations that can throw
+                     * (e.g. OutOfMemoryError): never leak the stripe mutex
+                     * tryGetBucket handed over to us. */
+                    curHT.lockG.unlock(index)
+                }
                 break
             }
             curHT = head.load()
@@ -879,8 +925,14 @@ public class ConcurrentHashMap<K, V> <: ConcurrentMap<K, V> & Collection<(K, V)>
         var index = hash & (curHT.buckets.size - 1)
         while (true) {
             if (curHT.tryGetBucket(index)) {
-                ret = curHT.buckets[index].copyReplace(hash, key, predicate, eval)
-                curHT.lockG.unlock(index)
+                try {
+                    ret = curHT.buckets[index].copyReplace(hash, key, predicate, eval)
+                } finally {
+                    /* copyReplace performs bucket allocations that can
+                     * throw (e.g. OutOfMemoryError): never leak the stripe
+                     * mutex tryGetBucket handed over to us. */
+                    curHT.lockG.unlock(index)
+                }
                 break
             }
             curHT = head.load()
@@ -897,8 +949,14 @@ public class ConcurrentHashMap<K, V> <: ConcurrentMap<K, V> & Collection<(K, V)>
         var index = hash & (curHT.buckets.size - 1)
         while (true) {
             if (curHT.tryGetBucket(index)) {
-                ret = curHT.buckets[index].copyRemove(hash, key, predicate)
-                curHT.lockG.unlock(index)
+                try {
+                    ret = curHT.buckets[index].copyRemove(hash, key, predicate)
+                } finally {
+                    /* copyRemove performs bucket allocations that can throw
+                     * (e.g. OutOfMemoryError): never leak the stripe mutex
+                     * tryGetBucket handed over to us. */
+                    curHT.lockG.unlock(index)
+                }
                 break
             }
             curHT = head.load()
@@ -920,8 +978,16 @@ public class ConcurrentHashMap<K, V> <: ConcurrentMap<K, V> & Collection<(K, V)>
 
         while (true) {
             if (curHT.tryGetBucket(index)) {
-                (ret, resize) = curHT.buckets[index].copyEntryView(hash, key, fn)
-                curHT.lockG.unlock(index)
+                try {
+                    (ret, resize) = curHT.buckets[index].copyEntryView(hash, key, fn)
+                } finally {
+                    /* copyEntryView runs the USER callback fn and performs
+                     * bucket allocations; either can throw (the callback
+                     * arbitrarily, the allocations e.g. OutOfMemoryError):
+                     * never leak the stripe mutex tryGetBucket handed over
+                     * to us. */
+                    curHT.lockG.unlock(index)
+                }
                 break
             }
             curHT = head.load()
@@ -945,7 +1011,32 @@ public class ConcurrentHashMap<K, V> <: ConcurrentMap<K, V> & Collection<(K, V)>
         var i = curHT.migratingIndex.fetchAdd(1)
         var migrateCnt = 0
         while (i < concurrencyLevel) {
-            curHT.migrate(i, sz, concurrencyLevel)
+            try {
+                curHT.migrate(i, sz, concurrencyLevel)
+            } catch (e: Exception) {
+                /* A stripe migration failed. Bookkeeping for the stripes
+                 * completed so far, return the failed claim so a later
+                 * resize can retry it, and release the thread elected to
+                 * publish the next table from waiting for 'migratedIndex'
+                 * convergence (it reads resizeAborted). The new table is
+                 * NOT published this round, so the invariant that the
+                 * previous table is fully migrated before 'head' advances
+                 * stays intact (one-level read fallback remains correct).
+                 * The exception still propagates to the caller. */
+                curHT.migratedIndex.fetchAdd(migrateCnt)
+                curHT.migratingIndex.compareAndSwap(i + 1, i)
+                curHT.resizeAborted.store(true)
+                throw e
+            } catch (e: Error) {
+                /* Same bookkeeping as the Exception branch above. Errors
+                 * (e.g. OutOfMemoryError from the bucket-transfer
+                 * allocation) are catchable in Cangjie and must not wedge
+                 * the resize protocol either. */
+                curHT.migratedIndex.fetchAdd(migrateCnt)
+                curHT.migratingIndex.compareAndSwap(i + 1, i)
+                curHT.resizeAborted.store(true)
+                throw e
+            }
             migrateCnt++
             i = curHT.migratingIndex.fetchAdd(1)
         }
@@ -954,10 +1045,34 @@ public class ConcurrentHashMap<K, V> <: ConcurrentMap<K, V> & Collection<(K, V)>
         if (!curHNodeVersion.compareAndSwap(curHT.version, newVersion)) {
             return // There exists a thread allocating new hashtable, returns
         }
-        while (curHT.migratedIndex.load() < concurrencyLevel) {}
-        /* Allocate new hashtable */
-        curHT.pre.store(None<HNode<K, V>>)
-        head.store(HNode<K, V>(sz << 1, Some(curHT), lockG[newVersion & 1], newVersion))
+        while (curHT.migratedIndex.load() < concurrencyLevel) {
+            /* A stripe migration failed mid-transfer and its claim was
+             * consumed: migratedIndex can never reach concurrencyLevel.
+             * Give up this round instead of spinning forever; the version
+             * CAS is rolled back so a later resize can retry. */
+            if (curHT.resizeAborted.load()) {
+                curHNodeVersion.compareAndSwap(newVersion, curHT.version)
+                return
+            }
+        }
+        /* Allocate the new hashtable BEFORE detaching 'pre', so that an
+         * allocation failure cannot cut off the data of the buckets that
+         * are not migrated yet (they remain reachable through 'pre'). */
+        var published = false
+        try {
+            let newHT = HNode<K, V>(sz << 1, Some(curHT), lockG[newVersion & 1], newVersion)
+            curHT.pre.store(None<HNode<K, V>>)
+            head.store(newHT)
+            published = true
+        } finally {
+            /* An allocation failure must roll the version back, or every
+             * later tryResize would believe a publisher is already working
+             * and never retry. A successful publish must NOT roll back
+             * (head already advanced to newVersion). */
+            if (!published) {
+                curHNodeVersion.compareAndSwap(newVersion, curHT.version)
+            }
+        }
     }
 
     /*
