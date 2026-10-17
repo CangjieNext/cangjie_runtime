@@ -196,10 +196,6 @@ class Block<E> {
     func getReserved(): (UInt64, Int64) {
         return (version, reserved.load())
     }
-
-    func hasUnfinishedSenders(): Bool {
-        return committed.load() != allocated.load()
-    }
 }
 
 @Deprecated[message: "Use ConcurrentLinkedQueue instead."]
@@ -417,13 +413,20 @@ class ConcurrentLinkedQueueIterator<E> <: Iterator<E> {
                 continue
             }
             if (curIndex >= curCommitted) {
-                // Mirrors pop()/front(): while committed != allocated this
-                // block still has unfinished senders. Retrying (instead of
-                // terminating) preserves the weak-consistency guarantee that
-                // elements committed before the iterator's creation are
-                // observed; giving up here silently truncated the iteration
-                // and omitted elements already committed in later blocks.
-                if (curBlock.hasUnfinishedSenders()) {
+                // Mirrors pop()/front(): the single curCommitted snapshot is
+                // reused for both the "no more committed elements" check and
+                // the unfinished-sender check, so a producer's
+                // committed.fetchAdd racing between two separate loads cannot
+                // make the iterator terminate on a block whose slot curIndex
+                // has just become committed. While committed != allocated
+                // this block still has unfinished senders; retrying (instead
+                // of terminating) preserves the weak-consistency guarantee
+                // that elements committed before the iterator's creation are
+                // observed, and giving up here silently truncated the
+                // iteration by omitting elements already committed in later
+                // blocks.
+                let (_, curAllocated) = curBlock.getAllocated()
+                if (curCommitted != curAllocated) {
                     continue
                 }
                 hasNext = false
