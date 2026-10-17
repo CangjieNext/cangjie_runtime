@@ -196,6 +196,10 @@ class Block<E> {
     func getReserved(): (UInt64, Int64) {
         return (version, reserved.load())
     }
+
+    func hasUnfinishedSenders(): Bool {
+        return committed.load() != allocated.load()
+    }
 }
 
 @Deprecated[message: "Use ConcurrentLinkedQueue instead."]
@@ -404,7 +408,24 @@ class ConcurrentLinkedQueueIterator<E> <: Iterator<E> {
     @Frozen
     public func next(): ?E {
         while (hasNext) {
-            if (curIndex >= BUF_SIZE && !getNextBlock() || curIndex >= curBlock.committed.load()) {
+            let curCommitted = curBlock.committed.load()
+            if (curIndex >= BUF_SIZE) {
+                if (!getNextBlock()) {
+                    hasNext = false
+                    break
+                }
+                continue
+            }
+            if (curIndex >= curCommitted) {
+                // Mirrors pop()/front(): while committed != allocated this
+                // block still has unfinished senders. Retrying (instead of
+                // terminating) preserves the weak-consistency guarantee that
+                // elements committed before the iterator's creation are
+                // observed; giving up here silently truncated the iteration
+                // and omitted elements already committed in later blocks.
+                if (curBlock.hasUnfinishedSenders()) {
+                    continue
+                }
                 hasNext = false
                 break
             }
