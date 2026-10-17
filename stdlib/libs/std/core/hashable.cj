@@ -773,7 +773,11 @@ func wyrand(seed: Int64) {
 
 @OverflowWrapping
 func wyhash(arr: RawArray<UInt8>, start: Int64, size: Int64, see: UInt64) {
-    var seed = see ^ mix(see ^ SECRET0, SECRET1)
+    // The length is folded into the seed through `mix` instead of being XORed
+    // with data bytes at the end; a raw `^ size` there would cancel against the
+    // tail byte and make short strings of adjacent lengths collide
+    // (e.g. hash("ab") == hash("abc")).
+    var seed = see ^ mix(see ^ SECRET0, UInt64(size) ^ SECRET1)
     if (size == 0) {
         return seed
     }
@@ -821,7 +825,7 @@ func wyhash(arr: RawArray<UInt8>, start: Int64, size: Int64, see: UInt64) {
     }
     a ^= SECRET1
     b ^= seed
-    return mix(a ^ SECRET0 ^ UInt64(size), b ^ SECRET1)
+    return mix(a ^ SECRET0, b ^ SECRET1)
 }
 
 @OverflowWrapping
