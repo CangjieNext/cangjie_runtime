@@ -132,7 +132,30 @@ class KVList<K, V> where K <: Equatable<K> {
         return (copyList, myData[i][2])
     }
 
-    func copyEntryView(hash: Int64, key: K, fn: (entryView: MapEntryView<K, V>) -> Unit): (KVList<K, V>, ?V, ?Int64) {
+    /* Re-entrancy-safe put for entryView: locate the key in the CURRENT list
+     * (which may already reflect updates the user callback committed through
+     * re-entrant same-bucket calls) and overwrite the associated value,
+     * copying the list only when a new pair must be appended. Returns the
+     * value associated with the key BEFORE this call, if any. */
+    func copyEntryViewSet(hash: Int64, key: K, value: V): (KVList<K, V>, ?V) {
+        let i = contains(hash, key)
+        if (i == -1) {
+            return (copyInsert(hash, key, value), None)
+        }
+        let copyList = KVList<K, V>(this)
+        copyList.myData[i] = (hash, key, value)
+        return (copyList, myData[i][2])
+    }
+
+    /* Runs the user callback with a view of the key's entry as seen in THIS
+     * (pre-callback) list, and returns the delta the callback implied:
+     * - newValue: the entry value after the callback (None = remove/absent)
+     * - wasAbsent: whether THIS list did not contain the key
+     * - updated: whether the callback assigned the value
+     * The CALLER must apply this delta to the CURRENT bucket list: the
+     * callback may re-enter the same bucket (the bucket mutex is reentrant)
+     * and commit its own copies of the list, which must not be clobbered. */
+    func copyEntryView(hash: Int64, key: K, fn: (entryView: MapEntryView<K, V>) -> Unit): (?V, Bool, Bool) {
         let i = contains(hash, key)
         var entryView = if (i == -1) {
             ConcurrentHashMapEntryView<K, V>(key, None)
@@ -142,23 +165,7 @@ class KVList<K, V> where K <: Equatable<K> {
 
         fn(entryView)
 
-        match ((i == -1, entryView.value)) {
-            // nothing to do
-            case (true, None) => return (this, None, None)
-            // add
-            case (true, Some(v)) => return (copyInsert(hash, key, v), v, 1)
-            // remove
-            case (false, None) => return (copyRemoveUnChecked(i), None, -1)
-            case (false, Some(v)) =>
-                // nothing to do
-                if (!entryView.update) {
-                    return (this, v, None)
-                }
-                // replace
-                let copyList = KVList<K, V>(this)
-                copyList.myData[i] = (hash, key, v)
-                return (copyList, v, None)
-        }
+        return (entryView.value, i == -1, entryView.update)
     }
 
     /**
@@ -305,13 +312,52 @@ struct Bucket<K, V> where K <: Equatable<K> {
     }
 
     func copyEntryView(hash: Int64, key: K, fn: (entryView: MapEntryView<K, V>) -> Unit): (?V, ?Int64) {
-        let entries = match (refList()) {
-            case Some(es) => es
-            case None => KVList<K, V>()
+        /* The bucket mutex is reentrant, so fn may call add/remove/replace on
+         * keys hashing to this same bucket. Those inner calls read the
+         * CURRENT list and store their own updated copy to
+         * atomic_ref_entries. This outer call therefore must NOT store back
+         * any list derived from a pre-callback snapshot: it would silently
+         * drop the inner update (lost add) or resurrect a removed entry.
+         * Instead: run fn with a view of the pre-callback state, then apply
+         * ONLY the delta implied by the entryView to the CURRENT list and
+         * store that. */
+        let entries = refList()
+        let (newValue, wasAbsent, updated) = match (entries) {
+            case Some(es) => es.copyEntryView(hash, key, fn)
+            case None =>
+                let entryView = ConcurrentHashMapEntryView<K, V>(key, None<V>)
+                fn(entryView)
+                (entryView.value, true, false)
         }
-        let (copyEntries, value, resize) = entries.copyEntryView(hash, key, fn)
-        atomic_ref_entries.store(copyEntries)
-        return (value, resize)
+        match ((wasAbsent, newValue)) {
+            // callback left the absent key absent: nothing to commit
+            case (true, None) => return (None<V>, None<Int64>)
+            // insert the value the callback set
+            case (true, Some(v)) =>
+                copyPut(hash, key, v)
+                return (v, 1)
+            // remove the entry from the CURRENT list
+            case (false, None) =>
+                copyRemoveExisting(hash, key)
+                return (None<V>, -1)
+            case (false, Some(v)) =>
+                // callback only read the value: nothing to commit
+                if (!updated) {
+                    let cur = refList().getOrThrow().find(hash, key)
+                    return (cur, None<Int64>)
+                }
+                // write the value the callback set into the CURRENT list
+                copyPut(hash, key, v)
+                return (v, None<Int64>)
+        }
+    }
+
+    /* Remove an entry known to exist in the CURRENT list (single copy). */
+    private func copyRemoveExisting(hash: Int64, key: K): Unit {
+        if (let Some(entries) <- refList()) {
+            let copyEntries = entries.copyRemoveUnChecked(entries.contains(hash, key))
+            atomic_ref_entries.store(copyEntries)
+        }
     }
 
     /**
