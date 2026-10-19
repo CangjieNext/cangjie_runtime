@@ -160,12 +160,24 @@ public class ArrayBlockingQueue<E> {
     // this recheck can enter 'wait' after a notifier observed an empty
     // waiter set: no notify is issued and the caller sleeps the whole
     // timeout even though a slot is already writable (lost wakeup).
+    //
+    // Each round waits only for the REMAINING time until the caller's
+    // deadline, and exits once it is reached: otherwise a condition that
+    // never becomes true (eternally full queue) would re-enter
+    // 'wait(timeout:)' with the full timeout forever and 'add(element,
+    // timeout:)' would never return false at its deadline. Note
+    // 'Monitor.wait(timeout:)' requires a positive duration, so the
+    // deadline check must precede the call.
     private func waitForWritableSlot(timeout: Duration): Duration {
         receiveMonitor.lock()
         let startTime = MonoTime.now()
         sendQSize.fetchAdd(1)
         while (isFull()) {
-            receiveMonitor.wait(timeout: timeout)
+            let elapsed = MonoTime.now() - startTime
+            if (elapsed >= timeout) {
+                break
+            }
+            receiveMonitor.wait(timeout: timeout - elapsed)
         }
         sendQSize.fetchSub(1)
         let endTime = MonoTime.now()
@@ -236,12 +248,24 @@ public class ArrayBlockingQueue<E> {
     // this recheck can enter 'wait' after a notifier observed an empty
     // waiter set: no notify is issued and the caller sleeps the whole
     // timeout even though an element is already readable (lost wakeup).
+    //
+    // Each round waits only for the REMAINING time until the caller's
+    // deadline, and exits once it is reached: otherwise a condition that
+    // never becomes true (eternally empty queue) would re-enter
+    // 'wait(timeout:)' with the full timeout forever and 'remove(timeout:)'
+    // would never return None at its deadline. Note
+    // 'Monitor.wait(timeout:)' requires a positive duration, so the
+    // deadline check must precede the call.
     private func waitForReadableSlot(timeout: Duration): Duration {
         sendMonitor.lock()
         let startTime = MonoTime.now()
         receiveQSize.fetchAdd(1)
         while (size == 0) {
-            sendMonitor.wait(timeout: timeout)
+            let elapsed = MonoTime.now() - startTime
+            if (elapsed >= timeout) {
+                break
+            }
+            sendMonitor.wait(timeout: timeout - elapsed)
         }
         receiveQSize.fetchSub(1)
         let endTime = MonoTime.now()
