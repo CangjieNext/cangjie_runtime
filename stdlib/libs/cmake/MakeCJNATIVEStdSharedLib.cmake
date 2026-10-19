@@ -35,6 +35,10 @@ function(make_cangjie_lib target_name)
     set(clang_compiler "${CMAKE_C_COMPILER}")
     if(OHOS)
         list(APPEND flags_to_compile -z relro -z now -z noexecstack)
+        # Bind calls to functions defined in the same shared library directly, so that they do not
+        # go through the PLT/GOT indirection.  The standard library is the final implementation of
+        # its own symbols, so losing the ability to interpose them from outside is acceptable.
+        list(APPEND flags_to_compile -Bsymbolic-functions)
         # Unfortunately, a bug in library `winpthread` our ld.lld depends causes deadlock occasionally
         # while linking. We disable multi-threading for now until we have a work-around.
         list(APPEND flags_to_compile --threads=1)
@@ -45,6 +49,10 @@ function(make_cangjie_lib target_name)
         set(linker_ld_library_path "$ENV{CANGJIE_HOME}/third_party/llvm/lib")
     elseif(NOT MINGW)
         list(APPEND flags_to_compile "-Wl,-z,relro,-z,now,-z,noexecstack")
+        # Bind calls to functions defined in the same shared library directly, so that they do not
+        # go through the PLT/GOT indirection.  The standard library is the final implementation of
+        # its own symbols, so losing the ability to interpose them from outside is acceptable.
+        list(APPEND flags_to_compile "-Wl,-Bsymbolic-functions")
         if(ANDROID OR CANGJIE_HWASAN_SUPPORT)
             # We need use our lld since we have modification to make it link properly,
             # otherwise it will has false alignment and finally lead to a SEGV when load std-lib.
