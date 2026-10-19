@@ -367,18 +367,17 @@ class HNode<K, V> where K <: Hashable & Equatable<K> {
     let version: Int64
     let migratingIndex = AtomicInt64(0)
     let migratedIndex = AtomicInt64(0)
-    /* Set when a stripe migration of this table failed with an exception
-     * (e.g. OutOfMemoryError): tells the thread elected to publish the next
-     * table to stop waiting for 'migratedIndex' convergence instead of
-     * spinning forever. AtomicBool (not a plain field): adding an internal
-     * field to this class changes its object layout and metadata, which
-     * breaks forward dynamic compatibility when a binary compiled against
-     * the new std loads the old std .so (observed in the compatibility
-     * matrix for the first attempt of this fix, PR !1820) - the fix
-     * therefore reuses the SAME member set. Atomic also guarantees the
-     * spin loop re-reads it every iteration instead of hoisting the load
-     * out of the loop. */
-    let resizeAborted = AtomicBool(false)
+    /* Abort marker: NOT a dedicated field. When a stripe migration of this
+     * table fails with an exception, 'migratedIndex' is set to a negative
+     * sentinel (Int64.Min). A negative value is impossible on the success
+     * path (only non-negative fetchAdd sums occur), so "migratedIndex < 0"
+     * means "this table version's resize round is dead". Reusing the
+     * existing counter (instead of adding a member) keeps the class layout
+     * and type metadata byte-identical: the compatibility analysis of the
+     * previous fix attempt (PR !1820) proved that adding even ONE internal
+     * field to HNode breaks forward dynamic compatibility (new-compiled
+     * binary + old std .so segfaults), and that the full fix minus the
+     * field is green in all four dynamic/static scenarios. */
     /**
      * The reference of the previous hash table,
      * which is the current hash table before the latest size extension.
@@ -1014,27 +1013,26 @@ public class ConcurrentHashMap<K, V> <: ConcurrentMap<K, V> & Collection<(K, V)>
             try {
                 curHT.migrate(i, sz, concurrencyLevel)
             } catch (e: Exception) {
-                /* A stripe migration failed. Bookkeeping for the stripes
-                 * completed so far, return the failed claim so a later
-                 * resize can retry it, and release the thread elected to
-                 * publish the next table from waiting for 'migratedIndex'
-                 * convergence (it reads resizeAborted). The new table is
-                 * NOT published this round, so the invariant that the
-                 * previous table is fully migrated before 'head' advances
-                 * stays intact (one-level read fallback remains correct).
-                 * The exception still propagates to the caller. */
-                curHT.migratedIndex.fetchAdd(migrateCnt)
+                /* A stripe migration failed. Mark the round dead with the
+                 * negative sentinel (plain fetchAdd sums can never go
+                 * negative, so "< 0" unambiguously means "failed"), return
+                 * the failed claim so a later resize round can retry the
+                 * stripe, and stop the thread elected to publish the next
+                 * table from waiting for convergence. The new table is NOT
+                 * published this round, so the invariant that the previous
+                 * table is fully migrated before 'head' advances stays
+                 * intact (one-level read fallback remains correct). The
+                 * exception still propagates to the caller. */
+                curHT.migratedIndex.store(Int64.Min)
                 curHT.migratingIndex.compareAndSwap(i + 1, i)
-                curHT.resizeAborted.store(true)
                 throw e
             } catch (e: Error) {
                 /* Same bookkeeping as the Exception branch above. Errors
                  * (e.g. OutOfMemoryError from the bucket-transfer
                  * allocation) are catchable in Cangjie and must not wedge
                  * the resize protocol either. */
-                curHT.migratedIndex.fetchAdd(migrateCnt)
+                curHT.migratedIndex.store(Int64.Min)
                 curHT.migratingIndex.compareAndSwap(i + 1, i)
-                curHT.resizeAborted.store(true)
                 throw e
             }
             migrateCnt++
@@ -1048,9 +1046,10 @@ public class ConcurrentHashMap<K, V> <: ConcurrentMap<K, V> & Collection<(K, V)>
         while (curHT.migratedIndex.load() < concurrencyLevel) {
             /* A stripe migration failed mid-transfer and its claim was
              * consumed: migratedIndex can never reach concurrencyLevel.
-             * Give up this round instead of spinning forever; the version
-             * CAS is rolled back so a later resize can retry. */
-            if (curHT.resizeAborted.load()) {
+             * The negative sentinel marks that round as dead; give up
+             * instead of spinning forever (the version CAS is rolled back
+             * so the resize can be retried by later operations). */
+            if (curHT.migratedIndex.load() < 0) {
                 curHNodeVersion.compareAndSwap(newVersion, curHT.version)
                 return
             }
