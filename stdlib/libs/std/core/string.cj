@@ -2743,7 +2743,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
     }
 
     @Frozen
-    internal exclave static unsafe func withRawData(rawData: Array<UInt8> @local!): String @local! {
+    public exclave static unsafe func withRawData(rawData: Array<UInt8> @local!): String @local! {
         String(rawData)
     }
 

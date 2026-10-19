@@ -43,7 +43,7 @@ public class StringBuilder <: ToString {
 
     // The buffer data stays heap-allocated: a plain field cannot hold an @local! array (type mismatch),
     // and the instance may outlive the region, so a local buffer would dangle.
-    internal exclave init(this @local!) {
+    public exclave init(this @local!) {
         this.data = Array<UInt8>(defaultCapacity, repeat: 0)
         this.endIndex = 0
     }
@@ -122,6 +122,12 @@ public class StringBuilder <: ToString {
     @Frozen
     public func toString(): String {
         return String(this.data[0..this.endIndex])
+    }
+
+    public exclave func toString(this @local?): String @local! {
+        let itemData: Array<UInt8> @local! = Array<UInt8>(this.endIndex, repeat: 0)
+        this.data.copyTo(itemData, 0, 0, this.endIndex)
+        String(itemData)
     }
 
     internal exclave func toStringLocal(this @local!): String @local! {
@@ -226,6 +232,24 @@ public class StringBuilder <: ToString {
 
     @OverflowWrapping
     @Frozen
+    public func append(str: String @local?): Unit {
+        if (str.isEmpty()) {
+            return
+        }
+        let strData = unsafe { str.rawData() }
+        let itemLen = strData.size
+        this.grow(itemLen)
+        strData.copyTo(this.data, 0, this.endIndex, itemLen)
+        this.endIndex += itemLen
+    }
+
+    @OverflowWrapping
+    public exclave func append(this @local!, str: String @local?): Unit {
+        this.appendString(str)
+    }
+
+    @OverflowWrapping
+    @Frozen
     public func append(sb: StringBuilder): Unit {
         let itemLen = sb.endIndex
         if (itemLen == 0) {
@@ -294,6 +318,10 @@ public class StringBuilder <: ToString {
             case b: Bool => this.append(b)
             case _ => this.append(v.toString())
         }
+    }
+
+    public exclave func append<T>(this @local!, v: T @local?): Unit where T <: ToString {
+        this.appendValue<T>(v)
     }
 
     @Frozen
