@@ -370,14 +370,16 @@ class HNode<K, V> where K <: Hashable & Equatable<K> {
     /* Set when a stripe migration of this table failed with an exception
      * (e.g. OutOfMemoryError): tells the thread elected to publish the next
      * table to stop waiting for 'migratedIndex' convergence instead of
-     * spinning forever. AtomicBool (not a plain field): adding an internal
-     * field to this class changes its object layout and metadata, which
-     * breaks forward dynamic compatibility when a binary compiled against
-     * the new std loads the old std .so (observed in the compatibility
-     * matrix for the first attempt of this fix, PR !1820) - the fix
-     * therefore reuses the SAME member set. Atomic also guarantees the
-     * spin loop re-reads it every iteration instead of hoisting the load
-     * out of the loop. */
+     * spinning forever.
+     *
+     * HNode is a package-private class (not @Frozen) that never appears in
+     * any public signature, so its member set is not part of the external
+     * binary-visible layout/metadata contract; adding an internal field
+     * therefore does not affect forward dynamic compatibility. This differs
+     * from PR !1820, whose compatibility break came from changing @Frozen
+     * public function bodies. An AtomicBool is still used (not a plain
+     * field) so the spin loop re-reads it every iteration instead of
+     * hoisting the load out of the loop. */
     let resizeAborted = AtomicBool(false)
     /**
      * The reference of the previous hash table,
