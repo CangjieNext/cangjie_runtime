@@ -1,0 +1,145 @@
+runtime/src/ExceptionManager.cpp
+  s_f2a775f049b001::t_efab4cfeabf749 111-119
+stdlib/libs/std/core/local_region_out_of_memory_error.cj
+  s_f2a775f049b001::t_efab4cfeabf749 1-23
+runtime/src/CompilerCalls.cpp
+  s_38e13843a7808a::t_5ac3d615b3e546 374,457
+  s_38e13843a7808a::t_3145de155cef4a 535-536
+runtime/src/Heap/Allocator/LocalObjectAllocator.h
+  h_257b3b6b5da395 11,23-45,104-120
+  s_38e13843a7808a::t_3145de155cef4a 76-79
+  s_38e13843a7808a::t_5ac3d615b3e546 15,92-94,96
+runtime/src/Inspector/CjHeapData.h
+  h_257b3b6b5da395 16,19,59-63,67,90-93,128,195,202-203,235-239
+stdlib/libs/std/core/runtime_call_throw_exception.cj
+  s_f2a775f049b001::t_efab4cfeabf749 25
+runtime/src/Heap/Barrier/Barrier.cpp
+  s_38e13843a7808a::t_5ac3d615b3e546 300,312,317
+runtime/src/Exception/Exception.h
+  s_f2a775f049b001::t_efab4cfeabf749 47-48,163
+runtime/src/HeapManager.cpp
+  s_f2a775f049b001::t_efab4cfeabf749 13,40-42
+runtime/src/Heap/Allocator/LocalObjectAllocator.cpp
+  s_f2a775f049b001::t_190bf63d51b4d6 192
+  s_f2a775f049b001::t_a037c6012f55e1 952-953
+  s_38e13843a7808a::t_7bac2e56bd6e85 996
+  s_38e13843a7808a::t_8e43080d25fa34 652,1001-1004,1082-1083
+  s_38e13843a7808a::t_5ac3d615b3e546 37-40,55-60,66,91,148,200,266,268,271-272,276-303,306,308-313,523,525,530-531,678,692,699
+  s_34af495623f805::t_f44aefc81ff415 212
+  s_f2a775f049b001::t_79b6e095bb0da6 1017-1022
+  s_38e13843a7808a::t_3145de155cef4a 1092-1094
+  s_38e13843a7808a::t_2a4264d7c9300c 671
+  s_f2a775f049b001::t_c76bd9a292b328 657,713-715,717-722,724-726
+  s_f2a775f049b001::t_00b3bfdbc9ad56 189,664,802,830,841,878-879,889-890,897-905,909-911,913-919,922-936,939-941,943-947,999,1007,1030,1036,1044,1050,1071-1072,1125
+  s_f2a775f049b001::t_ce37a7d344a7a9 1033,1035,1047,1049
+  s_38e13843a7808a::t_2c79150941afea 661-662
+  s_38e13843a7808a::t_ee106c278c2116 201
+  s_f2a775f049b001::t_63cb2d6bc93102 195-198
+  s_f2a775f049b001::t_a95677fc45ae9f 1023-1024
+  s_38e13843a7808a::t_0b0f11e3613fcf 892-894
+  s_38e13843a7808a::t_04a2700ae40c31 15,665-668,852-864
+  s_38e13843a7808a::t_4e7b3ce6cff19e 669
+  h_257b3b6b5da395 132,151-153,177,650,674-675,694,800,886,891,948-950,954-955,998,1008,1013-1014,1016
+  s_f2a775f049b001::t_87bef500fb3bf8 698
+  s_f2a775f049b001::t_968e67160df5ef 135-136,372,377
+  s_f2a775f049b001::t_b60c1e420f04a4 26
+  s_f2a775f049b001::t_c8e65df617eff4 191,199
+  s_f2a775f049b001::t_f6920cfce06f79 163-164,697,716,737,1088-1091,1109
+  s_f2a775f049b001::t_c76943d053ca8e 705,1034,1038,1048,1052
+  s_38e13843a7808a::t_f6345b29566b17 326,663,672,826,831,839,895-896,951,959-960,962-963,965,968-990,1005,1029,1043,1055,1057-1058,1060-1064,1085-1086,1095,1124
+  s_f2a775f049b001::t_efab4cfeabf749 137,172,203-209,373-376,378-383,681,695,702,734,738-739,741-748,753-754,758-760,762-782
+  s_38e13843a7808a::t_77703b8b857fe9 966-967
+  s_f2a775f049b001::t_d592b17e4221cc 888
+  s_f2a775f049b001::t_a6530e85cd8703 160-162
+  s_f2a775f049b001::t_75d254da376fd7 169-171
+  s_f2a775f049b001::t_8dcc2eacada27d 173
+  s_f2a775f049b001::t_a3bf35517c3c9e 186-188
+  s_f2a775f049b001::t_e62482f6ee106b 190
+  s_f2a775f049b001::t_d7df85769111f1 193-194
+  s_38e13843a7808a::t_a7a04922ccee0e 653-654
+  s_38e13843a7808a::t_33b3d240cea3d9 659-660
+  s_38e13843a7808a::t_c3f410da58c620 670
+  s_f2a775f049b001::t_fdfa9e29755783 680
+  s_f2a775f049b001::t_bde709ce23e52a 682-684
+  s_38e13843a7808a::t_1de0b02f4b59cb 690-691
+  s_f2a775f049b001::t_8da725e86053ca 696
+  s_f2a775f049b001::t_2d5a72ff1f7772 703-704
+  s_f2a775f049b001::t_caf9ef6d366c2e 706
+  s_f2a775f049b001::t_fe7c9949ebd2b1 710-712
+  s_f2a775f049b001::t_f3553d9e140ae9 727
+  s_f2a775f049b001::t_677e4d39dc8ee3 732-733
+  s_f2a775f049b001::t_ac44cc267c278b 736
+  s_f2a775f049b001::t_0c19a7a08964a0 783
+  s_f2a775f049b001::t_5332348a5ab35c 803-805
+  s_38e13843a7808a::t_d54ff5dc1d3407 823-825
+  s_38e13843a7808a::t_682abbe0ae0e37 832-834,836-838
+  s_38e13843a7808a::t_99e8f8b33c646a 849-851
+  s_f2a775f049b001::t_8d0f3e5d0ba39d 877
+  s_f2a775f049b001::t_4be3c96eb39d3b 880-882
+  s_f2a775f049b001::t_a13f4363b16190 1032
+  s_f2a775f049b001::t_e0944736c475fe 1046
+  s_f2a775f049b001::t_ac422e390159df 1069-1070
+  s_f2a775f049b001::t_027a2215268a6d 1073-1074
+  s_38e13843a7808a::t_334bf847341ac7 1080-1081
+  s_38e13843a7808a::t_50e232c87da6f1 1084
+  s_f2a775f049b001::t_c612afed26afec 1106-1108
+  s_f2a775f049b001::t_bfa4899e0f3229 1110-1111
+  s_38e13843a7808a::t_bb263179dfa035 1121-1123
+  s_f2a775f049b001::t_f9ced6dace502c 1126-1127
+  h_257b3b6b5da395 12,129-131,156-159,167-168,176,178-181,184,202,319,324,329,331,334,540,642,644-646,648-649,651,676-677,685-688,693,700-701,708-709,730,788,790,794,796-799,801,806,809-811,814,816-818,821-822,827-829,835,843,846,848,866-869,871-872,875,993,1027,1041,1067,1078,1087,1097,1100,1102-1103,1113-1116,1118-1120
+runtime/src/Mutator/Mutator.h
+  s_38e13843a7808a::t_5ac3d615b3e546 523
+  h_257b3b6b5da395 77
+stdlib/libs/std/core/CMakeLists.txt
+  s_f2a775f049b001::t_efab4cfeabf749 43,75
+stdlib/libs/std/runtime/runtime_memoryInfo.cj
+  s_38e13843a7808a::t_3145de155cef4a 95-98
+runtime/src/ExceptionManager.h
+  s_f2a775f049b001::t_efab4cfeabf749 33-34,68,134
+runtime/src/Inspector/CjHeapData.cpp
+  h_257b3b6b5da395 23,30,35-41,45,48,50,81,83,95-103,109-121,163,171,213,221,306-338,386-387,401,403-404,419-431,530-536,606-638,1047-1064,1102-1108
+runtime/src/Inspector/HeapSnapshotJsonSerializer.cpp
+  h_257b3b6b5da395 282-288,336,355,375,384-406,423,474,480,529,535,588,653,661,696-716
+runtime/src/Inspector/HeapSnapshotJsonSerializer.h
+  h_257b3b6b5da395 13,40-41,50,56-57
+runtime/src/Mutator/Mutator.cpp
+  s_38e13843a7808a::t_5ac3d615b3e546 788,791
+  s_38e13843a7808a::t_44c13ba6c1da8a 337-341
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1c1a657b1797c8cb869b695ef74d44265acc7d54",
+  "prompts": {},
+  "humans": {
+    "h_257b3b6b5da395": {
+      "author": "kongbx <kongbingxin@huawei.com>"
+    }
+  },
+  "sessions": {
+    "s_34af495623f805": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a13f61-f77b-7d50-8169-0a2bd5383b1f",
+        "model": "unknown"
+      },
+      "human_author": "kongbx <kongbingxin@huawei.com>"
+    },
+    "s_38e13843a7808a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a13841-c35a-71c3-ae91-299b18a8546b",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "kongbx <kongbingxin@huawei.com>"
+    },
+    "s_f2a775f049b001": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1336b-048a-77b3-aa72-e9550d442e45",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "kongbx <kongbingxin@huawei.com>"
+    }
+  }
+}
