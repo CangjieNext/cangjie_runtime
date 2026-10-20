@@ -55,7 +55,7 @@ lbq_bench.exe        # Windows（cjc 在 Windows 上产物带 .exe）
 - 真实吞吐数字必须由 **CI runner / 具备可用仓颉运行时的机器** 实际运行产出。
 
 ## 结果解读
-- 若 PR 在 **SPSC** 下出现回归：这是已知权衡——PR 的 `tryAdd/tryRemove` 每次成功都无条件
-  `signal` 对端 Monitor，而上游是条件 `signal`。若数据不显著，按 issue #947 口径改回条件
-  `signal` 或 revert 性能部分（保持上游原版）。
-- MPMC 下若持平或占优，说明无锁预约协议的收益成立。
+- PR 的 `tryAdd/tryRemove` 已采用**条件 `signal`**（仅 `prev==0`/`prev==capacity` 时唤醒），
+  **与上游语义一致**，因此 SPSC 下不存在“无条件 signal 赔回锁往返”的回归。若整体吞吐与上游
+  持平，属预期；若 MPMC 占优，说明无锁预约协议的收益成立。
+- 若实测出现非预期回归，按 issue #947 口径 revert 性能部分（保持上游原版）。
