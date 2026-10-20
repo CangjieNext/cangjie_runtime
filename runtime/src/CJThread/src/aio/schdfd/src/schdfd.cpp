@@ -398,6 +398,7 @@ int SchdfdDeregister(SignedSocket fd)
         return ERRNO_SCHDFD_FD_CLOSING;
     }
     while (atomic_load(&schdFd->netpollState) != NETPOLL_ADDED &&
+           atomic_load(&schdFd->netpollState) != NETPOLL_CLOSING &&
            !atomic_compare_exchange_strong(&schdFd->netpollState, &expectState, NETPOLL_CLOSING)) {
         expectState = NETPOLL_TO_ADD;
     }
@@ -431,6 +432,7 @@ void WakeallFd(SignedSocket fd)
         return;
     }
     while (atomic_load(&schdFd->netpollState) != NETPOLL_ADDED &&
+           atomic_load(&schdFd->netpollState) != NETPOLL_CLOSING &&
            !atomic_compare_exchange_strong(&schdFd->netpollState, &expectState, NETPOLL_CLOSING)) {
         expectState = NETPOLL_TO_ADD;
     }
