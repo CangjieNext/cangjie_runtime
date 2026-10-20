@@ -15,9 +15,15 @@ package std.net
 const SOCK_ADDR_IPV4_LEN: Int64 = 4
 const SOCK_ADDR_IPV6_LEN: Int64 = 16
 const SOCK_ADDR_DOMAIN_LEN: Int64 = 108
-// XXX: TCP use this, while Unix/Udp should be 0xFFFF, but in write/send, we still use this to do checking.
 const SOCK_READ_BUFFER_SIZE: Int32 = 4 * 1024
 const SOCK_WRITE_BUFFER_SIZE: Int32 = 64 * 1024
+// Write-buffer size actually allocated for UDP/UNIX sockets in
+// DopraOtherSocketImpl.createBuffer. The write/send paths must chunk and
+// check with THIS value, not with SOCK_WRITE_BUFFER_SIZE: the native
+// CJ_SOCKET_BufferWCopy rejects any copyLen > wBufSize, and 65536 > 65535
+// made every >= 65536-byte UnixSocket.write / UnixDatagramSocket.sendTo fail
+// with "Failed to write data: socket copy error." before any syscall.
+const SOCK_DGRAM_WRITE_BUFFER_SIZE: Int32 = 0xffff
 const NULL_BYTE = "\0"
 const IPV4_ADDR_LEN: Int64 = 16
 const IPV6_ADDR_LEN: Int64 = 28

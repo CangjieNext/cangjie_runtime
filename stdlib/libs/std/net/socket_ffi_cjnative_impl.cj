@@ -530,17 +530,17 @@ class DopraOtherSocketImpl <: DopraSocketImpl<DopraOtherSocketImpl> {
         let writeSize = buffer.size
         var writeToBufferSize: Int64 = 0
         while (writeToBufferSize < writeSize) {
-            let bufferOnceSize: Int64 = if (writeSize - writeToBufferSize < Int64(SOCK_WRITE_BUFFER_SIZE)) {
+            let bufferOnceSize: Int64 = if (writeSize - writeToBufferSize < Int64(SOCK_DGRAM_WRITE_BUFFER_SIZE)) {
                 writeSize - writeToBufferSize
             } else {
-                Int64(SOCK_WRITE_BUFFER_SIZE)
+                Int64(SOCK_DGRAM_WRITE_BUFFER_SIZE)
             }
             var copyLen: Int32 = 0
             unsafe {
                 let bufCp = acquireArrayRawData(buffer)
                 // bufCp.pointer copy to socketBufferPtr
                 copyLen = CJ_SOCKET_BufferWCopy(socketBufferPtr, bufCp.pointer + writeToBufferSize,
-                    Int64(SOCK_WRITE_BUFFER_SIZE), Int32(bufferOnceSize))
+                    Int64(SOCK_DGRAM_WRITE_BUFFER_SIZE), Int32(bufferOnceSize))
                 releaseArrayRawData(bufCp)
             }
             if (copyLen == 0) {
@@ -640,8 +640,10 @@ class DopraOtherSocketImpl <: DopraSocketImpl<DopraOtherSocketImpl> {
         var copyLen: Int32 = 0
         unsafe {
             let bufCp = acquireArrayRawData(buffer)
-            // bufCp.pointer copy to socketBufferPtr
-            copyLen = CJ_SOCKET_BufferWCopy(socketBufferPtr, bufCp.pointer, Int64(SOCK_WRITE_BUFFER_SIZE),
+            // bufCp.pointer copy to socketBufferPtr; a datagram is copied as
+            // a whole, so bufLen must cover the full payload (the native
+            // check is copyLen <= bufLen and copyLen <= wBufSize).
+            copyLen = CJ_SOCKET_BufferWCopy(socketBufferPtr, bufCp.pointer, Int64(buffer.size),
                 Int32(buffer.size))
             releaseArrayRawData(bufCp)
         }
@@ -683,7 +685,7 @@ class DopraOtherSocketImpl <: DopraSocketImpl<DopraOtherSocketImpl> {
     ): DopraOtherSocketImpl {
         let handle = createSocket(net, kind, mode)
         let buffer = try {
-            createBuffer(handle, net)
+            createBufferWithMode(handle, net, mode)
         } catch (e: Exception) {
             unsafe { CJ_MRT_SockClose(handle) }
             throw e
@@ -692,14 +694,41 @@ class DopraOtherSocketImpl <: DopraSocketImpl<DopraOtherSocketImpl> {
         return DopraOtherSocketImpl(buffer, AtomicInt64(handle))
     }
 
+    /*
+     * Write-buffer size for datagram UNIX sockets. The kernel accepts
+     * Unix-domain datagrams far beyond 64 KiB (bounded by SO_SNDBUF, 212992
+     * bytes by default on Linux), and the class documentation promises
+     * "Unlike UDP, Unix Domain socket don't limit datagram size to 64Kib".
+     * A datagram is copied into the native write buffer as a whole
+     * (CJ_SOCKET_BufferWCopy rejects copyLen > wBufSize), so the buffer must
+     * be large enough to hold the datagrams the OS itself accepts, otherwise
+     * perfectly legal sendTo() calls fail with
+     * "Failed to write data: socket copy error." in user space.
+     */
+    static const UNIX_DATAGRAM_WRITE_BUFFER_SIZE: Int32 = 0x40000 // 256 KiB
+
+    // The accept path only serves connection-oriented sockets (Unix domain
+    // datagram sockets have no accept), so a missing mode means streaming.
     private static func createBuffer(handle: Int64, net: SocketNet): CPointer<SocketBuffer> {
+        createBufferWithMode(handle, net, SocketMode.StreamingMode)
+    }
+
+    private static func createBufferWithMode(handle: Int64, net: SocketNet, mode: SocketMode): CPointer<SocketBuffer> {
         let readBufferSize = match (net) {
             case TCP => SOCK_READ_BUFFER_SIZE
             case UDP | UNIX => 0xffffi32
         }
         let writeBufferSize = match (net) {
             case TCP => SOCK_WRITE_BUFFER_SIZE
-            case UDP | UNIX => 0xffffi32
+            case UDP => SOCK_DGRAM_WRITE_BUFFER_SIZE
+            // UDS datagrams may exceed 64 KiB (see the class doc); give the
+            // stream sockets the same 64 KiB buffer as before and datagram
+            // sockets a buffer covering the kernel-default SO_SNDBUF range.
+            case UNIX => if (mode == SocketMode.DatagramMode) {
+                UNIX_DATAGRAM_WRITE_BUFFER_SIZE
+            } else {
+                SOCK_DGRAM_WRITE_BUFFER_SIZE
+            }
         }
 
         let buffer = unsafe { CJ_SOCKET_BufferInit(handle, readBufferSize, writeBufferSize) }
