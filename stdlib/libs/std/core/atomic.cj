@@ -96,6 +96,10 @@ class AtomicReference<T> where T <: Object {
     func store(val: T): Unit {
         store<AtomicReference<T>, T>(this, val, MemoryOrder.SeqCst)
     }
+
+    func compareAndSwap(oldValue: T, newValue: T): Bool {
+        return compareAndSwap<AtomicReference<T>, T>(this, oldValue, newValue, MemoryOrder.SeqCst, MemoryOrder.SeqCst)
+    }
 }
 
 /**

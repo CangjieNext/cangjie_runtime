@@ -11,6 +11,9 @@
 
 #ifdef WIN32
 #include <windows.h>
+#else
+#include <sched.h>
+#include <time.h>
 #endif  // WIN32
 
 #ifdef __arm__
@@ -21,7 +24,25 @@
 static atomic_flag g_atexitCallbackListLocker = ATOMIC_FLAG_INIT;
 extern void CJ_CORE_AtExitCallbackListLock(void)
 {
+    int spins = 0;
     while (atomic_flag_test_and_set(&g_atexitCallbackListLocker)) {
+        /* Pure spinning here would burn a core for the whole atexit teardown
+         * when a thread loses the race against CJ_CORE_ExecAtexitCallbacks
+         * (the flag check in the Cangjie layer happens before the lock).
+         * Yield after a short busy phase so the waiter cannot starve the
+         * lock holder (which may run long, blocking user callbacks). */
+        if (++spins > 16) {
+#ifdef WIN32
+            Sleep(1);
+#else
+            if (spins <= 4096) {
+                sched_yield();
+            } else {
+                struct timespec ts = {0, 100000}; /* 100us */
+                nanosleep(&ts, NULL);
+            }
+#endif
+        }
     }
 }
 extern void CJ_CORE_AtExitCallbackListUnlook(void)
