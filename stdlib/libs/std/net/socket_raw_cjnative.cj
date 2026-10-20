@@ -570,6 +570,11 @@ public class RawSocket {
 @When[os != "Windows" && backend == "cjnative"]
 class RawSocketImpl {
     var sockFd: Int64
+    /* CR-10: set by RawSocket.close() before the fd is released. The
+     * receive/receiveFrom internal loops check this after every EAGAIN
+     * wait so a call racing with close() cannot keep issuing recv() with
+     * a stale (possibly fd-reused) handle. */
+    let closed: AtomicBool = AtomicBool(false)
 
     init(sockFd: Int64) {
         this.sockFd = sockFd
@@ -661,6 +666,10 @@ class RawSocketImpl {
         var recvSize: Int32 = 0
         let addrArr = Array<Byte>(size, repeat: 0)
         while (true) {
+            /* CR-10: same stale-handle guard as receive(), before recv(). */
+            if (closed.load()) {
+                SocketException.throwClosedException()
+            }
             unsafe {
                 let (handle, addrPtr) = getAddrPointer(addrArr)
                 let bufCp = acquireArrayRawData(buffer)
@@ -682,6 +691,13 @@ class RawSocketImpl {
     func receive(buffer: Array<Byte>, flags: Int32, timeout: Int64): Int64 {
         var recvSize: Int32 = 0
         while (true) {
+            /* CR-10: the fd may already have been closed and recycled by a
+             * new socket while we waited in a previous iteration; check
+             * BEFORE every recv() so the stale handle can never read
+             * another socket's queue. */
+            if (closed.load()) {
+                SocketException.throwClosedException()
+            }
             unsafe {
                 let bufCp = acquireArrayRawData(buffer)
                 recvSize = CJ_MRT_SockRecvNonBlock(sockFd, bufCp.pointer, UInt32(buffer.size), flags)
@@ -733,6 +749,10 @@ class RawSocketImpl {
     }
 
     func releaseFd(): Unit {
+        /* CR-10: flip the impl-level closed flag BEFORE the fd leaves this
+         * process, so in-flight receive loops stop re-issuing recv() with
+         * the handle once the fd is closed and potentially reused. */
+        closed.store(true)
         unsafe { CJ_MRT_SockClose(this.sockFd) }
     }
 }
@@ -741,6 +761,8 @@ class RawSocketImpl {
 class RawSocketImpl {
     var sockFd: Int64
     var isBound: Bool = false
+    /* CR-10: see the non-Windows RawSocketImpl comment. */
+    let closed: AtomicBool = AtomicBool(false)
     protected var socketBufferPtr: CPointer<SocketBuffer> = CPointer<SocketBuffer>()
     var bufferInitialized: AtomicBool = AtomicBool(false)
 
