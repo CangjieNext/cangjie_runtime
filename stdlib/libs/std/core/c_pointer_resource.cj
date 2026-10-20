@@ -80,21 +80,25 @@ extend<T> CPointer<T> {
 
 public struct CPointerResource<T> <: Resource where T <: CType {
     public let value: CPointer<T>
-    private let isFree: Box<Bool> = Box(false)
+    // 0 = not freed, 1 = freed. Atomic so that close() on copies shared
+    // across threads frees the native pointer exactly once.
+    private let isFree: AtomicBool = AtomicBool(false)
 
     init(p: CPointer<T>) {
         this.value = p
     }
 
     public func isClosed(): Bool {
-        return isFree.value
+        return isFree.load()
     }
 
     public func close(): Unit {
-        if (isFree.value) {
-            return
+        // Atomic check-and-set: exactly one caller (the CAS winner) frees the
+        // native pointer. Concurrent close() calls on copies of the same
+        // resource previously raced between the isFree check and the store,
+        // double-freeing the pointer (see issue #977).
+        if (isFree.compareAndSwap(false, true)) {
+            unsafe { LibC.free<T>(value) }
         }
-        unsafe { LibC.free<T>(value) }
-        isFree.value = true
     }
 }
