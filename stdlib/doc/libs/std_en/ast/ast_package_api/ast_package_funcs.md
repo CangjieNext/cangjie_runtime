@@ -178,6 +178,8 @@ Function: Parses a set of lexical units to obtain a [Decl](ast_package_classes.m
 > **Note:**
 >
 > This function does not support parsing [FuncParam](ast_package_classes.md#class-funcparam) types.
+>
+> The parsing process is limited by the Cangjie thread stack size (controlled by the environment variable `cjStackSize`). Source code with excessively deep nesting may cause a Segmentation fault, which can be resolved by increasing the value of `cjStackSize`. For details, see the description of `parseProgram`.
 
 Parameters:
 
@@ -257,6 +259,8 @@ Function: Parses a set of lexical units to obtain a [Decl](ast_package_classes.m
 > **Note:**
 >
 > This function does not support parsing [FuncParam](ast_package_classes.md#class-funcparam), [PropDecl](ast_package_classes.md#class-propdecl), or [PrimaryCtorDecl](ast_package_classes.md#class-primaryctordecl) types.
+>
+> The parsing process is limited by the Cangjie thread stack size (controlled by the environment variable `cjStackSize`). Source code with excessively deep nesting may cause a Segmentation fault, which can be resolved by increasing the value of `cjStackSize`. For details, see the description of `parseProgram`.
 
 Parameters:
 
@@ -279,6 +283,10 @@ public func parseExpr(input: Tokens): Expr
 
 Function: Parses a set of lexical units to obtain an [Expr](ast_package_classes.md#class-expr) type node.
 
+> **Note:**
+>
+> The parsing process is limited by the Cangjie thread stack size (controlled by the environment variable `cjStackSize`). Source code with excessively deep nesting may cause a Segmentation fault, which can be resolved by increasing the value of `cjStackSize`. For details, see the description of `parseProgram`.
+
 Parameters:
 
 - input: [Tokens](ast_package_classes.md#class-tokens) - The lexical units of the source code to be parsed.
@@ -298,6 +306,10 @@ public func parseExprFragment(input: Tokens, startFrom!: Int64 = 0): (Expr, Int6
 ```
 
 Function: This function is Used to parse a set of lexical units and obtain a node of type [Expr](ast_package_classes.md#class-expr) along with the index for continued parsing.
+
+> **Note:**
+>
+> The parsing process is limited by the Cangjie thread stack size (controlled by the environment variable `cjStackSize`). Source code with excessively deep nesting may cause a Segmentation fault, which can be resolved by increasing the value of `cjStackSize`. For details, see the description of `parseProgram`.
 
 Parameters:
 
@@ -320,6 +332,10 @@ public func parsePattern(input: Tokens): Pattern
 
 Function: Used to parse a set of lexical units and obtain a node of type [Pattern](ast_package_classes.md#class-pattern).
 
+> **Note:**
+>
+> The parsing process is limited by the Cangjie thread stack size (controlled by the environment variable `cjStackSize`). Source code with excessively deep nesting may cause a Segmentation fault, which can be resolved by increasing the value of `cjStackSize`. For details, see the description of `parseProgram`.
+
 Parameters:
 
 - input: [Tokens](ast_package_classes.md#class-tokens) - The lexical units of the source code to be parsed.
@@ -339,6 +355,10 @@ public func parsePatternFragment(input: Tokens, startFrom!: Int64 = 0): (Pattern
 ```
 
 Function: Used to parse a set of lexical units and obtain a node of type [Pattern](ast_package_classes.md#class-pattern) along with the index for continued parsing.
+
+> **Note:**
+>
+> The parsing process is limited by the Cangjie thread stack size (controlled by the environment variable `cjStackSize`). Source code with excessively deep nesting may cause a Segmentation fault, which can be resolved by increasing the value of `cjStackSize`. For details, see the description of `parseProgram`.
 
 Parameters:
 
@@ -395,6 +415,10 @@ public func parseType(input: Tokens): TypeNode
 
 Function: Used to parse a set of lexical units and obtain a node of type [TypeNode](ast_package_classes.md#class-typenode).
 
+> **Note:**
+>
+> The parsing process is limited by the Cangjie thread stack size (controlled by the environment variable `cjStackSize`). Source code with excessively deep nesting may cause a Segmentation fault, which can be resolved by increasing the value of `cjStackSize`. For details, see the description of `parseProgram`.
+
 Parameters:
 
 - input: [Tokens](ast_package_classes.md#class-tokens) - The lexical units of the source code to be parsed.
@@ -414,6 +438,10 @@ public func parseTypeFragment(input: Tokens, startFrom!: Int64 = 0): (TypeNode, 
 ```
 
 Function: Used to parse a set of lexical units and obtain a node of type [TypeNode](ast_package_classes.md#class-typenode) along with the index for continued parsing.
+
+> **Note:**
+>
+> The parsing process is limited by the Cangjie thread stack size (controlled by the environment variable `cjStackSize`). Source code with excessively deep nesting may cause a Segmentation fault, which can be resolved by increasing the value of `cjStackSize`. For details, see the description of `parseProgram`.
 
 Parameters:
 

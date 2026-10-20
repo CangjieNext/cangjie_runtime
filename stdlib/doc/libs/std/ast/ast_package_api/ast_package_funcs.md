@@ -427,6 +427,8 @@ public func parseDecl(input: Tokens, astKind!: String = ""): Decl
 > **注意：**
 >
 > 该函数不支持解析 [FuncParam](ast_package_classes.md#class-funcparam) 类型。
+>
+> 解析过程受仓颉线程栈大小（由环境变量 `cjStackSize` 控制）的限制，嵌套层级过深的源码可能导致 Segmentation fault，可通过调大 `cjStackSize` 的值解决，详见 `parseProgram` 的说明。
 
 参数：
 
@@ -510,6 +512,8 @@ public func parseDeclFragment(input: Tokens, startFrom!: Int64 = 0): (Decl, Int6
 > **注意：**
 >
 > 该函数不支持解析 [FuncParam](ast_package_classes.md#class-funcparam)、 [PropDecl](ast_package_classes.md#class-propdecl)、[PrimaryCtorDecl](ast_package_classes.md#class-primaryctordecl) 类型。
+>
+> 解析过程受仓颉线程栈大小（由环境变量 `cjStackSize` 控制）的限制，嵌套层级过深的源码可能导致 Segmentation fault，可通过调大 `cjStackSize` 的值解决，详见 `parseProgram` 的说明。
 
 参数：
 
@@ -566,6 +570,10 @@ public func parseExpr(input: Tokens): Expr
 
 功能：用于解析一组词法单元，获取一个 [Expr](ast_package_classes.md#class-expr) 类型的节点。
 
+> **注意：**
+>
+> 解析过程受仓颉线程栈大小（由环境变量 `cjStackSize` 控制）的限制，嵌套层级过深的源码可能导致 Segmentation fault，可通过调大 `cjStackSize` 的值解决，详见 `parseProgram` 的说明。
+
 参数：
 
 - input: [Tokens](ast_package_classes.md#class-tokens) - 待解析源码的词法单元。
@@ -607,6 +615,10 @@ public func parseExprFragment(input: Tokens, startFrom!: Int64 = 0): (Expr, Int6
 ```
 
 功能：用于解析一组词法单元，获取一个 [Expr](ast_package_classes.md#class-expr) 类型的节点和继续解析节点的索引。
+
+> **注意：**
+>
+> 解析过程受仓颉线程栈大小（由环境变量 `cjStackSize` 控制）的限制，嵌套层级过深的源码可能导致 Segmentation fault，可通过调大 `cjStackSize` 的值解决，详见 `parseProgram` 的说明。
 
 参数：
 
@@ -655,6 +667,10 @@ public func parsePattern(input: Tokens): Pattern
 
 功能：用于解析一组词法单元，获取一个 [Pattern](ast_package_classes.md#class-pattern) 类型的节点。
 
+> **注意：**
+>
+> 解析过程受仓颉线程栈大小（由环境变量 `cjStackSize` 控制）的限制，嵌套层级过深的源码可能导致 Segmentation fault，可通过调大 `cjStackSize` 的值解决，详见 `parseProgram` 的说明。
+
 参数：
 
 - input: [Tokens](ast_package_classes.md#class-tokens) - 待解析源码的词法单元。
@@ -696,6 +712,10 @@ public func parsePatternFragment(input: Tokens, startFrom!: Int64 = 0): (Pattern
 ```
 
 功能：用于解析一组词法单元，获取一个 [Pattern](ast_package_classes.md#class-pattern) 类型的节点和继续解析节点的索引。
+
+> **注意：**
+>
+> 解析过程受仓颉线程栈大小（由环境变量 `cjStackSize` 控制）的限制，嵌套层级过深的源码可能导致 Segmentation fault，可通过调大 `cjStackSize` 的值解决，详见 `parseProgram` 的说明。
 
 参数：
 
@@ -816,6 +836,10 @@ public func parseType(input: Tokens): TypeNode
 
 功能：用于解析一组词法单元，获取一个 [TypeNode](ast_package_classes.md#class-typenode) 类型的节点。
 
+> **注意：**
+>
+> 解析过程受仓颉线程栈大小（由环境变量 `cjStackSize` 控制）的限制，嵌套层级过深的源码可能导致 Segmentation fault，可通过调大 `cjStackSize` 的值解决，详见 `parseProgram` 的说明。
+
 参数：
 
 - input: [Tokens](ast_package_classes.md#class-tokens) - 待解析源码的词法单元。
@@ -857,6 +881,10 @@ public func parseTypeFragment(input: Tokens, startFrom!: Int64 = 0): (TypeNode, 
 ```
 
 功能：用于解析一组词法单元，获取一个 [TypeNode](ast_package_classes.md#class-typenode) 类型的节点和继续解析节点的索引。
+
+> **注意：**
+>
+> 解析过程受仓颉线程栈大小（由环境变量 `cjStackSize` 控制）的限制，嵌套层级过深的源码可能导致 Segmentation fault，可通过调大 `cjStackSize` 的值解决，详见 `parseProgram` 的说明。
 
 参数：
 
