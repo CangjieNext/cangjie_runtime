@@ -10,6 +10,7 @@
 #include <sys/types.h>
 #include "file_system.h"
 #include <string.h>
+#include <pthread.h>
 
 static int64_t BuildSubPath(char* dirPath, const int64_t pathLen, const char* subName);
 static FsError* GetErrnoResult(void);
@@ -766,6 +767,62 @@ extern FsInfo* CJ_FS_OpenFile(const char* path, int32_t openMode)
 extern int64_t CJ_FS_CloseFile(intptr_t fd)
 {
     return (int64_t)close((int32_t)fd);
+}
+
+/*
+ * Per-File native serialization primitives.
+ *
+ * std.fs.File is a plain object shared by reference: every descriptor access
+ * was a check-then-act on the raw fd (close() vs read()/write()/seek() vs
+ * close()), so a racing close() could free a descriptor the OS had already
+ * reassigned to another file, producing cross-file I/O. The File class now
+ * holds this per-File mutex for the duration of each check AND syscall,
+ * which (1) removes the descriptor TOCTOU inside File and (2) makes a
+ * close() that races an in-flight syscall WAIT for that syscall to finish,
+ * keeping the fd alive until the last operation on the File completed.
+ *
+ * The mutex is allocated by CJ_FS_MutexCreate and addressed by the opaque
+ * handle it returns; CJ_FS_MutexClose destroys and frees it. Lock/Unlock
+ * return -1 on failure so callers can degrade gracefully.
+ */
+extern intptr_t CJ_FS_MutexCreate(void)
+{
+    pthread_mutex_t* mtx = (pthread_mutex_t*)malloc(sizeof(pthread_mutex_t));
+    if (mtx == NULL) {
+        return (intptr_t)-1;
+    }
+    if (pthread_mutex_init(mtx, NULL) != 0) {
+        free(mtx);
+        return (intptr_t)-1;
+    }
+    return (intptr_t)mtx;
+}
+
+extern int64_t CJ_FS_MutexClose(intptr_t handle)
+{
+    if (handle == (intptr_t)-1) {
+        return 0;
+    }
+    pthread_mutex_t* mtx = (pthread_mutex_t*)handle;
+    int64_t ret = (int64_t)pthread_mutex_destroy(mtx);
+    free(mtx);
+    return ret;
+}
+
+extern int64_t CJ_FS_MutexLock(intptr_t handle)
+{
+    if (handle == (intptr_t)-1) {
+        return -1;
+    }
+    return (int64_t)pthread_mutex_lock((pthread_mutex_t*)handle);
+}
+
+extern int64_t CJ_FS_MutexUnlock(intptr_t handle)
+{
+    if (handle == (intptr_t)-1) {
+        return -1;
+    }
+    return (int64_t)pthread_mutex_unlock((pthread_mutex_t*)handle);
 }
 
 /*

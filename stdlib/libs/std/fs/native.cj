@@ -56,6 +56,12 @@ foreign {
 
     func CJ_FS_CreateTempFile(path: CPointer<Byte>): FileHandle
 
+    // File descriptor serialization (see File in file.cj)
+    func CJ_FS_MutexCreate(): IntNative // opaque pthread mutex handle, -1: failed
+    func CJ_FS_MutexClose(handle: IntNative): Int64
+    func CJ_FS_MutexLock(handle: IntNative): Int64 // -1: failed
+    func CJ_FS_MutexUnlock(handle: IntNative): Int64 // -1: failed
+
     // Util
     func CJ_FS_IsLink(path: CString): Int8 // -1: error, 0: false, 1: true
     func CJ_FS_IsFile(path: CString): Int8 // -1: error, 0: false, 1: true

@@ -75,11 +75,31 @@ public class File <: Resource & IOStream & Seekable {
     private var _canWrite: Bool = true
     private var _canSeek: Bool = true
 
+    /*
+     * Descriptor lifecycle serialization.
+     *
+     * File is a plain object shared by reference, and nothing in its API
+     * (nor in the `Resource` contract) marks it thread-confined. Every
+     * descriptor access below therefore takes this per-File native mutex
+     * for the duration of the check AND the syscall, so that a close()
+     * racing an in-flight read()/write()/seek() can neither free the
+     * descriptor under the operation nor act on a descriptor the OS has
+     * already reassigned to another file (cross-file I/O). It also removes
+     * the check-then-act window on the descriptor itself: a failed close()
+     * can no longer leave the handle stale-valid for the finalizer to
+     * close a REUSED descriptor (the close/throw/fd-reuse/finalize
+     * hazard), and the double-close of concurrent close() calls collapses
+     * into a single real close(2).
+     */
+    private var _fdMutex: IntNative = -1
+
     ~init() {
         if (isHandleValid(_fileDescriptor._fileHandle)) {
             unsafe { CJ_FS_CloseFile(_fileDescriptor._fileHandle) }
             _fileDescriptor._fileHandle = InvalidHandle
         }
+        unsafe { CJ_FS_MutexClose(_fdMutex) }
+        _fdMutex = -1
     }
 
     /**
@@ -95,6 +115,7 @@ public class File <: Resource & IOStream & Seekable {
      * or other reasons caused fail to open file.
      */
     public init(path: String, mode: OpenMode) {
+        _fdMutex = unsafe { CJ_FS_MutexCreate() }
         PathValidator.throwIfEmptyOrContainsNullByte("path", path, true)
 
         let filePath: Path = Path(path)
@@ -125,6 +146,7 @@ public class File <: Resource & IOStream & Seekable {
     }
 
     private init(path: String, mode: OpenMode, fd: FileHandle) {
+        _fdMutex = unsafe { CJ_FS_MutexCreate() }
         if (!isHandleValid(fd)) {
             throw FSException("Invalid file handle: ${fd}.")
         }
@@ -151,6 +173,11 @@ public class File <: Resource & IOStream & Seekable {
             _fileDescriptor._fileHandle
         }
         set(v) {
+            // External descriptor swap (used by the temp-file constructor).
+            // The swap happens only in the constructor before the File is
+            // published, so no synchronization is added here: this setter
+            // must never be called while another thread operates on the
+            // File, and callers doing so is out of contract.
             _fileDescriptor._fileHandle = v
         }
     }
@@ -167,21 +194,27 @@ public class File <: Resource & IOStream & Seekable {
         }
         checkCanTruncate()
 
-        unsafe {
-            let resultPtr = CJ_FS_Truncate(_fileDescriptor.fileHandle, length)
-            if (resultPtr.isNull()) {
-                throw FSException("Failed to truncate file '${_fileInfo.path}': native function returned null.")
-            }
-            let result = resultPtr.read()
-            LibC.free(resultPtr)
-
-            try {
-                if (result.rtnCode != 0) {
-                    throw FSException("Failed to truncate file '${_fileInfo.path}': ${result.msg}.")
+        // Hold the descriptor mutex for the ftruncate (see read()).
+        unsafe { CJ_FS_MutexLock(_fdMutex) }
+        try {
+            unsafe {
+                let resultPtr = CJ_FS_Truncate(_fileDescriptor.fileHandle, length)
+                if (resultPtr.isNull()) {
+                    throw FSException("Failed to truncate file '${_fileInfo.path}': native function returned null.")
                 }
-            } finally {
-                LibC.free(result.msg) // it's safe to free(NULL)
+                let result = resultPtr.read()
+                LibC.free(resultPtr)
+
+                try {
+                    if (result.rtnCode != 0) {
+                        throw FSException("Failed to truncate file '${_fileInfo.path}': ${result.msg}.")
+                    }
+                } finally {
+                    LibC.free(result.msg) // it's safe to free(NULL)
+                }
             }
+        } finally {
+            unsafe { CJ_FS_MutexUnlock(_fdMutex) }
         }
     }
 
@@ -202,13 +235,22 @@ public class File <: Resource & IOStream & Seekable {
         if (buffer.size == 0) {
             throw IllegalArgumentException("Invalid argument 'buffer': buffer is empty.")
         }
-        var readBytes: Int64 = directRead(buffer)
-        if (readBytes == 0) {
-            return 0
-        } else if (readBytes < 0) {
-            throw FSException("Failed to read file '${_fileInfo.path}': read ${readBytes} bytes.")
+        // Hold the descriptor mutex for the whole read: a concurrent close()
+        // cannot free the descriptor under the syscall, and the syscall uses
+        // the same handle value the check validated (no re-read of an
+        // unsynchronized field between check and use).
+        unsafe { CJ_FS_MutexLock(_fdMutex) }
+        try {
+            var readBytes: Int64 = directRead(buffer)
+            if (readBytes == 0) {
+                return 0
+            } else if (readBytes < 0) {
+                throw FSException("Failed to read file '${_fileInfo.path}': read ${readBytes} bytes.")
+            }
+            return readBytes
+        } finally {
+            unsafe { CJ_FS_MutexUnlock(_fdMutex) }
         }
-        return readBytes
     }
 
     /**
@@ -226,7 +268,13 @@ public class File <: Resource & IOStream & Seekable {
         if (buffer.size == 0) {
             return
         }
-        directWrite(buffer)
+        // Hold the descriptor mutex for the whole write (see read()).
+        unsafe { CJ_FS_MutexLock(_fdMutex) }
+        try {
+            directWrite(buffer)
+        } finally {
+            unsafe { CJ_FS_MutexUnlock(_fdMutex) }
+        }
     }
 
     public func flush(): Unit {}
@@ -245,11 +293,17 @@ public class File <: Resource & IOStream & Seekable {
             case Begin(bOffset) => (SEEK_SET, bOffset)
             case End(eOffset) => (SEEK_END, eOffset)
         }
-        var val: Int64 = unsafe { CJ_FS_Seek(fileHandle, whence, offset) }
-        if (val < 0) {
-            throw FSException("Failed to seek in file '${_fileInfo.path}': error code ${0 - val}.")
+        // Hold the descriptor mutex for the seek (see read()).
+        unsafe { CJ_FS_MutexLock(_fdMutex) }
+        try {
+            var val: Int64 = unsafe { CJ_FS_Seek(fileHandle, whence, offset) }
+            if (val < 0) {
+                throw FSException("Failed to seek in file '${_fileInfo.path}': error code ${0 - val}.")
+            }
+            return val
+        } finally {
+            unsafe { CJ_FS_MutexUnlock(_fdMutex) }
         }
-        return val
     }
 
     private func canSeek(): Bool {
@@ -277,16 +331,43 @@ public class File <: Resource & IOStream & Seekable {
      * @throws FSException if system failed to close file
      */
     public func close(): Unit {
-        if (!isHandleValid(fileHandle)) {
-            return
-        }
-        flush()
+        /*
+         * The whole close protocol runs under the descriptor mutex:
+         * - the handle is ALWAYS invalidated when the descriptor has been
+         *   (attempted to be) closed, even if close(2) reports an error:
+         *   POSIX close() semantics mean the fd is consumed once the close
+         *   is attempted (on Linux it is released even when close() fails,
+         *   e.g. EBADF after an FFI handoff or EIO on a failing fs), so
+         *   keeping a stale-valid handle would make the finalizer close a
+         *   descriptor the OS has since reassigned to another file;
+         * - a racing close() sees the invalidated handle (or waits on the
+         *   mutex until this close finished) and becomes a no-op, so the
+         *   sequential double-close contract (second close is silent) is
+         *   preserved for concurrent close() calls as well.
+         * - an in-flight read()/write()/seek() holds the same mutex, so
+         *   close() waits for the operation to finish: the descriptor is
+         *   never freed under a running syscall.
+         */
+        unsafe { CJ_FS_MutexLock(_fdMutex) }
+        try {
+            if (!isHandleValid(fileHandle)) {
+                return
+            }
+            let fd = fileHandle
+            // Invalidate BEFORE attempting the close: POSIX close() consumes
+            // the descriptor regardless of its result. This removes the
+            // throw-before-invalidate window that left a stale-valid handle
+            // behind for the GC finalizer.
+            _fileDescriptor._fileHandle = InvalidHandle
+            flush()
 
-        /* Call the close() in the C Language */
-        if (unsafe { CJ_FS_CloseFile(fileHandle) } < 0) {
-            throw FSException("Failed to close file '${_fileInfo.path}'.")
+            /* Call the close() in the C Language */
+            if (unsafe { CJ_FS_CloseFile(fd) } < 0) {
+                throw FSException("Failed to close file '${_fileInfo.path}'.")
+            }
+        } finally {
+            unsafe { CJ_FS_MutexUnlock(_fdMutex) }
         }
-        fileHandle = InvalidHandle
     }
 
     public func isClosed(): Bool {
@@ -487,6 +568,12 @@ public class File <: Resource & IOStream & Seekable {
                 errMsg += " ${fsInfoErrMsg}."
             }
             throw FSException(errMsg)
+        }
+        if (!isHandleValid(_fdMutex)) {
+            // Non-fatal: if the mutex could not be created the descriptor
+            // protocol degrades to the legacy unsynchronized behavior (all
+            // uses check isHandleValid(_fdMutex)). Keep the file usable.
+            _fdMutex = unsafe { CJ_FS_MutexCreate() }
         }
     }
 
