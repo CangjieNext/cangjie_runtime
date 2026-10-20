@@ -94,9 +94,25 @@ protected func CJ_CORE_ExecAtexitCallbacks(): Unit {
         return
     }
     callbacksRunningFlag = true
-    // Atomically detach the whole list.
-    var currPos: ?AtexitCallbackNode = Some(atexitCallbackHeadBox.load())
-    atexitCallbackHeadBox.store(AtexitCallbackNodePlaceholder())
+    // Detach the whole list with a CAS loop. A plain load()+store() here
+    // would race the lock-free registration path (load X; registrant
+    // CAS(X -> node); store placeholder erases the node's only inbound edge)
+    // and silently drop that callback. The CAS loop guarantees the swap only
+    // succeeds when the head is still the value we read, so a concurrent
+    // push either lands before the swap (and is included in the detached
+    // chain) or after it (and lands on the fresh sentinel head, which the
+    // drain loop below picks up).
+    var detached: ?AtexitCallbackNode = None
+    while (true) {
+        let old = atexitCallbackHeadBox.load()
+        if (atexitCallbackHeadBox.compareAndSwap(old, AtexitCallbackNodePlaceholder())) {
+            detached = Some(old)
+            break
+        }
+        // CAS failed: a concurrent registration changed the head; retry with
+        // the fresh head so the new node is not lost.
+    }
+    var currPos: ?AtexitCallbackNode = detached
     unsafe { CJ_CORE_AtExitCallbackListUnlook() }
 
     // Run the callbacks with NO lock held. Registrations that arrive DURING
