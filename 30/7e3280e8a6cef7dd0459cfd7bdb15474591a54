@@ -1,0 +1,53 @@
+runtime/src/CompilerCalls.cpp
+  s_b4748a4accc407::t_a750a5ff6ecdb1 416
+  s_b4748a4accc407::t_43febd6d30cfb6 417-420
+runtime/src/Heap/Barrier/Barrier.cpp
+  s_b4748a4accc407::t_7f1c9f4cffe5c8 312-315
+  s_b4748a4accc407::t_787c840ab81009 311
+stdlib/libs/std/core/string.cj
+  s_8b6b83e00d7947::t_53c49b2b730dc8 196-200,202-225
+  h_7fa24ec5a32f2d 201,340-341
+stdlib/libs/std/core/string_builder.cj
+  s_79dd6c8d8c88ee::t_a4b63550674400 95-102
+runtime/src/Heap/WCollector/WCollector.h
+  s_b4748a4accc407::t_ea827a3ad7fc7f 140
+  s_b4748a4accc407::t_2bfa0062591d26 141-143
+  s_b4748a4accc407::t_f01295400af34b 14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "307e3280e8a6cef7dd0459cfd7bdb15474591a54",
+  "prompts": {},
+  "humans": {
+    "h_7fa24ec5a32f2d": {
+      "author": "kkkkkkkbbbbbbb <songjian59@huawei.com>"
+    }
+  },
+  "sessions": {
+    "s_79dd6c8d8c88ee": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "42a994b6-2e71-4f0d-a714-3e5f97d01768",
+        "model": "default"
+      },
+      "human_author": "kkkkkkkbbbbbbb <songjian59@huawei.com>"
+    },
+    "s_8b6b83e00d7947": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "61c86273-1290-44ec-af62-21228c784fbd",
+        "model": "default"
+      },
+      "human_author": "kkkkkkkbbbbbbb <songjian59@huawei.com>"
+    },
+    "s_b4748a4accc407": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "e2f6674d-8c8a-41d1-b1ef-076409be6d16",
+        "model": "default"
+      },
+      "human_author": "kkkkkkkbbbbbbb <songjian59@huawei.com>"
+    }
+  }
+}
