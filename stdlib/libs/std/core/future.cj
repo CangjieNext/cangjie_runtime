@@ -107,9 +107,16 @@ public class Future<T> {
     /**
      * Blocking the current thread,
      * waiting for the result of the thread corresponding to this Future<T> object.
-     * If the corresponding thread has not completed execution within `ns` nanoseconds,
-     * the method will return `Option<T>.None`.
-     * If `ns <= 0`, same as `get()`.
+     * If the corresponding thread has not completed execution within `timeout`,
+     * the method will throw `TimeoutException`.
+     * If `timeout <= Duration.Zero`, same as `get()`.
+     * A `timeout` larger than `Int64.Max` nanoseconds is clamped to wait
+     * indefinitely (until the future completes), matching `sleep` and
+     * `Monitor.wait` behavior for oversized durations.
+     *
+     * @param timeout Maximum duration to wait for the result.
+     * @return T - The result of the corresponding thread.
+     * @throws TimeoutException if the future does not complete within `timeout`.
      * @throws Exception or Error if an exception occurs in the corresponding thread.
      */
     public func get(timeout: Duration): T {
@@ -118,8 +125,17 @@ public class Future<T> {
         }
         let isComplete = unsafe { futureIsComplete(this) }
         if (!isComplete) {
-            // Wait for `ns` nanoseconds
-            unsafe { futureWait(this, timeout.toNanoseconds()) }
+            // Wait for `ns` nanoseconds. Durations above `Int64.Max` nanoseconds
+            // cannot be represented by `toNanoseconds()` (it would throw
+            // `ArithmeticException`); clamp them to `MAX_TIMEOUT_NS` so that
+            // oversized timeouts (including `Duration.Max`, the idiomatic
+            // "wait forever" sentinel) wait indefinitely instead.
+            let ns = if (timeout > MAX_TIMEOUT_DURATION) {
+                MAX_TIMEOUT_NS
+            } else {
+                timeout.toNanoseconds()
+            }
+            unsafe { futureWait(this, ns) }
             // Check whether the future is complete
             let isCompleteAfterWait = unsafe { futureIsComplete(this) }
             if (!isCompleteAfterWait) {

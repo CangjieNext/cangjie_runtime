@@ -706,7 +706,7 @@ public func get(timeout: Duration): T
 
 Function: Blocks the current thread, waits for a specified duration, and retrieves the return value of the thread corresponding to the current [Future](core_package_classes.md#class-futuret)\<T> object.
 
-A timeout must be specified. If the corresponding thread does not complete execution within the specified time, this function throws a [TimeoutException](./core_package_exceptions.md#class-timeoutexception). If timeout <= Duration.Zero, it is equivalent to get(), meaning no waiting limit. If the thread throws an exception during execution, the exception will be rethrown at the get() call site.
+A timeout must be specified. If the corresponding thread does not complete execution within the specified time, this function throws a [TimeoutException](./core_package_exceptions.md#class-timeoutexception). If timeout <= Duration.Zero, it is equivalent to get(), meaning no waiting limit. If timeout exceeds Int64.Max nanoseconds (including Duration.Max), it is clamped to wait indefinitely (blocked until the thread completes), consistent with how sleep and Monitor.wait handle oversized durations. If the thread throws an exception during execution, the exception will be rethrown at the get() call site.
 
 Parameters:
 

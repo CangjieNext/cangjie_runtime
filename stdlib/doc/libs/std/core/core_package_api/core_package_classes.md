@@ -704,7 +704,7 @@ public func get(timeout: Duration): T
 
 功能：阻塞当前线程，等待指定时长并获取当前 [Future](core_package_classes.md#class-futuret)\<T> 对象对应的线程的返回值。
 
-需指定等待的超时时间，如果相应的线程在指定时间内未完成执行，则该函数将抛出异常[TimeoutException](./core_package_exceptions.md#class-timeoutexception)。如果 timeout <= Duration.Zero，等同于 get()，即不限制等待时长。如果线程抛出异常退出执行，在 get 调用处将继续抛出该异常。
+需指定等待的超时时间，如果相应的线程在指定时间内未完成执行，则该函数将抛出异常[TimeoutException](./core_package_exceptions.md#class-timeoutexception)。如果 timeout <= Duration.Zero，等同于 get()，即不限制等待时长。如果 timeout 超过 Int64.Max 纳秒（包括 Duration.Max），则 clamp 为无限等待（即一直阻塞到线程完成），与 sleep、Monitor.wait 对超大时长的处理保持一致。如果线程抛出异常退出执行，在 get 调用处将继续抛出该异常。
 
 参数：
 
