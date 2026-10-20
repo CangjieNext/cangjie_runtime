@@ -784,7 +784,16 @@ extern int64_t CJ_FS_CloseFile(intptr_t fd)
  * The mutex is allocated by CJ_FS_MutexCreate and addressed by the opaque
  * handle it returns; CJ_FS_MutexClose destroys and frees it. Lock/Unlock
  * return -1 on failure so callers can degrade gracefully.
+ *
+ * Fail-safe fallback: when a File could not allocate its own mutex
+ * (CJ_FS_MutexCreate returned -1, e.g. under memory pressure), the Cangjie
+ * side passes handle -1 to Lock/Unlock; those calls then serialize on the
+ * process-global mutex below instead of degrading to unsynchronized access.
+ * Throughput drops to one descriptor operation at a time for such Files,
+ * but the safety guarantee of this fix never silently regresses.
  */
+static pthread_mutex_t g_fsFallbackMutex = PTHREAD_MUTEX_INITIALIZER;
+
 extern intptr_t CJ_FS_MutexCreate(void)
 {
     pthread_mutex_t* mtx = (pthread_mutex_t*)malloc(sizeof(pthread_mutex_t));
@@ -812,7 +821,9 @@ extern int64_t CJ_FS_MutexClose(intptr_t handle)
 extern int64_t CJ_FS_MutexLock(intptr_t handle)
 {
     if (handle == (intptr_t)-1) {
-        return -1;
+        // Degraded File (own mutex allocation failed): fall back to the
+        // process-global mutex so the descriptor stays serialized.
+        return (int64_t)pthread_mutex_lock(&g_fsFallbackMutex);
     }
     return (int64_t)pthread_mutex_lock((pthread_mutex_t*)handle);
 }
@@ -820,7 +831,7 @@ extern int64_t CJ_FS_MutexLock(intptr_t handle)
 extern int64_t CJ_FS_MutexUnlock(intptr_t handle)
 {
     if (handle == (intptr_t)-1) {
-        return -1;
+        return (int64_t)pthread_mutex_unlock(&g_fsFallbackMutex);
     }
     return (int64_t)pthread_mutex_unlock((pthread_mutex_t*)handle);
 }

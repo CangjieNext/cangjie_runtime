@@ -941,6 +941,100 @@ extern int64_t CJ_FS_CloseFile(HANDLE fd)
 }
 
 /*
+ * Per-File native serialization primitives (Windows implementation).
+ *
+ * See the counterpart in file_system_unix.c: the File class holds this
+ * per-File mutex for the duration of each check AND syscall so that a
+ * close() racing an in-flight read()/write()/seek() can neither free the
+ * handle under the operation nor act on a handle the OS has already
+ * reassigned. CRITICAL_SECTION is the waitable primitive matching the
+ * pthread mutex used on unix; the failure contract matches too.
+ *
+ * Fail-safe fallback: a File whose own mutex allocation failed passes
+ * handle -1; Lock/Unlock then serialize on the process-global critical
+ * section below, so serialization is never silently lost.
+ */
+static CRITICAL_SECTION g_fsFallbackCriticalSection = {0};
+static INIT_ONCE g_fsFallbackOnce = INIT_ONCE_STATIC_INIT;
+
+static BOOL CALLBACK InitFallbackSection(PINIT_ONCE once, PVOID param, PVOID* context)
+{
+    (void)once;
+    (void)param;
+    (void)context;
+    InitializeCriticalSection(&g_fsFallbackCriticalSection);
+    return TRUE;
+}
+
+static CRITICAL_SECTION* FallbackSection(void)
+{
+    (void)InitOnceExecuteOnce(&g_fsFallbackOnce, InitFallbackSection, NULL, NULL);
+    return &g_fsFallbackCriticalSection;
+}
+
+extern intptr_t CJ_FS_MutexCreate(void)
+{
+    CRITICAL_SECTION* cs = (CRITICAL_SECTION*)malloc(sizeof(CRITICAL_SECTION));
+    if (cs == NULL) {
+        return (intptr_t)-1;
+    }
+    __try {
+        InitializeCriticalSection(cs);
+    }
+    __except (GetExceptionCode() == STATUS_NO_MEMORY
+                  ? EXCEPTION_EXECUTE_HANDLER : EXCEPTION_CONTINUE_SEARCH) {
+        free(cs);
+        return (intptr_t)-1;
+    }
+    return (intptr_t)cs;
+}
+
+extern int64_t CJ_FS_MutexClose(intptr_t handle)
+{
+    if (handle == (intptr_t)-1) {
+        return 0;
+    }
+    CRITICAL_SECTION* cs = (CRITICAL_SECTION*)handle;
+    DeleteCriticalSection(cs);
+    free(cs);
+    return 0;
+}
+
+extern int64_t CJ_FS_MutexLock(intptr_t handle)
+{
+    if (handle == (intptr_t)-1) {
+        // Degraded File (own mutex allocation failed): fall back to the
+        // process-global critical section so serialization is preserved.
+        __try {
+            EnterCriticalSection(FallbackSection());
+        }
+        __except (GetExceptionCode() == STATUS_INVALID_HANDLE
+                      ? EXCEPTION_EXECUTE_HANDLER : EXCEPTION_CONTINUE_SEARCH) {
+            return -1;
+        }
+        return 0;
+    }
+    __try {
+        EnterCriticalSection((CRITICAL_SECTION*)handle);
+    }
+    __except (GetExceptionCode() == STATUS_INVALID_HANDLE
+                  ? EXCEPTION_EXECUTE_HANDLER : EXCEPTION_CONTINUE_SEARCH) {
+        return -1;
+    }
+    return 0;
+}
+
+extern int64_t CJ_FS_MutexUnlock(intptr_t handle)
+{
+    if (handle == (intptr_t)-1) {
+        LeaveCriticalSection(FallbackSection());
+        return 0;
+    }
+    LeaveCriticalSection((CRITICAL_SECTION*)handle);
+    return 0;
+}
+
+/*
  * If return == 0, read end.
  * If return < 0, read failed.
  */

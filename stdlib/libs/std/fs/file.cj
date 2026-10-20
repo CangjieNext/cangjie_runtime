@@ -82,14 +82,20 @@ public class File <: Resource & IOStream & Seekable {
      * (nor in the `Resource` contract) marks it thread-confined. Every
      * descriptor access below therefore takes this per-File native mutex
      * for the duration of the check AND the syscall, so that a close()
-     * racing an in-flight read()/write()/seek() can neither free the
-     * descriptor under the operation nor act on a descriptor the OS has
-     * already reassigned to another file (cross-file I/O). It also removes
-     * the check-then-act window on the descriptor itself: a failed close()
-     * can no longer leave the handle stale-valid for the finalizer to
-     * close a REUSED descriptor (the close/throw/fd-reuse/finalize
+     * racing an in-flight read()/write()/seek()/getsize() can neither free
+     * the descriptor under the operation nor act on a descriptor the OS
+     * has already reassigned to another file (cross-file I/O). It also
+     * removes the check-then-act window on the descriptor itself: a failed
+     * close() can no longer leave the handle stale-valid for the finalizer
+     * to close a REUSED descriptor (the close/throw/fd-reuse/finalize
      * hazard), and the double-close of concurrent close() calls collapses
      * into a single real close(2).
+     *
+     * `_fdMutex` is created in every constructor and (retried once) in
+     * openFile(). If its allocation ultimately fails (handle -1, e.g.
+     * under memory pressure) the native Lock/Unlock serialize on a
+     * process-global fallback mutex, so the safety guarantee degrades in
+     * throughput only, never to unsynchronized access.
      */
     private var _fdMutex: IntNative = -1
 
@@ -329,6 +335,15 @@ public class File <: Resource & IOStream & Seekable {
 
     /**
      * @throws FSException if system failed to close file
+     *
+     * Blocking semantics: close() takes the per-File descriptor mutex, so
+     * it WAITS for any in-flight read()/write()/seek() on this File to
+     * finish first. For resources that can block indefinitely (e.g. a File
+     * on a FIFO), a racing close() may block until that operation returns.
+     * This is required to guarantee the descriptor is never freed under a
+     * running syscall (the cross-file I/O hazard this class guards
+     * against). Concurrent close() calls remain safe: after the first
+     * close the handle is invalid and subsequent closes are silent no-ops.
      */
     public func close(): Unit {
         /*
@@ -570,19 +585,29 @@ public class File <: Resource & IOStream & Seekable {
             throw FSException(errMsg)
         }
         if (!isHandleValid(_fdMutex)) {
-            // Non-fatal: if the mutex could not be created the descriptor
-            // protocol degrades to the legacy unsynchronized behavior (all
-            // uses check isHandleValid(_fdMutex)). Keep the file usable.
+            // Retry once (e.g. transient allocation failure). If it still
+            // fails the descriptor protocol switches to the package-wide
+            // fallback mutex in CJ_FS_MutexLock/Unlock (handle -1 -> the
+            // process-global lock), so serialization is never silently lost.
             _fdMutex = unsafe { CJ_FS_MutexCreate() }
         }
     }
 
     private func getsize(): Int64 {
-        if (!isHandleValid(_fileDescriptor._fileHandle)) {
-            return -1
-        }
-        unsafe {
-            return CJ_FS_GetFileSize(_fileDescriptor._fileHandle)
+        // Same check+syscall serialization as read(): without the mutex a
+        // concurrent close() could free the handle between the check and
+        // the fstat, and the OS could re-issue the number to another file
+        // (f.length would report a stranger's size or a spurious EBADF).
+        unsafe { CJ_FS_MutexLock(_fdMutex) }
+        try {
+            if (!isHandleValid(_fileDescriptor._fileHandle)) {
+                return -1
+            }
+            unsafe {
+                return CJ_FS_GetFileSize(_fileDescriptor._fileHandle)
+            }
+        } finally {
+            unsafe { CJ_FS_MutexUnlock(_fdMutex) }
         }
     }
 
