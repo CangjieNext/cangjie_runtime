@@ -517,16 +517,47 @@ class DopraTcpSocketImpl <: DopraSocketImpl<DopraTcpSocketImpl> {
 
 class DopraOtherSocketImpl <: DopraSocketImpl<DopraOtherSocketImpl> {
     private let socketBufferPtr: CPointer<SocketBuffer>
+    // True for datagram-mode sockets (UDP/UNIX datagram). On those sockets a
+    // single CJ_SOCKET_BufferWrite is one datagram, so the stream write
+    // path's 64KiB chunking would silently split one datagram into several
+    // (macOS UnixDatagramSocket.send()/UdpSocket.send() route through this
+    // write path); datagram writes must be all-or-nothing instead.
+    private let isDatagram: Bool
+    // Write-buffer size actually allocated for this socket (matches the
+    // native SocketBuffer wBufSize). Datagrams larger than this cannot be
+    // copied/sent as one message.
+    private let datagramWriteBufferSize: Int32
 
+    private init(
+        socketBufferPtr: CPointer<SocketBuffer>,
+        _handle: AtomicInt64,
+        isDatagram: Bool,
+        datagramWriteBufferSize: Int32
+    ) {
+        super(_handle)
+        this.socketBufferPtr = socketBufferPtr
+        this.isDatagram = isDatagram
+        this.datagramWriteBufferSize = datagramWriteBufferSize
+    }
+
+    // Streaming/accept path: no datagram semantics.
     private init(
         socketBufferPtr: CPointer<SocketBuffer>,
         _handle: AtomicInt64
     ) {
         super(_handle)
         this.socketBufferPtr = socketBufferPtr
+        this.isDatagram = false
+        this.datagramWriteBufferSize = 0
     }
 
     public override func write(buffer: Array<Byte>, timeout: ?Duration): Unit {
+        if (isDatagram && buffer.size > Int64(datagramWriteBufferSize)) {
+            // A datagram is atomic: chunking would silently split it into
+            // several datagrams and break message boundaries. Fail loudly
+            // with a clear message instead.
+            throw SocketException("Cannot send datagram of ${buffer.size} bytes: exceeds the ${datagramWriteBufferSize}-byte internal datagram write buffer.")
+        }
         let writeSize = buffer.size
         var writeToBufferSize: Int64 = 0
         while (writeToBufferSize < writeSize) {
@@ -593,12 +624,13 @@ class DopraOtherSocketImpl <: DopraSocketImpl<DopraOtherSocketImpl> {
 
     public override func accept(timeout: ?Duration): ?DopraOtherSocketImpl {
         let (h, net) = acceptImpl(timeout)
-        let buffer = try {
+        let (buffer, _) = try {
             createBuffer(h, net)
         } catch (e: Exception) {
             unsafe { CJ_MRT_SockClose(h) }
             throw e
         }
+        // accept only serves connection-oriented sockets: isDatagram=false.
         return DopraOtherSocketImpl(buffer, AtomicInt64(h))
     }
 
@@ -637,6 +669,11 @@ class DopraOtherSocketImpl <: DopraSocketImpl<DopraOtherSocketImpl> {
     }
 
     public override func send(buffer: Array<Byte>, timeout: ?Duration, destination: SocketAddress): Int64 {
+        if (isDatagram && buffer.size > Int64(datagramWriteBufferSize)) {
+            // A datagram is atomic: fail loudly with a clear message instead
+            // of a generic "socket copy error" from the native copy check.
+            throw SocketException("Cannot send datagram of ${buffer.size} bytes: exceeds the ${datagramWriteBufferSize}-byte internal datagram write buffer.")
+        }
         var copyLen: Int32 = 0
         unsafe {
             let bufCp = acquireArrayRawData(buffer)
@@ -684,14 +721,16 @@ class DopraOtherSocketImpl <: DopraSocketImpl<DopraOtherSocketImpl> {
         mode: SocketMode
     ): DopraOtherSocketImpl {
         let handle = createSocket(net, kind, mode)
-        let buffer = try {
+        let (buffer, writeBufferSize) = try {
             createBufferWithMode(handle, net, mode)
         } catch (e: Exception) {
             unsafe { CJ_MRT_SockClose(handle) }
             throw e
         }
 
-        return DopraOtherSocketImpl(buffer, AtomicInt64(handle))
+        return DopraOtherSocketImpl(buffer, AtomicInt64(handle),
+            mode == SocketMode.DatagramMode,
+            writeBufferSize)
     }
 
     /*
@@ -709,11 +748,11 @@ class DopraOtherSocketImpl <: DopraSocketImpl<DopraOtherSocketImpl> {
 
     // The accept path only serves connection-oriented sockets (Unix domain
     // datagram sockets have no accept), so a missing mode means streaming.
-    private static func createBuffer(handle: Int64, net: SocketNet): CPointer<SocketBuffer> {
+    private static func createBuffer(handle: Int64, net: SocketNet): (CPointer<SocketBuffer>, Int32) {
         createBufferWithMode(handle, net, SocketMode.StreamingMode)
     }
 
-    private static func createBufferWithMode(handle: Int64, net: SocketNet, mode: SocketMode): CPointer<SocketBuffer> {
+    private static func createBufferWithMode(handle: Int64, net: SocketNet, mode: SocketMode): (CPointer<SocketBuffer>, Int32) {
         let readBufferSize = match (net) {
             case TCP => SOCK_READ_BUFFER_SIZE
             case UDP | UNIX => 0xffffi32
@@ -736,7 +775,7 @@ class DopraOtherSocketImpl <: DopraSocketImpl<DopraOtherSocketImpl> {
             throw SocketException("Failed to create socket buffer.")
         }
 
-        return buffer
+        return (buffer, writeBufferSize)
     }
 
     protected override func onHandleReplaced(newHandle: Int64): Unit {

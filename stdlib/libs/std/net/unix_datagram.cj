@@ -18,7 +18,10 @@ package std.net
  * A created pairing (after connect invocation) could be terminated via disconnect().
  *
  * Unlike UDP, Unix Domain socket don't limit datagram size to 64Kib, however due to the underlying implementation and operation system
- * limitations, the maximum datagram size could be still limited to some amount.
+ * limitations, the maximum datagram size could be still limited to some amount. On Linux, datagrams larger than the internal
+ * datagram write buffer (256 KiB) are rejected with a SocketException; the operating system may further reject datagrams larger
+ * than SO_SNDBUF (212992 bytes by default) with a "Message too long" error. Oversized datagrams are never silently split or
+ * truncated: a datagram is sent either whole or not at all.
  *
  * Instances of this type should be explicitly closed even when the bind() hasn't been invoked.
  *
