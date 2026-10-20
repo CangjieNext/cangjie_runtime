@@ -20,9 +20,11 @@ set(output_cj_object_dir ${CMAKE_BINARY_DIR}/modules/${output_cj_object_dir})
 # file(MAKE_DIRECTORY ${output_cj_object_dir}/std)
 
 # Hide the duplicated CJ_* FFI exports in env/process/console shared libraries.
-# Darwin's ld64.lld and MinGW's linker reject --exclude-libs; OHOS invokes
-# ld.lld directly so the option must be passed without the -Wl, prefix
-# (LINKER_OPTION_PREFIX is empty for the OHOS toolchains).
+# OHOS invokes ld.lld directly so the option must be passed without the -Wl,
+# prefix (LINKER_OPTION_PREFIX is empty for the OHOS toolchains). Darwin and
+# MinGW need different handling below: Darwin uses -load_hidden, and MinGW
+# exports all symbols (--export-all-symbols in MakeCJNATIVEStdSharedLib.cmake
+# would re-export hidden ones), so both skip --exclude-libs.
 set(EXCLUDE_ENV_FFI_OPTION)
 set(EXCLUDE_PROCESS_FFI_OPTION)
 if(NOT DARWIN AND NOT MINGW)
@@ -35,8 +37,23 @@ endif()
 # symbol table the same way --exclude-libs does on ELF.
 # -load_hidden takes a literal archive path: it does no -l-style -L search,
 # so the target output locations are resolved via generator expressions.
+# Same resolution as the FORCE_LINK_ARCHIVES path in MakeCJNATIVEStdSharedLib.cmake:
+# COMBINED_STATIC_LIB_LOC first, $<TARGET_FILE> fallback, and fail at configure
+# time if the target has neither, so a bare "-load_hidden" never reaches the linker.
+if(TARGET cangjie-std-envFFI)
+    get_target_property(_env_ffi_combined_loc cangjie-std-envFFI COMBINED_STATIC_LIB_LOC)
+    if(NOT _env_ffi_combined_loc)
+        # Combined archive not created (e.g. FFI objects only); fall back to the
+        # target's output file, evaluated at build time.
+        set(_env_ffi_combined_loc "$<TARGET_FILE:cangjie-std-envFFI>")
+    endif()
+else()
+    message(FATAL_ERROR
+        "cangjie-std-envFFI target not found; cannot build -load_hidden flags "
+        "for env/process/console")
+endif()
 if(DARWIN)
-    set(ENV_FFI_LINK_FLAG -load_hidden $<TARGET_PROPERTY:cangjie-std-envFFI,COMBINED_STATIC_LIB_LOC>)
+    set(ENV_FFI_LINK_FLAG -load_hidden ${_env_ffi_combined_loc})
     set(PROCESS_FFI_LINK_FLAG -load_hidden $<TARGET_FILE:cangjie-std-processFFI>)
 else()
     set(ENV_FFI_LINK_FLAG -lcangjie-std-envFFI)
@@ -311,6 +328,20 @@ make_cangjie_lib(
     OBJECTS ${output_cj_object_dir}/std/console.o
     FLAGS ${ENV_FFI_LINK_FLAG} ${EXCLUDE_ENV_FFI_OPTION})
 
+# Confirm the embedded process/console FFI entry points are not in the dynamic
+# symbol table (issue #948). See CheckCJExportsHidden.cmake for the guarded set.
+get_target_property(_console_so std-console CJ_LIB_OUTPUT_FILE)
+if(_console_so)
+    add_custom_command(
+        TARGET std-console POST_BUILD
+        COMMAND ${CMAKE_COMMAND}
+            -DLIB=${_console_so}
+            -DNM=${CMAKE_NM}
+            -P ${CMAKE_CURRENT_LIST_DIR}/CheckCJExportsHidden.cmake
+        COMMENT "Checking duplicated CJ_* FFI symbols are hidden in libcangjie-std-console"
+        VERBATIM)
+endif()
+
 add_library(cangjie-std-console STATIC  $<TARGET_OBJECTS:cangjie-std-envFFI-objs> ${output_cj_object_dir}/std/console.o)
 install(TARGETS cangjie-std-console DESTINATION lib/${output_triple_name}_${CJNATIVE_BACKEND}${SANITIZER_SUBPATH})
 
@@ -344,6 +375,19 @@ make_cangjie_lib(
     FLAGS
         ${PROCESS_FFI_LINK_FLAG} ${EXCLUDE_PROCESS_FFI_OPTION})
 
+# See the std-console comment above; same guarded symbol set.
+get_target_property(_process_so std-process CJ_LIB_OUTPUT_FILE)
+if(_process_so)
+    add_custom_command(
+        TARGET std-process POST_BUILD
+        COMMAND ${CMAKE_COMMAND}
+            -DLIB=${_process_so}
+            -DNM=${CMAKE_NM}
+            -P ${CMAKE_CURRENT_LIST_DIR}/CheckCJExportsHidden.cmake
+        COMMENT "Checking duplicated CJ_* FFI symbols are hidden in libcangjie-std-process"
+        VERBATIM)
+endif()
+
 add_library(
     cangjie-std-process STATIC
     $<TARGET_OBJECTS:cangjie-std-processFFI-objs>
@@ -363,6 +407,19 @@ make_cangjie_lib(
     CANGJIE_STD_LIB_INDIRECT_DEPENDS std-math
     OBJECTS ${output_cj_object_dir}/std/env.o
     FLAGS ${ENV_FFI_LINK_FLAG} ${PROCESS_FFI_LINK_FLAG} ${EXCLUDE_ENV_FFI_OPTION} ${EXCLUDE_PROCESS_FFI_OPTION})
+
+# See the std-console comment above; same guarded symbol set.
+get_target_property(_env_so std-env CJ_LIB_OUTPUT_FILE)
+if(_env_so)
+    add_custom_command(
+        TARGET std-env POST_BUILD
+        COMMAND ${CMAKE_COMMAND}
+            -DLIB=${_env_so}
+            -DNM=${CMAKE_NM}
+            -P ${CMAKE_CURRENT_LIST_DIR}/CheckCJExportsHidden.cmake
+        COMMENT "Checking duplicated CJ_* FFI symbols are hidden in libcangjie-std-env"
+        VERBATIM)
+endif()
 
     add_and_combine_static_lib(
         OUTPUT_NAME libcangjie-std-env.a
