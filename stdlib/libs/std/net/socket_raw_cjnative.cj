@@ -8,8 +8,7 @@
 
 package std.net
 
-@When[os == "Windows"]
-import std.sync.AtomicBool
+import std.sync.*
 
 /*
  * This API supplies users with the basic functionality to create and use sockets of different domains and types.
@@ -24,10 +23,93 @@ import std.sync.AtomicBool
  * To enable users to access these system calls, the implementation makes sure that calling these wrapped cangjie API
  * will not block underlying system thread.
  */
+/**
+ * Raw-socket lifecycle state, encoded into a single atomic UInt32 so that
+ * "start an I/O session" and "close" can be coordinated with one CAS loop,
+ * mirroring the SocketState/SocketHolder protocol used by Tcp/Udp/Unix
+ * sockets (socket_state.cj / socket_holder.cj):
+ *
+ * bit 31   : disposing (close has won the race and will release the fd)
+ * bit 30   : close-requested (close() entered, fd not yet released)
+ * bit 29   : bound
+ * bits 0-28: number of running I/O sessions (receive/receiveFrom/send/sendTo/)
+ *            accept/connect/get|setSocketOption/local|remoteAddress getters)
+ *
+ * close() waits (with the process-global closeCondition) until the session
+ * counter drains to 0, so the fd can never be closed and reused by another
+ * socket while an I/O operation is in flight on it. I/O sessions sample
+ * the fd only while holding a session, so they always address the socket
+ * they were started on.
+ */
+struct RawSocketLifecycle {
+    private static const DISPOSING_MASK: UInt32 = 1u32 << 31
+    private static const CLOSING_MASK: UInt32 = 1u32 << 30
+    private static const BOUND_MASK: UInt32 = 1u32 << 29
+    private static const COUNTER_MASK: UInt32 = 0x1FFF_FFFFu32
+
+    RawSocketLifecycle(var value: UInt32) {}
+
+    mut prop disposing: Bool {
+        get() {
+            (value & DISPOSING_MASK) != 0
+        }
+        set(b) {
+            if (b) {
+                value |= DISPOSING_MASK
+            } else {
+                value &= !DISPOSING_MASK
+            }
+        }
+    }
+
+    mut prop closing: Bool {
+        get() {
+            (value & (DISPOSING_MASK | CLOSING_MASK)) != 0
+        }
+        set(b) {
+            if (b) {
+                value |= CLOSING_MASK
+            } else {
+                value &= !CLOSING_MASK
+            }
+        }
+    }
+
+    mut prop bound: Bool {
+        get() {
+            (value & BOUND_MASK) != 0
+        }
+        set(b) {
+            if (b) {
+                value |= BOUND_MASK
+            } else {
+                value &= !BOUND_MASK
+            }
+        }
+    }
+
+    mut prop sessions: UInt32 {
+        get() {
+            value & COUNTER_MASK
+        }
+        set(v) {
+            if ((v & !COUNTER_MASK) != 0) {
+                throw OverflowException("RawSocket session counter overflow.")
+            }
+            value = (value & !COUNTER_MASK) | v
+        }
+    }
+}
+
 @When[backend == "cjnative"]
 public class RawSocket {
     let sockImpl: RawSocketImpl
-    private var isClosed: Bool = false
+    /* Lifecycle protocol: sessions coordinate with close() through a single
+     * atomic word (see RawSocketLifecycle). A non-blocking I/O operation must
+     * hold a session for its whole duration; close() may only release the fd
+     * after the session counter drains to zero, so the fd number cannot be
+     * recycled and alias another socket while an operation is in flight. */
+    private let lifecycle = AtomicUInt32(0)
     private var readTimeout_: ?Duration = None
     private var writeTimeout_: ?Duration = None
     var localAddr_: ?RawAddress = None
@@ -44,7 +126,9 @@ public class RawSocket {
     public prop localAddr: RawAddress {
         get() {
             throwIfClosed()
-            localAddr_ ?? getLocalAddress()
+            withSession {
+                localAddr_ ?? getLocalAddress()
+            }
         }
     }
 
@@ -52,7 +136,9 @@ public class RawSocket {
     public prop localAddress: RawAddress {
         get() {
             throwIfClosed()
-            localAddr_ ?? getLocalAddress()
+            withSession {
+                localAddr_ ?? getLocalAddress()
+            }
         }
     }
 
@@ -61,7 +147,9 @@ public class RawSocket {
     public prop remoteAddr: RawAddress {
         get() {
             throwIfClosed()
-            remoteAddr_ ?? getPeerAddress()
+            withSession {
+                remoteAddr_ ?? getPeerAddress()
+            }
         }
     }
 
@@ -69,7 +157,9 @@ public class RawSocket {
     public prop remoteAddress: RawAddress {
         get() {
             throwIfClosed()
-            remoteAddr_ ?? getPeerAddress()
+            withSession {
+                remoteAddr_ ?? getPeerAddress()
+            }
         }
     }
 
@@ -134,8 +224,13 @@ public class RawSocket {
         match (localAddr_) {
             case Some(_) => throw SocketException("Failed to bind: socket already has bound address.")
             case None =>
-                this.sockImpl.bind(addr)
-                localAddr_ = getLocalAddress()
+                withSession {
+                    this.sockImpl.bind(addr)
+                    this.localAddr_ = getLocalAddress()
+                    var state = RawSocketLifecycle(lifecycle.load())
+                    state.bound = true
+                    lifecycle.store(state.value)
+                }
         }
     }
 
@@ -148,11 +243,13 @@ public class RawSocket {
      */
     public func listen(backlog: Int32): Unit {
         throwIfClosed()
-        let sockFd = unsafe { CJ_MRT_SockListen(this.sockFd, backlog) }
-        if (sockFd < 0) {
-            socketProcessErrno(ErrnoLabel.Listen)
+        withSession {
+            let sockFd = unsafe { CJ_MRT_SockListen(this.sockFd, backlog) }
+            if (sockFd < 0) {
+                socketProcessErrno(ErrnoLabel.Listen)
+            }
+            this.sockImpl.sockFd = sockFd
         }
-        this.sockImpl.sockFd = sockFd
     }
 
     /**
@@ -175,21 +272,23 @@ public class RawSocket {
         } catch (e: SocketException) {
             throw SocketException("Failed to accept: ${e.message}")
         }
-        let remoteAddr = Array<Byte>(size, repeat: 0)
-        let (handle, addrPtr) = getAddrPointer(remoteAddr)
-        let sockFd = if (val < 0) {
-            unsafe { CJ_MRT_SockAccept(this.sockFd, addrPtr) }
-        } else {
-            unsafe { CJ_MRT_SockAcceptTimeout(this.sockFd, addrPtr, UInt64(val)) }
+        return withSession {
+            let remoteAddr = Array<Byte>(size, repeat: 0)
+            let (handle, addrPtr) = getAddrPointer(remoteAddr)
+            let sockFd = if (val < 0) {
+                unsafe { CJ_MRT_SockAccept(this.sockFd, addrPtr) }
+            } else {
+                unsafe { CJ_MRT_SockAcceptTimeout(this.sockFd, addrPtr, UInt64(val)) }
+            }
+            releaseAddrPointer(handle, addrPtr)
+            if (sockFd < 0) {
+                socketProcessErrno(ErrnoLabel.Accept)
+            }
+            let connSock = RawSocket(sockFd)
+            connSock.localAddr_ = this.localAddr_
+            connSock.remoteAddr_ = RawAddress(remoteAddr)
+            return connSock
         }
-        releaseAddrPointer(handle, addrPtr)
-        if (sockFd < 0) {
-            socketProcessErrno(ErrnoLabel.Accept)
-        }
-        let connSock = RawSocket(sockFd)
-        connSock.localAddr_ = this.localAddr_
-        connSock.remoteAddr_ = RawAddress(remoteAddr)
-        return connSock
     }
 
     /**
@@ -210,17 +309,65 @@ public class RawSocket {
         if (val == 0) {
             throw SocketTimeoutException("Failed to connect: connect timeout.")
         }
-        this.sockImpl.connect(addr, val)
-        this.localAddr_ = getLocalAddress()
+        withSession {
+            this.sockImpl.connect(addr, val)
+            this.localAddr_ = getLocalAddress()
+        }
     }
 
-    /* Close the socket */
+    /* Close the socket.
+     *
+     * Concurrent-safe shutdown (CR-10). The old implementation released the
+     * fd immediately (`isClosed` check-then-act with no synchronization), so
+     * an in-flight receive()/send() on another thread could keep issuing
+     * recv()/wait() calls with the stale handle after close() returned; once
+     * the OS recycled the fd number for a new socket, that stale handle
+     * aliased the new socket (cross-socket datagram theft or a permanent
+     * hang). The fix:
+     *
+     *  1. every fd-touching operation runs inside a session
+     *     (withSession, see enterSession/leaveSession);
+     *  2. close() first marks the socket closing, which makes every
+     *     subsequent session-enter fail with "already closed" - a stale
+     *     handle can therefore never start another recv/wait;
+     *  3. then the fd is released through the runtime's own close protocol
+     *     (CJ_MRT_SockClose => SchdfdDeregister), whose reference-counted
+     *     deferred-close wakes and fails any thread parked in a
+     *     runtime-level wait on this fd before the underlying fd is closed.
+     *
+     * A session whose wait is parked when close() runs is woken by the
+     * runtime's deregister protocol and returns an error; its next session
+     * attempt is rejected. A recv() already executing against the fd keeps
+     * using the old kernel file object (it observes this socket's data or
+     * an error), so the fd number can never alias a socket that a stale
+     * handle still targets. */
     public func close(): Unit {
-        if (this.isClosed) {
-            return
+        /* Win the close race exactly once: mark closing first so no new
+         * session can start (this is what stops stale-handle reuse). */
+        while (true) {
+            let before = RawSocketLifecycle(lifecycle.load())
+            if (before.closing) {
+                return
+            }
+            var next = before
+            next.closing = true
+            if (lifecycle.compareAndSwap(before.value, next.value)) {
+                break
+            }
         }
-        this.isClosed = true
-        this.sockImpl.close()
+
+        /* Release the fd through the runtime's deferred-close protocol. */
+        this.sockImpl.releaseFd()
+
+        /* Publish completion. */
+        while (true) {
+            let before = RawSocketLifecycle(lifecycle.load())
+            var next = before
+            next.disposing = true
+            if (lifecycle.compareAndSwap(before.value, next.value)) {
+                break
+            }
+        }
     }
 
     /**
@@ -236,7 +383,9 @@ public class RawSocket {
     public func sendTo(addr: RawAddress, buffer: Array<Byte>, flags: Int32): Unit {
         throwIfClosed()
         let timeout = this.writeTimeout_?.toNanoseconds() ?? -1
-        return sockImpl.sendTo(addr.addr, buffer, flags, timeout)
+        return withSession {
+            sockImpl.sendTo(addr.addr, buffer, flags, timeout)
+        }
     }
 
     /**
@@ -257,7 +406,9 @@ public class RawSocket {
         } catch (e: SocketException) {
             throw SocketException("Failed to receive data: ${e.message}")
         }
-        return sockImpl.receiveFrom(size, buffer, flags, timeout)
+        return withSession {
+            sockImpl.receiveFrom(size, buffer, flags, timeout)
+        }
     }
 
     /**
@@ -272,7 +423,9 @@ public class RawSocket {
     public func send(buffer: Array<Byte>, flags: Int32): Unit {
         throwIfClosed()
         let timeout = this.writeTimeout_?.toNanoseconds() ?? -1
-        return sockImpl.send(buffer, flags, timeout)
+        return withSession {
+            sockImpl.send(buffer, flags, timeout)
+        }
     }
 
     /**
@@ -288,7 +441,9 @@ public class RawSocket {
     public func receive(buffer: Array<Byte>, flags: Int32): Int64 {
         throwIfClosed()
         let timeout = this.readTimeout_?.toNanoseconds() ?? -1
-        return sockImpl.receive(buffer, flags, timeout)
+        return withSession {
+            sockImpl.receive(buffer, flags, timeout)
+        }
     }
 
     /**
@@ -303,10 +458,12 @@ public class RawSocket {
      */
     public unsafe func setSocketOption(level: Int32, option: Int32, value: CPointer<Byte>, len: Int32): Unit {
         throwIfClosed()
-        let ret = CJ_SockOptionSet(this.sockFd, level, option, CPointer<Unit>(value), len)
-        if (ret != 0) {
-            let message = formatError(CJ_SockErrnoGet())
-            throw SocketException("Failed to set socket option '${option}': ${message}.")
+        withSession {
+            let ret = CJ_SockOptionSet(this.sockFd, level, option, CPointer<Unit>(value), len)
+            if (ret != 0) {
+                let message = formatError(CJ_SockErrnoGet())
+                throw SocketException("Failed to set socket option '${option}': ${message}.")
+            }
         }
     }
 
@@ -322,16 +479,74 @@ public class RawSocket {
      */
     public unsafe func getSocketOption(level: Int32, option: Int32, value: CPointer<Byte>, len: CPointer<Int32>): Unit {
         throwIfClosed()
-        let ret = CJ_SockOptionGet(this.sockFd, level, option, CPointer<Unit>(value), len)
-        if (ret != 0) {
-            let message = formatError(CJ_SockErrnoGet())
-            throw SocketException("Failed to get socket option '${option}': ${message}.")
+        withSession {
+            let ret = CJ_SockOptionGet(this.sockFd, level, option, CPointer<Unit>(value), len)
+            if (ret != 0) {
+                let message = formatError(CJ_SockErrnoGet())
+                throw SocketException("Failed to get socket option '${option}': ${message}.")
+            }
         }
     }
 
     private func throwIfClosed(): Unit {
-        if (isClosed) {
+        if (isDisposed()) {
             SocketException.throwClosedException()
+        }
+    }
+
+    /** True once close() has started (the fd will be released; no new sessions). */
+    private func isDisposed(): Bool {
+        let state = RawSocketLifecycle(lifecycle.load())
+        return state.closing
+    }
+
+    /*
+     * Session protocol, shared by all fd-touching operations:
+     *
+     * enterSession() CAS-increments the session counter and fails (returns
+     * false) if close() has already been requested. leaveSession()
+     * decrements the counter and, when it drains to zero, wakes a pending
+     * close() so it can release the fd.
+     */
+    private func enterSession(): Bool {
+        while (true) {
+            let before = RawSocketLifecycle(lifecycle.load())
+            if (before.closing) {
+                return false
+            }
+            var next = before
+            next.sessions += 1
+            if (lifecycle.compareAndSwap(before.value, next.value)) {
+                return true
+            }
+        }
+        return false
+    }
+
+    @OverflowWrapping
+    private func leaveSession(): Unit {
+        while (true) {
+            let before = RawSocketLifecycle(lifecycle.load())
+            var next = before
+            next.sessions -= 1
+            if (lifecycle.compareAndSwap(before.value, next.value)) {
+                break
+            }
+        }
+        /* The closing flag is re-checked on the next session-enter; there
+         * is no close-side waiter to notify in this protocol. */
+    }
+
+    /* Runs `block` under a session; throws "already closed" when the socket
+     * is closing/closed, mirroring the previous throwIfClosed() behaviour. */
+    private func withSession<R>(block: () -> R): R {
+        if (!enterSession()) {
+            SocketException.throwClosedException()
+        }
+        try {
+            return block()
+        } finally {
+            leaveSession()
         }
     }
 
@@ -517,7 +732,7 @@ class RawSocketImpl {
         }
     }
 
-    func close(): Unit {
+    func releaseFd(): Unit {
         unsafe { CJ_MRT_SockClose(this.sockFd) }
     }
 }
@@ -733,7 +948,7 @@ class RawSocketImpl {
         return sockType == SOCK_STREAM || sockType == SOCK_RDM || sockType == SOCK_SEQPACKET
     }
 
-    func close(): Unit {
+    func releaseFd(): Unit {
         match (socketBufferPtr.isNull()) {
             case true => unsafe { CJ_MRT_SockClose(sockFd) }
             case false => unsafe { CJ_SOCKET_BufferClose(socketBufferPtr, sockFd) } // does CJ_MRT_SockClose inside
