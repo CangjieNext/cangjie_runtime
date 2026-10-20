@@ -1,0 +1,32 @@
+runtime/build/lds/x86_64_linux/cjld.shared.lds
+  s_7848dc0e687fa7::t_5673d1c1adf995 42-43
+runtime/build/lds/aarch64_linux/cjld.shared.lds
+  s_7848dc0e687fa7::t_8580b7c45b949e 39-40
+runtime/build/lds/arm_linux/cjld.shared.lds
+  s_7848dc0e687fa7::t_4faef8be61adb7 39-40
+stdlib/libs/cmake/MakeCJNATIVEStdSharedLib.cmake
+  h_b0aadd73204706 38-42
+stdlib/cmake/modules/BoundsCheck.cmake
+  s_7848dc0e687fa7::t_a76dedb52b2cc0 32-36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5b634cdafc355bd4b10b02e451e6f3749d4f6a23",
+  "prompts": {},
+  "humans": {
+    "h_b0aadd73204706": {
+      "author": "yanjs <yejiasheng3@huawei.com>"
+    }
+  },
+  "sessions": {
+    "s_7848dc0e687fa7": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a0a8d6-04dd-7f68-bd56-fc21c6ae551a",
+        "model": "k3-256k"
+      },
+      "human_author": "yanjs <yejiasheng3@huawei.com>"
+    }
+  }
+}
