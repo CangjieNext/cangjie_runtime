@@ -52,7 +52,6 @@ set(CMAKE_C_FLAGS
     -fstack-protector-strong \
     -Wframe-larger-than=10240 \
     -fPIC \
-    -mcmodel=large \
     -pipe"
 )
 
@@ -82,7 +81,6 @@ set(CMAKE_CXX_FLAGS
     -Wframe-larger-than=10240 \
     -fno-exceptions \
     -fPIC \
-    -mcmodel=large \
     -pipe"
 )
 

@@ -166,23 +166,32 @@ check_cj_text_range.sh <链接产物> cjstart.o section.o libcangjie-runtime.a l
 | 区间正确性保证者 | 链接器的段合并机制 | 构建机的 archive 成员序 + 校验脚本 |
 | 失败暴露 | 链接期报错（bl 超限） | 构建期或 CI 响式报错（脚本 + init abort） |
 
-## 八、灰度隔离（iOS 先行，macOS 保持旧行为）
+## 八、灰度记录（iOS 先行，现已推广到 macOS）
 
-改动以 `__IOS__` 宏隔离（`config.cmake` 仅为 iOS/模拟器构建定义，macOS 不定义；
-StackManager.cpp 已有同名用法先例）。
+第一版以 `__IOS__` 宏隔离（`config.cmake` 仅为 iOS/模拟器构建定义），macOS 保持
+旧行为。macOS 拓展（当前状态）已将 marker 机制推广到全部 Apple 平台：
 
 | 平台 | 区间来源 | 构建机制 |
 |---|---|---|
 | iOS（真机/模拟器） | archive 首尾 marker | 不执行 rename；`cjtext_start/end` 与 `cjthread_text_*` 作为 archive 首尾成员 |
-| macOS | `getsectiondata(__TEXT, __cjrt_text)` | 保留 rename（`apple_rename_section.sh` 仅在 `MACOS_FLAG` 下挂载）；stub 汇编保留段名 |
+| macOS | archive 首尾 marker（同 iOS） | 同 iOS；`apple_rename_section.sh` 已删除，macOS stub 汇编恢复 `.text` |
 
-具体守卫：`Section.cpp` 的 marker 声明、`g_cjThreadStaticStart/End`、`SetRuntimeRange`
-及填充调用均在 `#if defined(__IOS__)` 内，`#else` 分支恢复旧 `getsectiondata` 逻辑；
-`StackManager.cpp` 仅 iOS 填 cjThread 区间；两个 CMakeLists 的 marker 接线仅在 iOS
-分支生效，macOS 分支恢复 rename 调用（`RENAME_PLATFORM=macos_cangjie`）。
+macOS 拓展的具体差异（相对第一版）：
 
-注意：`check_cj_text_range.sh` 仅适用于 iOS 产物；对 macOS 产物（无 marker）会报
-"range markers missing"，属预期。
+1. `Section.cpp` 与 `StackManager.cpp` 的 `__IOS__` 守卫改为 `__APPLE__`，旧
+   `getsectiondata(__cjrt_text)` 分支删除。
+2. macOS 的 4 处 stub `.section __TEXT,__cjrt_text,regular`（aarch64_macos 的
+   C2NStub.S 一处、N2CStub.S 三处）恢复为 `.text`。x86_64_macos 的 stub 原本
+   就在 `.text`，无需改动。
+3. 两个 CMakeLists 的 rename 调用删除，`apple_rename_section.sh` 删除。
+4. install 阶段针对 Apple 静态库的 `objcopy --rename-section .text=...` 加了
+   Apple 排除。该步原本依赖 `objcopy` 在 macOS 上缺失而静默跳过；若构建机装有
+   binutils 的 objcopy，rename 会真实执行并破坏 marker 区间。现在显式排除。
+5. macOS 动态（`COMPILE_DYNAMIC`）帧分类改走 `dladdr` 镜像判定（与 iOS 动态
+   一致）。共享库的链接顺序是 SRC_LIST 对象在前、marker 经 target_link_libraries
+   追加在后，marker 区间不夹住共享库全部代码，因此动态路径不消费区间。
+
+注意：`check_cj_text_range.sh` 现在同时适用于 iOS 与 macOS 产物。
 
 文件编译说明：本改动只使用 C++11 以内特性（`__attribute__((used))`、volatile、
 fprintf），在显式指定标准的条件下与 Apple clang 15（Xcode 15）及 clang 21（Xcode 26）
@@ -201,3 +210,136 @@ fprintf），在显式指定标准的条件下与 Apple clang 15（Xcode 15）�
 5. 追加 stackmap 优先分类：帧分类先查 PC 是否命中 `__cjstackmap`。命中即 MANAGED。
    依据是编译器保证的不变量：托管帧必有 stack map，runtime 帧必无。该不变量与链接
    布局无关。此改动使 GC 正确性独立于本方案的布局假设。最坏失败降级为打印噪音。
+
+## 十、archive 成员序保证的源码与实测论证
+
+本节回应"成员按 .a 内物理序落位"的前提属于哪一级保证。证据分三级：
+**契约**（源码注释/man page 明文承诺）、**源码佐证**（实现行为，可引用 file:line）、
+**实测**（本机冒烟测试跑通）。以下 ld64 源码引用均指
+github.com/apple-oss-distributions/ld64 tag `ld64-957.1`（经典 ld64 最后一个开源
+版本）；lld 引用指本机 llvm-project 仓库。
+
+### 10.1 结论表
+
+| 链接器 | 成员序→布局保证 | 等级 | 证据 |
+|---|---|---|---|
+| ld64 经典（开源 ≤957.1；本机 ld_classic=ld64-951.9） | 成员按 (archive 链接行位置, 成员物理序) 落位 | 契约 + 源码佐证 + 实测 | 契约：ld.hpp:391-403 注释明文（"Input files extracted from archives are ordered using the ordinal of the archive itself plus the index of the object file within the archive"）。源码：passes/order.cpp:657-703 对每个 section 无条件排序，比较器 :252-259 按 file ordinal（即 archiveOrdinalWithMemberIndex，archive_file.cpp:421、ld.hpp:450）。实测：ld_classic 默认模式通过，why_load 证明提取序≠落位序（10.4） |
+| Apple 新 ld（Xcode 15.4 = ld-1053.12；Xcode 26.6 = ld-1267） | 同上 | 实测（未开源，无法源码验证） | 10.4 全模式通过；补拉成员落 archive 位置（10.3 Q2） |
+| lld-MachO | 不成立：布局 = 符号解析拉取序 | 源码佐证 | lld InputFiles.cpp:104 `SetVector inputFiles`；ArchiveFile::fetch :2215-2240 拉取即 :2237 插入；Writer.cpp:877-919 无 order file/PGO 时不重排，Writer.cpp:949-956 按 inputSections 顺序落位 → 布局序 = 拉取序 ≠ 成员序。本机无 lld 二进制，未实测 |
+| 任何链接器 + LTO（archive 成员为 bitcode） | 失效（classic 源码级）/ 实测侥幸保持 | 见 10.3 Q6 | classic：LTO 输出单对象按 LTOPartition 落位（lto_file.cpp:1084、:1433-1464、ld.hpp:402），函数序由 LLVM 决定。实测：三种 ld 的 LTO（-O0/-O2）括号均保持，但依赖 LLVM 行为，非契约 |
+
+### 10.2 Q1：经典 ld64 的完整实现路径
+
+提取与布局是两条独立路径，靠 ordinal 汇合：
+
+1. 成员枚举与索引。archive_file.cpp:297 定位首个成员（TOC）；:330-344 非 lazy
+   模式下按物理序线性遍历并 eager parse 全部成员；:374-404 `makeObjectFileForMember`
+   按物理序推导 `memberIndex`；:421 成员 ordinal = `archiveOrdinalWithMemberIndex
+   (memberIndex)`，编码为 (partition=argList, majorIndex=链接行参数位, minorIndex=
+   filelist 位, counter=成员索引)（ld.hpp:416-418、:448-450）。
+2. 提取（决定哪些成员进链接，不决定位置）。
+   - forceLoad（-all_load/-force_load）：ctor eager parse（archive_file.cpp:327-345），
+     forEachAtom 在 archive 的链接行位置按物理序加载（archive_file.cpp:468-490，
+     由 InputFiles.cpp:1349 调用）。
+   - lazy（默认，本方案路径）：resolveAllUndefines 多轮循环（Resolver.cpp:990-1026，
+     外层 :995、内层 :1002-1005）→ resolveCurrentUndefines（:918-965，:941）→
+     InputFiles::searchLibraries（InputFiles.cpp:1417-1460，archive JIT 查找 :1450）→
+     justInTimeforEachAtom（archive_file.cpp:580-597，TOC 哈希 :650-667 反向构建，
+     重名时取 TOC 最先）。**提取顺序 = 未定义符号名字典序**（SymbolTable.cpp:565-575，
+     :574 显式 sort）。注意：`__CJ_Text_End` 字典序在 `__CJ_Text_Start` 之前，
+     实测 why_load 确认 End.o 先被拉取 —— 提取序与成员序相反。
+3. 原子收集与初始布局。Resolver::doAtom 依次 push（Resolver.cpp:721）→
+   fillInInternalState 按该顺序入 section（:1949-1954）→ InternalState::addAtom
+   顺序 append（ld.cpp:733、:900/905）。此时代码顺序 = 提取顺序。
+4. **布局重排（关键一环）**。ld.cpp:1544 无条件执行 `ld::passes::order::doPass`
+   （注释："must run after code dedup"）。order.cpp:637-716 对除 stub/指针类外的
+   每个 section 排序，比较器优先级：order_file 命中 → section$end → tentative →
+   cold → **按 .o 文件 ordinal（:252-259，注释 "sort by .o order"）** → 对象内
+   原子地址（:265-271）。
+5. 因此最终落位 = (archive 在链接行的位置, 成员物理索引)，与提取顺序无关。
+   dead-strip（Resolver.cpp:1351-1425）用 stable_partition（:1411）只删不排；
+   -u 符号是 dead-strip root（:1291-1299）。
+
+### 10.3 Q2/Q3/Q6：多轮补拉与边界情况
+
+**Q2 补拉落位。** 链接行靠后的 .o 引用靠前 archive 的成员时，补拉发生在
+resolveAllUndefines 的某一轮，但成员 ordinal 不变（archive 的链接行位 + 成员索引），
+order pass 把它排到 archive 的位置。实测（10.4 late_pull 模式）：libaux.a 在 user.o
+之前，user.o 引用 aux 成员；nm -n 显示 `_cj_aux_fn` 落在 `_user_fn` 之前
+（ld_classic 3e50 < 3e78；ld-1053.12 3e40 < 3e68）—— 补拉成员落在 archive 的
+链接行位置，而非提取时刻的末尾。
+
+**Q3 边界情况。**
+
+| 开关 | 提取影响 | 落位影响 | 证据 |
+|---|---|---|---|
+| -all_load（Options.cpp:2775） | 全成员 eager parse + 物理序加载 | archive 位置，成员序（order pass 同样按 ordinal） | Options.cpp:930-932；archive_file.cpp:471-490；实测通过 |
+| -force_load <path>（Options.cpp:2785） | 同上，单 archive | 同上 | 实测通过 |
+| -ObjC（Options.cpp:2781，:934-935） | 类成员按 TOC 哈希序加载（archive_file.cpp:493），类别成员物理扫描（:507-539）—— 提取序非成员序 | 布局仍由 order pass 按 ordinal 重排，成员序保持 | 实测通过 |
+| weak 定义成员 | 无未定义引用不提取；被 -u/引用拉入后照常落位 | 成员序保持 | 实测（weak end marker）通过。风险：弱符号可与他处强定义共存不报错，marker 必须用专名（已在实施时采用） |
+| -dead_strip | 不提取额外成员 | stable_partition 只删不排（Resolver.cpp:1411）；-u 符号是 root（:1291-1299） | 实测通过 |
+
+**Q6 LTO。** classic 源码级结论：成员序 → 布局映射在 LTO 下失效。bitcode 成员
+parse 时 ordinal 仍带成员索引（archive_file.cpp:431-433），合并前按 ordinal 排序
+（lto_file.cpp:1502-1503，注释 "The order that files are merged must match command
+line order"），但 codegen 输出是单个临时对象、以 LTOOrdinal（partition 2，最后）
+落位（lto_file.cpp:1084、:1433-1464；ld.hpp:402 注释 "The LTO object file is last"），
+对象内函数顺序由 LLVM 决定，ld64 无契约。embedded bitcode（-fembed-bitcode）成员
+仍是含原生码的 Mach-O，走普通布局路径，成员序保持；__LLVM bundle 按 ordinal 排序
+（bitcode_bundle.cpp:737-741）。实测：ld-1053.12 / ld-1267 / ld_classic 的
+全 LTO archive（-O0 与 -O2）括号均保持 —— 属 LLVM 当前行为的实测级证据，非契约。
+本方案的构建不开 LTO；若未来开启，成员序前提需重新评估。
+
+### 10.4 Q4：新 ld 开源状态与实测记录
+
+apple-oss-distributions/ld64 的 tag 列表（`git ls-remote --tags` 核实）最新为
+`ld64-957.1`。Xcode 15.4 的 `ld-1053.12` 与 Xcode 26.6 的 `ld-1267` 均未开源，
+**无法源码验证**，其保证等级只到实测。
+
+冒烟测试（`build/cj_marker_order_smoke_test.sh`）记录：
+
+| 工具链 | ld 版本串 | default | all_load | force_load | objc | dead_strip | weak | lto | late_pull |
+|---|---|---|---|---|---|---|---|---|---|
+| Xcode 15.4 (15F5021i) | `PROJECT:ld-1053.12` | OK+run PASS | OK | OK | OK | OK | OK | OK | OK |
+| Xcode 26.6 (17F113) | `PROJECT:ld-1267` | OK+run PASS | OK | OK | OK | OK | OK | OK | OK |
+| Xcode 15.4 `-ld_classic` | `PROJECT:ld64-951.9` | OK | — | — | — | — | — | — | — |
+
+附加实测：ld_classic `-why_load` 显示提取序为符号名字典序（`__CJ_Text_End` 先于
+`__CJ_Text_Start`），但 `nm -n` 布局仍为 Start<rt1<rt2<End —— 直接证明
+"提取序 ≠ 落位序，落位序 = 成员序"。binary 内自检（section.o 比较四个 marker 与
+rt 符号地址）在可运行模式全部 PASS。测试目标 arm64-apple-macos12.0；iOS 真机目标
+（arm64-apple-ios12.0.0，iphoneos SDK）的 default/late_pull/dead_strip 三模式
+nm 校验亦全部通过（无法本机运行自检）。
+
+补充论证（2026-10-14）：
+1. 演示所用的 ld_classic 版本串为 `ld64-951.9`，该版本同样开源。与其后 957.1 逐文件
+   diff：`passes/order.cpp` 与 `SymbolTable.cpp` **完全一致**；`archive_file.cpp`
+   仅 riscv 宏命名差异。order pass 调用点 951.9 在 `ld.cpp:1565`、957.1 在 `:1544`，
+   "sort by .o order" 比较器两者均在 `order.cpp:252-259`。即本节机制描述对实测
+   版本逐行成立。
+2. 新 ld（1053.12/1267，未开源）实测同一场景：`-why_load` 输出与 ld_classic 逐字
+   一致（提取序 = 字母序，trace 中 `[n]` 即成员物理索引，end.o=[5] 最先拉取），
+   `nm -n` 落位 = 成员序。二进制 `strings` 可见 ordinal 体系仍在
+   （`File::Ordinal::Partition::lto`、`setSymbolTableOrdinal`、`ordinal < numAtoms`）。
+   外部契约相同；内部实现无源码可证，证据等级为二进制 strings + 实测。
+
+### 10.5 复跑方法
+
+```bash
+# 两个工具链全模式（Xcode 升级后重跑即可；支持任意多个 --xcode）
+runtime/build/cj_marker_order_smoke_test.sh \
+    --xcode /Applications/Xcode.app \
+    --xcode /Applications/Xcode26.app --keep
+
+# 仅默认模式；iOS 目标（nm-only，不运行自检）
+runtime/build/cj_marker_order_smoke_test.sh \
+    --xcode /Applications/Xcode.app --modes default --target ios
+
+# 选项：--workdir DIR 保留产物；--modes 逗号分隔
+#   default,all_load,force_load,objc,dead_strip,weak,lto,late_pull,ld_classic
+```
+
+脚本自包含（源码内嵌、按成员序 ar cr + ranlib 建档、链接行模拟本方案：
+section.o 在前引用 runtime marker、-u 强制 thread marker、libaux.a 验证补拉落位），
+退出码非 0 即存在括号破坏。结论表任何一行的 file:line 引用对应
+ld64-957.1 源码树（见 10.1 注）。

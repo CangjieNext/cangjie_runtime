@@ -79,7 +79,7 @@ extern "C" Uptr* g_runtimeStaticEnd;
 #if defined(_WIN64)
 extern "C" uintptr_t g_cjThreadStaticStart;
 extern "C" uintptr_t g_cjThreadStaticEnd;
-#elif defined(__IOS__)
+#elif defined(__APPLE__)
 extern "C" unsigned long* g_cjThreadStaticStart;
 extern "C" unsigned long* g_cjThreadStaticEnd;
 #endif
@@ -481,10 +481,8 @@ void StackManager::InitAddressScope()
 #if defined(_WIN64)
     StackManager::cjThreadStartAddr = static_cast<Uptr>(g_cjThreadStaticStart);
     StackManager::cjThreadEndAddr = static_cast<Uptr>(g_cjThreadStaticEnd);
-#elif defined(__IOS__)
-    // iOS: markers per archive (see os/Macos/Section.cpp). macOS keeps the
-    // legacy merged __cjrt_text range in rtStartAddr/rtEndAddr and leaves the
-    // cjthread pair unset.
+#elif defined(__APPLE__)
+    // All Apple platforms: markers per archive (see os/Macos/Section.cpp).
     StackManager::cjThreadStartAddr = reinterpret_cast<Uptr>(g_cjThreadStaticStart);
     StackManager::cjThreadEndAddr = reinterpret_cast<Uptr>(g_cjThreadStaticEnd);
 #endif
@@ -583,7 +581,10 @@ bool StackManager::IsRuntimeFrame(Uptr pc)
 #ifdef CANGJIE_HWASAN_SUPPORT
     pc = Sanitizer::UntagAddr(pc);
 #endif
-#if defined(__IOS__) && defined(COMPILE_DYNAMIC) // iOS dynamic cangjie-runtime.
+#if defined(__APPLE__) && defined(COMPILE_DYNAMIC) // macOS/iOS dynamic cangjie-runtime.
+    // Dynamic classification is image-based: the marker ranges inside a
+    // shared cangjie-runtime do not bracket its objects (they are appended by
+    // target_link_libraries), so ranges must not be consumed here.
     Dl_info info;
     const void* addr = reinterpret_cast<const void*>(pc);
     if (dladdr(addr, &info) &&

@@ -47,46 +47,24 @@ add_subdirectory(trace)
 set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/../../output/temp/lib)
 
 
-# CJThread text-range boundary markers (iOS only).
+# CJThread text-range boundary markers (all Apple platforms).
 #
-# For iOS static builds the marker objects must be the first and last members
+# For Apple static builds the marker objects must be the first and last members
 # of libcangjie-thread.a: the Apple linker lays pulled archive members in
 # member order, so the markers bracket every thread object and no link-order
 # contract is imposed on the application (see runtime/src/os/Macos/Section.cpp).
-# For shared iOS builds they are exported so the runtime glue object
+# For shared Apple builds they are exported so the runtime glue object
 # (section.o) resolves them. The marker symbols are deliberately distinct from
 # the runtime archive markers: with identical names, only the first defining
 # archive member would ever be pulled and the second range would silently
 # collapse.
-#
-# macOS keeps the legacy __TEXT,__cjrt_text path: thread objects are renamed
-# via apple_rename_section.sh (merged with the runtime section there), so no
-# markers are produced for macOS.
 if (APPLE AND (${PLATFORM_NAME} STREQUAL "ios_cangjie" OR ${PLATFORM_NAME} STREQUAL "ios_simulator_aarch64_cangjie" OR
-     ${PLATFORM_NAME} STREQUAL "ios_cangjie_x86_64" OR ${PLATFORM_NAME} STREQUAL "ios_simulator_x86_64_cangjie"))
+     ${PLATFORM_NAME} STREQUAL "ios_cangjie_x86_64" OR ${PLATFORM_NAME} STREQUAL "ios_simulator_x86_64_cangjie" OR
+     ${PLATFORM_NAME} STREQUAL "mac_x86_64_cangjie" OR ${PLATFORM_NAME} STREQUAL "mac_aarch64_cangjie"))
     add_library(cjthread_text_start OBJECT ${CMAKE_CURRENT_SOURCE_DIR}/base/CjThreadTextStart.c)
     add_library(cjthread_text_end OBJECT ${CMAKE_CURRENT_SOURCE_DIR}/base/CjThreadTextEnd.c)
     set(CJTHREAD_TEXT_START_OBJ $<TARGET_OBJECTS:cjthread_text_start>)
     set(CJTHREAD_TEXT_END_OBJ $<TARGET_OBJECTS:cjthread_text_end>)
-endif()
-
-if (APPLE AND (${PLATFORM_NAME} STREQUAL "mac_x86_64_cangjie" OR ${PLATFORM_NAME} STREQUAL "mac_aarch64_cangjie") AND
-    ("${APPLE_STATIC_BUILD}" STREQUAL "true"))
-    add_custom_command(TARGET cangjie-thread PRE_BUILD
-        COMMAND sh ${CMAKE_SOURCE_DIR}/../../build/apple_rename_section.sh
-            "${PLATFORM_NAME}"
-            "${CMAKE_C_COMPILER}"
-            "$<TARGET_OBJECTS:schedule>"
-            "$<TARGET_OBJECTS:log>"
-            "$<TARGET_OBJECTS:netpoll>"
-            "$<TARGET_OBJECTS:basetime>"
-            "$<TARGET_OBJECTS:timer>"
-            "$<TARGET_OBJECTS:syscall>"
-            "$<TARGET_OBJECTS:waitqueue>"
-            "$<TARGET_OBJECTS:sema>"
-            "$<TARGET_OBJECTS:external>"
-        VERBATIM
-    )
 endif()
 
 add_library(cangjie-thread ${LIBTYPE}
@@ -111,11 +89,17 @@ if(${PLATFORM_NAME} STREQUAL "linux_aarch64_cangjie" OR ${PLATFORM_NAME} STREQUA
     ${PLATFORM_NAME} STREQUAL "mac_x86_64_cangjie" OR ${PLATFORM_NAME} STREQUAL "mac_aarch64_cangjie" OR
     ${PLATFORM_NAME} STREQUAL "windows_x86_64" OR ${PLATFORM_NAME} STREQUAL "cross_windows_x86_64")
 install(TARGETS cangjie-thread ARCHIVE DESTINATION ${CMAKE_INSTALL_PREFIX}/lib/${TARGET_ARCH}${SANITIZER_SUBPATH})
+# The .text=.text_thread rename is for the Linux linker script only. Apple
+# archives must keep plain __text: the marker objects bracket the __text
+# members and any rename would break the ranges.
+if(NOT (${PLATFORM_NAME} STREQUAL "ios_cangjie" OR ${PLATFORM_NAME} STREQUAL "ios_simulator_aarch64_cangjie" OR
+    ${PLATFORM_NAME} STREQUAL "ios_cangjie_x86_64" OR ${PLATFORM_NAME} STREQUAL "ios_simulator_x86_64_cangjie" OR
+    ${PLATFORM_NAME} STREQUAL "mac_x86_64_cangjie" OR ${PLATFORM_NAME} STREQUAL "mac_aarch64_cangjie"))
 set(OBJCOPY_PROGRAM objcopy)
- 
 install(CODE "execute_process(COMMAND ${OBJCOPY_PROGRAM} -D --rename-section .text=.text_thread \
             ${CMAKE_INSTALL_PREFIX}/lib/${TARGET_ARCH}${SANITIZER_SUBPATH}/libcangjie-thread.a)"
         COMPONENT cangjie-thread)
+endif()
 if(CMAKE_BUILD_TYPE MATCHES "Release" OR CMAKE_BUILD_TYPE MATCHES "MinSizeRel")
     install(CODE "execute_process(COMMAND ${STRIP_PROGRAM} --strip-unneeded ${CMAKE_INSTALL_PREFIX}/lib/libcangjie-thread.a)"
         COMPONENT cangjie-thread)

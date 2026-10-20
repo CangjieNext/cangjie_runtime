@@ -15,7 +15,8 @@
 #include <mach-o/getsect.h>
 
 extern "C" {
-// Runtime text range boundary markers (iOS only, see SetRuntimeRange below).
+// Runtime text range boundary markers (all Apple platforms, see
+// SetRuntimeRange below).
 //
 // The markers are embedded in the static archives themselves: _CJ_Text_Start /
 // _CJ_Text_End are the first / last members of libcangjie-runtime.a, and
@@ -24,12 +25,7 @@ extern "C" {
 // member order, so each archive is self-bracketed and no link-order contract
 // is imposed on the application. The ranges are consumed by
 // StackManager::IsRuntimeFrame during stack frame analysis.
-//
-// macOS keeps the legacy __TEXT,__cjrt_text section path: the rename step is
-// still active for macOS builds and the range below is read via
-// getsectiondata. The two paths are isolated by __IOS__, which config.cmake
-// defines for iOS and simulator builds only.
-#if defined(__IOS__)
+#if defined(__APPLE__)
 void _CJ_Text_Start(void);
 void _CJ_Text_End(void);
 void _CJ_Thread_Text_Start(void);
@@ -123,7 +119,7 @@ int _CJMetaDataSize;
 unsigned long* g_runtimeStaticStart;
 unsigned long* g_runtimeStaticEnd;
 
-#if defined(__IOS__)
+#if defined(__APPLE__)
 unsigned long* g_cjThreadStaticStart;
 unsigned long* g_cjThreadStaticEnd;
 
@@ -185,27 +181,19 @@ static void InitSectionInformation(const struct mach_header_64* mhp)
     _CJReflectGI = reinterpret_cast<uintptr_t>(getsectiondata(mhp, "__CJ_METADATA", "__cjref_gi", &_CJReflectGISize));
     _CJTypeExt = reinterpret_cast<uintptr_t>(getsectiondata(mhp, "__CJ_METADATA", "__cjtype_ext", &_CJTypeExtSize));
 
-#if defined(__IOS__)
-    // iOS: runtime and CJThread text ranges from the archive markers. Each
-    // static archive carries its own first/last marker objects, so the ranges
-    // are bracketed by the archive member order that the Apple linker
-    // preserves. The markers replace the former dedicated __TEXT,__cjrt_text
-    // section, so all runtime code stays in the regular __TEXT,__text section.
+#if defined(__APPLE__)
+    // All Apple platforms: runtime and CJThread text ranges from the archive
+    // markers. Each static archive carries its own first/last marker objects,
+    // so the ranges are bracketed by the archive member order that the Apple
+    // linker preserves. The markers replace the former dedicated
+    // __TEXT,__cjrt_text section, so all runtime code stays in the regular
+    // __TEXT,__text section (no second code segment, no bl reach limit).
     SetRuntimeRange(&g_runtimeStaticStart, &g_runtimeStaticEnd,
         reinterpret_cast<const void*>(&_CJ_Text_Start),
         reinterpret_cast<const void*>(&_CJ_Text_End), "runtime");
     SetRuntimeRange(&g_cjThreadStaticStart, &g_cjThreadStaticEnd,
         reinterpret_cast<const void*>(&_CJ_Thread_Text_Start),
         reinterpret_cast<const void*>(&_CJ_Thread_Text_End), "cjthread");
-#else
-    // macOS: legacy path. The build still renames runtime/text objects into
-    // __TEXT,__cjrt_text (see build/apple_rename_section.sh wired in
-    // CMakeLists.txt for MACOS_FLAG) and the range is the merged section.
-    unsigned long _CJRuntimeTextSize;
-    unsigned long _CJRuntimeText =
-        reinterpret_cast<unsigned long>(getsectiondata(mhp, "__TEXT", "__cjrt_text", &_CJRuntimeTextSize));
-    g_runtimeStaticStart = reinterpret_cast<unsigned long*>(_CJRuntimeText);
-    g_runtimeStaticEnd = reinterpret_cast<unsigned long*>(_CJRuntimeText + _CJRuntimeTextSize);
 #endif
 }
 

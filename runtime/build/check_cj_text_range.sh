@@ -59,10 +59,20 @@ trap 'rm -f "${TMP_NAMES}" "${TMP_ARCH}"' EXIT
 : > "${TMP_ARCH}"
 for input in "$@"; do
     [ -f "${input}" ] || { echo "error: ${input}: no such file" >&2; exit 2; }
-    nm --defined-only "${input}" 2>/dev/null | awk 'NF >= 3 && $3 !~ /^\.L/ {print $3}' >> "${TMP_NAMES}"
     case "${input}" in
     *.a)
-        nm --defined-only "${input}" 2>/dev/null | awk '$2 ~ /^[Tt]$/ && $3 !~ /^\.L/ {print $3}' >> "${TMP_ARCH}"
+        # Archive members: every defined symbol is runtime code. ".L*"
+        # assembler-local labels from the assembly stubs legitimately sit
+        # inside the brackets, so they are whitelisted and covered by
+        # check 2 (must lie inside a bracket).
+        nm --defined-only "${input}" 2>/dev/null | awk 'NF >= 3 {print $3}' >> "${TMP_NAMES}"
+        nm --defined-only "${input}" 2>/dev/null | awk '$2 ~ /^[Tt]$/ {print $3}' >> "${TMP_ARCH}"
+        ;;
+    *)
+        # Standalone glue objects (cjstart.o, section.o): their ".L*" labels
+        # may legitimately trail a few bytes past the markers, so they are
+        # excluded from the whitelist.
+        nm --defined-only "${input}" 2>/dev/null | awk 'NF >= 3 && $3 !~ /^\.L/ {print $3}' >> "${TMP_NAMES}"
         ;;
     esac
 done

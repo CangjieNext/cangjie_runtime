@@ -407,15 +407,15 @@ if (DOPRA_FLAG MATCHES 1 AND OHOS_FLAG MATCHES 0 AND WINDOWS_FLAG MATCHES 0) # l
                     "-Wl,--start-group -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/src/local_export.map"
                     ${LINK_LIBS} "-Wl,--end-group -nodefaultlibs -Wl,-Bdynamic -lc++ -lunwind -lm -lc -ldl -landroid -llog")
             endif()
-        elseif (IOS_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MATCHES 2) # ios
-            # iOS only: include the text-range markers so section.o (linked
-            # into the application) resolves them from the shared libraries in
-            # dynamic builds; the ranges themselves are unused on dynamic
-            # paths. macOS keeps the legacy __cjrt_text path without markers.
+        elseif (MACOS_FLAG MATCHES 1 OR IOS_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MATCHES 2) # apple
+            # Apple shared builds: include the text-range markers so section.o
+            # (inside the dylib) resolves them. The CJThread markers are the
+            # first/last members of libcangjie-thread.a but nothing inside
+            # this dylib references them, so -u is required to pull and
+            # export them. Dynamic classification does not consume the ranges
+            # (see StackManager::IsRuntimeFrame).
             target_link_libraries(cangjie-runtime ${LINK_LIBS} cjtext_start cjtext_end
-                "-Wl,-no_compact_unwind -nodefaultlibs -lc++ -lm -lc -lpthread -ldl")
-        elseif (MACOS_FLAG MATCHES 1) # macos
-            target_link_libraries(cangjie-runtime ${LINK_LIBS}
+                "-Wl,-u,__CJ_Thread_Text_Start -Wl,-u,__CJ_Thread_Text_End"
                 "-Wl,-no_compact_unwind -nodefaultlibs -lc++ -lm -lc -lpthread -ldl")
         else() # normal
             target_link_libraries(cangjie-runtime "-Wl,--start-group -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/src/${EXPORT_MAP}"
@@ -477,8 +477,10 @@ elseif (MACOS_FLAG MATCHES 1)
     else()
         add_library(cjstart OBJECT ${CMAKE_CURRENT_SOURCE_DIR}/src/arch/Aarch64_macos/Cjstart.S)
     endif()
-    # macOS keeps the legacy __TEXT,__cjrt_text path: the rename step is wired
-    # in the cangjie-runtime-static target below. No text-range markers here.
+    # Text-range boundary markers, same as iOS: the archives are
+    # self-bracketed by their first/last members (see os/Macos/Section.cpp).
+    add_library(cjtext_start OBJECT ${CMAKE_CURRENT_SOURCE_DIR}/src/os/Macos/CjTextStart.c)
+    add_library(cjtext_end OBJECT ${CMAKE_CURRENT_SOURCE_DIR}/src/os/Macos/CjTextEnd.c)
 elseif (IOS_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MATCHES 2)
     add_library(section OBJECT ${CMAKE_CURRENT_SOURCE_DIR}/src/os/Macos/Section.cpp)
     if (CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64")
@@ -633,12 +635,12 @@ if (IOS_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MAT
             ${SANITIZER_LIB_STATIC}
         )
     else()
-        if (IOS_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MATCHES 2)
-            # Text-range boundary markers (iOS only). They must be the first
-            # and last members of the archive: the Apple linker lays pulled
-            # archive members in member order, so the markers bracket every
-            # runtime object and no link-order contract is imposed on the
-            # application (see os/Macos/Section.cpp).
+        if (IOS_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MATCHES 2 OR MACOS_FLAG MATCHES 1)
+            # Text-range boundary markers (all Apple platforms). They must be
+            # the first and last members of the archive: the Apple linker lays
+            # pulled archive members in member order, so the markers bracket
+            # every runtime object and no link-order contract is imposed on
+            # the application (see os/Macos/Section.cpp).
             target_sources(cangjie-runtime-static PRIVATE $<TARGET_OBJECTS:cjtext_start>)
         endif()
         target_sources(cangjie-runtime-static PRIVATE
@@ -668,45 +670,9 @@ if (IOS_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MAT
             $<TARGET_OBJECTS:Interpreter>
             ${SANITIZER_LIB_STATIC}
         )
-        if (IOS_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MATCHES 2)
+        if (IOS_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MATCHES 2 OR MACOS_FLAG MATCHES 1)
             target_sources(cangjie-runtime-static PRIVATE $<TARGET_OBJECTS:cjtext_end>)
         endif()
-    endif()
-    if (MACOS_FLAG MATCHES 1)
-        # macOS keeps the legacy __TEXT,__cjrt_text path: rename every runtime
-        # object's text section before archiving (iOS uses the marker objects
-        # instead and does not run this step).
-        add_custom_command(TARGET cangjie-runtime-static PRE_BUILD
-            COMMAND sh ${CMAKE_SOURCE_DIR}/build/apple_rename_section.sh
-                "macos_cangjie"
-                "${CMAKE_C_COMPILER}"
-                "$<TARGET_OBJECTS:runtime>"
-                "$<TARGET_OBJECTS:Base>"
-                "$<TARGET_OBJECTS:CjFile>"
-                "$<TARGET_OBJECTS:Concurrency>"
-                "$<TARGET_OBJECTS:Common>"
-                "$<TARGET_OBJECTS:Exception>"
-                "$<TARGET_OBJECTS:Heap>"
-                "$<TARGET_OBJECTS:Allocator>"
-                "$<TARGET_OBJECTS:Barrier>"
-                "$<TARGET_OBJECTS:Collector>"
-                "$<TARGET_OBJECTS:Loader>"
-                "$<TARGET_OBJECTS:Inspector>"
-                "$<TARGET_OBJECTS:Mutator>"
-                "$<TARGET_OBJECTS:ObjectModel>"
-                "$<TARGET_OBJECTS:Signal>"
-                "$<TARGET_OBJECTS:BinaryFile>"
-                "$<TARGET_OBJECTS:CjFileLoader>"
-                "$<TARGET_OBJECTS:UnwindStack>"
-                "$<TARGET_OBJECTS:Sync>"
-                "$<TARGET_OBJECTS:WCollector>"
-                "$<TARGET_OBJECTS:cjthreadmodel>"
-                "$<TARGET_OBJECTS:CjSemanticVersion>"
-                "$<TARGET_OBJECTS:CpuProfiler>"
-                "$<TARGET_OBJECTS:Interpreter>"
-                "${SANITIZER_LIB_STATIC}"
-            VERBATIM
-        )
     endif()
     if (IOS_FLAG MATCHES 1)
         add_custom_command(TARGET cangjie-runtime-static POST_BUILD
@@ -745,7 +711,10 @@ if (IOS_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MAT
         install(CODE "execute_process(COMMAND bash ${CMAKE_SOURCE_DIR}/build/windows_rename_section.sh \
                 ${CMAKE_INSTALL_PREFIX}/lib/${TARGET_ARCH}${SANITIZER_SUBPATH}/libcangjie-runtime.a)"
             COMPONENT cangjie-runtime)
-    else()
+    elseif (NOT (MACOS_FLAG MATCHES 1 OR IOS_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MATCHES 2))
+        # Linux/OHOS/Android only: the linker script collects .text_runtime.
+        # Apple archives must keep plain __text: the marker objects bracket
+        # the __text members and any rename would break the ranges.
         install(CODE "execute_process(COMMAND ${OBJCOPY_PROGRAM} -D --rename-section .text=.text_runtime \
                     ${CMAKE_INSTALL_PREFIX}/lib/${TARGET_ARCH}${SANITIZER_SUBPATH}/libcangjie-runtime.a)"
                 COMPONENT cangjie-runtime)
@@ -753,6 +722,22 @@ if (IOS_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MAT
     if((CMAKE_BUILD_TYPE MATCHES "Release" OR CMAKE_BUILD_TYPE MATCHES "MinSizeRel") AND NOT (WINDOWS_FLAG MATCHES 1))
         install(CODE "execute_process(COMMAND ${STRIP_PROGRAM} -D --strip-unneeded \
                     ${CMAKE_INSTALL_PREFIX}/lib/${TARGET_ARCH}${SANITIZER_SUBPATH}/libcangjie-runtime.a)"
+            COMPONENT cangjie-runtime)
+    endif()
+    if (IOS_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MATCHES 2 OR MACOS_FLAG MATCHES 1)
+        # Generate the linker order file next to the installed archives. It
+        # pins the runtime/cjthread text layout to the archive member order so
+        # the marker brackets survive any linker (see build/gen_cj_order_file.sh
+        # and os/Macos/Section.cpp). Consumers pass it to the final link:
+        #   -Wl,-order_file,<SDK>/lib/<arch>/cangjie.order
+        install(CODE "execute_process(COMMAND bash ${CMAKE_SOURCE_DIR}/build/gen_cj_order_file.sh
+                    --output ${CMAKE_INSTALL_PREFIX}/lib/${TARGET_ARCH}${SANITIZER_SUBPATH}/cangjie.order
+                    ${CMAKE_INSTALL_PREFIX}/lib/${TARGET_ARCH}${SANITIZER_SUBPATH}/libcangjie-runtime.a
+                    ${CMAKE_INSTALL_PREFIX}/lib/${TARGET_ARCH}${SANITIZER_SUBPATH}/libcangjie-thread.a
+                    RESULT_VARIABLE _cj_order_ret)
+            if (NOT _cj_order_ret EQUAL 0)
+                message(WARNING \"gen_cj_order_file.sh failed (ret=\${_cj_order_ret}); cangjie.order not generated, final links fall back to archive member order\")
+            endif()"
             COMPONENT cangjie-runtime)
     endif()
 endif()
