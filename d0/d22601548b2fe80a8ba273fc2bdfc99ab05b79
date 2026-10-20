@@ -1,0 +1,14 @@
+runtime/src/Common/MemCommon.h
+  h_19cba801a4f3e0 30,286
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d0d22601548b2fe80a8ba273fc2bdfc99ab05b79",
+  "prompts": {},
+  "humans": {
+    "h_19cba801a4f3e0": {
+      "author": "leeguo <leeguo@126.com>"
+    }
+  }
+}
