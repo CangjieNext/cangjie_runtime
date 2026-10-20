@@ -1,0 +1,4 @@
+[package]
+name = "blocking_queue_bench"
+version = "1.0.0"
+description = "Throughput & correctness benchmark: PR LinkedBlockingQueue vs upstream original (MR #1782)"
