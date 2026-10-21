@@ -3,10 +3,7 @@
 ## class ConcurrentModificationException
 
 ```cangjie
-public class ConcurrentModificationException <: Exception {
-    public init()
-    public init(message: String)
-}
+public class ConcurrentModificationException <: Exception
 ```
 
 功能：并发修改异常类。当函数检测到不同步的并发修改，抛出异常。

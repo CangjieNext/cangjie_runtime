@@ -3,14 +3,7 @@
 ## interface BlockCipher
 
 ```cangjie
-public interface BlockCipher {
-    prop blockSize: Int64
-    prop algorithm: String
-    func encrypt(input: Array<Byte>): Array<Byte>
-    func decrypt(input: Array<Byte>): Array<Byte>
-    func encrypt(input: Array<Byte>, to!: Array<Byte>): Int64
-    func decrypt(input: Array<Byte>, to!: Array<Byte>): Int64
-}
+public interface BlockCipher
 ```
 
 功能：分组加解密算法接口，继承该接口的 class、interface、struct 也需要遵守该接口中函数的入参及返回值定义。

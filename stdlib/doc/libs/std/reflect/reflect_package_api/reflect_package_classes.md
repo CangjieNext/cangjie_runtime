@@ -3,7 +3,7 @@
 ## class ClassTypeInfo
 
 ```cangjie
-public class ClassTypeInfo <: TypeInfo {}
+public class ClassTypeInfo <: TypeInfo
 ```
 
 功能：描述 `class` 类型的类型信息。
@@ -875,7 +875,7 @@ RegularClass 拥有 sealed 语义: false
 ## class ConstructorInfo
 
 ```cangjie
-public class ConstructorInfo <: Equatable<ConstructorInfo> & Hashable & ToString {}
+public class ConstructorInfo <: Equatable<ConstructorInfo> & Hashable & ToString
 ```
 
 功能：描述构造函数信息。
@@ -1618,7 +1618,7 @@ main(): Unit {
 ## class EnumConstructorInfo
 
 ```cangjie
-public class EnumConstructorInfo <: Equatable<EnumConstructorInfo> & Hashable & ToString {}
+public class EnumConstructorInfo <: Equatable<EnumConstructorInfo> & Hashable & ToString
 ```
 
 功能：描述枚举构造器信息，可用于查询构造器参数类型、注解，并根据构造器进行构造/拆解枚举实例。
@@ -2326,7 +2326,7 @@ false
 ## class EnumTypeInfo
 
 ```cangjie
-public class EnumTypeInfo <: TypeInfo {}
+public class EnumTypeInfo <: TypeInfo
 ```
 
 功能：`Enum` 类型的类型信息。
@@ -2697,7 +2697,7 @@ test.E.M2(Int64, Int64)
 ## class FunctionTypeInfo
 
 ```cangjie
-public class FunctionTypeInfo <: TypeInfo {}
+public class FunctionTypeInfo <: TypeInfo
 ```
 
 功能：描述函数类型（函数值/闭包）的类型信息，可用于获取参数与返回值的类型信息。
@@ -2944,7 +2944,7 @@ main(): Unit {
 ## class GenericTypeInfo
 
 ```cangjie
-public class GenericTypeInfo <: TypeInfo & Equatable<GenericTypeInfo> {}
+public class GenericTypeInfo <: TypeInfo & Equatable<GenericTypeInfo>
 ```
 
 功能：描述泛型类型信息。
@@ -3018,7 +3018,7 @@ main(): Unit {
 ## class GlobalFunctionInfo
 
 ```cangjie
-public class GlobalFunctionInfo <: Equatable<GlobalFunctionInfo> & Hashable & ToString {}
+public class GlobalFunctionInfo <: Equatable<GlobalFunctionInfo> & Hashable & ToString
 ```
 
 功能：描述全局函数信息。
@@ -3843,7 +3843,7 @@ main(): Unit {
 ## class GlobalVariableInfo
 
 ```cangjie
-public class GlobalVariableInfo <: Equatable<GlobalVariableInfo> & Hashable & ToString {}
+public class GlobalVariableInfo <: Equatable<GlobalVariableInfo> & Hashable & ToString
 ```
 
 功能：描述全局变量信息。
@@ -4612,7 +4612,7 @@ main(): Unit {
 ## class InstanceFunctionInfo
 
 ```cangjie
-public class InstanceFunctionInfo <: Equatable<InstanceFunctionInfo> & Hashable & ToString {}
+public class InstanceFunctionInfo <: Equatable<InstanceFunctionInfo> & Hashable & ToString
 ```
 
 功能：描述实例成员函数信息。
@@ -5733,7 +5733,7 @@ main(): Unit {
 ## class InstancePropertyInfo
 
 ```cangjie
-public class InstancePropertyInfo <: Equatable<InstancePropertyInfo> & Hashable & ToString {}
+public class InstancePropertyInfo <: Equatable<InstancePropertyInfo> & Hashable & ToString
 ```
 
 功能：描述实例成员属性信息。
@@ -6709,7 +6709,7 @@ main(): Unit {
 ## class InstanceVariableInfo
 
 ```cangjie
-public class InstanceVariableInfo <: Equatable<InstanceVariableInfo> & Hashable & ToString {}
+public class InstanceVariableInfo <: Equatable<InstanceVariableInfo> & Hashable & ToString
 ```
 
 功能：描述实例成员变量信息。
@@ -7501,7 +7501,7 @@ main(): Unit {
 ## class InterfaceTypeInfo
 
 ```cangjie
-public class InterfaceTypeInfo <: TypeInfo {}
+public class InterfaceTypeInfo <: TypeInfo
 ```
 
 功能：`interface` 类型的类型信息。
@@ -7769,7 +7769,7 @@ Shape接口是否为sealed: true
 ## class PackageInfo
 
 ```cangjie
-public class PackageInfo <: Equatable<PackageInfo> & Hashable & ToString {}
+public class PackageInfo <: Equatable<PackageInfo> & Hashable & ToString
 ```
 
 功能：描述包信息。
@@ -8764,7 +8764,7 @@ main(): Unit {
 ## class ParameterInfo
 
 ```cangjie
-public class ParameterInfo <: Equatable<ParameterInfo> & Hashable & ToString {}
+public class ParameterInfo <: Equatable<ParameterInfo> & Hashable & ToString
 ```
 
 功能：描述函数形参信息。
@@ -9426,7 +9426,7 @@ main(): Unit {
 ## class PrimitiveTypeInfo
 
 ```cangjie
-public class PrimitiveTypeInfo <: TypeInfo {}
+public class PrimitiveTypeInfo <: TypeInfo
 ```
 
 功能：描述原始数据类型的类型信息。
@@ -9576,7 +9576,7 @@ Int64
 ## class StaticFunctionInfo
 
 ```cangjie
-public class StaticFunctionInfo <: Equatable<StaticFunctionInfo> & Hashable & ToString {}
+public class StaticFunctionInfo <: Equatable<StaticFunctionInfo> & Hashable & ToString
 ```
 
 功能：描述静态成员函数信息。
@@ -10504,7 +10504,7 @@ main(): Unit {
 ## class StaticPropertyInfo
 
 ```cangjie
-public class StaticPropertyInfo <: Equatable<StaticPropertyInfo> & Hashable & ToString {}
+public class StaticPropertyInfo <: Equatable<StaticPropertyInfo> & Hashable & ToString
 ```
 
 功能：描述静态成员属性信息。
@@ -11372,7 +11372,7 @@ main(): Unit {
 ## class StaticVariableInfo
 
 ```cangjie
-public class StaticVariableInfo <: Equatable<StaticVariableInfo> & Hashable & ToString {}
+public class StaticVariableInfo <: Equatable<StaticVariableInfo> & Hashable & ToString
 ```
 
 功能：描述静态成员变量信息。
@@ -12164,7 +12164,7 @@ main(): Unit {
 ## class StructTypeInfo
 
 ```cangjie
-public class StructTypeInfo <: TypeInfo {}
+public class StructTypeInfo <: TypeInfo
 ```
 
 功能：描述 `struct` 类型的类型信息。
@@ -12718,7 +12718,7 @@ static area: Int64
 ## class TupleTypeInfo
 
 ```cangjie
-public class TupleTypeInfo <: TypeInfo {}
+public class TupleTypeInfo <: TypeInfo
 ```
 
 功能：描述元组类型的类型信息。

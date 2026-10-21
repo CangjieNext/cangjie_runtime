@@ -3,10 +3,7 @@
 ## interface BigEndianOrder\<T>
 
 ```cangjie
-public interface BigEndianOrder<T> {
-    func writeBigEndian(buffer: Array<Byte>): Int64
-    static func readBigEndian(buffer: Array<Byte>): T
-}
+public interface BigEndianOrder<T>
 ```
 
 功能：大端序字节序列转换接口。
@@ -1073,10 +1070,7 @@ main() {
 ## interface LittleEndianOrder\<T>
 
 ```cangjie
-public interface LittleEndianOrder<T> {
-    func writeLittleEndian(buffer: Array<Byte>): Int64
-    static func readLittleEndian(buffer: Array<Byte>): T
-}
+public interface LittleEndianOrder<T>
 ```
 
 功能：小端序字节序列转换接口。
@@ -2112,9 +2106,7 @@ main() {
 ## interface SwapEndianOrder\<T>
 
 ```cangjie
-public interface SwapEndianOrder<T> {
-    func swapBytes(): T
-}
+public interface SwapEndianOrder<T>
 ```
 
 功能：反转字节顺序接口。

@@ -3,7 +3,7 @@
 ## class DriverManager
 
 ```cangjie
-public class DriverManager {}
+public class DriverManager
 ```
 
 功能：支持运行时根据驱动名获取数据库驱动实例。
@@ -196,9 +196,7 @@ if a driver with the same name is already registered.
 ## class PooledDatasource
 
 ```cangjie
-public class PooledDatasource <: Datasource {
-    public init(datasource: Datasource)
-}
+public class PooledDatasource <: Datasource
 ```
 
 功能：数据库连接池类，提供数据库连接池能力。
@@ -647,9 +645,7 @@ Common options are predefined in SqlOption class
 ## class SqlBigInt <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlBigInt <: SqlDbType {
-    public init(v: Int64)
-}
+public class SqlBigInt <: SqlDbType
 ```
 
 功能：大整数，对应仓颉 [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) 类型。
@@ -769,9 +765,7 @@ SqlBigInt name: SqlBigInt
 ## class SqlBinary <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlBinary <: SqlDbType {
-    public init(v: Array<Byte>)
-}
+public class SqlBinary <: SqlDbType
 ```
 
 功能：定长二进制字符串，对应仓颉 [Array](../../core/core_package_api/core_package_structs.md#struct-arrayt)\<[Byte](../../core/core_package_api/core_package_types.md#type-byte)> 类型。
@@ -903,9 +897,7 @@ SqlBinary name: SqlBinary
 ## class SqlBlob <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlBlob <: SqlDbType {
-    public init(v: InputStream)
-}
+public class SqlBlob <: SqlDbType
 ```
 
 功能：变长超大二进制字符串（BINARY LARGE OBJECT），对应仓颉 [InputStream](../../io/io_package_api/io_package_interfaces.md#interface-inputstream) 类型。
@@ -1040,9 +1032,7 @@ SqlBlob name: SqlBlob
 ## class SqlBool <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlBool <: SqlDbType {
-    public init(v: Bool)
-}
+public class SqlBool <: SqlDbType
 ```
 
 功能：布尔类型，对应仓颉 [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) 类型。
@@ -1162,9 +1152,7 @@ SqlBool name: SqlBool
 ## class SqlByte <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlByte <: SqlDbType {
-    public init(v: Int8)
-}
+public class SqlByte <: SqlDbType
 ```
 
 功能：字节，对应仓颉 [Int8](../../core/core_package_api/core_package_intrinsics.md#int8) 类型。
@@ -1284,9 +1272,7 @@ SqlByte name: SqlByte
 ## class SqlChar <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlChar <: SqlDbType {
-    public init(v: String)
-}
+public class SqlChar <: SqlDbType
 ```
 
 功能：定长字符串，对应仓颉 [String](../../core/core_package_api/core_package_structs.md#struct-string) 类型。
@@ -1406,9 +1392,7 @@ SqlChar name: SqlChar
 ## class SqlClob <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlClob <: SqlDbType {
-    public init(v: InputStream)
-}
+public class SqlClob <: SqlDbType
 ```
 
 功能：变长超大字符串（CHARACTER LARGE OBJECT），对应仓颉 [InputStream](../../io/io_package_api/io_package_interfaces.md#interface-inputstream) 类型。
@@ -1543,9 +1527,7 @@ SqlClob name: SqlClob
 ## class SqlDate <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlDate <: SqlDbType {
-    public init(v: DateTime)
-}
+public class SqlDate <: SqlDbType
 ```
 
 功能：日期，仅年月日有效，对应仓颉 [DateTime](../../time/time_package_api/time_package_structs.md#struct-datetime) 类型。
@@ -1672,9 +1654,7 @@ SqlDate name: SqlDate
 ## class SqlDecimal <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlDecimal <: SqlDbType {
-    public init(v: Decimal)
-}
+public class SqlDecimal <: SqlDbType
 ```
 
 功能：高精度数，对应仓颉 [Decimal](../../math_numeric/math_numeric_package_api/math_numeric_package_structs.md#struct-decimal) 类型。
@@ -1801,9 +1781,7 @@ SqlDecimal name: SqlDecimal
 ## class SqlDouble <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlDouble <: SqlDbType {
-    public init(v: Float64)
-}
+public class SqlDouble <: SqlDbType
 ```
 
 功能：双精度数，对应仓颉 [Float64](../../core/core_package_api/core_package_intrinsics.md#float64) 类型。
@@ -1923,9 +1901,7 @@ SqlDouble name: SqlDouble
 ## class SqlInteger <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlInteger <: SqlDbType {
-    public init(v: Int32)
-}
+public class SqlInteger <: SqlDbType
 ```
 
 功能：中整数，对应仓颉 [Int32](../../core/core_package_api/core_package_intrinsics.md#int32) 类型。
@@ -2045,9 +2021,7 @@ SqlInteger name: SqlInteger
 ## class SqlInterval <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlInterval <: SqlDbType {
-    public init(v: Duration)
-}
+public class SqlInterval <: SqlDbType
 ```
 
 功能：时间间隔，对应仓颉 [Duration](../../core/core_package_api/core_package_structs.md#struct-duration) 类型。
@@ -2174,9 +2148,7 @@ SqlInterval name: SqlInterval
 ## class SqlNullableBigInt <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlNullableBigInt <: SqlNullableDbType {
-    public init(v: ?Int64)
-}
+public class SqlNullableBigInt <: SqlNullableDbType
 ```
 
 功能：大整数，对应仓颉 [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) 类型，可为数据库 `Null` 值。
@@ -2296,9 +2268,7 @@ SqlNullableBigInt name: SqlNullableBigInt
 ## class SqlNullableBinary <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlNullableBinary <: SqlNullableDbType {
-    public init(v: ?Array<Byte>)
-}
+public class SqlNullableBinary <: SqlNullableDbType
 ```
 
 功能：定长二进制字符串，对应仓颉 [Array](../../core/core_package_api/core_package_structs.md#struct-arrayt)\<[Byte](../../core/core_package_api/core_package_types.md#type-byte)> 类型，可为数据库 `Null` 值。
@@ -2422,9 +2392,7 @@ SqlNullableBinary name: SqlNullableBinary
 ## class SqlNullableBlob <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlNullableBlob <: SqlNullableDbType {
-    public init(v: ?InputStream)
-}
+public class SqlNullableBlob <: SqlNullableDbType
 ```
 
 功能：变长超大二进制字符串（BINARY LARGE OBJECT），对应仓颉 [InputStream](../../io/io_package_api/io_package_interfaces.md#interface-inputstream) 类型，可为数据库 `Null` 值。
@@ -2558,9 +2526,7 @@ Created SqlNullableBlob with name: SqlNullableBlob
 ## class SqlNullableBool <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlNullableBool <: SqlNullableDbType {
-    public init(v: ?Bool)
-}
+public class SqlNullableBool <: SqlNullableDbType
 ```
 
 功能：布尔类型，对应仓颉 [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) 类型，可为数据库 `Null` 值。
@@ -2680,9 +2646,7 @@ SqlNullableBool name: SqlNullableBool
 ## class SqlNullableByte <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlNullableByte <: SqlNullableDbType {
-    public init(v: ?Int8)
-}
+public class SqlNullableByte <: SqlNullableDbType
 ```
 
 功能：字节，对应仓颉 [Int8](../../core/core_package_api/core_package_intrinsics.md#int8) 类型，可为数据库 `Null` 值。
@@ -2802,9 +2766,7 @@ SqlNullableByte name: SqlNullableByte
 ## class SqlNullableChar <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlNullableChar <: SqlNullableDbType {
-    public init(v: ?String)
-}
+public class SqlNullableChar <: SqlNullableDbType
 ```
 
 功能：定长字符串，对应仓颉 [String](../../core/core_package_api/core_package_structs.md#struct-string) 类型，可为数据库 `Null` 值。
@@ -2924,9 +2886,7 @@ SqlNullableChar name: SqlNullableChar
 ## class SqlNullableClob <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlNullableClob <: SqlNullableDbType {
-    public init(v: ?InputStream)
-}
+public class SqlNullableClob <: SqlNullableDbType
 ```
 
 功能：变长超大字符串（CHARACTER LARGE OBJECT），对应仓颉 [InputStream](../../io/io_package_api/io_package_interfaces.md#interface-inputstream) 类型，可为数据库 `Null` 值。
@@ -3064,9 +3024,7 @@ SqlNullableClob name: SqlNullableClob
 ## class SqlNullableDate <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlNullableDate <: SqlNullableDbType {
-    public init(v: ?DateTime)
-}
+public class SqlNullableDate <: SqlNullableDbType
 ```
 
 功能：日期，仅年月日有效，对应仓颉 [DateTime](../../time/time_package_api/time_package_structs.md#struct-datetime) 类型，可为数据库 `Null` 值。
@@ -3191,9 +3149,7 @@ SqlNullableDate name: SqlNullableDate
 ## class SqlNullableDecimal <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlNullableDecimal <: SqlNullableDbType {
-    public init(v: ?Decimal)
-}
+public class SqlNullableDecimal <: SqlNullableDbType
 ```
 
 功能：高精度数，对应仓颉 [Decimal](../../math_numeric/math_numeric_package_api/math_numeric_package_structs.md#struct-decimal) 类型，可为数据库 `Null` 值。
@@ -3319,9 +3275,7 @@ SqlNullableDecimal name: SqlNullableDecimal
 ## class SqlNullableDouble <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlNullableDouble <: SqlNullableDbType {
-    public init(v: ?Float64)
-}
+public class SqlNullableDouble <: SqlNullableDbType
 ```
 
 功能：双精度数，对应仓颉 [Float64](../../core/core_package_api/core_package_intrinsics.md#float64) 类型，可为数据库 `Null` 值。
@@ -3441,9 +3395,7 @@ SqlNullableDouble name: SqlNullableDouble
 ## class SqlNullableInteger <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlNullableInteger <: SqlNullableDbType {
-    public init(v: ?Int32)
-}
+public class SqlNullableInteger <: SqlNullableDbType
 ```
 
 功能：中整数，对应仓颉 [Int32](../../core/core_package_api/core_package_intrinsics.md#int32) 类型，可为数据库 `Null` 值。
@@ -3563,9 +3515,7 @@ SqlNullableInteger name: SqlNullableInteger
 ## class SqlNullableInterval <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlNullableInterval <: SqlNullableDbType {
-    public init(v: ?Duration)
-}
+public class SqlNullableInterval <: SqlNullableDbType
 ```
 
 功能：时间间隔，对应仓颉 [Duration](../../core/core_package_api/core_package_structs.md#struct-duration) 类型，可为数据库 `Null` 值。
@@ -3687,9 +3637,7 @@ SqlNullableInterval name: SqlNullableInterval
 ## class SqlNullableReal <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlNullableReal <: SqlNullableDbType {
-    public init(v: ?Float32)
-}
+public class SqlNullableReal <: SqlNullableDbType
 ```
 
 功能：浮点数，对应仓颉 [Float32](../../core/core_package_api/core_package_intrinsics.md#float32) 类型，可为数据库 `Null` 值。
@@ -3809,9 +3757,7 @@ SqlNullableReal name: SqlNullableReal
 ## class SqlNullableSmallInt <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlNullableSmallInt <: SqlNullableDbType {
-    public init(v: ?Int16)
-}
+public class SqlNullableSmallInt <: SqlNullableDbType
 ```
 
 功能：小整数，对应仓颉 [Int16](../../core/core_package_api/core_package_intrinsics.md#int16) 类型，可为数据库 `Null` 值。
@@ -3931,9 +3877,7 @@ SqlNullableSmallInt name: SqlNullableSmallInt
 ## class SqlNullableTime <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlNullableTime <: SqlNullableDbType {
-    public init(v: ?DateTime)
-}
+public class SqlNullableTime <: SqlNullableDbType
 ```
 
 功能：时间，仅时分秒毫秒有效，对应仓颉 [DateTime](../../time/time_package_api/time_package_structs.md#struct-datetime) 类型，可为数据库 `Null` 值。
@@ -4064,9 +4008,7 @@ Created SqlNullableTime with value: None
 ## class SqlNullableTimestamp <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlNullableTimestamp <: SqlNullableDbType {
-    public init(v: ?DateTime)
-}
+public class SqlNullableTimestamp <: SqlNullableDbType
 ```
 
 功能：时间戳，对应仓颉 [DateTime](../../time/time_package_api/time_package_structs.md#struct-datetime) 类型，可为数据库 `Null` 值。
@@ -4194,9 +4136,7 @@ Created SqlNullableTimestamp with value: None
 ## class SqlNullableTimeTz <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlNullableTimeTz <: SqlNullableDbType {
-    public init(v: ?DateTime)
-}
+public class SqlNullableTimeTz <: SqlNullableDbType
 ```
 
 功能：带时区的时间，仅时分秒毫秒时区有效，对应仓颉 [DateTime](../../time/time_package_api/time_package_structs.md#struct-datetime) 类型，可为数据库 `Null` 值。
@@ -4324,9 +4264,7 @@ Created SqlNullableTimeTz with value: None
 ## class SqlNullableVarBinary <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlNullableVarBinary <: SqlNullableDbType {
-    public init(v: ?Array<Byte>)
-}
+public class SqlNullableVarBinary <: SqlNullableDbType
 ```
 
 功能：变长二进制字符串，对应仓颉 [Array](../../core/core_package_api/core_package_structs.md#struct-arrayt)\<[Byte](../../core/core_package_api/core_package_types.md#type-byte)> 类型，可为数据库 `Null` 值。
@@ -4454,9 +4392,7 @@ Created SqlNullableVarBinary with value: None
 ## class SqlNullableVarchar <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlNullableVarchar <: SqlNullableDbType {
-    public init(v: ?String)
-}
+public class SqlNullableVarchar <: SqlNullableDbType
 ```
 
 功能：变长字符串，对应仓颉 [String](../../core/core_package_api/core_package_structs.md#struct-string) 类型，可为数据库 `Null` 值。
@@ -4575,33 +4511,7 @@ Created SqlNullableVarchar with value: None
 ## class SqlOption
 
 ```cangjie
-public class SqlOption {
-    public static const URL: String = "url"
-    public static const Host: String = "host"
-    public static const Username: String = "username"
-    public static const Password: String = "password"
-    public static const Driver: String = "driver"
-    public static const Database: String = "database"
-    public static const Encoding: String = "encoding"
-    public static const ConnectionTimeout: String = "connection_timeout"
-    public static const UpdateTimeout: String = "update_timeout"
-    public static const QueryTimeout: String = "query_timeout"
-    public static const FetchRows: String = "fetch_rows"
-    public static const SSLMode: String = "ssl.mode"
-    public static const SSLModePreferred: String = "ssl.mode.preferred"
-    public static const SSLModeDisabled: String = "ssl.mode.disabled"
-    public static const SSLModeRequired: String = "ssl.mode.required"
-    public static const SSLModeVerifyCA: String = "ssl.mode.verify_ca"
-    public static const SSLModeVerifyFull: String = "ssl.mode.verify_full"
-    public static const SSLCA: String = "ssl.ca"
-    public static const SSLCert: String = "ssl.cert"
-    public static const SSLKey: String = "ssl.key"
-    public static const SSLKeyPassword: String = "ssl.key.password"
-    public static const SSLSni: String = "ssl.sni"
-    public static const Tls12Ciphersuites: String = "tls1.2.ciphersuites"
-    public static const Tls13Ciphersuites: String = "tls1.3.ciphersuites"
-    public static const TlsVersion: String = "tls.version"
-}
+public class SqlOption
 ```
 
 功能：预定义的 sql 选项名称和值。如果需要扩展，请不要与这些名称和值冲突。
@@ -5311,9 +5221,7 @@ Username key: username
 ## class SqlReal <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlReal <: SqlDbType {
-    public init(v: Float32)
-}
+public class SqlReal <: SqlDbType
 ```
 
 功能：浮点数，对应仓颉 [Float32](../../core/core_package_api/core_package_intrinsics.md#float32) 类型。
@@ -5433,9 +5341,7 @@ SqlReal name: SqlReal
 ## class SqlSmallInt <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlSmallInt <: SqlDbType {
-    public init(v: Int16)
-}
+public class SqlSmallInt <: SqlDbType
 ```
 
 功能：小整数，对应仓颉 [Int16](../../core/core_package_api/core_package_intrinsics.md#int16) 类型。
@@ -5555,9 +5461,7 @@ SqlSmallInt name: SqlSmallInt
 ## class SqlTime <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlTime <: SqlDbType {
-    public init(v: DateTime)
-}
+public class SqlTime <: SqlDbType
 ```
 
 功能：时间，仅时分秒毫秒有效，对应仓颉 [DateTime](../../time/time_package_api/time_package_structs.md#struct-datetime) 类型。
@@ -5678,9 +5582,7 @@ Created SqlTime with value: 2012-01-01T00:00:00Z
 ## class SqlTimestamp <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlTimestamp <: SqlDbType {
-    public init(v: DateTime)
-}
+public class SqlTimestamp <: SqlDbType
 ```
 
 功能：时间戳，对应仓颉 [DateTime](../../time/time_package_api/time_package_structs.md#struct-datetime) 类型。
@@ -5798,9 +5700,7 @@ Created SqlTimestamp with value: 2012-01-01T00:00:00Z
 ## class SqlTimeTz <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlTimeTz <: SqlDbType {
-    public init(v: DateTime)
-}
+public class SqlTimeTz <: SqlDbType
 ```
 
 功能：带时区的时间，仅时分秒毫秒时区有效，对应仓颉 [DateTime](../../time/time_package_api/time_package_structs.md#struct-datetime) 类型。
@@ -5918,9 +5818,7 @@ Created SqlTimeTz with value: 2012-01-01T00:00:00Z
 ## class SqlVarBinary <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlVarBinary <: SqlDbType {
-    public init(v: Array<Byte>)
-}
+public class SqlVarBinary <: SqlDbType
 ```
 
 功能：变长二进制字符串，对应仓颉 [Array](../../core/core_package_api/core_package_structs.md#struct-arrayt)\<[Byte](../../core/core_package_api/core_package_types.md#type-byte)> 类型。
@@ -6037,9 +5935,7 @@ Created SqlVarBinary with value: [5, 6, 7, 8]
 ## class SqlVarchar <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlVarchar <: SqlDbType {
-    public init(v: String)
-}
+public class SqlVarchar <: SqlDbType
 ```
 
 功能：变长字符串，对应仓颉 [String](../../core/core_package_api/core_package_structs.md#struct-string) 类型。

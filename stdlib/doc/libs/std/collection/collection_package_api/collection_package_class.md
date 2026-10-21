@@ -3,10 +3,7 @@
 ## class ArrayDeque\<T>
 
 ```cangjie
-public class ArrayDeque<T> <: Deque<T> {
-    public init()
-    public init(capacity: Int64)
-}
+public class ArrayDeque<T> <: Deque<T>
 ```
 
 功能：ArrayDeque 是双端队列（deque）实现类，可以在双端队列的两端进行元素的插入和删除操作。ArrayDeque 是根据可调整大小的数组实现的，其容量会在插入元素的过程中不断地增长，默认每次扩容 50% 大小。ArrayDeque 的实现采用了循环队列的方式，在没有扩容的情况下，其插入、删除、查看等操作的时间复杂度为 O(1)。
@@ -651,12 +648,7 @@ main() {
 ## class ArrayList\<T>
 
 ```cangjie
-public class ArrayList<T> <: List<T> {
-    public init()
-    public init(capacity: Int64)
-    public init(size: Int64, initElement: (Int64) -> T)
-    public init(elements: Collection<T>)
-}
+public class ArrayList<T> <: List<T>
 ```
 
 功能：提供可变长度的数组的功能。
@@ -3277,10 +3269,7 @@ main() {
 ## class ArrayQueue\<T>
 
 ```cangjie
-public class ArrayQueue<T> <: Queue<T> {
-    public init()
-    public init(capacity: Int64)
-}
+public class ArrayQueue<T> <: Queue<T>
 ```
 
 功能：基于数组实现的循环队列数据结构。
@@ -3880,10 +3869,7 @@ main() {
 ## class ArrayStack\<T>
 
 ```cangjie
-public class ArrayStack<T> <: Stack<T> {
-    public init(capacity: Int64)
-    public init()
-}
+public class ArrayStack<T> <: Stack<T>
 ```
 
 功能：[ArrayStack](#class-arraystackt) 是一种基于数组 [Array](../../core/core_package_api/core_package_structs.md#struct-arrayt) 实现的栈 [Stack](./collection_package_interface.md#interface-stackt) 数据结构。ArrayStack 的实现方式是使用一个数组来存储栈中的元素，同时使用一个指针来指向栈顶元素的位置。
@@ -4485,13 +4471,7 @@ main() {
 ## class HashMap\<K, V> where K <: Hashable & Equatable\<K>
 
 ```cangjie
-public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
-    public init()
-    public init(elements: Collection<(K, V)>)
-    public init(elements: Array<(K, V)>)
-    public init(capacity: Int64)
-    public init(size: Int64, initElement: (Int64) -> (K, V))
-}
+public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K>
 ```
 
 功能：[Map](collection_package_interface.md#interface-mapk-v) 接口的哈希表实现。
@@ -6417,9 +6397,7 @@ HashMap的字符串表示: [(apple, 5), (banana, 3), (orange, 8)]
 ## class HashMapIterator\<K, V> where K <: Hashable & Equatable\<K>
 
 ```cangjie
-public class HashMapIterator<K, V> <: Iterator<(K, V)> where K <: Hashable & Equatable<K> {
-    public init(map: HashMap<K, V>)
-}
+public class HashMapIterator<K, V> <: Iterator<(K, V)> where K <: Hashable & Equatable<K>
 ```
 
 功能：此类主要实现 [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 的迭代器功能。
@@ -6561,13 +6539,7 @@ main() {
 ## class HashSet\<T> where T <: Hashable & Equatable\<T>
 
 ```cangjie
-public class HashSet<T> <: Set<T> where T <: Hashable & Equatable<T> {
-    public init()
-    public init(elements: Collection<T>)
-    public init(elements: Array<T>)
-    public init(capacity: Int64)
-    public init(size: Int64, initElement: (Int64) -> T)
-}
+public class HashSet<T> <: Set<T> where T <: Hashable & Equatable<T>
 ```
 
 功能：基于 [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 实现的 [Set](collection_package_interface.md#interface-sett) 接口的实例。
@@ -8478,12 +8450,7 @@ main() {
 ## class LinkedList\<T>
 
 ```cangjie
-public class LinkedList<T> <: Collection<T> {
-    public init()
-    public init(elements: Collection<T>)
-    public init(elements: Array<T>)
-    public init(size: Int64, initElement: (Int64)-> T)
-}
+public class LinkedList<T> <: Collection<T>
 ```
 
 功能：实现双向链表的数据结构。
@@ -10891,7 +10858,7 @@ main() {
 ## class LinkedListNode\<T>
 
 ```cangjie
-public class LinkedListNode<T> {}
+public class LinkedListNode<T>
 ```
 
 功能：[LinkedListNode](collection_package_class.md#class-linkedlistnodet) 是 [LinkedList](collection_package_class.md#class-linkedlistt) 上的节点。
@@ -11075,12 +11042,7 @@ main() {
 ## class TreeMap\<K, V> where K <: Comparable\<K>
 
 ```cangjie
-public class TreeMap<K, V> <: OrderedMap<K, V> where K <: Comparable<K> {
-    public init()
-    public init(elements: Collection<(K, V)>)
-    public init(elements: Array<(K,V)>)
-    public init(size: Int64, initElement: (Int64) -> (K, V))
-}
+public class TreeMap<K, V> <: OrderedMap<K, V> where K <: Comparable<K>
 ```
 
 功能：基于多路平衡树实现的 [OrderedMap](collection_package_interface.md#interface-orderedmapk-v) 接口实例。
@@ -13317,11 +13279,7 @@ main() {
 ## class TreeSet\<T> where T <: Comparable\<T>
 
 ```cangjie
-public class TreeSet<T> <: OrderedSet<T> where T <: Comparable<T> {
-    public init()
-    public init(elements: Collection<T>)
-    public init(size: Int64, initElement: (Int64) -> T)
-}
+public class TreeSet<T> <: OrderedSet<T> where T <: Comparable<T>
 ```
 
 功能：基于 [TreeMap](collection_package_class.md#class-treemapk-v-where-k--comparablek) 实现的 [Set](collection_package_interface.md#interface-sett) 接口的实例。

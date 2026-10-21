@@ -3,11 +3,7 @@
 ## enum RegexFlag
 
 ```cangjie
-public enum RegexFlag {
-    | IgnoreCase
-    | MultiLine
-    | Unicode
-}
+public enum RegexFlag
 ```
 
 功能：用于指定正则匹配的模式。

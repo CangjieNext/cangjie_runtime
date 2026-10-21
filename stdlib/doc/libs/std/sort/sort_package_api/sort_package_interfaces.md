@@ -3,10 +3,7 @@
 ## interface SortByExtension\<T> <sup>(deprecated)</sup>
 
 ```cangjie
-public interface SortByExtension<T> {
-    func sortBy(comparator!: (T, T) -> Ordering): Unit
-    func sortBy(stable!: Bool, comparator!: (T, T) -> Ordering): Unit
-}
+public interface SortByExtension<T>
 ```
 
 功能：此接口作为排序相关的辅助接口，通过传入的比较函数，根据其返回值 [Ordering](../../core/core_package_api/core_package_enums.md#enum-ordering) 类型的结果，可对 T 进行自定义排序。
@@ -172,12 +169,7 @@ main() {
 ## interface SortExtension <sup>(deprecated)</sup>
 
 ```cangjie
-public interface SortExtension {
-    func sort(): Unit
-    func sort(stable!: Bool): Unit
-    func sortDescending(): Unit
-    func sortDescending(stable!: Bool): Unit
-}
+public interface SortExtension
 ```
 
 功能：此接口作为排序相关的辅助接口。

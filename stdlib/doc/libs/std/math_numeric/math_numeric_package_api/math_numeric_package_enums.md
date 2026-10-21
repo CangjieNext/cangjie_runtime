@@ -3,11 +3,7 @@
 ## enum OverflowStrategy
 
 ```cangjie
-public enum OverflowStrategy <: Equatable<OverflowStrategy> & ToString {
-    | Saturating
-    | Throwing
-    | Wrapping
-}
+public enum OverflowStrategy <: Equatable<OverflowStrategy> & ToString
 ```
 
 功能：溢出策略枚举类，共包含 3 种溢出策略。[BigInt](math_numeric_package_structs.md#struct-bigint) 类型、[Decimal](math_numeric_package_structs.md#struct-decimal) 类型转换为整数类型时，允许指定不同的溢出处理策略。

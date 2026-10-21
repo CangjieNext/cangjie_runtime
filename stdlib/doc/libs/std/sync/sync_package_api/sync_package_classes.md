@@ -3,9 +3,7 @@
 ## class AtomicBool
 
 ```cangjie
-public class AtomicBool {
-    public init(val: Bool)
-}
+public class AtomicBool
 ```
 
 功能：提供 [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) 类型的原子操作相关函数。
@@ -405,9 +403,7 @@ main(): Unit {
 ## class AtomicInt16
 
 ```cangjie
-public class AtomicInt16 {
-    public init(val: Int16)
-}
+public class AtomicInt16
 ```
 
 功能：提供 [Int16](../../core/core_package_api/core_package_intrinsics.md#int16) 类型的原子操作相关函数。
@@ -1245,9 +1241,7 @@ main(): Unit {
 ## class AtomicInt32
 
 ```cangjie
-public class AtomicInt32 {
-    public init(val: Int32)
-}
+public class AtomicInt32
 ```
 
 功能：提供 [Int32](../../core/core_package_api/core_package_intrinsics.md#int32) 类型的原子操作相关函数。
@@ -2085,9 +2079,7 @@ main(): Unit {
 ## class AtomicInt64
 
 ```cangjie
-public class AtomicInt64 {
-    public init(val: Int64)
-}
+public class AtomicInt64
 ```
 
 功能：提供 [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) 类型的原子操作相关函数。
@@ -2932,9 +2924,7 @@ main(): Unit {
 ## class AtomicInt8
 
 ```cangjie
-public class AtomicInt8 {
-    public init(val: Int8)
-}
+public class AtomicInt8
 ```
 
 功能：提供 [Int8](../../core/core_package_api/core_package_intrinsics.md#int8) 类型的原子操作相关函数。
@@ -3772,10 +3762,7 @@ main(): Unit {
 ## class AtomicOptionReference\<T> where T <: Object
 
 ```cangjie
-public class AtomicOptionReference<T> where T <: Object {
-    public init()
-    public init(val: Option<T>)
-}
+public class AtomicOptionReference<T> where T <: Object
 ```
 
 功能：提供引用类型原子操作相关函数。
@@ -4398,9 +4385,7 @@ main(): Unit {
 ## class AtomicReference\<T> where T <: Object
 
 ```cangjie
-public class AtomicReference<T> where T <: Object {
-    public init(val: T)
-}
+public class AtomicReference<T> where T <: Object
 ```
 
 功能：引用类型原子操作相关函数。
@@ -4885,9 +4870,7 @@ main(): Unit {
 ## class AtomicUInt16
 
 ```cangjie
-public class AtomicUInt16 {
-    public init(val: UInt16)
-}
+public class AtomicUInt16
 ```
 
 功能：提供 [UInt16](../../core/core_package_api/core_package_intrinsics.md#uint16) 类型的原子操作相关函数。
@@ -5725,9 +5708,7 @@ main(): Unit {
 ## class AtomicUInt32
 
 ```cangjie
-public class AtomicUInt32 {
-    public init(val: UInt32)
-}
+public class AtomicUInt32
 ```
 
 功能：提供 [UInt32](../../core/core_package_api/core_package_intrinsics.md#uint32) 类型的原子操作相关函数。
@@ -6565,9 +6546,7 @@ main(): Unit {
 ## class AtomicUInt64
 
 ```cangjie
-public class AtomicUInt64 {
-    public init(val: UInt64)
-}
+public class AtomicUInt64
 ```
 
 功能：提供 [UInt64](../../core/core_package_api/core_package_intrinsics.md#uint64) 类型的原子操作相关函数。
@@ -7405,9 +7384,7 @@ main(): Unit {
 ## class AtomicUInt8
 
 ```cangjie
-public class AtomicUInt8 {
-    public init(val: UInt8)
-}
+public class AtomicUInt8
 ```
 
 功能：提供 [UInt8](../../core/core_package_api/core_package_intrinsics.md#uint8) 类型的原子操作相关函数。
@@ -8245,9 +8222,7 @@ main(): Unit {
 ## class Barrier
 
 ```cangjie
-public class Barrier {
-    public init(count: Int64)
-}
+public class Barrier
 ```
 
 功能：提供协调多个线程一起执行到某一个程序点的功能。
@@ -8354,9 +8329,7 @@ main(): Unit {
 ## class Monitor <sup>(deprecated)</sup>
 
 ```cangjie
-public class Monitor <: ReentrantMutex {
-    public init()
-}
+public class Monitor <: ReentrantMutex
 ```
 
 功能：提供使线程阻塞并等待来自另一个线程的信号以恢复执行的功能。
@@ -8609,9 +8582,7 @@ New thread: awakened by notify
 ## class MultiConditionMonitor <sup>(deprecated)</sup>
 
 ```cangjie
-public class MultiConditionMonitor <: ReentrantMutex {
-    public init()
-}
+public class MultiConditionMonitor <: ReentrantMutex
 ```
 
 功能：提供对同一个互斥锁绑定多个条件变量的功能。
@@ -8919,9 +8890,7 @@ New thread: awakened by notify
 ## class Mutex
 
 ```cangjie
-public class Mutex <: UniqueLock {
-    public init()
-}
+public class Mutex <: UniqueLock
 ```
 
 功能：提供可重入互斥锁相关功能。
@@ -9204,9 +9173,7 @@ main(): Int64 {
 ## class ReadWriteLock
 
 ```cangjie
-public class ReadWriteLock {
-    public init(fair!: Bool = false)
-}
+public class ReadWriteLock
 ```
 
 功能：提供可重入读写锁相关功能。
@@ -9413,9 +9380,7 @@ rwLock2 是否为公平模式: true
 ## class ReentrantMutex <sup>(deprecated)</sup>
 
 ```cangjie
-public open class ReentrantMutex <: Lock {
-    public init()
-}
+public open class ReentrantMutex <: Lock
 ```
 
 功能：提供可重入锁相关功能。
@@ -9679,7 +9644,7 @@ main(): Int64 {
 ## class ReentrantReadMutex <sup>(deprecated)</sup>
 
 ```cangjie
-public class ReentrantReadMutex <: ReentrantMutex {}
+public class ReentrantReadMutex <: ReentrantMutex
 ```
 
 功能：提供可重入读写锁中的读锁类型。
@@ -9917,9 +9882,7 @@ main(): Int64 {
 ## class ReentrantReadWriteMutex <sup>(deprecated)</sup>
 
 ```cangjie
-public class ReentrantReadWriteMutex {
-    public init(mode!: ReadWriteMutexMode = ReadWriteMutexMode.Unfair)
-}
+public class ReentrantReadWriteMutex
 ```
 
 功能：提供可重入读写锁相关功能。
@@ -10023,7 +9986,7 @@ main(): Unit {
 ## class ReentrantWriteMutex <sup>(deprecated)</sup>
 
 ```cangjie
-public class ReentrantWriteMutex <: ReentrantMutex {}
+public class ReentrantWriteMutex <: ReentrantMutex
 ```
 
 功能：提供可重入读写锁中的写锁类型。
@@ -10253,9 +10216,7 @@ main(): Int64 {
 ## class Semaphore
 
 ```cangjie
-public class Semaphore {
-    public init(count: Int64)
-}
+public class Semaphore
 ```
 
 功能：提供信号量相关功能。
@@ -10530,9 +10491,7 @@ main(): Unit {
 ## class SyncCounter
 
 ```cangjie
-public class SyncCounter {
-    public init(count: Int64)
-}
+public class SyncCounter
 ```
 
 功能：提供倒数计数器功能。
@@ -10726,7 +10685,7 @@ main(): Int64 {
 ## class Timer
 
 ```cangjie
-public class Timer <: Equatable<Timer> & Hashable {}
+public class Timer <: Equatable<Timer> & Hashable
 ```
 
 功能：提供定时器功能。

@@ -3,10 +3,7 @@
 ## class ContentFormatException
 
 ```cangjie
-public class ContentFormatException <: Exception {
-    public init()
-    public init(message: String)
-}
+public class ContentFormatException <: Exception
 ```
 
 功能：提供字符格式相关的异常处理。
@@ -80,10 +77,7 @@ main(): Unit {
 ## class IOException
 
 ```cangjie
-public open class IOException <: Exception {
-    public init()
-    public init(message: String)
-}
+public open class IOException <: Exception
 ```
 
 功能：提供 IO 流相关的异常处理。

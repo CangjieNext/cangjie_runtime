@@ -1363,11 +1363,7 @@ prefix1 == prefix3: false
 ## class IPSocketAddress
 
 ```cangjie
-public class IPSocketAddress <: SocketAddress & Equatable<IPSocketAddress>{
-    public init(address: Array<Byte>, port: UInt16)
-    public init(address: String, port: UInt16)
-    public init(address: IPAddress, port: UInt16)
-}
+public class IPSocketAddress <: SocketAddress & Equatable<IPSocketAddress>
 ```
 
 功能：此类实现了 IP 协议 Socket 地址（IP 地址+端口号）。它提供了一个不可变的对象，用于 Socket  的绑定、连接或作为返回值。
@@ -2014,13 +2010,7 @@ socketAddr1 == socketAddr3: false
 ## class IPv4Address
 
 ```cangjie
-public class IPv4Address <: IPAddress & ToString & Equatable<IPv4Address> & LessOrEqual<IPv4Address> {
-    public static let localhost: IPv4Address = IPv4Address(0x7F, 0, 0, 0x01)
-    public static let unspecified: IPv4Address = IPv4Address(0, 0, 0, 0)
-    public static let broadcast: IPv4Address = IPv4Address(0xFF, 0xFF, 0xFF, 0xFF)
-    public init(bits: UInt32)
-    public init(a: Byte, b: Byte, c: Byte, d: Byte)
-}
+public class IPv4Address <: IPAddress & ToString & Equatable<IPv4Address> & LessOrEqual<IPv4Address>
 ```
 
 功能：此类表示 Internet 协议版本 4（IPv4）地址。由 [RFC 790](https://datatracker.ietf.org/doc/html/rfc790)、[RFC 1918](https://datatracker.ietf.org/doc/html/rfc1918) 和 [RFC 2365](https://datatracker.ietf.org/doc/html/rfc2365) 定义。
@@ -2898,12 +2888,7 @@ main() {
 ## class IPv6Address
 
 ```cangjie
-public class IPv6Address <: IPAddress & ToString & Equatable<IPv6Address> & LessOrEqual<IPv6Address> {
-    public static let localhost: IPv6Address = IPv6Address(0u16, 0, 0, 0, 0, 0, 0, 1)
-    public static let unspecified: IPv6Address = IPv6Address(0u16, 0, 0, 0, 0, 0, 0, 0)
-    public init(octets: Array<Byte>, scopeId!: ?UInt32 = None)
-    public init(a: UInt16, b: UInt16, c: UInt16, d: UInt16, e: UInt16, f: UInt16, g: UInt16, h: UInt16, scopeId!: ?UInt32 = None)
-}
+public class IPv6Address <: IPAddress & ToString & Equatable<IPv6Address> & LessOrEqual<IPv6Address>
 ```
 
 功能：此类表示 Internet 协议版本 6 （IPv6）地址。由 [RFC4291](https://datatracker.ietf.org/doc/html/rfc4291)、[RFC5952](https://datatracker.ietf.org/doc/html/rfc5952)、[RFC4007](https://datatracker.ietf.org/doc/html/rfc4007) 定义。
@@ -3871,9 +3856,7 @@ main() {
 ## class RawSocket
 
 ```cangjie
-public class RawSocket {
-    public init(domain: SocketDomain, `type`: SocketType, protocol: ProtocolType)
-}
+public class RawSocket
 ```
 
 功能：[RawSocket](net_package_classes.md#class-rawsocket) 提供了套接字的基本功能。
@@ -5200,10 +5183,7 @@ socketAddr1 == socketAddr3: false
 ## class TcpServerSocket
 
 ```cangjie
-public class TcpServerSocket <: ServerSocket {
-    public init(bindAt!: UInt16)
-    public init(bindAt!: SocketAddress)
-}
+public class TcpServerSocket <: ServerSocket
 ```
 
 功能：监听 TCP 连接的服务端。
@@ -6150,11 +6130,7 @@ toString: TcpServerSocket(unconnected, unbound)
 ## class TcpSocket
 
 ```cangjie
-public class TcpSocket <: StreamingSocket & Equatable<TcpSocket> & Hashable {
-    public init(address: String, port: UInt16)
-    public init(address: SocketAddress)
-    public init(address: SocketAddress, localAddress!: ?SocketAddress)
-}
+public class TcpSocket <: StreamingSocket & Equatable<TcpSocket> & Hashable
 ```
 
 功能：请求 TCP 连接的客户端。
@@ -7598,10 +7574,7 @@ tcpSocket1 == tcpSocket3: true
 ## class UdpSocket
 
 ```cangjie
-public class UdpSocket <: DatagramSocket {
-    public init(bindAt!: UInt16)
-    public init(bindAt!: SocketAddress)
-}
+public class UdpSocket <: DatagramSocket
 ```
 
 功能：提供 udp 报文通信。
@@ -9094,10 +9067,7 @@ UdpSocket toString: UdpSocket(bound at 0.0.0.0:33358)
 ## class UnixDatagramSocket
 
 ```cangjie
-public class UnixDatagramSocket <: DatagramSocket {
-    public init(bindAt!: String)
-    public init(bindAt!: SocketAddress)
-}
+public class UnixDatagramSocket <: DatagramSocket
 ```
 
 功能：提供基于数据包的主机通讯能力。
@@ -10794,10 +10764,7 @@ Socket toString: UnixDatagramSocket(unconnected, unbound)
 ## class UnixServerSocket
 
 ```cangjie
-public class UnixServerSocket <: ServerSocket {
-    public init(bindAt!: String)
-    public init(bindAt!: SocketAddress)
-}
+public class UnixServerSocket <: ServerSocket
 ```
 
 功能：提供基于双工流的主机通讯服务端。
@@ -11872,10 +11839,7 @@ Server socket state after close: UnixServerSocket(closed)
 ## class UnixSocket
 
 ```cangjie
-public class UnixSocket <: StreamingSocket {
-    public init(path: String, localPath!: ?String = None)
-    public init(address: SocketAddress, localAddress!: ?SocketAddress = None)
-}
+public class UnixSocket <: StreamingSocket
 ```
 
 功能：提供基于双工流的主机通讯客户端。
@@ -13194,10 +13158,7 @@ Server received 14 bytes: Hello, server!
 ## class UnixSocketAddress
 
 ```cangjie
-public class UnixSocketAddress <: SocketAddress & Equatable<UnixSocketAddress> {
-    public init(path: Array<Byte>)
-    public init(path: String)
-}
+public class UnixSocketAddress <: SocketAddress & Equatable<UnixSocketAddress>
 ```
 
 功能：此类实现了 Unix Domain Socket 地址，Unix Domain Socket 地址封装了 Unix Domain Socket 绑定或连接到的文件系统路径，路径长度不可超过 108。

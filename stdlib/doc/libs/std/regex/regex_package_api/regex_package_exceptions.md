@@ -3,10 +3,7 @@
 ## class RegexException
 
 ```cangjie
-public class RegexException <: Exception {
-    public init()
-    public init(message: String)
-}
+public class RegexException <: Exception
 ```
 
 功能：提供正则的异常处理。

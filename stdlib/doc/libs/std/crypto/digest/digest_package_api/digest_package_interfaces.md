@@ -3,15 +3,7 @@
 ## interface Digest
 
 ```cangjie
-public interface Digest {
-    prop size: Int64
-    prop blockSize: Int64
-    prop algorithm: String
-    func write(buffer: Array<Byte>): Unit
-    func finish(to!: Array<Byte>): Unit
-    func finish(): Array<Byte>
-    func reset(): Unit
-}
+public interface Digest
 ```
 
 功能：摘要算法接口，继承该接口的 class、interface、struct 也需要遵守该接口中函数的入参及返回值定义。

@@ -3,9 +3,7 @@
 ## interface Formattable
 
 ```cangjie
-public interface Formattable {
-    func format(fmt: String): String
-}
+public interface Formattable
 ```
 
 功能：该接口定义了格式化函数，即根据格式化参数将指定类型实例转换为对应格式的字符串。
@@ -756,10 +754,7 @@ main() {
 ## interface Parsable\<T>
 
 ```cangjie
-public interface Parsable<T> {
-    static func parse(value: String): T
-    static func tryParse(value: String): Option<T>
-}
+public interface Parsable<T>
 ```
 
 功能：本接口提供了统一的方法，以支持将字符串解析为特定类型。
@@ -1966,13 +1961,7 @@ After the conversion of tryParse, "255" became Some(255)
 ## interface RadixConvertible\<T>
 
 ```cangjie
-public interface RadixConvertible<T> {
-    static func parse(value: String, radix!: Int64): T
-
-    static func tryParse(value: String, radix!: Int64): Option<T>
-
-    func toString(radix!: Int64): String
-}
+public interface RadixConvertible<T>
 ```
 
 功能：本接口提供了统一的方法，以支持将指定进制的字符串解析为特定类型。

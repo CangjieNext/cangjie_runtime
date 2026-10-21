@@ -3,15 +3,7 @@
 ## class Signal
 
 ```cangjie
-public class Signal {
-    public static const SIGHUP = Signal(0x1, "hangup")
-    public static const SIGINT = Signal(0x2, "interrupt")
-    public static const SIGQUIT = Signal(0x3, "quit")
-    public static const SIGTRAP = Signal(0x5, "trace/breakpoint trap")
-    public static const SIGALRM = Signal(0xe, "alarm clock")
-    public static const SIGTERM = Signal(0xf, "terminated")
-    public const init(value: Int32, comment: String)
-}
+public class Signal
 ```
 
 功能：信号类，用于向操作系统、其他进程或进程自身传递事件的通知。

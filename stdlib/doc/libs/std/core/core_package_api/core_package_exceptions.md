@@ -3,10 +3,7 @@
 ## class ArithmeticException
 
 ```cangjie
-public open class ArithmeticException <: Exception {
-    public init()
-    public init(message: String)
-}
+public open class ArithmeticException <: Exception
 ```
 
 功能：算术异常类，发生算术异常时使用。
@@ -80,7 +77,7 @@ ArithmeticException的init(String)构造函数用于根据异常信息创建算�
 ## class Error
 
 ```cangjie
-public open class Error <: ToString {}
+public open class Error <: ToString
 ```
 
 功能：[Error](core_package_exceptions.md#class-error) 是所有错误类的基类。该类不可被继承，不可初始化，但是可以被捕获到。
@@ -217,12 +214,7 @@ main() {
 
 <!--RP1-->
 ```cangjie
-public open class Exception <: ToString {
-    public init()
-    public init(message: String)
-    public init(message: String, causedBy: Exception)
-    public init(causedBy: Exception)
-}
+public open class Exception <: ToString
 ```
 <!--RP1End-->
 
@@ -594,7 +586,7 @@ main() {
 ## class ExclusiveScopeException
 
 ```cangjie
-public class ExclusiveScopeException <: Exception {}
+public class ExclusiveScopeException <: Exception
 ```
 
 功能：自定义异常类，用于包装在独占作用域中抛出的异常。它保留了原始异常的堆栈信息，不支持主动构造该异常，但是可以被捕获到。
@@ -633,10 +625,7 @@ main() {
 ## class IllegalArgumentException
 
 ```cangjie
-public open class IllegalArgumentException <: Exception {
-    public init()
-    public init(message: String)
-}
+public open class IllegalArgumentException <: Exception
 ```
 
 功能：表示参数非法的异常类。
@@ -688,10 +677,7 @@ main() {
 ## class IllegalFormatException
 
 ```cangjie
-public open class IllegalFormatException <: IllegalArgumentException {
-    public init()
-    public init(message: String)
-}
+public open class IllegalFormatException <: IllegalArgumentException
 ```
 
 功能：表示变量的格式无效或不标准时的异常类。
@@ -743,10 +729,7 @@ main() {
 ## class IllegalMemoryException
 
 ```cangjie
-public class IllegalMemoryException <: Exception {
-    public init()
-    public init(message: String)
-}
+public class IllegalMemoryException <: Exception
 ```
 
 功能：表示内存操作错误的异常类。
@@ -798,10 +781,7 @@ main() {
 ## class IllegalStateException
 
 ```cangjie
-public class IllegalStateException <: Exception {
-    public init()
-    public init(message: String)
-}
+public class IllegalStateException <: Exception
 ```
 
 功能：表示状态非法的异常类。
@@ -853,10 +833,7 @@ main() {
 ## class IncompatiblePackageException
 
 ```cangjie
-public class IncompatiblePackageException <: Exception {
-    public init()
-    public init(message: String)
-}
+public class IncompatiblePackageException <: Exception
 ```
 
 功能：表示包不兼容的异常类。
@@ -908,10 +885,7 @@ main() {
 ## class IndexOutOfBoundsException
 
 ```cangjie
-public class IndexOutOfBoundsException <: Exception {
-    public init()
-    public init(message: String)
-}
+public class IndexOutOfBoundsException <: Exception
 ```
 
 功能：表示索引越界的异常类。
@@ -963,10 +937,7 @@ main() {
 ## class NegativeArraySizeException
 
 ```cangjie
-public class NegativeArraySizeException <: Exception {
-    public init()
-    public init(message: String)
-}
+public class NegativeArraySizeException <: Exception
 ```
 
 功能：表示数组大小为负数的异常类。
@@ -1018,10 +989,7 @@ main() {
 ## class NoneValueException
 
 ```cangjie
-public class NoneValueException <: Exception {
-    public init()
-    public init(message: String)
-}
+public class NoneValueException <: Exception
 ```
 
 功能：表示 [Option](core_package_enums.md#enum-optiont)\<T> 实例的值为 `None` 的异常类，通常在 `getOrThrow` 函数中被抛出。
@@ -1073,7 +1041,7 @@ main() {
 ## class OutOfMemoryError
 
 ```cangjie
-public class OutOfMemoryError <: Error {}
+public class OutOfMemoryError <: Error
 ```
 
 功能：表示内存不足错误的错误类，该类不可被继承，不可初始化，但是可以被捕获到。
@@ -1087,10 +1055,7 @@ public class OutOfMemoryError <: Error {}
 ## class OverflowException
 
 ```cangjie
-public class OverflowException <: ArithmeticException {
-    public init()
-    public init(message: String)
-}
+public class OverflowException <: ArithmeticException
 ```
 
 功能：表示算术运算溢出的异常类。
@@ -1142,10 +1107,7 @@ main() {
 ## class SpawnException
 
 ```cangjie
-public class SpawnException <: Exception {
-    public init()
-    public init(message: String)
-}
+public class SpawnException <: Exception
 ```
 
 功能：线程异常类，表示线程处理过程中发生异常。
@@ -1197,7 +1159,7 @@ main() {
 ## class StackOverflowError
 
 ```cangjie
-public class StackOverflowError <: Error {}
+public class StackOverflowError <: Error
 ```
 
 功能：表示堆栈溢出错误的错误类，该类不可被继承，不可初始化，但是可以被捕获到。
@@ -1231,10 +1193,7 @@ main() {
 ## class TimeoutException
 
 ```cangjie
-public class TimeoutException <: Exception {
-    public init()
-    public init(message: String)
-}
+public class TimeoutException <: Exception
 ```
 
 功能：当阻塞操作超时时引发异常。
@@ -1286,10 +1245,7 @@ main() {
 ## class UnsupportedException
 
 ```cangjie
-public class UnsupportedException <: Exception {
-    public init()
-    public init(message: String)
-}
+public class UnsupportedException <: Exception
 ```
 
 功能：表示功能未支持的异常类。

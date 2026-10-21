@@ -3,7 +3,7 @@
 ## class ThreadGroup\<T>
 
 ```cangjie
-public class ThreadGroup<T> <: Iterable<T> {}
+public class ThreadGroup<T> <: Iterable<T>
 ```
 
 功能：支持启动并发线程、向所有已启动线程发送取消请求，以及消费线程结果。

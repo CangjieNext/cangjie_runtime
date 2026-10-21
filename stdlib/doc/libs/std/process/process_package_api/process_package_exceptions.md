@@ -3,9 +3,7 @@
 ## class ProcessException
 
 ```cangjie
-public class ProcessException <: IOException {
-    public init(message: String)
-}
+public class ProcessException <: IOException
 ```
 
 功能：`process` 包的异常类。

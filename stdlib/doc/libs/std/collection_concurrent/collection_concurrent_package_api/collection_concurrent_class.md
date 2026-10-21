@@ -3,11 +3,7 @@
 ## class ArrayBlockingQueue\<E>
 
 ```cangjie
-public class ArrayBlockingQueue<E> {
-    public let capacity: Int64
-    public init(capacity: Int64)
-    public init(capacity: Int64, elements: Collection<E>)
-}
+public class ArrayBlockingQueue<E>
 ```
 
 功能：基于数组实现的 Blocking Queue 数据结构及相关操作函数。
@@ -811,12 +807,7 @@ None
 ## class ConcurrentHashMap\<K, V> where K <: Hashable & Equatable\<K>
 
 ```cangjie
-public class ConcurrentHashMap<K, V> <: ConcurrentMap<K, V> & Collection<(K, V)> where K <: Hashable & Equatable<K> {
-    public init(concurrencyLevel!: Int64 = 16)
-    public init(capacity: Int64, concurrencyLevel!: Int64 = 16)
-    public init(elements: Collection<(K, V)>, concurrencyLevel!: Int64 = 16)
-    public init(size: Int64, initElement: (Int64) -> (K, V), concurrencyLevel!: Int64 = 16)
-}
+public class ConcurrentHashMap<K, V> <: ConcurrentMap<K, V> & Collection<(K, V)> where K <: Hashable & Equatable<K>
 ```
 
 功能：此类用于实现并发场景下线程安全的哈希表 [ConcurrentHashMap](collection_concurrent_class.md#class-concurrenthashmapk-v-where-k--hashable--equatablek) 数据结构及相关操作函数。
@@ -1932,9 +1923,7 @@ Key: 1, Value: First
 ## class ConcurrentHashMapIterator\<K, V> where K <: Hashable & Equatable\<K>
 
 ```cangjie
-public class ConcurrentHashMapIterator<K, V> <: Iterator<(K, V)> where K <: Hashable & Equatable<K> {
-    public init(cmap: ConcurrentHashMap<K, V>)
-}
+public class ConcurrentHashMapIterator<K, V> <: Iterator<(K, V)> where K <: Hashable & Equatable<K>
 ```
 
 功能：此类主要实现 [ConcurrentHashMap](collection_concurrent_class.md#class-concurrenthashmapk-v-where-k--hashable--equatablek) 的迭代器功能。
@@ -2039,10 +2028,7 @@ main() {
 ## class ConcurrentLinkedQueue\<E>
 
 ```cangjie
-public class ConcurrentLinkedQueue<E> <: Collection<E> {
-    public init()
-    public init(elements: Collection<E>)
-}
+public class ConcurrentLinkedQueue<E> <: Collection<E>
 ```
 
 功能：提供一个线程安全的队列，可以在多线程环境下安全地进行元素的添加和删除操作。
@@ -2702,13 +2688,7 @@ main() {
 ## class LinkedBlockingQueue\<E>
 
 ```cangjie
-public class LinkedBlockingQueue<E> {
-    public let capacity: Int64
-    public init(capacity: Int64)
-    public init()
-    public init(capacity: Int64, elements: Array<E>)
-    public init(capacity: Int64, elements: Collection<E>)
-}
+public class LinkedBlockingQueue<E>
 ```
 
 功能：实现是带阻塞机制并支持用户指定容量上界的并发队列。

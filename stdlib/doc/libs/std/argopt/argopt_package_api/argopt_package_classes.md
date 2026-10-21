@@ -3,12 +3,7 @@
 ## class ArgOpt <sup>(deprecated)</sup>
 
 ```cangjie
-public class ArgOpt {
-    public init(shortArgFormat: String)
-    public init(longArgList: Array<String>)
-    public init(shortArgFormat: String, longArgList: Array<String>)
-    public init(args: Array<String>, shortArgFormat: String, longArgList: Array<String>)
-}
+public class ArgOpt
 ```
 
 功能：用于解析命令行参数，并提供了获取解析结果的功能。

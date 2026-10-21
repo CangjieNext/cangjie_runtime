@@ -3,19 +3,7 @@
 ## enum AnnotationKind
 
 ```cangjie
-public enum AnnotationKind {
-    | Type
-    | Parameter
-    | Init
-    | MemberProperty
-    | MemberFunction
-    | MemberVariable
-    | EnumConstructor
-    | GlobalFunction
-    | GlobalVariable
-    | Extension
-    | ...
-}
+public enum AnnotationKind
 ```
 
 功能：表示自定义注解希望支持的位置。
@@ -103,10 +91,7 @@ Type
 ## enum Endian
 
 ```cangjie
-public enum Endian {
-    | Big
-    | Little
-}
+public enum Endian
 ```
 
 功能：枚举类型 [Endian](core_package_enums.md#enum-endian) 表示运行平台的端序，分为大端序和小端序。
@@ -163,10 +148,7 @@ LittleEndian
 ## enum Option\<T>
 
 ```cangjie
-public enum Option<T> {
-    | Some(T)
-    | None
-}
+public enum Option<T>
 ```
 
 功能：[Option](core_package_enums.md#enum-optiont)\<T> 是对 `T` 类型的封装，表示可能有值也可能无值。
@@ -884,11 +866,7 @@ Some("Hello")转换为字符串: Some(Hello)
 ## enum Ordering
 
 ```cangjie
-public enum Ordering {
-    | LT
-    | GT
-    | EQ
-}
+public enum Ordering
 ```
 
 功能：[Ordering](core_package_enums.md#enum-ordering) 表示比较大小的结果，它包含三种情况：小于，大于和等于。
@@ -1099,13 +1077,7 @@ LT转换为字符串: Ordering.LT
 ## enum ThreadState
 
 ```cangjie
-public enum ThreadState <: ToString {
-    | Ready
-    | Running
-    | Pending
-    | Terminated
-    | ...
-}
+public enum ThreadState <: ToString
 ```
 
 功能：表示线程的状态。

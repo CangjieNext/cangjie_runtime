@@ -3,11 +3,7 @@
 ## enum SocketNet
 
 ```cangjie
-public enum SocketNet <: ToString & Equatable<SocketNet> {
-    | TCP
-    | UDP
-    | UNIX
-}
+public enum SocketNet <: ToString & Equatable<SocketNet>
 ```
 
 功能：传输层协议类型。

@@ -3,14 +3,7 @@
 ## enum RoundingMode
 
 ```cangjie
-public enum RoundingMode <: Equatable<RoundingMode> & ToString {
-    | Ceiling
-    | Down
-    | Floor
-    | HalfEven
-    | HalfUp
-    | Up
-}
+public enum RoundingMode <: Equatable<RoundingMode> & ToString
 ```
 
 功能：舍入规则枚举类，共包含 6 种舍入规则。除包含 IEEE 754 浮点数规定约定的 5 种舍入规则外，提供使用较多的 “四舍五入” 舍入规则。

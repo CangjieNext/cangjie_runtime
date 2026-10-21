@@ -3,11 +3,7 @@
 ## enum CatchupStyle
 
 ```cangjie
-public enum CatchupStyle {
-    | Delay
-    | Burst
-    | Skip
-}
+public enum CatchupStyle
 ```
 
 功能：表示不同的重复性任务定时器需要使用的追平策略。
@@ -74,9 +70,7 @@ Skip
 ## enum MemoryOrder <sup>(deprecated)</sup>
 
 ```cangjie
-public enum MemoryOrder {
-    | SeqCst
-}
+public enum MemoryOrder
 ```
 
 功能：内存顺序类型枚举。
@@ -98,10 +92,7 @@ SeqCst
 ## enum ReadWriteMutexMode <sup>(deprecated)</sup>
 
 ```cangjie
-public enum ReadWriteMutexMode {
-    | Unfair
-    | Fair
-}
+public enum ReadWriteMutexMode
 ```
 
 功能：读写锁公平模式枚举。

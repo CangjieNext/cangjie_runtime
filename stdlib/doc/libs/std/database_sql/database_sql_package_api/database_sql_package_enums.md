@@ -3,12 +3,7 @@
 ## enum ConnectionState
 
 ```cangjie
-public enum ConnectionState <: Equatable<ConnectionState> {
-    | Broken
-    | Closed
-    | Connecting
-    | Connected
-}
+public enum ConnectionState <: Equatable<ConnectionState>
 ```
 
 功能：描述与数据源连接的当前状态。
@@ -148,11 +143,7 @@ Connecting == Connected: false
 ## enum TransactionAccessMode
 
 ```cangjie
-public enum TransactionAccessMode <: ToString & Hashable & Equatable<TransactionAccessMode> {
-    | Unspecified
-    | ReadWrite
-    | ReadOnly
-}
+public enum TransactionAccessMode <: ToString & Hashable & Equatable<TransactionAccessMode>
 ```
 
 功能：事务读写模式。
@@ -378,11 +369,7 @@ ReadWrite == Unspecified: false
 ## enum TransactionDeferrableMode
 
 ```cangjie
-public enum TransactionDeferrableMode <: ToString & Hashable & Equatable<TransactionDeferrableMode> {
-    | Unspecified
-    | Deferrable
-    | NotDeferrable
-}
+public enum TransactionDeferrableMode <: ToString & Hashable & Equatable<TransactionDeferrableMode>
 ```
 
 功能：事务的延迟模式。
@@ -612,16 +599,7 @@ NotDeferrable == Unspecified: false
 ## enum TransactionIsoLevel
 
 ```cangjie
-public enum TransactionIsoLevel <: ToString & Hashable & Equatable<TransactionIsoLevel> {
-    | Unspecified
-    | ReadCommitted
-    | ReadUncommitted
-    | RepeatableRead
-    | Snapshot
-    | Serializable
-    | Linearizable
-    | Chaos
-}
+public enum TransactionIsoLevel <: ToString & Hashable & Equatable<TransactionIsoLevel>
 ```
 
 功能：事务隔离级别。

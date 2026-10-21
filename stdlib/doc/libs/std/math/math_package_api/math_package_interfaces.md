@@ -3,17 +3,7 @@
 ## interface FloatingPoint\<T>
 
 ```cangjie
-public interface FloatingPoint<T> <: Number<T> {
-    static func getPI(): T
-    static func getE(): T
-    static func getNaN(): T
-    static func getInf(): T
-    static func getMinDenormal(): T
-    static func getMinNormal(): T
-    func isInf(): Bool
-    func isNaN(): Bool
-    func isNormal(): Bool
-}
+public interface FloatingPoint<T> <: Number<T>
 ```
 
 功能：本接口提供了浮点数相关的方法。
@@ -775,16 +765,7 @@ Float64的圆周率PI: 3.141593
 ## interface Integer\<T>
 
 ```cangjie
-public interface Integer<T> <: Number<T> {
-    static func isSigned(): Bool
-    operator func %(other: T): T
-    operator func &(other: T): T
-    operator func |(other: T): T
-    operator func ^(other: T): T
-    operator func !(): T
-    operator func >>(n: Int64): T
-    operator func <<(n: Int64): T
-}
+public interface Integer<T> <: Number<T>
 ```
 
 功能：本接口提供了整数类型相关的方法。
@@ -1366,10 +1347,7 @@ UIntNative 是有符号类型: false
 ## interface MathExtension\<T> <sup>(deprecated)</sup>
 
 ```cangjie
-public interface MathExtension<T> {
-    static func GetPI(): T
-    static func GetE(): T
-}
+public interface MathExtension<T>
 ```
 
 功能：本接口提供了统一的方法获取一些数学常数。
@@ -1639,10 +1617,7 @@ Float64的圆周率: 3.141593
 ## interface MaxMinValue\<T>
 
 ```cangjie
-public interface MaxMinValue<T> {
-    static func getMax(): T
-    static func getMin(): T
-}
+public interface MaxMinValue<T>
 ```
 
 功能：提供获取最大值和最小值的方法。
@@ -2688,13 +2663,7 @@ UIntNative的最小值: 0
 ## interface Number\<T>
 
 ```cangjie
-public interface Number<T> {
-    operator func +(other: T): T
-    operator func -(other: T): T
-    operator func *(other: T): T
-    operator func /(other: T): T
-    operator func -(): T
-}
+public interface Number<T>
 ```
 
 功能：提供数值类型相关的方法。
@@ -2778,7 +2747,7 @@ operator func /(other: T): T
 ### extend Float16 <: Number\<Float16>
 
 ```cangjie
-extend Float16 <: Number<Float16> {}
+extend Float16 <: Number<Float16>
 ```
 
 功能：为 [Float16](../../core/core_package_api/core_package_intrinsics.md#float16) 类型扩展 [Number\<T>](#interface-numbert) 接口。
@@ -2790,7 +2759,7 @@ extend Float16 <: Number<Float16> {}
 ### extend Float32 <: Number\<Float32>
 
 ```cangjie
-extend Float32 <: Number<Float32> {}
+extend Float32 <: Number<Float32>
 ```
 
 功能：为 [Float32](../../core/core_package_api/core_package_intrinsics.md#float32) 类型扩展 [Number\<T>](#interface-numbert) 接口。
@@ -2802,7 +2771,7 @@ extend Float32 <: Number<Float32> {}
 ### extend Float64 <: Number\<Float64>
 
 ```cangjie
-extend Float64 <: Number<Float64> {}
+extend Float64 <: Number<Float64>
 ```
 
 功能：为 [Float64](../../core/core_package_api/core_package_intrinsics.md#float64) 类型扩展 [Number\<T>](#interface-numbert) 接口。
@@ -2814,7 +2783,7 @@ extend Float64 <: Number<Float64> {}
 ### extend Int16 <: Number\<Int16>
 
 ```cangjie
-extend Int16 <: Number<Int16> {}
+extend Int16 <: Number<Int16>
 ```
 
 功能：为 [Int16](../../core/core_package_api/core_package_intrinsics.md#int16) 类型扩展 [Number\<T>](#interface-numbert) 接口。
@@ -2826,7 +2795,7 @@ extend Int16 <: Number<Int16> {}
 ### extend Int32 <: Number\<Int32>
 
 ```cangjie
-extend Int32 <: Number<Int32> {}
+extend Int32 <: Number<Int32>
 ```
 
 功能：为 [Int32](../../core/core_package_api/core_package_intrinsics.md#int32) 类型扩展 [Number\<T>](#interface-numbert) 接口。
@@ -2838,7 +2807,7 @@ extend Int32 <: Number<Int32> {}
 ### extend Int64 <: Number\<Int64>
 
 ```cangjie
-extend Int64 <: Number<Int64> {}
+extend Int64 <: Number<Int64>
 ```
 
 功能：为 [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) 类型扩展 [Number\<T>](#interface-numbert) 接口。
@@ -2850,7 +2819,7 @@ extend Int64 <: Number<Int64> {}
 ### extend Int8 <: Number\<Int8>
 
 ```cangjie
-extend Int8 <: Number<Int8> {}
+extend Int8 <: Number<Int8>
 ```
 
 功能：为 [Int8](../../core/core_package_api/core_package_intrinsics.md#int8) 类型扩展 [Number\<T>](#interface-numbert) 接口。
@@ -2862,7 +2831,7 @@ extend Int8 <: Number<Int8> {}
 ### extend IntNative <: Number\<IntNative>
 
 ```cangjie
-extend IntNative <: Number<IntNative> {}
+extend IntNative <: Number<IntNative>
 ```
 
 功能：为 [IntNative](../../core/core_package_api/core_package_intrinsics.md#intnative) 类型扩展 [Number\<T>](#interface-numbert) 接口。
@@ -2874,7 +2843,7 @@ extend IntNative <: Number<IntNative> {}
 ### extend UInt16 <: Number\<UInt16>
 
 ```cangjie
-extend UInt16 <: Number<UInt16> {}
+extend UInt16 <: Number<UInt16>
 ```
 
 功能：为 [UInt16](../../core/core_package_api/core_package_intrinsics.md#uint16) 类型扩展 [Number\<T>](#interface-numbert) 接口。
@@ -2886,7 +2855,7 @@ extend UInt16 <: Number<UInt16> {}
 ### extend UInt32 <: Number\<UInt32>
 
 ```cangjie
-extend UInt32 <: Number<UInt32> {}
+extend UInt32 <: Number<UInt32>
 ```
 
 功能：为 [UInt32](../../core/core_package_api/core_package_intrinsics.md#uint32) 类型扩展 [Number\<T>](#interface-numbert) 接口。
@@ -2898,7 +2867,7 @@ extend UInt32 <: Number<UInt32> {}
 ### extend UInt64 <: Number\<UInt64>
 
 ```cangjie
-extend UInt64 <: Number<UInt64> {}
+extend UInt64 <: Number<UInt64>
 ```
 
 功能：为 [UInt64](../../core/core_package_api/core_package_intrinsics.md#uint64) 类型扩展 [Number\<T>](#interface-numbert) 接口。
@@ -2910,7 +2879,7 @@ extend UInt64 <: Number<UInt64> {}
 ### extend UInt8 <: Number\<UInt8>
 
 ```cangjie
-extend UInt8 <: Number<UInt8> {}
+extend UInt8 <: Number<UInt8>
 ```
 
 功能：为 [UInt8](../../core/core_package_api/core_package_intrinsics.md#uint8) 类型扩展 [Number\<T>](#interface-numbert) 接口。
@@ -2922,7 +2891,7 @@ extend UInt8 <: Number<UInt8> {}
 ### extend UIntNative <: Number\<UIntNative>
 
 ```cangjie
-extend UIntNative <: Number<UIntNative> {}
+extend UIntNative <: Number<UIntNative>
 ```
 
 功能：为 [UIntNative](../../core/core_package_api/core_package_intrinsics.md#uintnative) 类型扩展 [Number\<T>](#interface-numbert) 接口。

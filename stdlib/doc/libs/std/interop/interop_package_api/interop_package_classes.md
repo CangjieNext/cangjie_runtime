@@ -3,12 +3,7 @@
 ## class ExportedRef
 
 ```cangjie
-public abstract class ExportedRef {
-    protected var handle: UInt64 = 0
-    protected let ref: Any
-    protected let interopContext: InteropContext
-    protected init(exportedRef: Any, context: InteropContext)
-}
+public abstract class ExportedRef
 ```
 
 功能：此类用来包装跨语言互操作场景下需要被外部语言使用的类或函数，此类的实例对象可通过 [ExportTable](#class-exporttable) 使用类型为 [UInt64](../../core/core_package_api/core_package_intrinsics.md#uint64) 的 `handle` 进行管理，外部语言亦可通过 `handle` 间接引用此对象。
@@ -72,7 +67,7 @@ protected func validateHandle(): Unit
 ## class ExportTable
 
 ```cangjie
-public class ExportTable {}
+public class ExportTable
 ```
 
 功能：此类通过类型为 [UInt64](../../core/core_package_api/core_package_intrinsics.md#uint64) 的 `handle` 管理 [ExportedRef](#class-exportedref) 的实例对象的生命周期，可实现为 [ExportedRef](#class-exportedref) 对象生成 `handle`，根据 `handle` 获取 [ExportedRef](#class-exportedref) 对象， 根据 `handle` 移除 [ExportedRef](#class-exportedref) 对象等操作。
@@ -136,9 +131,7 @@ public static func removeExportedRef(handle: UInt64): Unit
 ## class ForeignProxy
 
 ```cangjie
-public abstract class ForeignProxy {
-    protected init(context: InteropContext)
-}
+public abstract class ForeignProxy
 ```
 
 功能：此类用于代理跨语言互操作场景下外部语言的对象 `handle`。
@@ -162,9 +155,7 @@ protected init(context: InteropContext)
 ## class InteropContext
 
 ```cangjie
-public abstract class InteropContext <: Equatable<InteropContext> {
-    protected init(handler: (ExportedRef, ForeignProxy) -> Unit)
-}
+public abstract class InteropContext <: Equatable<InteropContext>
 ```
 
 功能：此类封装了跨语言互操作场景下处理循环引用的函数。此类不具备任何 `public` 的成员与接口，当前只被互操作库相关的 `API` 使用，开发者请勿随意继承此类。

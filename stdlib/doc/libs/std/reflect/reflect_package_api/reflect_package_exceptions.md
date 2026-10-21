@@ -3,10 +3,7 @@
 ## class IllegalSetException
 
 ```cangjie
-public class IllegalSetException <: ReflectException {
-    public init()
-    public init(message: String)
-}
+public class IllegalSetException <: ReflectException
 ```
 
 功能：[IllegalSetException](reflect_package_exceptions.md#class-illegalsetexception) 为对不可变类型进行更改异常。
@@ -76,10 +73,7 @@ main(): Int64 {
 ## class IllegalTypeException
 
 ```cangjie
-public class IllegalTypeException <: ReflectException {
-    public init()
-    public init(message: String)
-}
+public class IllegalTypeException <: ReflectException
 ```
 
 功能：[IllegalTypeException](reflect_package_exceptions.md#class-illegaltypeexception) 为类型不匹配异常。
@@ -149,10 +143,7 @@ main(): Int64 {
 ## class InfoNotFoundException
 
 ```cangjie
-public class InfoNotFoundException <: ReflectException {
-    public init()
-    public init(message: String)
-}
+public class InfoNotFoundException <: ReflectException
 ```
 
 功能：[InfoNotFoundException](reflect_package_exceptions.md#class-infonotfoundexception) 为无法找到对应信息异常。
@@ -222,10 +213,7 @@ main(): Int64 {
 ## class InvocationTargetException
 
 ```cangjie
-public class InvocationTargetException <: ReflectException {
-    public init()
-    public init(message: String)
-}
+public class InvocationTargetException <: ReflectException
 ```
 
 功能：[InvocationTargetException](reflect_package_exceptions.md#class-invocationtargetexception) 为调用函数包装异常。
@@ -295,10 +283,7 @@ main(): Int64 {
 ## class MisMatchException
 
 ```cangjie
-public class MisMatchException <: ReflectException {
-    public init()
-    public init(message: String)
-}
+public class MisMatchException <: ReflectException
 ```
 
 功能：[MisMatchException](reflect_package_exceptions.md#class-mismatchexception) 为调用对应函数抛出异常。
@@ -368,10 +353,7 @@ main(): Int64 {
 ## class ReflectException
 
 ```cangjie
-public open class ReflectException <: Exception {
-    public init()
-    public init(message: String)
-}
+public open class ReflectException <: Exception
 ```
 
 功能：[ReflectException](reflect_package_exceptions.md#class-reflectexception) 为 Reflect 包的基异常类。

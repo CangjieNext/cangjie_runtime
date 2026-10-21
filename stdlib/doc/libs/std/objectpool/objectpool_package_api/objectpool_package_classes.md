@@ -3,9 +3,7 @@
 ## class ObjectPool\<T> where T <: Object <sup>(deprecated)</sup>
 
 ```cangjie
-public class ObjectPool<T> where T <: Object {
-    public init(newFunc: () -> T, resetFunc!: Option<(T) -> T> = None)
-}
+public class ObjectPool<T> where T <: Object
 ```
 
 功能：此类提供了一个并发安全的对象缓存类型，该类型可以储存已经分配内存但未使用的对象。

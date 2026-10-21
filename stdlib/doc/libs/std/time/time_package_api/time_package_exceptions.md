@@ -3,10 +3,7 @@
 ## class InvalidDataException
 
 ```cangjie
-public class InvalidDataException <: Exception {
-    public init()
-    public init(message: String)
-}
+public class InvalidDataException <: Exception
 ```
 
 功能：[InvalidDataException](time_package_exceptions.md#class-invaliddataexception) 表示加载时区时的异常。
@@ -84,10 +81,7 @@ main(): Unit {
 ## class TimeParseException
 
 ```cangjie
-public class TimeParseException <: Exception {
-    public init()
-    public init(message: String)
-}
+public class TimeParseException <: Exception
 ```
 
 功能：[TimeParseException](time_package_exceptions.md#class-timeparseexception) 表示解析时间字符串时的异常。

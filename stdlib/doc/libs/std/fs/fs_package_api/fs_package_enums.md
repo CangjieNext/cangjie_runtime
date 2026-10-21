@@ -3,12 +3,7 @@
 ## enum OpenMode
 
 ```cangjie
-public enum OpenMode <: ToString & Equatable<OpenMode> {
-    | Read
-    | Write
-    | Append
-    | ReadWrite
-}
+public enum OpenMode <: ToString & Equatable<OpenMode>
 ```
 
 功能：表示不同的文件打开模式。

@@ -3,12 +3,7 @@
 ## class DateTimeFormat
 
 ```cangjie
-public class DateTimeFormat {
-    public static const RFC1123: String = "www, dd MMM yyyy HH:mm:ss z"
-    public static const RFC3339: String = "yyyy-MM-ddTHH:mm:ssOOOO"
-    public static const RFC822: String = "ww dd MMM yy HH:mm:ss z"
-    public static const RFC850: String = "wwww, dd-MMM-yy HH:mm:ss z"
-}
+public class DateTimeFormat
 ```
 
 功能：提供时间格式的功能，用于解析和生成 [DateTime](../time_package_api/time_package_structs.md#struct-datetime) 。
@@ -257,11 +252,7 @@ main() {
 ## class TimeZone
 
 ```cangjie
-public class TimeZone <: ToString & Equatable<TimeZone> {
-    public static let Local: TimeZone
-    public static let UTC: TimeZone
-    public init(id: String, offset: Duration)
-}
+public class TimeZone <: ToString & Equatable<TimeZone>
 ```
 
 功能：TimeZone 表示时区，记录了某一地区在不同时间较零时区的时间偏移，提供了从系统加载时区、自定义时区等功能。

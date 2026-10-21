@@ -3,14 +3,7 @@
 ## interface ColumnInfo
 
 ```cangjie
-public interface ColumnInfo {
-    prop name: String
-    prop typeName: String
-    prop length: Int64
-    prop scale: Int64
-    prop nullable: Bool
-    prop displaySize: Int64
-}
+public interface ColumnInfo
 ```
 
 功能：执行 Select/Query 语句返回结果的列信息。
@@ -87,12 +80,7 @@ prop typeName: String
 ## interface Connection
 
 ```cangjie
-public interface Connection <: Resource {
-    prop state: ConnectionState
-    func getMetaData(): Map<String, String>
-    func prepareStatement(sql: String): Statement
-    func createTransaction(): Transaction
-}
+public interface Connection <: Resource
 ```
 
 功能：数据库连接接口。
@@ -164,10 +152,7 @@ func prepareStatement(sql: String): Statement
 ## interface Datasource
 
 ```cangjie
-public interface Datasource <: Resource {
-    func setOption(key: String, value: String): Unit
-    func connect(): Connection
-}
+public interface Datasource <: Resource
 ```
 
 功能：数据源接口。
@@ -206,12 +191,7 @@ func setOption(key: String, value: String): Unit
 ## interface Driver
 
 ```cangjie
-public interface Driver {
-    prop name: String
-    prop version: String
-    prop preferredPooling: Bool
-    func open(connectionString: String, opts: Array<(String, String)>): Datasource
-}
+public interface Driver
 ```
 
 功能：数据库驱动接口。
@@ -270,13 +250,7 @@ func open(connectionString: String, opts: Array<(String, String)>): Datasource
 ## interface QueryResult
 
 ```cangjie
-public interface QueryResult <: Resource {
-    prop columnInfos: Array<ColumnInfo>
-    func next(values: Array<SqlDbType>): Bool
-    func next(): Bool
-    func get<T>(index: Int64): T
-    func getOrNull<T>(index: Int64): ?T
-}
+public interface QueryResult <: Resource
 ```
 
 功能：执行 Select 语句产生的结果接口。
@@ -368,9 +342,7 @@ func next(values: Array<SqlDbType>): Bool
 ## interface SqlDbType <sup>(deprecated)</sup>
 
 ```cangjie
-public interface SqlDbType {
-    prop name: String
-}
+public interface SqlDbType
 ```
 
 功能：所有 sql 数据类型的父类。
@@ -402,7 +374,7 @@ prop name: String
 ## interface SqlNullableDbType <sup>(deprecated)</sup>
 
 ```cangjie
-public interface SqlNullableDbType <: SqlDbType {}
+public interface SqlNullableDbType <: SqlDbType
 ```
 
 功能：允许 `null` 值的 sql 数据类型父类。
@@ -420,16 +392,7 @@ public interface SqlNullableDbType <: SqlDbType {}
 ## interface Statement
 
 ```cangjie
-public interface Statement <: Resource {
-    prop parameterColumnInfos: Array<ColumnInfo>
-    func setOption(key: String, value: String): Unit
-    func update(params: Array<SqlDbType>): UpdateResult
-    func query(params: Array<SqlDbType>): QueryResult
-    func set<T>(index: Int64, value: T): Unit
-    func setNull(index: Int64): Unit
-    func update(): UpdateResult
-    func query(): QueryResult
-}
+public interface Statement <: Resource
 ```
 
 功能：sql 语句预执行接口。
@@ -571,17 +534,7 @@ func update(params: Array<SqlDbType>): UpdateResult
 ## interface Transaction
 
 ```cangjie
-public interface Transaction {
-    mut prop isoLevel: TransactionIsoLevel
-    mut prop accessMode: TransactionAccessMode
-    mut prop deferrableMode: TransactionDeferrableMode
-    func begin(): Unit
-    func commit(): Unit
-    func rollback(): Unit
-    func rollback(savePointName: String): Unit
-    func save(savePointName: String): Unit
-    func release(savePointName: String): Unit
-}
+public interface Transaction
 ```
 
 功能：定义数据库事务的核心行为。
@@ -705,10 +658,7 @@ func save(savePointName: String): Unit
 ## interface UpdateResult
 
 ```cangjie
-public interface UpdateResult {
-    prop rowCount: Int64
-    prop lastInsertId: Int64
-}
+public interface UpdateResult
 ```
 
 功能：执行 Insert、Update、Delete 语句产生的结果接口。

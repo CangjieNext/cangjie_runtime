@@ -3,9 +3,7 @@
 ## class EnvException
 
 ```cangjie
-public class EnvException <: Exception {
-    public init(message: String)
-}
+public class EnvException <: Exception
 ```
 
 功能：`env` 包的异常类。

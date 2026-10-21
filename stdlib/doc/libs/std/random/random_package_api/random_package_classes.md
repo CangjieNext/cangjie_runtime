@@ -3,10 +3,7 @@
 ## class Random
 
 ```cangjie
-public class Random {
-    public init()
-    public init(seed: UInt64)
-}
+public class Random
 ```
 
 功能：提供生成伪随机数的相关功能。

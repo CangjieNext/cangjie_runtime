@@ -3,15 +3,7 @@
 ## enum DayOfWeek
 
 ```cangjie
-public enum DayOfWeek <: ToString & Equatable<DayOfWeek> {
-    | Sunday
-    | Monday
-    | Tuesday
-    | Wednesday
-    | Thursday
-    | Friday
-    | Saturday
-}
+public enum DayOfWeek <: ToString & Equatable<DayOfWeek>
 ```
 
 功能：[DayOfWeek](time_package_enums.md#enum-dayofweek) 表示一周中的某一天，提供了与 [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) 类型转换，相等性判别以及获取枚举值的字符串表示的功能。
@@ -473,20 +465,7 @@ main() {
 ## enum Month
 
 ```cangjie
-public enum Month <: ToString & Equatable<Month> {
-    | January
-    | February
-    | March
-    | April
-    | May
-    | June
-    | July
-    | August
-    | September
-    | October
-    | November
-    | December
-}
+public enum Month <: ToString & Equatable<Month>
 ```
 
 功能：[Month](time_package_enums.md#enum-month) 用以表示月份，表示一年中的某一月，提供了与 [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) 类型转换和计算，相等性判别以及获取枚举值的字符串表示的功能。

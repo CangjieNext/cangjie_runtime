@@ -3,10 +3,7 @@
 ## enum CleanupPolicy
 
 ```cangjie
-public enum CleanupPolicy <: Equatable<CleanupPolicy> {
-    | EAGER
-    | DEFERRED
-}
+public enum CleanupPolicy <: Equatable<CleanupPolicy>
 ```
 
 功能：该枚举表示不同的弱引用清理策略，分别为 `EAGER` 和 `DEFERRED`。

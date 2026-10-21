@@ -3,7 +3,7 @@
 ## class Directory
 
 ```cangjie
-public class Directory {}
+public class Directory
 ```
 
 功能：对应文件系统中的目录，它提供创建、移动、复制、删除、查询属性以及遍历目录等能力。
@@ -557,10 +557,7 @@ main(): Unit {
 ## class File
 
 ```cangjie
-public class File <: Resource & IOStream & Seekable {
-    public init(path: String, mode: OpenMode)
-    public init(path: Path, mode: OpenMode)
-}
+public class File <: Resource & IOStream & Seekable
 ```
 
 功能：提供一些对文件进行操作的函数，包括文件的打开、创建、关闭、移动、复制、删除，文件的流式读写操作，查询属性以及一些其他函数。
@@ -1846,7 +1843,7 @@ Is the file content correct? result: true
 ## class HardLink
 
 ```cangjie
-public class HardLink {}
+public class HardLink
 ```
 
 功能：提供处理文件系统硬链接相关接口。
@@ -1976,7 +1973,7 @@ Hard link file content: [72, 97, 114, 100, 76, 105, 110, 107]
 ## class SymbolicLink
 
 ```cangjie
-public class SymbolicLink {}
+public class SymbolicLink
 ```
 
 功能：提供处理文件系统符号链接相关接口。

@@ -3,7 +3,7 @@
 ## struct MatchData
 
 ```cangjie
-public struct MatchData {}
+public struct MatchData
 ```
 
 功能：存储正则表达式匹配结果，并提供对正则匹配结果进行查询的函数。
@@ -349,10 +349,7 @@ main(): Unit {
 ## struct Position
 
 ```cangjie
-public struct Position {
-    public let start: Int64
-    public let end: Int64
-}
+public struct Position
 ```
 
 功能：用来存储位置信息，表示的是一个前闭后开区间。

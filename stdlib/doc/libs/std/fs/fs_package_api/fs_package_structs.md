@@ -3,7 +3,7 @@
 ## struct FileDescriptor
 
 ```cangjie
-public struct FileDescriptor {}
+public struct FileDescriptor
 ```
 
 功能：用于获取文件句柄信息。
@@ -56,10 +56,7 @@ File fileHandle: 3
 ## struct FileInfo
 
 ```cangjie
-public struct FileInfo <: Equatable<FileInfo> {
-    public init(path: Path)
-    public init(path: String)
-}
+public struct FileInfo <: Equatable<FileInfo>
 ```
 
 功能：对应文件系统中的文件元数据。
@@ -1119,11 +1116,7 @@ File infos are equal: false
 ## struct Path
 
 ```cangjie
-public struct Path <: Equatable<Path> & Hashable & ToString {
-    public static const Separator: String = PATH_SEPARATOR
-    public static const ListSeparator: String = PATH_LISTSEPARATOR
-    public init(rawPath: String)
-}
+public struct Path <: Equatable<Path> & Hashable & ToString
 ```
 
 功能：提供路径相关的函数。

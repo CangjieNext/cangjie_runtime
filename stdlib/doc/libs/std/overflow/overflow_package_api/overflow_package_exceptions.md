@@ -3,10 +3,7 @@
 ## class OvershiftException
 
 ```cangjie
-public class OvershiftException <: Exception {
-    public init()
-    public init(message: String)
-}
+public class OvershiftException <: Exception
 ```
 
 功能：移位运算中，当移位位数超过操作数位数时抛出的异常。
@@ -86,10 +83,7 @@ Exception message: Shift count exceeds the number of bits in the operand
 ## class UndershiftException
 
 ```cangjie
-public class UndershiftException <: Exception {
-    public init()
-    public init(message: String)
-}
+public class UndershiftException <: Exception
 ```
 
 功能：移位运算中，当移位位数小于 0 时抛出的异常。

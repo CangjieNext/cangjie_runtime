@@ -3,7 +3,7 @@
 ## class CurrentProcess <sup>(deprecated)</sup>
 
 ```cangjie
-public class CurrentProcess <: Process {}
+public class CurrentProcess <: Process
 ```
 
 功能：此类为当前进程类，继承 [Process](process_package_classes.md#class-process) 类，提供对当前进程操作相关功能。
@@ -431,7 +431,7 @@ MY_VAR环境变量: my_value
 ## class Process
 
 ```cangjie
-public open class Process {}
+public open class Process
 ```
 
 功能：此类为进程类，提供进程操作相关功能。
@@ -1240,7 +1240,7 @@ main(): Int64 {
 ## class SubProcess
 
 ```cangjie
-public class SubProcess <: Process {}
+public class SubProcess <: Process
 ```
 
 功能：此类为子进程类，继承 [Process](process_package_classes.md#class-process) 类，提供对子进程操作相关功能。

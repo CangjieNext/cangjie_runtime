@@ -3,14 +3,7 @@
 ## interface Deque\<T>
 
 ```cangjie
-public interface Deque<T> <: Collection<T> {
-    prop first: ?T
-    prop last: ?T
-    func addFirst(element: T): Unit
-    func addLast(element: T): Unit
-    func removeFirst(): ?T
-    func removeLast(): ?T
-}
+public interface Deque<T> <: Collection<T>
 ```
 
 功能：Deque（double-ended queue）是一种具有队列和栈特性的数据结构，允许从两端插入和删除元素。Deque 接口的主要功能包括：
@@ -95,10 +88,7 @@ func removeLast(): ?T
 ## interface EquatableCollection\<T>
 
 ```cangjie
-public interface EquatableCollection<T> <: Collection<T> {
-    func contains(element: T): Bool
-    func contains(all!: Collection<T>): Bool
-}
+public interface EquatableCollection<T> <: Collection<T>
 ```
 
 功能：定义了可以进行比较的集合类型。
@@ -142,18 +132,7 @@ func contains(element: T): Bool
 ## interface List\<T>
 
 ```cangjie
-public interface List<T> <: ReadOnlyList<T> {
-    func add(element: T): Unit
-    func add(all!: Collection<T>): Unit
-    func add(element: T, at!: Int64): Unit
-    func add(all!: Collection<T>, at!: Int64): Unit
-    func remove(at!: Int64): T
-    func remove(range: Range<Int64>): Unit
-    func removeIf(predicate: (T) -> Bool): Unit
-    func clear(): Unit
-
-    operator func [](index: Int64, value!: T): Unit
-}
+public interface List<T> <: ReadOnlyList<T>
 ```
 
 功能：定义了只提供对索引友好操作的列表类型。
@@ -276,18 +255,7 @@ operator func [](index: Int64, value!: T): Unit
 ## interface Map\<K, V>
 
 ```cangjie
-public interface Map<K, V> <: ReadOnlyMap<K, V> {
-    func add(key: K, value: V): ?V
-    func add(all!: Collection<(K, V)>): Unit
-    func remove(key: K): Option<V>
-    func remove(all!: Collection<K>): Unit
-    func removeIf(predicate: (K, V) -> Bool): Unit
-    func clear(): Unit
-    operator func [](key: K, value!: V): Unit
-    func entryView(k: K): MapEntryView<K, V>
-    func addIfAbsent(key: K, value: V): ?V
-    func replace(key: K, value: V): ?V
-}
+public interface Map<K, V> <: ReadOnlyMap<K, V>
 ```
 
 功能：[Map](collection_package_interface.md#interface-mapk-v) 接口提供了一种将键映射到值的方式。它允许我们使用键来查找值，因此可以用于存储和操作键值对。
@@ -441,10 +409,7 @@ operator func [](key: K, value!: V): Unit
 ## interface MapEntryView\<K, V>
 
 ```cangjie
-public interface MapEntryView<K, V> {
-    prop key: K
-    mut prop value: ?V
-}
+public interface MapEntryView<K, V>
 ```
 
 功能：提供映射中的某个 key 对应的视图。
@@ -474,14 +439,7 @@ mut prop value: ?V
 ## interface OrderedMap\<K, V>
 
 ```cangjie
-public interface OrderedMap<K, V> <: Map<K, V> {
-    prop first: ?(K, V)
-    prop last: ?(K, V)
-    func removeFirst(): ?(K, V)
-    func removeLast(): ?(K, V)
-    func backward(mark: K, inclusive!: Bool): Iterator<(K, V)>
-    func forward(mark: K, inclusive!: Bool): Iterator<(K, V)>
-}
+public interface OrderedMap<K, V> <: Map<K, V>
 ```
 
 功能：[OrderedMap](collection_package_interface.md#interface-orderedmapk-v) 接口提供了一种将键映射到值的方式。它允许我们使用键来查找值，因此可以用于存储和操作键值对。
@@ -573,14 +531,7 @@ func removeLast(): ?(K, V)
 ## interface OrderedSet\<T>
 
 ```cangjie
-public interface OrderedSet<T> <: Set<T> {
-    prop first: ?T
-    prop last: ?T
-    func removeFirst(): ?T
-    func removeLast(): ?T
-    func backward(mark: T, inclusive!: Bool): Iterator<T>
-    func forward(mark: T, inclusive!: Bool): Iterator<T>
-}
+public interface OrderedSet<T> <: Set<T>
 ```
 
 功能：[OrderedSet](collection_package_interface.md#interface-orderedsett) 接口提供了一组集合的相关操作，允许我们以可读写的方式操作内部元素。
@@ -672,11 +623,7 @@ func removeLast(): ?T
 ## interface Queue\<T>
 
 ```cangjie
-public interface Queue<T> <: Collection<T> {
-    func add(element: T): Unit
-    func peek(): ?T
-    func remove(): ?T
-}
+public interface Queue<T> <: Collection<T>
 ```
 
 功能：队列数据结构，它遵循先进先出（First In First Out, FIFO）原则。Queue 的主要功能包括：
@@ -729,12 +676,7 @@ func remove(): ?T
 ## interface ReadOnlyList\<T>
 
 ```cangjie
-public interface ReadOnlyList<T> <: Collection<T> {
-    prop first: ?T
-    prop last: ?T
-    func get(index: Int64): ?T
-    operator func [](index: Int64): T
-}
+public interface ReadOnlyList<T> <: Collection<T>
 ```
 
 功能：定义了只读列表。
@@ -798,15 +740,7 @@ operator func [](index: Int64): T
 ## interface ReadOnlyMap\<K, V>
 
 ```cangjie
-public interface ReadOnlyMap<K, V> <: Collection<(K, V)> {
-    func get(key: K): ?V
-    func contains(key: K): Bool
-    func contains(all!: Collection<K>): Bool
-    func keys(): EquatableCollection<K>
-    func values(): Collection<V>
-
-    operator func [](key: K): V
-}
+public interface ReadOnlyMap<K, V> <: Collection<(K, V)>
 ```
 
 功能：[ReadOnlyMap](collection_package_interface.md#interface-readonlymapk-v) 接口提供了一种将键映射到值的方式。它允许我们使用键来查找值，因此可以用于存储键值对。
@@ -908,11 +842,7 @@ operator func [](key: K): V
 ## interface ReadOnlySet\<T>
 
 ```cangjie
-public interface ReadOnlySet<T> <: Collection<T> {
-    func contains(element: T): Bool
-    func contains(all!: Collection<T>): Bool
-    func subsetOf(other: ReadOnlySet<T>): Bool
-}
+public interface ReadOnlySet<T> <: Collection<T>
 ```
 
 功能：[ReadOnlySet](collection_package_interface.md#interface-readonlysett) 接口提供了一组集合的相关操作，允许我们以只读方式操作内部元素。
@@ -972,15 +902,7 @@ func subsetOf(other: ReadOnlySet<T>): Bool
 ## interface Set\<T>
 
 ```cangjie
-public interface Set<T> <: ReadOnlySet<T> {
-    func add(element: T): Bool
-    func add(all!: Collection<T>): Unit
-    func remove(element: T): Bool
-    func remove(all!: Collection<T>): Unit
-    func removeIf(predicate: (T) -> Bool): Unit
-    func clear(): Unit
-    func retain(all!: Set<T>): Unit
-}
+public interface Set<T> <: ReadOnlySet<T>
 ```
 
 功能：[Set](collection_package_interface.md#interface-sett) 接口提供了一组集合的相关操作，允许我们以可读写的方式操作内部元素。
@@ -1082,11 +1004,7 @@ func retain(all!: Set<T>): Unit
 ## interface Stack\<T>
 
 ```cangjie
-public interface Stack<T> <: Collection<T> {
-    func peek(): ?T
-    func remove(): ?T
-    func add(element: T): Unit
-}
+public interface Stack<T> <: Collection<T>
 ```
 
 功能：Stack（栈）是一种数据结构，具有后进先出（Last In First Out，LIFO）的特点。可以在一端（称为栈顶）进行插入和删除操作，而另一端（称为栈底）则不允许进行操作。

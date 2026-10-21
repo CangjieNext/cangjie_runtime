@@ -3,10 +3,7 @@
 ## class ArgumentParseException
 
 ```cangjie
-public class ArgumentParseException <: Exception {
-    public init()
-    public init(message: String)
-}
+public class ArgumentParseException <: Exception
 ```
 
 功能：参数解析异常类。当参数解析出错（如：不识别的选项、缺少值的选项）时，抛出此异常。

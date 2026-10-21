@@ -3,7 +3,7 @@
 ## interface Any
 
 ```cangjie
-public interface Any {}
+public interface Any
 ```
 
 功能：[Any](core_package_interfaces.md#interface-any) 是所有类型的父类型，所有 `interface` 都默认继承它，所有非 `interface` 类型都默认实现它。
@@ -528,11 +528,7 @@ byte3 (0x48) 转换为大写: 0x48 (保持不变)
 ## interface Collection\<T>
 
 ```cangjie
-public interface Collection<T> <: Iterable<T> {
-    prop size: Int64
-    func isEmpty(): Bool
-    func toArray(): Array<T>
-}
+public interface Collection<T> <: Iterable<T>
 ```
 
 功能：该接口用来表示集合，通常容器类型应该实现该接口。
@@ -578,14 +574,7 @@ func toArray(): Array<T>
 ## interface Comparable\<T>
 
 ```cangjie
-public interface Comparable<T> <: Equatable<T> & Less<T> & Greater<T> & LessOrEqual<T> & GreaterOrEqual<T> {
-    func compare(other: T): Ordering
-    operator func ==(other: T): Bool
-    operator func <(other: T): Bool
-    operator func >(other: T): Bool
-    operator func <=(other: T): Bool
-    operator func >=(other: T): Bool
-}
+public interface Comparable<T> <: Equatable<T> & Less<T> & Greater<T> & LessOrEqual<T> & GreaterOrEqual<T>
 ```
 
 功能：该接口表示比较运算，是等于、不等于、小于、大于、小于等于、大于等于接口的集合体。
@@ -699,10 +688,7 @@ operator func >=(other: T): Bool
 ## interface Countable\<T>
 
 ```cangjie
-public interface Countable<T> {
-    func next(right: Int64): T
-    func position(): Int64
-}
+public interface Countable<T>
 ```
 
 功能：该接口表示类型可数。
@@ -853,7 +839,7 @@ Duration值: 1s
 ## interface CType
 
 ```cangjie
-sealed interface CType {}
+sealed interface CType
 ```
 
 功能：表示支持与 C 语言互操作的接口。
@@ -889,9 +875,7 @@ main() {
 ## interface Equal\<T>
 
 ```cangjie
-public interface Equal<T> {
-    operator func ==(other: T): Bool
-}
+public interface Equal<T>
 ```
 
 功能：该接口用于支持判等操作。
@@ -915,9 +899,7 @@ operator func ==(other: T): Bool
 ## interface Equatable\<T>
 
 ```cangjie
-public interface Equatable<T> <: Equal<T> & NotEqual<T> {
-    operator func !=(other: T): Bool
-}
+public interface Equatable<T> <: Equal<T> & NotEqual<T>
 ```
 
 功能：该接口是判等和判不等两个接口的集合体。
@@ -950,9 +932,7 @@ operator func !=(other: T): Bool
 ## interface Greater\<T>
 
 ```cangjie
-public interface Greater<T> {
-    operator func >(other: T): Bool
-}
+public interface Greater<T>
 ```
 
 功能：该接口表示大于计算。
@@ -976,9 +956,7 @@ operator func >(other: T): Bool
 ## interface GreaterOrEqual\<T>
 
 ```cangjie
-public interface GreaterOrEqual<T> {
-    operator func >=(other: T): Bool
-}
+public interface GreaterOrEqual<T>
 ```
 
 功能：该接口表示大于等于计算。
@@ -1002,9 +980,7 @@ operator func >=(other: T): Bool
 ## interface Hashable
 
 ```cangjie
-public interface Hashable {
-    func hashCode(): Int64
-}
+public interface Hashable
 ```
 
 功能：该接口用于计算哈希值。
@@ -1026,24 +1002,7 @@ func hashCode(): Int64
 ## interface Hasher
 
 ```cangjie
-public interface Hasher {
-    func finish(): Int64
-    mut func reset(): Unit
-    mut func write(value: Bool): Unit
-    mut func write(value: Rune): Unit
-    mut func write(value: Int8): Unit
-    mut func write(value: Int16): Unit
-    mut func write(value: Int32): Unit
-    mut func write(value: Int64): Unit
-    mut func write(value: UInt8): Unit
-    mut func write(value: UInt16): Unit
-    mut func write(value: UInt32): Unit
-    mut func write(value: UInt64): Unit
-    mut func write(value: Float16): Unit
-    mut func write(value: Float32): Unit
-    mut func write(value: Float64): Unit
-    mut func write(value: String): Unit
-}
+public interface Hasher
 ```
 
 功能：该接口用于处理哈希组合运算。
@@ -1241,9 +1200,7 @@ mut func write(value: UInt8): Unit
 ## interface Iterable\<E>
 
 ```cangjie
-public interface Iterable<E> {
-    func iterator(): Iterator<E>
-}
+public interface Iterable<E>
 ```
 
 功能：该接口表示可迭代，实现了该接口的类型（通常为容器类型）可以在 `for-in` 语句中实现迭代，也可以获取其对应的迭代器类型实例，调用 `next` 函数实现迭代。
@@ -1265,9 +1222,7 @@ func iterator(): Iterator<E>
 ## interface Less\<T>
 
 ```cangjie
-public interface Less<T> {
-    operator func <(other: T): Bool
-}
+public interface Less<T>
 ```
 
 功能：该接口表示小于计算。
@@ -1291,9 +1246,7 @@ operator func <(other: T): Bool
 ## interface LessOrEqual\<T>
 
 ```cangjie
-public interface LessOrEqual<T> {
-    operator func <=(other: T): Bool
-}
+public interface LessOrEqual<T>
 ```
 
 功能：该接口表示小于等于计算。
@@ -1317,9 +1270,7 @@ operator func <=(other: T): Bool
 ## interface NotEqual\<T>
 
 ```cangjie
-public interface NotEqual<T> {
-    operator func !=(other: T): Bool
-}
+public interface NotEqual<T>
 ```
 
 功能：该接口用于支持判不等操作。
@@ -1343,10 +1294,7 @@ operator func !=(other: T): Bool
 ## interface Resource
 
 ```cangjie
-public interface Resource {
-    func isClosed(): Bool
-    func close(): Unit
-}
+public interface Resource
 ```
 
 功能：该接口用于资源管理，通常用于内存、句柄等资源的关闭和释放。
@@ -1376,10 +1324,7 @@ func isClosed(): Bool
 ## interface ThreadContext
 
 ```cangjie
-public interface ThreadContext {
-    func end(): Unit
-    func hasEnded(): Bool
-}
+public interface ThreadContext
 ```
 
 功能：仓颉线程上下文接口。
@@ -1411,9 +1356,7 @@ func hasEnded(): Bool
 ## interface ToString
 
 ```cangjie
-public interface ToString {
-    func toString(): String
-}
+public interface ToString
 ```
 
 功能：该接口用来提供具体类型的字符串表示。

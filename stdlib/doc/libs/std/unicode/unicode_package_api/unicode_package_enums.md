@@ -3,12 +3,7 @@
 ## enum CasingOption
 
 ```cangjie
-public enum CasingOption {
-    | TR
-    | AZ
-    | LT
-    | Other
-}
+public enum CasingOption
 ```
 
 功能：大小写转换时根据不同语言所需要的枚举类。

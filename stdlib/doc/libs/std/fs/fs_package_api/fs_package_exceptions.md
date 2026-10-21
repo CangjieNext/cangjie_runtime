@@ -3,10 +3,7 @@
 ## class FSException
 
 ```cangjie
-public class FSException <: IOException {
-    public init()
-    public init(message: String)
-}
+public class FSException <: IOException
 ```
 
 功能：文件流异常类，继承了 IO 流异常类。

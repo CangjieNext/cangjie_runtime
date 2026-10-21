@@ -3,10 +3,7 @@
 ## class SocketException
 
 ```cangjie
-public class SocketException <: IOException {
-    public init()
-    public init(message: String)
-}
+public class SocketException <: IOException
 ```
 
 功能：提供套接字相关的异常处理。
@@ -86,10 +83,7 @@ Exception type: SocketException: Connection failed
 ## class SocketTimeoutException
 
 ```cangjie
-public class SocketTimeoutException <: Exception {
-    public init()
-    public init(message: String)
-}
+public class SocketTimeoutException <: Exception
 ```
 
 功能：提供套接字操作超时相关的异常处理。

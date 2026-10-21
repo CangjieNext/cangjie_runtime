@@ -3,12 +3,7 @@
 ## enum ProcessRedirect
 
 ```cangjie
-public enum ProcessRedirect {
-    | Inherit
-    | Pipe
-    | FromFile(File)
-    | Discard
-}
+public enum ProcessRedirect
 ```
 
 功能：该枚举类型用于在创建进程时设置子进程标准流的重定向模式。

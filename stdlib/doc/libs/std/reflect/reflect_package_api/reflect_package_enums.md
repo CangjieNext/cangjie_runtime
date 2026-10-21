@@ -3,15 +3,7 @@
 ## enum ModifierInfo
 
 ```cangjie
-public enum ModifierInfo <: Equatable<ModifierInfo> & Hashable & ToString {
-    | Open
-    | Override
-    | Redef
-    | Abstract
-    | Sealed
-    | Mut
-    | Static
-}
+public enum ModifierInfo <: Equatable<ModifierInfo> & Hashable & ToString
 ```
 
 功能：描述修饰符信息。

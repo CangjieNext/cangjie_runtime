@@ -3,9 +3,7 @@
 ## class ArrayIterator\<T>
 
 ```cangjie
-public class ArrayIterator<T> <: Iterator<T> {
-    public init(data: Array<T>)
-}
+public class ArrayIterator<T> <: Iterator<T>
 ```
 
 功能：数组迭代器，迭代功能详述见 [Iterable](core_package_interfaces.md#interface-iterablee) 和 [Iterator](core_package_classes.md#class-iteratort) 说明。
@@ -89,10 +87,7 @@ main() {
 ## class Box\<T>
 
 ```cangjie
-public class Box<T> {
-    public var value: T
-    public init(v: T)
-}
+public class Box<T>
 ```
 
 功能：[Box](core_package_classes.md#class-boxt) 类型提供了为其他类型添加一层 `class` 封装的能力。
@@ -578,7 +573,7 @@ boolBox as string: true
 ## class Future\<T>
 
 ```cangjie
-public class Future<T> {}
+public class Future<T>
 ```
 
 功能：[Future](core_package_classes.md#class-futuret)\<T> 实例代表一个仓颉线程任务，可用于获取仓颉线程的计算结果，向仓颉线程发送取消信号。
@@ -787,9 +782,7 @@ Some(1)
 ## class Iterator\<T>
 
 ```cangjie
-public abstract class Iterator<T> <: Iterable<T> {
-    public init()
-}
+public abstract class Iterator<T> <: Iterable<T>
 ```
 
 功能：该类表示迭代器，提供 `next` 方法支持对容器内的成员进行迭代遍历。
@@ -2100,9 +2093,7 @@ true
 ## class Object
 
 ```cangjie
-public open class Object <: Any {
-    public const init()
-}
+public open class Object <: Any
 ```
 
 功能：[Object](core_package_classes.md#class-object) 是所有 `class` 的父类，所有 `class` 都默认继承它。[Object](core_package_classes.md#class-object) 类中不包含任何成员，即 [Object](core_package_classes.md#class-object) 是一个“空”的类。
@@ -2132,7 +2123,7 @@ main(): Int64 {
 ## class RangeIterator\<T> <: Iterator\<T> where T <: Countable\<T> & Comparable\<T> & Equatable\<T>
 
 ```cangjie
-public class RangeIterator<T> <: Iterator<T> where T <: Countable<T> & Comparable<T> & Equatable<T> {}
+public class RangeIterator<T> <: Iterator<T> where T <: Countable<T> & Comparable<T> & Equatable<T>
 ```
 
 功能：[Range](core_package_structs.md#struct-ranget-where-t--countablet--comparablet--equatablet) 类型的迭代器，迭代功能详述见 [Iterable](core_package_interfaces.md#interface-iterablee) 和 [Iterator](core_package_classes.md#class-iteratort) 接口说明。
@@ -2189,13 +2180,7 @@ Iterating through range 1..=5:
 ## class StackTraceElement
 
 ```cangjie
-public open class StackTraceElement <: ToString {
-    public let declaringClass: String
-    public let methodName: String
-    public let fileName: String
-    public let lineNumber: Int64
-    public init(declaringClass: String, methodName: String, fileName: String, lineNumber: Int64)
-}
+public open class StackTraceElement <: ToString
 ```
 
 功能：表示一个异常堆栈的具体信息，包括异常发生的类名、函数名、文件名、行号。
@@ -2439,13 +2424,7 @@ MyClass.myMethod(MyClass.cj:42)
 ## class StringBuilder
 
 ```cangjie
-public class StringBuilder <: ToString {
-    public init()
-    public init(str: String)
-    public init(r: Rune, n: Int64)
-    public init(value: Array<Rune>)
-    public init(capacity: Int64)
-}
+public class StringBuilder <: ToString
 ```
 
 功能：该类主要用于字符串的构建。
@@ -3737,7 +3716,7 @@ Type check: true
 ## class Thread
 
 ```cangjie
-public class Thread {}
+public class Thread
 ```
 
 功能：该类代表一个仓颉线程，可用于获取线程 ID 及名字、查询线程是否存在取消请求、注册线程未处理异常的处理函数等。
@@ -4064,7 +4043,7 @@ Caught exception: This is a thread exception.
 ## class ThreadLocal\<T>
 
 ```cangjie
-public class ThreadLocal<T> {}
+public class ThreadLocal<T>
 ```
 
 功能：该类表示仓颉线程局部变量。
@@ -4206,12 +4185,7 @@ main() {
 ## class ThreadSnapshot
 
 ```cangjie
-public class ThreadSnapshot <: ToString {
-    public let id: Int64
-    public let name: String
-    public let stackTrace: Array<StackTraceElement>
-    public let state: ThreadState
-}
+public class ThreadSnapshot <: ToString
 ```
 
 功能：获取当前线程或者所有线程的信息，包含名称、id、状态、调用栈。

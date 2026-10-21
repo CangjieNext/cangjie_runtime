@@ -3,9 +3,7 @@
 ## class Matcher <sup>(deprecated)</sup>
 
 ```cangjie
-public class Matcher {
-    public init(regex: Regex, input: String)
-}
+public class Matcher
 ```
 
 功能：正则匹配器，用于扫描输入序列并进行匹配。
@@ -787,10 +785,7 @@ main(): Unit {
 ## class Regex
 
 ```cangjie
-public class Regex {
-    public init(pattern: String, flags: Array<RegexFlag>)
-    public init(pattern: String, option: RegexOption)
-}
+public class Regex
 ```
 
 功能：表示一个正则表达式，用于检索和替换符合指定模式的文本。
@@ -1441,9 +1436,7 @@ main(): Unit {
 ## class RegexOption <sup>(deprecated)</sup>
 
 ```cangjie
-public class RegexOption <: ToString {
-    public init()
-}
+public class RegexOption <: ToString
 ```
 
 功能：用于指定正则匹配的模式。

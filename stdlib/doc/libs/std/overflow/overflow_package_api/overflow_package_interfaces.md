@@ -3,18 +3,7 @@
 ## interface CarryingOp\<T>
 
 ```cangjie
-public interface CarryingOp<T> {
-    func carryingAdd(y: T): (Bool, T)
-    func carryingSub(y: T): (Bool, T)
-    func carryingMul(y: T): (Bool, T)
-    func carryingDiv(y: T): (Bool, T)
-    func carryingMod(y: T): (Bool, T)
-    func carryingInc(): (Bool, T)
-    func carryingDec(): (Bool, T)
-    func carryingNeg(): (Bool, T)
-    func carryingShl(y: UInt64): (Bool, T)
-    func carryingShr(y: UInt64): (Bool, T)
-}
+public interface CarryingOp<T>
 ```
 
 功能：提供返回整数运算是否发生了截断以及运算结果的接口。
@@ -4766,9 +4755,7 @@ Overflow occurred: true
 ## interface CarryingPow
 
 ```cangjie
-public interface CarryingPow {
-    func carryingPow(y: UInt64): (Bool, Int64)
-}
+public interface CarryingPow
 ```
 
 功能：提供使用 [wrapping](./overflow_package_interfaces.md#interface-wrappingopt) 策略的幂运算接口。
@@ -4794,18 +4781,7 @@ func carryingPow(y: UInt64): (Bool, Int64)
 ## interface CheckedOp\<T>
 
 ```cangjie
-public interface CheckedOp<T> {
-    func checkedAdd(y: T): ?T
-    func checkedSub(y: T): ?T
-    func checkedMul(y: T): ?T
-    func checkedDiv(y: T): ?T
-    func checkedMod(y: T): ?T
-    func checkedInc(): ?T
-    func checkedDec(): ?T
-    func checkedNeg(): ?T
-    func checkedShl(y: UInt64): ?T
-    func checkedShr(y: UInt64): ?T
-}
+public interface CheckedOp<T>
 ```
 
 功能：当整数运算出现溢出，返回 `None`。
@@ -10506,9 +10482,7 @@ Normal case - Checked sub result: Some(100)
 ## interface CheckedPow
 
 ```cangjie
-public interface CheckedPow {
-    func checkedPow(y: UInt64): ?Int64
-}
+public interface CheckedPow
 ```
 
 功能：提供返回 [Option](../../core/core_package_api/core_package_enums.md#enum-optiont) 策略的幂运算接口。
@@ -10534,18 +10508,7 @@ func checkedPow(y: UInt64): ?Int64
 ## interface SaturatingOp\<T>
 
 ```cangjie
-public interface SaturatingOp<T> {
-    func saturatingAdd(y: T): T
-    func saturatingSub(y: T): T
-    func saturatingMul(y: T): T
-    func saturatingDiv(y: T): T
-    func saturatingMod(y: T): T
-    func saturatingInc(): T
-    func saturatingDec(): T
-    func saturatingNeg(): T
-    func saturatingShl(y: UInt64): T
-    func saturatingShr(y: UInt64): T
-}
+public interface SaturatingOp<T>
 ```
 
 功能：当整数运算出现溢出，饱和处理。
@@ -16540,9 +16503,7 @@ Underflow case - Saturating sub result: 0
 ## interface SaturatingPow
 
 ```cangjie
-public interface SaturatingPow {
-    func saturatingPow(y: UInt64): Int64
-}
+public interface SaturatingPow
 ```
 
 功能：提供饱和策略的幂运算接口。
@@ -16568,18 +16529,7 @@ func saturatingPow(y: UInt64): Int64
 ## interface ThrowingOp\<T>
 
 ```cangjie
-public interface ThrowingOp<T> {
-    func throwingAdd(y: T): T
-    func throwingSub(y: T): T
-    func throwingMul(y: T): T
-    func throwingDiv(y: T): T
-    func throwingMod(y: T): T
-    func throwingInc(): T
-    func throwingDec(): T
-    func throwingNeg(): T
-    func throwingShl(y: UInt64): T
-    func throwingShr(y: UInt64): T
-}
+public interface ThrowingOp<T>
 ```
 
 功能：当整数运算出现溢出，抛出异常。
@@ -21917,9 +21867,7 @@ Throwing sub result: 500
 ## interface ThrowingPow
 
 ```cangjie
-public interface ThrowingPow {
-    func throwingPow(y: UInt64): Int64
-}
+public interface ThrowingPow
 ```
 
 功能：提供使用抛出异常策略的幂运算接口。
@@ -21949,18 +21897,7 @@ func throwingPow(y: UInt64): Int64
 ## interface WrappingOp\<T>
 
 ```cangjie
-public interface WrappingOp<T> {
-    func wrappingAdd(y: T): T
-    func wrappingSub(y: T): T
-    func wrappingMul(y: T): T
-    func wrappingDiv(y: T): T
-    func wrappingMod(y: T): T
-    func wrappingInc(): T
-    func wrappingDec(): T
-    func wrappingNeg(): T
-    func wrappingShl(y: UInt64): T
-    func wrappingShr(y: UInt64): T
-}
+public interface WrappingOp<T>
 ```
 
 功能：当整数运算出现溢出，高位截断。
@@ -27031,9 +26968,7 @@ Normal case - Wrapping sub result: 900000000000000000
 ## interface WrappingPow
 
 ```cangjie
-public interface WrappingPow {
-    func wrappingPow(y: UInt64): Int64
-}
+public interface WrappingPow
 ```
 
 功能：提供使用高位截断策略的幂运算接口。

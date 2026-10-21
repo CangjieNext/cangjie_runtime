@@ -3,11 +3,7 @@
 ## class BufferedInputStream\<T> where T <: InputStream
 
 ```cangjie
-public class BufferedInputStream<T> <: InputStream where T <: InputStream {
-    public init(input: T)
-    public init(input: T, capacity: Int64)
-    public init(input: T, buffer: Array<Byte>)
-}
+public class BufferedInputStream<T> <: InputStream where T <: InputStream
 ```
 
 功能：提供带缓冲区的输入流。
@@ -748,11 +744,7 @@ World
 ## class BufferedOutputStream\<T> where T <: OutputStream
 
 ```cangjie
-public class BufferedOutputStream<T> <: OutputStream where T <: OutputStream {
-    public init(output: T)
-    public init(output: T, buffer: Array<Byte>)
-    public init(output: T, capacity: Int64)
-}
+public class BufferedOutputStream<T> <: OutputStream where T <: OutputStream
 ```
 
 功能：提供带缓冲区的输出流。
@@ -1505,11 +1497,7 @@ World
 ## class ByteBuffer
 
 ```cangjie
-public class ByteBuffer <: IOStream & Seekable {
-    public init()
-    public init(capacity: Int64)
-    public init(source: Array<Byte>)
-}
+public class ByteBuffer <: IOStream & Seekable
 ```
 
 功能：基于 [Array](../../core/core_package_api/core_package_structs.md#struct-arrayt)\<[Byte](../../core/core_package_api/core_package_types.md#type-byte)> 数据类型，提供对字节流的写入、读取等操作。
@@ -2134,9 +2122,7 @@ Hello World
 ## class ChainedInputStream\<T> where T <: InputStream
 
 ```cangjie
-public class ChainedInputStream<T> <: InputStream where T <: InputStream {
-    public init(input: Array<T>)
-}
+public class ChainedInputStream<T> <: InputStream where T <: InputStream
 ```
 
 功能：提供顺序从 [InputStream](io_package_interfaces.md#interface-inputstream) 数组中读取数据的能力。
@@ -2257,9 +2243,7 @@ Result: Hello World!
 ## class MultiOutputStream\<T> where T <: OutputStream
 
 ```cangjie
-public class MultiOutputStream<T> <: OutputStream where T <: OutputStream {
-    public init(output: Array<T>)
-}
+public class MultiOutputStream<T> <: OutputStream where T <: OutputStream
 ```
 
 功能：提供将数据同时写入到 [OutputStream](io_package_interfaces.md#interface-outputstream) 数组中每个输出流中的能力。
@@ -2411,9 +2395,7 @@ Buffer3: Hello MultiOutputStream
 ## class StringReader\<T> where T <: InputStream
 
 ```cangjie
-public class StringReader<T> where T <: InputStream {
-    public init(input: T)
-}
+public class StringReader<T> where T <: InputStream
 ```
 
 功能：提供从 [InputStream](io_package_interfaces.md#interface-inputstream) 输入流中读出数据并转换成字符或字符串的能力。
@@ -3067,9 +3049,7 @@ World
 ## class StringWriter\<T> where T <: OutputStream
 
 ```cangjie
-public class StringWriter<T> where T <: OutputStream {
-    public init(output: T)
-}
+public class StringWriter<T> where T <: OutputStream
 ```
 
 功能：提供将 [String](../../core/core_package_api/core_package_structs.md#struct-string) 以及一些 [ToString](../../core/core_package_api/core_package_interfaces.md#interface-tostring) 类型转换成指定编码格式和字节序配置的字符串并写入到输出流的能力。

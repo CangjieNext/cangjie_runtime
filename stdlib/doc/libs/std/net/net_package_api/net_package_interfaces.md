@@ -3,14 +3,7 @@
 ## interface DatagramSocket
 
 ```cangjie
-public interface DatagramSocket <: Resource & ToString {
-    prop localAddress: SocketAddress
-    prop remoteAddress: ?SocketAddress
-    mut prop receiveTimeout: ?Duration
-    mut prop sendTimeout: ?Duration
-    func receiveFrom(buffer: Array<Byte>): (SocketAddress, Int64)
-    func sendTo(address: SocketAddress, payload: Array<Byte>): Unit
-}
+public interface DatagramSocket <: Resource & ToString
 ```
 
 功能：[DatagramSocket](net_package_interfaces.md#interface-datagramsocket) 是一种接收和读取数据包的套接字。
@@ -125,12 +118,7 @@ func sendTo(address: SocketAddress, payload: Array<Byte>): Unit
 ## interface ServerSocket
 
 ```cangjie
-public interface ServerSocket <: Resource & ToString {
-    prop localAddress: SocketAddress
-    func bind(): Unit
-    func accept(timeout!: ?Duration): StreamingSocket
-    func accept(): StreamingSocket
-}
+public interface ServerSocket <: Resource & ToString
 ```
 
 功能：提供服务端的 `Socket` 需要的接口。
@@ -204,12 +192,7 @@ func bind(): Unit
 ## interface StreamingSocket
 
 ```cangjie
-public interface StreamingSocket <: IOStream & Resource & ToString {
-    prop localAddress: SocketAddress
-    prop remoteAddress: SocketAddress
-    mut prop readTimeout: ?Duration
-    mut prop writeTimeout: ?Duration
-}
+public interface StreamingSocket <: IOStream & Resource & ToString
 ```
 
 功能：双工流模式下的运行的 `Socket`，可被读写。

@@ -3,20 +3,7 @@
 ## interface UnicodeRuneExtension
 
 ```cangjie
-public interface UnicodeRuneExtension {
-    func isLetter(): Bool
-    func isNumber(): Bool
-    func isLowerCase(): Bool
-    func isUpperCase(): Bool
-    func isTitleCase(): Bool
-    func isWhiteSpace(): Bool
-    func toUpperCase(): Rune
-    func toLowerCase(): Rune
-    func toTitleCase(): Rune
-    func toUpperCase(opt: CasingOption): Rune
-    func toLowerCase(opt: CasingOption): Rune
-    func toTitleCase(opt: CasingOption): Rune
-}
+public interface UnicodeRuneExtension
 ```
 
 功能：`Unicode` 字符集相关扩展的接口。
@@ -562,20 +549,7 @@ A
 ## interface UnicodeStringExtension
 
 ```cangjie
-public interface UnicodeStringExtension {
-    func isBlank(): Bool
-    func toLower(): String
-    func toLower(opt: CasingOption): String
-    func toTitle(): String
-    func toTitle(opt: CasingOption): String
-    func toUpper(): String
-    func toUpper(opt: CasingOption): String
-    func trim(): String
-    func trimRight(): String
-    func trimLeft(): String
-    func trimStart(): String
-    func trimEnd(): String
-}
+public interface UnicodeStringExtension
 ```
 
 功能：`Unicode` 字符集相关扩展的接口。

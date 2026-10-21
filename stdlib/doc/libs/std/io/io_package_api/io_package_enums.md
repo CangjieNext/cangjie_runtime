@@ -3,11 +3,7 @@
 ## enum SeekPosition
 
 ```cangjie
-public enum SeekPosition {
-    | Current(Int64)
-    | Begin(Int64)
-    | End(Int64)
-}
+public enum SeekPosition
 ```
 
 功能：该枚举类型表示光标在文件中的位置。

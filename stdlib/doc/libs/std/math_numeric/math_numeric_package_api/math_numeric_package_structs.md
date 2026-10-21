@@ -3,25 +3,7 @@
 ## struct BigInt
 
 ```cangjie
-public struct BigInt <: Comparable<BigInt> & Hashable & ToString {
-    public init(bytes: Array<Byte>)
-    public init(sign: Bool, magnitude: Array<Byte>)
-    public init(n: Int8)
-    public init(n: Int16)
-    public init(n: Int32)
-    public init(n: Int64)
-    public init(n: UInt8)
-    public init(n: UInt16)
-    public init(n: UInt32)
-    public init(n: UInt64)
-    public init(n: UIntNative)
-    public init(n: IntNative)
-    public init(n: Float16)
-    public init(n: Float32)
-    public init(n: Float64)
-    public init(sign: Bool, bitLen: Int64, rand!: Random = Random())
-    public init(s: String, base!: Int64 = 10)
-}
+public struct BigInt <: Comparable<BigInt> & Hashable & ToString
 ```
 
 功能：[BigInt](math_numeric_package_structs.md#struct-bigint) 定义为任意精度（二进制）的有符号整数。仓颉的 struct [BigInt](math_numeric_package_structs.md#struct-bigint) 用于任意精度有符号整数的计算，类型转换等。
@@ -2661,7 +2643,7 @@ true
 ### extend BigInt <: Number\<BigInt>
 
 ```cangjie
-extend BigInt <: Number<BigInt> {}
+extend BigInt <: Number<BigInt>
 ```
 
 功能：为 [BigInt](#struct-bigint) 类型扩展 [Number\<T>](../../math/math_package_api/math_package_interfaces.md#interface-numbert) 接口。
@@ -2981,24 +2963,7 @@ main() {
 ## struct Decimal
 
 ```cangjie
-public struct Decimal <: Comparable<Decimal> & Hashable & ToString {
-    public init(val: String)
-    public init(val: BigInt, scale: Int32)
-    public init(val: BigInt)
-    public init(val: Int8)
-    public init(val: Int16)
-    public init(val: Int32)
-    public init(val: IntNative)
-    public init(val: Int64)
-    public init(val: UInt8)
-    public init(val: UInt16)
-    public init(val: UInt32)
-    public init(val: UIntNative)
-    public init(val: UInt64)
-    public init(val: Float16)
-    public init(val: Float32)
-    public init(val: Float64)
-}
+public struct Decimal <: Comparable<Decimal> & Hashable & ToString
 ```
 
 功能：[Decimal](math_numeric_package_structs.md#struct-decimal) 用于表示任意精度的有符号的十进制数。允许操作过程指定结果精度及舍入规则。提供基础类型 (Int、UInt、[String](../../core/core_package_api/core_package_structs.md#struct-string)、Float 等) 与 [BigInt](math_numeric_package_structs.md#struct-bigint) 类型互相转换能力，支持 [Decimal](math_numeric_package_structs.md#struct-decimal) 对象基本属性查询等能力，支持基础数学运算操作，提供对象比较、hash、字符串打印等基础能力。
@@ -5334,7 +5299,7 @@ main() {
 ### extend Decimal <: Number\<Decimal>
 
 ```cangjie
-extend Decimal <: Number<Decimal> {}
+extend Decimal <: Number<Decimal>
 ```
 
 功能：为 [Decimal](#struct-decimal) 类型扩展 [Number\<T>](../../math/math_package_api/math_package_interfaces.md#interface-numbert) 接口。

@@ -3,14 +3,7 @@
 ## interface Condition
 
 ```cangjie
-public interface Condition {
-    func wait(): Unit
-    func wait(timeout!: Duration): Bool
-    func waitUntil(predicate: () -> Bool): Unit
-    func waitUntil(predicate: () -> Bool, timeout!: Duration): Bool
-    func notify(): Unit
-    func notifyAll(): Unit
-}
+public interface Condition
 ```
 
 功能：提供使线程阻塞并等待来自另一个线程的信号以恢复执行的功能的接口。
@@ -134,11 +127,7 @@ func waitUntil(predicate: () -> Bool, timeout!: Duration): Bool
 ## interface IReentrantMutex <sup>(deprecated)</sup>
 
 ```cangjie
-public interface IReentrantMutex {
-    func lock(): Unit
-    func tryLock(): Bool
-    func unlock(): Unit
-}
+public interface IReentrantMutex
 ```
 
 功能：提供实现可重入互斥锁的接口。
@@ -187,11 +176,7 @@ func unlock(): Unit
 ## interface Lock
 
 ```cangjie
-public interface Lock {
-    func lock(): Unit
-    func tryLock(): Bool
-    func unlock(): Unit
-}
+public interface Lock
 ```
 
 功能：提供实现可重入互斥锁的接口。
@@ -239,9 +224,7 @@ func unlock(): Unit
 ## interface UniqueLock
 
 ```cangjie
-public interface UniqueLock <: Lock {
-    func condition(): Condition
-}
+public interface UniqueLock <: Lock
 ```
 
 功能：提供实现独占锁的接口。

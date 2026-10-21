@@ -3,9 +3,7 @@
 ## interface InputStream
 
 ```cangjie
-public interface InputStream {
-    func read(buffer: Array<Byte>): Int64
-}
+public interface InputStream
 ```
 
 功能：输入流接口。
@@ -29,7 +27,7 @@ func read(buffer: Array<Byte>): Int64
 ## interface IOStream
 
 ```cangjie
-public interface IOStream <: InputStream & OutputStream {}
+public interface IOStream <: InputStream & OutputStream
 ```
 
 功能：输入输出流接口。
@@ -42,10 +40,7 @@ public interface IOStream <: InputStream & OutputStream {}
 ## interface OutputStream
 
 ```cangjie
-public interface OutputStream {
-    func write(buffer: Array<Byte>): Unit
-    func flush(): Unit
-}
+public interface OutputStream
 ```
 
 功能：输出流接口。
@@ -73,12 +68,7 @@ func write(buffer: Array<Byte>): Unit
 ## interface Seekable
 
 ```cangjie
-public interface Seekable {
-    func seek(sp: SeekPosition): Int64
-    prop position: Int64
-    prop remainLength: Int64
-    prop length: Int64
-}
+public interface Seekable
 ```
 
 功能：移动光标接口。
