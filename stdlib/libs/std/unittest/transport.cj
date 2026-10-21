@@ -105,7 +105,7 @@ class TransportChannel <: Resource {
     }
 
     /**
-     * @return lazy messages recieved by the channel.
+     * @return lazy messages received by the channel.
      */
     func receive(limit!: ?UInt64 = None): Iterator<ExecutionResultPart> {
         return ExecutionResultPartIterator(socket, limit: limit)

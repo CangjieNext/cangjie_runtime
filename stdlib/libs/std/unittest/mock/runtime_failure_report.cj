@@ -123,7 +123,7 @@ class RuntimeFailureReport <: FailureReport {
                     }
                     let handledByThisChain = findInvocationsHandledByChain(thisChain)
                     if (!handledByThisChain.isEmpty()) {
-                        line("Invocations handled by this stub occured at:")
+                        line("Invocations handled by this stub occurred at:")
                         indent {
                             renderInvocationList(handledByThisChain)
                         }
@@ -146,7 +146,7 @@ class RuntimeFailureReport <: FailureReport {
                             text("invocations allowed by ")
                             renderStub(stubChain)
                         }
-                        line("Previous invocations handled by this stub occured at:")
+                        line("Previous invocations handled by this stub occurred at:")
                         indent {
                             renderInvocationList(findInvocationsHandledByChain(stubChain))
                         }

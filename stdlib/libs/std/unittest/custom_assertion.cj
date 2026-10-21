@@ -211,7 +211,7 @@ public class AssertionCtx {
     }
 
     /**
-     * Says whether any error occured during run of assertion
+     * Says whether any error occurred during run of assertion
      */
     public prop hasErrors: Bool {
         get() {
@@ -312,7 +312,7 @@ private func runExpect(ctx: AssertionCtx, expect: (AssertionCtx) -> Any): Unit {
  * @param assert:       (AssertionCtx) -> T - capture of invocation of assertion with right arguments
  * @param optParentCtx: ?AssertionCtx       - first argument of @CustomAssertion function
  *
- * @throws AssertException if any occured in nested checks
+ * @throws AssertException if any occurred in nested checks
  */
 public func invokeCustomAssert<T>(
     passedArgs: Array<String>,

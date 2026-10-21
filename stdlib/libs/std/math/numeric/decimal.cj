@@ -772,7 +772,7 @@ public struct Decimal <: Comparable<Decimal> & Hashable & ToString {
      * @since 0.46.1
      */
     public func divWithPrecision(d: Decimal, precision: Int64, roundingMode!: RoundingMode = HalfEven): Decimal {
-        // if precision is 0, process same with without precision paramter.
+        // if precision is 0, process same with without precision parameter.
         if (precision == 0) {
             return divWithContext(d, roundingMode)
         }

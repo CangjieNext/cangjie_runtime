@@ -139,7 +139,7 @@ public class UdpSocket <: DatagramSocket {
      * Note that the remote address should always have the same address family as local at which the socket is bound: for example, both IPv4.
      *
      * After invoking this function with a particular address, function send will use the preset address. Functions send/sendTo may throw exceptions if
-     * ICMP abnormal responses are recieved. We will also never receive any messages from other peers (they will be just filtered out).
+     * ICMP abnormal responses are received. We will also never receive any messages from other peers (they will be just filtered out).
      * Invoking disconnect() reverts the filter to the initial state so it will be possible to send message to any recipients again.
      *
      * This function should be only invoked after bind()
