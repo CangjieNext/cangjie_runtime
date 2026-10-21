@@ -1,0 +1,14 @@
+runtime/build.py
+  h_54e38dc3a81e5d 116-119,121
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f11696f073c96d4fb76cb71b7e699a1e823536ce",
+  "prompts": {},
+  "humans": {
+    "h_54e38dc3a81e5d": {
+      "author": "wangyang594 <wangyang594@huawei.com>"
+    }
+  }
+}

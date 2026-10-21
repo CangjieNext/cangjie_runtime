@@ -1,0 +1,12 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "72f55f843f378a1409b96b0c04ea1b0e1521d092",
+  "prompts": {},
+  "humans": {
+    "h_54e38dc3a81e5d": {
+      "author": "wangyang594 <wangyang594@huawei.com>"
+    }
+  }
+}

@@ -1,0 +1,16 @@
+runtime/config.cmake
+  h_54e38dc3a81e5d 287-291
+runtime/build.py
+  h_54e38dc3a81e5d 111-115,117,120
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "cf9edd4d653599d525a17cf61d723c194f639216",
+  "prompts": {},
+  "humans": {
+    "h_54e38dc3a81e5d": {
+      "author": "wangyang594 <wangyang594@huawei.com>"
+    }
+  }
+}
