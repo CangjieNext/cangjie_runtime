@@ -18,7 +18,7 @@ import std.ast.*
  * the error about undeclared identifier will be thrown.
  * In case if type is invalid (e.g. not specified in `@UnittestOption`) the error about unsolvable types will be prined.
  * For a particular list of configuration options supported by different parts of the framework, please refer to those parts.
- * Macro can be repeated, in case of paramter duplication, up to type of value, last one will be selected.
+ * Macro can be repeated, in case of parameter duplication, up to type of value, last one will be selected.
  */
 public macro Configure(args: Tokens, input: Tokens) {
     return topLevelMacroDriver(CONFIGURE_MACRO, input, args, { it => insideParentContext(it.macroIdentifier) })

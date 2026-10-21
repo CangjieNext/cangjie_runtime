@@ -136,7 +136,7 @@ class ExpectationFailedReport <: FailureReport {
                         filter { entry: LogEntry => entry.wasHandledBy(thisChain) } |>
                         collectArray
                     if (!handledByThisChain.isEmpty()) {
-                        line("Invocations handled by this stub occured at:")
+                        line("Invocations handled by this stub occurred at:")
                         indent {
                             renderInvocationList(
                                 handledByThisChain |>

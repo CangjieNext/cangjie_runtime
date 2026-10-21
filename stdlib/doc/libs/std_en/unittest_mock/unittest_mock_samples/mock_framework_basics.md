@@ -301,7 +301,7 @@ Expectation failed
     Too few invocations for stub foo.bar() declared at example_test.cj:9.
         Required: exactly 2 times
         Actual: 1
-        Invocations handled by this stub occured at:
+        Invocations handled by this stub occurred at:
             example_test.cj:6
 ```
 

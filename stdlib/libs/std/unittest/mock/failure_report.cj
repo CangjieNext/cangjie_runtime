@@ -56,7 +56,7 @@ open class FailureReport {
             return
         }
 
-        line("Matching invocations occured at:")
+        line("Matching invocations occurred at:")
         textBuilder.indent {
             renderInvocationList(matchingInvocations)
         }
