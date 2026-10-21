@@ -150,29 +150,24 @@ public class ArrayDeque<T> <: Deque<T> {
     }
 
     private func grow(minCapacity: Int64, full!: Bool = false): Unit {
-        let oldData = _data
-        let oldHead = _head
-        let oldTail = _tail
-        let oldCapacity: Int64 = oldData.size
+        let oldCapacity: Int64 = _data.size
         var newCapacity: Int64 = oldCapacity + (oldCapacity >> 1)
         if (newCapacity < minCapacity) {
             newCapacity = minCapacity
         }
         let newArr: Array<T> = Array<T>(newCapacity, repeat: unsafe { zeroValue<T>() })
         let newSize: Int64 = if (full) {
-            oldCapacity
-        } else if (oldHead > oldTail) {
-            oldCapacity - oldHead + oldTail
+            _data.size
         } else {
-            oldTail - oldHead
+            size
         }
 
-        if (oldHead < oldTail) {
-            oldData.copyTo(newArr, oldHead, 0, oldTail - oldHead)
+        if (_head < _tail) {
+            _data.copyTo(newArr, 0, _head, _tail - _head)
         } else if (newSize != 0) {
-            let count = oldCapacity - oldHead
-            oldData.copyTo(newArr, oldHead, 0, count)
-            oldData.copyTo(newArr, 0, count, oldTail)
+            let count = _data.size - _head
+            _data.copyTo(newArr, _head, 0, count)
+            _data.copyTo(newArr, 0, count, _tail)
         }
         _head = 0
         _tail = newSize
