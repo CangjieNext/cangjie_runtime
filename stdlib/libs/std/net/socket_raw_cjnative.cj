@@ -29,23 +29,23 @@ import std.sync.*
  * mirroring the SocketState/SocketHolder protocol used by Tcp/Udp/Unix
  * sockets (socket_state.cj / socket_holder.cj):
  *
- * bit 31   : disposing (close has won the race and will release the fd)
+ * bit 31   : disposing (close has won the race and released the fd)
  * bit 30   : close-requested (close() entered, fd not yet released)
- * bit 29   : bound
- * bits 0-28: number of running I/O sessions (receive/receiveFrom/send/sendTo/)
+ * bits 0-29: number of running I/O sessions (receive/receiveFrom/send/sendTo/
  *            accept/connect/get|setSocketOption/local|remoteAddress getters)
  *
- * close() waits (with the process-global closeCondition) until the session
- * counter drains to 0, so the fd can never be closed and reused by another
- * socket while an I/O operation is in flight on it. I/O sessions sample
- * the fd only while holding a session, so they always address the socket
- * they were started on.
+ * close() marks the socket closing (new sessions fail with "already
+ * closed") and then releases the fd through the runtime's deferred-close
+ * protocol; it does NOT wait for in-flight sessions to drain - a session
+ * started before close() runs to completion against the old fd (its recv
+ * loops re-check the closing/closed state between iterations), and in-
+ * flight recv() syscalls keep using the old kernel file object, so the fd
+ * number can never alias a socket that a stale handle still targets.
  */
 struct RawSocketLifecycle {
     private static const DISPOSING_MASK: UInt32 = 1u32 << 31
     private static const CLOSING_MASK: UInt32 = 1u32 << 30
-    private static const BOUND_MASK: UInt32 = 1u32 << 29
-    private static const COUNTER_MASK: UInt32 = 0x1FFF_FFFFu32
+    private static const COUNTER_MASK: UInt32 = 0x3FFF_FFFFu32
 
     RawSocketLifecycle(var value: UInt32) {}
 
@@ -71,19 +71,6 @@ struct RawSocketLifecycle {
                 value |= CLOSING_MASK
             } else {
                 value &= !CLOSING_MASK
-            }
-        }
-    }
-
-    mut prop bound: Bool {
-        get() {
-            (value & BOUND_MASK) != 0
-        }
-        set(b) {
-            if (b) {
-                value |= BOUND_MASK
-            } else {
-                value &= !BOUND_MASK
             }
         }
     }
@@ -226,10 +213,9 @@ public class RawSocket {
             case None =>
                 withSession {
                     this.sockImpl.bind(addr)
+                    /* The bound marker is this.localAddr_ (Some/None); no
+                     * lifecycle bit is needed for it. */
                     this.localAddr_ = getLocalAddress()
-                    var state = RawSocketLifecycle(lifecycle.load())
-                    state.bound = true
-                    lifecycle.store(state.value)
                 }
         }
     }
@@ -533,8 +519,10 @@ public class RawSocket {
                 break
             }
         }
-        /* The closing flag is re-checked on the next session-enter; there
-         * is no close-side waiter to notify in this protocol. */
+        /* The closing flag is re-checked on the next session-enter and by
+         * the receive/receiveFrom inner loops (impl-level `closed` flag);
+         * there is no close-side waiter to notify in this protocol - close()
+         * does not wait for sessions to drain. */
     }
 
     /* Runs `block` under a session; throws "already closed" when the socket
@@ -609,6 +597,10 @@ class RawSocketImpl {
         let totalSize = buffer.size
         var totalSent: Int64 = 0
         while (totalSent < totalSize) {
+            /* CR-10: symmetric stale-handle guard (see receive()). */
+            if (closed.load()) {
+                SocketException.throwClosedException()
+            }
             let sizeToSend: Int64 = getOnceSendSize(totalSize - totalSent)
             var sentSize: Int32 = 0
             unsafe {
@@ -639,6 +631,10 @@ class RawSocketImpl {
         let bytesToWrite = buffer.size
         var bytesWritten: Int64 = 0
         while (bytesWritten < bytesToWrite) {
+            /* CR-10: symmetric stale-handle guard (see receive()). */
+            if (closed.load()) {
+                SocketException.throwClosedException()
+            }
             let currentChunk: Int64 = getOnceSendSize(bytesToWrite - bytesWritten)
             var writeResult: Int32 = 0
             unsafe {
@@ -761,8 +757,10 @@ class RawSocketImpl {
 class RawSocketImpl {
     var sockFd: Int64
     var isBound: Bool = false
-    /* CR-10: see the non-Windows RawSocketImpl comment. */
-    let closed: AtomicBool = AtomicBool(false)
+    /* NOTE: CR-10 stale-handle guard (AtomicBool closed + loop checks) is
+     * Linux-only in this change; the Windows buffered read/write path
+     * (CJ_SOCKET_Buffer*) is out of scope and keeps the previous immediate-
+     * close semantics. */
     protected var socketBufferPtr: CPointer<SocketBuffer> = CPointer<SocketBuffer>()
     var bufferInitialized: AtomicBool = AtomicBool(false)
 
