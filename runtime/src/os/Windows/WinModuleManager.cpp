@@ -14,30 +14,8 @@
 #include <unordered_set>
 #include <vector>
 #include <windows.h>
-#include <winternl.h>
 
 namespace MapleRuntime {
-struct LdrDataTableEntry {
-    LIST_ENTRY inLoadOrderLinks;
-    LIST_ENTRY inMemoryOrderLinks;
-    LIST_ENTRY inInitializationOrderLinks;
-    PVOID dllBase;
-    PVOID entryPoint;
-    DWORD sizeOfImage;
-    UNICODE_STRING fullDllName;
-    UNICODE_STRING baseDllName;
-    DWORD flags;
-    WORD loadCount;
-    WORD tlsIndex;
-    LIST_ENTRY hashLinks;
-    PVOID sectionPointer;
-    DWORD checkSum;
-    DWORD timeDateStamp;
-    PVOID loadedImports;
-    PVOID entryPointActivationContext;
-    PVOID patchInformation;
-};
-
 RuntimeFunction* WinModule::GetRuntimeFunction(Uptr pc) const
 {
     uint32_t start = 0;
