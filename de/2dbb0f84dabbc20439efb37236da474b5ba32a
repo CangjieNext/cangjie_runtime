@@ -1,0 +1,48 @@
+stdlib/libs/std/ast/parse_expr.cj
+  h_6a43e5c473a09a 253
+  h_6a43e5c473a09a 24,47,61,106,575,807,896,900
+stdlib/libs/std/ast/parse_pattern.cj
+  h_6a43e5c473a09a 57,61,179
+  h_6a43e5c473a09a 24,47,74,83,87,91,100,105,118,128,146,164,175,197
+stdlib/libs/std/ast/nodes.cj
+  h_6a43e5c473a09a 131,687,724
+  h_6a43e5c473a09a 98,561,567,1306,1326,1489,1509,1997,2116
+stdlib/libs/std/ast/exprs.cj
+  h_6a43e5c473a09a 795,1578,1795,2311,2751,3099,3118,3138,3609
+  h_6a43e5c473a09a 140,241,318,409,499,579,671,774,858,925,998,1146,1241,1351,1499,1651,1750,1902,2012,2133,2271,2393,2496,2569,2668,2829,2893,2988,3084,3242,3344,3348,3362,3405,3518,3850,3947,4008,4129
+stdlib/libs/std/ast/common.cj
+  h_6a43e5c473a09a 36
+  h_6a43e5c473a09a 240,258,269
+stdlib/libs/std/ast/decls.cj
+  h_6a43e5c473a09a 747,750,913,1107,1246,1490,1510,1530,1721,1862,1873
+  h_6a43e5c473a09a 120,1340-1341,1640,2110-2111,2211,2384
+stdlib/libs/std/ast/diag_report.cj
+  h_6a43e5c473a09a 37,64-65
+stdlib/libs/std/ast/ffi.cj
+  h_6a43e5c473a09a 103,125,131,151,159,171,175,199,209,249,286,291,308,335,340,352,357,370,375,388,461,466,479,486,499,506,519,528,566
+stdlib/libs/std/ast/parse_decl.cj
+  h_6a43e5c473a09a 44,67,122,377,397,402,702,707
+stdlib/libs/std/ast/parse_node.cj
+  h_6a43e5c473a09a 109,114,148,151,364,638,684
+stdlib/libs/std/ast/parse_type.cj
+  h_6a43e5c473a09a 24,47,80
+stdlib/libs/std/ast/patterns.cj
+  h_6a43e5c473a09a 64,107,258,347,430,515,633
+stdlib/libs/std/ast/token.cj
+  h_6a43e5c473a09a 27,58
+stdlib/libs/std/ast/tokens.cj
+  h_6a43e5c473a09a 150,242,393,409,430
+stdlib/libs/std/ast/types.cj
+  h_6a43e5c473a09a 76,142,268,407,490,645,727,878
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "de2dbb0f84dabbc20439efb37236da474b5ba32a",
+  "prompts": {},
+  "humans": {
+    "h_6a43e5c473a09a": {
+      "author": "Xu Zhaoheng <xuzhaoheng1@huawei.com>"
+    }
+  }
+}
