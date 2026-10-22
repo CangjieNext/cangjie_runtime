@@ -241,7 +241,7 @@ extend<T> Array<T> <: Equatable<Array<T>> where T <: Equatable<T> {
      * @params fromIndex - The start index for the backward search.
      *
      * @return Index of the last occurrence of the element in the Array, or None if the element does not occur.
-     *         If fromIndex is less than 0, the search starts from position 0.
+     *         If fromIndex is less than 0, it is treated as 0, and the entire Array is searched.
      */
     @Frozen
     public func lastIndexOf(element: T, fromIndex: Int64): Option<Int64> {
@@ -281,7 +281,7 @@ extend<T> Array<T> <: Equatable<Array<T>> where T <: Equatable<T> {
      * @params fromIndex - The start index for the backward search.
      *
      * @return Index of the last occurrence of @p elements at or before the starting position, or None if it does not occur.
-     *         If fromIndex is less than 0, the search starts from position 0.
+     *         If fromIndex is less than 0, it is treated as 0, and the entire Array is searched.
      */
     @Frozen
     public func lastIndexOf(elements: Array<T>, fromIndex: Int64): Option<Int64> {
