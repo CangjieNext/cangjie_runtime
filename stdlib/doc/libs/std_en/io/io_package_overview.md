@@ -21,7 +21,7 @@ I/O operations refer to data exchange operations between programs and external d
 
 |              Interface Name         |           Functionality         |
 | ---------------------------------- | ------------------------------- |
-| [InputStream](./io_package_api/io_package_interfaces.md#interface-inputstream) | Input stream interface. |
+| [InputStream](./io_package_api/io_package_interfaces.md#interface-inputstream) | Input stream interface with ordinary and exact reads. |
 | [IOStream](./io_package_api/io_package_interfaces.md#interface-iostream) | Input/output stream interface. |
 | [OutputStream](./io_package_api/io_package_interfaces.md#interface-iostream) | Output stream interface. |
 | [Seekable](./io_package_api/io_package_interfaces.md#interface-seekable) | Cursor movement interface. |

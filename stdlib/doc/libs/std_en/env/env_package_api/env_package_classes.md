@@ -77,6 +77,10 @@ When standard input comes from a pipe, a read may return before the array is ful
 
 To fill the array, repeatedly read into its unfilled portion and accumulate the byte counts. If a call returns `0` before the array is full, stop the loop and handle the incomplete read.
 
+Alternatively, call `getStdIn().readFully(buffer)` using [InputStream.readFully(Array\<Byte>)](../../io/io_package_api/io_package_interfaces.md#func-readfullyarraybyte). It returns normally only when the array is full and throws if it cannot be filled.
+
+The current implementation preserves the historical behavior that read failures may also return `0`. Thus, a zero return cannot distinguish all underlying errors from normal EOF. `readFully` reports such a result as an incomplete read rather than success.
+
 > **Warning:**
 >
 > This function carries a risk: the read result might truncate a `UTF-8 code point` in the middle. If truncation occurs, converting this [Array](../../core/core_package_api/core_package_structs.md#struct-arrayt)\<[Byte](../../core/core_package_api/core_package_types.md#type-byte)> to a string may produce incorrect results or throw an exception.

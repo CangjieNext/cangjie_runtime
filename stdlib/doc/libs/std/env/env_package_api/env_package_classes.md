@@ -76,6 +76,10 @@ public func read(arr: Array<Byte>): Int64
 
 若需要读满数组，应循环调用 `read`，将后续数据读入数组中尚未填充的部分，并累计实际读取的字节数。若在读满前返回 `0`，应停止循环并处理未读满的情况。
 
+也可以使用 [InputStream.readFully(Array\<Byte>)](../../io/io_package_api/io_package_interfaces.md#func-readfullyarraybyte) 以 `getStdIn().readFully(buffer)` 完成读满操作；该默认方法正常返回表示数组已填满，无法填满时抛出异常。
+
+当前实现保留了读取失败也可能返回 `0` 的历史行为，因此返回 `0` 不能用于区分所有底层错误与正常 EOF。`readFully` 会把这种结果报告为未填满，不会将其当作成功。
+
 > **注意：**
 >
 > 该函数存在风险，可能读取出来的结果恰好把 `UTF-8 code point` 从中截断，如果发生截断，将导致该 [Array](../../core/core_package_api/core_package_structs.md#struct-arrayt)\<[Byte](../../core/core_package_api/core_package_types.md#type-byte)> 转换成字符串的结果不正确或抛出异常。

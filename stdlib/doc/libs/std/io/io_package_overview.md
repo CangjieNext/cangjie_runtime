@@ -21,7 +21,7 @@ I/O 操作是指程序与外部设备进行数据交换的操作。仓颉提供�
 
 |              接口名          |           功能           |
 | --------------------------- | ------------------------ |
-| [InputStream](./io_package_api/io_package_interfaces.md#interface-inputstream) | 输入流接口。 |
+| [InputStream](./io_package_api/io_package_interfaces.md#interface-inputstream) | 输入流接口，支持普通读取和读满。 |
 | [IOStream](./io_package_api/io_package_interfaces.md#interface-iostream) | 输入输出流接口。 |
 | [OutputStream](./io_package_api/io_package_interfaces.md#interface-outputstream) | 输出流接口。 |
 | [Seekable](./io_package_api/io_package_interfaces.md#interface-seekable) | 移动光标接口。 |

@@ -32,9 +32,37 @@ public interface InputStream {
      *
      * @params buffer where write bytes to
      *
-     * @return number of bytes read and copied to the buffer (never zero) or 0 when end of stream reached
+     * @return number of bytes read and copied to the buffer; for a nonempty buffer,
+     * 0 indicates the end of the stream on a normal read.
+     * Empty-buffer handling and errors are documented by each implementation.
+     * Call readFully when the entire buffer must be filled.
      */
     func read(buffer: Array<Byte>): Int64
+
+    /**
+     * Reads exactly buffer.size bytes using this stream's read implementation.
+     * An empty buffer succeeds without reading from the stream.
+     * The buffer may be partially updated if this function throws.
+     * This function neither closes the stream nor makes multiple reads atomic.
+     *
+     * @throws IOException if the stream returns 0 before the buffer is full,
+     * or returns a byte count outside the requested range.
+     * Exceptions thrown by the underlying read are propagated unchanged.
+     */
+    func readFully(buffer: Array<Byte>): Unit {
+        var offset: Int64 = 0
+        while (offset < buffer.size) {
+            let remaining = buffer.size - offset
+            let count = this.read(buffer.slice(offset, remaining))
+            if (count < 0 || count > remaining) {
+                throw IOException("Invalid read count '${count}': expected a value between 0 and ${remaining}.")
+            }
+            if (count == 0) {
+                throw IOException("Unable to fill buffer: expected ${buffer.size} bytes, read ${offset}.")
+            }
+            offset += count
+        }
+    }
 }
 
 /**
