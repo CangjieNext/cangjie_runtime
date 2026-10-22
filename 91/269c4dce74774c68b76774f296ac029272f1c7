@@ -1,0 +1,18 @@
+runtime/src/ObjectModel/MClass.cpp
+  h_bb968bbfd16e8f 980-994
+runtime/src/ObjectModel/MClass.h
+  h_bb968bbfd16e8f 638
+runtime/src/ObjectModel/MethodInfo.cpp
+  h_bb968bbfd16e8f 379-396,503
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "91269c4dce74774c68b76774f296ac029272f1c7",
+  "prompts": {},
+  "humans": {
+    "h_bb968bbfd16e8f": {
+      "author": "leeguo <liguo21@huawei.com>"
+    }
+  }
+}
