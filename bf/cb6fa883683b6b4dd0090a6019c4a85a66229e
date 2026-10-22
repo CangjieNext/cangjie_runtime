@@ -1,0 +1,34 @@
+runtime/src/CJThread/src/runtime/schedule/src/processor.cpp
+  s_e92ad3596f4dc2::t_91eb272c7c8045 812-813
+  s_e92ad3596f4dc2::t_6763589b547d56 778-779
+runtime/src/CjScheduler.cpp
+  s_e92ad3596f4dc2::t_b11f4556ff12e9 431-432
+  s_e92ad3596f4dc2::t_4f097a647dae7a 308-309
+runtime/src/CJThread/src/runtime/schedule/src/cjthread.cpp
+  s_e92ad3596f4dc2::t_1cf2afe2a345a9 1239-1240
+  s_e92ad3596f4dc2::t_c789656aca53ae 923-924
+  s_e92ad3596f4dc2::t_5a628330b976ca 987-988
+  s_e92ad3596f4dc2::t_c10a1ac578a2e9 1200-1201
+  s_e92ad3596f4dc2::t_5b61643fa88e20 1036-1037
+  s_e92ad3596f4dc2::t_4db17134b7db59 1687-1688
+  s_e92ad3596f4dc2::t_347bd036e4c5cc 498-499
+  s_e92ad3596f4dc2::t_684ef1866e8df5 1367-1368
+  s_e92ad3596f4dc2::t_f48c10dcd296be 500-501
+  s_e92ad3596f4dc2::t_458c1330806538 1689
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.13",
+  "base_commit_sha": "bfcb6fa883683b6b4dd0090a6019c4a85a66229e",
+  "prompts": {},
+  "sessions": {
+    "s_e92ad3596f4dc2": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_09c22eaf5ffeFWhy9yjhKKHeoz",
+        "model": "GLM-5.2"
+      },
+      "human_author": null
+    }
+  }
+}
