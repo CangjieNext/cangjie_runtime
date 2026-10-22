@@ -311,4 +311,5 @@ extend Rune <: Comparable<Rune> {
             case _ => Ordering.EQ
         }
     }
+
 }
