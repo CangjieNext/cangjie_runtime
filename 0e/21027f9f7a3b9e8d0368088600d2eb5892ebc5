@@ -1,0 +1,16 @@
+runtime/src/Exception/EhFrameInfo.h
+  h_4b284edf89e31b 148-159
+runtime/src/Exception/CalleeSavedRegisterContext.h
+  h_4b284edf89e31b 65-77,111-124,126-127,130
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "0e21027f9f7a3b9e8d0368088600d2eb5892ebc5",
+  "prompts": {},
+  "humans": {
+    "h_4b284edf89e31b": {
+      "author": "xiaohan_1 <xiaohan24@huawei.com>"
+    }
+  }
+}
