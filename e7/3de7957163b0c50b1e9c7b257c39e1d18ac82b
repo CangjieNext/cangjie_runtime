@@ -1,0 +1,19 @@
+stdlib/libs/std/net/ip_addess.cj
+  s_7d6b7ce03cfc7a::t_4d217e245f9e3a 357-362,365
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "e73de7957163b0c50b1e9c7b257c39e1d18ac82b",
+  "prompts": {},
+  "sessions": {
+    "s_7d6b7ce03cfc7a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fc8247b85ffeH1Oh4lJwbmrlP7",
+        "model": "Deepseek-V4-Flash-0731"
+      },
+      "human_author": "Chaos John <yujiahao8@huawei.com>"
+    }
+  }
+}
