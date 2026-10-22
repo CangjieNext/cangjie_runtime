@@ -1,0 +1,26 @@
+stdlib/doc/libs/std/std_module_overview.md
+  s_616cda0422bc8d::t_d53f9066aebc9c 44,51,58,65,72,79
+stdlib/doc/libs/std_en/std_module_overview.md
+  s_616cda0422bc8d::t_7fa7cf8e503f44 44,51,58,65,72,79
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "ae476f9b33f22ce33c5ea47cc047f63856829a45",
+  "prompts": {},
+  "humans": {
+    "h_19cba801a4f3e0": {
+      "author": "leeguo <leeguo@126.com>"
+    }
+  },
+  "sessions": {
+    "s_616cda0422bc8d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f99610dbbffeHRkDhVN3Iu5wjb",
+        "model": "GLM-5.2"
+      },
+      "human_author": null
+    }
+  }
+}

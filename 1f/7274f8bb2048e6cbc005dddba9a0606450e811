@@ -1,0 +1,19 @@
+runtime/build.py
+  s_7a2f6582b6432f::t_52b355e5d0b211 111
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "1f7274f8bb2048e6cbc005dddba9a0606450e811",
+  "prompts": {},
+  "sessions": {
+    "s_7a2f6582b6432f": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a05698-83b9-7423-9d31-2e5a937b37f1",
+        "model": "GLM-5.2"
+      },
+      "human_author": "leeguo <leeguo@126.com>"
+    }
+  }
+}
