@@ -8,523 +8,6 @@ public interface Any
 
 功能：[Any](core_package_interfaces.md#interface-any) 是所有类型的父类型，所有 `interface` 都默认继承它，所有非 `interface` 类型都默认实现它。
 
-### extend Byte
-
-```cangjie
-extend Byte
-```
-
-功能：为 [Byte](core_package_types.md#type-byte) 类型实现一系列扩展方法，主要为在 Ascii 字符集范围内的一些字符判断、转换等操作。
-
-#### func isAscii()
-
-```cangjie
-public func isAscii(): Bool
-```
-
-功能：判断 [Byte](core_package_types.md#type-byte) 是否是在 Ascii 范围内。
-
-返回值：
-
-- [Bool](core_package_intrinsics.md#bool) - 如果 [Byte](core_package_types.md#type-byte) 在 Ascii 范围内返回 true，否则返回 false。
-
-示例：
-
-<!-- verify -->
-```cangjie
-main() {
-    // 测试 isAscii() 方法
-    let byte1: Byte = 65 // 'A' 的 ASCII 值
-    let byte2: Byte = 200 // 超出 ASCII 范围的值
-
-    println("byte1 (${byte1}) 是否在 ASCII 范围内: ${byte1.isAscii()}")
-    println("byte2 (${byte2}) 是否在 ASCII 范围内: ${byte2.isAscii()}")
-}
-```
-
-运行结果：
-
-```text
-byte1 (65) 是否在 ASCII 范围内: true
-byte2 (200) 是否在 ASCII 范围内: false
-```
-
-#### func isAsciiControl()
-
-```cangjie
-public func isAsciiControl(): Bool
-```
-
-功能：判断 [Byte](core_package_types.md#type-byte) 是否是在 Ascii 控制字符范围内。其取值范围为 [00, 1F] 和 {7F} 的并集。
-
-返回值：
-
-- [Bool](core_package_intrinsics.md#bool) - 如果 [Byte](core_package_types.md#type-byte) 在 Ascii 控制字符范围内返回 true，否则返回 false。
-
-示例：
-
-<!-- verify -->
-```cangjie
-main() {
-    // 测试 isAsciiControl() 方法
-    let byte1: Byte = 0x09 // 制表符 '\t'，属于 ASCII 控制字符
-    let byte2: Byte = 0x20 // 空格 ' '，不属于 ASCII 控制字符
-    let byte3: Byte = 0x7F // DEL，属于 ASCII 控制字符
-
-    println("byte1 (0x${byte1}) 是否是 ASCII 控制字符: ${byte1.isAsciiControl()}")
-    println("byte2 (0x${byte2}) 是否是 ASCII 控制字符: ${byte2.isAsciiControl()}")
-    println("byte3 (0x${byte3}) 是否是 ASCII 控制字符: ${byte3.isAsciiControl()}")
-}
-```
-
-运行结果：
-
-```text
-byte1 (0x9) 是否是 ASCII 控制字符: true
-byte2 (0x32) 是否是 ASCII 控制字符: false
-byte3 (0x127) 是否是 ASCII 控制字符: true
-```
-
-#### func isAsciiGraphic()
-
-```cangjie
-public func isAsciiGraphic(): Bool
-```
-
-功能：判断 [Byte](core_package_types.md#type-byte) 是否是在 Ascii 图形字符范围内。其取值范围为 [21, 7E]。
-
-返回值：
-
-- [Bool](core_package_intrinsics.md#bool) - 如果 [Byte](core_package_types.md#type-byte) 在 Ascii 图形字符范围内返回 true，否则返回 false。
-
-示例：
-
-<!-- verify -->
-```cangjie
-main() {
-    // 测试 isAsciiGraphic() 方法
-    let byte1: Byte = 0x21 // '!'，属于 ASCII 图形字符
-    let byte2: Byte = 0x7E // '~'，属于 ASCII 图形字符
-    let byte3: Byte = 0x20 // ' '，空格，不属于 ASCII 图形字符
-
-    println("byte1 (0x${byte1}) 是否是 ASCII 图形字符: ${byte1.isAsciiGraphic()}")
-    println("byte2 (0x${byte2}) 是否是 ASCII 图形字符: ${byte2.isAsciiGraphic()}")
-    println("byte3 (0x${byte3}) 是否是 ASCII 图形字符: ${byte3.isAsciiGraphic()}")
-}
-```
-
-运行结果：
-
-```text
-byte1 (0x33) 是否是 ASCII 图形字符: true
-byte2 (0x126) 是否是 ASCII 图形字符: true
-byte3 (0x32) 是否是 ASCII 图形字符: false
-```
-
-#### func isAsciiHex()
-
-```cangjie
-public func isAsciiHex(): Bool
-```
-
-功能：判断 [Byte](core_package_types.md#type-byte) 是否是在 Ascii 十六进制数字范围内。
-
-返回值：
-
-- [Bool](core_package_intrinsics.md#bool) - 如果 [Byte](core_package_types.md#type-byte) 在 Ascii 十六进制数字范围内返回 true，否则返回 false。
-
-示例：
-
-<!-- verify -->
-```cangjie
-main() {
-    // 测试 isAsciiHex() 方法
-    let byte1: Byte = 0x30 // '0'，属于 ASCII 十六进制数字
-    let byte2: Byte = 0x46 // 'F'，属于 ASCII 十六进制数字
-    let byte3: Byte = 0x67 // 'g'，不属于 ASCII 十六进制数字
-
-    println("byte1 (0x${byte1}) 是否是 ASCII 十六进制数字: ${byte1.isAsciiHex()}")
-    println("byte2 (0x${byte2}) 是否是 ASCII 十六进制数字: ${byte2.isAsciiHex()}")
-    println("byte3 (0x${byte3}) 是否是 ASCII 十六进制数字: ${byte3.isAsciiHex()}")
-}
-```
-
-运行结果：
-
-```text
-byte1 (0x48) 是否是 ASCII 十六进制数字: true
-byte2 (0x70) 是否是 ASCII 十六进制数字: true
-byte3 (0x103) 是否是 ASCII 十六进制数字: false
-```
-
-#### func isAsciiLetter()
-
-```cangjie
-public func isAsciiLetter(): Bool
-```
-
-功能：判断 [Byte](core_package_types.md#type-byte) 是否是在 Ascii 拉丁字母范围内。
-
-返回值：
-
-- [Bool](core_package_intrinsics.md#bool) - 如果 [Byte](core_package_types.md#type-byte) 在 Ascii 拉丁字母范围内返回 true，否则返回 false。
-
-示例：
-
-<!-- verify -->
-```cangjie
-main() {
-    // 测试 isAsciiLetter() 方法
-    let byte1: Byte = 0x41 // 'A'，属于 ASCII 拉丁字母
-    let byte2: Byte = 0x7A // 'z'，属于 ASCII 拉丁字母
-    let byte3: Byte = 0x30 // '0'，数字，不属于 ASCII 拉丁字母
-
-    println("byte1 (0x${byte1}) 是否是 ASCII 拉丁字母: ${byte1.isAsciiLetter()}")
-    println("byte2 (0x${byte2}) 是否是 ASCII 拉丁字母: ${byte2.isAsciiLetter()}")
-    println("byte3 (0x${byte3}) 是否是 ASCII 拉丁字母: ${byte3.isAsciiLetter()}")
-}
-```
-
-运行结果：
-
-```text
-byte1 (0x65) 是否是 ASCII 拉丁字母: true
-byte2 (0x122) 是否是 ASCII 拉丁字母: true
-byte3 (0x48) 是否是 ASCII 拉丁字母: false
-```
-
-#### func isAsciiLowerCase()
-
-```cangjie
-public func isAsciiLowerCase(): Bool
-```
-
-功能：判断 [Byte](core_package_types.md#type-byte) 是否是在 Ascii 小写拉丁字母范围内。
-
-返回值：
-
-- [Bool](core_package_intrinsics.md#bool) - 如果 [Byte](core_package_types.md#type-byte) 在 Ascii 小写拉丁字母范围内返回 true，否则返回 false。
-
-示例：
-
-<!-- verify -->
-```cangjie
-main() {
-    // 测试 isAsciiLowerCase() 方法
-    let byte1: Byte = 0x61 // 'a'，属于 ASCII 小写拉丁字母
-    let byte2: Byte = 0x7A // 'z'，属于 ASCII 小写拉丁字母
-    let byte3: Byte = 0x41 // 'A'，大写字母，不属于 ASCII 小写拉丁字母
-
-    println("byte1 (0x${byte1}) 是否是 ASCII 小写拉丁字母: ${byte1.isAsciiLowerCase()}")
-    println("byte2 (0x${byte2}) 是否是 ASCII 小写拉丁字母: ${byte2.isAsciiLowerCase()}")
-    println("byte3 (0x${byte3}) 是否是 ASCII 小写拉丁字母: ${byte3.isAsciiLowerCase()}")
-}
-```
-
-运行结果：
-
-```text
-byte1 (0x97) 是否是 ASCII 小写拉丁字母: true
-byte2 (0x122) 是否是 ASCII 小写拉丁字母: true
-byte3 (0x65) 是否是 ASCII 小写拉丁字母: false
-```
-
-#### func isAsciiNumber()
-
-```cangjie
-public func isAsciiNumber(): Bool
-```
-
-功能：判断 [Byte](core_package_types.md#type-byte) 是否是在 Ascii 十进制数字范围内。
-
-返回值：
-
-- [Bool](core_package_intrinsics.md#bool) - 如果 [Byte](core_package_types.md#type-byte) 在 Ascii 十进制数字范围内返回 true，否则返回 false。
-
-示例：
-
-<!-- verify -->
-```cangjie
-main() {
-    // 测试 isAsciiNumber() 方法
-    let byte1: Byte = 0x30 // '0'，属于 ASCII 十进制数字
-    let byte2: Byte = 0x39 // '9'，属于 ASCII 十进制数字
-    let byte3: Byte = 0x41 // 'A'，字母，不属于 ASCII 十进制数字
-
-    println("byte1 (0x${byte1}) 是否是 ASCII 十进制数字: ${byte1.isAsciiNumber()}")
-    println("byte2 (0x${byte2}) 是否是 ASCII 十进制数字: ${byte2.isAsciiNumber()}")
-    println("byte3 (0x${byte3}) 是否是 ASCII 十进制数字: ${byte3.isAsciiNumber()}")
-}
-```
-
-运行结果：
-
-```text
-byte1 (0x48) 是否是 ASCII 十进制数字: true
-byte2 (0x57) 是否是 ASCII 十进制数字: true
-byte3 (0x65) 是否是 ASCII 十进制数字: false
-```
-
-#### func isAsciiNumberOrLetter()
-
-```cangjie
-public func isAsciiNumberOrLetter(): Bool
-```
-
-功能：判断 [Byte](core_package_types.md#type-byte) 是否是在 Ascii 十进制数字或拉丁字母范围内。
-
-返回值：
-
-- [Bool](core_package_intrinsics.md#bool) - 如果 [Byte](core_package_types.md#type-byte) 在 Ascii 十进制数字或拉丁字母范围内返回 true，否则返回 false。
-
-示例：
-
-<!-- verify -->
-```cangjie
-main() {
-    // 测试 isAsciiNumberOrLetter() 方法
-    let byte1: Byte = 0x30 // '0'，数字，属于 ASCII 十进制数字和拉丁字母范围
-    let byte2: Byte = 0x41 // 'A'，字母，属于 ASCII 十进制数字和拉丁字母范围
-    let byte3: Byte = 0x20 // ' '，空格，不属于 ASCII 十进制数字和拉丁字母范围
-
-    println("byte1 (0x${byte1}) 是否是 ASCII 十进制数字和拉丁字母: ${byte1.isAsciiNumberOrLetter()}")
-    println("byte2 (0x${byte2}) 是否是 ASCII 十进制数字和拉丁字母: ${byte2.isAsciiNumberOrLetter()}")
-    println("byte3 (0x${byte3}) 是否是 ASCII 十进制数字和拉丁字母: ${byte3.isAsciiNumberOrLetter()}")
-}
-```
-
-运行结果：
-
-```text
-byte1 (0x48) 是否是 ASCII 十进制数字和拉丁字母: true
-byte2 (0x65) 是否是 ASCII 十进制数字和拉丁字母: true
-byte3 (0x32) 是否是 ASCII 十进制数字和拉丁字母: false
-```
-
-#### func isAsciiOct()
-
-```cangjie
-public func isAsciiOct(): Bool
-```
-
-功能：判断 [Byte](core_package_types.md#type-byte) 是否是在 Ascii 八进制数字范围内。
-
-返回值：
-
-- [Bool](core_package_intrinsics.md#bool) - 如果 [Byte](core_package_types.md#type-byte) 在 Ascii 八进制数字范围内返回 true，否则返回 false。
-
-示例：
-
-<!-- verify -->
-```cangjie
-main() {
-    // 测试 isAsciiOct() 方法
-    let byte1: Byte = 0x30 // '0'，属于 ASCII 八进制数字
-    let byte2: Byte = 0x37 // '7'，属于 ASCII 八进制数字
-    let byte3: Byte = 0x38 // '8'，不属于 ASCII 八进制数字
-
-    println("byte1 (0x${byte1}) 是否是 ASCII 八进制数字: ${byte1.isAsciiOct()}")
-    println("byte2 (0x${byte2}) 是否是 ASCII 八进制数字: ${byte2.isAsciiOct()}")
-    println("byte3 (0x${byte3}) 是否是 ASCII 八进制数字: ${byte3.isAsciiOct()}")
-}
-```
-
-运行结果：
-
-```text
-byte1 (0x48) 是否是 ASCII 八进制数字: true
-byte2 (0x55) 是否是 ASCII 八进制数字: true
-byte3 (0x56) 是否是 ASCII 八进制数字: false
-```
-
-#### func isAsciiPunctuation()
-
-```cangjie
-public func isAsciiPunctuation(): Bool
-```
-
-功能：判断 [Byte](core_package_types.md#type-byte) 是否是在 Ascii 标点符号范围内。其取值范围为 [21, 2F]、[3A, 40]、[5B, 60] 和 [7B, 7E] 的并集。
-
-返回值：
-
-- [Bool](core_package_intrinsics.md#bool) - 如果 [Byte](core_package_types.md#type-byte) 在 Ascii 标点符号范围内返回 true，否则返回 false。
-
-示例：
-
-<!-- verify -->
-```cangjie
-main() {
-    // 测试 isAsciiPunctuation() 方法
-    let byte1: Byte = 0x21 // '!'，属于 ASCII 标点符号
-    let byte2: Byte = 0x2C // ','，属于 ASCII 标点符号
-    let byte3: Byte = 0x30 // '0'，数字，不属于 ASCII 标点符号
-
-    println("byte1 (0x${byte1}) 是否是 ASCII 标点符号: ${byte1.isAsciiPunctuation()}")
-    println("byte2 (0x${byte2}) 是否是 ASCII 标点符号: ${byte2.isAsciiPunctuation()}")
-    println("byte3 (0x${byte3}) 是否是 ASCII 标点符号: ${byte3.isAsciiPunctuation()}")
-}
-```
-
-运行结果：
-
-```text
-byte1 (0x33) 是否是 ASCII 标点符号: true
-byte2 (0x44) 是否是 ASCII 标点符号: true
-byte3 (0x48) 是否是 ASCII 标点符号: false
-```
-
-#### func isAsciiUpperCase()
-
-```cangjie
-public func isAsciiUpperCase(): Bool
-```
-
-功能：判断 [Byte](core_package_types.md#type-byte) 是否是在 Ascii 大写拉丁字母范围内。
-
-返回值：
-
-- [Bool](core_package_intrinsics.md#bool) - 如果 [Byte](core_package_types.md#type-byte) 在 Ascii 大写拉丁字母范围内返回 true，否则返回 false。
-
-示例：
-
-<!-- verify -->
-```cangjie
-main() {
-    // 测试 isAsciiUpperCase() 方法
-    let byte1: Byte = 0x41 // 'A'，属于 ASCII 大写拉丁字母
-    let byte2: Byte = 0x5A // 'Z'，属于 ASCII 大写拉丁字母
-    let byte3: Byte = 0x61 // 'a'，小写字母，不属于 ASCII 大写拉丁字母
-
-    println("byte1 (0x${byte1}) 是否是 ASCII 大写拉丁字母: ${byte1.isAsciiUpperCase()}")
-    println("byte2 (0x${byte2}) 是否是 ASCII 大写拉丁字母: ${byte2.isAsciiUpperCase()}")
-    println("byte3 (0x${byte3}) 是否是 ASCII 大写拉丁字母: ${byte3.isAsciiUpperCase()}")
-}
-```
-
-运行结果：
-
-```text
-byte1 (0x65) 是否是 ASCII 大写拉丁字母: true
-byte2 (0x90) 是否是 ASCII 大写拉丁字母: true
-byte3 (0x97) 是否是 ASCII 大写拉丁字母: false
-```
-
-#### func isAsciiWhiteSpace()
-
-```cangjie
-public func isAsciiWhiteSpace(): Bool
-```
-
-功能：判断 [Byte](core_package_types.md#type-byte) 是否是在 Ascii 空白字符范围内。其取值范围为 [09, 0D] 和 {20} 的并集。
-
-返回值：
-
-- [Bool](core_package_intrinsics.md#bool) - 如果 [Byte](core_package_types.md#type-byte) 在 Ascii 空白字符范围内返回 true，否则返回 false。
-
-示例：
-
-<!-- verify -->
-```cangjie
-main() {
-    // 测试 isAsciiWhiteSpace() 方法
-    let byte1: Byte = 0x09 // '\t'，制表符，属于 ASCII 空白字符
-    let byte2: Byte = 0x20 // ' '，空格，属于 ASCII 空白字符
-    let byte3: Byte = 0x41 // 'A'，字母，不属于 ASCII 空白字符
-
-    println("byte1 (0x${byte1}) 是否是 ASCII 空白字符: ${byte1.isAsciiWhiteSpace()}")
-    println("byte2 (0x${byte2}) 是否是 ASCII 空白字符: ${byte2.isAsciiWhiteSpace()}")
-    println("byte3 (0x${byte3}) 是否是 ASCII 空白字符: ${byte3.isAsciiWhiteSpace()}")
-}
-```
-
-运行结果：
-
-```text
-byte1 (0x9) 是否是 ASCII 空白字符: true
-byte2 (0x32) 是否是 ASCII 空白字符: true
-byte3 (0x65) 是否是 ASCII 空白字符: false
-```
-
-#### func toAsciiLowerCase()
-
-```cangjie
-public func toAsciiLowerCase(): Byte
-```
-
-功能：将 [Byte](core_package_types.md#type-byte) 转换为对应的 Ascii 小写字符 [Byte](core_package_types.md#type-byte)，如果无法转换则保持现状。
-
-返回值：
-
-- [Byte](core_package_types.md#type-byte) - 转换后的 [Byte](core_package_types.md#type-byte)，如果无法转换则返回原来的 [Byte](core_package_types.md#type-byte)。
-
-示例：
-
-<!-- verify -->
-```cangjie
-main() {
-    // 测试 toAsciiLowerCase() 方法
-    let byte1: Byte = 0x41 // 'A'，大写字母
-    let byte2: Byte = 0x5A // 'Z'，大写字母
-    let byte3: Byte = 0x30 // '0'，数字，无法转换
-
-    let lower1 = byte1.toAsciiLowerCase()
-    let lower2 = byte2.toAsciiLowerCase()
-    let lower3 = byte3.toAsciiLowerCase()
-
-    println("byte1 (0x${byte1}) 转换为小写: 0x${lower1}")
-    println("byte2 (0x${byte2}) 转换为小写: 0x${lower2}")
-    println("byte3 (0x${byte3}) 转换为小写: 0x${lower3} (保持不变)")
-}
-```
-
-运行结果：
-
-```text
-byte1 (0x65) 转换为小写: 0x97
-byte2 (0x90) 转换为小写: 0x122
-byte3 (0x48) 转换为小写: 0x48 (保持不变)
-```
-
-#### func toAsciiUpperCase()
-
-```cangjie
-public func toAsciiUpperCase(): Byte
-```
-
-功能：将 [Byte](core_package_types.md#type-byte) 转换为对应的 Ascii 大写字符 [Byte](core_package_types.md#type-byte)，如果无法转换则保持现状。
-
-返回值：
-
-- [Byte](core_package_types.md#type-byte) - 转换后的 [Byte](core_package_types.md#type-byte)，如果无法转换则返回原来的 [Byte](core_package_types.md#type-byte)。
-
-示例：
-
-<!-- verify -->
-```cangjie
-main() {
-    // 测试 toAsciiUpperCase() 方法
-    let byte1: Byte = 0x61 // 'a'，小写字母
-    let byte2: Byte = 0x7A // 'z'，小写字母
-    let byte3: Byte = 0x30 // '0'，数字，无法转换
-
-    let upper1 = byte1.toAsciiUpperCase()
-    let upper2 = byte2.toAsciiUpperCase()
-    let upper3 = byte3.toAsciiUpperCase()
-
-    println("byte1 (0x${byte1}) 转换为大写: 0x${upper1}")
-    println("byte2 (0x${byte2}) 转换为大写: 0x${upper2}")
-    println("byte3 (0x${byte3}) 转换为大写: 0x${upper3} (保持不变)")
-}
-```
-
-运行结果：
-
-```text
-byte1 (0x97) 转换为大写: 0x65
-byte2 (0x122) 转换为大写: 0x90
-byte3 (0x48) 转换为大写: 0x48 (保持不变)
-```
-
 ## interface Collection\<T>
 
 ```cangjie
@@ -536,6 +19,10 @@ public interface Collection<T> <: Iterable<T>
 父类型：
 
 - [Iterable](#interface-iterablee)\<T>
+
+扩展：
+
+- [extend\<T> Array\<T> <: Collection\<T>](core_package_extends.md#extendt-arrayt--collectiont)
 
 ### prop size
 
@@ -588,6 +75,25 @@ public interface Comparable<T> <: Equatable<T> & Less<T> & Greater<T> & LessOrEq
 - [Greater](#interface-greatert)\<T>
 - [LessOrEqual](#interface-lessorequalt)\<T>
 - [GreaterOrEqual](#interface-greaterorequalt)\<T>
+
+扩展：
+
+- [extend Float16 <: Comparable\<Float16>](core_package_extends.md#extend-float16--comparablefloat16)
+- [extend Float32 <: Comparable\<Float32>](core_package_extends.md#extend-float32--comparablefloat32)
+- [extend Float64 <: Comparable\<Float64>](core_package_extends.md#extend-float64--comparablefloat64)
+- [extend Int16 <: Comparable\<Int16>](core_package_extends.md#extend-int16--comparableint16)
+- [extend Int32 <: Comparable\<Int32>](core_package_extends.md#extend-int32--comparableint32)
+- [extend Int64 <: Comparable\<Int64>](core_package_extends.md#extend-int64--comparableint64)
+- [extend Int8 <: Comparable\<Int8>](core_package_extends.md#extend-int8--comparableint8)
+- [extend IntNative <: Comparable\<IntNative>](core_package_extends.md#extend-intnative--comparableintnative)
+- [extend Ordering <: Comparable](core_package_extends.md#extend-ordering--comparable)
+- [extend Rune <: Comparable\<Rune>](core_package_extends.md#extend-rune--comparablerune)
+- [extend UInt16 <: Comparable\<UInt16>](core_package_extends.md#extend-uint16--comparableuint16)
+- [extend UInt32 <: Comparable\<UInt32>](core_package_extends.md#extend-uint32--comparableuint32)
+- [extend UInt64 <: Comparable\<UInt64>](core_package_extends.md#extend-uint64--comparableuint64)
+- [extend UInt8 <: Comparable\<UInt8>](core_package_extends.md#extend-uint8--comparableuint8)
+- [extend UIntNative <: Comparable\<UIntNative>](core_package_extends.md#extend-uintnative--comparableuintnative)
+- [extend\<T> Box\<T> <: Comparable\<Box\<T>> where T <: Comparable\<T>](core_package_extends.md#extendt-boxt--comparableboxt-where-t--comparablet)
 
 ### func compare(T)
 
@@ -695,6 +201,20 @@ public interface Countable<T>
 
 可数类型的每一个实例都对应一个位置信息（[Int64](core_package_intrinsics.md#int64) 值），可以通过往后数数得到其他的该类型实例。
 
+扩展：
+
+- [extend Int16 <: Countable\<Int16>](core_package_extends.md#extend-int16--countableint16)
+- [extend Int32 <: Countable\<Int32>](core_package_extends.md#extend-int32--countableint32)
+- [extend Int64 <: Countable\<Int64>](core_package_extends.md#extend-int64--countableint64)
+- [extend Int8 <: Countable\<Int8>](core_package_extends.md#extend-int8--countableint8)
+- [extend IntNative <: Countable\<IntNative>](core_package_extends.md#extend-intnative--countableintnative)
+- [extend Rune <: Countable\<Rune>](core_package_extends.md#extend-rune--countablerune)
+- [extend UInt16 <: Countable\<UInt16>](core_package_extends.md#extend-uint16--countableuint16)
+- [extend UInt32 <: Countable\<UInt32>](core_package_extends.md#extend-uint32--countableuint32)
+- [extend UInt64 <: Countable\<UInt64>](core_package_extends.md#extend-uint64--countableuint64)
+- [extend UInt8 <: Countable\<UInt8>](core_package_extends.md#extend-uint8--countableuint8)
+- [extend UIntNative <: Countable\<UIntNative>](core_package_extends.md#extend-uintnative--countableuintnative)
+
 ### func next(Int64)
 
 ```cangjie
@@ -722,119 +242,6 @@ func position(): Int64
 返回值：
 
 - [Int64](core_package_intrinsics.md#int64) - 转换后的 [Int64](core_package_intrinsics.md#int64) 值。
-
-### extend Float64
-
-```cangjie
-extend Float64
-```
-
-功能：拓展了 [Float64](../../core/core_package_api/core_package_intrinsics.md#float64) 类型作为左操作数和 [Duration](../../core/core_package_api/core_package_structs.md#struct-duration) 类型作为右操作数的乘法运算。
-
-#### operator func *(Duration)
-
-```cangjie
-public operator func *(r: Duration): Duration
-```
-
-功能：实现 [Float64](../../core/core_package_api/core_package_intrinsics.md#float64) 类型和 [Duration](../../core/core_package_api/core_package_structs.md#struct-duration) 类型的乘法，即 [Float64](../../core/core_package_api/core_package_intrinsics.md#float64) * [Duration](../../core/core_package_api/core_package_structs.md#struct-duration) 运算。
-
-参数：
-
-- r: [Duration](../../core/core_package_api/core_package_structs.md#struct-duration) - [Duration](../../core/core_package_api/core_package_structs.md#struct-duration) 实例。
-
-返回值：
-
-- [Duration](../../core/core_package_api/core_package_structs.md#struct-duration) - [Float64](../../core/core_package_api/core_package_intrinsics.md#float64) 类型实例和 `r` 的乘积。
-
-异常：
-
-- [ArithmeticException](../../core/core_package_api/core_package_exceptions.md#class-arithmeticexception) - 当相乘后的结果超出 [Duration](../../core/core_package_api/core_package_structs.md#struct-duration) 的表示范围时，抛出异常。
-
-示例：
-
-<!-- verify -->
-```cangjie
-main() {
-    // 测试 Float64 * Duration 运算
-    let floatVal: Float64 = 2.5
-    let duration: Duration = Duration.second
-
-    let result = floatVal * duration
-
-    println("Float64值: ${floatVal}")
-    println("Duration值: ${duration}")
-    println("运算结果: ${result}")
-}
-```
-
-运行结果：
-
-```text
-Float64值: 2.500000
-Duration值: 1s
-运算结果: 2s500ms
-```
-
-### extend Int64
-
-```cangjie
-extend Int64
-```
-
-功能：拓展了 [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) 类型作为左操作数和 [Duration](../../core/core_package_api/core_package_structs.md#struct-duration) 类型作为右操作数的乘法运算。
-
-#### operator func *(Duration)
-
-```cangjie
-public operator func *(r: Duration): Duration
-```
-
-功能：实现 [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) 类型和 [Duration](../../core/core_package_api/core_package_structs.md#struct-duration) 类型的乘法，即 [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) * [Duration](../../core/core_package_api/core_package_structs.md#struct-duration) 运算。
-
-例如 2 * [Duration](../../core/core_package_api/core_package_structs.md#struct-duration).second 返回表示时间间隔为 2 秒的 [Duration](../../core/core_package_api/core_package_structs.md#struct-duration) 实例。
-
-参数：
-
-- r: [Duration](../../core/core_package_api/core_package_structs.md#struct-duration) - 乘法的右操作数。
-
-返回值：
-
-- [Duration](../../core/core_package_api/core_package_structs.md#struct-duration) - [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) 类型实例和 `r` 的乘积。
-
-异常：
-
-- [ArithmeticException](../../core/core_package_api/core_package_exceptions.md#class-arithmeticexception) - 当相乘后的结果超出 [Duration](../../core/core_package_api/core_package_structs.md#struct-duration) 的表示范围时，抛出异常。
-
-示例：
-
-<!-- verify -->
-```cangjie
-main() {
-    // 测试 Int64 * Duration 运算
-    let intVal: Int64 = 3
-    let duration: Duration = Duration.second
-
-    let result = intVal * duration
-
-    println("Int64值: ${intVal}")
-    println("Duration值: ${duration}")
-    println("运算结果: ${result}")
-
-    // 测试 2 * Duration.second 的示例
-    let result2 = 2 * Duration.second
-    println("2 * Duration.second = ${result2}")
-}
-```
-
-运行结果：
-
-```text
-Int64值: 3
-Duration值: 1s
-运算结果: 3s
-2 * Duration.second = 2s
-```
 
 ## interface CType
 
@@ -913,6 +320,20 @@ public interface Equatable<T> <: Equal<T> & NotEqual<T>
 - [Equal](#interface-equalt)\<T>
 - [NotEqual](#interface-notequalt)\<T>
 
+扩展：
+
+- [extend\<K, V> HashMap\<K, V> <: Equatable\<HashMap\<K, V>> where V <: Equatable\<V>](../../collection/collection_package_api/collection_package_extends.md#extendk-v-hashmapk-v--equatablehashmapk-v-where-v--equatablev)
+- [extend\<K, V> TreeMap\<K, V> <: Equatable\<TreeMap\<K, V>> where V <: Equatable\<V>](../../collection/collection_package_api/collection_package_extends.md#extendk-v-treemapk-v--equatabletreemapk-v-where-v--equatablev)
+- [extend\<T> ArrayList\<T> <: Equatable\<ArrayList\<T>> where T <: Equatable\<T>](../../collection/collection_package_api/collection_package_extends.md#extendt-arraylistt--equatablearraylistt-where-t--equatablet)
+- [extend\<T> HashSet\<T> <: Equatable\<HashSet\<T>>](../../collection/collection_package_api/collection_package_extends.md#extendt-hashsett--equatablehashsett)
+- [extend\<T> LinkedList\<T> <: Equatable\<LinkedList\<T>> where T <: Equatable\<T>](../../collection/collection_package_api/collection_package_extends.md#extendt-linkedlistt--equatablelinkedlistt-where-t--equatablet)
+- [extend\<T> TreeSet\<T> <: Equatable\<TreeSet\<T>>](../../collection/collection_package_api/collection_package_extends.md#extendt-treesett--equatabletreesett)
+- [extend Bool <: Equatable\<Bool>](core_package_extends.md#extend-bool--equatablebool)
+- [extend Unit <: Equatable\<Unit>](core_package_extends.md#extend-unit--equatableunit)
+- [extend\<T> Array\<T> <: Equatable\<Array\<T>> where T <: Equatable\<T>](core_package_extends.md#extendt-arrayt--equatablearrayt-where-t--equatablet)
+- [extend\<T> Option\<T> <: Equatable\<Option\<T>> where T <: Equatable\<T>](core_package_extends.md#extendt-optiont--equatableoptiont-where-t--equatablet)
+- [extend\<T> Range\<T> <: Equatable\<Range\<T>> where T <: Countable\<T> & Comparable\<T> & Equatable\<T>](core_package_extends.md#extendt-ranget--equatableranget-where-t--countablet--comparablet--equatablet)
+
 ### operator func !=(T)
 
 ```cangjie
@@ -986,6 +407,29 @@ public interface Hashable
 功能：该接口用于计算哈希值。
 
 已为部分仓颉类型实现该接口，包括：[Bool](core_package_intrinsics.md#bool)、[Rune](core_package_intrinsics.md#rune)、[IntNative](core_package_intrinsics.md#intnative)、[Int64](core_package_intrinsics.md#int64)、[Int32](core_package_intrinsics.md#int32)、[Int16](core_package_intrinsics.md#int16)、[Int8](core_package_intrinsics.md#int8)、[UIntNative](core_package_intrinsics.md#uintnative)、[UInt64](core_package_intrinsics.md#uint64)、[UInt32](core_package_intrinsics.md#uint32)、[UInt16](core_package_intrinsics.md#uint16)、[UInt8](core_package_intrinsics.md#uint8)、[Float64](core_package_intrinsics.md#float64)、[Float32](core_package_intrinsics.md#float32)、[Float16](core_package_intrinsics.md#float16)、[String](core_package_structs.md#struct-string)、[Box](core_package_classes.md#class-boxt)。
+
+扩展：
+
+- [extend Bool <: Hashable](core_package_extends.md#extend-bool--hashable)
+- [extend Float16 <: Hashable](core_package_extends.md#extend-float16--hashable)
+- [extend Float32 <: Hashable](core_package_extends.md#extend-float32--hashable)
+- [extend Float64 <: Hashable](core_package_extends.md#extend-float64--hashable)
+- [extend Int16 <: Hashable](core_package_extends.md#extend-int16--hashable)
+- [extend Int32 <: Hashable](core_package_extends.md#extend-int32--hashable)
+- [extend Int64 <: Hashable](core_package_extends.md#extend-int64--hashable)
+- [extend Int8 <: Hashable](core_package_extends.md#extend-int8--hashable)
+- [extend IntNative <: Hashable](core_package_extends.md#extend-intnative--hashable)
+- [extend Ordering <: Hashable](core_package_extends.md#extend-ordering--hashable)
+- [extend Rune <: Hashable](core_package_extends.md#extend-rune--hashable)
+- [extend UInt16 <: Hashable](core_package_extends.md#extend-uint16--hashable)
+- [extend UInt32 <: Hashable](core_package_extends.md#extend-uint32--hashable)
+- [extend UInt64 <: Hashable](core_package_extends.md#extend-uint64--hashable)
+- [extend UInt8 <: Hashable](core_package_extends.md#extend-uint8--hashable)
+- [extend UIntNative <: Hashable](core_package_extends.md#extend-uintnative--hashable)
+- [extend Unit <: Hashable](core_package_extends.md#extend-unit--hashable)
+- [extend\<T> Box\<T> <: Hashable where T <: Hashable](core_package_extends.md#extendt-boxt--hashable-where-t--hashable)
+- [extend\<T> Option\<T> <: Hashable where T <: Hashable](core_package_extends.md#extendt-optiont--hashable-where-t--hashable)
+- [extend\<T> Range\<T> <: Hashable where T <: Hashable & Countable\<T> & Comparable\<T> & Equatable\<T>](core_package_extends.md#extendt-ranget--hashable-where-t--hashable--countablet--comparablet--equatablet)
 
 ### func hashCode()
 
@@ -1301,6 +745,13 @@ public interface Resource
 
 实现了该接口的类型可以在 `try-with-resource` 语法上下文中实现自动资源释放。
 
+扩展：
+
+- [extend\<T> BufferedInputStream\<T> <: Resource where T <: Resource](../../io/io_package_api/io_package_extends.md#extendt-bufferedinputstreamt--resource-where-t--resource)
+- [extend\<T> BufferedOutputStream\<T> <: Resource where T <: Resource](../../io/io_package_api/io_package_extends.md#extendt-bufferedoutputstreamt--resource-where-t--resource)
+- [extend\<T> StringReader\<T> <: Resource where T <: Resource](../../io/io_package_api/io_package_extends.md#extendt-stringreadert--resource-where-t--resource)
+- [extend\<T> StringWriter\<T> <: Resource where T <: Resource](../../io/io_package_api/io_package_extends.md#extendt-stringwritert--resource-where-t--resource)
+
 ### func close()
 
 ```cangjie
@@ -1360,6 +811,39 @@ public interface ToString
 ```
 
 功能：该接口用来提供具体类型的字符串表示。
+
+扩展：
+
+- [extend\<K, V> HashMap\<K, V> <: ToString where V <: ToString, K <: ToString](../../collection/collection_package_api/collection_package_extends.md#extendk-v-hashmapk-v--tostring-where-v--tostring-k--tostring)
+- [extend\<K, V> TreeMap\<K, V> <: ToString where V <: ToString, K <: ToString & Comparable\<K>](../../collection/collection_package_api/collection_package_extends.md#extendk-v-treemapk-v--tostring-where-v--tostring-k--tostring--comparablek)
+- [extend\<T> ArrayDeque\<T> <: ToString where T <: ToString](../../collection/collection_package_api/collection_package_extends.md#extendt-arraydequet--tostring-where-t--tostring)
+- [extend\<T> ArrayList\<T> <: ToString where T <: ToString](../../collection/collection_package_api/collection_package_extends.md#extendt-arraylistt--tostring-where-t--tostring)
+- [extend\<T> ArrayQueue\<T> <: ToString where T <: ToString](../../collection/collection_package_api/collection_package_extends.md#extendt-arrayqueuet--tostring-where-t--tostring)
+- [extend\<T> ArrayStack\<T> <: ToString where T <: ToString](../../collection/collection_package_api/collection_package_extends.md#extendt-arraystackt--tostring-where-t--tostring)
+- [extend\<T> HashSet\<T> <: ToString where T <: ToString](../../collection/collection_package_api/collection_package_extends.md#extendt-hashsett--tostring-where-t--tostring)
+- [extend\<T> LinkedList\<T> <: ToString where T <: ToString](../../collection/collection_package_api/collection_package_extends.md#extendt-linkedlistt--tostring-where-t--tostring)
+- [extend\<T> TreeSet\<T> <: ToString where T <: ToString](../../collection/collection_package_api/collection_package_extends.md#extendt-treesett--tostring-where-t--tostring)
+- [extend Bool <: ToString](core_package_extends.md#extend-bool--tostring)
+- [extend CString <: ToString](core_package_extends.md#extend-cstring--tostring)
+- [extend Float16 <: ToString](core_package_extends.md#extend-float16--tostring)
+- [extend Float32 <: ToString](core_package_extends.md#extend-float32--tostring)
+- [extend Float64 <: ToString](core_package_extends.md#extend-float64--tostring)
+- [extend Int16 <: ToString](core_package_extends.md#extend-int16--tostring)
+- [extend Int32 <: ToString](core_package_extends.md#extend-int32--tostring)
+- [extend Int64 <: ToString](core_package_extends.md#extend-int64--tostring)
+- [extend Int8 <: ToString](core_package_extends.md#extend-int8--tostring)
+- [extend IntNative <: ToString](core_package_extends.md#extend-intnative--tostring)
+- [extend Ordering <: ToString](core_package_extends.md#extend-ordering--tostring)
+- [extend Rune <: ToString](core_package_extends.md#extend-rune--tostring)
+- [extend UInt16 <: ToString](core_package_extends.md#extend-uint16--tostring)
+- [extend UInt32 <: ToString](core_package_extends.md#extend-uint32--tostring)
+- [extend UInt64 <: ToString](core_package_extends.md#extend-uint64--tostring)
+- [extend UInt8 <: ToString](core_package_extends.md#extend-uint8--tostring)
+- [extend UIntNative <: ToString](core_package_extends.md#extend-uintnative--tostring)
+- [extend Unit <: ToString](core_package_extends.md#extend-unit--tostring)
+- [extend\<T> Array\<T> where T <: ToString](core_package_extends.md#extendt-arrayt-where-t--tostring)
+- [extend\<T> Box\<T> <: ToString where T <: ToString](core_package_extends.md#extendt-boxt--tostring-where-t--tostring)
+- [extend\<T> Option\<T> <: ToString where T <: ToString](core_package_extends.md#extendt-optiont--tostring-where-t--tostring)
 
 ### func toString()
 

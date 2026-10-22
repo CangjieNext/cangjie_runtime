@@ -39,3 +39,10 @@ sort 包提供数组类型的排序函数。
 | --------------------------------- | ---------------------------------- |
 | [SortByExtension <sup>(deprecated)</sup>](./sort_package_api/sort_package_interfaces.md#interface-sortbyextensiont-deprecated) | 此接口作为排序相关的辅助接口，内部为空。 |
 | [SortExtension <sup>(deprecated)</sup>](./sort_package_api/sort_package_interfaces.md#interface-sortextension-deprecated) | 此接口作为排序相关的辅助接口，内部为空。 |
+
+### 扩展
+
+| 扩展名 | 功能 |
+| --- | --- |
+| [extend\<T> Array\<T> <: SortByExtension\<T>](sort_package_api/sort_package_extends.md#extendt-arrayt--sortbyextensiont) | 此扩展用于实现 [Array](../core/core_package_api/core_package_structs.md#struct-arrayt) 的 `sortBy` 函数。 |
+| [extend\<T> Array\<T> <: SortExtension where T <: Comparable\<T>](sort_package_api/sort_package_extends.md#extendt-arrayt--sortextension-where-t--comparablet) | 此扩展用于实现 [Array](../core/core_package_api/core_package_structs.md#struct-arrayt) 的 `sort/sortDescending` 函数。 |

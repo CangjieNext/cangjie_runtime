@@ -8,6 +8,10 @@ public type Byte = UInt8
 
 功能：[Byte](core_package_types.md#type-byte) 类型是内置类型 [UInt8](core_package_intrinsics.md#uint8) 的别名。
 
+扩展：
+
+- [extend Byte](core_package_extends.md#extend-byte)
+
 示例：
 
 <!-- verify -->

@@ -24,3 +24,10 @@ unicode 包提供了按 unicode 编码标准处理字符的能力。
 |                 枚举              |                功能                 |
 | --------------------------------- | ---------------------------------- |
 | [CasingOption](./unicode_package_api/unicode_package_enums.md#enum-casingoption) | 大小写转换时根据不同语言所需要的枚举类。 |
+
+### 扩展
+
+| 扩展名 | 功能 |
+| --- | --- |
+| [extend Rune <: UnicodeRuneExtension](unicode_package_api/unicode_package_extends.md#extend-rune--unicoderuneextension) | 为 [Rune](../core/core_package_api/core_package_intrinsics.md#rune) 类型扩展 [UnicodeRuneExtension](unicode_package_api/unicode_package_interfaces.md#interface-unicoderuneextension) 接口，支持字符集相关的操作。 |
+| [extend String <: UnicodeStringExtension](unicode_package_api/unicode_package_extends.md#extend-string--unicodestringextension) | 为 [String](../core/core_package_api/core_package_structs.md#struct-string) 类型扩展 [UnicodeRuneExtension](unicode_package_api/unicode_package_interfaces.md#interface-unicoderuneextension) 接口，支持字符集相关的操作。 |

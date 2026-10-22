@@ -73,6 +73,13 @@ public interface Seekable
 
 功能：移动光标接口。
 
+扩展：
+
+- [extend\<T> BufferedInputStream\<T> <: Seekable where T <: Seekable](io_package_extends.md#extendt-bufferedinputstreamt--seekable-where-t--seekable)
+- [extend\<T> BufferedOutputStream\<T> <: Seekable where T <: Seekable](io_package_extends.md#extendt-bufferedoutputstreamt--seekable-where-t--seekable)
+- [extend\<T> StringReader\<T> <: Seekable where T <: Seekable](io_package_extends.md#extendt-stringreadert--seekable-where-t--seekable)
+- [extend\<T> StringWriter\<T> <: Seekable where T <: Seekable](io_package_extends.md#extendt-stringwritert--seekable-where-t--seekable)
+
 ### prop length
 
 ```cangjie

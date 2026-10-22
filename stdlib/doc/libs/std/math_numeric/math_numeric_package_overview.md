@@ -39,3 +39,16 @@ math.numeric 包对基础类型可表达范围之外提供扩展能力。
 | ---------------------------------- | ---------------------------------- |
 | [BigInt](./math_numeric_package_api/math_numeric_package_structs.md#struct-bigint) | BigInt 定义为任意精度（二进制）的有符号整数。仓颉的 struct BigInt 用于任意精度有符号整数的计算，类型转换等。 |
 | [Decimal](./math_numeric_package_api/math_numeric_package_structs.md#struct-decimal) | Decimal 用于表示任意精度的有符号的十进制数。允许操作过程指定上下文，指定结果精度及舍入规则。提供基础类型 （Int、UInt、String、Float 等）与 BigInt 类型互相转换能力，支持 Decimal 对象基本属性查询等能力，支持基础数学运算操作，提供对象比较、hash、字符串打印等基础能力。|
+
+### 扩展
+
+| 扩展名 | 功能 |
+| --- | --- |
+| [extend BigInt <: Formattable](math_numeric_package_api/math_numeric_package_extends.md#extend-bigint--formattable) | 为 [BigInt](math_numeric_package_api/math_numeric_package_structs.md#struct-bigint) 扩展 [Formattable](../convert/convert_package_api/convert_package_interfaces.md#interface-formattable) 接口，以实现将 [BigInt](math_numeric_package_api/math_numeric_package_structs.md#struct-bigint) 实例转换为格式化字符串。 |
+| [extend BigInt <: Integer\<BigInt>](math_numeric_package_api/math_numeric_package_extends.md#extend-bigint--integerbigint) | 为 [BigInt](math_numeric_package_api/math_numeric_package_structs.md#struct-bigint) 类型扩展 [Integer\<T>](../math/math_package_api/math_package_interfaces.md#interface-integert) 接口。 |
+| [extend BigInt <: Number\<BigInt>](math_numeric_package_api/math_numeric_package_extends.md#extend-bigint--numberbigint) | 为 [BigInt](math_numeric_package_api/math_numeric_package_structs.md#struct-bigint) 类型扩展 [Number\<T>](../math/math_package_api/math_package_interfaces.md#interface-numbert) 接口。 |
+| [extend BigInt <: Parsable\<BigInt>](math_numeric_package_api/math_numeric_package_extends.md#extend-bigint--parsablebigint) | 此扩展主要用于实现将 [BigInt](math_numeric_package_api/math_numeric_package_structs.md#struct-bigint) 类型字面量的字符串转换为 [BigInt](math_numeric_package_api/math_numeric_package_structs.md#struct-bigint) 结构体的相关操作函数。 |
+| [extend BigInt <: RadixConvertible\<BigInt>](math_numeric_package_api/math_numeric_package_extends.md#extend-bigint--radixconvertiblebigint) | 此扩展主要用于实现将 [BigInt](math_numeric_package_api/math_numeric_package_structs.md#struct-bigint) 类型字面量的字符串转换为 [BigInt](math_numeric_package_api/math_numeric_package_structs.md#struct-bigint) 结构体的相关操作函数。 |
+| [extend Decimal <: Formattable](math_numeric_package_api/math_numeric_package_extends.md#extend-decimal--formattable) | 为 [Decimal](math_numeric_package_api/math_numeric_package_structs.md#struct-decimal) 扩展 [Formattable](../convert/convert_package_api/convert_package_interfaces.md#interface-formattable) 接口，以实现将 [Decimal](math_numeric_package_api/math_numeric_package_structs.md#struct-decimal) 实例转换为格式化字符串。 |
+| [extend Decimal <: Number\<Decimal>](math_numeric_package_api/math_numeric_package_extends.md#extend-decimal--numberdecimal) | 为 [Decimal](math_numeric_package_api/math_numeric_package_structs.md#struct-decimal) 类型扩展 [Number\<T>](../math/math_package_api/math_package_interfaces.md#interface-numbert) 接口。 |
+| [extend Decimal <: Parsable\<Decimal>](math_numeric_package_api/math_numeric_package_extends.md#extend-decimal--parsabledecimal) | 此扩展主要用于实现将 [Decimal](math_numeric_package_api/math_numeric_package_structs.md#struct-decimal) 类型字面量的字符串转换为 [Decimal](math_numeric_package_api/math_numeric_package_structs.md#struct-decimal) 结构体的相关操作函数。 |
