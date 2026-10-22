@@ -1,0 +1,14 @@
+stdlib/libs/std/fs/native/file_system_win.c
+  h_37a1bf5aa76b65 412-414
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "a5bf296b804060d4aeb7ddb7f7445f29cfa2ecf6",
+  "prompts": {},
+  "humans": {
+    "h_37a1bf5aa76b65": {
+      "author": "Chaos John <yujiahao8@huawei.com>"
+    }
+  }
+}
