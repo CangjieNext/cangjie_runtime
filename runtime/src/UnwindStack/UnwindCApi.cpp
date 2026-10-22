@@ -113,7 +113,10 @@ extern "C" ThreadLocalData* MRT_C2N_Leave(bool safeState, unsigned long long sta
         MRT_ThrowPendingException(nullptr);
     }
 
-    return tlData;
+    // Leaving the saferegion may complete a GC phase transition. Re-read
+    // after suspension handling so the C2N stub restores the current phase
+    // in x28, rather than the snapshot taken while still in the saferegion.
+    return reinterpret_cast<ThreadLocalData*>(MRT_GetThreadLocalData());
 }
 
 #ifdef __OHOS__
