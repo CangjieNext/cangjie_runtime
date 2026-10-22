@@ -1,0 +1,57 @@
+stdlib/libs/std/ast/parse_node.cj
+  s_17742583f198e7::t_f35517c3d23cd1 519
+  s_17742583f198e7::t_e418a540b4250f 581-584
+  s_17742583f198e7::t_844ea52db17932 429
+  s_17742583f198e7::t_e34a5a460958b0 404
+  s_17742583f198e7::t_e88ca837daf142 525
+stdlib/libs/std/ast/parse_decl.cj
+  s_17742583f198e7::t_5639a95017b5bd 248,263-264
+  s_17742583f198e7::t_3de6e1412e7f38 439
+  s_17742583f198e7::t_fb0ab0be3554ca 164-165
+  s_17742583f198e7::t_31aba09fc7febe 278
+  s_17742583f198e7::t_6521d4c2b33f6a 672-673
+  s_17742583f198e7::t_507f0fd23632dd 218,233-234
+  s_17742583f198e7::t_98914159a3a2a6 443
+  s_17742583f198e7::t_37c07e0fb3109b 318
+  s_17742583f198e7::t_77957c0013e2bf 329-330
+  s_17742583f198e7::t_753472c014837e 129-132
+  s_17742583f198e7::t_faf4dbef170ea0 163
+  s_17742583f198e7::t_3a6fd4d6dae71b 496-497
+  s_17742583f198e7::t_5501990bdf4b1b 188,203-204
+  s_17742583f198e7::t_8083f4dd6a3ec2 375-376
+  s_17742583f198e7::t_cbdf80da7d6a4d 293-296
+stdlib/libs/std/ast/parse_expr.cj
+  s_17742583f198e7::t_c27a9eb3cc2876 752
+  s_17742583f198e7::t_ec45b47a8a0317 766
+  s_17742583f198e7::t_cb7a0c371541c3 783
+  s_17742583f198e7::t_989edf3c2efac6 653,669,717,815
+  s_17742583f198e7::t_2df83f034402b7 225-226
+  s_17742583f198e7::t_6c849fce9b50cd 424-425
+  s_17742583f198e7::t_102257701b62c7 784
+stdlib/libs/std/ast/parse_type.cj
+  s_17742583f198e7::t_8f55c245c174ee 212-213
+  s_17742583f198e7::t_3431259d2cc450 165
+  s_17742583f198e7::t_debaa257be833a 130
+  s_17742583f198e7::t_43c86be9b776f5 256
+stdlib/libs/std/ast/parse_pattern.cj
+  s_17742583f198e7::t_bb0975d6708a37 194-195
+  s_17742583f198e7::t_2a577e89a6c0ad 132-133
+  s_17742583f198e7::t_84b29a3b8d46c6 148-149
+  s_17742583f198e7::t_b4b20991e487e2 178-179
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "05bb7d25d710c8e1b9ec8463adf8983114b722b4",
+  "prompts": {},
+  "sessions": {
+    "s_17742583f198e7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "65c845bd-06a9-42df-a4c4-f673b79ff056",
+        "model": "glm-5.3-flash"
+      },
+      "human_author": "lixin <lixin656@huawei.com>"
+    }
+  }
+}
