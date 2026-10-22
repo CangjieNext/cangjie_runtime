@@ -1,0 +1,22 @@
+stdlib/libs/std/ast/nodes.cj
+  h_6a43e5c473a09a 687
+stdlib/libs/std/ast/ffi.cj
+  h_6a43e5c473a09a 104,126,132,152,172,200,210,250,287,309,336,341,353,358,371,376,389,567
+stdlib/libs/std/ast/tokens.cj
+  h_6a43e5c473a09a 243
+stdlib/libs/std/ast/exprs.cj
+  h_6a43e5c473a09a 795,1578,1795
+stdlib/libs/std/ast/decls.cj
+  h_6a43e5c473a09a 120,1654-1655,1720
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "6cf7339755c707b2ff1631415a2fe3ecd66bb581",
+  "prompts": {},
+  "humans": {
+    "h_6a43e5c473a09a": {
+      "author": "Xu Zhaoheng <xuzhaoheng1@huawei.com>"
+    }
+  }
+}
