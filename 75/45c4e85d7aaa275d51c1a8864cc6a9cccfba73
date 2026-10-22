@@ -1,0 +1,21 @@
+stdlib/libs/cmake/MakeCJNATIVEStdSharedLib.cmake
+  s_419b43e09eedc8::t_a725d8df1c2b47 200,203-204
+  s_419b43e09eedc8::t_2c2ae87e390d1e 201
+  s_419b43e09eedc8::t_402f8937e89660 205
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "7545c4e85d7aaa275d51c1a8864cc6a9cccfba73",
+  "prompts": {},
+  "sessions": {
+    "s_419b43e09eedc8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a0f5c2d2-8457-42ce-9a63-5391c8c783fb",
+        "model": "glm-5.2"
+      },
+      "human_author": null
+    }
+  }
+}
