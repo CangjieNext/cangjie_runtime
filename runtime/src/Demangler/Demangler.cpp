@@ -181,10 +181,9 @@ T ReplaceString(T str, const char* pattern, const char* replacement)
         return str;
     }
     auto pos = str.Find(pattern);
-    auto n = str.Length();
     auto pLen = strlen(pattern);
-    while (pos > -1 && n >= static_cast<size_t>(pos) + pLen) {
-        n = str.Length();
+    while (pos > -1 && str.Length() >= static_cast<size_t>(pos) + pLen) {
+        auto n = str.Length();
         str = str.SubStr(0, pos) + replacement + str.SubStr(pos + pLen, n - pos - pLen);
         pos = str.Find(pattern);
     }
