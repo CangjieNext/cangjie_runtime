@@ -1,0 +1,20 @@
+runtime/src/Heap/WCollector/WCollector.cpp
+  s_9180b7eb1d152e::t_b60d6e84cfec79 21-22
+  s_9180b7eb1d152e::t_f40cd1ee5a1878 23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "d4e8337e77cd72cb06b3072937d98621fca69e03",
+  "prompts": {},
+  "sessions": {
+    "s_9180b7eb1d152e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fa0589edfffe1cZU2kIZEo7ZsG",
+        "model": "GLM-5.2"
+      },
+      "human_author": "leeguo <leeguo@126.com>"
+    }
+  }
+}
