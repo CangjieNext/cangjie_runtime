@@ -1,0 +1,19 @@
+runtime/src/os/Windows/WinModuleManager.cpp
+  s_aa79beed7e7fe4::t_11d50d46ea64ca 61-63,70-87,93,95-98,108,112-115,124,126-130,138-149
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5a6095d02229bf3ae7f58b80cba1ef7097c8c24e",
+  "prompts": {},
+  "sessions": {
+    "s_aa79beed7e7fe4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1594a-15f6-7613-b880-9eef17e9b1e2",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "kongbx <kongbingxin@huawei.com>"
+    }
+  }
+}
