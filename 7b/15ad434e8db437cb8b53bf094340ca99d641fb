@@ -1,0 +1,20 @@
+runtime/src/CJThread/src/runtime/schedule/src/schedule.cpp
+  s_fc5b3b3b67409d::t_a26915a776ccf9 1151-1153
+  s_fc5b3b3b67409d::t_feee728db180bb 1158-1160
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "7b15ad434e8db437cb8b53bf094340ca99d641fb",
+  "prompts": {},
+  "sessions": {
+    "s_fc5b3b3b67409d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fc962e2dcffez5mt1rUbUEud2Y",
+        "model": "GLM-5.2"
+      },
+      "human_author": "xiaohan_1 <xiaohan24@huawei.com>"
+    }
+  }
+}
