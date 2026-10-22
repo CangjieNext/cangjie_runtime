@@ -1,0 +1,20 @@
+stdlib/libs/cmake/MakeCJNATIVEStdSharedLib.cmake
+  s_b3f5d711da0b41::t_025b1a39564dcd 75-77,79
+  s_b3f5d711da0b41::t_acdd2cbaf2b052 78
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "d7a7ce5652144729badc6b9fc8f26483e3e02e9a",
+  "prompts": {},
+  "sessions": {
+    "s_b3f5d711da0b41": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ff03acba7ffelCNi00d3opLOGu",
+        "model": "GLM-5.2"
+      },
+      "human_author": "jinbohang <jinbohang1@huawei.com>"
+    }
+  }
+}
