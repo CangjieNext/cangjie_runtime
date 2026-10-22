@@ -55,7 +55,14 @@ lbq_bench.exe        # Windows（cjc 在 Windows 上产物带 .exe）
 - 真实吞吐数字必须由 **CI runner / 具备可用仓颉运行时的机器** 实际运行产出。
 
 ## 结果解读
-- PR 的 `tryAdd/tryRemove` 已采用**条件 `signal`**（仅 `prev==0`/`prev==capacity` 时唤醒），
-  **与上游语义一致**，因此 SPSC 下不存在“无条件 signal 赔回锁往返”的回归。若整体吞吐与上游
-  持平，属预期；若 MPMC 占优，说明无锁预约协议的收益成立。
+- PR 的唤醒逻辑已**完整对齐上游**（第 2 轮 secbot 白盒扫描后的修复）：
+  1. **条件边沿 `signal`**（`prev==0` 唤醒消费者 / `prev==capacity` 唤醒生产者）在**释放
+     本方 Monitor 之后**才发出，避免了 `putMonitor↔takeMonitor` 的 ABBA 死锁；
+  2. 恢复上游的**链式 `notify`**：`add` 成功且 `prev+1 < capacity` 时 `putMonitor.notify()`
+     唤醒另一生产者，`remove` 成功且 `prev > 1` 时 `takeMonitor.notify()` 唤醒另一消费者，
+     消除 MPMC 下“有元素但消费者永挂 / 有空位但生产者永挂”的活性饥饿；
+  3. `tryAddCore/tryRemoveCore` 的 OOM 回滚由 `catch (e: Exception)` 改为同时 `catch (e:
+     Error)`（`OutOfMemoryError <: Error`，原 `catch (e: Exception)` 捕获不到），预约/认领
+     计数在 OOM 时真正回补，不再泄漏。
+- 以上三点均为局部改动，无锁快路径（满/空才落 Monitor）不受影响，SPSC 吞吐预期与上游持平。
 - 若实测出现非预期回归，按 issue #947 口径 revert 性能部分（保持上游原版）。

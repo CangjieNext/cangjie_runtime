@@ -50,6 +50,11 @@ import std.time.*
  * can only land before the waiter acquires that monitor or after it is already
  * parked — never in the check-and-await gap).
  *
+ * Chained wake-up (notify of another waiter on the *same* monitor) is also preserved
+ * from upstream to avoid MPMC liveness starvation: a successful add with prev+1 < capacity
+ * wakes another blocked producer, and a successful remove with prev > 1 wakes another
+ * blocked consumer. This complements the conditional cross-monitor signal above.
+ *
  * IMPORTANT (capacity/element counters): every mutation of `putQsize` / `count`
  * must go through the SAME CAS-based atomic protocol used by the lock-free fast
  * path, no matter whether the caller is on the fast path or on the blocking
@@ -161,18 +166,24 @@ public class LinkedBlockingQueue<E> <: BQueue<E> {
             return
         }
         putMonitor.lock()
+        var needWakeConsumer = false
         try {
             // 等待循环里必须复用无锁核心 tryAddCore（用 CAS 预约槽位），不能再用“锁内直接 fetchAdd”的版本：
             // putMonitor 只串行化“走阻塞路径的生产者”，无法与同时走无锁快路径的生产者互斥，
             // 二者并发修改 putQsize 会把它加到超过 capacity，导致队列排空后生产者仍误判为“满”而永久阻塞。
-            // 这里也不能改用公开 tryAdd：它会在持有 putMonitor 期间去抢 takeMonitor，
-            // 与 remove 侧形成 putMonitor↔takeMonitor 的 ABBA 死锁。
+            // 这里也不能改用公开 tryAdd：公开 tryAdd 在成功入队后会自行发信号，会与此处重复；
+            // 我们用 tryAddCore（纯入队、不发声信号）并在下方解锁后统一发信号，避免重复唤醒与 ABBA。
             while (true) {
                 let (ok, prev) = tryAddCore(element)
                 if (ok) {
                     // 仅当本次入队前队列为空（prev==0）才唤醒消费者，避免 SPSC 下多余 signal
                     if (prev == 0) {
-                        signalNotEmpty()
+                        needWakeConsumer = true
+                    }
+                    // 与上游对齐的链式唤醒：本次入队后队列仍未满（prev+1 < capacity），
+                    // 唤醒另一个阻塞在 putMonitor 上的生产者，避免 MPMC 下满队列多生产者永久挂起。
+                    if (prev + 1 < capacity) {
+                        putMonitor.notify()
                     }
                     break
                 }
@@ -180,6 +191,12 @@ public class LinkedBlockingQueue<E> <: BQueue<E> {
             }
         } finally {
             putMonitor.unlock()
+        }
+        // 跨 Monitor 的唤醒（signalNotEmpty 会获取 takeMonitor）必须在释放 putMonitor 之后进行，
+        // 否则与 remove 侧（持 takeMonitor 取 putMonitor）形成 putMonitor↔takeMonitor 的 ABBA 死锁。
+        // 该唤醒落在消费者等待所用的 takeMonitor 上，不会丢失唤醒（见文件头注释）。
+        if (needWakeConsumer) {
+            signalNotEmpty()
         }
     }
 
@@ -205,15 +222,18 @@ public class LinkedBlockingQueue<E> <: BQueue<E> {
             return true
         }
         putMonitor.lock()
+        var needWakeConsumer = false
         try {
             var remaining = timeout
             while (true) {
-                // 同 add(element)：等待循环内只能用无锁核心 tryAddCore，
-                // 既保证 putQsize 始终由 CAS 预约，又避免在持有 putMonitor 时去抢 takeMonitor
+                // 同 add(element)：等待循环内只能用无锁核心 tryAddCore，保证 putQsize 始终由 CAS 预约
                 let (ok, prev) = tryAddCore(element)
                 if (ok) {
                     if (prev == 0) {
-                        signalNotEmpty()
+                        needWakeConsumer = true
+                    }
+                    if (prev + 1 < capacity) {
+                        putMonitor.notify()
                     }
                     break
                 }
@@ -227,6 +247,9 @@ public class LinkedBlockingQueue<E> <: BQueue<E> {
             }
         } finally {
             putMonitor.unlock()
+        }
+        if (needWakeConsumer) {
+            signalNotEmpty()
         }
         return true
     }
@@ -252,18 +275,25 @@ public class LinkedBlockingQueue<E> <: BQueue<E> {
             return e
         }
         takeMonitor.lock()
+        var needWakeProducer = false
         var result: Option<E> = None<E>
         try {
             while (true) {
                 // 等待循环里必须复用无锁核心 tryRemoveCore（用 CAS 认领元素），不能再用“锁内直接 fetchSub”的版本：
                 // takeMonitor 只串行化“走阻塞路径的消费者”，无法与同时走无锁快路径的消费者互斥，
                 // 二者并发修改 count 会把它减成负数，导致从空队列出队并抛出 "Unreachable code"。
-                // 这里也不能改用公开 tryRemove：它会在持有 takeMonitor 期间去抢 putMonitor，形成 ABBA 死锁。
+                // 这里也不能改用公开 tryRemove：公开 tryRemove 在成功出队后会自行发信号，会与此处重复；
+                // 我们用 tryRemoveCore（纯出队、不发声信号）并在下方解锁后统一发信号，避免重复唤醒与 ABBA。
                 let (opt, prev) = tryRemoveCore()
                 if (let Some(e) <- opt) {
                     // 仅当本次出队前队列为满（prev==capacity）才唤醒生产者，避免 SPSC 下多余 signal
                     if (prev == capacity) {
-                        signalNotFull()
+                        needWakeProducer = true
+                    }
+                    // 与上游对齐的链式唤醒：本次出队前队列为满（prev > 1 表示出队后仍 >0 元素），
+                    // 唤醒另一个阻塞在 takeMonitor 上的消费者，避免 MPMC 下消费者永久挂起。
+                    if (prev > 1) {
+                        takeMonitor.notify()
                     }
                     result = Some(e)
                     break
@@ -272,6 +302,10 @@ public class LinkedBlockingQueue<E> <: BQueue<E> {
             }
         } finally {
             takeMonitor.unlock()
+        }
+        // 跨 Monitor 的唤醒（signalNotFull 会获取 putMonitor）必须在释放 takeMonitor 之后进行，避免 ABBA。
+        if (needWakeProducer) {
+            signalNotFull()
         }
         return result.getOrThrow()
     }
@@ -296,21 +330,22 @@ public class LinkedBlockingQueue<E> <: BQueue<E> {
         if (let Some(e) <- tryRemove()) {
             return Some(e)
         }
-        var success = false
-        var result: Option<E> = None<E>
         takeMonitor.lock()
+        var needWakeProducer = false
+        var result: Option<E> = None<E>
         try {
             var remaining = timeout
             while (true) {
-                // 同 remove()：等待循环内只能用无锁核心 tryRemoveCore，
-                // 保证 count 始终由 CAS 认领，且避免在持有 takeMonitor 时去抢 putMonitor
+                // 同 remove()：等待循环内只能用无锁核心 tryRemoveCore，保证 count 始终由 CAS 认领
                 let (opt, prev) = tryRemoveCore()
                 if (let Some(e) <- opt) {
                     if (prev == capacity) {
-                        signalNotFull()
+                        needWakeProducer = true
+                    }
+                    if (prev > 1) {
+                        takeMonitor.notify()
                     }
                     result = Some(e)
-                    success = true
                     break
                 }
                 if (remaining <= Duration.Zero) {
@@ -323,6 +358,9 @@ public class LinkedBlockingQueue<E> <: BQueue<E> {
             }
         } finally {
             takeMonitor.unlock()
+        }
+        if (needWakeProducer) {
+            signalNotFull()
         }
         return result
     }
@@ -374,7 +412,8 @@ public class LinkedBlockingQueue<E> <: BQueue<E> {
     // 之所以把“发信号”拆到外层：发信号需要获取对端 Monitor，而本核心会在 add 的
     // putMonitor 等待循环内被调用，若在持锁时去抢 takeMonitor 就会形成 ABBA 死锁。
     // 返回 (是否成功, 本次入队前的 count 值 prev)：prev 用于外层判断是否需要唤醒消费者
-    // （仅当 prev==0，即入队前队列为空，才可能有消费者阻塞在 remove() 上）。
+    // （prev==0，即入队前队列为空，才可能有消费者阻塞在 remove() 上）以及是否需要链式唤醒
+    // 其他生产者（prev+1 < capacity 表示入队后仍未满）。
     private func tryAddCore(element: E): (Bool, Int64) {
         // 用 break 而非 return 退出"满"分支：Cangjie 中 while(true) 作为函数尾表达式时
         // 类型被判定为 Unit，必须让循环存在可达出口并在循环后统一 return，才能满足 (Bool, Int64) 返回类型
@@ -391,6 +430,11 @@ public class LinkedBlockingQueue<E> <: BQueue<E> {
                     enqueueUnsafe(element)
                     let prev = count.fetchAdd(1)
                     return (true, prev)
+                } catch (e: Error) {
+                    // 覆盖 newBlock 等堆分配失败抛出的 OutOfMemoryError（<: Error，非 Exception）：
+                    // 预约已成功（putQsize +1），入队失败必须把预约回补，否则队列真实容量永久 -1。
+                    putQsize.fetchSub(1)
+                    throw e
                 } catch (e: Exception) {
                     putQsize.fetchSub(1)
                     throw e
@@ -430,7 +474,8 @@ public class LinkedBlockingQueue<E> <: BQueue<E> {
 
     // 无锁核心：只做出队与计数，绝不获取任何 Monitor（原因同 tryAddCore）。
     // 返回 (出队结果, 本次出队前的 count 值 prev)：prev 用于外层判断是否需要唤醒生产者
-    // （仅当 prev==capacity，即出队前队列为满，才可能有生产者阻塞在 add() 上）。
+    // （prev==capacity，即出队前队列为满，才可能有生产者阻塞在 add() 上）以及是否需要链式唤醒
+    // 其他消费者（prev > 1 表示出队后仍 >0 元素）。
     private func tryRemoveCore(): (Option<E>, Int64) {
         // 同 tryAdd：用 break 让 while(true) 具备可达出口，循环后统一 return (Option<E>, Int64)
         while (true) {
@@ -446,6 +491,10 @@ public class LinkedBlockingQueue<E> <: BQueue<E> {
                     let value = dequeueUnsafe()
                     putQsize.fetchSub(1)
                     return (Some(value), c)
+                } catch (e: Error) {
+                    // 与 tryAddCore 对称：兜底捕获任何错误/异常，回补已认领的 count，避免元素丢失与 putQsize 泄漏
+                    count.fetchAdd(1)
+                    throw e
                 } catch (e: Exception) {
                     count.fetchAdd(1)
                     throw e
