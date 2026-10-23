@@ -57,6 +57,16 @@ public type BlockingQueue<E> = LinkedBlockingQueue<E>
  * wakes another blocked producer, and a successful remove with prev > 1 wakes another
  * blocked consumer. This complements the conditional cross-monitor signal above.
  *
+ * IMPORTANT (producer wake-up predicate must match the reservation-based blocking
+ * predicate): a producer blocks when the reservation counter `putQsize` reaches
+ * `capacity` (see tryAddCore), so the producer-wakeup signal MUST be derived from the
+ * same counter. In tryRemoveCore the slot-release is `let prevPut = putQsize.fetchSub(1)`,
+ * and signalNotFull() is triggered only when `prevPut == capacity` (the release took the
+ * reservation from full to non-full). Deriving it from the committed `count` (== capacity)
+ * instead would mismatch the blocking predicate and could leave a producer parked forever
+ * while a free slot exists. The consumer-wakeup signal (signalNotEmpty) stays count-based,
+ * matching the consumer's count-based blocking predicate, so it needs no such adjustment.
+ *
  * IMPORTANT (capacity/element counters): every mutation of `putQsize` / `count`
  * must go through the SAME CAS-based atomic protocol used by the lock-free fast
  * path, no matter whether the caller is on the fast path or on the blocking
@@ -286,15 +296,16 @@ public class LinkedBlockingQueue<E> {
                 // 二者并发修改 count 会把它减成负数，导致从空队列出队并抛出 "Unreachable code"。
                 // 这里也不能改用公开 tryRemove：公开 tryRemove 在成功出队后会自行发信号，会与此处重复；
                 // 我们用 tryRemoveCore（纯出队、不发声信号）并在下方解锁后统一发信号，避免重复唤醒与 ABBA。
-                let (opt, prev) = tryRemoveCore()
+                let (opt, prevCount, prevPut) = tryRemoveCore()
                 if (let Some(e) <- opt) {
-                    // 仅当本次出队前队列为满（prev==capacity）才唤醒生产者，避免 SPSC 下多余 signal
-                    if (prev == capacity) {
+                    // 仅当本次释放槽位前槽位预约恰为满（prevPut==capacity）才唤醒生产者：
+                    // 与生产者阻塞所依据的预约口径（putQsize>=capacity）一致，避免“队列有空位但生产者永久挂起”。
+                    if (prevPut == capacity) {
                         needWakeProducer = true
                     }
-                    // 与上游对齐的链式唤醒：本次出队前队列为满（prev > 1 表示出队后仍 >0 元素），
+                    // 与上游对齐的链式唤醒：本次出队前队列元素数 >1（prevCount > 1 表示出队后仍有剩余元素），
                     // 唤醒另一个阻塞在 takeMonitor 上的消费者，避免 MPMC 下消费者永久挂起。
-                    if (prev > 1) {
+                    if (prevCount > 1) {
                         takeMonitor.notify()
                     }
                     result = Some(e)
@@ -339,12 +350,12 @@ public class LinkedBlockingQueue<E> {
             var remaining = timeout
             while (true) {
                 // 同 remove()：等待循环内只能用无锁核心 tryRemoveCore，保证 count 始终由 CAS 认领
-                let (opt, prev) = tryRemoveCore()
+                let (opt, prevCount, prevPut) = tryRemoveCore()
                 if (let Some(e) <- opt) {
-                    if (prev == capacity) {
+                    if (prevPut == capacity) {
                         needWakeProducer = true
                     }
-                    if (prev > 1) {
+                    if (prevCount > 1) {
                         takeMonitor.notify()
                     }
                     result = Some(e)
@@ -475,11 +486,14 @@ public class LinkedBlockingQueue<E> {
     }
 
     // 无锁核心：只做出队与计数，绝不获取任何 Monitor（原因同 tryAddCore）。
-    // 返回 (出队结果, 本次出队前的 count 值 prev)：prev 用于外层判断是否需要唤醒生产者
-    // （prev==capacity，即出队前队列为满，才可能有生产者阻塞在 add() 上）以及是否需要链式唤醒
-    // 其他消费者（prev > 1 表示出队后仍 >0 元素）。
-    private func tryRemoveCore(): (Option<E>, Int64) {
-        // 同 tryAdd：用 break 让 while(true) 具备可达出口，循环后统一 return (Option<E>, Int64)
+    // 返回 (出队结果, 出队前的 count 值 prevCount, 释放槽位前的 putQsize 值 prevPut)：
+    //  - prevCount 用于外层判断是否需要链式唤醒其他消费者（prevCount > 1 表示出队后仍有剩余元素）；
+    //  - prevPut   用于外层判断是否需要唤醒生产者（prevPut == capacity，即本次释放前槽位预约恰为满，
+    //              才可能有生产者阻塞在 add() 上）。生产者是按预约口径 putQsize>=capacity 阻塞的，
+    //              故唤醒其的谓词必须同样基于 putQsize（而非已提交的 count），否则会出现
+    //              “队列有空位但生产者永久挂起”的活性缺陷。
+    private func tryRemoveCore(): (Option<E>, Int64, Int64) {
+        // 同 tryAdd：用 break 让 while(true) 具备可达出口，循环后统一 return (Option<E>, Int64, Int64)
         while (true) {
             let c: Int64 = count.load()
             if (c == 0) {
@@ -491,8 +505,8 @@ public class LinkedBlockingQueue<E> {
                 // 一旦失败必须把已认领的 count 回补，否则元素丢失且 putQsize 泄漏。
                 try {
                     let value = dequeueUnsafe()
-                    putQsize.fetchSub(1)
-                    return (Some(value), c)
+                    let prevPut = putQsize.fetchSub(1)
+                    return (Some(value), c, prevPut)
                 } catch (e: Error) {
                     // 与 tryAddCore 对称：兜底捕获任何错误/异常，回补已认领的 count，避免元素丢失与 putQsize 泄漏
                     count.fetchAdd(1)
@@ -503,17 +517,17 @@ public class LinkedBlockingQueue<E> {
                 }
             }
         }
-        return (None<E>, 0)
+        return (None<E>, 0, 0)
     }
 
     public func tryRemove(): Option<E> {
         // 与上游语义对齐：非阻塞出队成功后必须唤醒阻塞在 add() 上的生产者，
-        // 但仅在“出队前队列为满（prev==capacity）”这一真正可能有生产者等待的情形下才发信号，
+        // 但仅在“释放槽位前槽位预约恰为满（prevPut==capacity）”这一真正可能有生产者等待的情形下才发信号，
         // 避免 SPSC 下每次成功都抢占 putMonitor 把省下的锁往返又赔回去（即上游的
         // 条件 signal 语义）。signal 在 putMonitor 下进行，不会丢失唤醒。
-        let (opt, prev) = tryRemoveCore()
+        let (opt, _, prevPut) = tryRemoveCore()
         if (let Some(e) <- opt) {
-            if (prev == capacity) {
+            if (prevPut == capacity) {
                 signalNotFull()
             }
             return Some(e)
