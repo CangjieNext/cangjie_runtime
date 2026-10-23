@@ -1,0 +1,14 @@
+runtime/src/Demangler/Demangler.cpp
+  h_f08a759313bce8 185-186,824,864,1233-1236
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c206ffa1b8d28860f1c7a0bc33c819a32f5a1d7a",
+  "prompts": {},
+  "humans": {
+    "h_f08a759313bce8": {
+      "author": "yuqiaoyu <yujunqiang1@h-partners.com>"
+    }
+  }
+}
