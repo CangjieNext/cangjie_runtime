@@ -1,0 +1,19 @@
+stdlib/schema/NodeFormat.fbs
+  s_18ed60c515e61f::t_11789579c9692e 892-893
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "bc4e794aa3c5cb94abef064164a6914b0c19a93a",
+  "prompts": {},
+  "sessions": {
+    "s_18ed60c515e61f": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "e326ddbd-badc-4c61-a291-459e091a8447",
+        "model": "default"
+      },
+      "human_author": null
+    }
+  }
+}
