@@ -1,0 +1,22 @@
+runtime/src/Mutator/MutatorManager.h
+  s_0d15d2c2333758::t_51735197efbb13 30
+runtime/src/Base/RwLock.h
+  s_0d15d2c2333758::t_32fff725c154b3 25,31,41,55
+  s_0d15d2c2333758::t_70ae280a34cb3b 26,32,42,56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b4699faa5836664c260c539d4cf891fecf3893ed",
+  "prompts": {},
+  "sessions": {
+    "s_0d15d2c2333758": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1353d-f832-7a81-9d19-503b14bc704c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "xiaohan_1 <xiaohan24@huawei.com>"
+    }
+  }
+}
