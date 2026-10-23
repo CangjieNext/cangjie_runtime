@@ -1,0 +1,23 @@
+runtime/build/lds/x86_64_linux/cjld.shared.lds
+  s_ff935cc18c2be5::t_375821717016c4 149,294,296,325
+runtime/build/lds/arm_linux/cjld.shared.lds
+  s_ff935cc18c2be5::t_8cc457fb2b8794 145,290,292-293,304,308-309
+runtime/build/lds/aarch64_linux/cjld.shared.lds
+  s_ff935cc18c2be5::t_07b99fbb3d6825 145,290,292-293,304,308-309
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4d5b7fb30ddd0a963c576f31985d5617649f8157",
+  "prompts": {},
+  "sessions": {
+    "s_ff935cc18c2be5": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a15c46-00a7-7307-98e1-864649945ab7",
+        "model": "k3-256k"
+      },
+      "human_author": "yanjs <yejiasheng3@huawei.com>"
+    }
+  }
+}
