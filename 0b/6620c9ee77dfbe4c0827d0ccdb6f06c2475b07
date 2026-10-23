@@ -1,0 +1,19 @@
+runtime/src/CMakeLists.txt
+  s_fbc71de6353e80::t_b3fb96c70151a3 240
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0b6620c9ee77dfbe4c0827d0ccdb6f06c2475b07",
+  "prompts": {},
+  "sessions": {
+    "s_fbc71de6353e80": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a143ba-cf00-75d1-8ac3-e3329863520d",
+        "model": "DeepSeek-V4.1-Flash"
+      },
+      "human_author": "yanjs <yejiasheng3@huawei.com>"
+    }
+  }
+}
