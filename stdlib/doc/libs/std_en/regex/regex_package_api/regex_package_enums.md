@@ -3,11 +3,7 @@
 ## enum RegexFlag
 
 ```cangjie
-public enum RegexFlag {
-    | IgnoreCase
-    | MultiLine
-    | Unicode
-}
+public enum RegexFlag
 ```
 
 Function: Used to specify pattern matching modes for regular expressions.

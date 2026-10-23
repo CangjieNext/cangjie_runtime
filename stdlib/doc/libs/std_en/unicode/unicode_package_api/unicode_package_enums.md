@@ -3,12 +3,7 @@
 ## enum CasingOption
 
 ```cangjie
-public enum CasingOption {
-    | TR
-    | AZ
-    | LT
-    | Other
-}
+public enum CasingOption
 ```
 
 Function: An enumeration class required for case conversion operations in different languages.

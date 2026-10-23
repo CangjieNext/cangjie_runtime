@@ -27,10 +27,7 @@ Type: [IntNative](../../core/core_package_api/core_package_intrinsics.md#IntNati
 ## struct FileInfo
 
 ```cangjie
-public struct FileInfo <: Equatable<FileInfo> {
-    public init(path: Path)
-    public init(path: String)
-}
+public struct FileInfo <: Equatable<FileInfo>
 ```
 
 Function: Corresponds to file metadata in the file system.
@@ -398,11 +395,7 @@ Returns:
 ## struct Path
 
 ```cangjie
-public struct Path <: Equatable<Path> & Hashable & ToString {
-    public static const Separator: String = PATH_SEPARATOR
-    public static const ListSeparator: String = PATH_LISTSEPARATOR
-    public init(rawPath: String)
-}
+public struct Path <: Equatable<Path> & Hashable & ToString
 ```
 
 Function: Provides path-related functions.

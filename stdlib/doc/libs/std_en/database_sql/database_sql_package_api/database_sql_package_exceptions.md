@@ -3,11 +3,7 @@
 ## class SqlException
 
 ```cangjie
-public open class SqlException <: Exception {
-    public init()
-    public init(message: String)
-    public init(message: String, sqlState: String, errorCode: Int64)
-}
+public open class SqlException <: Exception
 ```
 
 Function: Used to handle SQL-related exceptions.

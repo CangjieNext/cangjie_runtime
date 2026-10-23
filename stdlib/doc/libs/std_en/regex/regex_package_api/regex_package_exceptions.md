@@ -3,10 +3,7 @@
 ## class RegexException
 
 ```cangjie
-public class RegexException <: Exception {
-    public init()
-    public init(message: String)
-}
+public class RegexException <: Exception
 ```
 
 Function: Provides exception handling for regular expressions.

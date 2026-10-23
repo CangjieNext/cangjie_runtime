@@ -3,7 +3,7 @@
 ## class Directory
 
 ```cangjie
-public class Directory {}
+public class Directory
 ```
 
 Function: Represents a directory in the file system, providing capabilities for creation, movement, copying, deletion, attribute querying, and directory traversal.
@@ -232,10 +232,7 @@ Exceptions:
 ## class File
 
 ```cangjie
-public class File <: Resource & IOStream & Seekable {
-    public init(path: String, mode: OpenMode)
-    public init(path: Path, mode: OpenMode)
-}
+public class File <: Resource & IOStream & Seekable
 ```
 
 Function: Provides functions for file operations, including opening, creating, closing, moving, copying, deleting, stream-based read/write operations, attribute querying, and other functions.

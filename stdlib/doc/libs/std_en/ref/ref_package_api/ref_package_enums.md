@@ -3,10 +3,7 @@
 ## enum CleanupPolicy
 
 ```cangjie
-public enum CleanupPolicy <: Equatable<CleanupPolicy> {
-    | EAGER
-    | DEFERRED
-}
+public enum CleanupPolicy <: Equatable<CleanupPolicy>
 ```
 
 Function: This enum represents different weak reference cleanup policies, namely `EAGER` and `DEFERRED`.

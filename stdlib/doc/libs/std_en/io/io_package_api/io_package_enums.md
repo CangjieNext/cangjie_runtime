@@ -3,11 +3,7 @@
 ## enum SeekPosition
 
 ```cangjie
-public enum SeekPosition {
-    | Begin(Int64)
-    | Current(Int64)
-    | End(Int64)
-}
+public enum SeekPosition
 ```
 
 Function: This enumeration type represents the cursor position in a file.

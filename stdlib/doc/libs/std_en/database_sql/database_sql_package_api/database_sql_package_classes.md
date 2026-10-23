@@ -68,9 +68,7 @@ Exceptions:
 ## class PooledDatasource
 
 ```cangjie
-public class PooledDatasource <: Datasource {
-    public init(datasource: Datasource)
-}
+public class PooledDatasource <: Datasource
 ```
 
 Function: Database connection pool class providing connection pooling capabilities.
@@ -204,9 +202,7 @@ Parameters:
 ## class SqlBigInt <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlBigInt <: SqlDbType {
-    public init(v: Int64)
-}
+public class SqlBigInt <: SqlDbType
 ```
 
 Function: Big integer type, corresponding to Cangjie's [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) type.
@@ -254,9 +250,7 @@ Parameters:
 ## class SqlBinary <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlBinary <: SqlDbType {
-    public init(v: Array<Byte>)
-}
+public class SqlBinary <: SqlDbType
 ```
 
 Function: Fixed-length binary string, corresponding to Cangjie's [Array](../../core/core_package_api/core_package_structs.md#struct-arrayt)\<[Byte](../../core/core_package_api/core_package_types.md#type-byte)> type.
@@ -302,9 +296,7 @@ Parameters:- v: [Array](../../core/core_package_api/core_package_structs.md#stru
 ## class SqlBlob <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlBlob <: SqlDbType {
-    public init(v: InputStream)
-}
+public class SqlBlob <: SqlDbType
 ```
 
 Function: Variable-length large binary string (BINARY LARGE OBJECT), corresponding to the Cangjie [InputStream](../../io/io_package_api/io_package_interfaces.md#interface-inputstream) type.
@@ -352,9 +344,7 @@ Parameters:
 ## class SqlBool <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlBool <: SqlDbType {
-    public init(v: Bool)
-}
+public class SqlBool <: SqlDbType
 ```
 
 Function: Boolean type, corresponding to the Cangjie [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) type.
@@ -402,9 +392,7 @@ Parameters:
 ## class SqlByte <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlByte <: SqlDbType {
-    public init(v: Int8)
-}
+public class SqlByte <: SqlDbType
 ```
 
 Function: Byte, corresponding to the Cangjie [Int8](../../core/core_package_api/core_package_intrinsics.md#int8) type.
@@ -452,9 +440,7 @@ Parameters:
 ## class SqlChar <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlChar <: SqlDbType {
-    public init(v: String)
-}
+public class SqlChar <: SqlDbType
 ```
 
 Function: Fixed-length string, corresponding to the Cangjie [String](../../core/core_package_api/core_package_structs.md#struct-string) type.
@@ -502,9 +488,7 @@ Parameters:
 ## class SqlClob <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlClob <: SqlDbType {
-    public init(v: InputStream)
-}
+public class SqlClob <: SqlDbType
 ```
 
 Function: Variable-length large string (RUNE LARGE OBJECT), corresponding to the Cangjie [InputStream](../../io/io_package_api/io_package_interfaces.md#interface-inputstream) type.
@@ -552,9 +536,7 @@ Parameters:
 ## class SqlDate <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlDate <: SqlDbType {
-    public init(v: DateTime)
-}
+public class SqlDate <: SqlDbType
 ```
 
 Function: Date (only year, month, and day are valid), corresponding to the Cangjie [DateTime](../../time/time_package_api/time_package_structs.md#struct-datetime) type.
@@ -600,9 +582,7 @@ Parameters:- v: [DateTime](../../time/time_package_api/time_package_structs.md#s
 ## class SqlDecimal <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlDecimal <: SqlDbType {
-    public init(v: Decimal)
-}
+public class SqlDecimal <: SqlDbType
 ```
 
 Function: High-precision number, corresponding to the Cangjie [Decimal](../../math_numeric/math_numeric_package_api/math_numeric_package_structs.md#struct-decimal) type.
@@ -650,9 +630,7 @@ Parameters:
 ## class SqlDouble <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlDouble <: SqlDbType {
-    public init(v: Float64)
-}
+public class SqlDouble <: SqlDbType
 ```
 
 Function: Double-precision number, corresponding to the Cangjie [Float64](../../core/core_package_api/core_package_intrinsics.md#float64) type.
@@ -700,9 +678,7 @@ Parameters:
 ## class SqlInteger <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlInteger <: SqlDbType {
-    public init(v: Int32)
-}
+public class SqlInteger <: SqlDbType
 ```
 
 Function: Medium integer, corresponding to the Cangjie [Int32](../../core/core_package_api/core_package_intrinsics.md#int32) type.
@@ -750,9 +726,7 @@ Parameters:
 ## class SqlInterval <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlInterval <: SqlDbType {
-    public init(v: Duration)
-}
+public class SqlInterval <: SqlDbType
 ```
 
 Function: Time interval, corresponding to the Cangjie [Duration](../../core/core_package_api/core_package_structs.md#struct-duration) type.
@@ -800,9 +774,7 @@ Parameters:
 ## class SqlNullableBigInt <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlNullableBigInt <: SqlNullableDbType {
-    public init(v: ?Int64)
-}
+public class SqlNullableBigInt <: SqlNullableDbType
 ```
 
 Function: Large integer, corresponding to the Cangjie [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) type, can be database `Null` value.
@@ -850,9 +822,7 @@ Parameters:
 ## class SqlNullableBinary <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlNullableBinary <: SqlNullableDbType {
-    public init(v: ?Array<Byte>)
-}
+public class SqlNullableBinary <: SqlNullableDbType
 ```
 
 Function: Fixed-length binary string, corresponding to the Cangjie [Array](../../core/core_package_api/core_package_structs.md#struct-arrayt)\<[Byte](../../core/core_package_api/core_package_types.md#type-byte)> type, can be database `Null` value.
@@ -898,9 +868,7 @@ Parameters:- v: ?[Array](../../core/core_package_api/core_package_structs.md#str
 ## class SqlNullableBlob <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlNullableBlob <: SqlNullableDbType {
-    public init(v: ?InputStream)
-}
+public class SqlNullableBlob <: SqlNullableDbType
 ```
 
 Function: Variable-length large binary string (BINARY LARGE OBJECT), corresponding to the Cangjie [InputStream](../../io/io_package_api/io_package_interfaces.md#interface-inputstream) type, can be database `Null` value.
@@ -948,9 +916,7 @@ Parameters:
 ## class SqlNullableBool <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlNullableBool <: SqlNullableDbType {
-    public init(v: ?Bool)
-}
+public class SqlNullableBool <: SqlNullableDbType
 ```
 
 Function: Boolean type, corresponding to the Cangjie [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) type, can be database `Null` value.
@@ -998,9 +964,7 @@ Parameters:
 ## class SqlNullableByte <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlNullableByte <: SqlNullableDbType {
-    public init(v: ?Int8)
-}
+public class SqlNullableByte <: SqlNullableDbType
 ```
 
 Function: Byte, corresponding to the Cangjie [Int8](../../core/core_package_api/core_package_intrinsics.md#int8) type, can be database `Null` value.
@@ -1048,9 +1012,7 @@ Parameters:
 ## class SqlNullableChar <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlNullableChar <: SqlNullableDbType {
-    public init(v: ?String)
-}
+public class SqlNullableChar <: SqlNullableDbType
 ```
 
 Function: Fixed-length string, corresponding to the Cangjie [String](../../core/core_package_api/core_package_structs.md#struct-string) type, can be database `Null` value.
@@ -1098,9 +1060,7 @@ Parameters:
 ## class SqlNullableClob <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlNullableClob <: SqlNullableDbType {
-    public init(v: ?InputStream)
-}
+public class SqlNullableClob <: SqlNullableDbType
 ```
 
 Function: Variable-length large string (RUNE LARGE OBJECT), corresponding to the Cangjie [InputStream](../../io/io_package_api/io_package_interfaces.md#interface-inputstream) type, can be database `Null` value.
@@ -1148,9 +1108,7 @@ Parameters:
 ## class SqlNullableDate <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlNullableDate <: SqlNullableDbType {
-    public init(v: ?DateTime)
-}
+public class SqlNullableDate <: SqlNullableDbType
 ```
 
 Function: Date (only year, month, and day are valid), corresponding to the Cangjie [DateTime](../../time/time_package_api/time_package_structs.md#struct-datetime) type, can be database `Null` value.
@@ -1196,9 +1154,7 @@ Parameters:- v: ?[DateTime](../../time/time_package_api/time_package_structs.md#
 ## class SqlNullableDecimal <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlNullableDecimal <: SqlNullableDbType {
-    public init(v: ?Decimal)
-}
+public class SqlNullableDecimal <: SqlNullableDbType
 ```
 
 Function: High-precision number, corresponding to the Cangjie [Decimal](../../math_numeric/math_numeric_package_api/math_numeric_package_structs.md#struct-decimal) type, can be database `Null` value.
@@ -1246,9 +1202,7 @@ Parameters:
 ## class SqlNullableDouble <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlNullableDouble <: SqlNullableDbType {
-    public init(v: ?Float64)
-}
+public class SqlNullableDouble <: SqlNullableDbType
 ```
 
 Function: Double-precision number, corresponding to the Cangjie [Float64](../../core/core_package_api/core_package_intrinsics.md#float64) type, can be database `Null` value.
@@ -1296,9 +1250,7 @@ Parameters:
 ## class SqlNullableInteger <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlNullableInteger <: SqlNullableDbType {
-    public init(v: ?Int32)
-}
+public class SqlNullableInteger <: SqlNullableDbType
 ```
 
 Function: Medium integer, corresponding to the Cangjie [Int32](../../core/core_package_api/core_package_intrinsics.md#int32) type, can be database `Null` value.
@@ -1346,9 +1298,7 @@ Parameters:
 ## class SqlNullableInterval <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlNullableInterval <: SqlNullableDbType {
-    public init(v: ?Duration)
-}
+public class SqlNullableInterval <: SqlNullableDbType
 ```
 
 Function: Time interval, corresponding to the Cangjie [Duration](../../core/core_package_api/core_package_structs.md#struct-duration) type, can be database `Null` value.
@@ -1396,9 +1346,7 @@ Parameters:
 ## class SqlNullableReal <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlNullableReal <: SqlNullableDbType {
-    public init(v: ?Float32)
-}
+public class SqlNullableReal <: SqlNullableDbType
 ```
 
 Function: Floating-point number, corresponding to the Cangjie [Float32](../../core/core_package_api/core_package_intrinsics.md#float32) type, can be database `Null` value.
@@ -1446,9 +1394,7 @@ Parameters:
 ## class SqlNullableSmallInt <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlNullableSmallInt <: SqlNullableDbType {
-    public init(v: ?Int16)
-}
+public class SqlNullableSmallInt <: SqlNullableDbType
 ```
 
 Function: Small integer, corresponding to the Cangjie [Int16](../../core/core_package_api/core_package_intrinsics.md#int16) type, can be database `Null` value.
@@ -1494,9 +1440,7 @@ Parameters:- v: ?[Int16](../../core/core_package_api/core_package_intrinsics.md#
 ## class SqlNullableTime <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlNullableTime <: SqlNullableDbType {
-    public init(v: ?DateTime)
-}
+public class SqlNullableTime <: SqlNullableDbType
 ```
 
 Function: Time (only hours, minutes, seconds, and milliseconds are valid), corresponding to the Cangjie [DateTime](../../time/time_package_api/time_package_structs.md#struct-datetime) type, can be database `Null` value.
@@ -1544,9 +1488,7 @@ Parameters:
 ## class SqlNullableTimeTz <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlNullableTimeTz <: SqlNullableDbType {
-    public init(v: ?DateTime)
-}
+public class SqlNullableTimeTz <: SqlNullableDbType
 ```
 
 Function: Time with timezone (only hours, minutes, seconds, milliseconds, and timezone are valid), corresponding to the Cangjie [DateTime](../../time/time_package_api/time_package_structs.md#struct-datetime) type, can be database `Null` value.
@@ -1594,9 +1536,7 @@ Parameters:
 ## class SqlNullableTimestamp <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlNullableTimestamp <: SqlNullableDbType {
-    public init(v: ?DateTime)
-}
+public class SqlNullableTimestamp <: SqlNullableDbType
 ```
 
 Function: Timestamp, corresponding to the Cangjie [DateTime](../../time/time_package_api/time_package_structs.md#struct-datetime) type, can be database `Null` value.
@@ -1644,9 +1584,7 @@ Parameters:
 ## class SqlNullableVarBinary <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlNullableVarBinary <: SqlNullableDbType {
-    public init(v: ?Array<Byte>)
-}
+public class SqlNullableVarBinary <: SqlNullableDbType
 ```
 
 Function: Variable-length binary string, corresponding to the Cangjie [Array](../../core/core_package_api/core_package_structs.md#struct-arrayt)\<[Byte](../../core/core_package_api/core_package_types.md#type-byte)> type, can be database `Null` value.
@@ -1694,9 +1632,7 @@ Parameters:
 ## class SqlNullableVarchar <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlNullableVarchar <: SqlNullableDbType {
-    public init(v: ?String)
-}
+public class SqlNullableVarchar <: SqlNullableDbType
 ```
 
 Function: Variable-length string, corresponding to the Cangjie [String](../../core/core_package_api/core_package_structs.md#struct-string) type, can be database `Null` value.
@@ -1743,33 +1679,7 @@ Parameters:
 ## class SqlOption
 
 ```cangjie
-public class SqlOption {
-    public static const URL = "url"
-    public static const Host = "host"
-    public static const Username = "username"
-    public static const Password = "password"
-    public static const Driver = "driver"
-    public static const Database = "database"
-    public static const Encoding = "encoding"
-    public static const ConnectionTimeout = "connection_timeout"
-    public static const UpdateTimeout = "update_timeout"
-    public static const QueryTimeout = "query_timeout"
-    public static const FetchRows = "fetch_rows"
-    public static const SSLMode = "ssl.mode"
-    public static const SSLModePreferred = "ssl.mode.preferred"
-    public static const SSLModeDisabled = "ssl.mode.disabled"
-    public static const SSLModeRequired = "ssl.mode.required"
-    public static const SSLModeVerifyCA = "ssl.mode.verify_ca"
-    public static const SSLModeVerifyFull = "ssl.mode.verify_full"
-    public static const SSLCA = "ssl.ca"
-    public static const SSLCert = "ssl.cert"
-    public static const SSLKey = "ssl.key"
-    public static const SSLKeyPassword = "ssl.key.password"
-    public static const SSLSni = "ssl.sni"
-    public static const Tls12Ciphersuites = "tls1.2.ciphersuites"
-    public static const Tls13Ciphersuites = "tls1.3.ciphersuites"
-    public static const TlsVersion = "tls.version"
-}
+public class SqlOption
 ```
 
 Function: Predefined SQL option names and values. If extending, avoid conflicts with these names and values.
@@ -2029,9 +1939,7 @@ Type: [String](../../core/core_package_api/core_package_structs.md#struct-string
 ## class SqlReal <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlReal <: SqlDbType {
-    public init(v: Float32)
-}
+public class SqlReal <: SqlDbType
 ```
 
 Function: Floating-point number, corresponding to the Cangjie [Float32](../../core/core_package_api/core_package_intrinsics.md#float32) type.
@@ -2079,9 +1987,7 @@ Parameters:
 ## class SqlSmallInt <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlSmallInt <: SqlDbType {
-    public init(v: Int16)
-}
+public class SqlSmallInt <: SqlDbType
 ```
 
 Function: Small integer, corresponding to the Cangjie [Int16](../../core/core_package_api/core_package_intrinsics.md#int16) type.
@@ -2128,9 +2034,7 @@ Parameters:
 ## class SqlTime <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlTime <: SqlDbType {
-    public init(v: DateTime)
-}
+public class SqlTime <: SqlDbType
 ```
 
 Function: Time (only hours, minutes, seconds, and milliseconds are valid), corresponding to the Cangjie [DateTime](../../time/time_package_api/time_package_structs.md#struct-datetime) type.
@@ -2178,9 +2082,7 @@ Parameters:
 ## class SqlTimeTz <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlTimeTz <: SqlDbType {
-    public init(v: DateTime)
-}
+public class SqlTimeTz <: SqlDbType
 ```
 
 Function: Time with timezone (only hours, minutes, seconds, milliseconds, and timezone are valid), corresponding to the Cangjie [DateTime](../../time/time_package_api/time_package_structs.md#struct-datetime) type.
@@ -2228,9 +2130,7 @@ Parameters:
 ## class SqlTimestamp <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlTimestamp <: SqlDbType {
-    public init(v: DateTime)
-}
+public class SqlTimestamp <: SqlDbType
 ```
 
 Function: Timestamp, corresponding to the Cangjie [DateTime](../../time/time_package_api/time_package_structs.md#struct-datetime) type.
@@ -2278,9 +2178,7 @@ Parameters:
 ## class SqlVarBinary <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlVarBinary <: SqlDbType {
-    public init(v: Array<Byte>)
-}
+public class SqlVarBinary <: SqlDbType
 ```
 
 Function: Variable-length binary string, corresponding to the Cangjie [Array](../../core/core_package_api/core_package_structs.md#struct-arrayt)\<[Byte](../../core/core_package_api/core_package_types.md#type-byte)> type.
@@ -2328,9 +2226,7 @@ Parameters:
 ## class SqlVarchar <sup>(deprecated)</sup>
 
 ```cangjie
-public class SqlVarchar <: SqlDbType {
-    public init(v: String)
-}
+public class SqlVarchar <: SqlDbType
 ```
 
 Function: Variable-length string, corresponding to the Cangjie [String](../../core/core_package_api/core_package_structs.md#struct-string) type.

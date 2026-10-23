@@ -3,7 +3,7 @@
 ## class ThreadGroup\<T>
 
 ```cangjie
-public class ThreadGroup<T> <: Iterable<T> {}
+public class ThreadGroup<T> <: Iterable<T>
 ```
 
 Description：Allows launching of concurrent threads, request cancellation for all launched threads, and consumption of thread results.

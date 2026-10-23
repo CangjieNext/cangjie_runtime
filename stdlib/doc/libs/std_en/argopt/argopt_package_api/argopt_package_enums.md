@@ -3,11 +3,7 @@
 ## enum ArgumentMode
 
 ```cangjie
-public enum ArgumentMode <: ToString & Equatable<ArgumentMode> {
-    | NoValue
-    | RequiredValue
-    | OptionalValue
-}
+public enum ArgumentMode <: ToString & Equatable<ArgumentMode>
 ```
 
 Function: Describes the argument mode of an option.
@@ -117,15 +113,7 @@ mode1 == mode3: false
 ## enum ArgumentSpec
 
 ```cangjie
-public enum ArgumentSpec {
-    | Short(Rune, ArgumentMode)
-    | Short(Rune, ArgumentMode, (String) -> Unit)
-    | Long(String, ArgumentMode)
-    | Long(String, ArgumentMode, (String) -> Unit)
-    | Full(String, Rune, ArgumentMode)
-    | Full(String, Rune, ArgumentMode, (String) -> Unit)
-    | NonOptions((Array<String>) -> Unit)
-}
+public enum ArgumentSpec
 ```
 
 Function: Describes the specification of arguments.

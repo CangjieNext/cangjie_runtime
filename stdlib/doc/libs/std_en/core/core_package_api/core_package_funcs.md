@@ -865,6 +865,10 @@ public func print(i: UInt32, flush!: Bool = false): Unit
 
 Function: Outputs the string representation of [UInt32](core_package_intrinsics.md#uint32) type data to the console.
 
+Extensions:
+
+- [extend UInt32 <: BigEndianOrder\<UInt32> & LittleEndianOrder\<UInt32> & SwapEndianOrder\<UInt32>](../../binary/binary_package_api/binary_package_extends.md#extend-uint32--bigendianorderuint32--littleendianorderuint32--swapendianorderuint32) (cross-package extension)
+
 Parameters:
 
 - i: [UInt32](core_package_intrinsics.md#uint32) - The [UInt32](core_package_intrinsics.md#uint32) type data to be output.

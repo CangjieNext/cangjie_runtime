@@ -3,10 +3,7 @@
 ## class ContentFormatException
 
 ```cangjie
-public class ContentFormatException <: Exception {
-    public init()
-    public init(message: String)
-}
+public class ContentFormatException <: Exception
 ```
 
 Function: Provides exception handling related to character formatting.
@@ -38,10 +35,7 @@ Parameters:
 ## class IOException
 
 ```cangjie
-public open class IOException <: Exception {
-    public init()
-    public init(message: String)
-}
+public open class IOException <: Exception
 ```
 
 Function: Provides exception handling related to IO streams.

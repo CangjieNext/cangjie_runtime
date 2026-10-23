@@ -3,7 +3,7 @@
 ## struct MatchData
 
 ```cangjie
-public struct MatchData {}
+public struct MatchData
 ```
 
 Function: Stores regular expression matching results and provides functions to query the matching results.
@@ -288,10 +288,7 @@ Exceptions:
 ## struct Position
 
 ```cangjie
-public struct Position {
-    public let end: Int64
-    public let start: Int64
-}
+public struct Position
 ```
 
 Function: Stores position information, representing a half-open interval [start, end).

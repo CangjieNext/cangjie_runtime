@@ -3,9 +3,7 @@
 ## class Matcher <sup>(deprecated)</sup>
 
 ```cangjie
-public class Matcher {
-    public init(re: Regex, input: String)
-}
+public class Matcher
 ```
 
 Function: A regular expression matcher used for scanning input sequences and performing matches.
@@ -298,10 +296,7 @@ Returns:
 ## class Regex
 
 ```cangjie
-public class Regex {
-    public init(pattern: String, flags: Array<RegexFlag>)
-    public init(pattern: String, option: RegexOption)
-}
+public class Regex
 ```
 
 Function: Used to specify compilation type and create regular expression instances.
@@ -809,9 +804,7 @@ Returns:
 ## class RegexOption <sup>(deprecated)</sup>
 
 ```cangjie
-public class RegexOption <: ToString {
-    public init()
-}
+public class RegexOption <: ToString
 ```
 
 Function: Used to specify the matching mode for regular expressions.

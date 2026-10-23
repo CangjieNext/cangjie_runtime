@@ -3,11 +3,7 @@
 ## enum CatchupStyle
 
 ```cangjie
-public enum CatchupStyle {
-    | Delay
-    | Burst
-    | Skip
-}
+public enum CatchupStyle
 ```
 
 Function: Represents different catch-up strategies to be used by recurring task timers.
@@ -64,9 +60,7 @@ Function: Under this strategy, the interval between task start times remains fix
 ## enum MemoryOrder <sup>(deprecated)</sup>
 
 ```cangjie
-public enum MemoryOrder {
-    | SeqCst
-}
+public enum MemoryOrder
 ```
 
 Function: Enumeration for memory ordering types.
@@ -88,10 +82,7 @@ Function: Represents sequentially consistent ordering, which prohibits instructi
 ## enum ReadWriteMutexMode <sup>(deprecated)</sup>
 
 ```cangjie
-public enum ReadWriteMutexMode {
-    | Unfair
-    | Fair
-}
+public enum ReadWriteMutexMode
 ```
 
 Function: Enumeration for read-write lock fairness modes.

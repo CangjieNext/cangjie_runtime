@@ -3,7 +3,7 @@
 ## interface IOStream
 
 ```cangjie
-public interface IOStream <: InputStream & OutputStream {}
+public interface IOStream <: InputStream & OutputStream
 ```
 
 Function: Input/output stream interface.
@@ -16,9 +16,7 @@ Parent types:
 ## interface InputStream
 
 ```cangjie
-public interface InputStream {
-    func read(buffer: Array<Byte>): Int64
-}
+public interface InputStream
 ```
 
 Function: Input stream interface.
@@ -42,10 +40,7 @@ Returns:
 ## interface OutputStream
 
 ```cangjie
-public interface OutputStream {
-    func write(buffer: Array<Byte>): Unit
-    func flush(): Unit
-}
+public interface OutputStream
 ```
 
 Function: Output stream interface.
@@ -73,12 +68,7 @@ Parameters:
 ## interface Seekable
 
 ```cangjie
-public interface Seekable {
-    prop length: Int64
-    prop position: Int64
-    prop remainLength: Int64
-    func seek(sp: SeekPosition): Int64
-}
+public interface Seekable
 ```
 
 Function: Cursor positioning interface.

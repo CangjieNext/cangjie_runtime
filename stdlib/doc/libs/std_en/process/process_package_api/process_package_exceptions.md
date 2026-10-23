@@ -3,9 +3,7 @@
 ## class ProcessException
 
 ```cangjie
-public class ProcessException <: IOException {
-    public init(message: String)
-}
+public class ProcessException <: IOException
 ```
 
 Function: The exception class of the `process` package.

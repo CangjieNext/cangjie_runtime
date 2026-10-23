@@ -3,12 +3,7 @@
 ## enum OpenMode
 
 ```cangjie
-public enum OpenMode <: ToString & Equatable<OpenMode> {
-    | Read
-    | Write
-    | Append
-    | ReadWrite
-}
+public enum OpenMode <: ToString & Equatable<OpenMode>
 ```
 
 Function: Represents different file opening modes.

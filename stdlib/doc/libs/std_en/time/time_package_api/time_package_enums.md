@@ -3,15 +3,7 @@
 ## enum DayOfWeek
 
 ```cangjie
-public enum DayOfWeek <: ToString & Equatable<DayOfWeek> {
-    | Sunday
-    | Monday
-    | Tuesday
-    | Wednesday
-    | Thursday
-    | Friday
-    | Saturday
-}
+public enum DayOfWeek <: ToString & Equatable<DayOfWeek>
 ```
 
 Function: [DayOfWeek](time_package_enums.md#enum-dayofweek) represents a day of the week, providing capabilities for conversion to/from [Int64](../../core/core_package_api/core_package_intrinsics.md#int64), equality comparison, and string representation.
@@ -204,20 +196,7 @@ Returns:
 ## enum Month
 
 ```cangjie
-public enum Month <: ToString & Equatable<Month> {
-    | January
-    | February
-    | March
-    | April
-    | May
-    | June
-    | July
-    | August
-    | September
-    | October
-    | November
-    | December
-}
+public enum Month <: ToString & Equatable<Month>
 ```
 
 Function: [Month](time_package_enums.md#enum-month) represents a month of the year, providing capabilities for conversion to/from [Int64](../../core/core_package_api/core_package_intrinsics.md#int64), calculations, equality comparison, and string representation.

@@ -3,16 +3,7 @@
 ## struct AddressFamily
 
 ```cangjie
-public struct AddressFamily <: ToString & Equatable<AddressFamily> {
-    public static const INET = AddressFamily("INET", 2)
-    public static const INET6: AddressFamily
-    public static const NETLINK: AddressFamily
-    public static const UNIX = AddressFamily("UNIX", 1)
-    public static const UNSPEC = AddressFamily("UNSPEC", 0)
-    public let name: String
-    public let value: UInt16
-    public const init(name: String, value: UInt16)
-}
+public struct AddressFamily <: ToString & Equatable<AddressFamily>
 ```
 
 Function: [AddressFamily](net_package_structs.md#struct-addressfamily) is used to indicate the addressing scheme of a `Socket`, with commonly used families being `INET` / `INET6` / `UNIX`. The address family identifiers were originally defined in [RFC 2453](https://datatracker.ietf.org/doc/html/rfc2453).
@@ -158,14 +149,7 @@ Returns:
 ## struct OptionLevel
 
 ```cangjie
-public struct OptionLevel {
-    public static const ICMP: Int32 = 1
-    public static const IP: Int32 = 0
-    public static const RAW: Int32 = 255
-    public static const SOCKET: Int32
-    public static const TCP: Int32 = 6
-    public static const UDP: Int32 = 17
-}
+public struct OptionLevel
 ```
 
 Function: Provides commonly used socket option levels.
@@ -237,28 +221,7 @@ Type: [Int32](../../core/core_package_api/core_package_intrinsics.md#int32)
 ## struct OptionName
 
 ```cangjie
-public struct OptionName {
-    public static const IP_HDRINCL: Int32
-    public static const IP_TOS: Int32
-    public static const IP_TTL: Int32
-    public static const SO_ACCEPTCONN: Int32
-    public static const SO_BROADCAST: Int32
-    public static const SO_DEBUG: Int32 = 0x0001
-    public static const SO_DONTROUTE: Int32
-    public static const SO_ERROR: Int32
-    public static const SO_KEEPALIVE: Int32
-    public static const SO_LINGER: Int32
-    public static const SO_OOBINLINE: Int32
-    public static const SO_RCVBUF: Int32
-    public static const SO_RCVTIMEO: Int32
-    public static const SO_REUSEADDR: Int32
-    public static const SO_SNDBUF: Int32
-    public static const SO_SNDTIMEO: Int32
-    public static const TCP_KEEPCNT: Int32
-    public static const TCP_KEEPIDLE: Int32
-    public static const TCP_KEEPINTVL: Int32
-    public static const TCP_NODELAY: Int32 = 0x0001
-}
+public struct OptionName
 ```
 
 Function: Provides commonly used socket options.
@@ -536,16 +499,7 @@ Type: [Int32](../../core/core_package_api/core_package_intrinsics.md#int32)
 ## struct ProtocolType
 
 ```cangjie
-public struct ProtocolType <: Equatable<ProtocolType> & ToString & Hashable {
-    public static let ICMP: ProtocolType = ProtocolType(1)
-    public static let IPV4: ProtocolType = ProtocolType(4)
-    public static let IPV6: ProtocolType = ProtocolType(41)
-    public static let RAW: ProtocolType = ProtocolType(255)
-    public static let TCP: ProtocolType = ProtocolType(6)
-    public static let UDP: ProtocolType = ProtocolType(17)
-    public static let Unspecified: ProtocolType = ProtocolType(0)
-    public init(protocol: Int32)
-}
+public struct ProtocolType <: Equatable<ProtocolType> & ToString & Hashable
 ```
 
 Function: Provides common socket protocols and the ability to construct socket protocols by specifying [Int32](../../core/core_package_api/core_package_intrinsics.md#int32) values.
@@ -695,9 +649,7 @@ Returns:
 ## struct RawAddress
 
 ```cangjie
-public struct RawAddress {
-    public init(addr: Array<Byte>)
-}
+public struct RawAddress
 ```
 
 Function: Provides functionality for creating and retrieving communication addresses for [RawSocket](net_package_classes.md#class-rawsocket).
@@ -727,14 +679,7 @@ Parameters:
 ## struct SocketDomain
 
 ```cangjie
-public struct SocketDomain <: Equatable<SocketDomain> & ToString & Hashable {
-    public static let IPV4: SocketDomain = SocketDomain(2)
-    public static let IPV6: SocketDomain
-    public static let NETLINK: SocketDomain = SocketDomain(16)
-    public static let PACKET: SocketDomain = SocketDomain(17)
-    public static let UNIX: SocketDomain
-    public init(domain: Int32)
-}
+public struct SocketDomain <: Equatable<SocketDomain> & ToString & Hashable
 ```
 
 Function: Provides commonly used socket communication domains and the ability to construct socket communication domains by specifying an [Int32](../../core/core_package_api/core_package_intrinsics.md#int32) value.
@@ -881,12 +826,7 @@ Returns:
 ## struct SocketKeepAliveConfig
 
 ```cangjie
-public struct SocketKeepAliveConfig <: ToString & Equatable<SocketKeepAliveConfig> {
-    public let count: UInt32
-    public let idle: Duration
-    public let interval: Duration
-    public init(idle!: Duration = Duration.second * 45, interval!: Duration = Duration.second * 5, count!: UInt32 = 5)
-}
+public struct SocketKeepAliveConfig <: ToString & Equatable<SocketKeepAliveConfig>
 ```
 
 Function: TCP KeepAlive property configuration.
@@ -990,20 +930,7 @@ Returns:
 ## struct SocketOptions
 
 ```cangjie
-public struct SocketOptions {
-    public static const IPPROTO_TCP: Int32 = 6
-    public static const IPPROTO_UDP: Int32 = 17
-    public static const SOL_SOCKET: Int32
-    public static const SO_BINDTODEVICE: Int32
-    public static const SO_KEEPALIVE: Int32
-    public static const SO_LINGER: Int32
-    public static const SO_RCVBUF: Int32
-    public static const SO_REUSEADDR: Int32
-    public static const SO_REUSEPORT: Int32
-    public static const SO_SNDBUF: Int32
-    public static const TCP_NODELAY: Int32 = 0x0001
-    public static const TCP_QUICKACK: Int32
-}
+public struct SocketOptions
 ```
 
 Function: [SocketOptions](net_package_structs.md#struct-socketoptions) stores constant parameters for socket options configuration.
@@ -1179,13 +1106,7 @@ Type: [Int32](../../core/core_package_api/core_package_intrinsics.md#int32)
 ## struct SocketType
 
 ```cangjie
-public struct SocketType <: Equatable<SocketType> & ToString & Hashable {
-    public static let DATAGRAM: SocketType = SocketType(2)
-    public static let RAW: SocketType = SocketType(3)
-    public static let SEQPACKET: SocketType = SocketType(5)
-    public static let STREAM: SocketType = SocketType(1)
-    public init(`type`: Int32)
-}
+public struct SocketType <: Equatable<SocketType> & ToString & Hashable
 ```
 
 Function: Provides common socket types and the ability to construct socket types by specifying [Int32](../../core/core_package_api/core_package_intrinsics.md#int32) values.

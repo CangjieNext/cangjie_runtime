@@ -3,16 +3,22 @@
 ## struct Array\<T>
 
 ```cangjie
-public struct Array<T> {
-    public const init()
-    public init(size: Int64, repeat!: T)
-    public init(size: Int64, initElement: (Int64) -> T)
-}
+public struct Array<T>
 ```
 
 Function: The Cangjie array type, used to represent an ordered sequence of elements of a single type.
 
 T represents the element type of the array, which can be any type.
+
+Extensions:
+
+- [extend\<T> Array\<Array\<T>>](core_package_extends.md#extendt-arrayarrayt)
+- [extend\<T> Array\<T>](core_package_extends.md#extendt-arrayt)
+- [extend\<T> Array\<T> <: Equatable\<Array\<T>> where T <: Equatable\<T>](core_package_extends.md#extendt-arrayt--equatablearrayt-where-t--equatablet)
+- [extend\<T> Array\<T> where T <: ToString](core_package_extends.md#extendt-arrayt-where-t--tostring)
+
+- [extend\<T> Array\<T> <: SortByExtension\<T>](../../sort/sort_package_api/sort_package_extends.md#extendt-arrayt--sortbyextensiont) (cross-package extension)
+- [extend\<T> Array\<T> <: SortExtension where T <: Comparable\<T>](../../sort/sort_package_api/sort_package_extends.md#extendt-arrayt--sortextension-where-t--comparablet) (cross-package extension)
 
 ### prop first
 
@@ -206,7 +212,6 @@ public func all(predicate: (T) -> Bool): Bool
 
 Function: Determines whether all elements in the array satisfy the condition.
 
-
 > **Note：**
 >
 > Unsupported platform：OpenHarmony
@@ -225,7 +230,6 @@ public func any(predicate: (T) -> Bool): Bool
 ```
 
 Function: Determines whether any element in the array satisfies the condition.
-
 
 > **Note：**
 >
@@ -498,7 +502,6 @@ public func filter(predicate: (T) -> Bool): Array<T>
 
 Function: Returns a new array containing elements that satisfy the given predicate.
 
-
 > **Note：**
 >
 > Unsupported platform：OpenHarmony
@@ -517,7 +520,6 @@ public func filterMap<R>(transform: (T) -> ?R): Array<R>
 ```
 
 Function: Performs both filtering and mapping operations, returning a new array.
-
 
 > **Note：**
 >
@@ -538,7 +540,6 @@ public func flatMap<R>(transform: (T) -> Array<R>): Array<R>
 
 Function: Applies a transformation closure (transform) to each element in the array, where the closure returns an array, then flattens and concatenates all returned arrays into a single result array.
 
-
 > **Note：**
 >
 > Unsupported platform：OpenHarmony
@@ -557,7 +558,6 @@ public func fold<R>(initial: R, operation: (R, T) -> R): R
 ```
 
 Function: Computes from left to right using the specified initial value.
-
 
 > **Note：**
 >
@@ -578,7 +578,6 @@ public func forEach(action: (T) -> Unit): Unit
 ```
 
 Function: Iterates through all elements and executes the given action.
-
 
 > **Note：**
 >
@@ -631,7 +630,6 @@ public func intersperse(separator: T): Array<T>
 ```
 
 Function: Returns a new array with the given element inserted between every two existing elements.
-
 
 > **Note：**
 >
@@ -697,7 +695,6 @@ public func none(predicate: (T) -> Bool): Bool
 
 Function: Determines whether none of the elements in the array satisfy the given condition.
 
-
 > **Note：**
 >
 > Unsupported platform：OpenHarmony
@@ -716,7 +713,6 @@ public func reduce(operation: (T, T) -> T): Option<T>
 ```
 
 Function: Computes from left to right using the first element as the initial value.
-
 
 > **Note：**
 >
@@ -829,7 +825,6 @@ public func skip(count: Int64): Array<T>
 Function: Skips a specified number of elements and returns a new array.
 
 Throws an exception if count is less than 0. When count equals 0, no elements are skipped, returning a new array with all elements. When count is greater than 0 but less than the array size, skips the first count elements and returns a new array with the remaining elements. When count is greater than or equal to the array size, returns an empty array.
-
 
 > **Note：**
 >
@@ -969,7 +964,6 @@ Function: Extracts elements from the array at specified intervals and returns a 
 
 Throws an exception if `count` is less than or equal to 0.
 
-
 > **Note：**
 >
 > Unsupported platform：OpenHarmony
@@ -1042,7 +1036,6 @@ public func take(count: Int64): Array<T>
 Function: Extracts a specified number of elements from the array and returns a new array.
 
 Throws an exception if `count` is less than 0. If `count` is 0, returns an empty array. If `count` is greater than 0 but less than the source array size, extracts the first `count` elements and returns a new array. If `count` is greater than or equal to the array size, extracts all elements and returns a new array.
-
 
 > **Note：**
 >
@@ -1243,1241 +1236,10 @@ Execution Result:
 [0, 10, 11, 3, 4, 5]
 ```
 
-### extend\<T> Array\<T>
-
-```cangjie
-extend<T> Array<T>
-```
-
-Function: Extends the [Array](core_package_structs.md#struct-arrayt)\<T> type.
-
-#### func enumerate()
-
-```cangjie
-public func enumerate(): Array<(Int64, T)>
-```
-
-Function: Retrieves an array with indices.
-
-Returns:
-
-- [Array](core_package_structs.md#struct-arrayt)\<([Int64](../../core/core_package_api/core_package_intrinsics.md#int64), T)> - Returns a new array with indices.
-
-#### func zip\<R>(Array\<R>)
-
-```cangjie
-public func zip<R>(other: Array<R>): Array<(T, R)>
-```
-
-Function: Merges two arrays into a new array (length determined by the shorter array).
-
-
-> **Note：**
->
-> Unsupported platform：OpenHarmony
-
-Parameters:
-
-- other: [Array](core_package_structs.md#struct-arrayt)\<R> - One of the arrays to merge.
-
-Returns:
-
-- [Array](core_package_structs.md#struct-arrayt)\<(T, R)> - Returns a new array.### extend\<T> Array\<T> <: Collection\<T>
-
-```cangjie
-extend<T> Array<T> <: Collection<T>
-```
-
-Function: Implements the [Collection](core_package_interfaces.md#interface-collectiont) interface for the [Array](core_package_structs.md#struct-arrayt)\<T> type.
-
-Parent Types:
-
-- [Collection](core_package_interfaces.md#interface-collectiont)\<T>
-
-#### prop size
-
-```cangjie
-public prop size: Int64
-```
-
-Function: Gets the number of elements.
-
-Type: [Int64](core_package_intrinsics.md#int64)
-
-Example:
-
-<!-- verify -->
-```cangjie
-main() {
-    let arr = [1, 2, 3, 4, 5]
-    
-    println("Array: ${arr}")
-    println("Size of array: ${arr.size}")
-    
-    // Create an empty array
-    let emptyArr: Array<Int64> = []
-    
-    println("Empty array: ${emptyArr}")
-    println("Size of empty array: ${emptyArr.size}")
-    
-    // Create an array containing strings
-    let strArr = ["Hello", "World", "Cangjie", "Language"]
-    
-    println("String array: ${strArr}")
-    println("Size of string array: ${strArr.size}")
-}
-```
-
-Output:
-
-```text
-Array: [1, 2, 3, 4, 5]
-Size of array: 5
-Empty array: []
-Size of empty array: 0
-String array: [Hello, World, Cangjie, Language]
-Size of string array: 4
-```
-
-#### func isEmpty()
-
-```cangjie
-public func isEmpty(): Bool
-```
-
-Function: Determines whether the array is empty.
-
-Returns:
-
-- [Bool](core_package_intrinsics.md#bool) - Returns true if the array is empty, otherwise returns false.
-
-Example:
-
-<!-- verify -->
-```cangjie
-main() {
-    let arr = [1, 2, 3, 4, 5]
-    
-    println("Array: ${arr}")
-    println("Is array empty? ${arr.isEmpty()}")
-    
-    // Create an empty array
-    let emptyArr: Array<Int64> = []
-    
-    println("Empty array: ${emptyArr}")
-    println("Is empty array empty? ${emptyArr.isEmpty()}")
-    
-    // Create an array containing strings
-    let strArr = ["Hello", "World"]
-    
-    println("String array: ${strArr}")
-    println("Is string array empty? ${strArr.isEmpty()}")
-}
-```
-
-Output:
-
-```text
-Array: [1, 2, 3, 4, 5]
-Is array empty? false
-Empty array: []
-Is empty array empty? true
-String array: [Hello, World]
-Is string array empty? false
-```
-
-#### func iterator()
-
-```cangjie
-public func iterator(): Iterator<T>
-```
-
-Function: Gets an iterator for the current array, used to traverse the array.
-
-Returns:
-
-- [Iterator](core_package_classes.md#class-iteratort)\<T> - An iterator for the current array.
-
-Example:
-
-<!-- verify -->
-```cangjie
-main() {
-    let arr = [1, 2, 3, 4, 5]
-    
-    println("Array: ${arr}")
-    
-    // Get the iterator for the array
-    let iter = arr.iterator()
-    
-    println("Using iterator to traverse the array:")
-    
-    // Traverse the array using the iterator
-    while (true) {
-        match (iter.next()) {
-            case Some(value) => println("Element: ${value}")
-            case None => break
-        }
-    }
-    
-    // Create another array and demonstrate other iterator usages
-    let arr2 = ["Hello", "World", "Cangjie"]
-    let iter2 = arr2.iterator()
-    
-    println("\nSecond array: ${arr2}")
-    println("Using iterator with for-in loop:")
-    
-    // Alternatively, use a for-in loop to traverse the iterator
-    for (element in iter2) {
-        println("Element: ${element}")
-    }
-}
-```
-
-Output:
-
-```text
-Array: [1, 2, 3, 4, 5]
-Using iterator to traverse the array:
-Element: 1
-Element: 2
-Element: 3
-Element: 4
-Element: 5
-
-Second array: [Hello, World, Cangjie]
-Using iterator with for-in loop:
-Element: Hello
-Element: World
-Element: Cangjie
-```
-
-#### func toArray()
-
-```cangjie
-public func toArray(): Array<T>
-```
-
-Function: Creates a new [Array](core_package_structs.md#struct-arrayt) instance by copying the current [Array](core_package_structs.md#struct-arrayt) instance.
-
-Returns:
-
-- [Array](core_package_structs.md#struct-arrayt)\<T> - A new [Array](core_package_structs.md#struct-arrayt) instance obtained by copying.
-
-Example:
-
-<!-- verify -->
-```cangjie
-main() {
-    let arr = [1, 2, 3, 4, 5]
-    
-    println("Original array: ${arr}")
-    
-    // Use the toArray() method to create a copy of the array
-    let copiedArr = arr.toArray()
-    
-    println("Copied array: ${copiedArr}")
-    
-    // Verify that the copied array is independent
-    copiedArr[0] = 10
-    println("After modifying copied array:")
-    println("Original array: ${arr}")
-    println("Copied array: ${copiedArr}")
-    
-    // Create an array containing strings and test toArray()
-    let strArr = ["Hello", "World", "Cangjie"]
-    let copiedStrArr = strArr.toArray()
-    
-    println("\nString array: ${strArr}")
-    println("Copied string array: ${copiedStrArr}")
-    
-    // Verify that the copied string array is independent
-    copiedStrArr[0] = "Hi"
-    println("After modifying copied string array:")
-    println("Original string array: ${strArr}")
-    println("Copied string array: ${copiedStrArr}")
-}
-```
-
-Output:
-
-```text
-Original array: [1, 2, 3, 4, 5]
-Copied array: [1, 2, 3, 4, 5]
-After modifying copied array:
-Original array: [1, 2, 3, 4, 5]
-Copied array: [10, 2, 3, 4, 5]
-
-String array: [Hello, World, Cangjie]
-Copied string array: [Hello, World, Cangjie]
-After modifying copied string array:
-Original string array: [Hello, World, Cangjie]
-Copied string array: [Hi, World, Cangjie]
-```
-
-### extend\<T> Array\<T> <: Equatable\<Array\<T>> where T <: Equatable\<T>
-
-```cangjie
-extend<T> Array<T> <: Equatable<Array<T>> where T <: Equatable<T>
-```
-
-Function: Extends the [Equatable](core_package_interfaces.md#interface-equatablet)\<[Array](core_package_structs.md#struct-arrayt)\<T>> interface implementation for the [Array](core_package_structs.md#struct-arrayt)\<T> type, supporting equality comparison operations.
-
-Parent Types:
-
-- [Equatable](core_package_interfaces.md#interface-equatablet)\<[Array](#struct-arrayt)\<T>>
-
-#### func contains(T)
-
-```cangjie
-public func contains(element: T): Bool
-```
-
-Function: Checks whether the current array contains the specified element.
-
-Parameters:
-
-- element: T - The target element to search for.
-
-Returns:
-
-- [Bool](core_package_intrinsics.md#bool) - Returns true if the element exists, otherwise returns false.
-
-Example:
-
-<!-- verify -->
-```cangjie
-main(): Int64 {
-    let arr = [1, 2, 3, 4]
-    println(arr.contains(1))
-    return 0
-}
-```
-
-Output:
-
-```text
-true
-```
-
-#### func indexOf(Array\<T>)
-
-```cangjie
-public func indexOf(elements: Array<T>): Option<Int64>
-```
-
-Function: Returns the first position where the subarray `elements` appears in the array. If the array does not contain this subarray, returns None.
-
-> **Note:**
->
-> When the type of T is [Int64](core_package_intrinsics.md#int64), the variadic parameter syntax sugar version of this function may cause ambiguity with `public func indexOf(element: T, fromIndex: Int64): Option<Int64>`. According to priority, when the number of parameters is 2, `public func indexOf(element: T, fromIndex: Int64): Option<Int64>` will be called first.
-
-Parameters:
-
-- elements: [Array](core_package_structs.md#struct-arrayt)\<T> - The target subarray to locate.
-
-Returns:
-
-- [Option](core_package_enums.md#enum-optiont)\<[Int64](core_package_intrinsics.md#int64)> - The first position where the subarray `elements` appears in the array. If the array does not contain this subarray, returns None.
-
-Example:
-
-<!-- verify -->
-```cangjie
-main(): Int64 {
-    let arr = [1, 2, 3, 4]
-    let subArr = [2, 3]
-    println(arr.indexOf(subArr))
-    return 0
-}
-```
-
-Output:
-
-```text
-Some(1)
-```
-
-#### func indexOf(Array\<T>, Int64)
-
-```cangjie
-public func indexOf(elements: Array<T>, fromIndex: Int64): Option<Int64>
-```
-
-Function: Returns the first position where the subarray `elements` appears in the array after `fromIndex`. If not found, returns None.
-
-The function checks the range of `fromIndex`. If `fromIndex` is less than 0, the search will start from position 0. If `fromIndex` is greater than or equal to the size of the array, the result is None.
-
-Parameters:
-
-- elements: [Array](core_package_structs.md#struct-arrayt)\<T> - The target subarray to locate.
-- fromIndex: [Int64](core_package_intrinsics.md#int64) - The starting position for the search.
-
-Returns:
-
-- [Option](core_package_enums.md#enum-optiont)\<[Int64](core_package_intrinsics.md#int64)> - The first position where the subarray `elements` appears in the array after `fromIndex`. If not found, returns None.
-
-Example:
-
-<!-- verify -->
-```cangjie
-main(): Int64 {
-    let arr = [1, 2, 3, 4, 2, 3]
-    let subArr = [2, 3]
-    println(arr.indexOf(subArr, 3))
-    return 0
-}
-```
-
-Output:
-
-```text
-Some(4)
-```
-
-#### func indexOf(T)
-
-```cangjie
-public func indexOf(element: T): Option<Int64>
-```
-
-Function: Gets the first position where `element` appears in the array. If the array does not contain this element, returns None.
-
-Parameters:
-
-- element: T - The target element to locate.
-
-Returns:
-
-- [Option](core_package_enums.md#enum-optiont)\<[Int64](core_package_intrinsics.md#int64)> - The first position where `element` appears in the array. If the array does not contain this element, returns None.
-
-Example:
-
-<!-- verify -->
-```cangjie
-main() {
-    let arr = [1, 2, 3, 4, 2, 5]
-    
-    println("Array: ${arr}")
-    
-    // Find the first occurrence of element 2
-    let index1 = arr.indexOf(2)
-    println("First occurrence of 2: ${index1}")
-    
-    // Find the first occurrence of element 6 (does not exist)
-    let index2 = arr.indexOf(6)
-    println("First occurrence of 6: ${index2}")
-    
-    // Create an array containing strings and test indexOf
-    let strArr = ["Hello", "World", "Hello", "Cangjie"]
-    
-    println("\nString array: ${strArr}")
-    
-    // Find the first occurrence of the string "Hello"
-    let strIndex1 = strArr.indexOf("Hello")
-    println("First occurrence of \"Hello\": ${strIndex1}")
-}
-```
-
-Output:
-
-```text
-Array: [1, 2, 3, 4, 2, 5]
-First occurrence of 2: Some(1)
-First occurrence of 6: None
-
-String array: [Hello, World, Hello, Cangjie]
-First occurrence of "Hello": Some(0)
-```
-
-#### func indexOf(T, Int64)
-
-```cangjie
-public func indexOf(element: T, fromIndex: Int64): Option<Int64>
-```
-
-Function: Returns the first position where `element` appears in the array after `fromIndex`. If not found, returns None.
-
-The function will search starting from index `fromIndex`. If `fromIndex` is less than 0, the search will start from position 0. If `fromIndex` is greater than or equal to the size of the array, the result is None.
-
-Parameters:
-
-- element: T - The target element to locate.
-- fromIndex: [Int64](core_package_intrinsics.md#int64) - The starting position for the search.
-
-Returns:
-
-- [Option](core_package_enums.md#enum-optiont)\<[Int64](core_package_intrinsics.md#int64)> - The first position where `element` appears in the array after `fromIndex`. If not found, returns None.
-
-Example:
-
-<!-- verify -->
-```cangjie
-main() {
-    let arr = [1, 2, 3, 4, 2, 5]
-    
-    println("Array: ${arr}")
-    
-    // Find the first occurrence of element 2 starting from index 2
-    let index1 = arr.indexOf(2, 2)
-    println("First occurrence of 2 starting from index 2: ${index1}")
-    
-    // Find the first occurrence of element 2 starting from index 5 (does not exist)
-    let index2 = arr.indexOf(2, 5)
-    println("First occurrence of 2 starting from index 5: ${index2}")
-    
-    // Create an array containing strings and test indexOf
-    let strArr = ["Hello", "World", "Hello", "Cangjie"]
-    
-    println("\nString array: ${strArr}")
-    
-    // Find the first occurrence of the string "Hello" starting from index 1
-    let strIndex = strArr.indexOf("Hello", 1)
-    println("First occurrence of \"Hello\" starting from index 1: ${strIndex}")
-}
-```
-
-Output:
-
-```text
-Array: [1, 2, 3, 4, 2, 5]
-First occurrence of 2 starting from index 2: Some(4)
-First occurrence of 2 starting from index 5: None
-
-String array: [Hello, World, Hello, Cangjie]
-First occurrence of "Hello" starting from index 1: Some(2)
-```
-
-Example:
-
-<!-- verify -->
-```cangjie
-main(): Int64 {
-    let arr = [1, 2, 3, 4, 2, 3]
-    let subArr = [2, 3]
-    println(arr.lastIndexOf(subArr, 3))
-    return 0
-}
-```
-
-Output:
-
-```text
-Some(4)
-```
-
-#### func lastIndexOf(Array\<T>)
-
-```cangjie
-public func lastIndexOf(elements: Array<T>): Option<Int64>
-```
-
-Function: Returns the last position where the subarray `elements` appears in the array. If the array does not contain this subarray, returns None.
-
-Parameters:
-
-- elements: [Array](core_package_structs.md#struct-arrayt)\<T> - The target subarray to locate.
-
-Returns:
-
-- [Option](core_package_enums.md#enum-optiont)\<[Int64](core_package_intrinsics.md#int64)> - The last position where the subarray `elements` appears in the array. If the array does not contain this subarray, returns None.
-
-Example:
-
-<!-- verify -->
-```cangjie
-main() {
-    let arr = [1, 2, 3, 2, 3, 4, 2, 3]
-    let subArr = [2, 3]
-    
-    println("Array: ${arr}")
-    println("Sub-array: ${subArr}")
-    
-    // Find the last occurrence of the subarray [2, 3]
-    let lastIndex = arr.lastIndexOf(subArr)
-    println("Last occurrence of [2, 3]: ${lastIndex}")
-    
-    // Find a non-existent subarray
-    let notExist = [5, 6]
-    let notExistIndex = arr.lastIndexOf(notExist)
-    println("Last occurrence of [5, 6]: ${notExistIndex}")
-}
-```
-
-Output:
-
-```text
-Array: [1, 2, 3, 2, 3, 4, 2, 3]
-Sub-array: [2, 3]
-Last occurrence of [2, 3]: Some(6)
-Last occurrence of [5, 6]: None
-```
-
-#### func lastIndexOf(Array\<T>, Int64)
-
-```cangjie
-public func lastIndexOf(elements: Array<T>, fromIndex: Int64): Option<Int64>
-```
-
-Function: Searches backward starting from `fromIndex` and returns the last position where the subarray `elements` appears in the array. If the array does not contain this subarray, returns None.
-
-The function checks the range of `fromIndex`. If `fromIndex` is less than 0, the search will start from position 0. If `fromIndex` is greater than or equal to the size of the array, the result is None.
-
-Parameters:
-
-- elements: [Array](core_package_structs.md#struct-arrayt)\<T> - The target subarray to locate.
-- fromIndex: [Int64](core_package_intrinsics.md#int64) - The starting position for the search.
-
-Returns:
-
-- [Option](core_package_enums.md#enum-optiont)\<[Int64](core_package_intrinsics.md#int64)> - The last position where the subarray `elements` appears in the array when searching backward from `fromIndex`. If the array does not contain this subarray, returns None.
-
-Example:
-
-<!-- verify -->
-```cangjie
-main() {
-    let arr = [1, 2, 3, 2, 3, 4, 3, 3]
-    let subArr = [2, 3]
-    
-    println("Array: ${arr}")
-    println("Sub-array: ${subArr}")
-    
-    // Search backward from index 4 to find the last occurrence of sub-array [2, 3]
-    let lastIndex = arr.lastIndexOf(subArr, 4)
-    println("Last occurrence of [2, 3] starting from index 4: ${lastIndex}")
-    
-    // Search backward from index 2 to find the last occurrence of sub-array [2, 3]
-    let lastIndex2 = arr.lastIndexOf(subArr, 2)
-    println("Last occurrence of [2, 3] starting from index 2: ${lastIndex2}")
-}
-```
-
-Execution Result:
-
-```text
-Array: [1, 2, 3, 2, 3, 4, 3, 3]
-Sub-array: [2, 3]
-Last occurrence of [2, 3] starting from index 4: None
-Last occurrence of [2, 3] starting from index 2: Some(3)
-```
-
-#### func lastIndexOf(T)
-
-```cangjie
-public func lastIndexOf(element: T): Option<Int64>
-```
-
-Function: Returns the last occurrence position of `element` in the array. Returns None if the element does not exist in the array.
-
-Parameters:
-
-- element: T - The target element to locate.
-
-Returns:
-
-- [Option](core_package_enums.md#enum-optiont)\<[Int64](core_package_intrinsics.md#int64)> - The last occurrence position of `element` in the array. Returns None if the element does not exist.
-
-Example:
-
-<!-- verify -->
-```cangjie
-main() {
-    let arr = [1, 2, 3, 4, 2, 5, 2]
-    
-    println("Array: ${arr}")
-    
-    // Find the last occurrence position of element 2
-    let lastIndex = arr.lastIndexOf(2)
-    println("Last occurrence of 2: ${lastIndex}")
-    
-    // Find the last occurrence position of element 6 (does not exist)
-    let notExistIndex = arr.lastIndexOf(6)
-    println("Last occurrence of 6: ${notExistIndex}")
-    
-    // Create a string array and test lastIndexOf
-    let strArr = ["Hello", "World", "Hello", "Cangjie", "Hello"]
-    
-    println("\nString array: ${strArr}")
-    
-    // Find the last occurrence position of string "Hello"
-    let strLastIndex = strArr.lastIndexOf("Hello")
-    println("Last occurrence of \"Hello\": ${strLastIndex}")
-}
-```
-
-Execution Result:
-
-```text
-Array: [1, 2, 3, 4, 2, 5, 2]
-Last occurrence of 2: Some(6)
-Last occurrence of 6: None
-
-String array: [Hello, World, Hello, Cangjie, Hello]
-Last occurrence of "Hello": Some(4)
-```
-
-#### func lastIndexOf(T, Int64)
-
-```cangjie
-public func lastIndexOf(element: T, fromIndex: Int64): Option<Int64>
-```
-
-Function: Searches backward starting from `fromIndex` and returns the last occurrence position of `element` in the array. Returns None if the element does not exist.
-
-The function checks the range of `fromIndex`. If `fromIndex` is less than 0, the search starts from position 0. If `fromIndex` is greater than or equal to the array size, the result is None.
-
-Parameters:
-
-- element: T - The target element to locate.
-- fromIndex: [Int64](core_package_intrinsics.md#int64) - The starting position for the search.
-
-Returns:
-
-- [Option](core_package_enums.md#enum-optiont)\<[Int64](core_package_intrinsics.md#int64)> - The last occurrence position of `element` when searching backward from `fromIndex`. Returns None if the element does not exist.
-
-Example:
-
-<!-- verify -->
-```cangjie
-main() {
-    let arr = [1, 2, 3, 4, 2, 5, 3]
-    
-    println("Array: ${arr}")
-    
-    // Search backward from index 5 to find the last occurrence of element 2
-    let lastIndex = arr.lastIndexOf(2, 5)
-    println("Last occurrence of 2 starting from index 5: ${lastIndex}")
-    
-    // Search backward from index 3 to find the last occurrence of element 2
-    let lastIndex2 = arr.lastIndexOf(2, 3)
-    println("Last occurrence of 2 starting from index 3: ${lastIndex2}")
-    
-    // Create a string array and test lastIndexOf
-    let strArr = ["Hello", "World", "Hello", "Cangjie", "Hello"]
-    
-    println("\nString array: ${strArr}")
-    
-    // Search backward from index 2 to find the last occurrence of string "Hello"
-    let strLastIndex = strArr.lastIndexOf("Hello", 2)
-    println("Last occurrence of \"Hello\" starting from index 2: ${strLastIndex}")
-}
-```
-
-Execution Result:
-
-```text
-Array: [1, 2, 3, 4, 2, 5, 3]
-Last occurrence of 2 starting from index 5: None
-Last occurrence of 2 starting from index 3: Some(4)
-
-String array: [Hello, World, Hello, Cangjie, Hello]
-Last occurrence of "Hello" starting from index 2: Some(4)
-```
-
-#### func removePrefix(Array\<T>)
-
-```cangjie
-public func removePrefix(prefix: Array<T>): Array<T>
-```
-
-Function: Removes the prefix.
-
-If the beginning of the current array exactly matches the prefix, the prefix is removed. The return value is a slice of the current array after removing the prefix.
-
-Parameters:
-
-- prefix: [Array](./core_package_structs.md#struct-arrayt)\<T> - The prefix to be removed.
-
-Returns:
-
-- [Array](./core_package_structs.md#struct-arrayt)\<T> - The slice of the original array after removing the prefix.
-
-Example:
-
-<!-- verify -->
-```cangjie
-main(): Int64 {
-    let arr = [1, 2, 1, 2, 3].removePrefix([1, 2])
-    println(arr)
-    return 0
-}
-```
-
-Execution Result:
-
-```text
-[1, 2, 3]
-```
-
-#### func removeSuffix(Array\<T>)
-
-```cangjie
-public func removeSuffix(suffix: Array<T>): Array<T>
-```
-
-Function: Removes the suffix.
-
-If the end of the current array exactly matches the suffix, the suffix is removed. The return value is a slice of the current array after removing the suffix.
-
-Parameters:
-
-- suffix: [Array](./core_package_structs.md#struct-arrayt)\<T> - The suffix to be removed.
-
-Returns:
-
-- [Array](./core_package_structs.md#struct-arrayt)\<T> - The slice of the original array after removing the suffix.
-
-Example:
-
-<!-- verify -->
-```cangjie
-main(): Int64 {
-    let arr = [1, 2, 3, 2, 3].removeSuffix([2, 3])
-    println(arr)
-    return 0
-}
-```
-
-Execution Result:
-
-```text
-[1, 2, 3]
-```
-
-#### func trimEnd(Array\<T>)
-
-```cangjie
-public func trimEnd(set: Array<T>): Array<T>
-```
-
-Function: Trims the current array by removing elements from the end that are in the specified set `set`, until the first element not in `set` is encountered, and returns the slice of the current array.
-
-Parameters:
-
-- set: [Array](core_package_structs.md#struct-arrayt)\<T> - The set of elements to be removed.
-
-Returns:
-
-- [Array](core_package_structs.md#struct-arrayt)\<T> - The trimmed array slice.
-
-Example:
-
-<!-- verify -->
-```cangjie
-main(): Int64 {
-    let arr = [2, 1, 2, 2, 3].trimEnd([2, 3])
-    println(arr)
-    return 0
-}
-```
-
-Execution Result:
-
-```text
-[2, 1]
-```
-
-#### func trimEnd((T)->Bool)
-
-```cangjie
-public func trimEnd(predicate: (T)->Bool): Array<T>
-```
-
-Function: Trims the current array by removing elements from the end that satisfy the filtering condition, until the first element that does not satisfy the condition is encountered, and returns the slice of the current array.
-
-Parameters:
-
-- predicate: (T)->[Bool](./core_package_intrinsics.md#bool) - The filtering condition.
-
-Returns:
-
-- [Array](core_package_structs.md#struct-arrayt)\<T> - The trimmed array slice.
-
-Example:
-
-<!-- verify -->
-```cangjie
-main() {
-    let arr = [1, 2, 3, 4, 5, 4, 3, 2, 1]
-    
-    println("Original array: ${arr}")
-    
-    // Remove all elements less than 4 from the end
-    let trimmedArr = arr.trimEnd({x => x < 4})
-    println("Array after trimming elements less than 4 from the end: ${trimmedArr}")
-    
-    // Create a string array and test trimEnd
-    let strArr = ["a", "b", "c", "d", "c", "b", "a"]
-    
-    println("\nString array: ${strArr}")
-    
-    // Remove all elements not equal to "c" from the end
-    let trimmedStrArr = strArr.trimEnd({s => s != "c"})
-    println("String array after trimming elements not equal to \"c\" from the end: ${trimmedStrArr}")
-}
-```
-
-Execution Result:
-
-```text
-Original array: [1, 2, 3, 4, 5, 4, 3, 2, 1]
-Array after trimming elements less than 4 from the end: [1, 2, 3, 4, 5, 4]
-
-String array: [a, b, c, d, c, b, a]
-String array after trimming elements not equal to "c" from the end: [a, b, c, d, c]
-```
-
-#### func trimStart(Array\<T>)
-
-```cangjie
-public func trimStart(set: Array<T>): Array<T>
-```
-
-Function: Trims the current array by removing elements from the start that are in the specified set `set`, until the first element not in `set` is encountered, and returns the slice of the current array.
-
-Parameters:
-
-- set: [Array](core_package_structs.md#struct-arrayt)\<T> - The set of elements to be removed.
-
-Returns:
-
-- [Array](core_package_structs.md#struct-arrayt)\<T> - The trimmed array slice.
-
-Example:
-
-<!-- verify -->
-```cangjie
-main(): Int64 {
-    let arr = [1, 2, 1, 3, 1].trimStart([1, 2])
-    println(arr)
-    return 0
-}
-```
-
-Execution Result:
-
-```text
-[3, 1]
-```
-
-#### func trimStart((T)->Bool)
-
-```cangjie
-public func trimStart(predicate: (T)->Bool): Array<T>
-```
-
-Function: Trims the current array by removing elements from the start that satisfy the filtering condition, until the first element that does not satisfy the condition is encountered, and returns the slice of the current array.
-
-Parameters:
-
-- predicate: (T)->[Bool](./core_package_intrinsics.md#bool) - The filtering condition.
-
-Returns:
-
-- [Array](core_package_structs.md#struct-arrayt)\<T> - The trimmed array slice.
-
-Example:
-
-<!-- verify -->
-```cangjie
-main() {
-    let arr = [1, 2, 3, 4, 5, 4, 3, 2, 1]
-    
-    println("Original array: ${arr}")
-    
-    // Remove all elements less than 4 from the start
-    let trimmedArr = arr.trimStart({x => x < 4})
-    println("Array after trimming elements less than 4 from the start: ${trimmedArr}")
-    
-    // Create a string array and test trimStart
-    let strArr = ["a", "b", "c", "d", "c", "b", "a"]
-    
-    println("\nString array: ${strArr}")
-    
-    // Remove all elements not equal to "c" from the start
-    let trimmedStrArr = strArr.trimStart({s => s != "c"})
-    println("String array after trimming elements not equal to \"c\" from the start: ${trimmedStrArr}")
-}
-```
-
-Execution Result:
-
-```text
-Original array: [1, 2, 3, 4, 5, 4, 3, 2, 1]
-Array after trimming elements less than 4 from the start: [4, 5, 4, 3, 2, 1]
-
-String array: [a, b, c, d, c, b, a]
-String array after trimming elements not equal to "c" from the start: [c, d, c, b, a]
-```
-
-#### operator func !=(Array\<T>)
-
-```cangjie
-public operator const func !=(that: Array<T>): Bool
-```
-
-Function: Determines whether the current instance is not equal to the specified [Array](core_package_structs.md#struct-arrayt)\<T> instance.
-
-Parameters:
-
-- that: [Array](core_package_structs.md#struct-arrayt)\<T> - Another [Array](core_package_structs.md#struct-arrayt)\<T> instance to compare with the current instance.
-
-Returns:
-
-- [Bool](core_package_intrinsics.md#bool) - Returns true if not equal; otherwise, returns false.
-
-Example:
-
-<!-- verify -->
-```cangjie
-main() {
-    let arr1 = [1, 2, 3, 4, 5]
-    let arr2 = [1, 2, 3, 4, 5]
-    let arr3 = [1, 2, 3, 4, 6]
-    let arr4 = [1, 2, 3]
-    println("Array 1: ${arr1}")
-    println("Array 2: ${arr2}")
-    println("Array 3: ${arr3}")
-    println("Array 4: ${arr4}")
-    
-    // Comparing equal arrays
-    println("arr1 != arr2: ${arr1 != arr2}")
-    
-    // Comparing unequal arrays (different elements)
-    println("arr1 != arr3: ${arr1 != arr3}")
-    
-    // Comparing unequal arrays (different lengths)
-    println("arr1 != arr4: ${arr1 != arr4}")
-    
-    // Creating string arrays and testing the != operator
-    let strArr1 = ["Hello", "World"]
-    let strArr2 = ["Hello", "World"]
-    let strArr3 = ["Hello", "Cangjie"]
-    
-    println("\nString array 1: ${strArr1}")
-    println("String array 2: ${strArr2}")
-    println("String array 3: ${strArr3}")
-    
-    // Comparing equal string arrays
-    println("strArr1 != strArr2: ${strArr1 != strArr2}")
-    
-    // Comparing unequal string arrays
-    println("strArr1 != strArr3: ${strArr1 != strArr3}")
-}
-```
-
-Execution result:
-
-```text
-Array 1: [1, 2, 3, 4, 5]
-Array 2: [1, 2, 3, 4, 5]
-Array 3: [1, 2, 3, 4, 6]
-Array 4: [1, 2, 3]
-arr1 != arr2: false
-arr1 != arr3: true
-arr1 != arr4: true
-
-String array 1: [Hello, World]
-String array 2: [Hello, World]
-String array 3: [Hello, Cangjie]
-strArr1 != strArr2: false
-strArr1 != strArr3: true
-```
-
-#### operator func ==(Array\<T>)
-
-```cangjie
-public operator const func ==(that: Array<T>): Bool
-```
-
-Function: Determines whether the current instance is equal to the specified [Array](core_package_structs.md#struct-arrayt)\<T> instance.
-
-Two [Array](core_package_structs.md#struct-arrayt)\<T> instances are considered equal if all their elements are equal.
-
-Parameters:
-
-- that: [Array](core_package_structs.md#struct-arrayt)\<T> - Another [Array](core_package_structs.md#struct-arrayt)\<T> instance to compare with the current instance.
-
-Returns:
-
-- [Bool](core_package_intrinsics.md#bool) - Returns true if equal, otherwise false.
-
-Example:
-
-<!-- verify -->
-```cangjie
-main() {
-    let arr1 = [1, 2, 3, 4, 5]
-    let arr2 = [1, 2, 3, 4, 5]
-    let arr3 = [1, 2, 3, 4, 6]
-    let arr4 = [1, 2, 3]
-    
-    println("Array 1: ${arr1}")
-    println("Array 2: ${arr2}")
-    println("Array 3: ${arr3}")
-    println("Array 4: ${arr4}")
-    
-    // Comparing equal arrays
-    println("arr1 == arr2: ${arr1 == arr2}")
-    
-    // Comparing unequal arrays (different elements)
-    println("arr1 == arr3: ${arr1 == arr3}")
-    
-    // Comparing unequal arrays (different lengths)
-    println("arr1 == arr4: ${arr1 == arr4}")
-    
-    // Creating string arrays and testing the == operator
-    let strArr1 = ["Hello", "World"]
-    let strArr2 = ["Hello", "World"]
-    let strArr3 = ["Hello", "Cangjie"]
-    
-    println("\nString array 1: ${strArr1}")
-    println("String array 2: ${strArr2}")
-    println("String array 3: ${strArr3}")
-    
-    // Comparing equal string arrays
-    println("strArr1 == strArr2: ${strArr1 == strArr2}")
-    
-    // Comparing unequal string arrays
-    println("strArr1 == strArr3: ${strArr1 == strArr3}")
-}
-```
-
-Execution result:
-
-```text
-Array 1: [1, 2, 3, 4, 5]
-Array 2: [1, 2, 3, 4, 5]
-Array 3: [1, 2, 3, 4, 6]
-Array 4: [1, 2, 3]
-arr1 == arr2: true
-arr1 == arr3: false
-arr1 == arr4: false
-
-String array 1: [Hello, World]
-String array 2: [Hello, World]
-String array 3: [Hello, Cangjie]
-strArr1 == strArr2: true
-strArr1 == strArr3: false
-```
-
-### extend\<T> Array\<T> where T <: ToString
-
-```cangjie
-extend<T> Array<T> <: ToString where T <: ToString
-```
-
-Function: Extends the [Array](core_package_structs.md#struct-arrayt)\<T> type with the [ToString](core_package_interfaces.md#interface-tostring) interface, supporting string conversion operations.
-
-Parent Type:
-
-- [ToString](core_package_interfaces.md#interface-tostring)
-
-#### func toString()
-
-```cangjie
-public func toString(): String
-```
-
-Function: Converts the array to an output-ready string.
-
-The string format resembles "[1, 2, 3, 4, 5]"
-
-Returns:
-
-- [String](core_package_structs.md#struct-string) - The converted string.
-
-Example:
-
-<!-- verify -->
-```cangjie
-main() {
-    let arr1 = [1, 2, 3, 4, 5]
-    let arr2: Array<Int64> = []
-    let arr3 = ["Hello", "World", "Cangjie"]
-    
-    println("Integer array: ${arr1}")
-    println("toString() result: ${arr1.toString()}")
-    
-    println("\nEmpty array: ${arr2}")
-    println("toString() result: ${arr2.toString()}")
-    
-    println("\nString array: ${arr3}")
-    println("toString() result: ${arr3.toString()}")
-    
-    // Create a 2D array and test toString()
-    let arr4 = [[1, 2], [3, 4], [5, 6]]
-    
-    println("\n2D array: ${arr4}")
-    println("toString() result: ${arr4.toString()}")
-}
-```
-
-Execution Result:
-
-```text
-Integer array: [1, 2, 3, 4, 5]
-toString() result: [1, 2, 3, 4, 5]
-
-Empty array: []
-toString() result: []
-
-String array: [Hello, World, Cangjie]
-toString() result: [Hello, World, Cangjie]
-
-2D array: [[1, 2], [3, 4], [5, 6]]
-toString() result: [[1, 2], [3, 4], [5, 6]]
-```
-
-### extend\<T> Array\<Array\<T>>
-
-```cangjie
-extend<T> Array<Array<T>>
-```
-
-Function: Extends 2D arrays with methods to flatten them into 1D arrays.
-
-#### func flatten()
-
-```cangjie
-public func flatten(): Array<T>
-```
-
-Function: Flattens the current 2D array into a 1D array.
-
-For example, converts [[1, 2], [3, 4]] to [1, 2, 3, 4].
-
-Returns:
-
-- [Array](./core_package_structs.md#struct-arrayt)\<T> - The flattened 1D array.
-
-Example:
-
-<!-- verify -->
-```cangjie
-main(): Int64 {
-    let arr = [[1, 2], [3, 4]].flatten()
-    println(arr)
-    return 0
-}
-```
-
-Execution Result:
-
-```text
-[1, 2, 3, 4]
-```
-
 ## struct CPointerHandle\<T> where T <: CType
 
 ```cangjie
-public struct CPointerHandle<T> where T <: CType {
-    public let array: Array<T>
-    public let pointer: CPointer<T>
-    public init()
-    public init(ptr: CPointer<T>, arr: Array<T>)
-}
+public struct CPointerHandle<T> where T <: CType
 ```
 
 Function: Represents the raw pointer of an [Array](core_package_structs.md#struct-arrayt), where the generic parameter must satisfy the [CType](core_package_interfaces.md#interface-ctype) constraint.
@@ -2645,9 +1407,7 @@ Execution Result:
 ## struct CPointerResource\<T> where T <: CType
 
 ```cangjie
-public struct CPointerResource<T> <: Resource where T <: CType {
-    public let value: CPointer<T>
-}
+public struct CPointerResource<T> <: Resource where T <: CType
 ```
 
 Function: This struct represents the resource management type for [CPointer](core_package_intrinsics.md#cpointert). Its instances can be obtained via the `asResource` member function of [CPointer](core_package_intrinsics.md#cpointert).
@@ -2772,9 +1532,7 @@ true
 ## struct CStringResource
 
 ```cangjie
-public struct CStringResource <: Resource {
-    public let value: CString
-}
+public struct CStringResource <: Resource
 ```
 
 Function: This struct represents the resource management type for [CString](core_package_intrinsics.md#cstring). Its instances can be obtained through the member function `asResource` of [CString](core_package_intrinsics.md#cstring).
@@ -2883,9 +1641,7 @@ true
 ## struct DefaultHasher
 
 ```cangjie
-public struct DefaultHasher <: Hasher {
-    public init(res!: Int64 = 0)
-}
+public struct DefaultHasher <: Hasher
 ```
 
 Function: This struct provides a default hash algorithm implementation.
@@ -3522,18 +2278,7 @@ Hash result for UInt8 value: -7046029254386353008
 ## struct Duration
 
 ```cangjie
-public struct Duration <: ToString & Hashable & Comparable<Duration> {
-    public static const Max: Duration = Duration(0x7FFF_FFFF_FFFF_FFFF, 999999999)
-    public static const Min: Duration = Duration(-0x8000_0000_0000_0000, 0)
-    public static const Zero: Duration = Duration(0, 0)
-    public static const day: Duration = Duration(24 * 60 * 60, 0)
-    public static const hour: Duration = Duration(60 * 60, 0)
-    public static const microsecond: Duration = Duration(0, 1000u32)
-    public static const millisecond: Duration = Duration(0, 1000000u32)
-    public static const minute: Duration = Duration(60, 0)
-    public static const nanosecond: Duration = Duration(0, 1)
-    public static const second: Duration = Duration(1, 0)
-}
+public struct Duration <: ToString & Hashable & Comparable<Duration>
 ```
 
 Function: [Duration](core_package_structs.md#struct-duration) represents a time interval, providing common static instances and functionalities for calculation and comparison.
@@ -5218,15 +3963,7 @@ Output:
 ## struct Range\<T> where T <: Countable\<T> & Comparable\<T> & Equatable\<T>
 
 ```cangjie
-public struct Range<T> <: Iterable<T> where T <: Countable<T> & Comparable<T> & Equatable<T> {
-    public let end: T
-    public let hasEnd: Bool
-    public let hasStart: Bool
-    public let isClosed: Bool
-    public let start: T
-    public let step: Int64
-    public const init(start: T, end: T, step: Int64, hasStart: Bool, hasEnd: Bool, isClosed: Bool)
-}
+public struct Range<T> <: Iterable<T> where T <: Countable<T> & Comparable<T> & Equatable<T>
 ```
 
 Function: This class represents a range type, used to denote a sequence of `T` with fixed bounds and step size, requiring `T` to be countable and ordered.
@@ -5244,6 +3981,11 @@ Range types have corresponding literal representations with the following format
 Parent Types:
 
 - [Iterable](core_package_interfaces.md#interface-iterablee)\<T>
+
+Extensions:
+
+- [extend\<T> Range\<T> <: Equatable\<Range\<T>> where T <: Countable\<T> & Comparable\<T> & Equatable\<T>](core_package_extends.md#extendt-ranget--equatableranget-where-t--countablet--comparablet--equatablet)
+- [extend\<T> Range\<T> <: Hashable where T <: Hashable & Countable\<T> & Comparable\<T> & Equatable\<T>](core_package_extends.md#extendt-ranget--hashable-where-t--hashable--countablet--comparablet--equatablet)
 
 ### let end
 
@@ -5561,134 +4303,10 @@ Range values:
 4
 ```
 
-### extend\<T> Range\<T> <: Equatable\<Range\<T>> where T <: Countable\<T> & Comparable\<T> & Equatable\<T>
-
-```cangjie
-extend<T> Range<T> <: Equatable<Range<T>> where T <: Countable<T> & Comparable<T> & Equatable<T>
-```
-
-Function: Extends the [Range](core_package_structs.md#struct-ranget-where-t--countablet--comparablet--equatablet)\<T> type with the [Equatable](core_package_interfaces.md#interface-equatablet)\<[Range](core_package_structs.md#struct-ranget-where-t--countablet--comparablet--equatablet)\<T>> interface.
-
-Parent Types:
-
-- [Equatable](core_package_interfaces.md#interface-equatablet)\<[Range](#struct-ranget-where-t--countablet--comparablet--equatablet)\<T>>
-
-#### operator func ==(Range\<T>)
-
-```cangjie
-public operator func ==(that: Range<T>): Bool
-```
-
-Function: Determines whether two [Range](core_package_structs.md#struct-ranget-where-t--countablet--comparablet--equatablet) instances are equal.
-
-Two [Range](core_package_structs.md#struct-ranget-where-t--countablet--comparablet--equatablet) instances are equal if they represent the same interval, i.e., their `start`, `end`, [step](#let-step), and `isClosed` values are equal.
-
-Parameters:
-
-- that: [Range](core_package_structs.md#struct-ranget-where-t--countablet--comparablet--equatablet)\<T> - The Range instance to compare.
-
-Returns:
-
-- [Bool](core_package_intrinsics.md#bool) - true if equal, false otherwise.
-
-Example:
-
-<!-- verify -->
-```cangjie
-main() {
-    // Create two identical Range instances
-    let range1 = Range<Int32>(1, 5, 1, true, false, false)
-    let range2 = Range<Int32>(1, 5, 1, true, false, false)
-    
-    // Use the == operator to compare the two Range instances
-    if (range1 == range2) {
-        println("Range1 is equal to Range2")
-    } else {
-        println("Range1 is not equal to Range2")
-    }
-    
-    // Create a different Range instance
-    let range3 = Range<Int32>(1, 6, 1, true, false, false)
-    
-    // Use the == operator to compare two different Range instances
-    if (range1 == range3) {
-        println("Range1 is equal to Range3")
-    } else {
-        println("Range1 is not equal to Range3")
-    }
-}
-```
-
-Output:
-
-```text
-Range1 is equal to Range2
-Range1 is not equal to Range3
-```
-
-### extend\<T> Range\<T> <: Hashable where T <: Hashable & Countable\<T> & Comparable\<T> & Equatable\<T>
-
-```cangjie
-extend<T> Range<T> <: Hashable where T <: Hashable & Countable<T> & Comparable<T> & Equatable<T>
-```
-
-Function: Extends the [Range](core_package_structs.md#struct-ranget-where-t--countablet--comparablet--equatablet) type with the [Hashable](core_package_interfaces.md#interface-hashable) interface, supporting hash value computation.
-
-Parent Types:
-
-- [Hashable](core_package_interfaces.md#interface-hashable)
-
-#### func hashCode()
-
-```cangjie
-public func hashCode(): Int64
-```
-
-Function: Gets the hash value, which is a combined hash computation of `start`, `end`, [step](#let-step), and `isClosed`.
-
-Returns:
-
-- [Int64](core_package_intrinsics.md#int64) - The hash value.
-
-Example:
-
-<!-- verify -->
-```cangjie
-main() {
-    // Create a Range instance
-    let range = Range<Int32>(1, 5, 1, true, false, false)
-    
-    // Get the hash value
-    let hash = range.hashCode()
-    println("Range hash code: ${hash}")
-    
-    // Create another identical Range instance
-    let sameRange = Range<Int32>(1, 5, 1, true, false, false)
-    let sameHash = sameRange.hashCode()
-    println("Same range hash code: ${sameHash}")
-    
-    // Verify that identical Range instances have the same hash code
-    if (hash == sameHash) {
-        println("Same ranges have the same hash code")
-    }
-}
-```
-
-Output:
-
-```text
-Range hash code: -198835925178762
-```
-
 ## struct String
 
 ```cangjie
-public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToString {
-    public static const empty: String = String()
-    public const init()
-    public init(value: Array<Rune>)
-    public init(value: Collection<Rune>)
-}
+public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToString
 ```
 
 Function: This struct represents Cangjie strings and provides a series of string operations including construction, searching, concatenation, etc.
@@ -5704,6 +4322,10 @@ Parent Types:
 - [Comparable](core_package_interfaces.md#interface-comparablet)\<[String](#struct-string)>
 - [Hashable](core_package_interfaces.md#interface-hashable)
 - [ToString](core_package_interfaces.md#interface-tostring)
+
+Extensions:
+
+- [extend String <: UnicodeStringExtension](../../unicode/unicode_package_api/unicode_package_extends.md#extend-string--unicodestringextension) (cross-package extension)
 
 ### static const empty
 

@@ -3,10 +3,7 @@
 ## class ArithmeticException
 
 ```cangjie
-public open class ArithmeticException <: Exception {
-    public init()
-    public init(message: String)
-}
+public open class ArithmeticException <: Exception
 ```
 
 Function: Arithmetic exception class, used when arithmetic exceptions occur.
@@ -297,12 +294,7 @@ main() {
 
 <!--RP1-->
 ```cangjie
-public open class Exception <: ToString {
-    public init()
-    public init(causedBy: Exception)
-    public init(message: String)
-    public init(message: String, causedBy: Exception)
-}
+public open class Exception <: ToString
 ```
 <!--RP1End-->
 
@@ -740,10 +732,7 @@ Exception with message string: Exception: Custom exception message
 ## class IllegalArgumentException
 
 ```cangjie
-public open class IllegalArgumentException <: Exception {
-    public init()
-    public init(message: String)
-}
+public open class IllegalArgumentException <: Exception
 ```
 
 Purpose: Represents an exception class for illegal arguments.
@@ -893,10 +882,7 @@ main() {
 ## class IllegalFormatException
 
 ```cangjie
-public open class IllegalFormatException <: IllegalArgumentException {
-    public init()
-    public init(message: String)
-}
+public open class IllegalFormatException <: IllegalArgumentException
 ```
 
 Purpose: Represents an exception class for invalid or non-standard variable formats.
@@ -1010,10 +996,7 @@ Exception class name: IllegalFormatException
 ## class IllegalMemoryException
 
 ```cangjie
-public class IllegalMemoryException <: Exception {
-    public init()
-    public init(message: String)
-}
+public class IllegalMemoryException <: Exception
 ```
 
 Purpose: Represents an exception class for memory operation errors.
@@ -1083,10 +1066,7 @@ Exception class name: IllegalMemoryException: Custom exception message
 ## class IllegalStateException
 
 ```cangjie
-public class IllegalStateException <: Exception {
-    public init()
-    public init(message: String)
-}
+public class IllegalStateException <: Exception
 ```
 
 Purpose: Represents an exception class for illegal states.
@@ -1156,10 +1136,7 @@ Exception class name: IllegalStateException: Custom exception message
 ## class IncompatiblePackageException
 
 ```cangjie
-public class IncompatiblePackageException <: Exception {
-    public init()
-    public init(message: String)
-}
+public class IncompatiblePackageException <: Exception
 ```
 
 Purpose: Represents an exception class for incompatible packages.
@@ -1229,10 +1206,7 @@ Exception class name: IncompatiblePackageException: Custom exception message
 ## class IndexOutOfBoundsException
 
 ```cangjie
-public class IndexOutOfBoundsException <: Exception {
-    public init()
-    public init(message: String)
-}
+public class IndexOutOfBoundsException <: Exception
 ```
 
 Function: Represents an exception class for index out-of-bounds errors.
@@ -1302,10 +1276,7 @@ Exception class name: IndexOutOfBoundsException: Custom exception message
 ## class NegativeArraySizeException
 
 ```cangjie
-public class NegativeArraySizeException <: Exception {
-    public init()
-    public init(message: String)
-}
+public class NegativeArraySizeException <: Exception
 ```
 
 Function: Represents an exception class for negative array size errors.
@@ -1375,10 +1346,7 @@ Exception class name: NegativeArraySizeException: Custom exception message
 ## class NoneValueException
 
 ```cangjie
-public class NoneValueException <: Exception {
-    public init()
-    public init(message: String)
-}
+public class NoneValueException <: Exception
 ```
 
 Function: Represents an exception class for [Option](core_package_enums.md#enum-optiont)\<T> instances with `None` value, typically thrown by the `getOrThrow` function.
@@ -1492,10 +1460,7 @@ extend Error {
 ## class OverflowException
 
 ```cangjie
-public class OverflowException <: ArithmeticException {
-    public init()
-    public init(message: String)
-}
+public class OverflowException <: ArithmeticException
 ```
 
 Function: Represents an exception class for arithmetic overflow errors.
@@ -1565,10 +1530,7 @@ Exception class name: OverflowException: Custom exception message
 ## class SpawnException
 
 ```cangjie
-public class SpawnException <: Exception {
-    public init()
-    public init(message: String)
-}
+public class SpawnException <: Exception
 ```
 
 Function: Represents a thread exception class for errors occurring during thread processing.
@@ -1704,10 +1666,7 @@ extend Error {
 ## class TimeoutException
 
 ```cangjie
-public class TimeoutException <: Exception {
-    public init()
-    public init(message: String)
-}
+public class TimeoutException <: Exception
 ```
 
 Function: Thrown when a blocking operation times out.
@@ -1777,10 +1736,7 @@ Exception class name: TimeoutException: Custom error message
 ## class UnsupportedException
 
 ```cangjie
-public class UnsupportedException <: Exception {
-    public init()
-    public init(message: String)
-}
+public class UnsupportedException <: Exception
 ```
 
 Function: Represents an exception class for unsupported features.

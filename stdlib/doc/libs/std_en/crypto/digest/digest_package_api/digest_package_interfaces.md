@@ -3,15 +3,7 @@
 ## interface Digest
 
 ```cangjie
-public interface Digest {
-    prop size: Int64
-    prop blockSize: Int64
-    prop algorithm: String
-    func write(buffer: Array<Byte>): Unit
-    func finish(to!: Array<Byte>): Unit
-    func finish(): Array<Byte>
-    func reset(): Unit
-}
+public interface Digest
 ```
 
 Function: Digest algorithm interface. Classes, interfaces, or structs that inherit this interface must comply with the parameter and return value definitions of its functions.

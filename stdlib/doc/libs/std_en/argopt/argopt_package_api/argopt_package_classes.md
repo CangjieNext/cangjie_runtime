@@ -3,12 +3,7 @@
 ## class Argopt <sup>(deprecated)</sup>
 
 ```cangjie
-public class ArgOpt {
-    public init(shortArgFormat: String)
-    public init(longArgList: Array<String>)
-    public init(shortArgFormat: String, longArgList: Array<String>)
-    public init(args: Array<String>, shortArgFormat: String, longArgList: Array<String>)
-}
+public class ArgOpt
 ```
 
 Function: Used for parsing command-line arguments and provides functionality to retrieve parsing results.

@@ -3,12 +3,7 @@
 ## class DateTimeFormat
 
 ```cangjie
-public class DateTimeFormat {
-    public static const RFC1123: String = "www, dd MMM yyyy HH:mm:ss z"
-    public static const RFC3339: String = "yyyy-MM-ddTHH:mm:ssOOOO"
-    public static const RFC822: String = "ww dd MMM yy HH:mm:ss z"
-    public static const RFC850: String = "wwww, dd-MMM-yy HH:mm:ss z"
-}
+public class DateTimeFormat
 ```
 
 Function: Provides datetime formatting functionality for parsing and generating [DateTime](../time_package_api/time_package_structs.md#struct-datetime).
@@ -96,11 +91,7 @@ Exceptions:
 ## class TimeZone
 
 ```cangjie
-public class TimeZone <: ToString & Equatable<TimeZone> {
-    public static let Local: TimeZone
-    public static let UTC: TimeZone
-    public init(id: String, offset: Duration)
-}
+public class TimeZone <: ToString & Equatable<TimeZone>
 ```
 
 Function: TimeZone represents time zones, recording the time offset of a region relative to UTC at different times, and provides functionalities such as loading time zones from the system and creating custom time zones.

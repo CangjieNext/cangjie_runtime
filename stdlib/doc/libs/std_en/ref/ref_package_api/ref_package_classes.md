@@ -3,9 +3,7 @@
 ## class WeakRef\<T> where T <: Object
 
 ```cangjie
-public class WeakRef<T> <: WeakRefBase where T <: Object {
-    public init(value: T, cleanupPolicy: CleanupPolicy)
-}
+public class WeakRef<T> <: WeakRefBase where T <: Object
 ```
 
 Function: This class provides weak reference related capabilities. If an object's reference is marked as a weak reference, the GC can reclaim it according to the specified cleanup policy even when the reference is non-null and the object's reachability holds.

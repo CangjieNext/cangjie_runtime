@@ -3,10 +3,7 @@
 ## class ConcurrentModificationException
 
 ```cangjie
-public class ConcurrentModificationException <: Exception {
-    public init()
-    public init(message: String)
-}
+public class ConcurrentModificationException <: Exception
 ```
 
 Function: Concurrent modification exception class. Thrown when a function detects unsynchronized concurrent modifications.

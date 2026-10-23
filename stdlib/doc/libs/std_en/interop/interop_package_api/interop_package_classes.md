@@ -3,12 +3,7 @@
 ## class ExportedRef
 
 ```cangjie
-public abstract class ExportedRef {
-    protected var handle: UInt64 = 0
-    protected let ref: Any
-    protected let interopContext: InteropContext
-    protected init(exportedRef: Any, context: InteropContext)
-}
+public abstract class ExportedRef
 ```
 
 Function：This class is used to wrap classes or functions that need to be used by external languages ​​in cross-language interoperability scenarios. Instances of this class can be managed using a `handle` of type [UInt64](../../core/core_package_api/core_package_intrinsics.md#uint64) via [ExportTable](#class-exporttable). External languages ​​can also indirectly reference this object through the `handle`.
@@ -72,7 +67,7 @@ Function: Generate a valid handle for this type.
 ## class ExportTable
 
 ```cangjie
-public class ExportTable {}
+public class ExportTable
 ```
 
 Function: This type manages the lifecycle of instances of [ExportedRef](#class-exportedref) through a `handle` of type [UInt64](../../core/core_package_api/core_package_intrinsics.md#uint64). It can implement operations such as generating a `handle` for an [ExportedRef](#class-exportedref) object, retrieving an [ExportedRef](#class-exportedref) object based on the `handle`, and removing an [ExportedRef](#class-exportedref) object based on the `handle`.
@@ -136,9 +131,7 @@ Parameter:
 ## class ForeignProxy
 
 ```cangjie
-public abstract class ForeignProxy {
-    protected init(context: InteropContext)
-}
+public abstract class ForeignProxy
 ```
 
 Function: This class is used to proxy the `handle` of external language's object ​​in cross-language interoperability scenarios.
@@ -162,9 +155,7 @@ Parameter:
 ## class InteropContext
 
 ```cangjie
-public abstract class InteropContext <: Equatable<InteropContext> {
-    protected init(handler: (ExportedRef, ForeignProxy) -> Unit)
-}
+public abstract class InteropContext <: Equatable<InteropContext>
 ```
 
 Function: This class encapsulates functions for handling circular references in cross-language interoperability scenarios. This class has no `public` members or interfaces and is currently only used by interoperability library-related `APIs`. Developers should not inherit from this class.

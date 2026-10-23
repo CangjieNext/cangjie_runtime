@@ -3,14 +3,7 @@
 ## interface DatagramSocket
 
 ```cangjie
-public interface DatagramSocket <: Resource & ToString {
-    prop localAddress: SocketAddress
-    prop remoteAddress: ?SocketAddress
-    mut prop receiveTimeout: ?Duration
-    mut prop sendTimeout: ?Duration
-    func receiveFrom(buffer: Array<Byte>): (SocketAddress, Int64)
-    func sendTo(address: SocketAddress, payload: Array<Byte>): Unit
-}
+public interface DatagramSocket <: Resource & ToString
 ```
 
 Description: [DatagramSocket](net_package_interfaces.md#interface-datagramsocket) is a socket for receiving and sending datagram packets.
@@ -120,12 +113,7 @@ Parameters:
 ## interface ServerSocket
 
 ```cangjie
-public interface ServerSocket <: Resource & ToString {
-    prop localAddress: SocketAddress
-    func accept(): StreamingSocket
-    func accept(timeout!: ?Duration): StreamingSocket
-    func bind(): Unit
-}
+public interface ServerSocket <: Resource & ToString
 ```
 
 Description: Provides the interface required for server-side `Socket`.
@@ -199,12 +187,7 @@ Exceptions:
 ## interface StreamingSocket
 
 ```cangjie
-public interface StreamingSocket <: IOStream & Resource & ToString {
-    prop localAddress: SocketAddress
-    prop remoteAddress: SocketAddress
-    mut prop readTimeout: ?Duration
-    mut prop writeTimeout: ?Duration
-}
+public interface StreamingSocket <: IOStream & Resource & ToString
 ```
 
 Description: A `Socket` operating in full-duplex streaming mode, supporting both read and write operations.

@@ -3,9 +3,7 @@
 ## class AtomicBool
 
 ```cangjie
-public class AtomicBool {
-    public init(val: Bool)
-}
+public class AtomicBool
 ```
 
 Function: Provides atomic operation functions for the [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) type.
@@ -167,9 +165,7 @@ Returns:
 ## class AtomicInt16
 
 ```cangjie
-public class AtomicInt16 {
-    public init(val: Int16)
-}
+public class AtomicInt16
 ```
 
 Function: Provides atomic operation functions for the [Int16](../../core/core_package_api/core_package_intrinsics.md#int16) type.
@@ -760,9 +756,7 @@ Returns:
 ## class AtomicInt64
 
 ```cangjie
-public class AtomicInt64 {
-    public init(val: Int64)
-}
+public class AtomicInt64
 ```
 
 Function: Provides atomic operation functions for the [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) data type.
@@ -972,10 +966,7 @@ Returns:
 ## class AtomicOptionReference\<T> where T <: Object
 
 ```cangjie
-public class AtomicOptionReference<T> where T <: Object {
-    public init()
-    public init(val: Option<T>)
-}
+public class AtomicOptionReference<T> where T <: Object
 ```
 
 Function: Provides atomic operation functions for reference types.
@@ -1147,9 +1138,7 @@ Returns:
 ## class AtomicReference\<T> where T <: Object
 
 ```cangjie
-public class AtomicReference<T> where T <: Object {
-    public init(val: T)
-}
+public class AtomicReference<T> where T <: Object
 ```
 
 Function: Provides atomic operation functions for reference types.
@@ -1313,9 +1302,7 @@ Returns:
 ## class AtomicUInt16
 
 ```cangjie
-public class AtomicUInt16 {
-    public init(val: UInt16)
-}
+public class AtomicUInt16
 ```
 
 Function: Provides atomic operation functions for [UInt16](../../core/core_package_api/core_package_intrinsics.md#uint16) type.
@@ -1432,9 +1419,7 @@ Returns:
 ## class AtomicUInt32
 
 ```cangjie
-public class AtomicUInt32 {
-    public init(val: UInt32)
-}
+public class AtomicUInt32
 ```
 
 Function: Provides atomic operation functions for the [UInt32](../../core/core_package_api/core_package_intrinsics.md#uint32) data type.
@@ -1572,9 +1557,7 @@ Returns:
 ## class AtomicUInt32
 
 ```cangjie
-public class AtomicUInt32 {
-    public init(val: UInt32)
-}
+public class AtomicUInt32
 ```
 
 Function: Provides atomic operation functions for the [UInt32](../../core/core_package_api/core_package_intrinsics.md#uint32) data type.
@@ -1594,9 +1577,7 @@ Parameters:
 ## class AtomicUInt32
 
 ```cangjie
-public class AtomicUInt32 {
-    public init(val: UInt32)
-}
+public class AtomicUInt32
 ```
 
 Function: Provides atomic operation functions for [UInt32](../../core/core_package_api/core_package_intrinsics.md#uint32) type.
@@ -1637,9 +1618,7 @@ Returns:
 ## class AtomicUInt8
 
 ```cangjie
-public class AtomicUInt8 {
-    public init(val: UInt8)
-}
+public class AtomicUInt8
 ```
 
 Function: Provides atomic operation functions for the [UInt8](../../core/core_package_api/core_package_intrinsics.md#uint8) data type.
@@ -1986,9 +1965,7 @@ Returns:
 ## class Barrier
 
 ```cangjie
-public class Barrier {
-    public init(count: Int64)
-}
+public class Barrier
 ```
 
 Function: Provides functionality to coordinate multiple threads to reach a specific program point.
@@ -2028,9 +2005,7 @@ Parameters:
 ## class Monitor <sup>(deprecated)</sup>
 
 ```cangjie
-public class Monitor <: ReentrantMutex {
-    public init()
-}
+public class Monitor <: ReentrantMutex
 ```
 
 Function: Provides functionality for threads to block and wait for signals from other threads to resume execution.
@@ -2048,9 +2023,7 @@ Parent Type:
 ##### class MultiConditionMonitor <sup>(deprecated)</sup>
 
 ```cangjie
-public class MultiConditionMonitor <: ReentrantMutex {
-    public init()
-}
+public class MultiConditionMonitor <: ReentrantMutex
 ```
 
 Function: Provides the ability to bind multiple condition variables to the same mutex lock.
@@ -2151,9 +2124,7 @@ Exceptions:
 ## class Mutex
 
 ```cangjie
-public class Mutex <: UniqueLock {
-    public init()
-}
+public class Mutex <: UniqueLock
 ```
 
 Function: Provides reentrant mutex lock functionality.
@@ -2236,9 +2207,7 @@ Exceptions:
 ## class ReadWriteLock
 
 ```cangjie
-public class ReadWriteLock {
-    public init(fair!: Bool = false)
-}
+public class ReadWriteLock
 ```
 
 Function: Provides reentrant read-write lock functionality.
@@ -2305,9 +2274,7 @@ Returns:
 ## class ReentrantMutex <sup>(deprecated)</sup>
 
 ```cangjie
-public open class ReentrantMutex <: Lock {
-    public init()
-}
+public open class ReentrantMutex <: Lock
 ```
 
 Function: Provides reentrant lock functionality.
@@ -2428,9 +2395,7 @@ Exceptions:
 ## class ReentrantReadWriteMutex <sup>(deprecated)</sup>
 
 ```cangjie
-public class ReentrantReadWriteMutex {
-    public init(mode!: ReadWriteMutexMode = ReadWriteMutexMode.Unfair)
-}
+public class ReentrantReadWriteMutex
 ```
 
 Function: Provides reentrant read-write lock functionality.
@@ -2535,9 +2500,7 @@ Exceptions:
 ## class Semaphore
 
 ```cangjie
-public class Semaphore {
-    public init(count: Int64)
-}
+public class Semaphore
 ```
 
 Function: Provides semaphore-related functionality.
@@ -2631,9 +2594,7 @@ Exceptions:
 ## class SyncCounter
 
 ```cangjie
-public class SyncCounter {
-    public init(count: Int64)
-}
+public class SyncCounter
 ```
 
 Function: Provides countdown counter functionality.

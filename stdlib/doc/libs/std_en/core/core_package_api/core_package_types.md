@@ -8,6 +8,10 @@ public type Byte = UInt8
 
 Function: The [Byte](core_package_types.md#type-byte) type is an alias for the built-in type [UInt8](core_package_intrinsics.md#uint8).
 
+Extensions:
+
+- [extend Byte](core_package_extends.md#extend-byte)
+
 Example：
 
 <!-- verify -->

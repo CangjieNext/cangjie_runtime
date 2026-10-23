@@ -39,3 +39,10 @@ Additionally, this package provides auxiliary interfaces `SortByExtension (to be
 | --------------------------------- | ---------------------------------- |
 | [SortByExtension <sup>(deprecated)</sup>](./sort_package_api/sort_package_interfaces.md#interface-sortbyextensiont-deprecated) | This interface serves as an auxiliary interface for sorting-related operations and is empty internally. |
 | [SortExtension <sup>(deprecated)</sup>](./sort_package_api/sort_package_interfaces.md#interface-sortextension-deprecated) | This interface serves as an auxiliary interface for sorting-related operations and is empty internally. |
+
+### Extensions
+
+| Extension Name | Functionality |
+| --- | --- |
+| [extend\<T> Array\<T> <: SortByExtension\<T>](sort_package_api/sort_package_extends.md#extendt-arrayt--sortbyextensiont) | This extension implements the `sortBy` function for [Array](../core/core_package_api/core_package_structs.md#struct-arrayt). |
+| [extend\<T> Array\<T> <: SortExtension where T <: Comparable\<T>](sort_package_api/sort_package_extends.md#extendt-arrayt--sortextension-where-t--comparablet) | This extension implements the `sort/sortDescending` functions for [Array](../core/core_package_api/core_package_structs.md#struct-arrayt). |

@@ -3,10 +3,7 @@
 ## class IllegalSetException
 
 ```cangjie
-public class IllegalSetException <: ReflectException {
-    public init()
-    public init(message: String)
-}
+public class IllegalSetException <: ReflectException
 ```
 
 Function: [IllegalSetException](reflect_package_exceptions.md#class-illegalsetexception) is the exception thrown when attempting to modify an immutable type.
@@ -38,10 +35,7 @@ Parameters:
 ## class IllegalTypeException
 
 ```cangjie
-public class IllegalTypeException <: ReflectException {
-    public init()
-    public init(message: String)
-}
+public class IllegalTypeException <: ReflectException
 ```
 
 Function: [IllegalTypeException](reflect_package_exceptions.md#class-illegaltypeexception) is the exception thrown for type mismatch errors.
@@ -73,10 +67,7 @@ Parameters:
 ## class InfoNotFoundException
 
 ```cangjie
-public class InfoNotFoundException <: ReflectException {
-    public init()
-    public init(message: String)
-}
+public class InfoNotFoundException <: ReflectException
 ```
 
 Function: [InfoNotFoundException](reflect_package_exceptions.md#class-infonotfoundexception) is the exception thrown when corresponding information cannot be found.
@@ -108,10 +99,7 @@ Parameters:
 ## class InvocationTargetException
 
 ```cangjie
-public class InvocationTargetException <: ReflectException {
-    public init()
-    public init(message: String)
-}
+public class InvocationTargetException <: ReflectException
 ```
 
 Function: [InvocationTargetException](reflect_package_exceptions.md#class-invocationtargetexception) is the wrapper exception for function invocation errors.
@@ -143,10 +131,7 @@ Parameters:
 ## class MisMatchException
 
 ```cangjie
-public class MisMatchException <: ReflectException {
-    public init()
-    public init(message: String)
-}
+public class MisMatchException <: ReflectException
 ```
 
 Function: [MisMatchException](reflect_package_exceptions.md#class-mismatchexception) is the exception thrown when calling corresponding functions.
@@ -178,10 +163,7 @@ Parameters:
 ## class ReflectException
 
 ```cangjie
-public open class ReflectException <: Exception {
-    public init()
-    public init(message: String)
-}
+public open class ReflectException <: Exception
 ```
 
 Function: [ReflectException](reflect_package_exceptions.md#class-reflectexception) is the base exception class for the Reflect package.

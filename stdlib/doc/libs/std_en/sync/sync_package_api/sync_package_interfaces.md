@@ -3,14 +3,7 @@
 ## interface Condition
 
 ```cangjie
-public interface Condition {
-    func notify(): Unit
-    func notifyAll(): Unit
-    func wait(): Unit
-    func wait(timeout!: Duration): Bool
-    func waitUntil(predicate: ()->Bool): Unit
-    func waitUntil(predicate: ()->Bool, timeout!: Duration): Bool
-}
+public interface Condition
 ```
 
 Function: Provides an interface for thread blocking and waiting for signals from other threads to resume execution.
@@ -133,11 +126,7 @@ Exceptions:
 ## interface IReentrantMutex <sup>(deprecated)</sup>
 
 ```cangjie
-public interface IReentrantMutex {
-    func lock(): Unit
-    func tryLock(): Bool
-    func unlock(): Unit
-}
+public interface IReentrantMutex
 ```
 
 Function: Provides an interface for implementing reentrant mutex locks.
@@ -186,11 +175,7 @@ Exceptions:
 ## interface Lock
 
 ```cangjie
-public interface Lock {
-    func lock(): Unit
-    func tryLock(): Bool
-    func unlock(): Unit
-}
+public interface Lock
 ```
 
 Function: Provides an interface for implementing reentrant mutex locks.
@@ -238,9 +223,7 @@ Exceptions:
 ## interface UniqueLock
 
 ```cangjie
-public interface UniqueLock <: Lock {
-    func condition(): Condition
-}
+public interface UniqueLock <: Lock
 ```
 
 Function: Provides an interface for implementing exclusive locks.

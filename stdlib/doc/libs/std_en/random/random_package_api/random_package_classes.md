@@ -3,10 +3,7 @@
 ## class Random
 
 ```cangjie
-public class Random {
-    public init()
-    public init(seed: UInt64)
-}
+public class Random
 ```
 
 Function: Provides capabilities for generating pseudo-random numbers.

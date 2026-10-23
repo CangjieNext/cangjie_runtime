@@ -3,14 +3,7 @@
 ## interface Deque\<T>
 
 ```cangjie
-public interface Deque<T> <: Collection<T> {
-    prop first: ?T
-    prop last: ?T
-    func addFirst(element: T): Unit
-    func addLast(element: T): Unit
-    func removeFirst(): ?T
-    func removeLast(): ?T
-}
+public interface Deque<T> <: Collection<T>
 ```
 
 Function: Deque (double-ended queue) is a data structure that combines features of both queues and stacks, allowing insertion and deletion of elements from both ends. The main functionalities of the Deque interface include:
@@ -95,10 +88,7 @@ Returns:
 ## interface EquatableCollection\<T>
 
 ```cangjie
-public interface EquatableCollection<T> <: Collection<T> {
-    func contains(element: T): Bool
-    func contains(all!: Collection<T>): Bool
-}
+public interface EquatableCollection<T> <: Collection<T>
 ```
 
 Function: Defines collection types that support comparison operations.
@@ -142,18 +132,7 @@ Returns:
 ## interface List\<T>
 
 ```cangjie
-public interface List<T> <: ReadOnlyList<T> {
-    func add(element: T): Unit
-    func add(all!: Collection<T>): Unit
-    func add(element: T, at!: Int64): Unit
-    func add(all!: Collection<T>, at!: Int64): Unit
-    func remove(at!: Int64): T
-    func remove(range: Range<Int64>): Unit
-    func removeIf(predicate: (T) -> Bool): Unit
-    func clear(): Unit
-
-    operator func [](index: Int64, value!: T): Unit
-}
+public interface List<T> <: ReadOnlyList<T>
 ```
 
 Function: Defines a list type that provides index-friendly operations.
@@ -276,18 +255,7 @@ Parameters:
 ## interface Map\<K, V>
 
 ```cangjie
-public interface Map<K, V> <: ReadOnlyMap<K, V> {
-    func add(key: K, value: V): ?V
-    func add(all!: Collection<(K, V)>): Unit
-    func addIfAbsent(key: K, value: V): ?V
-    func clear(): Unit
-    func entryView(k: K): MapEntryView<K, V>
-    func remove(key: K): Option<V>
-    func remove(all!: Collection<K>): Unit
-    func removeIf(predicate: (K, V) -> Bool): Unit
-    func replace(key: K, value: V): ?V
-    operator func [](key: K, value!: V): Unit
-}
+public interface Map<K, V> <: ReadOnlyMap<K, V>
 ```
 
 Function: The [Map](collection_package_interface.md#interface-mapk-v) interface provides a way to map keys to values. It allows lookup of values using keys, enabling storage and manipulation of key-value pairs.
@@ -472,15 +440,7 @@ Type: ?V
 ## interface OrderedMap\<K, V>
 
 ```cangjie
-public interface OrderedMap<K, V> <: Map<K, V> {
-    public prop first: ?(K, V)
-    public prop last: ?(K, V)
-    public func removeFirst(): ?(K, V)
-    public func removeLast(): ?(K, V)
-
-    public func backward(mark: K, inclusive!: Bool): Iterator<(K, V)>
-    public func forward(mark: K, inclusive!: Bool): Iterator<(K, V)>
-}
+public interface OrderedMap<K, V> <: Map<K, V>
 ```
 
 Function: The [OrderedMap](collection_package_interface.md#interface-orderedmapk-v) interface provides a way to map keys to values. It allows us to use keys to look up values, making it suitable for storing and manipulating key-value pairs.
@@ -572,15 +532,7 @@ Returns:
 ## interface OrderedSet\<T>
 
 ```cangjie
-public interface OrderedSet<T> <: Set<T> {
-    public prop first: ?T
-    public prop last: ?T
-    public func removeFirst(): ?T
-    public func removeLast(): ?T
-
-    public func backward(mark: T, inclusive!: Bool): Iterator<T>
-    public func forward(mark: T, inclusive!: Bool): Iterator<T>
-}
+public interface OrderedSet<T> <: Set<T>
 ```
 
 Function: The [OrderedSet](collection_package_interface.md#interface-orderedsett) interface provides a set of operations for collections, allowing us to manipulate internal elements in a read-write manner.
@@ -672,11 +624,7 @@ Returns:
 ## interface Queue\<T>
 
 ```cangjie
-public interface Queue<T> <: Collection<T> {
-    func add(element: T): Unit
-    func peek(): ?T
-    func remove(): ?T
-}
+public interface Queue<T> <: Collection<T>
 ```
 
 Function: A queue data structure that follows the First-In-First-Out (FIFO) principle. The main functionalities of Queue include:
@@ -729,12 +677,7 @@ Returns:
 ## interface ReadOnlyList\<T>
 
 ```cangjie
-public interface ReadOnlyList<T> <: Collection<T> {
-    prop first: ?T
-    prop last: ?T
-    func get(index: Int64): ?T
-    operator func [](index: Int64): T
-}
+public interface ReadOnlyList<T> <: Collection<T>
 ```
 
 Function: Defines a read-only list.
@@ -798,15 +741,7 @@ Returns:
 ## interface ReadOnlyMap\<K, V>
 
 ```cangjie
-public interface ReadOnlyMap<K, V> <: Collection<(K, V)> {
-    func get(key: K): ?V
-    func contains(key: K): Bool
-    func contains(all!: Collection<K>): Bool
-    func keys(): EquatableCollection<K>
-    func values(): Collection<V>
-
-    operator func [](key: K): V
-}
+public interface ReadOnlyMap<K, V> <: Collection<(K, V)>
 ```
 
 Function: The [ReadOnlyMap](collection_package_interface.md#interface-readonlymapk-v) interface provides a way to map keys to values. It allows us to use keys to look up values, making it suitable for storing key-value pairs.
@@ -908,11 +843,7 @@ Returns:
 ## interface ReadOnlySet\<T>
 
 ```cangjie
-public interface ReadOnlySet<T> <: Collection<T> {
-    func contains(element: T): Bool
-    func contains(all!: Collection<T>): Bool
-    func subsetOf(other: ReadOnlySet<T>): Bool
-}
+public interface ReadOnlySet<T> <: Collection<T>
 ```
 
 Description: The [ReadOnlySet](collection_package_interface.md#interface-readonlysett) interface provides a set of collection operations, allowing read-only manipulation of internal elements.
@@ -972,15 +903,7 @@ Returns:
 ## interface Set\<T>
 
 ```cangjie
-public interface Set<T> <: ReadOnlySet<T> {
-    func add(element: T): Bool
-    func add(all!: Collection<T>): Unit
-    func remove(element: T): Bool
-    func remove(all!: Collection<T>): Unit
-    func removeIf(predicate: (T) -> Bool): Unit
-    func clear(): Unit
-    func retain(all!: Set<T>): Unit
-}
+public interface Set<T> <: ReadOnlySet<T>
 ```
 
 Description: The [Set](collection_package_interface.md#interface-sett) interface provides a set of collection operations, allowing read-write manipulation of internal elements.
@@ -1082,11 +1005,7 @@ Parameters:
 ## interface Stack\<T>
 
 ```cangjie
-public interface Stack<T> <: Collection<T> {
-    func add(element: T): Unit
-    func peek(): ?T
-    func remove(): ?T
-}
+public interface Stack<T> <: Collection<T>
 ```
 
 Description: A Stack is a data structure that follows the Last In First Out (LIFO) principle. Insertion and deletion operations are performed at one end (called the top), while the other end (called the bottom) remains inactive.

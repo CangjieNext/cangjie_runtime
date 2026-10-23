@@ -3,12 +3,7 @@
 ## enum ConnectionState
 
 ```cangjie
-public enum ConnectionState <: Equatable<ConnectionState> {
-    | Broken
-    | Closed
-    | Connecting
-    | Connected
-}
+public enum ConnectionState <: Equatable<ConnectionState>
 ```
 
 Function: Describes the current state of the connection to a data source.
@@ -84,11 +79,7 @@ Returns:
 ## enum TransactionAccessMode
 
 ```cangjie
-public enum TransactionAccessMode <: ToString & Hashable & Equatable<TransactionAccessMode> {
-    | ReadOnly
-    | ReadWrite
-    | Unspecified
-}
+public enum TransactionAccessMode <: ToString & Hashable & Equatable<TransactionAccessMode>
 ```
 
 Function: Specifies the read/write mode for transactions.
@@ -188,11 +179,7 @@ Returns:
 ## enum TransactionDeferrableMode
 
 ```cangjie
-public enum TransactionDeferrableMode <: ToString & Hashable & Equatable<TransactionDeferrableMode> {
-    | Deferrable
-    | NotDeferrable
-    | Unspecified
-}
+public enum TransactionDeferrableMode <: ToString & Hashable & Equatable<TransactionDeferrableMode>
 ```
 
 Function: Specifies the deferrable mode for transactions.
@@ -296,16 +283,7 @@ Returns:
 ## enum TransactionIsoLevel
 
 ```cangjie
-public enum TransactionIsoLevel <: ToString & Hashable & Equatable<TransactionIsoLevel> {
-    | Chaos
-    | Linearizable
-    | ReadCommitted
-    | ReadUncommitted
-    | RepeatableRead
-    | Serializable
-    | Snapshot
-    | Unspecified
-}
+public enum TransactionIsoLevel <: ToString & Hashable & Equatable<TransactionIsoLevel>
 ```
 
 Function: Transaction isolation level.

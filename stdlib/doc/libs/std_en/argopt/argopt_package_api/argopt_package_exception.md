@@ -3,10 +3,7 @@
 ## class ArgumentParseException
 
 ```cangjie
-public class ArgumentParseException <: Exception {
-    public init()
-    public init(message: String)
-}
+public class ArgumentParseException <: Exception
 ```
 
 Function: Argument parsing exception class. This exception is thrown when argument parsing fails (e.g., unrecognized option, missing value for an option).

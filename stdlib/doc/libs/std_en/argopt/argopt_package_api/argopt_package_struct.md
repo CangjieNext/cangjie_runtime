@@ -3,8 +3,7 @@
 ## struct ParsedArguments
 
 ```cangjie
-public struct ParsedArguments {
-}
+public struct ParsedArguments
 ```
 
 Function: Stores the results of argument parsing.

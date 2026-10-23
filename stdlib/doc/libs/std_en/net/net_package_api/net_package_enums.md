@@ -3,11 +3,7 @@
 ## enum SocketNet
 
 ```cangjie
-public enum SocketNet <: ToString & Equatable<SocketNet> {
-    | TCP
-    | UDP
-    | UNIX
-}
+public enum SocketNet <: ToString & Equatable<SocketNet>
 ```
 
 Function: Transport layer protocol types.

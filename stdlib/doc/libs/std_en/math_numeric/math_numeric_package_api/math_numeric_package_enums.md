@@ -3,11 +3,7 @@
 ## enum OverflowStrategy
 
 ```cangjie
-public enum OverflowStrategy <: Equatable<OverflowStrategy> & ToString {
-    | Saturating
-    | Throwing
-    | Wrapping
-}
+public enum OverflowStrategy <: Equatable<OverflowStrategy> & ToString
 ```
 
 Function: An enumeration class for overflow strategies, containing 3 overflow strategies. When converting [BigInt](math_numeric_package_structs.md#struct-bigint) type or [Decimal](math_numeric_package_structs.md#struct-decimal) type to integer types, different overflow handling strategies can be specified.

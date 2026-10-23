@@ -3,10 +3,7 @@
 ## class InvalidDataException
 
 ```cangjie
-public class InvalidDataException <: Exception {
-    public init()
-    public init(message: String)
-}
+public class InvalidDataException <: Exception
 ```
 
 Function: [InvalidDataException](time_package_exceptions.md#class-invaliddataexception) represents an exception that occurs when loading time zones.
@@ -38,10 +35,7 @@ Parameters:
 ## class TimeParseException
 
 ```cangjie
-public class TimeParseException <: Exception {
-    public init()
-    public init(message: String)
-}
+public class TimeParseException <: Exception
 ```
 
 Function: [TimeParseException](time_package_exceptions.md#class-timeparseexception) represents an exception that occurs when parsing time strings.

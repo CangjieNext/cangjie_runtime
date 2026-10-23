@@ -3,9 +3,7 @@
 ## class EnvException
 
 ```cangjie
-public class EnvException <: Exception {
-    public init(message: String)
-}
+public class EnvException <: Exception
 ```
 
 Function: The exception class for the `env` package.

@@ -3,11 +3,7 @@
 ## class ArrayBlockingQueue\<E>
 
 ```cangjie
-public class ArrayBlockingQueue<E> {
-    public let capacity: Int64
-    public init(capacity: Int64)
-    public init(capacity: Int64, elements: Collection<E>)
-}
+public class ArrayBlockingQueue<E>
 ```
 
 Function: Array-based Blocking Queue data structure and related operations.
@@ -476,13 +472,7 @@ None
 ## class LinkedBlockingQueue\<E>
 
 ```cangjie
-public class LinkedBlockingQueue<E> {
-    public let capacity: Int64
-    public init()
-    public init(capacity: Int64)
-    public init(capacity: Int64, elements: Array<E>)
-    public init(capacity: Int64, elements: Collection<E>)
-}
+public class LinkedBlockingQueue<E>
 ```
 
 Function: Implements a concurrent queue with blocking mechanism and user-specified capacity limits.
@@ -983,9 +973,7 @@ None
 ## class ConcurrentHashMapIterator\<K, V> where K <: Hashable & Equatable\<K>
 
 ```cangjie
-public class ConcurrentHashMapIterator<K, V> <: Iterator<(K, V)> where K <: Hashable & Equatable<K> {
-    public init(cmap: ConcurrentHashMap<K, V>)
-}
+public class ConcurrentHashMapIterator<K, V> <: Iterator<(K, V)> where K <: Hashable & Equatable<K>
 ```
 
 Function: This class primarily implements the iterator Function for [ConcurrentHashMap](collection_concurrent_class.md#class-concurrenthashmapk-v-where-k--hashable--equatablek).
@@ -1054,12 +1042,7 @@ Execution Result:
 ## class ConcurrentHashMap\<K, V> where K <: Hashable & Equatable\<K>
 
 ```cangjie
-public class ConcurrentHashMap<K, V> <: ConcurrentMap<K, V> & Collection<(K, V)> where K <: Hashable & Equatable<K> {
-    public init(concurrencyLevel!: Int64 = 16)
-    public init(capacity: Int64, concurrencyLevel!: Int64 = 16)
-    public init(elements: Collection<(K, V)>, concurrencyLevel!: Int64 = 16)
-    public init(size: Int64, initElement: (Int64) -> (K, V), concurrencyLevel!: Int64 = 16)
-}
+public class ConcurrentHashMap<K, V> <: ConcurrentMap<K, V> & Collection<(K, V)> where K <: Hashable & Equatable<K>
 ```
 
 Function: This class implements a thread-safe hash table [ConcurrentHashMap](collection_concurrent_class.md#class-concurrenthashmapk-v-where-k--hashable--equatablek) data structure and related operations for concurrent scenarios.
@@ -1677,10 +1660,7 @@ Parameters:
 ## class ConcurrentLinkedQueue\<E>
 
 ```cangjie
-public class ConcurrentLinkedQueue<E> <: Collection<E> {
-    public init()
-    public init(elements: Collection<E>)
-}
+public class ConcurrentLinkedQueue<E> <: Collection<E>
 ```
 
 Function: Provides a thread-safe queue that allows safe element addition and removal operations in multi-threaded environments.

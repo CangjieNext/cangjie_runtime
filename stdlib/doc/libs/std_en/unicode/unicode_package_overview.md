@@ -24,3 +24,10 @@ This package provides the `UnicodeRuneExtension` and `UnicodeStringExtension` in
 |                 Enum                |                Functionality                |
 | ----------------------------------- | ------------------------------------------- |
 | [CasingOption](./unicode_package_api/unicode_package_enums.md#enum-casingoption) | Enumeration class required for case conversion based on different languages. |
+
+### Extensions
+
+| Extension Name | Functionality |
+| --- | --- |
+| [extend Rune <: UnicodeRuneExtension](unicode_package_api/unicode_package_extends.md#extend-rune--unicoderuneextension) | Extends the [Rune](../core/core_package_api/core_package_intrinsics.md#rune) type with the [UnicodeRuneExtension](unicode_package_api/unicode_package_interfaces.md#interface-UnicodeRuneExtension) interface to support character set-related operations. |
+| [extend String <: UnicodeStringExtension](unicode_package_api/unicode_package_extends.md#extend-string--unicodestringextension) | Extends the [String](../core/core_package_api/core_package_structs.md#struct-string) type with the [UnicodeRuneExtension](unicode_package_api/unicode_package_interfaces.md#interface-UnicodeStringExtension) interface to support character set-related operations. |

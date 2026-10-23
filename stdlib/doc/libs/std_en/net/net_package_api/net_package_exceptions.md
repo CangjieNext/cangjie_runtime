@@ -3,10 +3,7 @@
 ## class SocketException
 
 ```cangjie
-public class SocketException <: IOException {
-    public init()
-    public init(message: String)
-}
+public class SocketException <: IOException
 ```
 
 Function: Provides socket-related exception handling.
@@ -38,10 +35,7 @@ Parameters:
 ## class SocketTimeoutException
 
 ```cangjie
-public class SocketTimeoutException <: Exception {
-    public init()
-    public init(message: String)
-}
+public class SocketTimeoutException <: Exception
 ```
 
 Function: Provides socket operation timeout-related exception handling.

@@ -3,19 +3,7 @@
 ## enum AnnotationKind
 
 ```cangjie
-public enum AnnotationKind {
-    | Type
-    | Parameter
-    | Init
-    | MemberProperty
-    | MemberFunction
-    | MemberVariable
-    | EnumConstructor
-    | GlobalFunction
-    | GlobalVariable
-    | Extension
-    | ...
-}
+public enum AnnotationKind
 ```
 
 Function: Indicates the supported locations for custom annotations.
@@ -103,10 +91,7 @@ Function: Type declaration (class, struct, enum, interface).
 ## enum Endian
 
 ```cangjie
-public enum Endian {
-    | Big
-    | Little
-}
+public enum Endian
 ```
 
 Function: The enumeration type [Endian](core_package_enums.md#enum-endian) represents the endianness of the runtime platform, divided into big-endian and little-endian.
@@ -163,10 +148,7 @@ LittleEndian
 ## enum Option\<T>
 
 ```cangjie
-public enum Option<T> {
-    | Some(T)
-    | None
-}
+public enum Option<T>
 ```
 
 Function: [Option](core_package_enums.md#enum-optiont)\<T> is a wrapper for type `T`, indicating the possibility of having a value or no value.
@@ -174,6 +156,13 @@ Function: [Option](core_package_enums.md#enum-optiont)\<T> is a wrapper for type
 It contains two constructors: [Some](#somet) and [None](#none). [Some](#somet) carries a parameter indicating a value exists, while [None](#none) has no parameter, indicating no value. When you need to represent that a type may or may not have a value, you can use the [Option](core_package_enums.md#enum-optiont) type.
 
 An alternative notation for the [Option](core_package_enums.md#enum-optiont) type is prefixing the type name with `?`. For any type `Type`, `?Type` is equivalent to [Option](core_package_enums.md#enum-optiont)\<Type>.
+
+Extensions:
+
+- [extend\<T> Option\<Option\<T>>](core_package_extends.md#extendt-optionoptiont)
+- [extend\<T> Option\<T> <: Equatable\<Option\<T>> where T <: Equatable\<T>](core_package_extends.md#extendt-optiont--equatableoptiont-where-t--equatablet)
+- [extend\<T> Option\<T> <: Hashable where T <: Hashable](core_package_extends.md#extendt-optiont--hashable-where-t--hashable)
+- [extend\<T> Option\<T> <: ToString where T <: ToString](core_package_extends.md#extendt-optiont--tostring-where-t--tostring)
 
 ### None
 
@@ -557,341 +546,19 @@ Applying map to Some value: Some(Number: 42)
 Applying map to None value: None
 ```
 
-### extend\<T> Option\<T> <: Equatable\<Option\<T>> where T <: Equatable\<T>
-
-```cangjie
-extend<T> Option<T> <: Equatable<Option<T>> where T <: Equatable<T>
-```
-
-Function: Extends the [Equatable](core_package_interfaces.md#interface-equatablet)\<[Option](core_package_enums.md#enum-optiont)\<T>> interface for the [Option](core_package_enums.md#enum-optiont)\<T> enum to support equality comparison operations.
-
-Parent Type:
-
-- [Equatable](core_package_interfaces.md#interface-equatablet)\<[Option](#enum-optiont)\<T>>
-
-#### operator func !=(Option\<T>)
-
-```cangjie
-public operator func !=(that: Option<T>): Bool
-```
-
-Function: Determines whether the current instance is not equal to the [Option](core_package_enums.md#enum-optiont)\<T> instance pointed to by the parameter.
-
-Parameters:
-
-- that: [Option](core_package_enums.md#enum-optiont)\<T> - The [Option](core_package_enums.md#enum-optiont)\<T> instance to compare.
-
-Returns:
-
-- [Bool](core_package_intrinsics.md#bool) - Returns true if not equal, otherwise returns false.
-
-Example:
-
-<!-- verify -->
-```cangjie
-main() {
-    // Create identical Some values
-    var someValue1: Option<Int64> = Some(42)
-    var someValue2: Option<Int64> = Some(42)
-    
-    // Compare two identical Some values
-    println("Some(42) != Some(42): ${someValue1 != someValue2}")
-    
-    // Create different Some values
-    var someValue3: Option<Int64> = Some(42)
-    var someValue4: Option<Int64> = Some(24)
-    
-    // Compare two different Some values
-    println("Some(42) != Some(24): ${someValue3 != someValue4}")
-    
-    // Create a Some value and a None value
-    var someValue5: Option<Int64> = Some(42)
-    var noneValue1: Option<Int64> = None
-    
-    // Compare Some value with None value
-    println("Some(42) != None: ${someValue5 != noneValue1}")
-    
-    // Create two None values
-    var noneValue2: Option<Int64> = None
-    var noneValue3: Option<Int64> = None
-    
-    // Compare two None values
-    println("None != None: ${noneValue2 != noneValue3}")
-}
-```
-
-Execution Result:
-
-```text
-Some(42) != Some(42): false
-Some(42) != Some(24): true
-Some(42) != None: true
-None != None: false
-```
-
-#### operator func ==(Option\<T>)
-
-```cangjie
-public operator func ==(that: Option<T>): Bool
-```
-
-Function: Determines whether the current instance is equal to the [Option](core_package_enums.md#enum-optiont)\<T> instance pointed to by the parameter.
-
-If both are None, they are equal; if both are Some(v1) and Some(v2), and v1 equals v2, they are equal.
-
-Parameters:
-
-- that: [Option](core_package_enums.md#enum-optiont)\<T> - The [Option](core_package_enums.md#enum-optiont)\<T> instance to compare.
-
-Returns:
-
-- [Bool](core_package_intrinsics.md#bool) - Returns true if equal, otherwise returns false.
-
-Example:
-
-<!-- verify -->
-```cangjie
-main() {
-    // Create identical Some values
-    var someValue1: Option<Int64> = Some(42)
-    var someValue2: Option<Int64> = Some(42)
-    
-    // Compare two identical Some values
-    println("Some(42) == Some(42): ${someValue1 == someValue2}")
-    
-    // Create different Some values
-    var someValue3: Option<Int64> = Some(42)
-    var someValue4: Option<Int64> = Some(24)
-    
-    // Compare two different Some values
-    println("Some(42) == Some(24): ${someValue3 == someValue4}")
-    
-    // Create a Some value and a None value
-    var someValue5: Option<Int64> = Some(42)
-    var noneValue1: Option<Int64> = None
-    
-    // Compare Some value with None value
-    println("Some(42) == None: ${someValue5 == noneValue1}")
-    
-    // Create two None values
-    var noneValue2: Option<Int64> = None
-    var noneValue3: Option<Int64> = None
-    
-    // Compare two None values
-    println("None == None: ${noneValue2 == noneValue3}")
-}
-```
-
-Execution Result:
-
-```text
-Some(42) == Some(42): true
-Some(42) == Some(24): false
-Some(42) == None: false
-None == None: true
-```
-
-### extend\<T> Option\<T> <: Hashable where T <: Hashable
-
-```cangjie
-extend<T> Option<T> <: Hashable where T <: Hashable
-```
-
-Function: Extends the [Hashable](core_package_interfaces.md#interface-hashable) interface for the [Option](core_package_enums.md#enum-optiont) type.
-
-The hash value of [Some](#somet)\<T> equals the hash value of the contained `T` value. The hash value of [None](#none) equals [Int64](core_package_intrinsics.md#int64)(0).
-
-Parent Type:
-
-- [Hashable](core_package_interfaces.md#interface-hashable)
-
-#### func hashCode()
-
-```cangjie
-public func hashCode(): Int64
-```
-
-Function: Retrieves the hash value.
-
-Returns:
-
-- [Int64](core_package_intrinsics.md#int64) - The hash value.
-
-Example:
-
-<!-- verify -->
-```cangjie
-main() {
-    // Create a Some value
-    var someValue: Option<Int64> = Some(42)
-    
-    // Get the hash code of Some value
-    var someHashCode = someValue.hashCode()
-    println("Hash code of Some(42): ${someHashCode}")
-    
-    // Create a None value
-    var noneValue: Option<Int64> = None
-    
-    // Get the hash code of None value
-    var noneHashCode = noneValue.hashCode()
-    println("Hash code of None: ${noneHashCode}")
-    
-    // Compare hash codes of two identical Some values
-    var someValue1: Option<Int64> = Some(42)
-    var someValue2: Option<Int64> = Some(42)
-    
-    println("Hash codes of Some(42) and Some(42) are equal: ${someValue1.hashCode() == someValue2.hashCode()}")
-    
-    // Compare hash codes of two different Some values
-    var someValue3: Option<Int64> = Some(42)
-    var someValue4: Option<Int64> = Some(24)
-    
-    println("Hash codes of Some(42) and Some(24) are equal: ${someValue3.hashCode() == someValue4.hashCode()}")
-}
-```
-
-Execution Result:
-
-```text
-Hash code of Some(42): 42
-Hash code of None: 0
-Hash codes of Some(42) and Some(42) are equal: true
-Hash codes of Some(42) and Some(24) are equal: false
-```
-
-### extend\<T> Option\<T> <: ToString where T <: ToString
-
-```cangjie
-extend<T> Option<T> <: ToString where T <: ToString
-```
-
-Function: Implements the [ToString](core_package_interfaces.md#interface-tostring) interface for the [Option](core_package_enums.md#enum-optiont)\<T> enum to support string conversion operations.
-
-Parent Type:
-
-- [ToString](core_package_interfaces.md#interface-tostring)
-
-#### func toString()
-
-```cangjie
-public func toString(): String
-```
-
-Function: Converts [Option](core_package_enums.md#enum-optiont) to an output string, with content being "Some(${T.toString()})" or "None".
-
-Returns:
-
-- [String](core_package_structs.md#struct-string) - The converted string.
-
-Example:
-
-<!-- verify -->
-```cangjie
-main() {
-    // Create a Some value
-    var someValue: Option<Int64> = Some(42)
-    
-    // Convert Some value to string
-    var someStr = someValue
-    println("Some(42) converted to string: ${someStr}")
-    
-    // Create a None value
-    var noneValue: Option<Int64> = None
-    
-    // Convert None value to string
-    var noneStr = noneValue
-    println("None converted to string: ${noneStr}")
-    
-    // Create a Some value of String type
-    var someStringValue: Option<String> = Some("Hello")
-    
-    // Convert String-type Some value to string
-    var someStringStr = someStringValue
-    println("Some(\"Hello\") converted to string: ${someStringStr}")
-}
-```
-
-Execution Result:
-
-```text
-Some(42) converted to string: Some(42)
-None converted to string: None
-Some("Hello") converted to string: Some(Hello)
-```
-
-### extend\<T> Option\<Option\<T>>
-
-```cangjie
-extend<T> Option<Option<T>>
-```
-
-Function: Extends certain functionalities for the Option\<Option\<T>> type.
-
-#### func flatten()
-
-```cangjie
-public func flatten(): Option<T>
-```
-
-Function: Flattens the [Option](core_package_enums.md#enum-optiont)\<[Option](core_package_enums.md#enum-optiont)\<T>> type. If the current instance is [Some](#somet)([Option](core_package_enums.md#enum-optiont)\<T>.[Some](#somet)(v)), the flattened result is [Some](#somet)(v).
-
-Returns:
-
-- [Option](core_package_enums.md#enum-optiont)\<T> - The flattened result of [Option](core_package_enums.md#enum-optiont)\<[Option](core_package_enums.md#enum-optiont)\<T>> type.
-
-Example:
-
-<!-- verify -->
-```cangjie
-main() {
-    // Create a Some(Some(42)) value of Option<Option<Int64>> type
-    var nestedSome: Option<Option<Int64>> = Some(Some(42))
-    
-    // Flatten the nested Option
-    var flattened1 = nestedSome.flatten()
-    println("Some(Some(42)) flattened: ${flattened1}")
-    
-    // Create a Some(None) value of Option<Option<Int64>> type
-    var someNone: Option<Option<Int64>> = Some(None)
-    
-    // Flatten the nested Option
-    var flattened2 = someNone.flatten()
-    println("Some(None) flattened: ${flattened2}")
-    
-    // Create a None value of Option<Option<Int64>> type
-    var noneValue: Option<Option<Int64>> = None
-    
-    // Flatten the nested Option
-    var flattened3 = noneValue.flatten()
-    println("None flattened: ${flattened3}")
-    
-    // Demonstrate chained calls
-    var chainedValue: Option<Option<Option<String>>> = Some(Some(Some("Hello")))
-    var flattenedChained = chainedValue.flatten().flatten()
-    println("Chained flattening of Some(Some(Some(\"Hello\"))): ${flattenedChained}")
-}
-```
-
-Execution Result:
-
-```text
-Some(Some(42)) flattened: Some(42)
-Some(None) flattened: None
-None flattened: None
-Chained flattening of Some(Some(Some("Hello"))): Some(Hello)
-```
-
 ## enum Ordering
 
 ```cangjie
-public enum Ordering {
-    | LT
-    | GT
-    | EQ
-}
+public enum Ordering
 ```
 
 Function: [Ordering](core_package_enums.md#enum-ordering) represents the result of a comparison operation, containing three possible cases: less than, greater than, and equal to.
+
+Extensions:
+
+- [extend Ordering <: Comparable](core_package_extends.md#extend-ordering--comparable)
+- [extend Ordering <: Hashable](core_package_extends.md#extend-ordering--hashable)
+- [extend Ordering <: ToString](core_package_extends.md#extend-ordering--tostring)
 
 ### EQ
 
@@ -917,195 +584,10 @@ LT
 
 Function: Constructs an [Ordering](core_package_enums.md#enum-ordering) instance representing less than.
 
-### extend Ordering <: Comparable
-
-```cangjie
-extend Ordering <: Comparable<Ordering>
-```
-
-Function: Extends the [Ordering](core_package_enums.md#enum-ordering) type with the [Comparable](core_package_interfaces.md#interface-comparablet)\<[Ordering](core_package_enums.md#enum-ordering)> interface, enabling comparison operations.
-
-Parent Types:
-
-- [Comparable](core_package_interfaces.md#interface-comparablet)\<[Ordering](#enum-ordering)>
-
-#### func compare(Ordering)
-
-```cangjie
-public func compare(that: Ordering): Ordering
-```
-
-Function: Determines the relative ordering between the current [Ordering](core_package_enums.md#enum-ordering) instance and the specified [Ordering](core_package_enums.md#enum-ordering) instance.
-
-The ordering relationship for [Ordering](core_package_enums.md#enum-ordering) enums is: GT > EQ > LT.
-
-Parameters:
-
-- that: [Ordering](core_package_enums.md#enum-ordering) - The [Ordering](core_package_enums.md#enum-ordering) instance to compare with.
-
-Returns:
-
-- [Ordering](core_package_enums.md#enum-ordering) - Returns GT if greater than, EQ if equal, or LT if less than.
-
-Example:
-
-<!-- verify -->
-```cangjie
-main() {
-    // Create Ordering instances
-    var gt: Ordering = GT
-    var eq: Ordering = EQ
-    var lt: Ordering = LT
-    
-    // Test comparison between GT and EQ
-    var result1 = gt.compare(eq)
-    println("GT.compare(EQ): ${result1.toString()}")
-    
-    // Test comparison between EQ and LT
-    var result2 = eq.compare(lt)
-    println("EQ.compare(LT): ${result2.toString()}")
-    
-    // Test comparison between LT and GT
-    var result3 = lt.compare(gt)
-    println("LT.compare(GT): ${result3.toString()}")
-    
-    // Test equality case
-    var result4 = gt.compare(gt)
-    println("GT.compare(GT): ${result4.toString()}")
-}
-```
-
-Execution Result:
-
-```text
-GT.compare(EQ): Ordering.GT
-EQ.compare(LT): Ordering.GT
-LT.compare(GT): Ordering.LT
-GT.compare(GT): Ordering.EQ
-```
-
-### extend Ordering <: Hashable
-
-```cangjie
-extend Ordering <: Hashable
-```
-
-Function: Extends the [Ordering](core_package_enums.md#enum-ordering) type with the [Hashable](core_package_interfaces.md#interface-hashable) interface, enabling hash value computation.
-
-Parent Types:
-
-- [Hashable](core_package_interfaces.md#interface-hashable)
-
-#### func hashCode()
-
-```cangjie
-public func hashCode(): Int64
-```
-
-Function: Computes the hash value. GT has a hash value of 3, EQ has 2, and LT has 1.
-
-Returns:
-
-- [Int64](core_package_intrinsics.md#int64) - The computed hash value.
-
-Example:
-
-<!-- verify -->
-```cangjie
-main() {
-    // Create Ordering instances
-    var gt: Ordering = GT
-    var eq: Ordering = EQ
-    var lt: Ordering = LT
-    
-    // Compute hash values
-    var gtHash = gt.hashCode()
-    var eqHash = eq.hashCode()
-    var ltHash = lt.hashCode()
-    
-    println("GT hash value: ${gtHash}")
-    println("EQ hash value: ${eqHash}")
-    println("LT hash value: ${ltHash}")
-}
-```
-
-Execution Result:
-
-```text
-GT hash value: 3
-EQ hash value: 2
-LT hash value: 1
-```
-
-### extend Ordering <: ToString
-
-```cangjie
-extend Ordering <: ToString
-```
-
-Function: Extends the [Ordering](core_package_enums.md#enum-ordering) type with the [ToString](core_package_interfaces.md#interface-tostring) interface, enabling string conversion.
-
-Parent Types:
-
-- [ToString](core_package_interfaces.md#interface-tostring)
-
-#### func toString()
-
-```cangjie
-public func toString(): String
-```
-
-Function: Converts the [Ordering](core_package_enums.md#enum-ordering) instance to a printable string.
-
-Conversion results are as follows:
-
-- GT: "[Ordering](core_package_enums.md#enum-ordering).GT".
-- LT: "[Ordering](core_package_enums.md#enum-ordering).ET".
-- EQ: "[Ordering](core_package_enums.md#enum-ordering).EQ".
-
-Returns:
-
-- [String](core_package_structs.md#struct-string) - The converted string.
-
-Example:
-
-<!-- verify -->
-```cangjie
-main() {
-    // Create Ordering instances
-    var gt: Ordering = GT
-    var eq: Ordering = EQ
-    var lt: Ordering = LT
-    
-    // Convert to strings
-    var gtStr = gt.toString()
-    var eqStr = eq.toString()
-    var ltStr = lt.toString()
-    
-    println("GT as string: ${gtStr}")
-    println("EQ as string: ${eqStr}")
-    println("LT as string: ${ltStr}")
-}
-```
-
-Execution Result:
-
-```text
-GT as string: Ordering.GT
-EQ as string: Ordering.EQ
-LT as string: Ordering.LT
-```
-
 ## enum ThreadState
 
 ```cangjie
-public enum ThreadState <: ToString {
-    | Ready
-    | Running
-    | Pending
-    | Terminated 
-    | ...
-}
+public enum ThreadState <: ToString
 ```
 
 Function: Represents the state of a thread.
@@ -1164,5 +646,4 @@ Conversion results are as follows:
 Returns:
 
 - [String](core_package_structs.md#struct-string) - The converted string.
-
 

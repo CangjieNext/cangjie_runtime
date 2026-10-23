@@ -3,10 +3,7 @@
 ## class IllegalSynchronizationStateException
 
 ```cangjie
-public class IllegalSynchronizationStateException <: Exception {
-    public init()
-    public init(message: String)
-}
+public class IllegalSynchronizationStateException <: Exception
 ```
 
 Function: This class represents an illegal synchronization state exception.

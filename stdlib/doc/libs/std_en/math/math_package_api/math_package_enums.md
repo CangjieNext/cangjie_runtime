@@ -3,14 +3,7 @@
 ## enum RoundingMode
 
 ```cangjie
-public enum RoundingMode <: Equatable<RoundingMode> & ToString {
-    | Ceiling
-    | Down
-    | Floor
-    | HalfEven
-    | HalfUp
-    | Up
-}
+public enum RoundingMode <: Equatable<RoundingMode> & ToString
 ```
 
 Function: An enumeration class for rounding modes, containing 6 rounding rules. In addition to the 5 rounding rules specified by IEEE 754 floating-point standard, it includes the commonly used "round half up" rule.

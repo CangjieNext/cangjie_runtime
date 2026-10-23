@@ -779,11 +779,7 @@ Returns:
 ## class IPSocketAddress
 
 ```cangjie
-public class IPSocketAddress <: SocketAddress & Equatable<IPSocketAddress>{
-    public init(address: Array<Byte>, port: UInt16)
-    public init(address: String, port: UInt16)
-    public init(address: IPAddress, port: UInt16)
-}
+public class IPSocketAddress <: SocketAddress & Equatable<IPSocketAddress>
 ```
 
 Function: This class implements an IP protocol Socket address (IP address + port number). It provides an immutable object used for Socket binding, connection, or as a return value.
@@ -1127,13 +1123,7 @@ Returns:
 ## class IPv4Address
 
 ```cangjie
-public class IPv4Address <: IPAddress & ToString & Equatable<IPv4Address> & LessOrEqual<IPv4Address> {
-    public static let broadcast = IPv4Address(0xFF, 0xFF, 0xFF, 0xFF)
-    public static let localhost = IPv4Address(0x7F, 0, 0, 0x01)
-    public static let unspecified = IPv4Address(0, 0, 0, 0)
-    public init(bits: UInt32)
-    public init(a: Byte, b: Byte, c: Byte, d: Byte)
-}
+public class IPv4Address <: IPAddress & ToString & Equatable<IPv4Address> & LessOrEqual<IPv4Address>
 ```
 
 Function: This class represents an Internet Protocol version 4 (IPv4) address, as defined by [RFC 790](https://datatracker.ietf.org/doc/html/rfc790), [RFC 1918](https://datatracker.ietf.org/doc/html/rfc1918), and [RFC 2365](https://datatracker.ietf.org/doc/html/rfc2365).
@@ -1158,9 +1148,7 @@ Type: [IPv4Address](net_package_classes.md#class-ipv4address)
 ## class RawSocket
 
 ```cangjie
-public class RawSocket {
-    public init(domain: SocketDomain, `type`: SocketType, protocol: ProtocolType)
-}
+public class RawSocket
 ```
 
 Function: [RawSocket](net_package_classes.md#class-rawsocket) provides basic socket functionality.
@@ -1547,10 +1535,7 @@ Returns:
 ## class TcpServerSocket
 
 ```cangjie
-public class TcpServerSocket <: ServerSocket {
-    public init(bindAt!: SocketAddress)
-    public init(bindAt!: UInt16)
-}
+public class TcpServerSocket <: ServerSocket
 ```
 
 Function: A server-side socket for listening to TCP connections.
@@ -1913,11 +1898,7 @@ Returns:
 ## class TcpSocket
 
 ```cangjie
-public class TcpSocket <: StreamingSocket & Equatable<TcpSocket> & Hashable {
-    public init(address: String, port: UInt16)
-    public init(address: SocketAddress)
-    public init(address: SocketAddress, localAddress!: ?SocketAddress)
-}
+public class TcpSocket <: StreamingSocket & Equatable<TcpSocket> & Hashable
 ```
 
 Function: A client for requesting TCP connections.
@@ -3586,10 +3567,7 @@ Returns:
 ## class UnixSocket
 
 ```cangjie
-public class UnixSocket <: StreamingSocket {
-    public init(address: SocketAddress, localAddress!: ?SocketAddress = None)
-    public init(path: String, localPath!: ?String = None)
-}
+public class UnixSocket <: StreamingSocket
 ```
 
 Function: Provides duplex stream-based host communication client-side.

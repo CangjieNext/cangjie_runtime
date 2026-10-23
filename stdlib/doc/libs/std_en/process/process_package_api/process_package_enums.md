@@ -3,12 +3,7 @@
 ## enum ProcessRedirect
 
 ```cangjie
-public enum ProcessRedirect {
-    | Inherit
-    | Pipe
-    | FromFile(File)
-    | Discard
-}
+public enum ProcessRedirect
 ```
 
 Function: This enumeration type is used to configure the redirection mode of child process standard streams when creating a process.

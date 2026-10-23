@@ -3,10 +3,7 @@
 ## class OvershiftException
 
 ```cangjie
-public class OvershiftException <: Exception {
-    public init()
-    public init(message: String)
-}
+public class OvershiftException <: Exception
 ```
 
 Function: Exception thrown when the shift count exceeds the bit width of the operand in shift operations.
@@ -38,10 +35,7 @@ Parameters:
 ## class UndershiftException
 
 ```cangjie
-public class UndershiftException <: Exception {
-    public init()
-    public init(message: String)
-}
+public class UndershiftException <: Exception
 ```
 
 Function: Exception thrown when the shift count is less than 0 in shift operations.

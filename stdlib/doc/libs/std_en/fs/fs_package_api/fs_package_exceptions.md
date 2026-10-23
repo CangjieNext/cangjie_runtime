@@ -3,10 +3,7 @@
 ## class FSException
 
 ```cangjie
-public class FSException <: IOException {
-    public init()
-    public init(message: String)
-}
+public class FSException <: IOException
 ```
 
 Function: File stream exception class, inherits from IO stream exception class.

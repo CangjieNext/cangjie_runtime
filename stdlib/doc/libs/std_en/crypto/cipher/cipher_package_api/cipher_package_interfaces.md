@@ -3,14 +3,7 @@
 ## interface BlockCipher
 
 ```cangjie
-public interface BlockCipher {
-    prop blockSize: Int64
-    prop algorithm: String
-    func encrypt(input: Array<Byte>): Array<Byte>
-    func decrypt(input: Array<Byte>): Array<Byte>
-    func encrypt(input: Array<Byte>, to!: Array<Byte>): Int64
-    func decrypt(input: Array<Byte>, to!: Array<Byte>): Int64
-}
+public interface BlockCipher
 ```
 
 Function: Block cipher algorithm interface. Classes, interfaces, or structs inheriting this interface must comply with the parameter and return value definitions specified in its functions.
