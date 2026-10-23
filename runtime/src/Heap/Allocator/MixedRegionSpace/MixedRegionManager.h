@@ -320,6 +320,8 @@ private:
     }
     void AssembleOldRegions()
     {
+        // Objects in previously swept regions may have died since the last mixed GC.
+        sweepableOldRegionList.MergeRegionList(sweptOldRegionList, RegionInfo::RegionType::SWEEP_REGION);
         sweepableOldRegionList.MergeRegionList(oldRegionList, RegionInfo::RegionType::SWEEP_REGION);
         sweepableOldRegionList.VisitAllRegions([](RegionInfo* region) { region->ClearLiveInfo(); });
     }
