@@ -477,10 +477,16 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
         let index: Int64 = getIndex(hash, buckets.size)
         var bucket: Int64 = buckets[index]
         while (bucket >= 0) {
-            if (hash == entries[bucket].hash && key == entries[bucket].key) {
-                return entries[bucket].value
+            // Compare hash by index first so the miss path does not copy the whole entry (K/V).
+            if (hash != entries[bucket].hash) {
+                bucket = entries[bucket].next
+                continue
             }
-            bucket = entries[bucket].next
+            let entry = entries[bucket]
+            if (key == entry.key) {
+                return entry.value
+            }
+            bucket = entry.next
         }
         return None
     }
@@ -566,10 +572,15 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
         var index: Int64 = getIndex(hash, buckets.size)
         var entryIndex: Int64 = buckets[index]
         while (entryIndex >= 0) {
-            if (hash == entries[entryIndex].hash && key == entries[entryIndex].key) {
+            if (hash != entries[entryIndex].hash) {
+                entryIndex = entries[entryIndex].next
+                continue
+            }
+            let entry = entries[entryIndex]
+            if (key == entry.key) {
                 return HashMapEntryView<K, V>(false, key, hash, entryIndex, this)
             }
-            entryIndex = entries[entryIndex].next
+            entryIndex = entry.next
         }
         return HashMapEntryView<K, V>(true, key, hash, entryIndex, this)
     }
@@ -1223,7 +1234,8 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
         if (pre < 0) {
             buckets[index] = entries[pos].next
         } else {
-            entries[pre] = HashMapEntry<K, V>(entries[pre].hash, entries[pos].next, entries[pre].key, entries[pre].value)
+            let preEntry = entries[pre]
+            entries[pre] = HashMapEntry<K, V>(preEntry.hash, entries[pos].next, preEntry.key, preEntry.value)
         }
         entries[pos] = HashMapEntry<K, V>(-1, freeIndex, unsafe { zeroValue<K>() }, unsafe { zeroValue<V>() })
         freeIndex = bucket
@@ -1358,8 +1370,9 @@ public class HashMapIterator<K, V> <: Iterator<(K, V)> where K <: Hashable & Equ
         if (index >= size) {
             return Option<(K, V)>.None
         }
+        let entry = data.entries[index]
         isRemoved = false
-        return Some((data.entries[index].key, data.entries[index].value))
+        return Some((entry.key, entry.value))
     }
 
     /**
