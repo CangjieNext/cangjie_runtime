@@ -305,7 +305,16 @@ public:
     {
         for (BaseObject* obj : refObjBuffer) {
             RefField<>* referentField = reinterpret_cast<RefField<>*>((uintptr_t)obj + TYPEINFO_PTR_SIZE);
-            Heap::GetBarrier().ReadWeakRef(obj, *referentField);
+            RefField<> oldField(referentField->GetFieldValue());
+            BaseObject* referent = oldField.GetTargetObject();
+            if (referent == nullptr) {
+                continue;
+            }
+            RegionInfo* regionInfo = RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(referent));
+            if (!regionInfo->IsMarkedObject(referent)) {
+                // Do not overwrite a concurrent WeakRef.clear() or other field update.
+                referentField->CompareExchange(oldField.GetFieldValue(), 0);
+            }
         }
         refObjBuffer.clear();
     }

@@ -28,23 +28,7 @@ BaseObject* PostTraceBarrier::ReadStaticRef(RefField<false>& field) const { retu
 
 BaseObject* PostTraceBarrier::ReadWeakRef(BaseObject* obj, RefField<false>& field) const
 {
-    RefField<> tmpField(field);
-    if (tmpField.IsTagged()) {
-        CHECK(theCollector.IsCurrentPointer(tmpField));
-    }
-    BaseObject* referent = tmpField.GetTargetObject();
-    if (referent == nullptr) {
-        return nullptr;
-    }
-    RegionInfo* regionInfo = RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(referent));
-    bool isMarked = regionInfo->IsMarkedObject(referent);
-    if (!isMarked) { // skip live referents
-        void** referentAddr = reinterpret_cast<void**>(reinterpret_cast<uintptr_t>(obj) + TYPEINFO_PTR_SIZE);
-        DLOG(BARRIER, "update referent@%p: 0x%zx -> %p", referentAddr, *referentAddr, nullptr);
-        *referentAddr = nullptr; // set referent field as null
-        return nullptr;
-    }
-    return tmpField.GetTargetObject();
+    return ReadReference(obj, field);
 }
 
 void PostTraceBarrier::ReadStruct(MAddress dst, BaseObject* obj, MAddress src, size_t size) const
