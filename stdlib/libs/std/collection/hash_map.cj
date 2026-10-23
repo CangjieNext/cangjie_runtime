@@ -503,8 +503,13 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
         var bucketIndex: Int64 = getIndex(hash, buckets.size)
         var entryIndex: Int64 = buckets[bucketIndex]
         while (entryIndex >= 0) {
+            // Compare hash by index first so the miss path does not copy the whole entry (K/V).
+            if (hash != entries[entryIndex].hash) {
+                entryIndex = entries[entryIndex].next
+                continue
+            }
             let entry = entries[entryIndex]
-            if (hash == entry.hash && key == entry.key) {
+            if (key == entry.key) {
                 let oldValue: Option<V> = Some(entry.value)
                 entries[entryIndex] = HashMapEntry<K, V>(entry.hash, entry.next, entry.key, value)
                 return oldValue
@@ -536,8 +541,13 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
         var bucketIndex: Int64 = getIndex(hash, buckets.size)
         var entryIndex: Int64 = buckets[bucketIndex]
         while (entryIndex >= 0) {
+            // Compare hash by index first so the miss path does not copy the whole entry (K/V).
+            if (hash != entries[entryIndex].hash) {
+                entryIndex = entries[entryIndex].next
+                continue
+            }
             let entry = entries[entryIndex]
-            if (hash == entry.hash && key == entry.key) {
+            if (key == entry.key) {
                 entries[entryIndex] = HashMapEntry<K, V>(entry.hash, entry.next, entry.key, value)
                 return
             }
@@ -782,8 +792,13 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
         let index: Int64 = getIndex(hash, buckets.size)
         var bucket: Int64 = buckets[index]
         while (bucket >= 0) {
+            // Compare hash by index first so the miss path does not copy the whole entry (K/V).
+            if (hash != entries[bucket].hash) {
+                bucket = entries[bucket].next
+                continue
+            }
             let entry = entries[bucket]
-            if (hash == entry.hash && key == entry.key) {
+            if (key == entry.key) {
                 return true
             }
             bucket = entry.next
