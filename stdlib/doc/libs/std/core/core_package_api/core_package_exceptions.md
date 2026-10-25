@@ -1283,6 +1283,98 @@ main() {
 }
 ```
 
+## class UnimplementedException
+
+```cangjie
+public class UnimplementedException <: Exception {
+    public init()
+    public init(message: String)
+}
+```
+
+功能：表示当前类型尚未提供显式的 `@local!` 或 `@local?` 重载的异常。
+
+当类型未提供接口所需的 `@local!` / `@local?` 实现时，接口默认实现抛出该异常。
+
+父类型：
+
+- [Exception](#class-exception)
+
+### init()
+
+```cangjie
+public init()
+```
+
+功能：构造一个默认的 [UnimplementedException](core_package_exceptions.md#class-unimplementedexception) 实例，默认异常信息为 "UnimplementedException"。
+
+示例：
+
+<!-- run -->
+```cangjie
+main() {
+    // 使用默认构造函数创建UnimplementedException实例
+    let exception = UnimplementedException()
+}
+```
+
+### init(String)
+
+```cangjie
+public init(message: String)
+```
+
+功能：根据指定异常信息构造 [UnimplementedException](core_package_exceptions.md#class-unimplementedexception) 实例。
+
+参数：
+
+- message: [String](core_package_structs.md#struct-string) - 异常提示信息。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    try {
+        throw UnimplementedException("test message")
+    } catch (e: UnimplementedException) {
+        println("caught: ${e.message}")
+    }
+}
+```
+
+运行结果：
+
+```text
+caught: test message
+```
+
+### func getClassName()
+
+```cangjie
+protected override func getClassName(): String
+```
+
+功能：获得类名。
+
+返回值：
+
+- [String](core_package_structs.md#struct-string) - 类名 "UnimplementedException"。
+
+示例：
+
+<!-- code_no_check -->
+```cangjie
+// 此示例只做展示，假设抛出 UnimplementedException
+main() {
+    try {
+        // 假设某个 @local? 接口默认实现被调用
+    } catch (e: UnimplementedException) {
+        println(e.getClassName())
+    }
+}
+```
+
 ## class UnsupportedException
 
 ```cangjie
