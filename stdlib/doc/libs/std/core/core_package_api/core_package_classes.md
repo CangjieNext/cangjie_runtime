@@ -527,6 +527,34 @@ box3 hashCode: 100
 box1 and box2 have same hashCode: true
 ```
 
+#### func hashCode(this @local?)
+
+```cangjie
+public func hashCode(this @local?): Int64
+```
+
+功能：计算当前 `@local?` [Box](core_package_classes.md#class-boxt) 对象的哈希值。
+
+实际上该值为 [Box](core_package_classes.md#class-boxt) 中封装的 `T` 类型实例的哈希值。
+
+[Box](core_package_classes.md#class-boxt) 未提供 `hashCode` 的 `@local?` 显式重载，该形式为继承自 [Hashable](core_package_interfaces.md#interface-hashable) 接口的 `@local?` 默认实现；当调用绑定到该默认实现时，抛出 [UnimplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception)。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+
+返回值：
+
+- [Int64](core_package_intrinsics.md#int64) - 当前 [Box](core_package_classes.md#class-boxt) 对象的哈希值。
+
+异常：
+
+- [UnimplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception) - 当前类型未提供该 `@local?` 实现时抛出，继承自 [Hashable](core_package_interfaces.md#interface-hashable) 接口的默认实现。
+
 ### extend\<T> Box\<T> <: ToString where T <: ToString
 
 ```cangjie
@@ -831,6 +859,30 @@ public class MyIterator<T> <: Iterator<T> {
 抽象的子类完成了初始化
 ```
 
+### init(this @local!)
+
+```cangjie
+public exclave init(this @local!)
+```
+
+功能：在 local region 中构造一个 `@local!` 的 [Iterator](core_package_classes.md#class-iteratort)\<T> 对象。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+### init(this @local?)
+
+```cangjie
+public exclave init(this @local?)
+```
+
+功能：在 local region 中构造一个 `@local?` 的 [Iterator](core_package_classes.md#class-iteratort)\<T> 对象。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
 ### func iterator()
 
 ```cangjie
@@ -878,6 +930,46 @@ Iterators are the same object
 打印迭代器 iter2 的第四个元素: None
 ```
 
+### func iterator(this @local!)
+
+```cangjie
+public func iterator(this @local!): Iterator<T> @local!
+```
+
+功能：返回迭代器自身，返回值保持 `@local!` 模式。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- this @local! - 接收者为 `@local!` 实例。
+
+返回值：
+
+- [Iterator](core_package_classes.md#class-iteratort)\<T> @local! - 迭代器自身。
+
+### func iterator(this @local?)
+
+```cangjie
+public func iterator(this @local?): Iterator<T> @local?
+```
+
+功能：返回迭代器自身，返回值保持 `@local?` 模式。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+
+返回值：
+
+- [Iterator](core_package_classes.md#class-iteratort)\<T> @local? - 迭代器自身。
+
 ### func next()
 
 ```cangjie
@@ -918,6 +1010,54 @@ main(): Int64 {
 4
 5
 ```
+
+### func next(this @local!)
+
+```cangjie
+public open func next(this @local!): ?T @local!
+```
+
+功能：获取迭代过程中的下一个 `@local!` 元素。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- this @local! - 接收者为 `@local!` 实例。
+
+返回值：
+
+- [Option](core_package_enums.md#enum-optiont)\<T> @local! - 迭代过程中的下一个元素。
+
+异常：
+
+- [IllegalStateException](../../core/core_package_api/core_package_exceptions.md#class-illegalstateexception) - 当前迭代器未提供该 `@local!` 实现时抛出。
+
+### func next(this @local?)
+
+```cangjie
+public open func next(this @local?): ?T @local?
+```
+
+功能：获取迭代过程中的下一个 `@local?` 元素。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+
+返回值：
+
+- [Option](core_package_enums.md#enum-optiont)\<T> @local? - 迭代过程中的下一个元素。
+
+异常：
+
+- [IllegalStateException](../../core/core_package_api/core_package_exceptions.md#class-illegalstateexception) - 当前迭代器未提供该 `@local?` 实现时抛出。
 
 ### extend\<T> Iterator\<T>
 
@@ -2102,6 +2242,8 @@ true
 ```cangjie
 public open class Object <: Any {
     public const init()
+    public exclave const init(this @local!)
+    public exclave const init(this @local?)
 }
 ```
 
@@ -2128,6 +2270,30 @@ main(): Int64 {
     return 0
 }
 ```
+
+### init(this @local!)
+
+```cangjie
+public exclave const init(this @local!)
+```
+
+功能：在 local region 中构造一个 `object` 实例。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+### init(this @local?)
+
+```cangjie
+public exclave const init(this @local?)
+```
+
+功能：在 local region 中构造一个 `@local?` 的 `object` 实例。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
 
 ## class RangeIterator\<T> <: Iterator\<T> where T <: Countable\<T> & Comparable\<T> & Equatable\<T>
 
@@ -2575,6 +2741,18 @@ Initial capacity: 32
 Initial size: 0
 Initial content: ''
 ```
+
+### init(this @local!)
+
+```cangjie
+public exclave init(this @local!)
+```
+
+功能：构造一个内容为空的 `@local!` StringBuilder 实例，初始容量为 32 字节。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
 
 ### init(Array\<Rune>)
 
@@ -3222,6 +3400,38 @@ Content: 'Hello, World!'
 Size: 13
 ```
 
+### func append(String @local?)
+
+```cangjie
+public func append(str: String @local?): Unit
+```
+
+功能：在 [StringBuilder](core_package_classes.md#class-stringbuilder) 末尾追加参数 `str` 的内容。将字符串字节复制到内部缓冲区，追加后的内容不依赖输入字符串所在局部区域的生命周期。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- str: [String](core_package_structs.md#struct-string) @local? - 待追加的字符串，支持 `@local!` 和 `@local?` 实参。空字符串不改变已有内容。
+
+### func append(this @local!, String @local?)
+
+```cangjie
+public exclave func append(this @local!, str: String @local?): Unit
+```
+
+功能：向局部 StringBuilder 追加字符串内容，支持 `@local!` 和 `@local?` 字符串。空字符串不改变已有内容；容量不足时扩容。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- str: [String](core_package_structs.md#struct-string) @local? - 待追加的字符串。
+
 ### func append(StringBuilder)
 
 ```cangjie
@@ -3492,6 +3702,22 @@ Content: 'The answer is: 42'
 Size: 17
 ```
 
+### func append\<T>(this @local!, T @local?) where T <: ToString
+
+```cangjie
+public exclave func append<T>(this @local!, v: T @local?): Unit where T <: ToString
+```
+
+功能：调用参数的局部 `toString` 方法，将结果追加到局部 StringBuilder。参数类型需要实现对应的局部 `toString` 方法。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- v: T @local? - 待转换并追加的值。
+
 ### func appendFromUtf8(Array\<Byte>)
 
 ```cangjie
@@ -3728,6 +3954,23 @@ Content: 'Hello, World!'
 Size: 13
 Type check: true
 ```
+
+### func toString(this @local?)
+
+```cangjie
+public exclave func toString(this @local?): String @local!
+```
+
+功能：将 StringBuilder 当前内容复制为调用者局部区域中的字符串。支持局部实例和堆实例的 `@local?` 视图；后续追加内容不改变已返回的字符串。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+返回值：
+
+- [String](core_package_structs.md#struct-string) @local! - 当前内容的字符串副本。
+
 
 ## class Thread
 

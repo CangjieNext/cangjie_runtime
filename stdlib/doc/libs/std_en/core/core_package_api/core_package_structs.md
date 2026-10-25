@@ -5861,11 +5861,12 @@ Example:
 <!-- verify -->
 ```cangjie
 main() {
-    // Create an Array<Rune> as a Collection<Rune>
+    // Create an Array<Rune> and bind it as a Collection<Rune>
     let runeArray: Array<Rune> = [r'H', r'e', r'l', r'l', r'o', r' ', r'世', r'界']
-    
+    let runes: Collection<Rune> = runeArray
+
     // Use the init(Collection<Rune>) constructor to create a string
-    let str = String(runeArray)
+    let str = String(runes)
     
     println("String from Collection<Rune>: '${str}'")
     println("String size: ${str.size}")

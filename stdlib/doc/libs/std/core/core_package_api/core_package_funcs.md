@@ -830,6 +830,23 @@ main() {
 I like Cangjie
 ```
 
+## func print(String @local?, Bool)
+
+```cangjie
+public func print(str: String @local?, flush!: Bool = false): Unit
+```
+
+功能：向控制台输出指定字符串，支持局部字符串。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- str: [String](core_package_structs.md#struct-string) @local? - 待输出的字符串，支持 `@local!` 和 `@local?` 实参。
+- flush!: [Bool](core_package_intrinsics.md#bool) - 是否清空缓存，true 清空，false 不清空，默认 false。
+
 ## func print(UInt16, Bool)
 
 ```cangjie
@@ -1345,6 +1362,22 @@ I like Cangjie
 I like programming
 ```
 
+## func println(String @local?)
+
+```cangjie
+public func println(str: String @local?): Unit
+```
+
+功能：向控制台输出指定字符串，末尾添加换行，支持局部字符串。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- str: [String](core_package_structs.md#struct-string) @local? - 待输出的字符串，支持 `@local!` 和 `@local?` 实参。
+
 ## func println(UInt16)
 
 ```cangjie
@@ -1547,15 +1580,21 @@ main() {
 ## func refEq(Object, Object)
 
 ```cangjie
-public func refEq(a: Object, b: Object): Bool
+public func refEq(a: Object @local?, b: Object @local?): Bool
 ```
 
 功能：判断两个 [Object](core_package_classes.md#class-object) 实例的内存地址是否相同。
 
+参数可以是 `@local?` 实例，因此该函数可用于比较 local 对象与堆对象、或两个 local 对象的引用关系。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
 参数：
 
-- a: [Object](core_package_classes.md#class-object) - 一个 [Object](core_package_classes.md#class-object) 实例。
-- b: [Object](core_package_classes.md#class-object) - 另一个 [Object](core_package_classes.md#class-object) 实例。
+- a: [Object](core_package_classes.md#class-object) @local? - 一个 [Object](core_package_classes.md#class-object) 实例。
+- b: [Object](core_package_classes.md#class-object) @local? - 另一个 [Object](core_package_classes.md#class-object) 实例。
 
 返回值：
 
