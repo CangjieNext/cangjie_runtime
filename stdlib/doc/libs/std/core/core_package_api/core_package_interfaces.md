@@ -575,6 +575,78 @@ func toArray(): Array<T>
 
 - [Array](core_package_structs.md#struct-arrayt)\<T> - 转换得到的数组。
 
+### func isEmpty(this @local?)
+
+```cangjie
+func isEmpty(this @local?): Bool
+```
+
+功能：判断当前 `@local?` 集合是否为空。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果为空返回 true，否则返回 false。
+
+异常：
+
+- [UnimplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception) - 当前类型未提供该 `@local?` 实现时抛出。
+
+### func toArray(this @local?)
+
+```cangjie
+func toArray(this @local?): Array<T> @local?
+```
+
+功能：将当前 `@local?` 集合转为 `@local?` 数组类型。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+
+返回值：
+
+- [Array](core_package_structs.md#struct-arrayt)\<T> @local? - 转换得到的 `@local?` 数组。
+
+异常：
+
+- [UnimplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception) - 当前类型未提供该 `@local?` 实现时抛出。
+
+### func toArray(this @local!)
+
+```cangjie
+func toArray(this @local!): Array<T> @local!
+```
+
+功能：将当前 `@local!` 集合转为 `@local!` 数组类型。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- this @local! - 接收者为 `@local!` 实例。
+
+返回值：
+
+- [Array](core_package_structs.md#struct-arrayt)\<T> @local! - 转换得到的 `@local!` 数组。
+
+异常：
+
+- [UnimplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception) - 当前类型未提供该 `@local!` 实现时抛出。
+
 ## interface Comparable\<T>
 
 ```cangjie
@@ -691,6 +763,136 @@ operator func >=(other: T): Bool
 参数：
 
 - other: T - 待与当前实例比较的另一个实例。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果大于等于，返回 true，否则返回 false。
+
+### func compare(this @local?, T @local?)
+
+```cangjie
+func compare(this @local?, other: T @local?): Ordering
+```
+
+功能：判断当前 `@local?` 实例与参数指定的 `@local?` 实例的大小关系。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+- other: T @local? - 待比较的另一个 `@local?` 实例。
+
+返回值：
+
+- [Ordering](core_package_enums.md#enum-ordering) - 大小比较结果。
+
+异常：
+
+- [UnimplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception) - 当前类型未提供该 `@local?` 实现时抛出。
+
+### func ==(this @local?, T @local?)
+
+```cangjie
+operator func ==(this @local?, other: T @local?): Bool
+```
+
+功能：判断当前 `@local?` 实例与参数指定的 `@local?` 实例是否相等，该函数是此接口的 `@local?` 默认实现函数，基于 `compare(this @local?, other @local?)` 的返回值确定结果。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+- other: T @local? - 待比较的另一个 `@local?` 实例。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
+
+### func <(this @local?, T @local?)
+
+```cangjie
+operator func <(this @local?, other: T @local?): Bool
+```
+
+功能：判断当前 `@local?` 实例是否小于参数指定的 `@local?` 实例，该函数是此接口的 `@local?` 默认实现函数。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+- other: T @local? - 待比较的另一个 `@local?` 实例。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果小于，返回 true，否则返回 false。
+
+### func >(this @local?, T @local?)
+
+```cangjie
+operator func >(this @local?, other: T @local?): Bool
+```
+
+功能：判断当前 `@local?` 实例是否大于参数指定的 `@local?` 实例，该函数是此接口的 `@local?` 默认实现函数。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+- other: T @local? - 待比较的另一个 `@local?` 实例。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果大于，返回 true，否则返回 false。
+
+### func <=(this @local?, T @local?)
+
+```cangjie
+operator func <=(this @local?, other: T @local?): Bool
+```
+
+功能：判断当前 `@local?` 实例是否小于等于参数指定的 `@local?` 实例，该函数是此接口的 `@local?` 默认实现函数。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+- other: T @local? - 待比较的另一个 `@local?` 实例。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果小于等于，返回 true，否则返回 false。
+
+### func >=(this @local?, T @local?)
+
+```cangjie
+operator func >=(this @local?, other: T @local?): Bool
+```
+
+功能：判断当前 `@local?` 实例是否大于等于参数指定的 `@local?` 实例，该函数是此接口的 `@local?` 默认实现函数。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+- other: T @local? - 待比较的另一个 `@local?` 实例。
 
 返回值：
 
@@ -912,6 +1114,54 @@ operator func ==(other: T): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
 
+### operator func ==(this @local!, T @local!)
+
+```cangjie
+operator func ==(this @local!, other: T @local!): Bool
+```
+
+功能：判断当前 `@local!` 实例与指定 `@local!` 实例是否相等。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: T @local! - 待比较的另一个 `@local!` 实例。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
+
+异常：
+
+- [UnimplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception) - 当前类型未提供该 `@local!` 实现时抛出。
+
+### operator func ==(this @local?, T @local?)
+
+```cangjie
+operator func ==(this @local?, other: T @local?): Bool
+```
+
+功能：判断当前 `@local?` 实例与指定 `@local?` 实例是否相等。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: T @local? - 待比较的另一个 `@local?` 实例。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
+
+异常：
+
+- [UnimplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception) - 当前类型未提供该 `@local?` 实现时抛出。
+
 ## interface Equatable\<T>
 
 ```cangjie
@@ -922,7 +1172,7 @@ public interface Equatable<T> <: Equal<T> & NotEqual<T> {
 
 功能：该接口是判等和判不等两个接口的集合体。
 
-该接口中提供运算符 != 重载的默认实现，默认实现根据 == 运算的返回值来确定其返回值。例如：如果 a == b 的返回值为 true，则 a != b 返回 false，否则返回 true。
+该接口中提供运算符 != 重载的默认实现。`@local!` 形式的默认实现直接抛出 [UnimplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception)；其余形式的默认实现将运算结果委托给 == 运算（即 `!(this == other)`），其失败行为取决于被委托的 == 实现。例如：如果 a == b 的返回值为 true，则 a != b 返回 false，否则返回 true。
 
 已为部分仓颉类型实现该接口，包括：[Unit](core_package_intrinsics.md#unit)、[Bool](core_package_intrinsics.md#bool) 、[Rune](core_package_intrinsics.md#rune)、[Int64](core_package_intrinsics.md#int64)、[Int32](core_package_intrinsics.md#int32)、[Int16](core_package_intrinsics.md#int16)、[Int8](core_package_intrinsics.md#int8)、[UIntNative](core_package_intrinsics.md#uintnative)、[UInt64](core_package_intrinsics.md#uint64)、[UInt32](core_package_intrinsics.md#uint32)、[UInt16](core_package_intrinsics.md#uint16)、[UInt8](core_package_intrinsics.md#uint8)、[Float64](core_package_intrinsics.md#float64)、[Float32](core_package_intrinsics.md#float32)、[Float16](core_package_intrinsics.md#float16)、[String](core_package_structs.md#struct-string)、[Array](core_package_structs.md#struct-arrayt)、[Box](core_package_classes.md#class-boxt)、[ArrayList](../../collection/collection_package_api/collection_package_class.md#class-arraylistt)、[HashSet](../../collection/collection_package_api/collection_package_class.md#class-hashsett-where-t--hashable--equatablet)。
 
@@ -946,6 +1196,54 @@ operator func !=(other: T): Bool
 返回值：
 
 - [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
+
+### operator func !=(this @local!, T @local!)
+
+```cangjie
+operator func !=(this @local!, other: T @local!): Bool
+```
+
+功能：判断当前 `@local!` 实例与指定 `@local!` 实例是否不相等。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: T @local! - 待比较的另一个 `@local!` 实例。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
+
+异常：
+
+- [UnimplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception) - 当前类型未提供该 `@local!` 实现时抛出。
+
+### operator func !=(this @local?, T @local?)
+
+```cangjie
+operator func !=(this @local?, other: T @local?): Bool
+```
+
+功能：判断当前 `@local?` 实例与指定 `@local?` 实例是否不相等，该函数是此接口的一个默认实现函数，默认实现将运算结果委托给 == 运算（即 `!(this == other)`）。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: T @local? - 待比较的另一个 `@local?` 实例。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
+
+异常：
+
+- [UnimplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception) - 默认实现自身不直接抛出异常；当被委托的 == 实现抛出该异常时随之传播，例如类型未提供 == 的 `@local?` 实现而命中 [Equal](#interface-equalt) 接口的默认实现时。
 
 ## interface Greater\<T>
 
@@ -1022,6 +1320,30 @@ func hashCode(): Int64
 返回值：
 
 - [Int64](core_package_intrinsics.md#int64) - 返回实例类型的哈希值。
+
+### func hashCode(this @local?)
+
+```cangjie
+func hashCode(this @local?): Int64
+```
+
+功能：计算当前 `@local?` 实例的哈希值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+
+返回值：
+
+- [Int64](core_package_intrinsics.md#int64) - 返回实例类型的哈希值。
+
+异常：
+
+- [UnimplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception) - 当前类型未提供该 `@local?` 实现时抛出。
 
 ## interface Hasher
 
@@ -1262,6 +1584,54 @@ func iterator(): Iterator<E>
 
 - [Iterator](core_package_classes.md#class-iteratort)\<E> - 迭代器。
 
+### func iterator(this @local!)
+
+```cangjie
+func iterator(this @local!): Iterator<E> @local!
+```
+
+功能：获取当前 `@local!` 实例的迭代器，返回的迭代器与当前实例绑定在同一个 local region 中。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- this @local! - 接收者为 `@local!` 实例。
+
+返回值：
+
+- [Iterator](core_package_classes.md#class-iteratort)\<E> @local! - 迭代器。
+
+异常：
+
+- [IllegalStateException](../../core/core_package_api/core_package_exceptions.md#class-illegalstateexception) - 当前类型未提供该 `@local!` 实现时抛出。
+
+### func iterator(this @local?)
+
+```cangjie
+func iterator(this @local?): Iterator<E> @local?
+```
+
+功能：获取当前 `@local?` 实例的迭代器，返回的迭代器与当前实例绑定在同一个 local region 中。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+
+返回值：
+
+- [Iterator](core_package_classes.md#class-iteratort)\<E> @local? - 迭代器。
+
+异常：
+
+- [IllegalStateException](../../core/core_package_api/core_package_exceptions.md#class-illegalstateexception) - 当前类型未提供该 `@local?` 实现时抛出。
+
 ## interface Less\<T>
 
 ```cangjie
@@ -1429,3 +1799,27 @@ func toString(): String
 返回值：
 
 - [String](core_package_structs.md#struct-string) - 返回实例类型的字符串表示。
+
+### func toString(this @local?)
+
+```cangjie
+func toString(this @local?): String @local!
+```
+
+功能：将当前 `@local?` 实例转换为可输出的字符串，返回的字符串绑定在调用者的 local region 中。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+
+返回值：
+
+- [String](core_package_structs.md#struct-string) @local! - 返回实例类型的字符串表示。
+
+异常：
+
+- [UnimplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception) - 当前类型未提供该 `@local?` 实现时抛出。

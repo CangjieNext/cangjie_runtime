@@ -710,6 +710,43 @@ main() {
 添加17个元素后容量: 24
 ```
 
+### prop capacity @local?
+
+```cangjie
+public prop capacity: Int64 @local?
+```
+
+功能：返回此 `@local?` [ArrayList](collection_package_class.md#class-arraylistt) 的容量大小。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+类型：[Int64](../../core/core_package_api/core_package_intrinsics.md#int64)
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+exclave func makeLocal(): ArrayList<Int64> @local? {
+    let a: ArrayList<Int64> @local? = ArrayList<Int64>(16) @local!
+    a
+}
+
+main() {
+    let list: ArrayList<Int64> @local? = makeLocal()
+    println("cap>=16: ${list.capacity >= 16}")
+}
+```
+
+运行结果：
+
+```text
+cap>=16: true
+```
+
 ### prop first
 
 ```cangjie
@@ -745,6 +782,86 @@ main() {
 ```text
 第一个元素: Some(1)
 空列表第一个元素: None
+```
+
+### prop first @local!（exclave）
+
+```cangjie
+public prop first: ?T @local!
+```
+
+功能：返回此 `@local!` [ArrayList](collection_package_class.md#class-arraylistt) 中的第一个元素，如果没有则返回 None。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+类型：?T @local!
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let list: ArrayList<Int64> @local! = ArrayList<Int64>() @local!
+    list.add(1)
+    let f = list.first
+    match (f) {
+        case Some(v) => println("first=${v}")
+        case None => println("none")
+    }
+}
+```
+
+运行结果：
+
+```text
+first=1
+```
+
+### prop first @local?
+
+```cangjie
+public prop first: ?T @local?
+```
+
+功能：返回此 `@local?` [ArrayList](collection_package_class.md#class-arraylistt) 中的第一个元素，如果没有则返回 None。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+类型：?T @local?
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+exclave func makeLocal(): ArrayList<Int64> @local? {
+    let a: ArrayList<Int64> @local! = ArrayList<Int64>(16) @local!
+    a.add(1)
+    let v: ArrayList<Int64> @local? = a
+    v
+}
+
+main() {
+    let list: ArrayList<Int64> @local? = makeLocal()
+    let f = list.first
+    match (f) {
+        case Some(v) => println("first=${v}")
+        case None => println("none")
+    }
+}
+```
+
+运行结果：
+
+```text
+first=1
 ```
 
 ### prop last
@@ -784,6 +901,74 @@ main() {
 空列表最后一个元素: None
 ```
 
+### prop last @local!（exclave）
+
+```cangjie
+public prop last: ?T @local!
+```
+
+功能：返回此 `@local!` [ArrayList](collection_package_class.md#class-arraylistt) 中的最后一个元素，如果没有则返回 None。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+类型：?T @local!
+
+示例：
+
+<!-- compile -->
+```cangjie
+import std.collection.*
+
+main() {
+    let list: ArrayList<Int64> @local! = ArrayList<Int64>() @local!
+    list.add(1)
+    let l = list.last
+    match (l) {
+        case Some(v) => println("last=${v}")
+        case None => println("none")
+    }
+}
+```
+
+### prop last @local?
+
+```cangjie
+public prop last: ?T @local?
+```
+
+功能：返回此 `@local?` [ArrayList](collection_package_class.md#class-arraylistt) 中的最后一个元素，如果没有则返回 None。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+类型：?T @local?
+
+示例：
+
+<!-- compile -->
+```cangjie
+import std.collection.*
+
+exclave func makeLocal(): ArrayList<Int64> @local? {
+    let a: ArrayList<Int64> @local! = ArrayList<Int64>(16) @local!
+    a.add(1)
+    let v: ArrayList<Int64> @local? = a
+    v
+}
+
+main() {
+    let list: ArrayList<Int64> @local? = makeLocal()
+    let l = list.last
+    match (l) {
+        case Some(v) => println("last=${v}")
+        case None => println("none")
+    }
+}
+```
+
 ### prop size
 
 ```cangjie
@@ -817,6 +1002,40 @@ main() {
 ```text
 初始大小: 0
 添加2个元素后大小: 2
+```
+
+### prop size @local?
+
+```cangjie
+public prop size: Int64 @local?
+```
+
+功能：返回此 `@local?` [ArrayList](collection_package_class.md#class-arraylistt) 中的元素个数。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+类型：[Int64](../../core/core_package_api/core_package_intrinsics.md#int64)
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let list: ArrayList<Int64> @local! = ArrayList<Int64>() @local!
+    list.add(1)
+    list.add(2)
+    println("size=${list.size}")
+}
+```
+
+运行结果：
+
+```text
+size=2
 ```
 
 ### init()
@@ -967,6 +1186,182 @@ main() {
 ```text
 列表内容: [0, 1, 4, 9, 16]
 列表大小: 5
+```
+
+### init(this @local!)
+
+```cangjie
+public exclave init(this @local!)
+```
+
+功能：在 local region 中构造一个空的 `@local!` 动态数组。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let list: ArrayList<Int64> @local! = ArrayList<Int64>() @local!
+    println("size=${list.size}")
+}
+```
+
+运行结果：
+
+```text
+size=0
+```
+
+### init(this @local!, Int64)
+
+```cangjie
+public exclave init(this @local!, capacity: Int64)
+```
+
+功能：在 local region 中构造一个容量为 capacity 的 `@local!` 动态数组。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- this @local! - 接收者为 `@local!` 实例。
+- capacity: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - 动态数组容量。
+
+异常：
+
+- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 当 capacity 小于 0，抛出异常。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let list: ArrayList<Int64> @local? = ArrayList<Int64>(16) @local!
+    println("cap>=16: ${list.capacity >= 16}")
+}
+```
+
+运行结果：
+
+```text
+cap>=16: true
+```
+
+### init(this @local!, Int64, (Int64) -> T @local!)
+
+```cangjie
+public exclave init(this @local!, size: Int64, initElement: ((Int64) -> T @local!) @local?)
+```
+
+功能：在 local region 中构造一个大小为 size 的 `@local!` 动态数组，元素由初始化函数计算获取。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- this @local! - 接收者为 `@local!` 实例。
+- size: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - 动态数组大小。
+- initElement: (([Int64](../../core/core_package_api/core_package_intrinsics.md#int64)) -> T @local!) @local? - 初始化函数，其返回值类型为 `T @local!`。
+
+异常：
+
+- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 当 size 小于 0，抛出异常。
+
+示例：
+
+<!-- compile -->
+```cangjie
+import std.collection.*
+
+main() {
+    let list: ArrayList<Int64> @local! = ArrayList<Int64>(3) { index => index * 2 }
+    println("size=${list.size} v2=${list[2]}")
+}
+```
+
+### init(this @local!, Collection\<T> @local!)
+
+```cangjie
+public exclave init(this @local!, elements: Collection<T> @local!)
+```
+
+功能：在 local region 中根据 `@local!` 集合构造一个 `@local!` 动态数组。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- this @local! - 接收者为 `@local!` 实例。
+- elements: [Collection](../../core/core_package_api/core_package_interfaces.md#interface-collectiont)\<T> @local! - 根据该集合构造动态数组。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let src: Array<Int64> @local! = [1, 2, 3]
+    let coll: Collection<Int64> @local! = src
+    let list: ArrayList<Int64> @local! = ArrayList<Int64>(coll)
+    println("size=${list.size}")
+}
+```
+
+运行结果：
+
+```text
+size=3
+```
+
+### init(this @local?, Array\<T> @local?)
+
+```cangjie
+public exclave init(this @local?, elements: Array<T> @local?)
+```
+
+功能：根据 `@local?` 数组构造一个 `@local?` 动态数组。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+- elements: [Array](../../core/core_package_api/core_package_structs.md#struct-arrayt)\<T> @local? - 根据该数组构造动态数组。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let src: Array<Int64> @local! = [1, 2, 3]
+    let list: ArrayList<Int64> @local? = ArrayList<Int64>(src) @local!
+    println("size=${list.size}")
+}
+```
+
+运行结果：
+
+```text
+size=3
 ```
 
 ### static func of(Array\<T>)
@@ -1680,6 +2075,99 @@ main() {
 索引5处的元素: None
 ```
 
+### func get(this @local!, Int64)
+
+```cangjie
+public exclave func get(this @local!, index: Int64): ?T @local!
+```
+
+功能：获取当前 `@local!` 列表中 index 位置的元素，返回值与当前列表绑定在同一个 local region 中。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- this @local! - 接收者为 `@local!` 实例。
+- index: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - 要获取的元素下标。
+
+返回值：
+
+- ?T @local! - 获取得到下标对应的元素，用 [Option](../../core/core_package_api/core_package_enums.md#enum-optiont) 封装，如果下标越界则返回 None。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let list: ArrayList<Int64> @local! = ArrayList<Int64>() @local!
+    list.add(10)
+    let g = list.get(0)
+    match (g) {
+        case Some(v) => println("g=${v}")
+        case None => println("none")
+    }
+}
+```
+
+运行结果：
+
+```text
+g=10
+```
+
+### func get(this @local?, Int64)
+
+```cangjie
+public exclave func get(this @local?, index: Int64): ?T @local?
+```
+
+功能：获取当前 `@local?` 列表中 index 位置的元素，返回值与当前列表绑定在同一个 local region 中。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+- index: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - 要获取的元素下标。
+
+返回值：
+
+- ?T @local? - 获取得到下标对应的元素，用 [Option](../../core/core_package_api/core_package_enums.md#enum-optiont) 封装，如果下标越界则返回 None。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+exclave func makeLocal(): ArrayList<Int64> @local? {
+    let src: Array<Int64> @local! = [10, 20]
+    let a: ArrayList<Int64> @local? = ArrayList<Int64>(src) @local!
+    a
+}
+
+main() {
+    let list: ArrayList<Int64> @local? = makeLocal()
+    let g = list.get(1)
+    match (g) {
+        case Some(v) => println("g=${v}")
+        case None => println("none")
+    }
+}
+```
+
+运行结果：
+
+```text
+g=20
+```
+
 ### func getRawArray()
 
 ```cangjie
@@ -1823,6 +2311,49 @@ main() {
 非空列表是否为空: false
 ```
 
+### func isEmpty(this @local?)
+
+```cangjie
+public func isEmpty(this @local?): Bool
+```
+
+功能：判断当前 `@local?` [ArrayList](collection_package_class.md#class-arraylistt) 是否为空。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+
+返回值：
+
+- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 如果列表为空，返回 true，否则返回 false。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+exclave func makeLocal(): ArrayList<Int64> @local? {
+    let a: ArrayList<Int64> @local? = ArrayList<Int64>(8) @local!
+    a
+}
+
+main() {
+    let list: ArrayList<Int64> @local? = makeLocal()
+    println("isEmpty=${list.isEmpty()}")
+}
+```
+
+运行结果：
+
+```text
+isEmpty=true
+```
+
 ### func iterator()
 
 ```cangjie
@@ -1859,6 +2390,98 @@ main() {
 1
 2
 3
+```
+
+### func iterator(this @local!)
+
+```cangjie
+public exclave func iterator(this @local!): Iterator<T> @local!
+```
+
+功能：获取当前 `@local!` 列表的迭代器，迭代器与当前列表绑定在同一个 local region 中。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- this @local! - 接收者为 `@local!` 实例。
+
+返回值：
+
+- [Iterator](../../core/core_package_api/core_package_classes.md#class-iteratort)\<T> @local! - 列表的迭代器。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let list: ArrayList<Int64> @local! = ArrayList<Int64>() @local!
+    list.add(1)
+    let it: Iterator<Int64> @local! = list.iterator()
+    let first = it.next()
+    if (let Some(v) <- first) {
+        println("first=${v}")
+    }
+}
+```
+
+运行结果：
+
+```text
+first=1
+```
+
+### func iterator(this @local?)
+
+```cangjie
+public exclave func iterator(this @local?): Iterator<T> @local?
+```
+
+功能：获取当前 `@local?` 列表的迭代器，迭代器与当前列表绑定在同一个 local region 中。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+
+返回值：
+
+- [Iterator](../../core/core_package_api/core_package_classes.md#class-iteratort)\<T> @local? - 列表的迭代器。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+exclave func makeLocal(): ArrayList<Int64> @local? {
+    let a: ArrayList<Int64> @local! = ArrayList<Int64>(8) @local!
+    a.add(7)
+    let v: ArrayList<Int64> @local? = a
+    v
+}
+
+main() {
+    let list: ArrayList<Int64> @local? = makeLocal()
+    let it: Iterator<Int64> @local? = list.iterator()
+    let first = it.next()
+    if (let Some(v) <- first) {
+        println("first=${v}")
+    }
+}
+```
+
+运行结果：
+
+```text
+first=7
 ```
 
 <!--Del-->
@@ -2392,6 +3015,107 @@ main() {
 通过 Range 构造函数切片: [2, 3, 4]
 ```
 
+### func slice(this @local!, Range\<Int64>)
+
+```cangjie
+public exclave func slice(this @local!, range: Range<Int64>): ArrayList<T> @local!
+```
+
+功能：获取当前 `@local!` 列表的子列表切片，切片与当前列表绑定在同一个 local region 中。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- this @local! - 接收者为 `@local!` 实例。
+- range: [Range](../../core/core_package_api/core_package_structs.md#struct-ranget-where-t--countablet--comparablet--equatablet)\<[Int64](../../core/core_package_api/core_package_intrinsics.md#int64)> - 切片的范围，其 step 需为 1。
+
+返回值：
+
+- [ArrayList](collection_package_class.md#class-arraylistt)\<T> @local! - 切片列表。
+
+异常：
+
+- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 当 range.[step](collection_package_function.md#func-steptint64) 不等于 1 时，抛出异常。
+- [IndexOutOfBoundsException](../../core/core_package_api/core_package_exceptions.md#class-indexoutofboundsexception) - 如果 range 超出列表边界，抛出异常。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let list: ArrayList<Int64> @local! = ArrayList<Int64>() @local!
+    list.add(1)
+    list.add(2)
+    list.add(3)
+    let r: Range<Int64> = 0..2
+    let sl: ArrayList<Int64> @local! = list.slice(r)
+    println("sl=${sl.size}")
+}
+```
+
+运行结果：
+
+```text
+sl=2
+```
+
+### func slice(this @local?, Range\<Int64>)
+
+```cangjie
+public exclave func slice(this @local?, range: Range<Int64>): ArrayList<T> @local?
+```
+
+功能：获取当前 `@local?` 列表的子列表切片，切片与当前列表绑定在同一个 local region 中。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+- range: [Range](../../core/core_package_api/core_package_structs.md#struct-ranget-where-t--countablet--comparablet--equatablet)\<[Int64](../../core/core_package_api/core_package_intrinsics.md#int64)> - 切片的范围，其 step 需为 1。
+
+返回值：
+
+- [ArrayList](collection_package_class.md#class-arraylistt)\<T> @local? - 切片列表。
+
+异常：
+
+- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 当 range.[step](collection_package_function.md#func-steptint64) 不等于 1 时，抛出异常。
+- [IndexOutOfBoundsException](../../core/core_package_api/core_package_exceptions.md#class-indexoutofboundsexception) - 如果 range 超出列表边界，抛出异常。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+exclave func makeLocal(): ArrayList<Int64> @local? {
+    let src: Array<Int64> @local! = [1, 2, 3]
+    let a: ArrayList<Int64> @local? = ArrayList<Int64>(src) @local!
+    a
+}
+
+main() {
+    let list: ArrayList<Int64> @local? = makeLocal()
+    let r: Range<Int64> = 0..2
+    let sl: ArrayList<Int64> @local? = list.slice(r)
+    println("sl=${sl.size}")
+}
+```
+
+运行结果：
+
+```text
+sl=2
+```
+
 ### func sortBy((T, T) -> Ordering) <sup>(deprecated)</sup>
 
 ```cangjie
@@ -2649,6 +3373,46 @@ main() {
 数组: [0, 1, 2, 3]
 ```
 
+### func toArray(this @local!)
+
+```cangjie
+public exclave func toArray(this @local!): Array<T> @local!
+```
+
+功能：将当前 `@local!` 列表转换为 `@local!` 数组，数组与当前列表绑定在同一个 local region 中。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- this @local! - 接收者为 `@local!` 实例。
+
+返回值：
+
+- [Array](../../core/core_package_api/core_package_structs.md#struct-arrayt)\<T> @local! - 转换得到的 `@local!` 数组。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let list: ArrayList<Int64> @local! = ArrayList<Int64>() @local!
+    list.add(1)
+    let arr: Array<Int64> @local! = list.toArray()
+    println("arr=${arr.size}")
+}
+```
+
+运行结果：
+
+```text
+arr=1
+```
+
 ### operator func \[](Int64)
 
 ```cangjie
@@ -2697,6 +3461,100 @@ main() {
 索引1处的元素: 20
 修改后索引1处的元素: 25
 修改后的列表: [10, 25, 30]
+```
+
+### operator func \[](this @local!, Int64)
+
+```cangjie
+public exclave operator func [](this @local!, index: Int64): T @local!
+```
+
+功能：获取当前 `@local!` 列表中 index 位置的元素。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- this @local! - 接收者为 `@local!` 实例。
+- index: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - 要获取的元素下标。
+
+返回值：
+
+- T @local! - 索引位置的元素的值。
+
+异常：
+
+- [IndexOutOfBoundsException](../../core/core_package_api/core_package_exceptions.md#class-indexoutofboundsexception) - 当 index 超出范围时，抛出异常。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let list: ArrayList<Int64> @local! = ArrayList<Int64>() @local!
+    list.add(10)
+    list.add(20)
+    println("idx1=${list[1]}")
+}
+```
+
+运行结果：
+
+```text
+idx1=20
+```
+
+### operator func \[](this @local?, Int64)
+
+```cangjie
+public exclave operator func [](this @local?, index: Int64): T @local?
+```
+
+功能：获取当前 `@local?` 列表中 index 位置的元素。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+- index: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - 要获取的元素下标。
+
+返回值：
+
+- T @local? - 索引位置的元素的值。
+
+异常：
+
+- [IndexOutOfBoundsException](../../core/core_package_api/core_package_exceptions.md#class-indexoutofboundsexception) - 当 index 超出范围时，抛出异常。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+exclave func makeLocal(): ArrayList<Int64> @local? {
+    let src: Array<Int64> @local! = [10, 20]
+    let a: ArrayList<Int64> @local? = ArrayList<Int64>(src) @local!
+    a
+}
+
+main() {
+    let list: ArrayList<Int64> @local? = makeLocal()
+    println("idx1=${list[1]}")
+}
+```
+
+运行结果：
+
+```text
+idx1=20
 ```
 
 ### operator func \[](Int64, T)
@@ -2803,6 +3661,99 @@ main() {
 切片列表大小: 3
 ```
 
+### operator func \[](this @local!, Range\<Int64>)
+
+```cangjie
+public exclave operator func [](this @local!, range: Range<Int64>): ArrayList<T> @local!
+```
+
+功能：获取当前 `@local!` 列表的子列表切片，切片与当前列表绑定在同一个 local region 中。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- this @local! - 接收者为 `@local!` 实例。
+- range: [Range](../../core/core_package_api/core_package_structs.md#struct-ranget-where-t--countablet--comparablet--equatablet)\<[Int64](../../core/core_package_api/core_package_intrinsics.md#int64)> - 切片的范围，其 step 需为 1。
+
+返回值：
+
+- [ArrayList](collection_package_class.md#class-arraylistt)\<T> @local! - 切片列表。
+
+异常：
+
+- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 当 range.[step](collection_package_function.md#func-steptint64) 不等于 1 时，抛出异常。
+- [IndexOutOfBoundsException](../../core/core_package_api/core_package_exceptions.md#class-indexoutofboundsexception) - 当 range 超出范围时，抛出异常。
+
+示例：
+
+<!-- compile -->
+```cangjie
+import std.collection.*
+
+main() {
+    let list: ArrayList<Int64> @local! = ArrayList<Int64>() @local!
+    list.add(1)
+    let r: Range<Int64> = 0..1
+    let sl: ArrayList<Int64> @local! = list[r]
+    println("sl=${sl.size}")
+}
+```
+
+### operator func \[](this @local?, Range\<Int64>)
+
+```cangjie
+public exclave operator func [](this @local?, range: Range<Int64>): ArrayList<T> @local?
+```
+
+功能：获取当前 `@local?` 列表的子列表切片，切片与当前列表绑定在同一个 local region 中。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+- range: [Range](../../core/core_package_api/core_package_structs.md#struct-ranget-where-t--countablet--comparablet--equatablet)\<[Int64](../../core/core_package_api/core_package_intrinsics.md#int64)> - 切片的范围，其 step 需为 1。
+
+返回值：
+
+- [ArrayList](collection_package_class.md#class-arraylistt)\<T> @local? - 切片列表。
+
+异常：
+
+- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 当 range.[step](collection_package_function.md#func-steptint64) 不等于 1 时，抛出异常。
+- [IndexOutOfBoundsException](../../core/core_package_api/core_package_exceptions.md#class-indexoutofboundsexception) - 当 range 超出范围时，抛出异常。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+exclave func makeLocal(): ArrayList<Int64> @local? {
+    let src: Array<Int64> @local! = [1, 2, 3]
+    let a: ArrayList<Int64> @local? = ArrayList<Int64>(src) @local!
+    a
+}
+
+main() {
+    let list: ArrayList<Int64> @local? = makeLocal()
+    let r: Range<Int64> = 0..2
+    let sl: ArrayList<Int64> @local? = list[r]
+    println("sl=${sl.size}")
+}
+```
+
+运行结果：
+
+```text
+sl=2
+```
+
 <!--Del-->
 ### extend\<T> ArrayList\<T>
 
@@ -2858,6 +3809,79 @@ main() {
 索引 0: apple
 索引 1: banana
 索引 2: cherry
+```
+
+#### func enumerate(this @local!)
+
+```cangjie
+public exclave func enumerate(this @local!): ArrayList<(Int64, T)> @local!
+```
+
+功能：获取当前 `@local!` 列表带索引的新列表，结果与当前列表绑定在同一个 local region 中。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local! - 接收者为 `@local!` 实例。
+
+返回值：
+
+- [ArrayList](collection_package_class.md#class-arraylistt)\<([Int64](../../core/core_package_api/core_package_intrinsics.md#int64), T)> @local! - 带索引的 `@local!` 新列表。
+
+示例：
+
+<!-- compile -->
+```cangjie
+import std.collection.*
+
+main() {
+    let list: ArrayList<String> @local! = ArrayList<String>() @local!
+    list.add("apple")
+    let enumerated: ArrayList<(Int64, String)> @local! = list.enumerate()
+    println("size=${enumerated.size}")
+}
+```
+
+#### func zip\<R>(this @local!, ArrayList\<R> @local!)
+
+```cangjie
+public exclave func zip<R>(this @local!, other: ArrayList<R> @local!): ArrayList<(T, R)> @local!
+```
+
+功能：将当前 `@local!` 列表与 other 指向的 `@local!` 列表中的元素按位置一一配对，返回新的 `@local!` 列表，结果与当前列表绑定在同一个 local region 中。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local! - 接收者为 `@local!` 实例。
+- other: [ArrayList](collection_package_class.md#class-arraylistt)\<R> @local! - 待配对的另一个 `@local!` 列表。
+
+返回值：
+
+- [ArrayList](collection_package_class.md#class-arraylistt)\<(T, R)> @local! - 配对后的 `@local!` 新列表。
+
+示例：
+
+<!-- compile -->
+```cangjie
+import std.collection.*
+
+main() {
+    let a: ArrayList<Int64> @local! = ArrayList<Int64>() @local!
+    a.add(1)
+    let b: ArrayList<Int64> @local! = ArrayList<Int64>() @local!
+    b.add(2)
+    let zipped: ArrayList<(Int64, Int64)> @local! = a.zip(b)
+    println("size=${zipped.size}")
+}
 ```
 
 #### func zip\<R>(ArrayList\<R>)
@@ -2962,6 +3986,99 @@ main() {
 ```text
 列表包含元素2: true
 列表包含元素5: false
+```
+
+#### operator func ==(this @local?, ArrayList\<T> @local?)
+
+```cangjie
+public operator func ==(this @local?, other: ArrayList<T> @local?): Bool
+```
+
+功能：判断当前 `@local?` 实例与指定 `@local?` [ArrayList](./collection_package_class.md#class-arraylistt) 实例是否相等。
+
+两个列表相等指的是其中的每个元素都相等。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+- other: [ArrayList](./collection_package_class.md#class-arraylistt)\<T> @local? - 用于与当前实例比较的另一个 `@local?` 实例。
+
+返回值：
+
+- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let a: ArrayList<Int64> @local! = ArrayList<Int64>() @local!
+    a.add(5)
+    let b: ArrayList<Int64> @local! = ArrayList<Int64>() @local!
+    b.add(5)
+    let aq: ArrayList<Int64> @local? = a
+    let bq: ArrayList<Int64> @local? = b
+    println("eq=${aq == bq}")
+}
+```
+
+运行结果：
+
+```text
+eq=true
+```
+
+#### operator func !=(this @local?, ArrayList\<T> @local?)
+
+```cangjie
+public operator func !=(this @local?, other: ArrayList<T> @local?): Bool
+```
+
+功能：判断当前 `@local?` 实例与指定 `@local?` [ArrayList](./collection_package_class.md#class-arraylistt) 实例是否不等。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+- other: [ArrayList](./collection_package_class.md#class-arraylistt)\<T> @local? - 用于与当前实例比较的另一个 `@local?` 实例。
+
+返回值：
+
+- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let a: ArrayList<Int64> @local! = ArrayList<Int64>() @local!
+    a.add(5)
+    let b: ArrayList<Int64> @local! = ArrayList<Int64>() @local!
+    b.add(6)
+    let c: ArrayList<Int64> @local! = ArrayList<Int64>() @local!
+    c.add(5)
+    let aq: ArrayList<Int64> @local? = a
+    println("ne1=${aq != b}")
+    println("ne2=${aq != c}")
+}
+```
+
+运行结果：
+
+```text
+ne1=true
+ne2=false
 ```
 
 #### operator func !=(ArrayList\<T>)
@@ -3225,7 +4342,7 @@ main() {
 稳定降序排序后: [4, 3, 2, 1]
 ```
 
-### extend\<T> ArrayList\<T> <: ToString where T <: ToString
+### extend\<T> ArrayList\<T> <: ToString where T \<: ToString
 
 ```cangjie
 extend<T> ArrayList<T> <: ToString where T <: ToString
@@ -3273,6 +4390,10 @@ main() {
 ```text
 字符串: [1, 2, 3]
 ```
+
+### extend\<T> ArrayList\<T> <: ListOfCopyable\<T> where T \<: Copyable <sup>(已移除)</sup>
+
+该扩展已随 [ListOfCopyable](collection_package_interface.md) 接口一并移除（CJEEP-005 2026-10-13 修订）：`@local?` 修改类成员（add / remove / removeIf / clear / reverse / \[]=）不在 CJEEP-005 文档基线内，对应的 `@local!` 形式由 [ArrayList](#class-arraylistt) 类体直接提供。
 
 ## class ArrayQueue\<T>
 
@@ -4855,6 +5976,75 @@ main() {
 添加集合后 'a' 的值: 10
 ```
 
+### init(this @local!)
+
+```cangjie
+public exclave init(this @local!)
+```
+
+功能：在 local region 中构造一个具有默认初始容量的 `@local!` [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek)。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let map: HashMap<Int64, Int64> @local! = HashMap<Int64, Int64>() @local!
+    println("empty=${map.isEmpty()}")
+}
+```
+
+运行结果：
+
+```text
+empty=true
+```
+
+### init(this @local!, Int64)
+
+```cangjie
+public exclave init(this @local!, capacity: Int64)
+```
+
+功能：在 local region 中构造一个指定容量的 `@local!` [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek)。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- this @local! - 接收者为 `@local!` 实例。
+- capacity: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - 哈希表容量。
+
+异常：
+
+- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 当 capacity 小于 0，抛出异常。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let map: HashMap<Int64, Int64> @local! = HashMap<Int64, Int64>(32) @local!
+    println("cap>=32: ${map.capacity >= 32}")
+}
+```
+
+运行结果：
+
+```text
+cap>=32: true
+```
+
 ### func add(K, V)
 
 ```cangjie
@@ -4906,6 +6096,43 @@ main() {
 添加新键 'first' 的返回值: false
 替换键 'first' 的旧值: 100
 当前 'first' 的值: 200
+```
+
+### func add(this @local!, K @local!, V @local!)
+
+```cangjie
+public exclave func add(this @local!, key: K @local!, value: V @local!): Option<V> @local!
+```
+
+功能：向当前 `@local!` [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 中添加键值对。
+
+如果键已存在，则旧值将被新值替换，并返回旧值；如果键不存在，则添加键值对，并返回 None。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- this @local! - 接收者为 `@local!` 实例。
+- key: K @local! - 要添加的键。
+- value: V @local! - 要添加的值。
+
+返回值：
+
+- [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)\<V> @local! - 如果键已存在，返回旧值；如果键不存在，返回 None。
+
+示例：
+
+<!-- compile -->
+```cangjie
+import std.collection.*
+
+main() {
+    let map: HashMap<Int64, Int64> @local! = HashMap<Int64, Int64>() @local!
+    map.add(1, 100)
+    println("size=${map.size}")
+}
 ```
 
 <!--Del-->
@@ -5207,6 +6434,57 @@ main() {
 是否包含键 'orange': false
 ```
 
+### func contains(this @local?, K @local?)
+
+```cangjie
+public func contains(this @local?, key: K @local?): Bool
+```
+
+功能：判断当前 `@local?` [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 中是否包含指定键的映射。
+
+键的哈希与相等性判断均使用 K 类型的 `@local?` 覆写（Hashable/Equatable 适配层）。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 本函数要求接收者为 `@local?` 实例，且键为 `@local?` 类型变量（通过 exclave 函数返回或从 `@local?` 接收者的其他成员获得）。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+- key: K @local? - 待判断的键。
+
+返回值：
+
+- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 如果存在该键的映射，返回 true，否则返回 false。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+exclave func makeMap(): HashMap<Int64, Int64> @local? {
+    let m: HashMap<Int64, Int64> @local! = HashMap<Int64, Int64>() @local!
+    m.add(1, 100)
+    m
+}
+
+main() {
+    let map: HashMap<Int64, Int64> @local? = makeMap()
+    let k: Int64 @local? = 1
+    let c = map.contains(k)
+    println("c=${c}")
+}
+```
+
+运行结果：
+
+```text
+c=true
+```
+
+
 ### func entryView(K)
 
 ```cangjie
@@ -5403,6 +6681,41 @@ main() {
 ```
 
 <!--DelEnd-->
+### func forEach(this @local?, (K @local?, V @local?) -> Unit)
+
+```cangjie
+public func forEach(this @local?, action: ((K @local?, V @local?) -> Unit) @local?)
+```
+
+功能：对当前 `@local?` [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 中的每一个键值对执行一次 action 函数。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+- action: ((K @local?, V @local?) -> [Unit](../../core/core_package_api/core_package_intrinsics.md#unit)) @local? - 传入的函数，对每个键值对执行。
+
+示例：
+
+<!-- compile -->
+```cangjie
+import std.collection.*
+
+exclave func makeMap(): HashMap<Int64, Int64> @local? {
+    let m: HashMap<Int64, Int64> @local! = HashMap<Int64, Int64>() @local!
+    m.add(1, 100)
+    m
+}
+
+main() {
+    let map: HashMap<Int64, Int64> @local? = makeMap()
+    map.forEach({k: Int64 @local?, v: Int64 @local? => ()})
+}
+```
+
 ### func get(K)
 
 ```cangjie
@@ -5454,6 +6767,44 @@ main() {
 键 'height' 不存在
 ```
 
+### func get(this @local!, K @local?)
+
+```cangjie
+public exclave func get(this @local!, key: K @local?): ?V @local!
+```
+
+功能：获取当前 `@local!` [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 中指定键 key 对应的值。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 当前版本存在已知缺陷：当 K 为 String 等引用类型时，添加元素后调用 `get` 可能触发运行时写屏障缺陷导致进程异常中止。请以实际 SDK 版本行为为准，或使用 `contains` / `forEach` 等替代方式。
+
+参数：
+
+- this @local! - 接收者为 `@local!` 实例。
+- key: K @local? - 待获取的键。
+
+返回值：
+
+- ?V @local! - 指定键对应的值，用 [Option](../../core/core_package_api/core_package_enums.md#enum-optiont) 封装，如果该键不存在则返回 None。
+
+示例：
+
+<!-- code_no_check -->
+```cangjie
+import std.collection.*
+
+main() {
+    let map: HashMap<Int64, Int64> @local! = HashMap<Int64, Int64>() @local!
+    map.add(1, 100)
+    match (map.get(1)) {
+        case Some(v) => println("v=${v}")
+        case None => println("none")
+    }
+}
+```
+
 ### func isEmpty()
 
 ```cangjie
@@ -5497,6 +6848,45 @@ main() {
 空HashMap是否为空: true
 添加元素后是否为空: false
 清空后是否为空: true
+```
+
+### func isEmpty(this @local?)
+
+```cangjie
+public func isEmpty(this @local?): Bool
+```
+
+功能：判断当前 `@local?` [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 是否为空，如果是，则返回 true；否则，返回 false。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+
+返回值：
+
+- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 是否为空。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let map: HashMap<Int64, Int64> @local! = HashMap<Int64, Int64>() @local!
+    map.add(1, 100)
+    println("isEmpty=${map.isEmpty()}")
+}
+```
+
+运行结果：
+
+```text
+isEmpty=false
 ```
 
 ### func iterator()
@@ -6238,6 +7628,84 @@ main() {
 'second' 的值: 200
 ```
 
+### operator func \[](this @local!, K @local?)
+
+```cangjie
+public exclave operator func [](this @local!, key: K @local?): V @local!
+```
+
+功能：运算符重载 get 方法，如果键存在，返回键对应的值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- this @local! - 接收者为 `@local!` 实例。
+- key: K @local? - 传递值进行判断。
+
+返回值：
+
+- V @local! - 与键对应的值。
+
+异常：
+
+- [NoneValueException](../../core/core_package_api/core_package_exceptions.md#class-nonevalueexception) - 如果该 [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 不存在该键，抛此异常。
+
+示例：
+
+<!-- code_no_check -->
+```cangjie
+import std.collection.*
+
+main() {
+    let map: HashMap<Int64, Int64> @local! = HashMap<Int64, Int64>() @local!
+    map.add(1, 100)
+    let k: Int64 @local! = 1
+    let v: Int64 @local! = map[k]
+    println("v=${v}")
+}
+```
+
+### operator func \[](this @local!, K @local!, V @local!)
+
+```cangjie
+public exclave operator func [](this @local!, key: K @local!, value!: V @local!): Unit
+```
+
+功能：运算符重载 add 方法，如果键存在，新 value 覆盖旧 value，如果键不存在，添加此键值对。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- this @local! - 接收者为 `@local!` 实例。
+- key: K @local! - 传递值进行判断。
+- value!: V @local! - 传递要设置的值。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let map: HashMap<Int64, Int64> @local! = HashMap<Int64, Int64>() @local!
+    let k: Int64 @local! = 1
+    map[k] = 100
+    println("size=${map.size}")
+}
+```
+
+运行结果：
+
+```text
+size=1
+```
+
 ### extend\<K, V> HashMap\<K, V> <: Equatable\<HashMap\<K, V>> where V <: Equatable\<V>
 
 ```cangjie
@@ -6459,6 +7927,40 @@ main() {
 }
 ```
 
+### init(this @local!, HashMap\<K, V> @local!)
+
+```cangjie
+public exclave init(this @local!, map: HashMap<K, V> @local!)
+```
+
+功能：在 local region 中根据 `@local!` [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 创建 `@local!` 迭代器实例。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- this @local! - 接收者为 `@local!` 实例。
+- map: [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek)\<K, V> @local! - 传入 `@local!` 哈希表。
+
+### init(this @local?, HashMap\<K, V> @local?)
+
+```cangjie
+public exclave init(this @local?, map: HashMap<K, V> @local?)
+```
+
+功能：在 local region 中根据 `@local?` [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 创建 `@local?` 迭代器实例。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+- map: [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek)\<K, V> @local? - 传入 `@local?` 哈希表。
+
 ### func next()
 
 ```cangjie
@@ -6506,6 +8008,54 @@ main() {
 ```text
 成功获取到元素: one, 1
 ```
+
+### func next(this @local!)
+
+```cangjie
+public exclave func next(this @local!): ?(K, V) @local!
+```
+
+功能：返回当前 `@local!` 迭代器中的下一个元素。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- this @local! - 接收者为 `@local!` 实例。
+
+返回值：
+
+- ?(K, V) @local! - 迭代器中的下一个元素，用 [Option](../../core/core_package_api/core_package_enums.md#enum-optiont) 封装。
+
+异常：
+
+- [ConcurrentModificationException](collection_package_exception.md#class-concurrentmodificationexception) - 当函数检测到不同步的并发修改，抛出异常。
+
+### func next(this @local?)
+
+```cangjie
+public exclave func next(this @local?): ?(K, V) @local?
+```
+
+功能：返回当前 `@local?` 迭代器中的下一个元素。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+
+返回值：
+
+- ?(K, V) @local? - 迭代器中的下一个元素，用 [Option](../../core/core_package_api/core_package_enums.md#enum-optiont) 封装。
+
+异常：
+
+- [ConcurrentModificationException](collection_package_exception.md#class-concurrentmodificationexception) - 当函数检测到不同步的并发修改，抛出异常。
 
 ### func remove()
 
@@ -6900,6 +8450,61 @@ HashSet大小: 3
 包含 'banana'
 ```
 
+### init(this @local!)
+
+```cangjie
+public exclave init(this @local!)
+```
+
+功能：在 local region 中构造一个空的 `@local!` [HashSet](collection_package_class.md#class-hashsett-where-t--hashable--equatablet)，初始容量为 16。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+示例：
+
+<!-- compile -->
+```cangjie
+import std.collection.*
+
+main() {
+    let set: HashSet<Int64> @local! = HashSet<Int64>() @local!
+}
+```
+
+### init(this @local!, Int64)
+
+```cangjie
+public exclave init(this @local!, capacity: Int64)
+```
+
+功能：在 local region 中构造一个指定容量的 `@local!` [HashSet](collection_package_class.md#class-hashsett-where-t--hashable--equatablet)。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- this @local! - 接收者为 `@local!` 实例。
+- capacity: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - 集合容量。
+
+异常：
+
+- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 当 capacity 小于 0，抛出异常。
+
+示例：
+
+<!-- compile -->
+```cangjie
+import std.collection.*
+
+main() {
+    let set: HashSet<Int64> @local! = HashSet<Int64>(32) @local!
+}
+```
+
 ### func add(Collection\<T>)
 
 ```cangjie
@@ -6990,6 +8595,46 @@ main() {
 添加 'apple' 的结果: true
 再次添加 'apple' 的结果: false
 集合大小: 1
+```
+
+### func add(this @local!, T @local!)
+
+```cangjie
+public exclave func add(this @local!, element: T @local!): Bool
+```
+
+功能：向当前 `@local!` [HashSet](collection_package_class.md#class-hashsett-where-t--hashable--equatablet) 中添加元素。如果集合中不存在该元素，添加并返回 true；否则返回 false。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- this @local! - 接收者为 `@local!` 实例。
+- element: T @local! - 待添加的元素。
+
+返回值：
+
+- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 如果元素不存在且成功添加，返回 true，否则返回 false。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let set: HashSet<Int64> @local! = HashSet<Int64>() @local!
+    set.add(5)
+    println("size=${set.size}")
+}
+```
+
+运行结果：
+
+```text
+size=1
 ```
 
 <!--Del-->
@@ -7282,6 +8927,27 @@ main() {
 包含 'apple'
 不包含 'grape'
 ```
+
+### func isEmpty(this @local?)
+
+```cangjie
+public func isEmpty(this @local?): Bool
+```
+
+功能：判断当前 `@local?` [HashSet](collection_package_class.md#class-hashsett-where-t--hashable--equatablet) 是否为空。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - [HashSet](collection_package_class.md#class-hashsett-where-t--hashable--equatablet) 未提供该方法的 `@local?` 覆写；该形式继承自 [Collection](../../core/core_package_api/core_package_interfaces.md#interface-collectiont) 接口的默认实现；当调用绑定到该默认实现时，抛出 [UnimplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception)。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+
+返回值：
+
+- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 如果为空返回 true，否则返回 false。
 
 <!--Del-->
 ### func filter((T) -> Bool)
@@ -7580,6 +9246,65 @@ main() {
  banana
  orange
 ```
+
+### func iterator(this @local!)
+
+```cangjie
+public exclave func iterator(this @local!): Iterator<T> @local!
+```
+
+功能：获取当前 `@local!` 集合的迭代器，迭代器与当前集合绑定在同一个 local region 中。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 当前运行时版本下，迭代器 `next()` 返回的元素写入 local Option payload 可能触发写屏障缺陷（Barrier::WriteGeneric does not support local object）导致进程中止，请以实际 SDK 版本行为为准。
+
+参数：
+
+- this @local! - 接收者为 `@local!` 实例。
+
+返回值：
+
+- [Iterator](../../core/core_package_api/core_package_classes.md#class-iteratort)\<T> @local! - 集合的迭代器。
+
+示例：
+
+<!-- code_no_check -->
+```cangjie
+import std.collection.*
+
+main() {
+    let set: HashSet<Int64> @local! = HashSet<Int64>() @local!
+    set.add(5)
+    let it: Iterator<Int64> @local! = set.iterator()
+    let first = it.next()
+    if (let Some(v) <- first) {
+        println("first=${v}")
+    }
+}
+```
+
+### func iterator(this @local?)
+
+```cangjie
+public exclave func iterator(this @local?): Iterator<T> @local?
+```
+
+功能：获取当前 `@local?` 集合的迭代器，迭代器与当前集合绑定在同一个 local region 中。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - [HashSet](collection_package_class.md#class-hashsett-where-t--hashable--equatablet) 未提供该方法的 `@local?` 覆写；该形式继承自 [Iterable](../../core/core_package_api/core_package_interfaces.md#interface-iterablee) 接口的默认实现；当调用绑定到该默认实现时，抛出 [IllegalStateException](../../core/core_package_api/core_package_exceptions.md#class-illegalstateexception)。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+
+返回值：
+
+- [Iterator](../../core/core_package_api/core_package_classes.md#class-iteratort)\<T> @local? - 集合的迭代器。
 
 <!--Del-->
 ### func map\<R>((T)->R)
@@ -8082,6 +9807,41 @@ main() {
 ```text
 集合元素: [apple, banana, orange]
 数组元素: [apple, banana, orange]
+```
+
+### func toArray(this @local!)
+
+```cangjie
+public exclave func toArray(this @local!): Array<T> @local!
+```
+
+功能：将当前 `@local!` 集合转换为 `@local!` 数组，数组与当前集合绑定在同一个 local region 中。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 当前运行时版本下，local 集合的元素拷贝可能触发写屏障缺陷（Barrier::WriteGeneric does not support local object）导致进程中止，请以实际 SDK 版本行为为准。
+
+参数：
+
+- this @local! - 接收者为 `@local!` 实例。
+
+返回值：
+
+- [Array](../../core/core_package_api/core_package_structs.md#struct-arrayt)\<T> @local! - 转换得到的 `@local!` 数组。
+
+示例：
+
+<!-- code_no_check -->
+```cangjie
+import std.collection.*
+
+main() {
+    let set: HashSet<Int64> @local! = HashSet<Int64>() @local!
+    set.add(5)
+    let arr: Array<Int64> @local! = set.toArray()
+    println("arr=${arr.size}")
+}
 ```
 
 ### operator func &(ReadOnlySet\<T>)

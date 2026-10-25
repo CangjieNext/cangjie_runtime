@@ -1283,6 +1283,110 @@ main() {
 }
 ```
 
+## class UnimplementedException
+
+```cangjie
+public class UnimplementedException <: Exception {
+    public init()
+    public init(message: String)
+}
+```
+
+功能：表示当前类型尚未提供部分接口所需的 `@local!` 或 `@local?` 适配实现的异常。
+
+[ToString](core_package_interfaces.md#interface-tostring)、[Hashable](core_package_interfaces.md#interface-hashable) 等接口在类型未提供对应的 local 实现时，其默认实现抛出该异常。[Iterable](core_package_interfaces.md#interface-iterablee) 和 [Iterator](core_package_classes.md#class-iteratort) 的 local 默认实现则抛出 [IllegalStateException](#class-illegalstateexception)。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+父类型：
+
+- [Exception](#class-exception)
+
+### init()
+
+```cangjie
+public init()
+```
+
+功能：构造一个默认的 [UnimplementedException](core_package_exceptions.md#class-unimplementedexception) 实例，默认异常信息为 "UnimplementedException"。
+
+示例：
+
+<!-- run -->
+```cangjie
+main() {
+    // 使用默认构造函数创建UnimplementedException实例
+    let exception = UnimplementedException()
+}
+```
+
+### init(String)
+
+```cangjie
+public init(message: String)
+```
+
+功能：根据指定异常信息构造 [UnimplementedException](core_package_exceptions.md#class-unimplementedexception) 实例。
+
+参数：
+
+- message: [String](core_package_structs.md#struct-string) - 异常提示信息。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    try {
+        throw UnimplementedException("test message")
+    } catch (e: UnimplementedException) {
+        println("caught: ${e.message}")
+    }
+}
+```
+
+运行结果：
+
+```text
+caught: test message
+```
+
+### func getClassName()
+
+```cangjie
+protected override func getClassName(): String
+```
+
+功能：获得类名。
+
+该函数为 `protected` 成员，仅可在类内部或其子类中访问；外部代码需要展示异常信息时，可使用公开的 `toString` 函数。
+
+返回值：
+
+- [String](core_package_structs.md#struct-string) - 类名 "UnimplementedException"。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    try {
+        throw UnimplementedException("test message")
+    } catch (e: UnimplementedException) {
+        // 使用公开的 toString 获取包含类名的异常信息
+        println(e.toString())
+    }
+}
+```
+
+运行结果：
+
+```text
+UnimplementedException: test message
+```
+
 ## class UnsupportedException
 
 ```cangjie
