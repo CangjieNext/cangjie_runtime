@@ -830,6 +830,19 @@ main() {
 I like Cangjie
 ```
 
+## func print(String @local?, Bool)
+
+```cangjie
+public func print(str: String @local?, flush!: Bool = false): Unit
+```
+
+功能：向控制台输出指定字符串，支持局部字符串。
+
+参数：
+
+- str: [String](core_package_structs.md#struct-string) @local? - 待输出的字符串，支持 `@local!` 和 `@local?` 实参。
+- flush!: [Bool](core_package_intrinsics.md#bool) - 是否清空缓存，true 清空，false 不清空，默认 false。
+
 ## func print(UInt16, Bool)
 
 ```cangjie
@@ -1344,6 +1357,18 @@ main() {
 I like Cangjie
 I like programming
 ```
+
+## func println(String @local?)
+
+```cangjie
+public func println(str: String @local?): Unit
+```
+
+功能：向控制台输出指定字符串，末尾添加换行，支持局部字符串。
+
+参数：
+
+- str: [String](core_package_structs.md#struct-string) @local? - 待输出的字符串，支持 `@local!` 和 `@local?` 实参。
 
 ## func println(UInt16)
 

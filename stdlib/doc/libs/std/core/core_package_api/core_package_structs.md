@@ -4505,39 +4505,6 @@ main() {
 dst[3]=3
 ```
 
-#### func cloneToLocal(this @local?)
-
-```cangjie
-public func cloneToLocal(this @local?): Array<T> @local!
-```
-
-功能：将当前 `@local?` 数组的元素深拷贝到一个新的 `@local!` 数组中，实现 `@local?` 到 `@local!` 的转换。
-
-参数：
-
-- this @local? - 接收者为 `@local?` 实例。
-
-返回值：
-
-- [Array](core_package_structs.md#struct-arrayt)\<T> @local! - 拷贝得到的 `@local!` 新数组。
-
-示例：
-
-<!-- verify -->
-```cangjie
-main() {
-    let arr: Array<Int64> @local? = [1, 2, 3]
-    let localArr: Array<Int64> @local! = arr.cloneToLocal()
-    println("local size: ${localArr.size} elem: ${localArr[1]}")
-}
-```
-
-运行结果：
-
-```text
-local size: 3 elem: 2
-```
-
 ### extend\<T> Array\<T> where T <: ToString
 
 ```cangjie
@@ -8448,6 +8415,22 @@ main() {
 ```text
 结果: 仓颉
 ```
+
+### static func withRawData(Array\<UInt8> @local!)
+
+```cangjie
+public exclave static unsafe func withRawData(rawData: Array<UInt8> @local!): String @local!
+```
+
+功能：使用局部 UTF-8 字节数组构造局部字符串。调用者必须保证字节序列符合 UTF-8 编码，且构造后不再修改该数组。
+
+参数：
+
+- rawData: Array<UInt8> @local! - 字符串的 UTF-8 字节数组。
+
+返回值：
+
+- String @local! - 构造的局部字符串。
 
 ### static func fromUtf8(Array\<UInt8> @local?)
 

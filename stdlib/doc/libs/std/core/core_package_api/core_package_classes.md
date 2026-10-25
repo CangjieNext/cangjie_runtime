@@ -2717,6 +2717,14 @@ Initial size: 0
 Initial content: ''
 ```
 
+### init(this @local!)
+
+```cangjie
+public exclave init(this @local!)
+```
+
+功能：构造一个内容为空的 `@local!` StringBuilder 实例，初始容量为 32 字节。
+
 ### init(Array\<Rune>)
 
 ```cangjie
@@ -3363,6 +3371,30 @@ Content: 'Hello, World!'
 Size: 13
 ```
 
+### func append(String @local?)
+
+```cangjie
+public func append(str: String @local?): Unit
+```
+
+功能：在 [StringBuilder](core_package_classes.md#class-stringbuilder) 末尾追加参数 `str` 的内容。将字符串字节复制到内部缓冲区，追加后的内容不依赖输入字符串所在局部区域的生命周期。
+
+参数：
+
+- str: [String](core_package_structs.md#struct-string) @local? - 待追加的字符串，支持 `@local!` 和 `@local?` 实参。空字符串不改变已有内容。
+
+### func append(this @local!, String @local?)
+
+```cangjie
+public exclave func append(this @local!, str: String @local?): Unit
+```
+
+功能：向局部 StringBuilder 追加字符串内容，支持 `@local!` 和 `@local?` 字符串。空字符串不改变已有内容；容量不足时扩容。
+
+参数：
+
+- str: [String](core_package_structs.md#struct-string) @local? - 待追加的字符串。
+
 ### func append(StringBuilder)
 
 ```cangjie
@@ -3633,6 +3665,18 @@ Content: 'The answer is: 42'
 Size: 17
 ```
 
+### func append\<T>(this @local!, T @local?) where T <: ToString
+
+```cangjie
+public exclave func append<T>(this @local!, v: T @local?): Unit where T <: ToString
+```
+
+功能：调用参数的局部 `toString` 方法，将结果追加到局部 StringBuilder。参数类型需要实现对应的局部 `toString` 方法。
+
+参数：
+
+- v: T @local? - 待转换并追加的值。
+
 ### func appendFromUtf8(Array\<Byte>)
 
 ```cangjie
@@ -3869,6 +3913,19 @@ Content: 'Hello, World!'
 Size: 13
 Type check: true
 ```
+
+### func toString(this @local?)
+
+```cangjie
+public exclave func toString(this @local?): String @local!
+```
+
+功能：将 StringBuilder 当前内容复制为调用者局部区域中的字符串。支持局部实例和堆实例的 `@local?` 视图；后续追加内容不改变已返回的字符串。
+
+返回值：
+
+- [String](core_package_structs.md#struct-string) @local! - 当前内容的字符串副本。
+
 
 ## class Thread
 

@@ -6050,6 +6050,19 @@ A
 1
 ```
 
+#### static func fromUtf8(Array\<UInt8> @local?, Int64)
+
+```cangjie
+public static func fromUtf8(arr: Array<UInt8> @local?, index: Int64): (Rune, Int64)
+```
+
+功能：从局部字节数组的指定位置解码一个 UTF-8 字符，返回字符和占用的字节数。支持 `@local!` 和 `@local?` 数组，编码校验与非局部重载相同。
+
+参数：
+
+- arr: Array<UInt8> @local? - 待解码的字节数组。
+- index: Int64 - 起始字节下标。
+
 #### static func getPreviousFromUtf8(Array\<UInt8>, Int64)
 
 ```cangjie
@@ -6134,6 +6147,20 @@ main() {
 3
 231
 ```
+
+#### static func intoUtf8Array(Rune, Array\<UInt8> @local?, Int64)
+
+```cangjie
+public static func intoUtf8Array(c: Rune, arr: Array<UInt8> @local?, index: Int64): Int64
+```
+
+功能：将字符编码为 UTF-8 字节，写入局部数组的指定位置并返回写入的字节数。支持 `@local!` 和 `@local?` 数组，边界校验与非局部重载相同。
+
+参数：
+
+- c: Rune - 待编码的字符。
+- arr: Array<UInt8> @local? - 目标数组。
+- index: Int64 - 起始字节下标。
 
 #### static func utf8Size(Array\<UInt8>, Int64)
 
