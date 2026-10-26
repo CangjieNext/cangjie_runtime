@@ -1,0 +1,21 @@
+runtime/src/Base/RwLock.h
+  s_0d15d2c2333758::t_270324ce84a828 25-26,31-32,41-42,55-56
+runtime/src/Mutator/MutatorManager.h
+  s_0d15d2c2333758::t_51735197efbb13 30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1b974e856cd5e054f096d5fd552ea5822d39486c",
+  "prompts": {},
+  "sessions": {
+    "s_0d15d2c2333758": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1353d-f832-7a81-9d19-503b14bc704c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": null
+    }
+  }
+}
