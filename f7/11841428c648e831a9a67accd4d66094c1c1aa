@@ -1,0 +1,22 @@
+runtime/src/Heap/GenerationalGC/GenerationPostTraceBarrier.h
+  s_f79d4e90509d71::t_121d2f8f2a7565 19-20
+runtime/src/Heap/GenerationalGC/GenerationPostTraceBarrier.cpp
+  s_f79d4e90509d71::t_121d2f8f2a7565 12-13,22,24,33,35-36
+  s_f79d4e90509d71::t_0bef97a6c7357b 9,14-21,23,25-32,34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f711841428c648e831a9a67accd4d66094c1c1aa",
+  "prompts": {},
+  "sessions": {
+    "s_f79d4e90509d71": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a16817-e9b6-7460-b0e1-34fca27f3eea",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "xiaohan_1 <xiaohan24@huawei.com>"
+    }
+  }
+}
