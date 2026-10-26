@@ -36,6 +36,12 @@ BaseObject* PostTraceBarrier::ReadWeakRef(BaseObject* obj, RefField<false>& fiel
     if (referent == nullptr) {
         return nullptr;
     }
+    // A partial collection does not mark objects outside its collection set.
+    // Such referents remain live for this cycle and must not be cleared merely
+    // because their regions have no mark bit for the current collection.
+    if (!theCollector.IsTargetAddress(referent)) {
+        return referent;
+    }
     RegionInfo* regionInfo = RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(referent));
     bool isMarked = regionInfo->IsMarkedObject(referent);
     if (!isMarked) { // skip live referents
