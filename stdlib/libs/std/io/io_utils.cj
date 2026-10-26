@@ -25,30 +25,6 @@ public enum SeekPosition {
     | End(Int64) /* < end position of the file. */
 }
 
-/**
- * Fills buffer by repeatedly calling from.read. The underlying stream controls
- * blocking behavior. An empty buffer succeeds without reading from the stream.
- * This function neither closes the stream nor makes multiple reads atomic.
- * The buffer may be partially updated if this function throws.
- *
- * @throws IOException if read returns 0 before buffer is full, or returns a
- * byte count outside the requested range. Other exceptions propagate unchanged.
- */
-public func readFully(from: InputStream, buffer: Array<Byte>): Unit {
-    var offset: Int64 = 0
-    while (offset < buffer.size) {
-        let remaining = buffer.size - offset
-        let count = from.read(buffer.slice(offset, remaining))
-        if (count < 0 || count > remaining) {
-            throw IOException("Invalid read count '${count}': expected a value between 0 and ${remaining}.")
-        }
-        if (count == 0) {
-            throw IOException("Unable to fill buffer: expected ${buffer.size} bytes, read ${offset}.")
-        }
-        offset += count
-    }
-}
-
 public func readString<T>(from: T): String where T <: InputStream & Seekable {
     var data = Array<Byte>(from.remainLength, repeat: 0)
     return try {

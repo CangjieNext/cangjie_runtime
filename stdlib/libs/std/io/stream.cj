@@ -35,7 +35,6 @@ public interface InputStream {
      * @return number of bytes read and copied to the buffer; for a nonempty buffer,
      * 0 indicates the end of the stream on a normal read.
      * Empty-buffer handling and errors are documented by each implementation.
-     * Call the std.io.readFully function when the entire buffer must be filled.
      */
     func read(buffer: Array<Byte>): Int64
 }

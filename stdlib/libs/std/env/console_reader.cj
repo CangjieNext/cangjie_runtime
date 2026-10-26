@@ -15,7 +15,6 @@
 package std.env
 
 import std.io.InputStream
-import std.io.IOException
 import std.sync.*
 
 const defaultCapacity: Int64 = 32
@@ -149,30 +148,6 @@ public class ConsoleReader <: InputStream {
             }
         }
         return readSize
-    }
-
-    /**
-     * Fills buffer by repeatedly calling readSome. An empty buffer succeeds
-     * without reading. This method does not close the stream or make multiple
-     * reads atomic. On failure, buffer may have been partially updated.
-     *
-     * @throws IOException if readSome returns 0 before buffer is full, or
-     * returns a byte count outside the requested range. Other exceptions
-     * propagate unchanged.
-     */
-    public func readFully(buffer: Array<Byte>): Unit {
-        var offset: Int64 = 0
-        while (offset < buffer.size) {
-            let remaining = buffer.size - offset
-            let count = readSome(buffer.slice(offset, remaining))
-            if (count < 0 || count > remaining) {
-                throw IOException("Invalid read count '${count}': expected a value between 0 and ${remaining}.")
-            }
-            if (count == 0) {
-                throw IOException("Unable to fill buffer: expected ${buffer.size} bytes, read ${offset}.")
-            }
-            offset += count
-        }
     }
 
     @When[os == "Windows"]

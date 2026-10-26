@@ -73,7 +73,7 @@ Function: Reads standard input into `arr`, preserving the existing behavior of o
 
 If the internal buffer cannot fill the array, the function continues obtaining data through the line-reading path, which may wait for a newline. If input ends or a read fails, the function returns the valid prefix obtained so far, which may be shorter than `arr.size`. An empty array returns `0`. This method is unsuitable for pipe interactions where the writer sends some data and waits for a response. To allow short reads, explicitly use [readSome(Array\<Byte>)](#func-readsomearraybyte).
 
-The current implementation preserves the historical behavior that read failures may also return `0`. A zero return cannot distinguish all underlying errors from normal EOF. To require a full array through the short-read path, use [readFully(Array\<Byte>)](#func-readfullyarraybyte).
+The current implementation preserves the historical behavior that read failures may also return `0`. A zero return cannot distinguish all underlying errors from normal EOF.
 
 For redirected input on Windows, the line-reading path preserves default text semantics: CRLF becomes LF, and `Ctrl+Z` (`0x1A`) acts as EOF.
 
@@ -130,7 +130,7 @@ If the internal buffer contains data, the function copies an available prefix an
 
 This method shares buffered input with the other standard-input read methods. A short read does not indicate EOF, and a read does not correspond to one complete message. Process only the prefix identified by the returned count and accumulate data according to the protocol. Byte chunks may split UTF-8 characters; do not assume each chunk can be independently converted to a string.
 
-For redirected input on Windows, using this method on its own reads raw bytes, including CRLF and `0x1A`. If `read`, `readln`, or `readUntil` has already prefetched data into this instance's buffer, this method first returns the remaining text-translated data. Mixing methods within the instance preserves consumption order, but does not guarantee unchanged raw bytes. When raw bytes are required, use this method, or the `readFully` method built on it, from the start.
+For redirected input on Windows, using this method on its own reads raw bytes, including CRLF and `0x1A`. If `read`, `readln`, or `readUntil` has already prefetched data into this instance's buffer, this method first returns the remaining text-translated data. Mixing methods within the instance preserves consumption order, but does not guarantee unchanged raw bytes. When raw bytes are required, use this method from the start.
 
 The method preserves the behavior of returning `0` for some underlying read failures. A zero return cannot distinguish all read errors from normal EOF.
 
@@ -156,47 +156,6 @@ main() {
 ```
 
 If a pipe writer sends `abc` and keeps its end open, this program can print `[97, 98, 99]` without requiring a newline or the writer to close the pipe.
-
-### func readFully(Array\<Byte>)
-
-```cangjie
-public func readFully(buffer: Array<Byte>): Unit
-```
-
-Function: Repeatedly calls this instance's `readSome`, targeting the unfilled slice on each read, until exactly filling `buffer`. An empty array succeeds without calling the underlying reader. For a redirected pipe, the operation completes once the required bytes are received, without requiring a newline or the writer to close.
-
-The method may block waiting for further input. It does not provide timeouts, cancellation, or message framing, and does not close the stream. Multiple reads are not guaranteed to be atomic as a whole; callers must coordinate other consumers of the same input stream.
-
-Parameters:
-
-- buffer: [Array](../../core/core_package_api/core_package_structs.md#struct-arrayt)\<[Byte](../../core/core_package_api/core_package_types.md#type-byte)> - The destination to fill; an array slice may also be used.
-
-Exceptions:
-
-- [IOException](../../io/io_package_api/io_package_exceptions.md#class-ioexception) - A read returns `0` before the array is full, or returns a count below `0` or above the requested length. An incomplete-read message includes the expected and completed byte counts.
-- Underlying exceptions are propagated unchanged. On failure, the destination may be partially modified and consumed input is not rolled back. Do not treat the entire array as a complete result.
-
-Some underlying read failures may also return `0`; in that case, this method reports an incomplete read but cannot recover the original error cause. Unlike the top-level function [std.io.readFully(InputStream, Array\<Byte>)](../../io/io_package_api/io_package_funcs.md#func-readfullyinputstream-arraybyte), this method uses standard input's short-read path. The top-level function calls the legacy `read`, which may still wait for a newline.
-
-Example:
-
-<!-- compile -->
-```cangjie
-import std.env.getStdIn
-import std.io.IOException
-
-main() {
-    let header = Array<Byte>(8, repeat: 0)
-    try {
-        getStdIn().readFully(header)
-        println(header)
-    } catch (e: IOException) {
-        println("Header read failed: ${e.message}")
-    }
-}
-```
-
-With standard input redirected from a file containing `abcdefgh`, the output is `[97, 98, 99, 100, 101, 102, 103, 104]`. If input ends after only `abc`, the method throws `IOException`; the partially modified array must not be treated as a complete header.
 
 ### func readToEnd()
 

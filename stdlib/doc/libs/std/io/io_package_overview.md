@@ -13,7 +13,6 @@ I/O 操作是指程序与外部设备进行数据交换的操作。仓颉提供�
 |              函数名            |             功能           |
 | ----------------------------- | -------------------------- |
 | [copy(InputStream, OutputStream)](./io_package_api/io_package_funcs.md#func-copyinputstream-outputstream) | 将一个输入流中未被读取的数据拷贝到另一个输出流中。|
-| [readFully(InputStream, Array\<Byte>)](./io_package_api/io_package_funcs.md#func-readfullyinputstream-arraybyte) | 循环读取并填满目标数组，无法填满时抛出异常。 |
 | [readString\<T>(T) where T <: InputStream & Seekable](./io_package_api/io_package_funcs.md#func-readstringtt-where-t--inputstream--seekable) | 读取入参中的所有剩余内容，并返回一个字符串。|
 | [readStringUnchecked\<T>(T) where T <: InputStream & Seekable](./io_package_api/io_package_funcs.md#func-readstringuncheckedtt-where-t--inputstream--seekable) | 读取入参中的所有剩余内容，并返回一个字符串。该函数不会检查字符串的合法性。|
 | [func readToEnd\<T>(T) where T <: InputStream & Seekable](./io_package_api/io_package_funcs.md#func-readtoendtt-where-t--inputstream--seekable) | 获取入参中未被读取的数据。|

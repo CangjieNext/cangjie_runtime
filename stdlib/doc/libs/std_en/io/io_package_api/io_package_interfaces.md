@@ -35,8 +35,6 @@ A single call is not guaranteed to fill `buffer`. An implementation may try to f
 
 The returned count `n` is the number of bytes actually read, where `0 <= n <= buffer.size`. Only the first `n` elements contain data from this call. For a nonempty buffer, a normal read returns `0` when the end of the stream is reached without reading any data. A result where `0 < n < buffer.size` does not indicate EOF. Empty-buffer handling and read failures are documented by each implementation.
 
-Use the top-level function [readFully(InputStream, Array\<Byte>)](io_package_funcs.md#func-readfullyinputstream-arraybyte) when the entire buffer must be filled. It does not change the concrete stream's waiting behavior.
-
 Parameters:
 
 - buffer: [Array](../../core/core_package_api/core_package_structs.md#struct-arrayt)\<[Byte](../../core/core_package_api/core_package_types.md#type-byte)> - Buffer for storing data read from the input stream.

@@ -22,8 +22,6 @@ func read(buffer: Array<Byte>): Int64
 
 返回值 `n` 表示本次实际读取的字节数，满足 `0 <= n <= buffer.size`。调用方应仅处理 `buffer` 的前 `n` 个元素。对于非空缓冲区，正常读取到流末尾且本次未读到数据时返回 `0`，不能用 `0 < n < buffer.size` 判断流已经结束。空缓冲区和读取失败的处理方式见具体实现说明。
 
-需要填满缓冲区时，可以使用顶层函数 [readFully(InputStream, Array\<Byte>)](io_package_funcs.md#func-readfullyinputstream-arraybyte)。该函数不改变具体输入流的等待方式。
-
 参数：
 
 - buffer: [Array](../../core/core_package_api/core_package_structs.md#struct-arrayt)\<[Byte](../../core/core_package_api/core_package_types.md#type-byte)> - 缓冲区，用于存放从输入流中读取的数据。

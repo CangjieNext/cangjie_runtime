@@ -50,59 +50,6 @@ Copied 13 bytes.
 Data copied to target stream: Hello, World!
 ```
 
-## func readFully(InputStream, Array\<Byte>)
-
-```cangjie
-public func readFully(from: InputStream, buffer: Array<Byte>): Unit
-```
-
-功能：循环调用 `from.read`，直到填满 `buffer`。正常返回表示恰好读取了 `buffer.size` 个字节。每次只向尚未填充的部分读入数据，填满后不再读取，也不等待流结束。空数组直接成功，不调用底层读取。
-
-该函数继承 `from.read` 的等待方式，可能阻塞等待后续输入，不提供超时、取消或消息边界识别能力，也不关闭输入流。多次读取不构成原子操作；同一输入流有多个消费者时，调用方需要自行协调。
-
-参数：
-
-- from: [InputStream](io_package_interfaces.md#interface-inputstream) - 待读取数据的输入流。
-- buffer: [Array](../../core/core_package_api/core_package_structs.md#struct-arrayt)\<[Byte](../../core/core_package_api/core_package_types.md#type-byte)> - 需要填满的目标数组，也可以传入数组切片。
-
-异常：
-
-- [IOException](io_package_exceptions.md#class-ioexception) - 数组未填满时，底层读取返回 `0`；或者底层返回小于 `0`、大于本次请求长度的字节数。未填满异常信息包含目标长度和已读长度。
-- 底层 `read` 抛出的异常原样向上传递。失败时目标数组可能已部分修改，已消费的数据不回退；调用方不能把整个数组当作完整结果。
-
-> **说明：**
->
-> 本函数依赖具体输入流对结束与错误的报告方式。若具体实现将读取失败也映射为 `0`，本函数会报告未填满，但无法恢复其已丢失的错误原因。它不改变具体流原有的错误处理方式。
-
-将 `ConsoleReader` 传入本函数时，调用的仍是其原有按行取数的 `read`，可能等待换行；Windows 重定向输入沿用默认文本转换规则。标准输入需要通过短读路径读满时，应调用 [ConsoleReader.readFully(Array\<Byte>)](../../env/env_package_api/env_package_classes.md#func-readfullyarraybyte)；与行读取混用时，仍受 `ConsoleReader` 缓存中文本转换结果的影响。
-
-示例：
-
-<!-- verify -->
-```cangjie
-import std.io.*
-
-main(): Unit {
-    let input = ByteBuffer("abcdefgh".toArray())
-    let buffer = Array<Byte>(8, repeat: 0)
-    readFully(input, buffer)
-    println(buffer)
-
-    try {
-        readFully(ByteBuffer("abc".toArray()), Array<Byte>(8, repeat: 0))
-    } catch (e: IOException) {
-        println("输入不足 8 字节")
-    }
-}
-```
-
-运行结果：
-
-```text
-[97, 98, 99, 100, 101, 102, 103, 104]
-输入不足 8 字节
-```
-
 ## func readString\<T>(T) where T <: InputStream & Seekable
 
 ```cangjie

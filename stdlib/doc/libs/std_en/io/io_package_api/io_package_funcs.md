@@ -50,59 +50,6 @@ Copied 13 bytes.
 Data copied to target stream: Hello, World!
 ```
 
-## func readFully(InputStream, Array\<Byte>)
-
-```cangjie
-public func readFully(from: InputStream, buffer: Array<Byte>): Unit
-```
-
-Function: Repeatedly calls `from.read` until `buffer` is full. A normal return means exactly `buffer.size` bytes were read. Each read targets only the unfilled portion. Once full, the function stops without reading further or waiting for EOF. An empty buffer succeeds without calling the underlying reader.
-
-The function inherits the waiting behavior of `from.read` and may block waiting for further input. It does not provide timeouts, cancellation, or message framing, and does not close the stream. Multiple reads are not atomic; callers must coordinate other consumers of the same stream.
-
-Parameters:
-
-- from: [InputStream](io_package_interfaces.md#interface-inputstream) - The input stream to read from.
-- buffer: [Array](../../core/core_package_api/core_package_structs.md#struct-arrayt)\<[Byte](../../core/core_package_api/core_package_types.md#type-byte)> - The destination to fill; an array slice may also be used.
-
-Exceptions:
-
-- [IOException](io_package_exceptions.md#class-ioexception) - The underlying reader returns `0` before the buffer is full, or returns a count below `0` or above the requested length. An incomplete-read message includes the expected and completed byte counts.
-- Exceptions thrown by the underlying `read` are propagated unchanged. On failure, the destination may be partially modified and consumed input is not rolled back. The entire buffer must not be treated as a complete result.
-
-> **Note:**
->
-> This function relies on the concrete stream's EOF and error reporting. If a stream also maps read failures to `0`, this function reports an incomplete read but cannot recover the lost error cause. It does not change the concrete stream's existing error handling.
-
-Passing a `ConsoleReader` to this function still calls its legacy line-oriented `read`, which may wait for a newline; redirected input on Windows follows the default text-translation rules. For exact reads from standard input through its short-read path, call [ConsoleReader.readFully(Array\<Byte>)](../../env/env_package_api/env_package_classes.md#func-readfullyarraybyte). When mixed with line reads, that method is still affected by text-translated data in the `ConsoleReader` buffer.
-
-Example:
-
-<!-- verify -->
-```cangjie
-import std.io.*
-
-main(): Unit {
-    let input = ByteBuffer("abcdefgh".toArray())
-    let buffer = Array<Byte>(8, repeat: 0)
-    readFully(input, buffer)
-    println(buffer)
-
-    try {
-        readFully(ByteBuffer("abc".toArray()), Array<Byte>(8, repeat: 0))
-    } catch (e: IOException) {
-        println("Fewer than 8 input bytes")
-    }
-}
-```
-
-Output:
-
-```text
-[97, 98, 99, 100, 101, 102, 103, 104]
-Fewer than 8 input bytes
-```
-
 ## func readString\<T>(T) where T <: InputStream & Seekable
 
 ```cangjie

@@ -72,7 +72,7 @@ public func read(arr: Array<Byte>): Int64
 
 当内部缓存不足以填满数组时，继续通过行读取路径获取数据；该路径可能等待换行。输入结束或读取失败时，返回已取得的有效前缀，其长度可能小于 `arr.size`。空数组返回 `0`。该方法不适合写端发送部分数据后等待响应的管道交互；需要短读时，请主动使用 [readSome(Array\<Byte>)](#func-readsomearraybyte)。
 
-当前实现保留了读取失败也可能返回 `0` 的历史行为，因此返回 `0` 不能用于区分所有底层错误与正常 EOF。需要通过短读路径严格填满数组时，可以使用 [readFully(Array\<Byte>)](#func-readfullyarraybyte)。
+当前实现保留了读取失败也可能返回 `0` 的历史行为，因此返回 `0` 不能用于区分所有底层错误与正常 EOF。
 
 Windows 重定向输入的行读取路径保留默认文本语义：CRLF 转为 LF，`Ctrl+Z`（`0x1A`）作为 EOF。
 
@@ -129,7 +129,7 @@ public func readSome(arr: Array<Byte>): Int64
 
 该方法与其他标准输入读取方法共享缓存。一次短读不表示 EOF，也不对应一条完整消息。调用方只处理返回计数对应的前缀，按协议累计数据。按字节分块可能截断 UTF-8 字符，不能假定每块数据都能独立转换为字符串。
 
-在 Windows 重定向输入中，独立使用本方法可读取原始字节，包括 CRLF 和 `0x1A`。若此前 `read`、`readln` 或 `readUntil` 已将数据预取到本实例缓存，本方法会先返回已经过文本转换的剩余数据。实例内混用保持消费顺序，但不保证原始字节不变；需要原始字节时，应从开始就使用本方法或基于它的 `readFully`。
+在 Windows 重定向输入中，独立使用本方法可读取原始字节，包括 CRLF 和 `0x1A`。若此前 `read`、`readln` 或 `readUntil` 已将数据预取到本实例缓存，本方法会先返回已经过文本转换的剩余数据。实例内混用保持消费顺序，但不保证原始字节不变；需要原始字节时，应从开始就使用本方法。
 
 该方法保留了部分底层读取失败也返回 `0` 的行为，不能用 `0` 区分所有读取错误与正常 EOF。
 
@@ -155,47 +155,6 @@ main() {
 ```
 
 管道写端发送 `abc` 并保持打开时，上述程序可以输出 `[97, 98, 99]`，无需写端发送换行或关闭管道。
-
-### func readFully(Array\<Byte>)
-
-```cangjie
-public func readFully(buffer: Array<Byte>): Unit
-```
-
-功能：循环调用本实例的 `readSome`，每次向目标数组尚未填充的切片读取，直到恰好填满 `buffer`。空数组直接成功，不调用底层读取。在重定向管道中，收齐目标字节即可完成，不要求换行或写端关闭。
-
-该方法可能阻塞等待后续输入，不提供超时、取消或消息边界识别能力，也不关闭输入流。多次读取不保证整体互斥；同一输入流有多个消费者时，调用方需要自行协调。
-
-参数：
-
-- buffer: [Array](../../core/core_package_api/core_package_structs.md#struct-arrayt)\<[Byte](../../core/core_package_api/core_package_types.md#type-byte)> - 需要填满的目标数组，也可以传入数组切片。
-
-异常：
-
-- [IOException](../../io/io_package_api/io_package_exceptions.md#class-ioexception) - 数组未填满时读取返回 `0`，或返回小于 `0`、大于本次请求长度的计数。未填满异常信息包含目标长度和已读长度。
-- 底层抛出的异常原样向上传递。失败时目标数组可能已部分修改，已消费的数据不回退，不能将整个数组当作完整结果。
-
-部分底层读取失败也可能返回 `0`；此时本方法报告未填满，无法恢复原始错误原因。与顶层函数 [std.io.readFully(InputStream, Array\<Byte>)](../../io/io_package_api/io_package_funcs.md#func-readfullyinputstream-arraybyte) 不同，本方法使用标准输入的短读路径；顶层函数调用原有 `read`，仍可能等待换行。
-
-示例：
-
-<!-- compile -->
-```cangjie
-import std.env.getStdIn
-import std.io.IOException
-
-main() {
-    let header = Array<Byte>(8, repeat: 0)
-    try {
-        getStdIn().readFully(header)
-        println(header)
-    } catch (e: IOException) {
-        println("协议头读取失败：${e.message}")
-    }
-}
-```
-
-将包含 `abcdefgh` 的文件重定向为标准输入时，输出为 `[97, 98, 99, 100, 101, 102, 103, 104]`。若输入只有 `abc` 随后结束，则抛出 `IOException`，不能将部分修改的数组作为完整协议头处理。
 
 ### func readln()
 
