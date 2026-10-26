@@ -9,7 +9,7 @@ public class ConsoleReader <: InputStream
 Function: Provides the capability to read data from the console and convert it into characters or strings.
 
 This type cannot be instantiated directly; instances can only be obtained via [getStdIn()](./env_package_funcs.md#func-getStdIn).  
-Read operations are synchronous, with an internal buffer storing console input content. When the end of the input stream is reached and the current call has read no data, reading functions that return an optional type return `None`, while `read(arr: Array<Byte>)` returns `0`.
+Read operations are synchronous, with an internal buffer storing console input content. When the end of the input stream is reached and the current call has read no data, reading functions that return an optional type return `None`, while `read(arr: Array<Byte>)` and `readSome(arr: Array<Byte>)` return `0`.
 
 > **Note:**
 >
@@ -69,17 +69,13 @@ Input received: a
 public func read(arr: Array<Byte>): Int64
 ```
 
-Function: Reads up to `arr.size` bytes from standard input and stores the data in `arr`.
+Function: Reads standard input into `arr`, preserving the existing behavior of obtaining line-oriented input and attempting to fill the array.
 
-A single call does not guarantee that `arr` is filled. If the internal buffer contains data, the function copies up to `arr.size` bytes from it into `arr` and returns the number of bytes copied, without waiting for more input to fill the array.
+If the internal buffer cannot fill the array, the function continues obtaining data through the line-reading path, which may wait for a newline. If input ends or a read fails, the function returns the valid prefix obtained so far, which may be shorter than `arr.size`. An empty array returns `0`. This method is unsuitable for pipe interactions where the writer sends some data and waits for a response. To allow short reads, explicitly use [readSome(Array\<Byte>)](#func-readsomearraybyte).
 
-When standard input comes from a pipe, a read may return before the array is full even if the write end remains open. The call may still block when no data is available and the end of the stream has not been reached. Terminal input also depends on settings such as line buffering.
+The current implementation preserves the historical behavior that read failures may also return `0`. A zero return cannot distinguish all underlying errors from normal EOF. To require a full array through the short-read path, use [readFully(Array\<Byte>)](#func-readfullyarraybyte).
 
-To fill the array, repeatedly read into its unfilled portion and accumulate the byte counts. If a call returns `0` before the array is full, stop the loop and handle the incomplete read.
-
-Alternatively, call `getStdIn().readFully(buffer)` using [InputStream.readFully(Array\<Byte>)](../../io/io_package_api/io_package_interfaces.md#func-readfullyarraybyte). It returns normally only when the array is full and throws if it cannot be filled.
-
-The current implementation preserves the historical behavior that read failures may also return `0`. Thus, a zero return cannot distinguish all underlying errors from normal EOF. `readFully` reports such a result as an incomplete read rather than success.
+For redirected input on Windows, the line-reading path preserves default text semantics: CRLF becomes LF, and `Ctrl+Z` (`0x1A`) acts as EOF.
 
 > **Warning:**
 >
@@ -121,6 +117,86 @@ With standard input redirected from a file containing only `abc` (without a newl
 Bytes read: 3
 Data read: [97, 98, 99]
 ```
+
+### func readSome(Array\<Byte>)
+
+```cangjie
+public func readSome(arr: Array<Byte>): Int64
+```
+
+Function: Reads up to `arr.size` bytes from standard input into `arr`, allowing fewer bytes than the array length to be returned.
+
+If the internal buffer contains data, the function copies an available prefix and returns without waiting for new data to fill the array. Otherwise, it attempts to read input. Reading from a redirected pipe does not require a newline or wait for the destination to fill or the writer to close. It may still block if no data is available and input has not ended. Interactive terminals remain subject to input modes such as line buffering. Allowing short reads does not mean nonblocking I/O.
+
+This method shares buffered input with the other standard-input read methods. A short read does not indicate EOF, and a read does not correspond to one complete message. Process only the prefix identified by the returned count and accumulate data according to the protocol. Byte chunks may split UTF-8 characters; do not assume each chunk can be independently converted to a string.
+
+For redirected input on Windows, using this method on its own reads raw bytes, including CRLF and `0x1A`. If `read`, `readln`, or `readUntil` has already prefetched data into this instance's buffer, this method first returns the remaining text-translated data. Mixing methods within the instance preserves consumption order, but does not guarantee unchanged raw bytes. When raw bytes are required, use this method, or the `readFully` method built on it, from the start.
+
+The method preserves the behavior of returning `0` for some underlying read failures. A zero return cannot distinguish all read errors from normal EOF.
+
+Parameters:
+
+- arr: [Array](../../core/core_package_api/core_package_structs.md#struct-arrayt)\<[Byte](../../core/core_package_api/core_package_types.md#type-byte)> - The destination array; an array slice may also be used.
+
+Returns:
+
+- [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - The number of bytes read, `n`, where `0 <= n <= arr.size`. Only the first `n` elements receive data from this call; the remaining elements are unchanged. Returns `0` for an empty array, normal EOF without data, or some read failures.
+
+Example:
+
+<!-- compile -->
+```cangjie
+import std.env.getStdIn
+
+main() {
+    let buffer = Array<Byte>(256, repeat: 0)
+    let count = getStdIn().readSome(buffer)
+    println(buffer.slice(0, count))
+}
+```
+
+If a pipe writer sends `abc` and keeps its end open, this program can print `[97, 98, 99]` without requiring a newline or the writer to close the pipe.
+
+### func readFully(Array\<Byte>)
+
+```cangjie
+public func readFully(buffer: Array<Byte>): Unit
+```
+
+Function: Repeatedly calls this instance's `readSome`, targeting the unfilled slice on each read, until exactly filling `buffer`. An empty array succeeds without calling the underlying reader. For a redirected pipe, the operation completes once the required bytes are received, without requiring a newline or the writer to close.
+
+The method may block waiting for further input. It does not provide timeouts, cancellation, or message framing, and does not close the stream. Multiple reads are not guaranteed to be atomic as a whole; callers must coordinate other consumers of the same input stream.
+
+Parameters:
+
+- buffer: [Array](../../core/core_package_api/core_package_structs.md#struct-arrayt)\<[Byte](../../core/core_package_api/core_package_types.md#type-byte)> - The destination to fill; an array slice may also be used.
+
+Exceptions:
+
+- [IOException](../../io/io_package_api/io_package_exceptions.md#class-ioexception) - A read returns `0` before the array is full, or returns a count below `0` or above the requested length. An incomplete-read message includes the expected and completed byte counts.
+- Underlying exceptions are propagated unchanged. On failure, the destination may be partially modified and consumed input is not rolled back. Do not treat the entire array as a complete result.
+
+Some underlying read failures may also return `0`; in that case, this method reports an incomplete read but cannot recover the original error cause. Unlike the top-level function [std.io.readFully(InputStream, Array\<Byte>)](../../io/io_package_api/io_package_funcs.md#func-readfullyinputstream-arraybyte), this method uses standard input's short-read path. The top-level function calls the legacy `read`, which may still wait for a newline.
+
+Example:
+
+<!-- compile -->
+```cangjie
+import std.env.getStdIn
+import std.io.IOException
+
+main() {
+    let header = Array<Byte>(8, repeat: 0)
+    try {
+        getStdIn().readFully(header)
+        println(header)
+    } catch (e: IOException) {
+        println("Header read failed: ${e.message}")
+    }
+}
+```
+
+With standard input redirected from a file containing `abcdefgh`, the output is `[97, 98, 99, 100, 101, 102, 103, 104]`. If input ends after only `abc`, the method throws `IOException`; the partially modified array must not be treated as a complete header.
 
 ### func readToEnd()
 

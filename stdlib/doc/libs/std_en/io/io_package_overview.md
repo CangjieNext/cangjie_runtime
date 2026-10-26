@@ -13,6 +13,7 @@ I/O operations refer to data exchange operations between programs and external d
 |              Function Name             |             Functionality          |
 | ------------------------------------- | --------------------------------- |
 | [copy(InputStream, OutputStream)](./io_package_api/io_package_funcs.md#func-copyinputstream-outputstream) | Copies unread data from one input stream to another output stream. |
+| [readFully(InputStream, Array\<Byte>)](./io_package_api/io_package_funcs.md#func-readfullyinputstream-arraybyte) | Repeatedly reads to fill the destination array, throwing if it cannot be filled. |
 | [readString\<T>(T) where T <: InputStream & Seekable](./io_package_api/io_package_funcs.md#func-readstringtt-where-t--inputstream--seekable) | Reads all remaining content from the parameter and returns a string. |
 | [readStringUnchecked\<T>(T) where T <: InputStream & Seekable](./io_package_api/io_package_funcs.md#func-readstringuncheckedtt-where-t--inputstream--seekable) | Reads all remaining content from the parameter and returns a string. This function does not validate string legality. |
 | [func readToEnd\<T>(T) where T <: InputStream & Seekable](./io_package_api/io_package_funcs.md#func-readtoendtt-where-t--inputstream--seekable) | Retrieves all unread data from the parameter. |
@@ -21,7 +22,7 @@ I/O operations refer to data exchange operations between programs and external d
 
 |              Interface Name         |           Functionality         |
 | ---------------------------------- | ------------------------------- |
-| [InputStream](./io_package_api/io_package_interfaces.md#interface-inputstream) | Input stream interface with ordinary and exact reads. |
+| [InputStream](./io_package_api/io_package_interfaces.md#interface-inputstream) | Input stream interface. |
 | [IOStream](./io_package_api/io_package_interfaces.md#interface-iostream) | Input/output stream interface. |
 | [OutputStream](./io_package_api/io_package_interfaces.md#interface-iostream) | Output stream interface. |
 | [Seekable](./io_package_api/io_package_interfaces.md#interface-seekable) | Cursor movement interface. |

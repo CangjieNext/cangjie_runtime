@@ -15,6 +15,7 @@
 package std.env
 
 import std.io.InputStream
+import std.io.IOException
 import std.sync.*
 
 const defaultCapacity: Int64 = 32
@@ -105,11 +106,35 @@ public class ConsoleReader <: InputStream {
         }
     }
 
-    /*
-     * Read stdin bytes into arr and return the actual byte count.
-     * The returned count may be smaller than arr.size.
+    /**
+     * Preserves the line-oriented read behavior: collect input until arr is full
+     * or the line reader reports end of input or a failure.
+     * Use readSome for redirected input that must not wait for a complete line.
      */
     public func read(arr: Array<Byte>): Int64 {
+        let arraySize = arr.size
+        synchronized(mutex) {
+            while (arraySize > endIndex - startIndex) {
+                if (!readFromConsole()) {
+                    buffer.copyTo(arr, startIndex, 0, endIndex - startIndex)
+                    let readSize = endIndex - startIndex
+                    startIndex = 0
+                    endIndex = 0
+                    return readSize
+                }
+            }
+            buffer.copyTo(arr, startIndex, 0, arraySize)
+            startIndex += arraySize
+        }
+        return arraySize
+    }
+
+    /**
+     * Reads some stdin bytes without waiting to fill arr. This is a blocking
+     * operation, and terminal input is still subject to the terminal mode.
+     * An empty array returns 0. As with read, failures may also return 0.
+     */
+    public func readSome(arr: Array<Byte>): Int64 {
         let arraySize = arr.size
         if (arraySize == 0) {
             return 0
@@ -124,6 +149,30 @@ public class ConsoleReader <: InputStream {
             }
         }
         return readSize
+    }
+
+    /**
+     * Fills buffer by repeatedly calling readSome. An empty buffer succeeds
+     * without reading. This method does not close the stream or make multiple
+     * reads atomic. On failure, buffer may have been partially updated.
+     *
+     * @throws IOException if readSome returns 0 before buffer is full, or
+     * returns a byte count outside the requested range. Other exceptions
+     * propagate unchanged.
+     */
+    public func readFully(buffer: Array<Byte>): Unit {
+        var offset: Int64 = 0
+        while (offset < buffer.size) {
+            let remaining = buffer.size - offset
+            let count = readSome(buffer.slice(offset, remaining))
+            if (count < 0 || count > remaining) {
+                throw IOException("Invalid read count '${count}': expected a value between 0 and ${remaining}.")
+            }
+            if (count == 0) {
+                throw IOException("Unable to fill buffer: expected ${buffer.size} bytes, read ${offset}.")
+            }
+            offset += count
+        }
     }
 
     @When[os == "Windows"]

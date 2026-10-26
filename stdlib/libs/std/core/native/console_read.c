@@ -38,6 +38,7 @@ static size_t g_stdinBufferEnd = 0;
 
 #ifdef WIN32
 static SRWLOCK g_stdinLock = SRWLOCK_INIT;
+static bool g_stdinTextEof = false;
 
 static void LockStdin(void)
 {
@@ -94,6 +95,11 @@ static int ReadStdinByte(void)
     if (g_stdinBufferStart == g_stdinBufferEnd) {
         int64_t readSize = ReadStdinBytes(g_stdinBuffer, sizeof(g_stdinBuffer));
         if (readSize <= 0) {
+#ifdef WIN32
+            // The legacy Windows stdio path keeps EOF until the stream resets.
+            // A transient read failure must not become a permanent EOF.
+            g_stdinTextEof = readSize == 0;
+#endif
             return EOF;
         }
         g_stdinBufferStart = 0;
@@ -101,6 +107,35 @@ static int ReadStdinByte(void)
     }
 
     return (unsigned char)g_stdinBuffer[g_stdinBufferStart++];
+}
+
+static int ReadStdinTextByte(void)
+{
+#ifdef WIN32
+    // Preserve the default Windows text-input behavior of the old getchar path.
+    // Keep translation local to line reads: readSome must still see raw bytes.
+    if (g_stdinTextEof) {
+        return EOF;
+    }
+    int c = ReadStdinByte();
+    if (c == WIN_EOF) {
+        g_stdinTextEof = true;
+        return EOF;
+    }
+    if (c == '\r') {
+        int next = ReadStdinByte();
+        if (next == '\n') {
+            return '\n';
+        }
+        if (next != EOF) {
+            // The lookahead may have refilled the cache; return its byte there.
+            --g_stdinBufferStart;
+        }
+    }
+    return c;
+#else
+    return ReadStdinByte();
+#endif
 }
 
 /**
@@ -134,7 +169,7 @@ static StructureString* ConsoleReadLine(void)
 
     // Read characters from the console until EOF or \n is encountered
     int c;
-    while ((c = ReadStdinByte()) != EOF) {
+    while ((c = ReadStdinTextByte()) != EOF) {
         if (str->length >= bufferSize) {
             size_t newBufferSize = bufferSize * 2;
             if (newBufferSize >= SECUREC_MEM_MAX_LEN) {
