@@ -1,0 +1,16 @@
+runtime/src/Heap/Collector/TracingCollector.cpp
+  h_19cba801a4f3e0 730
+runtime/src/Heap/WCollector/WCollector.cpp
+  h_19cba801a4f3e0 146,217-218,259-260
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "48ced4f7d871ff22940e2abce796788794d6398f",
+  "prompts": {},
+  "humans": {
+    "h_19cba801a4f3e0": {
+      "author": "leeguo <leeguo@126.com>"
+    }
+  }
+}
