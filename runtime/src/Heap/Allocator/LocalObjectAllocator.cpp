@@ -187,7 +187,7 @@ private:
         return static_cast<MutatorData*>(mutator.GetLocalObjectAllocatorData());
     }
     MutatorData* CreateData(Mutator& mutator);
-    RegionChunk* AllocateChunk(size_t minSize);
+    RegionChunk* AllocateChunk(RegionFrame& frame, size_t minSize);
     void ReleaseChunk(RegionChunk* chunk);
     void AppendActiveChunk(MutatorData& data, RegionChunk* chunk);
     void DetachActiveSuffix(MutatorData& data, RegionChunk* snapshotChunk);
@@ -668,9 +668,20 @@ NativeLocalObjectAllocator::MutatorData* NativeLocalObjectAllocator::CreateData(
     return data;
 }
 
-NativeLocalObjectAllocator::RegionChunk* NativeLocalObjectAllocator::AllocateChunk(size_t minSize)
+NativeLocalObjectAllocator::RegionChunk* NativeLocalObjectAllocator::AllocateChunk(RegionFrame& frame,
+                                                                                   size_t minSize)
 {
+    if (minSize > std::numeric_limits<size_t>::max() - (Allocator::ALLOC_ALIGN - 1U)) {
+        ExceptionManager::LocalRegionOutOfMemory();
+        return nullptr;
+    }
     size_t alignedSize = RoundUp<size_t>(minSize, Allocator::ALLOC_ALIGN);
+    if (UNLIKELY(!IsAllocationWithinFrameLimit(frame, alignedSize))) {
+        VLOG(LOCAL_REGION, "native local region limit reached: frame %p, used %zu B, request %zu B, limit %zu B",
+             &frame, frame.allocatedBytes, alignedSize, regionLimit);
+        ExceptionManager::LocalRegionOutOfMemory();
+        return nullptr;
+    }
     size_t capacity = std::max(DEFAULT_CHUNK_SIZE, alignedSize);
     void* memory = NativeAllocator::NativeAlloc(capacity);
     if (memory == nullptr) {
@@ -716,25 +727,15 @@ bool NativeLocalObjectAllocator::StartRegion(Mutator& mutator, FrameAddress* own
 {
     MutatorData* data = CreateData(mutator);
     RegionFrame* frame = new (std::nothrow) RegionFrame();
-    if (frame == nullptr) {
-        return false;
-    }
+    CHECK_DETAIL(frame != nullptr, "failed to new frame");
+
     frame->prev = data->currentFrame;
     frame->top = data->regionTop;
     frame->chunk = data->currentChunk;
     frame->ownerFA = ownerFA;
 
-    // Reuse the active chunk when possible.  A frame's (chunk, top) snapshot
-    // precisely identifies the part of that chunk owned by the new frame.
-    // When it fills, Allocate() appends chunks as usual.
-    if (data->currentChunk == nullptr || data->currentChunk->top == data->currentChunk->GetEnd()) {
-        RegionChunk* chunk = AllocateChunk(DEFAULT_CHUNK_SIZE);
-        if (chunk == nullptr) {
-            delete frame;
-            return false;
-        }
-        AppendActiveChunk(*data, chunk);
-    }
+    // A frame only records the current allocation position. Allocate() creates
+    // a chunk lazily when the first allocation cannot use the active chunk.
     data->currentFrame = frame;
     VLOG(LOCAL_REGION, "StartNativeLocalRegion: mutator %p, frame %p, ownerFA %p, chunk %p, top %p", &mutator,
          frame, ownerFA, data->currentChunk, reinterpret_cast<void*>(data->regionTop));
@@ -743,6 +744,10 @@ bool NativeLocalObjectAllocator::StartRegion(Mutator& mutator, FrameAddress* own
 
 ALWAYS_INLINE MAddress NativeLocalObjectAllocator::TryAllocate(MutatorData& data, size_t size)
 {
+    if (size > std::numeric_limits<size_t>::max() - (Allocator::ALLOC_ALIGN - 1U)) {
+        return 0;
+    }
+    size = RoundUp<size_t>(size, Allocator::ALLOC_ALIGN);
     RegionChunk* chunk = data.currentChunk;
     if (chunk == nullptr) {
         return 0;
@@ -769,30 +774,21 @@ MAddress NativeLocalObjectAllocator::Allocate(Mutator& mutator, size_t size)
         LOG(RTLOG_ERROR, "alloc native local object without local object region");
         return 0;
     }
-    if (size > std::numeric_limits<size_t>::max() - (Allocator::ALLOC_ALIGN - 1U)) {
-        ExceptionManager::LocalRegionOutOfMemory();
-        return 0;
-    }
-    size_t allocSize = RoundUp<size_t>(size, Allocator::ALLOC_ALIGN);
     RegionFrame& frame = *data->currentFrame;
-    if (UNLIKELY(!IsAllocationWithinFrameLimit(frame, allocSize))) {
-        VLOG(LOCAL_REGION, "native local region limit reached: mutator %p, frame %p, used %zu B, request %zu B, "
-             "limit %zu B", &mutator, &frame, frame.allocatedBytes, allocSize, regionLimit);
-        ExceptionManager::LocalRegionOutOfMemory();
-        return 0;
-    }
-    MAddress addr = TryAllocate(*data, allocSize);
+    MAddress addr = TryAllocate(*data, size);
     if (addr != 0) {
+        size_t allocSize = RoundUp<size_t>(size, Allocator::ALLOC_ALIGN);
         frame.allocatedBytes += allocSize;
         return addr;
     }
-    RegionChunk* chunk = AllocateChunk(allocSize);
+    RegionChunk* chunk = AllocateChunk(frame, size);
     if (chunk == nullptr) {
         return 0;
     }
     AppendActiveChunk(*data, chunk);
-    addr = TryAllocate(*data, allocSize);
+    addr = TryAllocate(*data, size);
     CHECK_DETAIL(addr != 0, "native local allocation failed after adding chunk");
+    size_t allocSize = RoundUp<size_t>(size, Allocator::ALLOC_ALIGN);
     frame.allocatedBytes += allocSize;
     VLOG(LOCAL_REGION, "AllocNativeLocalObject: mutator %p, chunk %p, obj %p, objSize %zu", &mutator, chunk,
          reinterpret_cast<void*>(addr), size);
