@@ -1,0 +1,23 @@
+runtime/src/Heap/Allocator/RegionManager.cpp
+  s_74e4324891b662::t_982b05e6ae61a1 199-200,237-238
+runtime/src/Heap/GenerationalGC/MixedCollector.cpp
+  s_74e4324891b662::t_1ca97043794089 235-237
+runtime/src/Heap/Allocator/MixedRegionSpace/MixedRegionManager.h
+  s_74e4324891b662::t_ca16a104b14aed 323-339,341-342
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7e4df8d54b513f48d86d71c369abfe64b6859d6e",
+  "prompts": {},
+  "sessions": {
+    "s_74e4324891b662": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1637c-3d07-7ce0-b488-31069e62777f",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": null
+    }
+  }
+}
