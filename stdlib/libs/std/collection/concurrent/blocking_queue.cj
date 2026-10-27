@@ -14,13 +14,17 @@ import std.time.*
 @Deprecated[message: "Use LinkedBlockingQueue instead."]
 public type BlockingQueue<E> = LinkedBlockingQueue<E>
 
-// Per-call holder for cross-monitor wake-up flags raised on the OOM exception path.
-// The cores must not signal while holding a monitor (ABBA), so they only set a flag here
-// and the outer function re-issues the matching signal after `finally { unlock }`
-// (or directly on the lock-free fast path, where no monitor is held).
+// Per-call holder passed into the lock-free cores. The cores must not signal while holding a
+// monitor (ABBA), so they only set flags/prev-counters here; the outer function re-issues the
+// matching signal after `finally { unlock }` (or directly on the lock-free fast path, where no
+// monitor is held). prev/prevCount/prevPut carry the counters observed by the core out to the
+// caller so the caller can decide wake-up without re-destructuring a tuple.
 private class WakeFlags {
     var needWakeConsumer = false
     var needWakeProducer = false
+    var prev: Int64 = 0       // count before this enqueue (add/tryAdd consumer-wake decision)
+    var prevCount: Int64 = 0  // count before this dequeue (remove/tryRemove chained-notify decision)
+    var prevPut: Int64 = 0    // putQsize before this slot release (producer-wake decision)
 }
 
 /**
@@ -151,8 +155,7 @@ public class LinkedBlockingQueue<E> {
     }
 
     public func add(element: E): Unit {
-        // Fast path: tryAdd already wakes a blocked consumer when prev==0 and re-issues the
-        // producer wake-up on its OOM path, so no signalling is needed here.
+        // Fast path: tryAdd wakes a consumer on prev==0 and re-issues the producer wake-up on OOM.
         if (tryAdd(element)) {
             return
         }
@@ -160,23 +163,14 @@ public class LinkedBlockingQueue<E> {
         let wake = WakeFlags()
         var needWakeConsumer = false
         try {
-            // The wait loop must reuse the lock-free core tryAddCore (CAS-based reservation):
-            // putMonitor only serializes blocking producers and does NOT exclude a concurrent
-            // fast-path producer, so a lock-held fetchAdd would let putQsize exceed capacity (a
-            // drained queue would still look "full"). We also cannot call the public tryAdd here
-            // (it signals on success), which would duplicate the signal; tryAddCore signals nothing,
-            // so we signal once after unlock below.
+            // Wait loop reuses lock-free tryAddCore (CAS reservation): putMonitor does not exclude a
+            // concurrent fast-path producer, so a lock-held fetchAdd would let putQsize exceed capacity.
             while (true) {
-                let (ok, prev) = tryAddCore(element, wake)
-                if (ok) {
-                    // Wake a consumer only when the queue was empty before this enqueue (prev==0),
-                    // avoiding a needless signal on the SPSC hot path.
-                    if (prev == 0) {
+                if (tryAddCore(element, wake)) {
+                    if (wake.prev == 0) {
                         needWakeConsumer = true
                     }
-                    // Chained notify (same monitor, no cross-lock): if the queue is still not full
-                    // after this enqueue, wake another blocked producer to avoid MPMC starvation.
-                    if (prev + 1 < capacity) {
+                    if (wake.prev + 1 < capacity) {
                         putMonitor.notify()
                     }
                     break
@@ -184,25 +178,15 @@ public class LinkedBlockingQueue<E> {
                 let _ = putMonitor.wait()
             }
         } catch (e: Error) {
-            // OOM (or other) exception propagated from tryAddCore through the wait loop: re-issue
-            // signalNotFull if the rollback crossed the capacity boundary (prevPut==capacity), otherwise
-            // a parked producer can be left hanging on an empty queue (VUL-301). finally has released
-            // putMonitor by now, so the cross-lock signal cannot form an ABBA.
-            if (wake.needWakeProducer) {
-                signalNotFull()
-            }
+            // OOM path: re-issue signalNotFull if rollback crossed capacity (finally released putMonitor). VUL-301.
+            reissueProducerWake(wake)
             throw e
         } catch (e: Exception) {
-            if (wake.needWakeProducer) {
-                signalNotFull()
-            }
+            reissueProducerWake(wake)
             throw e
         } finally {
             putMonitor.unlock()
         }
-        // Cross-monitor signal (takes takeMonitor) must come AFTER releasing putMonitor, otherwise it
-        // forms an ABBA with the remove side (holds takeMonitor, takes putMonitor). It lands on the
-        // monitor consumers wait on, so no wake-up is lost.
         if (needWakeConsumer) {
             signalNotEmpty()
         }
@@ -225,8 +209,7 @@ public class LinkedBlockingQueue<E> {
     }
 
     public func add(element: E, timeout: Duration): Bool {
-        // Fast path: tryAdd already handles consumer wake-up (prev==0) and its OOM-path producer
-        // wake-up, so nothing to signal here.
+        // Fast path: tryAdd handles consumer wake-up (prev==0) and its OOM-path producer wake-up.
         if (tryAdd(element)) {
             return true
         }
@@ -236,14 +219,11 @@ public class LinkedBlockingQueue<E> {
         try {
             var remaining = timeout
             while (true) {
-                // Same as add(element): the wait loop uses only the lock-free core tryAddCore so
-                // putQsize stays CAS-reserved.
-                let (ok, prev) = tryAddCore(element, wake)
-                if (ok) {
-                    if (prev == 0) {
+                if (tryAddCore(element, wake)) {
+                    if (wake.prev == 0) {
                         needWakeConsumer = true
                     }
-                    if (prev + 1 < capacity) {
+                    if (wake.prev + 1 < capacity) {
                         putMonitor.notify()
                     }
                     break
@@ -257,16 +237,10 @@ public class LinkedBlockingQueue<E> {
                 remaining -= endTime - startTime
             }
         } catch (e: Error) {
-            // OOM exception path: re-issue signalNotFull if the rollback crossed the capacity boundary
-            // (finally has released putMonitor, so no ABBA).
-            if (wake.needWakeProducer) {
-                signalNotFull()
-            }
+            reissueProducerWake(wake)
             throw e
         } catch (e: Exception) {
-            if (wake.needWakeProducer) {
-                signalNotFull()
-            }
+            reissueProducerWake(wake)
             throw e
         } finally {
             putMonitor.unlock()
@@ -293,8 +267,7 @@ public class LinkedBlockingQueue<E> {
     }
 
     public func remove(): E {
-        // Fast path: tryRemove already wakes a blocked producer when prevPut==capacity and re-issues
-        // the consumer wake-up on its OOM path, so nothing to signal here.
+        // Fast path: tryRemove wakes a producer on prevPut==capacity and re-issues consumer wake-up on OOM.
         if (let Some(e) <- tryRemove()) {
             return e
         }
@@ -303,23 +276,13 @@ public class LinkedBlockingQueue<E> {
         var needWakeProducer = false
         var result: Option<E> = None<E>
         try {
+            // Wait loop reuses lock-free tryRemoveCore (CAS claim); a lock-held fetchSub would drive count negative.
             while (true) {
-                // The wait loop must reuse the lock-free core tryRemoveCore (CAS-based claim), not a
-                // lock-held fetchSub: takeMonitor only serializes blocking consumers and does NOT exclude a
-                // concurrent fast-path consumer, so a plain fetchSub would drive count negative (empty-queue
-                // pop throwing "Unreachable code"). We also cannot call public tryRemove (it signals on
-                // success); tryRemoveCore signals nothing, so we signal once after unlock below.
-                let (opt, prevCount, prevPut) = tryRemoveCore(wake)
-                if (let Some(e) <- opt) {
-                    // Wake a producer only when the slot release took the reservation from full to
-                    // non-full (prevPut==capacity) — matching the producer's reservation-based blocking
-                    // predicate, so a free slot never leaves a producer parked.
-                    if (prevPut == capacity) {
+                if (let Some(e) <- tryRemoveCore(wake)) {
+                    if (wake.prevPut == capacity) {
                         needWakeProducer = true
                     }
-                    // Chained notify (same monitor): if elements remain after this dequeue
-                    // (prevCount > 1), wake another blocked consumer to avoid MPMC starvation.
-                    if (prevCount > 1) {
+                    if (wake.prevCount > 1) {
                         takeMonitor.notify()
                     }
                     result = Some(e)
@@ -328,25 +291,22 @@ public class LinkedBlockingQueue<E> {
                 let _ = takeMonitor.wait()
             }
         } catch (e: Error) {
-            // OOM (or other) exception path: re-issue signalNotEmpty if the rollback crossed the
-            // empty boundary (prevCount==0); finally has released takeMonitor, so no ABBA.
-            if (wake.needWakeConsumer) {
-                signalNotEmpty()
-            }
+            // OOM path: re-issue signalNotEmpty if rollback crossed empty (finally released takeMonitor).
+            reissueConsumerWake(wake)
             throw e
         } catch (e: Exception) {
-            if (wake.needWakeConsumer) {
-                signalNotEmpty()
-            }
+            reissueConsumerWake(wake)
             throw e
         } finally {
             takeMonitor.unlock()
         }
-        // Cross-monitor signal (takes putMonitor) must come AFTER releasing takeMonitor, otherwise ABBA.
         if (needWakeProducer) {
             signalNotFull()
         }
-        return result.getOrThrow()
+        return match(result) {
+            case Some(v) => v
+            case None => throw Exception("unreachable")
+        }
     }
 
     /**
@@ -365,8 +325,7 @@ public class LinkedBlockingQueue<E> {
     }
 
     public func remove(timeout: Duration): Option<E> {
-        // Fast path: tryRemove already handles producer wake-up (prevPut==capacity) and its OOM-path
-        // consumer wake-up, so nothing to signal here.
+        // Fast path: tryRemove handles producer wake-up (prevPut==capacity) and its OOM-path consumer wake-up.
         if (let Some(e) <- tryRemove()) {
             return Some(e)
         }
@@ -377,14 +336,11 @@ public class LinkedBlockingQueue<E> {
         try {
             var remaining = timeout
             while (true) {
-                // Same as remove(): the wait loop uses only the lock-free core tryRemoveCore so count
-                // stays CAS-claimed.
-                let (opt, prevCount, prevPut) = tryRemoveCore(wake)
-                if (let Some(e) <- opt) {
-                    if (prevPut == capacity) {
+                if (let Some(e) <- tryRemoveCore(wake)) {
+                    if (wake.prevPut == capacity) {
                         needWakeProducer = true
                     }
-                    if (prevCount > 1) {
+                    if (wake.prevCount > 1) {
                         takeMonitor.notify()
                     }
                     result = Some(e)
@@ -399,16 +355,10 @@ public class LinkedBlockingQueue<E> {
                 remaining -= endTime - startTime
             }
         } catch (e: Error) {
-            // OOM exception path: re-issue signalNotEmpty if the rollback crossed the empty boundary
-            // (prevCount==0); finally has released takeMonitor, so no ABBA.
-            if (wake.needWakeConsumer) {
-                signalNotEmpty()
-            }
+            reissueConsumerWake(wake)
             throw e
         } catch (e: Exception) {
-            if (wake.needWakeConsumer) {
-                signalNotEmpty()
-            }
+            reissueConsumerWake(wake)
             throw e
         } finally {
             takeMonitor.unlock()
@@ -464,26 +414,22 @@ public class LinkedBlockingQueue<E> {
 
     // Lock-free core: enqueues and updates counters only; never acquires any monitor.
     // Signalling is split out because it needs the peer monitor, and this core runs inside add's
-    // putMonitor wait loop — signalling while held would form an ABBA. Returns (success, prev):
-    // prev (count before this enqueue) tells the caller whether to wake a consumer (prev==0) and
-    // whether to chained-notify another producer (prev+1 < capacity).
-    private func tryAddCore(element: E, wake: WakeFlags): (Bool, Int64) {
-        // Use break (not return) to leave the "full" branch: a while(true) used as the function's
-        // tail expression is typed Unit, so the loop needs a reachable exit and a single return after
-        // it to satisfy the (Bool, Int64) return type.
+    // putMonitor wait loop — signalling while held would form an ABBA. Returns whether the enqueue
+    // succeeded; the count before this enqueue is written into wake.prev so the caller can decide
+    // whether to wake a consumer (prev==0) and whether to chained-notify another producer (prev+1 < capacity).
+    private func tryAddCore(element: E, wake: WakeFlags): Bool {
         while (true) {
             let r: Int64 = putQsize.load()
             if (r >= capacity) {
                 break
             }
-            let next: Int64 = r + 1
-            if (putQsize.compareAndSwap(r, next)) {
+            if (putQsize.compareAndSwap(r, r + 1)) {
                 // enqueueUnsafe may throw on heap allocation (e.g. OOM in newBlock); on failure the
                 // reserved putQsize must be rolled back, or the queue's real capacity is permanently -1.
                 try {
                     enqueueUnsafe(element)
-                    let prev = count.fetchAdd(1)
-                    return (true, prev)
+                    wake.prev = count.fetchAdd(1)
+                    return true
                 } catch (e: Error) {
                     // Covers OutOfMemoryError (<: Error, not Exception) from newBlock heap allocation:
                     // the slot was reserved (+1) but enqueue failed, so roll it back or capacity is poisoned.
@@ -505,33 +451,26 @@ public class LinkedBlockingQueue<E> {
                 }
             }
         }
-        return (false, 0)
+        return false
     }
 
     public func tryAdd(element: E): Bool {
-        // Non-blocking enqueue: on success, wake a blocked consumer only when the queue was empty
-        // before (prev==0), matching the conditional signal semantics and avoiding a needless
-        // monitor round-trip on the SPSC hot path. On the OOM path (no monitor held) re-issue
-        // signalNotFull directly if the rollback crossed the capacity boundary.
+        // Non-blocking enqueue: wake a consumer on prev==0 (conditional signal avoids a needless
+        // monitor round-trip on the SPSC hot path); on the OOM path re-issue signalNotFull directly.
         let wake = WakeFlags()
         try {
-            let (ok, prev) = tryAddCore(element, wake)
-            if (ok) {
-                if (prev == 0) {
+            if (tryAddCore(element, wake)) {
+                if (wake.prev == 0) {
                     signalNotEmpty()
                 }
                 return true
             }
             return false
         } catch (e: Error) {
-            if (wake.needWakeProducer) {
-                signalNotFull()
-            }
+            reissueProducerWake(wake)
             throw e
         } catch (e: Exception) {
-            if (wake.needWakeProducer) {
-                signalNotFull()
-            }
+            reissueProducerWake(wake)
             throw e
         }
     }
@@ -550,28 +489,25 @@ public class LinkedBlockingQueue<E> {
     }
 
     // Lock-free core: dequeues and updates counters only; never acquires any monitor (same reason
-    // as tryAddCore). Returns (result, prevCount, prevPut):
-    //   - prevCount (count before this dequeue) tells the caller whether to chained-notify another
-    //     consumer (prevCount > 1).
-    //   - prevPut (putQsize before the slot release) tells the caller whether to wake a producer
-    //     (prevPut == capacity). A producer blocks on the reservation predicate putQsize>=capacity,
-    //     so its wake-up MUST be derived from putQsize, not the committed count — otherwise a free slot
-    //     could leave a producer parked forever (lost-wakeup liveness bug).
-    private func tryRemoveCore(wake: WakeFlags): (Option<E>, Int64, Int64) {
-        // Same as tryAddCore: use break so the while(true) has a reachable exit and a single return after it.
+    // as tryAddCore). Returns the dequeued element (Some) or None when empty; the count before this
+    // dequeue is written into wake.prevCount (chained-notify another consumer when > 1) and the
+    // putQsize before the slot release into wake.prevPut (wake a producer when == capacity). A producer
+    // blocks on the reservation predicate putQsize>=capacity, so its wake-up MUST be derived from putQsize,
+    // not the committed count — otherwise a free slot could leave a producer parked forever (lost-wakeup bug).
+    private func tryRemoveCore(wake: WakeFlags): Option<E> {
         while (true) {
             let c: Int64 = count.load()
             if (c == 0) {
                 break
             }
-            let next: Int64 = c - 1
-            if (count.compareAndSwap(c, next)) {
+            if (count.compareAndSwap(c, c - 1)) {
                 // dequeueUnsafe can throw ("Unreachable code."); on failure the claimed count must be
                 // rolled back, or the element is lost and putQsize leaks.
                 try {
                     let value = dequeueUnsafe()
-                    let prevPut = putQsize.fetchSub(1)
-                    return (Some(value), c, prevPut)
+                    wake.prevPut = putQsize.fetchSub(1)
+                    wake.prevCount = c
+                    return Some(value)
                 } catch (e: Error) {
                     // Symmetric to tryAddCore: roll back the claimed count on any error/exception.
                     // If the rollback took count from 0 to 1 (prevCount==0), re-issue signalNotEmpty to
@@ -592,33 +528,26 @@ public class LinkedBlockingQueue<E> {
                 }
             }
         }
-        return (None<E>, 0, 0)
+        return None<E>
     }
 
     public func tryRemove(): Option<E> {
-        // Non-blocking dequeue: on success, wake a blocked producer only when the slot release took the
-        // reservation from full to non-full (prevPut==capacity), matching the conditional signal semantics.
-        // On the OOM path (no monitor held) re-issue signalNotEmpty directly if the rollback crossed the
-        // empty boundary.
+        // Non-blocking dequeue: wake a producer on prevPut==capacity; on the OOM path re-issue
+        // signalNotEmpty directly if the rollback crossed the empty boundary.
         let wake = WakeFlags()
         try {
-            let (opt, _, prevPut) = tryRemoveCore(wake)
-            if (let Some(e) <- opt) {
-                if (prevPut == capacity) {
+            if (let Some(e) <- tryRemoveCore(wake)) {
+                if (wake.prevPut == capacity) {
                     signalNotFull()
                 }
                 return Some(e)
             }
             return None<E>
         } catch (e: Error) {
-            if (wake.needWakeConsumer) {
-                signalNotEmpty()
-            }
+            reissueConsumerWake(wake)
             throw e
         } catch (e: Exception) {
-            if (wake.needWakeConsumer) {
-                signalNotEmpty()
-            }
+            reissueConsumerWake(wake)
             throw e
         }
     }
@@ -648,6 +577,18 @@ public class LinkedBlockingQueue<E> {
             }
         }
         throw Exception("Unreachable code.")
+    }
+
+    private func reissueProducerWake(wake: WakeFlags): Unit {
+        if (wake.needWakeProducer) {
+            signalNotFull()
+        }
+    }
+
+    private func reissueConsumerWake(wake: WakeFlags): Unit {
+        if (wake.needWakeConsumer) {
+            signalNotEmpty()
+        }
     }
 
     private func signalNotEmpty(): Unit {
