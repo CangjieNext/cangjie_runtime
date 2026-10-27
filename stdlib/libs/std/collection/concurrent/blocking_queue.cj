@@ -14,93 +14,53 @@ import std.time.*
 @Deprecated[message: "Use LinkedBlockingQueue instead."]
 public type BlockingQueue<E> = LinkedBlockingQueue<E>
 
-// 把无锁核心（tryAddCore / tryRemoveCore）异常路径需要补发的跨 Monitor 唤醒标志带出到外层：
-// 异常路径不能持锁发跨锁信号（ABBA），故核心只置位、由外层在 finally 解锁后统一补发。
-// 每个调用线程各自 new 一个实例，不存在跨线程竞争。
+// Per-call holder for cross-monitor wake-up flags raised on the OOM exception path.
+// The cores must not signal while holding a monitor (ABBA), so they only set a flag here
+// and the outer function re-issues the matching signal after `finally { unlock }`
+// (or directly on the lock-free fast path, where no monitor is held).
 private class WakeFlags {
     var needWakeConsumer = false
     var needWakeProducer = false
 }
 
 /**
- * BlockingQueue is a concurrent queue with a blocking mechanism and supports a user-specified upper bound of capacity.
+ * BlockingQueue is a concurrent, capacity-bounded queue that blocks producers when
+ * full and consumers when empty.
  *
- * Performance optimization note:
- * The previous implementation acquired a `Monitor` for *every* `tryAdd` /
- * `tryRemove` call, even when the queue was neither full nor empty. That forced
- * all producers to serialize on one lock and all consumers on another, which
- * dominated the cost of high-throughput producer/consumer workloads.
+ * Slot reservation protocol:
+ *   - Producers reserve a slot with a CAS on `putQsize` (bounded by `capacity`), commit the
+ *     element, then publish it with `count.fetchAdd`.
+ *   - Consumers claim an element with a CAS on `count`, then dequeue it and free the slot
+ *     with `putQsize.fetchSub`.
+ *   Every mutation of `putQsize` / `count` (fast path or blocking path) uses this same CAS-based
+ *   atomic protocol. The monitors only serialize blocking producers/consumers among themselves;
+ *   they do NOT exclude a thread concurrently running the lock-free fast path, so a plain
+ *   fetchAdd/fetchSub inside a monitor would race with the CAS loop.
  *
- * This version keeps the same capacity-bounded, blocked-on-full/empty semantics,
- * but makes the common (non-full / non-empty) path fully lock-free:
- *   - Producers reserve a slot with a CAS on `putQsize` (bounded by `capacity`),
- *     commit the element, then publish it with a `count.fetchAdd`.
- *   - Consumers claim an element with a CAS on `count`, then dequeue it and free
- *     the slot with `putQsize.fetchSub`.
- *
- * `putQsize` is reused as the reservation counter on purpose: it was already
- * declared (but unused) upstream with exactly this meaning, so reusing it keeps
- * the field order and types of this class unchanged and therefore keeps the
- * ABI of std.collection.concurrent intact.
- * The two `Monitor`s are now used *only* to park threads when the queue is full
- * (producers) or empty (consumers), and to deliver the wake-up signal. This
- * decouples producers from consumers on the hot path and removes the per-op
- * monitor round-trips.
- *
- * IMPORTANT: signalNotEmpty / signalNotFull are called AFTER releasing the
- * putMonitor / takeMonitor to avoid ABBA deadlock (add holds putMonitor and
- * would acquire takeMonitor via signalNotEmpty, while remove holds takeMonitor
- * and would acquire putMonitor via signalNotFull).
- *
- * Signal is CONDITIONAL (only when the queue transitions from empty/full),
- * matching upstream's JDK-style signal() semantics: this avoids the extra
- * Monitor round-trip on the SPSC hot path that an unconditional signal would
- * incur, while staying provably free of lost-wakeup (the signal is taken under
- * the same takeMonitor/putMonitor the consumer/producer waits on, so a notify
- * can only land before the waiter acquires that monitor or after it is already
- * parked — never in the check-and-await gap).
- *
- * Chained wake-up (notify of another waiter on the *same* monitor) is also preserved
- * from upstream to avoid MPMC liveness starvation: a successful add with prev+1 < capacity
- * wakes another blocked producer, and a successful remove with prev > 1 wakes another
- * blocked consumer. This complements the conditional cross-monitor signal above.
- *
- * IMPORTANT (producer wake-up predicate must match the reservation-based blocking
- * predicate): a producer blocks when the reservation counter `putQsize` reaches
- * `capacity` (see tryAddCore), so the producer-wakeup signal MUST be derived from the
- * same counter. In tryRemoveCore the slot-release is `let prevPut = putQsize.fetchSub(1)`,
- * and signalNotFull() is triggered only when `prevPut == capacity` (the release took the
- * reservation from full to non-full). Deriving it from the committed `count` (== capacity)
- * instead would mismatch the blocking predicate and could leave a producer parked forever
- * while a free slot exists. The consumer-wakeup signal (signalNotEmpty) stays count-based,
- * matching the consumer's count-based blocking predicate, so it needs no such adjustment.
- *
- * IMPORTANT (capacity/element counters): every mutation of `putQsize` / `count`
- * must go through the SAME CAS-based atomic protocol used by the lock-free fast
- * path, no matter whether the caller is on the fast path or on the blocking
- * path. The putMonitor / takeMonitor only serialize the *blocking* producers or
- * consumers among themselves; they do NOT exclude a thread that is concurrently
- * running the lock-free fast path. Using a plain fetchAdd/fetchSub inside the
- * monitors would therefore race with the CAS loop and corrupt the counters
- * (putQsize could exceed capacity, or count could go negative).
- *
- * IMPORTANT (exception-path wake-up must not be lost): the reservation/claim
- * rollback on OOM (tryAddCore's `putQsize.fetchSub` crossing capacity→capacity-1,
- * and tryRemoveCore's `count.fetchAdd` crossing 0→1) is itself a "release" event
- * that can unblock a parked peer, so it MUST re-issue the matching cross-monitor
- * signal (signalNotFull / signalNotEmpty). To keep the "core never signals while
- * holding a monitor" invariant (ABBA-free), the cores only set a flag on the
- * per-call `WakeFlags` holder; the outer `add`/`remove`/`tryAdd`/`tryRemove`
- * re-issue the signal AFTER `finally { unlock }` (or, on the lock-free fast path,
- * directly, since no monitor is held). This closes VUL-301.
+ * Wake-up protocol (deadlock- and lost-wakeup-free):
+ *   - Cross-monitor signals (signalNotEmpty / signalNotFull) are issued AFTER releasing the
+ *     monitor, to avoid an ABBA deadlock (add holds putMonitor and would take takeMonitor via
+ *     signalNotEmpty, while remove holds takeMonitor and would take putMonitor via signalNotFull).
+ *   - A producer blocks when `putQsize >= capacity`, so signalNotFull fires only when the slot
+ *     release takes `putQsize` from `capacity` to `capacity-1` (prevPut == capacity) — derived from
+ *     the same reservation counter, not the committed `count`. Deriving it from `count` would
+ *     mismatch the blocking predicate and could leave a producer parked forever with a free slot.
+ *   - A consumer blocks on `count == 0`, so signalNotEmpty is count-based (prev == 0).
+ *   - Chained notify on the SAME monitor avoids MPMC starvation: a successful add with
+ *     prev+1 < capacity wakes another blocked producer; a successful remove with prevCount > 1
+ *     wakes another blocked consumer.
+ *   - Exception path: an OOM rollback is itself a release event that can unblock a parked peer
+ *     (putQsize.fetchSub crossing capacity->capacity-1, or count.fetchAdd crossing 0->1). The cores
+ *     set the flag on the per-call WakeFlags holder; the outer function re-issues the matching signal
+ *     after `finally { unlock }` (or directly on the fast path). This keeps the "core never signals
+ *     while holding a monitor" invariant. See VUL-301.
  */
 public class LinkedBlockingQueue<E> {
     public let capacity: Int64 // the capacity of the queue
     private let takeMonitor = Monitor() // Monitor for blocking consumers when the queue is empty
     private let putMonitor = Monitor() // Monitor for blocking producers when the queue is full
-    // putQsize 作为槽位预约计数器：0 <= putQsize <= capacity，用于在无锁快路径上
-    // 对"已预约但尚未提交"的槽位进行 bounded 控制，从而把生产者的预约动作和消费者的
-    // 认领动作与 Monitor 解耦，只在队列满/空时才落到 Monitor 上阻塞。
+    // Slot reservation counter: 0 <= putQsize <= capacity. Bounds the number of in-flight
+    // producers (reserved-but-not-committed) so the queue never exceeds capacity.
     private let putQsize = AtomicInt64(0) // Number of reserved slots (0 <= putQsize <= capacity).
     private let takeQsize = AtomicInt64(0) // Number of elements that are being dequeued (kept for ABI compatibility).
     private let front: AtomicReference<Block<E>> // head of BlockingQueue.
@@ -191,8 +151,8 @@ public class LinkedBlockingQueue<E> {
     }
 
     public func add(element: E): Unit {
-        // 快路径：公开 tryAdd 内部已包含"按需唤醒消费者"语义（仅 prev==0）及 OOM 异常路径补发生产者唤醒，
-        // 这里无需重复发信号
+        // Fast path: tryAdd already wakes a blocked consumer when prev==0 and re-issues the
+        // producer wake-up on its OOM path, so no signalling is needed here.
         if (tryAdd(element)) {
             return
         }
@@ -200,20 +160,22 @@ public class LinkedBlockingQueue<E> {
         let wake = WakeFlags()
         var needWakeConsumer = false
         try {
-            // 等待循环里必须复用无锁核心 tryAddCore（用 CAS 预约槽位），不能再用"锁内直接 fetchAdd"的版本：
-            // putMonitor 只串行化"走阻塞路径的生产者"，无法与同时走无锁快路径的生产者互斥，
-            // 二者并发修改 putQsize 会把它加到超过 capacity，导致队列排空后生产者仍误判为"满"而永久阻塞。
-            // 这里也不能改用公开 tryAdd：公开 tryAdd 在成功入队后会自行发信号，会与此处重复；
-            // 我们用 tryAddCore（纯入队、不发声信号）并在下方解锁后统一发信号，避免重复唤醒与 ABBA。
+            // The wait loop must reuse the lock-free core tryAddCore (CAS-based reservation):
+            // putMonitor only serializes blocking producers and does NOT exclude a concurrent
+            // fast-path producer, so a lock-held fetchAdd would let putQsize exceed capacity (a
+            // drained queue would still look "full"). We also cannot call the public tryAdd here
+            // (it signals on success), which would duplicate the signal; tryAddCore signals nothing,
+            // so we signal once after unlock below.
             while (true) {
                 let (ok, prev) = tryAddCore(element, wake)
                 if (ok) {
-                    // 仅当本次入队前队列为空（prev==0）才唤醒消费者，避免 SPSC 下多余 signal
+                    // Wake a consumer only when the queue was empty before this enqueue (prev==0),
+                    // avoiding a needless signal on the SPSC hot path.
                     if (prev == 0) {
                         needWakeConsumer = true
                     }
-                    // 与上游对齐的链式唤醒：本次入队后队列仍未满（prev+1 < capacity），
-                    // 唤醒另一个阻塞在 putMonitor 上的生产者，避免 MPMC 下满队列多生产者永久挂起。
+                    // Chained notify (same monitor, no cross-lock): if the queue is still not full
+                    // after this enqueue, wake another blocked producer to avoid MPMC starvation.
                     if (prev + 1 < capacity) {
                         putMonitor.notify()
                     }
@@ -222,9 +184,10 @@ public class LinkedBlockingQueue<E> {
                 let _ = putMonitor.wait()
             }
         } catch (e: Error) {
-            // OOM 等异常路径从 tryAddCore 经等待循环抛出：回补预约恰跨越 capacity 边界（prevPut==capacity）
-            // 时必须补发 signalNotFull，否则纯排水流量下其余生产者会在空队列上永久挂起（VUL-301）。
-            // 此时 finally 已释放 putMonitor，跨锁发信号不会形成 ABBA。
+            // OOM (or other) exception propagated from tryAddCore through the wait loop: re-issue
+            // signalNotFull if the rollback crossed the capacity boundary (prevPut==capacity), otherwise
+            // a parked producer can be left hanging on an empty queue (VUL-301). finally has released
+            // putMonitor by now, so the cross-lock signal cannot form an ABBA.
             if (wake.needWakeProducer) {
                 signalNotFull()
             }
@@ -237,9 +200,9 @@ public class LinkedBlockingQueue<E> {
         } finally {
             putMonitor.unlock()
         }
-        // 跨 Monitor 的唤醒（signalNotEmpty 会获取 takeMonitor）必须在释放 putMonitor 之后进行，
-        // 否则与 remove 侧（持 takeMonitor 取 putMonitor）形成 putMonitor↔takeMonitor 的 ABBA 死锁。
-        // 该唤醒落在消费者等待所用的 takeMonitor 上，不会丢失唤醒（见文件头注释）。
+        // Cross-monitor signal (takes takeMonitor) must come AFTER releasing putMonitor, otherwise it
+        // forms an ABBA with the remove side (holds takeMonitor, takes putMonitor). It lands on the
+        // monitor consumers wait on, so no wake-up is lost.
         if (needWakeConsumer) {
             signalNotEmpty()
         }
@@ -262,8 +225,8 @@ public class LinkedBlockingQueue<E> {
     }
 
     public func add(element: E, timeout: Duration): Bool {
-        // 快路径：公开 tryAdd 内部已包含"按需唤醒消费者"语义（仅 prev==0）及 OOM 异常路径补发生产者唤醒，
-        // 这里无需重复发信号
+        // Fast path: tryAdd already handles consumer wake-up (prev==0) and its OOM-path producer
+        // wake-up, so nothing to signal here.
         if (tryAdd(element)) {
             return true
         }
@@ -273,7 +236,8 @@ public class LinkedBlockingQueue<E> {
         try {
             var remaining = timeout
             while (true) {
-                // 同 add(element)：等待循环内只能用无锁核心 tryAddCore，保证 putQsize 始终由 CAS 预约
+                // Same as add(element): the wait loop uses only the lock-free core tryAddCore so
+                // putQsize stays CAS-reserved.
                 let (ok, prev) = tryAddCore(element, wake)
                 if (ok) {
                     if (prev == 0) {
@@ -293,7 +257,8 @@ public class LinkedBlockingQueue<E> {
                 remaining -= endTime - startTime
             }
         } catch (e: Error) {
-            // OOM 异常路径：回补预约跨越 capacity 边界时补发 signalNotFull（finally 已释放 putMonitor）。
+            // OOM exception path: re-issue signalNotFull if the rollback crossed the capacity boundary
+            // (finally has released putMonitor, so no ABBA).
             if (wake.needWakeProducer) {
                 signalNotFull()
             }
@@ -328,8 +293,8 @@ public class LinkedBlockingQueue<E> {
     }
 
     public func remove(): E {
-        // 快路径：公开 tryRemove 内部已包含"按需唤醒生产者"语义（仅 prev==capacity）及异常路径补发消费者唤醒，
-        // 这里无需重复发信号
+        // Fast path: tryRemove already wakes a blocked producer when prevPut==capacity and re-issues
+        // the consumer wake-up on its OOM path, so nothing to signal here.
         if (let Some(e) <- tryRemove()) {
             return e
         }
@@ -339,20 +304,21 @@ public class LinkedBlockingQueue<E> {
         var result: Option<E> = None<E>
         try {
             while (true) {
-                // 等待循环里必须复用无锁核心 tryRemoveCore（用 CAS 认领元素），不能再用"锁内直接 fetchSub"的版本：
-                // takeMonitor 只串行化"走阻塞路径的消费者"，无法与同时走无锁快路径的消费者互斥，
-                // 二者并发修改 count 会把它减成负数，导致从空队列出队并抛出 "Unreachable code"。
-                // 这里也不能改用公开 tryRemove：公开 tryRemove 在成功出队后会自行发信号，会与此处重复；
-                // 我们用 tryRemoveCore（纯出队、不发声信号）并在下方解锁后统一发信号，避免重复唤醒与 ABBA。
+                // The wait loop must reuse the lock-free core tryRemoveCore (CAS-based claim), not a
+                // lock-held fetchSub: takeMonitor only serializes blocking consumers and does NOT exclude a
+                // concurrent fast-path consumer, so a plain fetchSub would drive count negative (empty-queue
+                // pop throwing "Unreachable code"). We also cannot call public tryRemove (it signals on
+                // success); tryRemoveCore signals nothing, so we signal once after unlock below.
                 let (opt, prevCount, prevPut) = tryRemoveCore(wake)
                 if (let Some(e) <- opt) {
-                    // 仅当本次释放槽位前槽位预约恰为满（prevPut==capacity）才唤醒生产者：
-                    // 与生产者阻塞所依据的预约口径（putQsize>=capacity）一致，避免“队列有空位但生产者永久挂起”。
+                    // Wake a producer only when the slot release took the reservation from full to
+                    // non-full (prevPut==capacity) — matching the producer's reservation-based blocking
+                    // predicate, so a free slot never leaves a producer parked.
                     if (prevPut == capacity) {
                         needWakeProducer = true
                     }
-                    // 与上游对齐的链式唤醒：本次出队前队列元素数 >1（prevCount > 1 表示出队后仍有剩余元素），
-                    // 唤醒另一个阻塞在 takeMonitor 上的消费者，避免 MPMC 下消费者永久挂起。
+                    // Chained notify (same monitor): if elements remain after this dequeue
+                    // (prevCount > 1), wake another blocked consumer to avoid MPMC starvation.
                     if (prevCount > 1) {
                         takeMonitor.notify()
                     }
@@ -362,8 +328,8 @@ public class LinkedBlockingQueue<E> {
                 let _ = takeMonitor.wait()
             }
         } catch (e: Error) {
-            // 出队核心异常路径回补认领跨越 0→1（prevCount==0）时，须补发 signalNotEmpty 唤醒其余阻塞消费者。
-            // 此时 finally 已释放 takeMonitor，跨锁发信号不会形成 ABBA。
+            // OOM (or other) exception path: re-issue signalNotEmpty if the rollback crossed the
+            // empty boundary (prevCount==0); finally has released takeMonitor, so no ABBA.
             if (wake.needWakeConsumer) {
                 signalNotEmpty()
             }
@@ -376,7 +342,7 @@ public class LinkedBlockingQueue<E> {
         } finally {
             takeMonitor.unlock()
         }
-        // 跨 Monitor 的唤醒（signalNotFull 会获取 putMonitor）必须在释放 takeMonitor 之后进行，避免 ABBA。
+        // Cross-monitor signal (takes putMonitor) must come AFTER releasing takeMonitor, otherwise ABBA.
         if (needWakeProducer) {
             signalNotFull()
         }
@@ -399,8 +365,8 @@ public class LinkedBlockingQueue<E> {
     }
 
     public func remove(timeout: Duration): Option<E> {
-        // 快路径：公开 tryRemove 内部已包含"按需唤醒生产者"语义（仅 prev==capacity）及异常路径补发消费者唤醒，
-        // 这里无需重复发信号
+        // Fast path: tryRemove already handles producer wake-up (prevPut==capacity) and its OOM-path
+        // consumer wake-up, so nothing to signal here.
         if (let Some(e) <- tryRemove()) {
             return Some(e)
         }
@@ -411,7 +377,8 @@ public class LinkedBlockingQueue<E> {
         try {
             var remaining = timeout
             while (true) {
-                // 同 remove()：等待循环内只能用无锁核心 tryRemoveCore，保证 count 始终由 CAS 认领
+                // Same as remove(): the wait loop uses only the lock-free core tryRemoveCore so count
+                // stays CAS-claimed.
                 let (opt, prevCount, prevPut) = tryRemoveCore(wake)
                 if (let Some(e) <- opt) {
                     if (prevPut == capacity) {
@@ -432,7 +399,8 @@ public class LinkedBlockingQueue<E> {
                 remaining -= endTime - startTime
             }
         } catch (e: Error) {
-            // 出队核心异常路径回补认领跨越 0→1（prevCount==0）时，须补发 signalNotEmpty 唤醒其余阻塞消费者。
+            // OOM exception path: re-issue signalNotEmpty if the rollback crossed the empty boundary
+            // (prevCount==0); finally has released takeMonitor, so no ABBA.
             if (wake.needWakeConsumer) {
                 signalNotEmpty()
             }
@@ -494,15 +462,15 @@ public class LinkedBlockingQueue<E> {
         return tryAdd(element)
     }
 
-    // 无锁核心：只做入队与计数，绝不获取任何 Monitor。
-    // 之所以把“发信号”拆到外层：发信号需要获取对端 Monitor，而本核心会在 add 的
-    // putMonitor 等待循环内被调用，若在持锁时去抢 takeMonitor 就会形成 ABBA 死锁。
-    // 返回 (是否成功, 本次入队前的 count 值 prev)：prev 用于外层判断是否需要唤醒消费者
-    // （prev==0，即入队前队列为空，才可能有消费者阻塞在 remove() 上）以及是否需要链式唤醒
-    // 其他生产者（prev+1 < capacity 表示入队后仍未满）。
+    // Lock-free core: enqueues and updates counters only; never acquires any monitor.
+    // Signalling is split out because it needs the peer monitor, and this core runs inside add's
+    // putMonitor wait loop — signalling while held would form an ABBA. Returns (success, prev):
+    // prev (count before this enqueue) tells the caller whether to wake a consumer (prev==0) and
+    // whether to chained-notify another producer (prev+1 < capacity).
     private func tryAddCore(element: E, wake: WakeFlags): (Bool, Int64) {
-        // 用 break 而非 return 退出"满"分支：Cangjie 中 while(true) 作为函数尾表达式时
-        // 类型被判定为 Unit，必须让循环存在可达出口并在循环后统一 return，才能满足 (Bool, Int64) 返回类型
+        // Use break (not return) to leave the "full" branch: a while(true) used as the function's
+        // tail expression is typed Unit, so the loop needs a reachable exit and a single return after
+        // it to satisfy the (Bool, Int64) return type.
         while (true) {
             let r: Int64 = putQsize.load()
             if (r >= capacity) {
@@ -510,18 +478,19 @@ public class LinkedBlockingQueue<E> {
             }
             let next: Int64 = r + 1
             if (putQsize.compareAndSwap(r, next)) {
-                // enqueueUnsafe 内部可能因 newBlock 堆分配抛异常（如 OOM）；
-                // 一旦失败必须把已预约的 putQsize 回补，否则队列容量被永久 -1。
+                // enqueueUnsafe may throw on heap allocation (e.g. OOM in newBlock); on failure the
+                // reserved putQsize must be rolled back, or the queue's real capacity is permanently -1.
                 try {
                     enqueueUnsafe(element)
                     let prev = count.fetchAdd(1)
                     return (true, prev)
                 } catch (e: Error) {
-                    // 覆盖 newBlock 等堆分配失败抛出的 OutOfMemoryError（<: Error，非 Exception）：
-                    // 预约已成功（putQsize +1），入队失败必须把预约回补，否则队列真实容量永久 -1。
-                    // 回补恰好使 putQsize 从 capacity 降回 capacity-1（prevPut==capacity）时，等价于一次
-                    // “从满释放槽位”的事件，必须补发 signalNotFull（否则纯排水流量下其余生产者会永久挂起，
-                    // VUL-301）。跨锁信号由外层在解锁后统一补发，核心内不持 Monitor 发信号（避免 ABBA）。
+                    // Covers OutOfMemoryError (<: Error, not Exception) from newBlock heap allocation:
+                    // the slot was reserved (+1) but enqueue failed, so roll it back or capacity is poisoned.
+                    // If the rollback took putQsize from capacity to capacity-1 (prevPut==capacity), it is a
+                    // "release from full" event that must re-issue signalNotFull (VUL-301); otherwise a parked
+                    // producer can hang forever on a drained/empty queue. The cross-lock signal is re-issued by
+                    // the outer function after unlock; the core never signals while holding a monitor.
                     let prevPut = putQsize.fetchSub(1)
                     if (prevPut == capacity) {
                         wake.needWakeProducer = true
@@ -540,11 +509,10 @@ public class LinkedBlockingQueue<E> {
     }
 
     public func tryAdd(element: E): Bool {
-        // 与上游语义对齐：非阻塞入队成功后必须唤醒阻塞在 remove() 上的消费者，
-        // 但仅在“入队前队列为空（prev==0）”这一真正可能有消费者等待的情形下才发信号，
-        // 避免 SPSC 下每次成功都抢占 takeMonitor 把省下的锁往返又赔回去（即上游的
-        // 条件 signal 语义）。signal 在 takeMonitor 下进行，不会丢失唤醒。
-        // OOM 异常路径：快路径不持任何 Monitor，回补预约跨越 capacity 边界时直接补发 signalNotFull。
+        // Non-blocking enqueue: on success, wake a blocked consumer only when the queue was empty
+        // before (prev==0), matching the conditional signal semantics and avoiding a needless
+        // monitor round-trip on the SPSC hot path. On the OOM path (no monitor held) re-issue
+        // signalNotFull directly if the rollback crossed the capacity boundary.
         let wake = WakeFlags()
         try {
             let (ok, prev) = tryAddCore(element, wake)
@@ -581,15 +549,16 @@ public class LinkedBlockingQueue<E> {
         return tryRemove()
     }
 
-    // 无锁核心：只做出队与计数，绝不获取任何 Monitor（原因同 tryAddCore）。
-    // 返回 (出队结果, 出队前的 count 值 prevCount, 释放槽位前的 putQsize 值 prevPut)：
-    //  - prevCount 用于外层判断是否需要链式唤醒其他消费者（prevCount > 1 表示出队后仍有剩余元素）；
-    //  - prevPut   用于外层判断是否需要唤醒生产者（prevPut == capacity，即本次释放前槽位预约恰为满，
-    //              才可能有生产者阻塞在 add() 上）。生产者是按预约口径 putQsize>=capacity 阻塞的，
-    //              故唤醒其的谓词必须同样基于 putQsize（而非已提交的 count），否则会出现
-    //              “队列有空位但生产者永久挂起”的活性缺陷。
+    // Lock-free core: dequeues and updates counters only; never acquires any monitor (same reason
+    // as tryAddCore). Returns (result, prevCount, prevPut):
+    //   - prevCount (count before this dequeue) tells the caller whether to chained-notify another
+    //     consumer (prevCount > 1).
+    //   - prevPut (putQsize before the slot release) tells the caller whether to wake a producer
+    //     (prevPut == capacity). A producer blocks on the reservation predicate putQsize>=capacity,
+    //     so its wake-up MUST be derived from putQsize, not the committed count — otherwise a free slot
+    //     could leave a producer parked forever (lost-wakeup liveness bug).
     private func tryRemoveCore(wake: WakeFlags): (Option<E>, Int64, Int64) {
-        // 同 tryAdd：用 break 让 while(true) 具备可达出口，循环后统一 return (Option<E>, Int64, Int64)
+        // Same as tryAddCore: use break so the while(true) has a reachable exit and a single return after it.
         while (true) {
             let c: Int64 = count.load()
             if (c == 0) {
@@ -597,17 +566,18 @@ public class LinkedBlockingQueue<E> {
             }
             let next: Int64 = c - 1
             if (count.compareAndSwap(c, next)) {
-                // dequeueUnsafe 的 "Unreachable code." 异常路径会抛异常；
-                // 一旦失败必须把已认领的 count 回补，否则元素丢失且 putQsize 泄漏。
+                // dequeueUnsafe can throw ("Unreachable code."); on failure the claimed count must be
+                // rolled back, or the element is lost and putQsize leaks.
                 try {
                     let value = dequeueUnsafe()
                     let prevPut = putQsize.fetchSub(1)
                     return (Some(value), c, prevPut)
                 } catch (e: Error) {
-                    // 与 tryAddCore 对称：兜底捕获任何错误/异常，回补已认领的 count，避免元素丢失与 putQsize 泄漏。
-                    // 回补恰使 count 从 0 升回 1（prevCount==0）时，等价于一次“从空释放元素”的事件，
-                    // 必须补发 signalNotEmpty 唤醒其余阻塞消费者（防御性：当前唯一抛出源在认领协议成立时不可达，
-                    // 但与 VUL-301 对称，统一守住异常路径不丢唤醒）。跨锁信号由外层在解锁后统一补发。
+                    // Symmetric to tryAddCore: roll back the claimed count on any error/exception.
+                    // If the rollback took count from 0 to 1 (prevCount==0), re-issue signalNotEmpty to
+                    // wake other blocked consumers (defensive: the only throwing source is unreachable under
+                    // the claim protocol, but kept symmetric with VUL-301 so the exception path never loses a
+                    // wake-up). The cross-lock signal is re-issued by the outer function after unlock.
                     let prevCount = count.fetchAdd(1)
                     if (prevCount == 0) {
                         wake.needWakeConsumer = true
@@ -626,11 +596,10 @@ public class LinkedBlockingQueue<E> {
     }
 
     public func tryRemove(): Option<E> {
-        // 与上游语义对齐：非阻塞出队成功后必须唤醒阻塞在 add() 上的生产者，
-        // 但仅在“释放槽位前槽位预约恰为满（prevPut==capacity）”这一真正可能有生产者等待的情形下才发信号，
-        // 避免 SPSC 下每次成功都抢占 putMonitor 把省下的锁往返又赔回去（即上游的
-        // 条件 signal 语义）。signal 在 putMonitor 下进行，不会丢失唤醒。
-        // OOM 异常路径：快路径不持任何 Monitor，回补跨越 0→1 时直接补发 signalNotEmpty。
+        // Non-blocking dequeue: on success, wake a blocked producer only when the slot release took the
+        // reservation from full to non-full (prevPut==capacity), matching the conditional signal semantics.
+        // On the OOM path (no monitor held) re-issue signalNotEmpty directly if the rollback crossed the
+        // empty boundary.
         let wake = WakeFlags()
         try {
             let (opt, _, prevPut) = tryRemoveCore(wake)
