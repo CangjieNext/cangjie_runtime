@@ -287,7 +287,12 @@ class HashMapEntryView<K, V> <: MapEntryView<K, V> where K <: Hashable & Equatab
             exclave { getValue() }
         }
         set(_) {
-            throw Exception()
+            // The existing entry view can only be reached through the plain map
+            // reference it holds, so the write side is unsupported for local
+            // instances. Report it with UnimplementedException, the local-mode
+            // convention, instead of a bare Exception callers cannot classify.
+            throw UnimplementedException("HashMapEntryView.value setter is unavailable on a local instance: " +
+                "use HashMapLocalEntryView, which supports local writes.")
         }
     }
     @Frozen
@@ -296,7 +301,9 @@ class HashMapEntryView<K, V> <: MapEntryView<K, V> where K <: Hashable & Equatab
             exclave { getValue() }
         }
         set(_) {
-            throw Exception()
+            // Same reason as the @local! setter above.
+            throw UnimplementedException("HashMapEntryView.value setter is unavailable on a local instance: " +
+                "use HashMapLocalEntryView, which supports local writes.")
         }
     }
     /**
@@ -403,6 +410,72 @@ class HashMapEntryView<K, V> <: MapEntryView<K, V> where K <: Hashable & Equatab
         } else {
             let temp = map.entries[index]
             map.entries[index] = HashMapEntry<K, V>(temp.hash, temp.next, temp.key, v)
+        }
+    }
+}
+
+/**
+ * Local-mode reference view of a key in a HashMap.
+ *
+ * A local instance holds the map reference in a plain field: locality belongs to
+ * the instance, not to the field type, so `private let map: HashMap<K, V>` is left
+ * unannotated and assigned from an `@local!` parameter inside `exclave init`.
+ * Every local accessor therefore carries a `@local!`/`@local?` receiver, which is
+ * what lets it dispatch on a local instance.
+ *
+ * The plain `key`/`value` members are required by `MapEntryView` but cannot be
+ * served from a local instance, so they are explicitly rejected.
+ */
+class HashMapLocalEntryView<K, V> <: MapEntryView<K, V> where K <: Hashable & Equatable<K> {
+    private let map: HashMap<K, V>
+    private let _key: K
+
+    exclave init(this @local!, map: HashMap<K, V> @local!, key: K @local!) {
+        this.map = map
+        this._key = key
+    }
+
+    // Plain members: unavailable on a local instance, rejected with the local-mode
+    // exception rather than a bare Exception.
+    public prop key: K {
+        get() {
+            throw UnimplementedException("HashMapEntryView.key is unavailable on a local instance: " +
+                "access it through a @local! or @local? receiver.")
+        }
+    }
+    public mut prop value: ?V {
+        get() {
+            throw UnimplementedException("HashMapEntryView.value is unavailable on a local instance: " +
+                "access it through a @local! or @local? receiver.")
+        }
+        set(_) {
+            throw UnimplementedException("HashMapEntryView.value is unavailable on a local instance: " +
+                "access it through a @local! or @local? receiver.")
+        }
+    }
+
+    // Local members.
+    public prop key: K @local? {
+        get() { _key }
+    }
+    public mut prop value: ?V @local! {
+        get() {
+            exclave {
+                let current: ?V @local! = map.get(_key)
+                current
+            }
+        }
+        set(v) {
+            exclave {
+                match (v) {
+                    case Some(x) =>
+                        let old: ?V @local? = map.add(_key, x)
+                        let _ = old
+                    case None =>
+                        let old: ?V @local? = map.remove(_key)
+                        let _ = old
+                }
+            }
         }
     }
 }
@@ -832,16 +905,17 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
     }
     @Frozen
     public exclave func entryView(this @local!, key: K @local!): MapEntryView<K, V> @local! {
-        // Compiler limitation: MapEntryView requires plain key/value properties, while a local view must hold
-        // an `@local!` map reference (a local reference cannot be stored in a plain field); hence explicitly rejected.
-        throw UnimplementedException("HashMap.entryView() is unavailable in local mode: " +
-            "MapEntryView requires plain key/value properties, which cannot hold a local map reference.")
+        HashMapLocalEntryView<K, V>(this, key) @local!
     }
 
     @Frozen
     public exclave func entryView(this @local?, key: K @local!): MapEntryView<K, V> @local? {
-        throw UnimplementedException("HashMap.entryView() is unavailable in local mode: " +
-            "MapEntryView requires plain key/value properties, which cannot hold a local map reference.")
+        // A shared (`@local?`) receiver cannot be promoted to an owned (`@local!`)
+        // reference, and the view constructor needs an owned map reference to store
+        // in its plain field. Raising the locality of an existing local object is not
+        // expressible, so this overload stays explicitly rejected.
+        throw UnimplementedException("HashMap.entryView() with a @local? receiver is unavailable: " +
+            "a shared local reference cannot be promoted to the owned reference a view must hold.")
     }
 
     /**
