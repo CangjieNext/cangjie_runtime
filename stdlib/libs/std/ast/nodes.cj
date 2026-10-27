@@ -836,6 +836,15 @@ public class Program <: Node {
         decls_ = decls
         ftrDirective_ = ftrDirective
     }
+    init(pkgHeader: PackageHeader, importLists: ArrayList<ImportList>,
+        macroImports: ArrayList<MacroImportList>, decls: ArrayList<Decl>, ftrDirective: Option<FeaturesDirective>) {
+        super()
+        pkgHeader_ = pkgHeader
+        importLists_ = importLists
+        macroImports_ = macroImports
+        decls_ = decls
+        ftrDirective_ = ftrDirective
+    }
     public init(inputs: Tokens) {
         try {
             var program = parseProgram(inputs)
@@ -843,6 +852,7 @@ public class Program <: Node {
             this.end_ = program.endPos
             this.pkgHeader_ = program.pkgHeader_
             this.importLists_ = program.importLists_
+            this.macroImports_ = program.macroImports_
             this.decls_ = program.decls_
             this.ftrDirective_ = program.ftrDirective_
         } catch (e: ParseASTException) {
@@ -854,6 +864,7 @@ public class Program <: Node {
 
     private var pkgHeader_: PackageHeader = PackageHeader()
     private var importLists_: ArrayList<ImportList> = ArrayList<ImportList>()
+    private var macroImports_: ArrayList<MacroImportList> = ArrayList<MacroImportList>()
     private var decls_: ArrayList<Decl> = ArrayList<Decl>()
     private var ftrDirective_: Option<FeaturesDirective> = None
 
@@ -884,6 +895,14 @@ public class Program <: Node {
             importLists_ = v
         }
     }
+    public mut prop macroImports: ArrayList<MacroImportList> {
+        get() {
+            macroImports_
+        }
+        set(v) {
+            macroImports_ = v
+        }
+    }
     public mut prop decls: ArrayList<Decl> {
         get() {
             decls_
@@ -900,6 +919,9 @@ public class Program <: Node {
         ret.append(pkgHeader_)
         if (!importLists_.isEmpty()) {
             ret.append(importLists_.toTokens())
+        }
+        for (mi in macroImports_) {
+            ret.append(mi.toTokens())
         }
         for (decl in decls_) {
             ret.append(decl)
@@ -923,6 +945,9 @@ public class Program <: Node {
         for (im in importLists_) {
             im.traverse(v)
         }
+        for (mi in macroImports_) {
+            mi.traverse(v)
+        }
         for (decl in decls_) {
             decl.traverse(v)
         }
@@ -944,6 +969,10 @@ public class Program <: Node {
         for (i in 0..importLists_.size) {
             ret += getIndent(currentIndent) + "-importLists: ${i}, "
             ret += importLists_[i].dump(currentIndent)
+        }
+        for (i in 0..macroImports_.size) {
+            ret += getIndent(currentIndent) + "-macroImports: ${i}, "
+            ret += macroImports_[i].dump(currentIndent)
         }
         for (i in 0..decls_.size) {
             ret += getIndent(currentIndent) + "-decls: ${i}, "
@@ -1775,6 +1804,199 @@ public class ImportList <: Node {
         }
         ret += getTokenIndent("-keywordI", import_, currentIndent)
         ret += content_.dump(currentIndent)
+        ret += getIndent(indent) + "}\n"
+        ret
+    }
+}
+
+/**
+ * MacroImportSpec represents one macro import item: either a single-form
+ * `macro import a.b` statement or one item inside a `macro { }` block.
+ * Annotations carry the @When conditions (block items only).
+ */
+public class MacroImportSpec <: Node {
+    init(imp: Token, content: ImportContent, annotations: ArrayList<Annotation>) {
+        super()
+        import_ = imp
+        content_ = content
+        annotations_ = annotations
+    }
+    public init() {}
+    private var import_: Token = Token(TokenKind.IMPORT)
+    private var content_: ImportContent = ImportContent()
+    private var annotations_: ArrayList<Annotation> = ArrayList<Annotation>()
+
+    public mut prop keywordI: Token {
+        get() {
+            import_
+        }
+        set(v) {
+            import_ = v
+        }
+    }
+    public mut prop content: ImportContent {
+        get() {
+            content_
+        }
+        set(v) {
+            content_ = v
+        }
+    }
+    public mut prop annotations: ArrayList<Annotation> {
+        get() {
+            annotations_
+        }
+        set(v) {
+            annotations_ = v
+        }
+    }
+    public func toTokens(): Tokens {
+        var ret = Tokens()
+        for (anno in annotations_) {
+            ret.append(anno.toTokens())
+        }
+        ret.append(import_)
+        ret.append(content_.toTokens())
+        let endTok = ret[ret.size - 1]
+        let endPos = endTok.pos
+        ret.append(Token(TokenKind.NL).addPosition(endPos.fileID, endPos.line, endPos.column + Int32(endTok.value.size)))
+        ret
+    }
+    public func traverse(v: Visitor): Unit {
+        v.visit(this)
+        super.traverse(v)
+        if (v.needBreakTraverse()) {
+            return
+        }
+        for (anno in annotations_) {
+            anno.traverse(v)
+        }
+        content_.traverse(v)
+        return
+    }
+
+    protected func dump(indent: UInt16): String {
+        currentIndent = indent
+        if (indent != 0 || beginNode) {
+            currentIndent++
+        }
+        var ret: String = "MacroImportSpec {\n"
+        for (i in 0..annotations_.size) {
+            ret += getIndent(currentIndent) + "-annotations: ${i}, "
+            ret += annotations_[i].dump(currentIndent)
+        }
+        ret += getTokenIndent("-keywordI", import_, currentIndent)
+        ret += content_.dump(currentIndent)
+        ret += getIndent(indent) + "}\n"
+        ret
+    }
+}
+
+/**
+ * MacroImportList is the container of macro import declarations in a package:
+ * a single-form `macro import a` (no braces) or a block-form
+ * `macro { import a ... }`.
+ */
+public class MacroImportList <: Node {
+    init(macroToken: Token, lCurl: Token, rCurl: Token, items: ArrayList<MacroImportSpec>) {
+        super()
+        macro_ = macroToken
+        lCurl_ = lCurl
+        rCurl_ = rCurl
+        items_ = items
+    }
+    public init() {}
+    private var macro_: Token = Token(TokenKind.MACRO)
+    private var lCurl_: Token = Token()
+    private var rCurl_: Token = Token()
+    private var items_: ArrayList<MacroImportSpec> = ArrayList<MacroImportSpec>()
+
+    public mut prop keywordM: Token {
+        get() {
+            macro_
+        }
+        set(v) {
+            macro_ = v
+        }
+    }
+    public mut prop lBrace: Token {
+        get() {
+            lCurl_
+        }
+        set(v) {
+            checkTokenType(v, LCURL)
+            lCurl_ = v
+        }
+    }
+    public mut prop rBrace: Token {
+        get() {
+            rCurl_
+        }
+        set(v) {
+            checkTokenType(v, RCURL)
+            rCurl_ = v
+        }
+    }
+    public mut prop items: ArrayList<MacroImportSpec> {
+        get() {
+            items_
+        }
+        set(v) {
+            items_ = v
+        }
+    }
+    public func isBlockForm(): Bool {
+        return isValidPosition(lCurl_)
+    }
+    public func toTokens(): Tokens {
+        var ret = Tokens()
+        if (isBlockForm()) {
+            ret.append(macro_)
+            ret.append(lCurl_)
+            for (item in items_) {
+                ret.append(item.toTokens())
+            }
+            ret.append(rCurl_)
+            let endTok = ret[ret.size - 1]
+            let endPos = endTok.pos
+            ret.append(Token(TokenKind.NL).addPosition(endPos.fileID, endPos.line, endPos.column + Int32(endTok.value.size)))
+        } else {
+            // Single form: exactly one item, whose toTokens already ends with NL.
+            for (item in items_) {
+                ret.append(item.toTokens())
+            }
+        }
+        ret
+    }
+    public func traverse(v: Visitor): Unit {
+        v.visit(this)
+        super.traverse(v)
+        if (v.needBreakTraverse()) {
+            return
+        }
+        for (item in items_) {
+            item.traverse(v)
+        }
+        return
+    }
+
+    protected func dump(indent: UInt16): String {
+        currentIndent = indent
+        if (indent != 0 || beginNode) {
+            currentIndent++
+        }
+        var ret: String = "MacroImportList {\n"
+        ret += getTokenIndent("-keywordM", macro_, currentIndent)
+        if (isBlockForm()) {
+            ret += getTokenIndent("-lBrace", lCurl_, currentIndent)
+        }
+        for (i in 0..items_.size) {
+            ret += getIndent(currentIndent) + "-items: ${i}, "
+            ret += items_[i].dump(currentIndent)
+        }
+        if (isBlockForm()) {
+            ret += getTokenIndent("-rBrace", rCurl_, currentIndent)
+        }
         ret += getIndent(indent) + "}\n"
         ret
     }
