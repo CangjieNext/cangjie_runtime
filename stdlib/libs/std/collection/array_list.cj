@@ -1042,19 +1042,46 @@ public class ArrayList<T> <: List<T> {
     }
     @When[env != "ohos"]
     public exclave func flatMap<R>(this @local!, transform: ((T @local!) -> ArrayList<R> @local!) @local?): ArrayList<R> @local! {
+        // Amortised linear: grow the buffer geometrically and only copy the
+        // newly appended run. The previous version allocated `Array<R>(oldLen + sz)`
+        // and re-copied every element already produced on each iteration, which is
+        // O(n^2) element copies plus O(n) whole-buffer allocations; at n=8000 it
+        // aborted with IndexOutOfBoundsException ("SrcStart is greater than or equal
+        // to the size of this array") at roughly 53 MB peak RSS.
         var newData: Array<R> @local! = Array<R>(0, repeat: unsafe { zeroValue2<R>() })
+        var used: Int64 = 0
         for (i in 0..mySize) {
             var tempData = transform(myData[i])
             let sz: Int64 = tempData.size
-            if (sz > 0) {
-                let oldLen: Int64 = newData.size
-                let newArr: Array<R> @local! = Array<R>(oldLen + sz, repeat: unsafe { zeroValue2<R>() })
-                newData.copyTo(newArr, 0, 0, oldLen)
-                tempData.myData.copyTo(newArr, 0, oldLen, sz)
-                newData = newArr
+            if (sz <= 0) {
+                continue
             }
+            let need: Int64 = used + sz
+            if (need > newData.size) {
+                // Geometric growth, always enough for this append; start from sz
+                // when the buffer is still empty.
+                var cap: Int64 = if (newData.size == 0) { sz } else { newData.size }
+                while (cap < need) {
+                    cap = cap + (cap >> 1) + 1
+                }
+                let grown: Array<R> @local! = Array<R>(cap, repeat: unsafe { zeroValue2<R>() })
+                if (used > 0) {
+                    newData.copyTo(grown, 0, 0, used)
+                }
+                newData = grown
+            }
+            // Copy only this append; the prefix already written stays in place.
+            tempData.myData.copyTo(newData, 0, used, sz)
+            used = need
         }
-        ArrayList<R>(newData)
+        if (used == 0) {
+            return ArrayList<R>() @local!
+        }
+        // Trim back to the logical length so the caller never observes the spare
+        // capacity left over from geometric growth.
+        let exact: Array<R> @local! = Array<R>(used, repeat: unsafe { zeroValue2<R>() })
+        newData.copyTo(exact, 0, 0, used)
+        ArrayList<R>(exact)
     }
 
     /**

@@ -1137,7 +1137,12 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
         var i: Int64 = 0
         if (oldLen == 0) {
             var runeCount: Int64 = 0
-            var pos: Int64 = 0
+            // Scan must start at the view origin: with pos starting at 0 the loop
+            // walks the whole backing array up to start+length instead of just this
+            // view. That inflates runeCount (so the result length and allocation are
+            // sized by the backing array), and can make Rune.fromUtf8 fail when pos
+            // lands inside a multi-byte character.
+            var pos: Int64 = Int64(start)
             let end: Int64 = Int64(start) + Int64(length)
             while (pos < end) {
                 let (_, num): (Rune, Int64) = Rune.fromUtf8(myData, pos, end)
