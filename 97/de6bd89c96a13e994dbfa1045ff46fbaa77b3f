@@ -1,0 +1,14 @@
+runtime/src/Mutator/Mutator.h
+  h_4b284edf89e31b 248,253,268
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "97de6bd89c96a13e994dbfa1045ff46fbaa77b3f",
+  "prompts": {},
+  "humans": {
+    "h_4b284edf89e31b": {
+      "author": "xiaohan_1 <xiaohan24@huawei.com>"
+    }
+  }
+}

@@ -1,0 +1,34 @@
+runtime/src/Heap/Allocator/RegionManager.cpp
+  s_3aa3474b7a24da::t_43b2214690cac4 496,506
+runtime/src/Heap/WCollector/WCollector.cpp
+  s_3aa3474b7a24da::t_2fae3d6c41356e 21
+runtime/src/CJThread/src/runtime/schedule/src/cjthread.cpp
+  h_4b284edf89e31b 60-62,95-97
+runtime/src/CJThread/src/runtime/schedule/src/schedule.cpp
+  h_4b284edf89e31b 2154,2157
+runtime/src/Mutator/Mutator.h
+  h_4b284edf89e31b 558-559
+runtime/src/Mutator/ThreadLocal.cpp
+  h_4b284edf89e31b 13,53
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2df18f547322b527a59ae0c58004432fca838633",
+  "prompts": {},
+  "humans": {
+    "h_4b284edf89e31b": {
+      "author": "xiaohan_1 <xiaohan24@huawei.com>"
+    }
+  },
+  "sessions": {
+    "s_3aa3474b7a24da": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0c6e3-c396-7d60-8e18-cf4c6a0fb06a",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "xiaohan_1 <xiaohan24@huawei.com>"
+    }
+  }
+}

@@ -1,0 +1,14 @@
+runtime/src/Heap/Allocator/RegionManager.h
+  h_4b284edf89e31b 302-304
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "7447d11d4df60504fe804236a8d23347450cbd30",
+  "prompts": {},
+  "humans": {
+    "h_4b284edf89e31b": {
+      "author": "xiaohan_1 <xiaohan24@huawei.com>"
+    }
+  }
+}

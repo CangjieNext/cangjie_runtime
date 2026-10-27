@@ -1,0 +1,19 @@
+runtime/src/TypeInfoManager.cpp
+  s_878693c9fa5c37::t_2c70649942fc92 624,639-640
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "14e151af3a82a8b7b29b12089010e7f086ea4f7f",
+  "prompts": {},
+  "sessions": {
+    "s_878693c9fa5c37": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_026058283ffeZXPreDK8vojB4s",
+        "model": "GLM-5.2"
+      },
+      "human_author": "xiaohan_1 <xiaohan24@huawei.com>"
+    }
+  }
+}
