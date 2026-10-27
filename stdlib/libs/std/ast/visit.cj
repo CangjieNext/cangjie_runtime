@@ -182,6 +182,10 @@ public abstract class Visitor {
 
     protected open func visit(_: ImportContent): Unit {}
 
+    protected open func visit(_: MacroImportList): Unit {}
+
+    protected open func visit(_: MacroImportSpec): Unit {}
+
     protected open func visit(_: Constructor): Unit {}
 
     protected open func visit(_: Argument): Unit {}

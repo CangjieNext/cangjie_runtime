@@ -30,6 +30,24 @@ func isValidToken(tk: Token): Bool {
     return tk.kind != TokenKind.ILLEGAL
 }
 
+/** Appends a NL token right after the last token of `ret`, at the column following it. */
+func appendNL(ret: Tokens): Unit {
+    let endTok = ret[ret.size - 1]
+    let endPos = endTok.pos
+    ret.append(Token(TokenKind.NL).addPosition(endPos.fileID, endPos.line, endPos.column + Int32(endTok.value.size)))
+}
+
+/** Returns true if and only if position `a` is strictly before position `b`. */
+func posBefore(a: Position, b: Position): Bool {
+    if (a.fileID != b.fileID) {
+        return a.fileID < b.fileID
+    }
+    if (a.line != b.line) {
+        return a.line < b.line
+    }
+    return a.column < b.column
+}
+
 func getNodeBeginPos(nodeBase: Option<ASTFormat_NodeBase>): ASTFormat_Position {
     return match (nodeBase) {
         case Some(v) => v.GetBegin()
