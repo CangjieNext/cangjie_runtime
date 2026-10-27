@@ -1,0 +1,16 @@
+runtime/src/Demangler/CheckDemangle.cpp
+  h_f08a759313bce8 184,191-199,206,215-221
+runtime/src/Demangler/Demangler.cpp
+  h_f08a759313bce8 598-635,674-675,1079-1081,1169-1176,1253-1257,1268-1271,1281-1284
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "bc413efca9f4a443d2831d3c47c6b1825482465f",
+  "prompts": {},
+  "humans": {
+    "h_f08a759313bce8": {
+      "author": "yuqiaoyu <yujunqiang1@h-partners.com>"
+    }
+  }
+}
