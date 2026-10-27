@@ -571,18 +571,72 @@ func createImportList(imports: Option<ASTFormat_ImportSpec>): ImportList {
     ImportList(reExportToken, import_, content)
 }
 
+func createMacroImportSpec(spec: Option<ASTFormat_MacroImportSpec>): MacroImportSpec {
+    var s = match (spec) {
+        case Some(v) => v
+        case None => throw ParseASTException()
+    }
+    var import_: Token = Token(TokenKind.IMPORT).addPosition(s.GetImportPos())
+    var content = if (let Some(v) <- s.GetContent()) {
+        createImportContent(v)
+    } else {
+        throw ParseASTException()
+    }
+    var annos: ArrayList<Annotation> = ArrayList<Annotation>()
+    for (anno in s.GetAnnotations()) {
+        annos.add(createAnnotation(anno))
+    }
+    var ret = MacroImportSpec(import_, content, annos)
+    if (let Some(base) <- s.GetBase()) {
+        addPositionInfo(ret, base)
+    }
+    ret
+}
+
+func createMacroImportList(ml: Option<ASTFormat_MacroImportList>): MacroImportList {
+    var list = match (ml) {
+        case Some(v) => v
+        case None => throw ParseASTException()
+    }
+    var macroToken: Token = Token(TokenKind.MACRO).addPosition(list.GetMacroPos())
+    var lCurl = Token()
+    if (isValidPosition(list.GetLcurlPos())) {
+        lCurl = Token(TokenKind.LCURL).addPosition(list.GetLcurlPos())
+    }
+    var rCurl = Token()
+    if (isValidPosition(list.GetRcurlPos())) {
+        rCurl = Token(TokenKind.RCURL).addPosition(list.GetRcurlPos())
+    }
+    var items: ArrayList<MacroImportSpec> = ArrayList<MacroImportSpec>()
+    for (item in list.GetItems()) {
+        items.add(createMacroImportSpec(item))
+    }
+    var ret = MacroImportList(macroToken, lCurl, rCurl, items)
+    if (let Some(base) <- list.GetBase()) {
+        addPositionInfo(ret, base)
+    }
+    ret
+}
+
 func createProgram(file: Option<ASTFormat_File>): Program {
     var f = match (file) {
         case Some(v) => v
         case None => throw ParseASTException()
     }
     var ftrDirective: Option<FeaturesDirective> = createFeatureHeader(f.GetFeature())
-    var pkgHeader: PackageHeader = createPackageHeader(f.GetPackage())
+    var pkgSpec: Option<ASTFormat_PackageSpec> = f.GetPackage()
+    var pkgHeader: PackageHeader = createPackageHeader(pkgSpec)
     let importSrc = f.GetImports()
     var imports: ArrayList<ImportList> = ArrayList<ImportList>(importSrc.size, {i => createImportList(importSrc[i])})
+    var macroImports: ArrayList<MacroImportList> = ArrayList<MacroImportList>()
+    if (let Some(p) <- pkgSpec) {
+        for (mi in p.GetMacroImports()) {
+            macroImports.add(createMacroImportList(mi))
+        }
+    }
     let declSrc = f.GetDecls()
     var decls: ArrayList<Decl> = ArrayList<Decl>(declSrc.size, {i => generateDeclAST(declSrc[i])})
-    return Program(pkgHeader, imports, decls, ftrDirective)
+    return Program(pkgHeader, imports, macroImports, decls, ftrDirective)
 }
 
 func createConstructor(decl: Option<ASTFormat_Decl>): Constructor {
