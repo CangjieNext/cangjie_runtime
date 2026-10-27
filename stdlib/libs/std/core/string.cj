@@ -609,6 +609,13 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
     }
 
     @Frozen
+    public exclave unsafe static func fromUtf8Unchecked(utf8Data: Array<UInt8> @local!): String @local! {
+        // The owned argument is adopted as-is; the shared overload below is the one
+        // that has to materialise an owned copy first.
+        String(utf8Data)
+    }
+
+    @Frozen
     public exclave unsafe static func fromUtf8Unchecked(utf8Data: Array<UInt8> @local?): String @local! {
         let ret: Array<UInt8> @local! = utf8Data.cloneToLocal()
         String(ret)
