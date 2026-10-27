@@ -1745,6 +1745,12 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
      */
     @Frozen
     @OverflowWrapping
+    func getIndex(this @local!, hash: Int64, size: Int64): Int64 {
+        return hash & (size - 1)
+    }
+
+    @Frozen
+    @OverflowWrapping
     func getIndex(this @local?, hash: Int64, size: Int64): Int64 {
         return hash & (size - 1)
     }
@@ -1757,6 +1763,12 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
      *
      * @since 0.18.4
      */
+    @Frozen
+    @OverflowWrapping
+    private func getHash(this @local!, hashCode: Int64): Int64 {
+        hashCode ^ (hashCode >> 32)
+    }
+
     @Frozen
     @OverflowWrapping
     private func getHash(this @local?, hashCode: Int64): Int64 {
@@ -1830,6 +1842,11 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
     func version(): Int64 {
         return modCount
     }
+    @Frozen
+    func version(this @local!): Int64 {
+        return modCount
+    }
+
     @Frozen
     func version(this @local?): Int64 {
         return modCount

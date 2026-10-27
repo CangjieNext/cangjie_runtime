@@ -1685,6 +1685,19 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
     }
     @Frozen
     @OverflowWrapping
+    public exclave func startsWith(this @local!, prefix: String @local?): Bool {
+        let strLen: Int64 = prefix.size
+        if (strLen == 0) {
+            return true
+        }
+        if (size < strLen) {
+            return false
+        }
+        compareBytes(this.myData, Int64(this.start), prefix.myData, Int64(prefix.start), strLen) == 0
+    }
+
+    @Frozen
+    @OverflowWrapping
     public func startsWith(this @local?, prefix: String @local?): Bool {
         let strLen: Int64 = prefix.size
         if (strLen == 0) {
@@ -1728,6 +1741,26 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
         }
         return res == 0
     }
+    @Frozen
+    @OverflowWrapping
+    public exclave func endsWith(this @local!, suffix: String @local?): Bool {
+        let strLen: Int64 = suffix.size
+        if (strLen == 0) {
+            return true
+        }
+        if (size < strLen) {
+            return false
+        }
+        let distance: Int64 = size - strLen
+        for (i in 0..strLen) {
+            if (arrayGetUnchecked3(this.myData, Int64(start) + distance + i) !=
+                arrayGetUnchecked3(suffix.myData, Int64(suffix.start) + i)) {
+                return false
+            }
+        }
+        true
+    }
+
     @Frozen
     @OverflowWrapping
     public func endsWith(this @local?, suffix: String @local?): Bool {

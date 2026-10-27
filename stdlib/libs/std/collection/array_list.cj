@@ -1708,6 +1708,13 @@ public class ArrayList<T> <: List<T> {
      * @since 0.18.2
      */
     @Frozen
+    private func checkRange(this @local!, index: Int64): Unit {
+        if (index >= mySize || index < 0) {
+            throw IndexOutOfBoundsException("index: ${index}, size: ${mySize}")
+        }
+    }
+
+    @Frozen
     private func checkRange(this @local?, index: Int64): Unit {
         if (index >= mySize || index < 0) {
             throw IndexOutOfBoundsException("index: ${index}, size: ${mySize}")
@@ -1723,6 +1730,13 @@ public class ArrayList<T> <: List<T> {
      *
      * @since 0.18.2
      */
+    @Frozen
+    private func checkRangeInsert(this @local!, index: Int64): Unit {
+        if (index > mySize || index < 0) {
+            throw IndexOutOfBoundsException("index: ${index}, size: ${mySize}")
+        }
+    }
+
     @Frozen
     private func checkRangeInsert(this @local?, index: Int64): Unit {
         if (index > mySize || index < 0) {
