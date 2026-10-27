@@ -1,0 +1,21 @@
+runtime/src/Heap/Collector/TracingCollector.cpp
+  s_1457b460fda819::t_054f4f0604ac12 722
+runtime/src/Heap/WCollector/WCollector.cpp
+  s_1457b460fda819::t_054f4f0604ac12 143-144,209-210,251-252
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f41f6acc87b2bef9c91e0a2a716948ae836e1a91",
+  "prompts": {},
+  "sessions": {
+    "s_1457b460fda819": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_e89b7d671ffeOq56FHyqoWZy94",
+        "model": "unknown"
+      },
+      "human_author": "leeguo <leeguo@126.com>"
+    }
+  }
+}
