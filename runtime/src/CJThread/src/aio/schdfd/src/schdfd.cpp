@@ -7,6 +7,7 @@
 
 #include <cerrno>
 #include <cstdint>
+#include <new>
 #include "schdfd_impl.h"
 #include "schedule_impl.h"
 #include "processor.h"
@@ -494,6 +495,9 @@ int SchdfdWaitInlock(SignedSocket fd, SchdpollEventType type)
     return 0;
 }
 
+/* Legacy timeout entry points. The wait paths below use SchdfdTimeoutCallback,
+ * which keeps an fd reference alive through SchdfdTimeoutContext.
+ */
 void SchdfdReadTimeout(struct SchdfdFd *schdFd)
 {
     struct CJThread *readCJThread;
@@ -514,13 +518,86 @@ void SchdfdWriteTimeout(struct SchdfdFd *schdFd)
     SchdfdDispatchReadyCJThread(writeCJThread);
 }
 
+/* One fd reference is transferred into this context. The reference is returned
+ * only after both the waiting party and the timeout callback release their own
+ * references, so the callback can safely use schdFd while it runs.
+ */
+struct SchdfdTimeoutContext {
+    std::atomic<unsigned int> refs;   // Waiter reference plus optional callback reference.
+    struct SchdfdFd *schdFd;
+    SignedSocket fd;
+    SchdpollEventType type;
+};
+
+static void SchdfdTimeoutContextPut(struct SchdfdTimeoutContext *context)
+{
+    if (context->refs.fetch_sub(1, std::memory_order_acq_rel) == 1) {
+        SchdfdDecref(context->fd, false);
+        delete context;
+    }
+}
+
+static void SchdfdTimeoutCallback(void *args)
+{
+    auto *context = static_cast<struct SchdfdTimeoutContext *>(args);
+    struct CJThread *cjthread;
+
+    // Timer timeout is also considered as a ready event, and it is up to the party
+    // who started the timer to determine which situation it is.
+    cjthread = SchdpollReady(context->schdFd->pd, context->type, true);
+    SchdfdDispatchReadyCJThread(cjthread);
+    SchdfdTimeoutContextPut(context);
+}
+
+/* The waiting party is the only timer owner. TimerStop waits for a RUNNING
+ * one-shot callback, so the callback reference is released before the last
+ * context reference is dropped.
+ */
+static int SchdfdFinishTimeoutWait(struct SchdfdTimeoutContext *context, TimerHandle timer, bool ready)
+{
+    int stopRet = TimerStop(timer);
+    if (stopRet != 0 && stopRet != ERROR_TIMER_STOP_FAILED) {
+        LOG_FATAL(stopRet, "schdfd timer stop failed");
+        abort();
+    }
+    if (stopRet == ERROR_TIMER_STOP_FAILED &&
+        atomic_load(&reinterpret_cast<TimerNode *>(timer)->status) != TIMER_IDLE) {
+        LOG_FATAL(ERROR_TIMER_STATE, "schdfd timer stopped by unexpected owner");
+        abort();
+    }
+    int releaseRet = TimerRelease(timer);
+    if (releaseRet != 0) {
+        LOG_FATAL(releaseRet, "schdfd timer release failed");
+        abort();
+    }
+
+    if (stopRet == 0) {
+        // TimerStop won against the timer worker, the callback will never run.
+        SchdfdTimeoutContextPut(context);
+    }
+
+    std::atomic<uintptr_t> *waiter = context->type == SHCDPOLL_READ ?
+        &context->schdFd->pd->cjthread.readWaiter : &context->schdFd->pd->cjthread.writeWaiter;
+    if (stopRet == ERROR_TIMER_STOP_FAILED) {
+        // If I/O returned first, the finished callback may have left a ready hint
+        // for the next wait in the same direction. Preserve PD_CLOSING.
+        uintptr_t expected = PD_READY;
+        atomic_compare_exchange_strong(waiter, &expected, static_cast<uintptr_t>(PD_NOWAIT));
+    }
+    bool closing = !ready || atomic_load(waiter) == PD_CLOSING;
+    SchdfdTimeoutContextPut(context);
+    if (closing) {
+        return ERRNO_SCHDFD_FD_CLOSING;
+    }
+    return stopRet == 0 ? 0 : ERRNO_SCHDFD_TIMEOUT;
+}
+
 /* SchdfdWait with timeout. */
 int SchdfdWaitTimeout(SignedSocket fd, SchdpollEventType type, unsigned long long timeout)
 {
     struct SchdfdFd *schdFd;
-    int ret;
     TimerHandle timer;
-    TimerFunc callback = (type == SHCDPOLL_READ) ? (TimerFunc)SchdfdReadTimeout : (TimerFunc)SchdfdWriteTimeout;
+    int ret;
 
     if (timeout == 0) {
         return ERRNO_SCHDFD_TIMEOUT;
@@ -542,73 +619,72 @@ int SchdfdWaitTimeout(SignedSocket fd, SchdpollEventType type, unsigned long lon
         return ERRNO_SCHDFD_NOT_ADD_NETPOLL;
     }
 
-    timer = TimerNew(timeout, 0, callback, schdFd);
-    if (timer == nullptr) {
+    auto *context = new (std::nothrow) struct SchdfdTimeoutContext;
+    if (context == nullptr) {
         SchdfdDecref(fd, false);
+        LOG_ERROR(ERRNO_SCHDFD_INIT_RESOURCE_FAILED, "timeout context init failed");
+        return ERRNO_SCHDFD_INIT_RESOURCE_FAILED;
+    }
+    context->schdFd = schdFd;
+    context->fd = fd;
+    context->type = type;
+    // The waiter reference and the callback reference exist before the timer is published.
+    context->refs.store(2, std::memory_order_relaxed);
+
+    timer = TimerNew(timeout, 0, SchdfdTimeoutCallback, context);
+    if (timer == nullptr) {
+        context->refs.store(1, std::memory_order_relaxed);
+        SchdfdTimeoutContextPut(context);
         LOG_ERROR(ERRNO_SCHDFD_INIT_RESOURCE_FAILED, "timer init failed");
         return ERRNO_SCHDFD_INIT_RESOURCE_FAILED;
     }
 
-    if (!SchdpollWait(schdFd->pd, type)) {
-        (void) TimerTryStop(timer);
-        SchdfdDecref(fd, false);
-        TimerRelease(timer);
-        return ERRNO_SCHDFD_FD_CLOSING;
-    }
-    // Timer stop fail indicates that the current timeout has occurred and returns a timeout error.
-    // Otherwise, it is a real ready event that has occurred and returns OK.
-    ret = TimerTryStop(timer);
-    TimerRelease(timer);
-    if (ret != 0) {
-        SchdfdDecref(fd, false);
-        return ERRNO_SCHDFD_TIMEOUT;
-    }
-
-    SchdfdDecref(fd, false);
-    return 0;
+    return SchdfdFinishTimeoutWait(context, timer, SchdpollWait(schdFd->pd, type));
 }
 
 /* SchdfdWaitInlock with timeout. */
 int SchdfdWaitInlockTimeout(SignedSocket fd, SchdpollEventType type, unsigned long long timeout)
 {
-    struct SchdfdManager *schdfdManager = g_scheduleManager.schdfdManager;
     struct SchdfdFd *schdFd;
     TimerHandle timer;
-    TimerFunc callback = (type == SHCDPOLL_READ) ? (TimerFunc)SchdfdReadTimeout : (TimerFunc)SchdfdWriteTimeout;
-    int layerIndex = GetFirstLevel(fd);
-    int lineIndex = GetSecondLevel(fd);
-    int fdIndex = GetThirdLevel(fd);
 
     if (timeout == 0) {
         return ERRNO_SCHDFD_TIMEOUT;
     }
 
-    schdFd = reinterpret_cast<struct SchdfdFd *>(schdfdManager->slots[layerIndex][lineIndex][fdIndex].schdFd);
+    // SchdfdLock already holds a reference for the caller. Take one more so that
+    // the timeout context does not depend on when the caller calls SchdfdUnlock.
+    schdFd = SchdfdIncref(fd, false);
+    if (schdFd == nullptr) {
+        return ERRNO_SCHDFD_FD_CLOSING;
+    }
     if (atomic_load(&schdFd->netpollState) != NETPOLL_ADDED) {
+        SchdfdDecref(fd, false);
         LOG_ERROR(ERRNO_SCHDFD_NOT_ADD_NETPOLL, "fd %u not yet add to netpoll", fd);
         return ERRNO_SCHDFD_NOT_ADD_NETPOLL;
     }
-    timer = TimerNew(timeout, 0, callback, schdFd);
+
+    auto *context = new (std::nothrow) struct SchdfdTimeoutContext;
+    if (context == nullptr) {
+        SchdfdDecref(fd, false);
+        LOG_ERROR(ERRNO_SCHDFD_INIT_RESOURCE_FAILED, "timeout context init failed");
+        return ERRNO_SCHDFD_INIT_RESOURCE_FAILED;
+    }
+    context->schdFd = schdFd;
+    context->fd = fd;
+    context->type = type;
+    // The waiter reference and the callback reference exist before the timer is published.
+    context->refs.store(2, std::memory_order_relaxed);
+
+    timer = TimerNew(timeout, 0, SchdfdTimeoutCallback, context);
     if (timer == nullptr) {
+        context->refs.store(1, std::memory_order_relaxed);
+        SchdfdTimeoutContextPut(context);
         LOG_ERROR(ERRNO_SCHDFD_INIT_RESOURCE_FAILED, "timer init failed");
         return ERRNO_SCHDFD_INIT_RESOURCE_FAILED;
     }
-    if (type == SHCDPOLL_READ) {
-        atomic_store(&schdFd->readTimer, reinterpret_cast<uintptr_t>(timer));
-    } else {
-        atomic_store(&schdFd->writeTimer, reinterpret_cast<uintptr_t>(timer));
-    }
-    // In the case of close, close error will be returned regardless of whether the timer has timed out or not.
-    if (!SchdpollWait(schdFd->pd, type)) {
-        (void)FreeSchdfdTimer(schdFd, type);
-        return ERRNO_SCHDFD_FD_CLOSING;
-    }
-    int ret = FreeSchdfdTimer(schdFd, type);
-    if (ret == -1) {
-        return ERRNO_SCHDFD_TIMEOUT;
-    }
 
-    return ret;
+    return SchdfdFinishTimeoutWait(context, timer, SchdpollWait(schdFd->pd, type));
 }
 
 int SchdfdLock(SignedSocket fd, SchdpollEventType type)
