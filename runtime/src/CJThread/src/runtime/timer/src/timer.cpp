@@ -1026,8 +1026,9 @@ int TimerTryStop(TimerHandle handle)
 int TimerExit(void *processor)
 {
     struct TimerHeap *heap;
+    struct Processor *pro = static_cast<struct Processor *>(processor);
 
-    heap = (struct TimerHeap *)ProcessorGetspecific((const struct Processor *)processor, KEY_TIMER);
+    heap = (struct TimerHeap *)ProcessorGetspecific(pro, KEY_TIMER);
     if (heap != nullptr) {
         if (heap->buf != nullptr) {
             pthread_mutex_lock(&heap->mutex);
@@ -1042,6 +1043,9 @@ int TimerExit(void *processor)
         }
         MapleRuntime::NativeAllocator::NativeFree(heap, sizeof(struct TimerHeap));
     }
+    // Clear the slot so TimerGetHeap reports ERROR_TIMER_PPTR instead of
+    // returning a pointer to the freed heap after the processor exits.
+    ProcessorSetspecific(pro, KEY_TIMER, nullptr);
 
     return 0;
 }
