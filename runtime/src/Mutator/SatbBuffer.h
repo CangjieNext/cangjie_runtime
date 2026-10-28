@@ -13,6 +13,8 @@
 #include "Common/MarkWorkStack.h"
 #include "Heap/Allocator/RegionInfo.h"
 namespace MapleRuntime {
+class Collector;
+
 // snapshot at the beginning buffer
 // mainly used to buffer modified field of mutator write
 class SatbBuffer {
@@ -301,14 +303,12 @@ private:
 class WeakRefBuffer {
 public:
     static WeakRefBuffer& Instance() noexcept;
-    void ClearWeakRefBuffer()
-    {
-        for (BaseObject* obj : refObjBuffer) {
-            RefField<>* referentField = reinterpret_cast<RefField<>*>((uintptr_t)obj + TYPEINFO_PTR_SIZE);
-            Heap::GetBarrier().ReadWeakRef(obj, *referentField);
-        }
-        refObjBuffer.clear();
-    }
+    // Membership is about the WeakRef wrapper, not the referent. A registered
+    // wrapper may only lose its referent (WeakRef.clear()), never rebind it.
+    // Tracing must have finished before either PostTrace operation starts.
+    BaseObject* ReadWeakRefInPostTrace(BaseObject* obj, RefField<false>& field, const Collector& collector);
+    void ClearWeakRefBuffer(const Collector& collector);
+
     // insert weakref obj into buffer
     void Insert(BaseObject* obj)
     {
