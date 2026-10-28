@@ -149,8 +149,9 @@ public class LinkedBlockingQueue<E> {
             // Wait loop reuses the lock-free CAS reservation core. A lock-held fetchAdd would race
             // with a concurrent fast-path producer and could drive putQsize past capacity.
             while (true) {
-                let (ok, prev) = tryAddCore(element)
-                if (ok) {
+                let result = tryAddCore(element)
+                if (result.0) {
+                    let prev = result.1
                     // Edge signal: prev==0 means this enqueue transitioned the queue from empty,
                     // which is the only state where a consumer could have been parked in remove().
                     if (prev == 0) {
@@ -186,6 +187,8 @@ public class LinkedBlockingQueue<E> {
      * @return:
      * - true: if @p element is successfully pushed at the tail of the queue.
      * - false: if the waiting time exceeds @p timeout.
+     *
+     * @throws IllegalArgumentException if timeout <= Duration.Zero (thrown by Monitor.wait(timeout))
      */
     @Deprecated[message: "Use member function `public func add(element: E, timeout: Duration): Bool` instead."]
     public func enqueue(element: E, timeout: Duration): Bool {
@@ -201,8 +204,9 @@ public class LinkedBlockingQueue<E> {
         try {
             var remaining = timeout
             while (true) {
-                let (ok, prev) = tryAddCore(element)
-                if (ok) {
+                let result = tryAddCore(element)
+                if (result.0) {
+                    let prev = result.1
                     if (prev == 0) {
                         needWakeConsumer = true
                     }
@@ -254,8 +258,10 @@ public class LinkedBlockingQueue<E> {
         var result: Option<E> = None<E>
         try {
             while (true) {
-                let (opt, prevCount, prevPut) = tryRemoveCore()
-                if (let Some(e) <- opt) {
+                let deq = tryRemoveCore()
+                if (let Some(e) <- deq.0) {
+                    let prevPut = deq.2
+                    let prevCount = deq.1
                     // Edge signal for producers is based on the RESERVATION counter, not count.
                     // A producer blocks on putQsize >= capacity, so we need prevPut==capacity
                     // (the slot we just freed was the one that made the queue appear full to
@@ -297,6 +303,8 @@ public class LinkedBlockingQueue<E> {
      * @return:
      * - Some(v): if gets and removes the element at the head of the queue successfully.
      * - None: if the waiting time exceeds @p timeout.
+     *
+     * @throws IllegalArgumentException if timeout <= Duration.Zero (thrown by Monitor.wait(timeout))
      */
     @Deprecated[message: "Use member function `public func remove(timeout: Duration): Option<E>` instead."]
     public func dequeue(timeout: Duration): Option<E> {
@@ -313,8 +321,10 @@ public class LinkedBlockingQueue<E> {
         try {
             var remaining = timeout
             while (true) {
-                let (opt, prevCount, prevPut) = tryRemoveCore()
-                if (let Some(e) <- opt) {
+                let deq = tryRemoveCore()
+                if (let Some(e) <- deq.0) {
+                    let prevPut = deq.2
+                    let prevCount = deq.1
                     if (prevPut == capacity) {
                         needWakeProducer = true
                     }
@@ -407,16 +417,14 @@ public class LinkedBlockingQueue<E> {
             if (putQsize.compareAndSwap(r, r + 1)) {
                 try {
                     enqueueUnsafe(element)
-                    let prev = count.fetchAdd(1)
-                    return (true, prev)
+                    return (true, count.fetchAdd(1))
                 } catch (e: Error) {
                     // Covers OutOfMemoryError (<: Error, not Exception) from newBlock heap allocation:
                     // the slot was reserved (+1) but enqueue failed, so roll it back or capacity is poisoned.
-                    let prevPut = putQsize.fetchSub(1)
-                    if (prevPut == capacity) {
-                        // Rollback released the last slot (capacity->capacity-1). If a producer was parked
-                        // on putQsize>=capacity this is its release event — reissue signalNotFull here.
-                        // Monitor is reentrant, safe whether caller holds putMonitor or not.
+                    // Rollback released the last slot (capacity->capacity-1)? If a producer was parked on
+                    // putQsize>=capacity this is its release event — reissue signalNotFull here.
+                    // Monitor is reentrant, safe whether caller holds putMonitor or not.
+                    if (putQsize.fetchSub(1) == capacity) {
                         signalNotFull()
                     }
                     throw e
@@ -476,8 +484,7 @@ public class LinkedBlockingQueue<E> {
             if (count.compareAndSwap(c, c - 1)) {
                 try {
                     let value = dequeueUnsafe()
-                    let prevPut = putQsize.fetchSub(1)
-                    return (Some(value), c, prevPut)
+                    return (Some(value), c, putQsize.fetchSub(1))
                 } catch (e: Exception) {
                     // Defensive: dequeueUnsafe's "Unreachable code." guard. Roll back the claimed
                     // count and let the error propagate; a new iteration will re-CAS if needed.
