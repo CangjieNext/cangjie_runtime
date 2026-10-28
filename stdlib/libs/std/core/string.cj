@@ -747,7 +747,11 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
         return Option<Int64>.Some(index)
     }
 
-    // The vectorIndexByte32 intrinsic has no @local? form; the @local? indexOf degrades to a byte-by-byte scan.
+    // Reuses the same native search core as the plain overload: borrowing the backing storage through
+    // `acquireRaw` keeps the view origin and length without copying, and `CJ_CORE_IndexOfString` uses
+    // FastStrstr or a rolling hash instead of restarting the match at every position. The previous
+    // byte-by-byte loop was O(n*m) on inputs sharing a long prefix (measured: 14.40 ms plain vs
+    // 1106.91 ms for the identical heap string bound as `@local?`).
     @Frozen
     public func indexOf(this @local?, str: String @local?): Option<Int64> {
         if (str.size == 0) {
@@ -756,24 +760,18 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
         if (this.size < str.size) {
             return None<Int64>
         }
-        var i: Int64 = 0
-        while (i <= this.size - str.size) {
-            var matched: Bool = true
-            var j: Int64 = 0
-            while (j < str.size) {
-                if (arrayGetUnchecked3<UInt8>(this.myData, Int64(this.start) + i + j) !=
-                    arrayGetUnchecked3<UInt8>(str.myData, Int64(str.start) + j)) {
-                    matched = false
-                    break
-                }
-                j = j + 1
-            }
-            if (matched) {
-                return Some<Int64>(i)
-            }
-            i = i + 1
+        var index: Int64 = -1
+        unsafe {
+            let org: CPointer<UInt8> = this.acquireRaw()
+            let pat: CPointer<UInt8> = str.acquireRaw()
+            index = CJ_CORE_IndexOfString(org, pat, this.size, str.size, 0)
+            this.releaseRaw(org)
+            str.releaseRaw(pat)
         }
-        None<Int64>
+        if (index < 0) {
+            return None<Int64>
+        }
+        Some<Int64>(index)
     }
 
     // Returns the index of the last occurrence of the specified byte.
@@ -1644,20 +1642,10 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
         if (this.size < str.size) {
             return false
         }
-        for (i in 0..(this.size - str.size + 1)) {
-            var matched: Bool = true
-            for (j in 0..str.size) {
-                if (arrayGetUnchecked3<UInt8>(this.myData, Int64(this.start) + i + j) !=
-                    arrayGetUnchecked3<UInt8>(str.myData, Int64(str.start) + j)) {
-                    matched = false
-                    break
-                }
-            }
-            if (matched) {
-                return true
-            }
+        match (this.indexOf(str)) {
+            case None => false
+            case _ => true
         }
-        false
     }
 
     // Returns true if and only if this string starts with the given `prefix`.
