@@ -31,15 +31,16 @@ func settingsForEnum(
             (att.identifier, att)
         } |> collectArray)
 
-    let namedAttributes = if (inputOptions.ordering.isEmpty()) {
+    let ordering = inputOptions.ordering ?? Array<Identifier>()
+    let namedAttributes = if (ordering.isEmpty()) {
         includedProperties |> map { p: PropDecl => namedAttributesMap[Identifier(p.identifier)] } |> collectArray
-    } else { inputOptions.ordering |> map { id: Identifier => namedAttributesMap[id] } |> collectArray }
+    } else { ordering |> map { id: Identifier => namedAttributesMap[id] } |> collectArray }
 
     let settings = DerivingSettings(
         mapInterfaceSettings(enumDecl.generics(), inputOptions.origin, logger),
         [],
         allCases,
-        inputOptions.ordering,
+        ordering,
         includedProperties
     )
 

@@ -29,12 +29,18 @@ public macro Derive(rawOptions: Tokens, input: Tokens): Tokens {
         .filterMap { it => DeriveExcludeData.fromMessage(it) }
         .map { it => Identifier(it.excludedId) } |>
         collectArray
-    let ordering = getChildMessages(DeriveOrderName).iterator()
-        .filterMap { it => DeriveOrderData.fromMessage(it) }
-        .map { it => it.members } |>
-        flatten |>
-        map<Token, Identifier> { it => Identifier(it) } |>
-        collectArray
+    let orderingMessages = getChildMessages(DeriveOrderName)
+    let ordering: ?Array<Identifier> = if (orderingMessages.isEmpty()) {
+        // no @DeriveOrder annotation at all
+        None
+    } else {
+        Some(orderingMessages.iterator()
+            .filterMap { it => DeriveOrderData.fromMessage(it) }
+            .map { it => it.members } |>
+            flatten |>
+            map<Token, Identifier> { it => Identifier(it) } |>
+            collectArray)
+    }
 
     match (parseDeclUnwrapSafe(input)) {
         case Ok(decl) => deriveImpl(rawOptions, input, decl, includes, excludes, ordering, logger)

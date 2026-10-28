@@ -48,9 +48,7 @@ public func diagnose(
         diagnoseInterface(deriving, interfaceName, target, fieldTypes, results, logger)
     }
 
-    if (!inputOptions.ordering.isEmpty()) {
-        diagnoseOrdering(target, inputOptions, results, logger)
-    }
+    diagnoseOrdering(target, inputOptions, results, logger)
 
     diagnoseConstraints(inputOptions, logger)
 
@@ -158,11 +156,17 @@ private func diagnoseOrdering(
     results: ArrayList<ExtendDecl>,
     logger: Logger
 ): Unit {
+    // nothing to check when there is no @DeriveOrder annotation at all
+    let ordering = match (inputOptions.ordering) {
+        case Some(ordering) => ordering
+        case None => return
+    }
+
     let fieldsSet = target.namedFields |> map { f: TargetNamedAttribute => f.identifier } |> collectHashSet
     let excludedFields = inputOptions.excluded |> collectHashSet
     let errors = ArrayList<Tokens>()
 
-    for (o in inputOptions.ordering) {
+    for (o in ordering) {
         if (excludedFields.contains(o)) {
             logger.error(o.token, "Field ${o.value} is excluded via @DeriveExclude")
             let t = o.token
@@ -186,18 +190,14 @@ private func diagnoseOrdering(
         }
     }
 
-    let missing = fieldsSet |> filter { f: Identifier => !inputOptions.ordering.contains(f) } |> collectArray
+    let missing = fieldsSet |> filter { f: Identifier => !ordering.contains(f) } |> collectArray
     if (!missing.isEmpty()) {
-        let at = inputOptions.ordering |> map { t: Identifier => t.token } |> first
-        let message = "Not all attributes included: ${missing}"
-        match (at) {
-            case Some(at) => logger.error(at, message)
-            case None =>
-                throw IllegalStateException("Unreachable.")
-        }
+        // an empty @DeriveOrder leaves no token to point at, so blame the declaration
+        let at = ordering.iterator().first()?.token ?? target.declaration.keyword
+        logger.error(at, "Not all attributes included: ${missing}")
     }
 
-    for (duplicated in findDuplicates(inputOptions.ordering)) {
+    for (duplicated in findDuplicates(ordering)) {
         logger.error(duplicated.token, "'${duplicated}' is duplicated in @DeriveOrder")
     }
 

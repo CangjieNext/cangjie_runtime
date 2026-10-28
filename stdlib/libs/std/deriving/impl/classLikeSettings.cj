@@ -32,10 +32,11 @@ func settingsForClassLike(
         includedSet.contains(Identifier(p.identifier))
     } |> collectArray
 
-    let orderedFields = if (inputOptions.ordering.isEmpty()) {
+    let ordering = inputOptions.ordering ?? Array<Identifier>()
+    let orderedFields = if (ordering.isEmpty()) {
         allFields |> filterFields(includedSet, excludedSet) |> collectArray
     } else {
-        applyFieldsOrder(allFieldsMap, inputOptions.ordering, includedSet, excludedSet)
+        applyFieldsOrder(allFieldsMap, ordering, includedSet, excludedSet)
     }
 
     let interfaceSettings = mapInterfaceSettings(clazz.allGenerics(), inputOptions.origin, logger)
@@ -44,7 +45,7 @@ func settingsForClassLike(
         interfaceSettings,
         excludedFields,
         [], // enum cases order
-        inputOptions.ordering,
+        ordering,
         includedProperties
     )
 

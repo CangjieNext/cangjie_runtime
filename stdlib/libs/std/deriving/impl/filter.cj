@@ -18,7 +18,9 @@ public struct InputOptions {
         public let decl: Decl,
         public let included: Array<Identifier>,
         public let excluded: Array<Identifier>,
-        public let ordering: Array<Identifier>
+        // `None` when there is no @DeriveOrder annotation at all, `Some([])` for
+        // an explicit `@DeriveOrder[]`
+        public let ordering: ?Array<Identifier>
     ) {}
 }
 

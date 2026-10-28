@@ -17,7 +17,7 @@ public func deriveImpl(
     decl: Decl,
     includes: Array<Identifier>,
     excludes: Array<Identifier>,
-    ordering: Array<Identifier>,
+    ordering: ?Array<Identifier>,
     logger: Logger
 ): Tokens {
     let options = parseDeriveOptions(rawOptions, logger)
