@@ -501,7 +501,6 @@ void SchdfdReadTimeout(struct SchdfdFd *schdFd)
     // Timer timeout is also considered as a ready event, and it is up to the party
     // who started the timer to determine which situation it is.
     readCJThread = SchdpollReady(schdFd->pd, SHCDPOLL_READ, true);
-    (void)FreeSchdfdTimer(schdFd, SHCDPOLL_READ);
     SchdfdDispatchReadyCJThread(readCJThread);
 }
 
@@ -510,8 +509,42 @@ void SchdfdWriteTimeout(struct SchdfdFd *schdFd)
     struct CJThread *writeCJThread;
 
     writeCJThread = SchdpollReady(schdFd->pd, SHCDPOLL_WRITE, true);
-    (void)FreeSchdfdTimer(schdFd, SHCDPOLL_WRITE);
     SchdfdDispatchReadyCJThread(writeCJThread);
+}
+
+// The waiting coroutine is the only timer owner. TimerStop waits for a
+// RUNNING one-shot callback to finish before this wait can release its fd pin.
+static int SchdfdFinishTimeoutWait(struct SchdfdFd *schdFd, SchdpollEventType type,
+                                   TimerHandle timer, bool ready)
+{
+    int stopRet = TimerStop(timer);
+    if (stopRet != 0 && stopRet != ERROR_TIMER_STOP_FAILED) {
+        LOG_FATAL(stopRet, "schdfd timer stop failed");
+        abort();
+    }
+    if (stopRet == ERROR_TIMER_STOP_FAILED &&
+        atomic_load(&reinterpret_cast<TimerNode *>(timer)->status) != TIMER_IDLE) {
+        LOG_FATAL(ERROR_TIMER_STATE, "schdfd timer stopped by unexpected owner");
+        abort();
+    }
+    int releaseRet = TimerRelease(timer);
+    if (releaseRet != 0) {
+        LOG_FATAL(releaseRet, "schdfd timer release failed");
+        abort();
+    }
+
+    auto *waiter = type == SHCDPOLL_READ ? &schdFd->pd->cjthread.readWaiter :
+                                            &schdFd->pd->cjthread.writeWaiter;
+    if (stopRet == ERROR_TIMER_STOP_FAILED) {
+        // If I/O returned first, the finished timeout callback may have left
+        // a ready hint for the next same-direction wait. Preserve PD_CLOSING.
+        uintptr_t expected = PD_READY;
+        atomic_compare_exchange_strong(waiter, &expected, static_cast<uintptr_t>(PD_NOWAIT));
+    }
+    if (!ready || atomic_load(waiter) == PD_CLOSING) {
+        return ERRNO_SCHDFD_FD_CLOSING;
+    }
+    return stopRet == 0 ? 0 : ERRNO_SCHDFD_TIMEOUT;
 }
 
 /* SchdfdWait with timeout. */
@@ -549,23 +582,9 @@ int SchdfdWaitTimeout(SignedSocket fd, SchdpollEventType type, unsigned long lon
         return ERRNO_SCHDFD_INIT_RESOURCE_FAILED;
     }
 
-    if (!SchdpollWait(schdFd->pd, type)) {
-        (void) TimerTryStop(timer);
-        SchdfdDecref(fd, false);
-        TimerRelease(timer);
-        return ERRNO_SCHDFD_FD_CLOSING;
-    }
-    // Timer stop fail indicates that the current timeout has occurred and returns a timeout error.
-    // Otherwise, it is a real ready event that has occurred and returns OK.
-    ret = TimerTryStop(timer);
-    TimerRelease(timer);
-    if (ret != 0) {
-        SchdfdDecref(fd, false);
-        return ERRNO_SCHDFD_TIMEOUT;
-    }
-
+    ret = SchdfdFinishTimeoutWait(schdFd, type, timer, SchdpollWait(schdFd->pd, type));
     SchdfdDecref(fd, false);
-    return 0;
+    return ret;
 }
 
 /* SchdfdWaitInlock with timeout. */
@@ -593,22 +612,8 @@ int SchdfdWaitInlockTimeout(SignedSocket fd, SchdpollEventType type, unsigned lo
         LOG_ERROR(ERRNO_SCHDFD_INIT_RESOURCE_FAILED, "timer init failed");
         return ERRNO_SCHDFD_INIT_RESOURCE_FAILED;
     }
-    if (type == SHCDPOLL_READ) {
-        atomic_store(&schdFd->readTimer, reinterpret_cast<uintptr_t>(timer));
-    } else {
-        atomic_store(&schdFd->writeTimer, reinterpret_cast<uintptr_t>(timer));
-    }
-    // In the case of close, close error will be returned regardless of whether the timer has timed out or not.
-    if (!SchdpollWait(schdFd->pd, type)) {
-        (void)FreeSchdfdTimer(schdFd, type);
-        return ERRNO_SCHDFD_FD_CLOSING;
-    }
-    int ret = FreeSchdfdTimer(schdFd, type);
-    if (ret == -1) {
-        return ERRNO_SCHDFD_TIMEOUT;
-    }
-
-    return ret;
+    // SchdfdLock holds the fd reference until SchdfdUnlock after we return.
+    return SchdfdFinishTimeoutWait(schdFd, type, timer, SchdpollWait(schdFd->pd, type));
 }
 
 int SchdfdLock(SignedSocket fd, SchdpollEventType type)
