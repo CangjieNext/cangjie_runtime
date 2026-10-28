@@ -1,0 +1,25 @@
+runtime/src/Common/CentralCache.cpp
+  h_19cba801a4f3e0 43-44
+  s_8bc2710ca91781::t_5f4e6c5cdd423f 45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "30f1de18ccb50d389d8c056d19a8e781500a664c",
+  "prompts": {},
+  "humans": {
+    "h_19cba801a4f3e0": {
+      "author": "leeguo <leeguo@126.com>"
+    }
+  },
+  "sessions": {
+    "s_8bc2710ca91781": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_e946b2294ffeSDDnxpSCtAYHXN",
+        "model": "unknown"
+      },
+      "human_author": null
+    }
+  }
+}
