@@ -501,7 +501,6 @@ void SchdfdReadTimeout(struct SchdfdFd *schdFd)
     // Timer timeout is also considered as a ready event, and it is up to the party
     // who started the timer to determine which situation it is.
     readCJThread = SchdpollReady(schdFd->pd, SHCDPOLL_READ, true);
-    (void)FreeSchdfdTimer(schdFd, SHCDPOLL_READ);
     SchdfdDispatchReadyCJThread(readCJThread);
 }
 
@@ -510,8 +509,71 @@ void SchdfdWriteTimeout(struct SchdfdFd *schdFd)
     struct CJThread *writeCJThread;
 
     writeCJThread = SchdpollReady(schdFd->pd, SHCDPOLL_WRITE, true);
-    (void)FreeSchdfdTimer(schdFd, SHCDPOLL_WRITE);
     SchdfdDispatchReadyCJThread(writeCJThread);
+}
+
+// Builds the result of SchdfdWaitTimeout after the timeout timer has been
+// drained or deliberately abandoned. A closed fd always wins, because the
+// waiter state is the only place that records the close.
+static int SchdfdTimeoutWaitResult(std::atomic<uintptr_t> *waiter, bool ready, int result)
+{
+    if (!ready || atomic_load(waiter) == PD_CLOSING) {
+        return ERRNO_SCHDFD_FD_CLOSING;
+    }
+    return result;
+}
+
+// The waiting coroutine is the only timer owner. TimerStop waits for a
+// RUNNING one-shot callback to finish before this wait can release its fd pin.
+static int SchdfdFinishTimeoutWait(struct SchdfdFd *schdFd, SchdpollEventType type,
+                                   TimerHandle timer, bool ready)
+{
+    auto *waiter = type == SHCDPOLL_READ ? &schdFd->pd->cjthread.readWaiter :
+                                            &schdFd->pd->cjthread.writeWaiter;
+    int stopRet = TimerStop(timer);
+    if (stopRet == ERROR_TIMER_STATE) {
+        // A recoverable stop failure first restores the timer to
+        // TIMER_MODIFIED_AHEAD and only then reports ERROR_TIMER_STATE, so a
+        // single retry can still stop the timer and release it below.
+        stopRet = TimerStop(timer);
+    }
+    if (stopRet != 0 && stopRet != ERROR_TIMER_STOP_FAILED) {
+        // The remaining codes mean that the processor timer heap is gone
+        // (scheduler shutdown) or that the timer state itself is corrupted.
+        // Neither the timer nor its fd pin can be released reliably here, so the
+        // timer lifetime is left to the timer module and the process keeps
+        // running instead of aborting.
+        LOG_ERROR(stopRet, "schdfd timer stop failed");
+        if (stopRet == ERROR_TIMER_STATE) {
+            // A corrupted timer may fire after this wait returns, so report a
+            // timeout instead of claiming a successful I/O readiness.
+            return SchdfdTimeoutWaitResult(waiter, ready, ERRNO_SCHDFD_TIMEOUT);
+        }
+        // The wait itself was satisfied; report success so that the caller
+        // retries the syscall and observes the real readiness of the fd.
+        return SchdfdTimeoutWaitResult(waiter, ready, 0);
+    }
+    // TimerStop documents that a RUNNING one-shot callback has already finished
+    // when it returns ERROR_TIMER_STOP_FAILED, so TIMER_IDLE is the expected
+    // state. Any other state means that another owner stopped or released the
+    // timer: the callback can no longer run, but the timer lifetime now belongs
+    // to that other owner, so it must not be released here.
+    if (stopRet == ERROR_TIMER_STOP_FAILED &&
+        atomic_load(&reinterpret_cast<TimerNode *>(timer)->status) != TIMER_IDLE) {
+        LOG_ERROR(ERROR_TIMER_STATE, "schdfd timer stopped by unexpected owner");
+        return SchdfdTimeoutWaitResult(waiter, ready, ERRNO_SCHDFD_TIMEOUT);
+    }
+    int releaseRet = TimerRelease(timer);
+    if (releaseRet != 0) {
+        // During shutdown the timer is freed together with the timer heap.
+        LOG_ERROR(releaseRet, "schdfd timer release failed");
+    }
+
+    // A PD_READY hint left by the timeout callback is deliberately preserved:
+    // the netpoll is edge triggered, so this hint is the only record of that
+    // edge. Clearing it would make the next wait park on a ready fd until a
+    // brand new edge arrives.
+    return SchdfdTimeoutWaitResult(waiter, ready, stopRet == 0 ? 0 : ERRNO_SCHDFD_TIMEOUT);
 }
 
 /* SchdfdWait with timeout. */
@@ -549,23 +611,9 @@ int SchdfdWaitTimeout(SignedSocket fd, SchdpollEventType type, unsigned long lon
         return ERRNO_SCHDFD_INIT_RESOURCE_FAILED;
     }
 
-    if (!SchdpollWait(schdFd->pd, type)) {
-        (void) TimerTryStop(timer);
-        SchdfdDecref(fd, false);
-        TimerRelease(timer);
-        return ERRNO_SCHDFD_FD_CLOSING;
-    }
-    // Timer stop fail indicates that the current timeout has occurred and returns a timeout error.
-    // Otherwise, it is a real ready event that has occurred and returns OK.
-    ret = TimerTryStop(timer);
-    TimerRelease(timer);
-    if (ret != 0) {
-        SchdfdDecref(fd, false);
-        return ERRNO_SCHDFD_TIMEOUT;
-    }
-
+    ret = SchdfdFinishTimeoutWait(schdFd, type, timer, SchdpollWait(schdFd->pd, type));
     SchdfdDecref(fd, false);
-    return 0;
+    return ret;
 }
 
 /* SchdfdWaitInlock with timeout. */
@@ -593,22 +641,8 @@ int SchdfdWaitInlockTimeout(SignedSocket fd, SchdpollEventType type, unsigned lo
         LOG_ERROR(ERRNO_SCHDFD_INIT_RESOURCE_FAILED, "timer init failed");
         return ERRNO_SCHDFD_INIT_RESOURCE_FAILED;
     }
-    if (type == SHCDPOLL_READ) {
-        atomic_store(&schdFd->readTimer, reinterpret_cast<uintptr_t>(timer));
-    } else {
-        atomic_store(&schdFd->writeTimer, reinterpret_cast<uintptr_t>(timer));
-    }
-    // In the case of close, close error will be returned regardless of whether the timer has timed out or not.
-    if (!SchdpollWait(schdFd->pd, type)) {
-        (void)FreeSchdfdTimer(schdFd, type);
-        return ERRNO_SCHDFD_FD_CLOSING;
-    }
-    int ret = FreeSchdfdTimer(schdFd, type);
-    if (ret == -1) {
-        return ERRNO_SCHDFD_TIMEOUT;
-    }
-
-    return ret;
+    // SchdfdLock holds the fd reference until SchdfdUnlock after we return.
+    return SchdfdFinishTimeoutWait(schdFd, type, timer, SchdpollWait(schdFd->pd, type));
 }
 
 int SchdfdLock(SignedSocket fd, SchdpollEventType type)

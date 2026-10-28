@@ -134,8 +134,19 @@ TimerHandle TimerNew(unsigned long long dur, unsigned long long period, TimerFun
  * @par Description: The timer is not stopped immediately. Instead, the state of the timer is
  * marked as TIMER_STOPMED and deleted when the timer is adjusted.
  * The single timer is automatically released after the execution is complete.
+ *
+ * If the callback of a one-shot timer is running (TIMER_RUNNING), this function waits
+ * until the callback has finished before returning. It therefore guarantees that the
+ * callback no longer accesses its arguments after the return. This function must not be
+ * called from the callback itself.
+ *
+ * The timer is not released by this function, call TimerRelease afterwards.
  * @param handle [IN] Timer handle
- * @retval If the stop fails, - 1 is returned. If the stop succeeds, 0 is returned.
+ * @retval 0 if the timer was stopped before it fired.
+ * @retval #ERROR_TIMER_STOP_FAILED if the timer already fired or its callback has run;
+ *         the callback has finished when this value is returned.
+ * @retval Other timer error codes if the timer heap is unavailable, for example during
+ *         scheduler shutdown.
  */
 int TimerStop(TimerHandle handle);
 
