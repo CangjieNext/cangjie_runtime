@@ -885,7 +885,7 @@ public class ArrayList<T> <: List<T> {
             newData[j] = myData[i]
             j--
         }
-        ArrayList<T>(newData)
+        ArrayList<T>(newData, newSize)
     }
 
     /**
@@ -923,7 +923,7 @@ public class ArrayList<T> <: List<T> {
 
         var newData: Array<T> @local! = Array<T>(newSize, repeat: unsafe { zeroValue2<T>() })
         myData.copyTo(newData, 0, 0, newSize)
-        ArrayList<T>(newData)
+        ArrayList<T>(newData, newSize)
     }
 
     /**
@@ -957,7 +957,7 @@ public class ArrayList<T> <: List<T> {
         }
         if (count == 0) {
             var newData: Array<T> @local! = myData.clone(0..mySize)
-            return ArrayList<T>(newData)
+            return ArrayList<T>(newData, mySize)
         }
         if (mySize - count <= 0) {
             return ArrayList<T>()
@@ -965,7 +965,7 @@ public class ArrayList<T> <: List<T> {
 
         var newData: Array<T> @local! = Array<T>(mySize - count, repeat: unsafe { zeroValue2<T>() })
         myData.copyTo(newData, count, 0, mySize - count)
-        ArrayList<T>(newData)
+        ArrayList<T>(newData, mySize - count)
     }
 
     /**
@@ -1164,7 +1164,7 @@ public class ArrayList<T> <: List<T> {
     public exclave func intersperse(this @local!, separator: T @local!): ArrayList<T> @local! {
         if (mySize < 2) {
             var newData: Array<T> @local! = myData.clone(0..mySize)
-            return ArrayList<T>(newData)
+            return ArrayList<T>(newData, mySize)
         }
         let newSize: Int64 = 2 * mySize - 1
         var newData: Array<T> @local! = Array<T>(newSize, repeat: unsafe { zeroValue2<T>() })
@@ -1173,7 +1173,7 @@ public class ArrayList<T> <: List<T> {
             newData[2 * i + 1] = separator
         }
         newData[newSize - 1] = myData[mySize - 1]
-        ArrayList<T>(newData)
+        ArrayList<T>(newData, newSize)
     }
 
     /**
