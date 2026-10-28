@@ -1,0 +1,26 @@
+runtime/src/Heap/Allocator/LocalObjectAllocator.cpp
+  s_f800d7b80059d0::t_1e18e377bd28a8 62
+  s_f800d7b80059d0::t_f4ae107bc5fed0 366-367
+  s_f800d7b80059d0::t_b84a5c4fd2d340 63,293,310-312,333-334,336,339-344,360-365,368-379
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0b894bc37bffb623b88d4dcb1f0d9c26eacc309a",
+  "prompts": {},
+  "humans": {
+    "h_257b3b6b5da395": {
+      "author": "kongbx <kongbingxin@huawei.com>"
+    }
+  },
+  "sessions": {
+    "s_f800d7b80059d0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a151f3-d082-7540-9c1a-7afdd34ea441",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "kongbx <kongbingxin@huawei.com>"
+    }
+  }
+}

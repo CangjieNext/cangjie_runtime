@@ -1,0 +1,37 @@
+runtime/src/arch/aarch64_linux/CalleeSavedStub.S
+  s_eb88edfc30d1e0::t_72a96460a82460 313-314
+runtime/src/arch/x86_64_linux/CalleeSavedStub.S
+  s_eb88edfc30d1e0::t_72a96460a82460 165-166
+runtime/src/arch/arm_linux/CalleeSavedStub.S
+  s_eb88edfc30d1e0::t_72a96460a82460 319-320
+runtime/src/arch/aarch64_macos/CalleeSavedStub.S
+  s_eb88edfc30d1e0::t_72a96460a82460 479,485
+runtime/src/arch/x86_64_windows/CalleeSavedStub.S
+  s_eb88edfc30d1e0::t_72a96460a82460 214-215
+runtime/src/arch/x86_64_ios/CalleeSavedStub.S
+  s_eb88edfc30d1e0::t_72a96460a82460 358,364
+runtime/src/arch/x86_64_macos/CalleeSavedStub.S
+  s_eb88edfc30d1e0::t_72a96460a82460 358,364
+runtime/src/CompilerCalls.cpp
+  s_eb88edfc30d1e0::t_72a96460a82460 2211,2216
+runtime/src/arch/aarch64_ios/CalleeSavedStub.S
+  s_eb88edfc30d1e0::t_72a96460a82460 479,485
+runtime/src/CompilerCalls.h
+  s_eb88edfc30d1e0::t_72a96460a82460 199,201
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e2a492e5f33a96589ab31d1f9baeb226b1920f4a",
+  "prompts": {},
+  "sessions": {
+    "s_eb88edfc30d1e0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a166f7-1bed-7363-a22a-281ec5b83fbf",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "kongbx <kongbingxin@huawei.com>"
+    }
+  }
+}
