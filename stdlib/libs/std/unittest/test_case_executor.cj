@@ -85,15 +85,86 @@ class TestCaseExecutor<T> <: Executor {
         return true
     }
 
-    private func putToQue(que: ArrayList<(CovRandomSource, Int64)>,
-        varg: Array<(element: CovRandomSource, score: Int64)>) {
-        que.add(all: varg)
-        que.sortBy { l, r => l[1].compare(r[1]) }
+    // Iterative max-heap (segment tree layout) - O(log n) insert + O(log n) pop-max.
+    // Inspired by segmenttree4cj's IterativeSegmentTree<T>. Previously this loop called
+    // sortBy() after every put (O(n log n)), now uses 2-array iterative segment tree.
+    private class MaxHeap<T> {
+        let n: Int64
+        let size: Int64
+        var tree: Array<Int64>
+        var data: Array<Option<(T, Int64)>>
+        var count: Int64 = 0
+
+        init(n: Int64) {
+            this.n = n
+            size = computeSize(n)
+            tree = Array<Int64>(2 * size, { _ => -1 })
+            data = Array<Option<(T, Int64)>>(size, { _ => None })
+        }
+
+        private static func computeSize(n: Int64): Int64 {
+            var s: Int64 = 1
+            while (s < n) { s = s * 2 }
+            return s
+        }
+
+        var isEmpty: Bool { count == 0 }
+        var currentSize: Int64 { count }
+
+        func insert(element: T, score: Int64): Unit {
+            if (count >= size) { return }
+            let slot = count
+            data[slot] = (element, score)
+            tree[slot + size] = slot
+            var cur = (slot + size) >> 1
+            while (cur >= 1) {
+                let left = tree[2 * cur]
+                let right = tree[2 * cur + 1]
+                let newIdx = argMax(left, right)
+                if (tree[cur] == newIdx) { break }
+                tree[cur] = newIdx
+                cur = cur >> 1
+            }
+            count = count + 1
+        }
+
+        func popMax(): Option<(T, Int64)> {
+            if (tree[1] < 0) { return None }
+            let idx = tree[1]
+            let entry = data[idx]
+            data[idx] = None
+            tree[idx + size] = -1
+            var cur = (idx + size) >> 1
+            while (cur >= 1) {
+                let left = tree[2 * cur]
+                let right = tree[2 * cur + 1]
+                let newIdx = argMax(left, right)
+                if (tree[cur] == newIdx) { break }
+                tree[cur] = newIdx
+                cur = cur >> 1
+            }
+            count = count - 1
+            return entry
+        }
+
+        private func argMax(a: Int64, b: Int64): Int64 {
+            if (a < 0) { return b }
+            if (b < 0) { return a }
+            let sa = data[a].getOrThrow()[1]
+            let sb = data[b].getOrThrow()[1]
+            return if (sa >= sb) { a } else { b }
+        }
     }
 
-    private func popFromQue(que: ArrayList<(CovRandomSource, Int64)>): (CovRandomSource, Int64) {
-        let last = que.remove(at: que.size - 1) // last element is the maximum
-        last
+    private func putToQue(que: MaxHeap<CovRandomSource>,
+        varg: Array<(element: CovRandomSource, score: Int64)>) {
+        for (item in varg) {
+            que.insert(element: item.element, score: item.score)
+        }
+    }
+
+    private func popFromQue(que: MaxHeap<CovRandomSource>): (CovRandomSource, Int64) {
+        return que.popMax().getOrThrow()
     }
 
     private func coverageGuidedLoop(
@@ -101,13 +172,13 @@ class TestCaseExecutor<T> <: Executor {
         progress: ProgressOutput,
         localConfiguration: Configuration,
         random: Random,
-        que: ArrayList<(CovRandomSource, Int64)>,
+        que: MaxHeap<CovRandomSource>,
         actualBody: (T) -> Unit
     ): Unit {
         var cnt = 0
         progress.verbose("cnt = *, candidates = ${que.size}, cov est = ${currentCoverageEst()}\r")
         let maxQueSize = localConfiguration.coverageGuidedMaxCandidates
-        while (que.size != 0) {
+        while (!que.isEmpty) {
             if (que.size > maxQueSize) {
                 let cull = que.size - maxQueSize
                 progress.verboseLine("Too many candidates in queue, removing lower ${cull} (max is ${maxQueSize})")
@@ -164,10 +235,10 @@ class TestCaseExecutor<T> <: Executor {
             unsafe { CJ_MICROFUZZ_DISABLE_TRACE() }
         }
 
-        // This should be a priority queue, but we don't have a priority queue implementation
-        // so instead we sort an ArrayList after adding each element
-        // This is not an algorithmic complexity problem, because the que is typically < 100 elements
-        let que = ArrayList<(CovRandomSource, Int64)>()
+        // Iterative max-heap (segment tree layout) replaces the previous ArrayList+sortBy()
+        // which was O(n log n) per put. New implementation is O(log n) per insert + pop.
+        // Inspired by segmenttree4cj's IterativeSegmentTree.
+        let que = MaxHeap<CovRandomSource>(n: configuration.coverageGuidedMaxCandidates)
 
         progress.verboseLine("Seeding initial generation")
         for (seed in initialSeeds) {
@@ -178,13 +249,12 @@ class TestCaseExecutor<T> <: Executor {
                 return
             }
             if (CoverageInfo.newCoverageDiscovered()) {
-                que.add((ss.freeze(), localConfiguration.coverageGuidedNewCoverageScore))
+                que.insert(element: ss.freeze(), score: localConfiguration.coverageGuidedNewCoverageScore)
                 progress.verboseLine("new coverage on seed = ${seed}")
             } else {
-                que.add((ss.freeze(), localConfiguration.coverageGuidedBaselineScore))
+                que.insert(element: ss.freeze(), score: localConfiguration.coverageGuidedBaselineScore)
             }
         }
-        que.sortBy { l, r => l[1].compare(r[1]) }
 
         coverageGuidedLoop(result, progress, localConfiguration, random, que, actualBody)
     }
