@@ -137,11 +137,10 @@ func generateBlock(blockOption: Option<ASTFormat_Block>): Block {
         unSafe = Token(TokenKind.UNSAFE).addPosition(block.GetUnsafePos())
     }
     var blockNode = Block(lCurl, nodes, rCurl, unSafe)
-    var nodeBase = match (block.GetBase()) {
-        case Some(v) => v
-        case None => throw ParseASTException()
+    match (block.GetBase()) {
+        case Some(v) => addPositionInfo(blockNode, v)
+        case None => ()
     }
-    addPositionInfo(blockNode, nodeBase)
     return blockNode
 }
 
