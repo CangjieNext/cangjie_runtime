@@ -1,0 +1,24 @@
+runtime/src/arch/arm_linux/ExclusiveScope.S
+  s_319079af48f987::t_c7134d3df1faa7 212-213,217
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0987092f0e6c3809684970beb02b33c170008b86",
+  "prompts": {},
+  "humans": {
+    "h_257b3b6b5da395": {
+      "author": "kongbx <kongbingxin@huawei.com>"
+    }
+  },
+  "sessions": {
+    "s_319079af48f987": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a15897-9557-7373-b6ba-dbdf824939be",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "kongbx <kongbingxin@huawei.com>"
+    }
+  }
+}
