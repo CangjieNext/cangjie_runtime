@@ -1,0 +1,16 @@
+stdlib/doc/libs/std/ast/ast_package_api/ast_package_classes.md
+  h_6a43e5c473a09a 5773,5778,5784
+stdlib/doc/libs/std/ast/ast_package_api/ast_package_interfaces.md
+  h_6a43e5c473a09a 104-105,245,291,337,383,429,475,521,567,613,659,799,845,891,937
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9bb9ff88eef4caaec28c89af95338021b4429475",
+  "prompts": {},
+  "humans": {
+    "h_6a43e5c473a09a": {
+      "author": "Xu Zhaoheng <xuzhaoheng1@huawei.com>"
+    }
+  }
+}
