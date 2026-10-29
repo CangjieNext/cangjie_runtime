@@ -167,6 +167,7 @@ extend Rune {
     }
 
     @OverflowWrapping
+    @When[env != "ohos"]
     public static func fromUtf8(arr: Array<UInt8> @local?, index: Int64): (Rune, Int64) {
         if (index < 0 || index >= arr.size) {
             throw IllegalArgumentException("Invalid utf8 byte sequence.")
@@ -242,6 +243,7 @@ extend Rune {
     }
 
     @OverflowWrapping
+    @When[env != "ohos"]
     public static func intoUtf8Array(c: Rune, arr: Array<UInt8> @local?, index: Int64): Int64 {
         var ch = UInt32(c)
         checkIndexValid(c, arr, index)
@@ -271,6 +273,28 @@ extend Rune {
     /*
      * @throws IllegalArgumentException if the character occupies a position beyond the array range
      */
+    private static func checkIndexValid(c: Rune, arr: Array<UInt8>, index: Int64): Unit {
+        if (index < 0) {
+            throw IllegalArgumentException("Invalid argument 'index': expected a non-negative value, got '${index}'.")
+        }
+        let ch = UInt32(c)
+        let arrSize = arr.size
+        let lengthOfCharBytes = if (ch <= UTF8_1_MAX) {
+            1
+        } else if (ch <= UTF8_2_MAX) {
+            2
+        } else if (ch <= UTF8_3_MAX) {
+            3
+        } else if (ch <= UTF8_4_MAX) {
+            4
+        } else {
+            throw IllegalArgumentException("Invalid Unicode scalar value: code point exceeds U+10FFFF.")
+        }
+        if (lengthOfCharBytes + index > arrSize) {
+            throw IllegalArgumentException("Rune requires '${lengthOfCharBytes}' bytes for UTF-8 encoding, but array has only '${arrSize - index}' bytes available from index '${index}'.")
+        }
+    }
+    @When[env != "ohos"]
     private static func checkIndexValid(c: Rune, arr: Array<UInt8> @local?, index: Int64): Unit {
         if (index < 0) {
             throw IllegalArgumentException("The index cannot be less than 0.")
