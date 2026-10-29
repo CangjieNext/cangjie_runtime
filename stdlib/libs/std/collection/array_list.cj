@@ -281,6 +281,13 @@ public class ArrayList<T> <: List<T> {
         mySize = size
     }
 
+    // Same contract as the `@local!` adopting constructor above, for the shared view.
+    @Frozen
+    internal exclave init(this @local?, data: Array<T> @local?, size: Int64) {
+        myData = data
+        mySize = size
+    }
+
     @Frozen
     @When[env != "ohos"]
     public exclave init(this @local?, elements: Array<T> @local?) {
@@ -1996,7 +2003,10 @@ extend<T> ArrayList<T> {
         for (i in newSize - 1..=0 : -1) {
             newData[i] = (myData[i], other[i])
         }
-        ArrayList<(T, R)>(newData)
+        let result: ArrayList<(T, R)> @local! = ArrayList<(T, R)>() @local!
+        result.myData = newData
+        result.mySize = newSize
+        result
     }
 
     /**
@@ -2023,7 +2033,10 @@ extend<T> ArrayList<T> {
         for (i in mySize - 1..=0 : -1) {
             newData[i] = (i, myData[i])
         }
-        ArrayList<(Int64, T)>(newData)
+        let result: ArrayList<(Int64, T)> @local! = ArrayList<(Int64, T)>() @local!
+        result.myData = newData
+        result.mySize = mySize
+        result
     }
 }
 
@@ -3169,9 +3182,9 @@ extend<T> Array<T> {
 extend<T> ArrayList<T> where T <: Copyable {
     @Frozen
     public exclave func clone(this @local?): ArrayList<T> @local? {
+        // `myData.clone()` already produced a buffer exclusive to this call; install it directly so
+        // the `Array` constructor does not copy it a second time.
         let newData: Array<T> @local? = myData.clone()
-        let newArr: ArrayList<T> @local? = ArrayList<T>(newData) @local?
-        newArr.mySize = mySize
-        newArr
+        ArrayList<T>(newData, mySize) @local?
     }
 }
