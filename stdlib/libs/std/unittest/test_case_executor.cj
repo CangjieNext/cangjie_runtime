@@ -85,15 +85,140 @@ class TestCaseExecutor<T> <: Executor {
         return true
     }
 
-    private func putToQue(que: ArrayList<(CovRandomSource, Int64)>,
-        varg: Array<(element: CovRandomSource, score: Int64)>) {
-        que.add(all: varg)
-        que.sortBy { l, r => l[1].compare(r[1]) }
+    // Classic binary max-heap: elements stored compactly in data[0..count).
+    // O(log n) insert + O(log n) popMax via siftUp/siftDown.
+    // Fixed capacity with replace-min semantics when full (preserves highest-score candidates).
+    // Replaces the previous O(n log n) sortBy() approach and the buggy segment-tree slot-reuse design.
+    private class MaxHeap<T> {
+        let capacity: Int64
+        var data: Array<Option<(T, Int64)>>
+        var count: Int64 = 0
+
+        // Clamp capacity to safe range to prevent overflow/OOM from misconfiguration.
+        // Default 200 if <= 0; hard cap at 1,000,000 to avoid gigabyte-level preallocation.
+        init(capacity: Int64) {
+            let clamped = if (capacity <= 0) {
+                200
+            } else if (capacity > 1000000) {
+                1000000
+            } else {
+                capacity
+            }
+            this.capacity = clamped
+            data = Array<Option<(T, Int64)>>(clamped, { _ => None })
+        }
+
+        var isEmpty: Bool { count == 0 }
+        var currentSize: Int64 { count }
+
+        // Insert with replace-min policy when full.
+        // If heap is full and new score exceeds current minimum, replace the minimum
+        // (preserving the highest-priority candidates, matching old ArrayList "cull lowest" intent).
+        // If heap is full and new score is not better than minimum, drop silently.
+        func insert(element: T, score: Int64): Unit {
+            if (count >= capacity) {
+                // Find minimum-score element (O(n) but capacity is small, typically <= 256)
+                var minIdx: Int64 = 0
+                var minScore = data[0].getOrThrow()[1]
+                var i: Int64 = 1
+                while (i < count) {
+                    let s = data[i].getOrThrow()[1]
+                    if (s < minScore) {
+                        minScore = s
+                        minIdx = i
+                    }
+                    i = i + 1
+                }
+                if (score <= minScore) {
+                    // New candidate not better than worst existing → drop it
+                    return
+                }
+                // Replace minimum with new element, then sift up from minIdx
+                data[minIdx] = Some((element, score))
+                siftUp(minIdx)
+            } else {
+                // Normal insert at end, then sift up
+                data[count] = Some((element, score))
+                count = count + 1
+                siftUp(count - 1)
+            }
+        }
+
+        // Pop the maximum-score element (root).
+        // Moves the last element to root and sifts it down to restore heap invariant.
+        func popMax(): Option<(T, Int64)> {
+            if (count == 0) { return None }
+            let result = data[0].getOrThrow()
+            count = count - 1
+            if (count > 0) {
+                // Move last element to root
+                data[0] = data[count]
+                data[count] = None
+                siftDown(0)
+            } else {
+                data[0] = None
+            }
+            return Some(result)
+        }
+
+        // siftUp: bubble element at idx up to maintain max-heap invariant.
+        private func siftUp(idx: Int64): Unit {
+            var i = idx
+            while (i > 0) {
+                let parent = (i - 1) / 2
+                let iScore = data[i].getOrThrow()[1]
+                let pScore = data[parent].getOrThrow()[1]
+                if (iScore > pScore) {
+                    // Swap
+                    let tmp = data[i]
+                    data[i] = data[parent]
+                    data[parent] = tmp
+                    i = parent
+                } else {
+                    break
+                }
+            }
+        }
+
+        // siftDown: sink element at idx down to maintain max-heap invariant.
+        private func siftDown(idx: Int64): Unit {
+            var i = idx
+            while (true) {
+                let left = 2 * i + 1
+                let right = 2 * i + 2
+                var largest = i
+                if (left < count) {
+                    let lScore = data[left].getOrThrow()[1]
+                    let curScore = data[largest].getOrThrow()[1]
+                    if (lScore > curScore) { largest = left }
+                }
+                if (right < count) {
+                    let rScore = data[right].getOrThrow()[1]
+                    let curScore = data[largest].getOrThrow()[1]
+                    if (rScore > curScore) { largest = right }
+                }
+                if (largest == i) { break }
+                // Swap
+                let tmp = data[i]
+                data[i] = data[largest]
+                data[largest] = tmp
+                i = largest
+            }
+        }
     }
 
-    private func popFromQue(que: ArrayList<(CovRandomSource, Int64)>): (CovRandomSource, Int64) {
-        let last = que.remove(at: que.size - 1) // last element is the maximum
-        last
+    private func putToQue(que: MaxHeap<CovRandomSource>,
+        varg: Array<(element: CovRandomSource, score: Int64)>) {
+        for (item in varg) {
+            que.insert(element: item.element, score: item.score)
+        }
+    }
+
+    private func popFromQue(que: MaxHeap<CovRandomSource>): (CovRandomSource, Int64) {
+        match (que.popMax()) {
+            case Some(entry) => entry
+            case None => throw Exception("Internal error: popFromQue called on empty MaxHeap — heap invariant violated or concurrent modification")
+        }
     }
 
     private func coverageGuidedLoop(
@@ -101,18 +226,12 @@ class TestCaseExecutor<T> <: Executor {
         progress: ProgressOutput,
         localConfiguration: Configuration,
         random: Random,
-        que: ArrayList<(CovRandomSource, Int64)>,
+        que: MaxHeap<CovRandomSource>,
         actualBody: (T) -> Unit
     ): Unit {
         var cnt = 0
-        progress.verbose("cnt = *, candidates = ${que.size}, cov est = ${currentCoverageEst()}\r")
-        let maxQueSize = localConfiguration.coverageGuidedMaxCandidates
-        while (que.size != 0) {
-            if (que.size > maxQueSize) {
-                let cull = que.size - maxQueSize
-                progress.verboseLine("Too many candidates in queue, removing lower ${cull} (max is ${maxQueSize})")
-                que.remove(0..cull)
-            }
+        progress.verbose("cnt = *, candidates = ${que.currentSize}, cov est = ${currentCoverageEst()}\r")
+        while (!que.isEmpty) {
             let (cur, score) = popFromQue(que)
             let temp = random.nextUInt8(126) + 2
             let newS = cur.copy(temperature: temp, seed: random.nextUInt64())
@@ -133,7 +252,7 @@ class TestCaseExecutor<T> <: Executor {
                 putToQue(que, (cur, score - 1))
             }
             if (cnt % 500 == 0) {
-                progress.verbose("cnt = ${cnt}, candidates = ${que.size}, cov est = ${currentCoverageEst()}\r")
+                progress.verbose("cnt = ${cnt}, candidates = ${que.currentSize}, cov est = ${currentCoverageEst()}\r")
             }
             cnt++
         }
@@ -164,10 +283,10 @@ class TestCaseExecutor<T> <: Executor {
             unsafe { CJ_MICROFUZZ_DISABLE_TRACE() }
         }
 
-        // This should be a priority queue, but we don't have a priority queue implementation
-        // so instead we sort an ArrayList after adding each element
-        // This is not an algorithmic complexity problem, because the que is typically < 100 elements
-        let que = ArrayList<(CovRandomSource, Int64)>()
+        // Classic binary max-heap replaces the previous ArrayList+sortBy() O(n log n) per put.
+        // New implementation: O(log n) insert (siftUp) + O(log n) popMax (siftDown).
+        // Fixed capacity with replace-min semantics preserves highest-score candidates.
+        let que = MaxHeap<CovRandomSource>(capacity: configuration.coverageGuidedMaxCandidates)
 
         progress.verboseLine("Seeding initial generation")
         for (seed in initialSeeds) {
@@ -178,13 +297,12 @@ class TestCaseExecutor<T> <: Executor {
                 return
             }
             if (CoverageInfo.newCoverageDiscovered()) {
-                que.add((ss.freeze(), localConfiguration.coverageGuidedNewCoverageScore))
+                que.insert(element: ss.freeze(), score: localConfiguration.coverageGuidedNewCoverageScore)
                 progress.verboseLine("new coverage on seed = ${seed}")
             } else {
-                que.add((ss.freeze(), localConfiguration.coverageGuidedBaselineScore))
+                que.insert(element: ss.freeze(), score: localConfiguration.coverageGuidedBaselineScore)
             }
         }
-        que.sortBy { l, r => l[1].compare(r[1]) }
 
         coverageGuidedLoop(result, progress, localConfiguration, random, que, actualBody)
     }
