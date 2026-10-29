@@ -40,9 +40,35 @@ public type BlockingQueue<E> = LinkedBlockingQueue<E>
  *     a parked producer. Because Monitor is reentrant (same thread can re-lock the monitor it
  *     already holds), the core can safely call signalNotFull from its OOM catch — whether the
  *     caller currently holds putMonitor (add/add(timeout)) or not (tryAdd). After the rollback
- *     we propagate the error. This eliminates the need for any out-holder (no WakeFlags class)
- *     and keeps every counter mutation + signal decision inside a single stack frame.
+ *     we propagate the error. This keeps every counter mutation + signal decision inside a single
+ *     stack frame, and the core returns a small value-type (AddResult / RemoveResult<E>) carrying
+ *     the counts the caller needs for the post-finally cross-monitor signal, so no heap-allocated
+ *     holder is required on the hot path.
  */
+
+// Value-type result carriers for the lock-free cores. They hold the counters the caller needs
+// to decide the post-finally cross-monitor signal. Being plain structs (not classes) they are
+// stack-allocated, so the hot path pays zero heap allocation - no per-call holder object.
+private struct AddResult {
+    var ok: Bool
+    var prev: Int64
+    init(ok: Bool, prev: Int64) {
+        this.ok = ok
+        this.prev = prev
+    }
+}
+
+private struct RemoveResult<E> {
+    var opt: Option<E>
+    var prevCount: Int64
+    var prevPut: Int64
+    init(opt: Option<E>, prevCount: Int64, prevPut: Int64) {
+        this.opt = opt
+        this.prevCount = prevCount
+        this.prevPut = prevPut
+    }
+}
+
 public class LinkedBlockingQueue<E> {
     public let capacity: Int64 // the capacity of the queue
     private let takeMonitor = Monitor() // Monitor for blocking consumers when the queue is empty
@@ -149,9 +175,9 @@ public class LinkedBlockingQueue<E> {
             // Wait loop reuses the lock-free CAS reservation core. A lock-held fetchAdd would race
             // with a concurrent fast-path producer and could drive putQsize past capacity.
             while (true) {
-                let result = tryAddCore(element)
-                if (result.0) {
-                    let prev = result.1
+                let r = tryAddCore(element)
+                if (r.ok) {
+                    let prev = r.prev
                     // Edge signal: prev==0 means this enqueue transitioned the queue from empty,
                     // which is the only state where a consumer could have been parked in remove().
                     if (prev == 0) {
@@ -204,9 +230,9 @@ public class LinkedBlockingQueue<E> {
         try {
             var remaining = timeout
             while (true) {
-                let result = tryAddCore(element)
-                if (result.0) {
-                    let prev = result.1
+                let r = tryAddCore(element)
+                if (r.ok) {
+                    let prev = r.prev
                     if (prev == 0) {
                         needWakeConsumer = true
                     }
@@ -258,10 +284,10 @@ public class LinkedBlockingQueue<E> {
         var result: Option<E> = None<E>
         try {
             while (true) {
-                let deq = tryRemoveCore()
-                if (let Some(e) <- deq.0) {
-                    let prevPut = deq.2
-                    let prevCount = deq.1
+                let r = tryRemoveCore()
+                if (let Some(e) <- r.opt) {
+                    let prevPut = r.prevPut
+                    let prevCount = r.prevCount
                     // Edge signal for producers is based on the RESERVATION counter, not count.
                     // A producer blocks on putQsize >= capacity, so we need prevPut==capacity
                     // (the slot we just freed was the one that made the queue appear full to
@@ -321,10 +347,10 @@ public class LinkedBlockingQueue<E> {
         try {
             var remaining = timeout
             while (true) {
-                let deq = tryRemoveCore()
-                if (let Some(e) <- deq.0) {
-                    let prevPut = deq.2
-                    let prevCount = deq.1
+                let r = tryRemoveCore()
+                if (let Some(e) <- r.opt) {
+                    let prevPut = r.prevPut
+                    let prevCount = r.prevCount
                     if (prevPut == capacity) {
                         needWakeProducer = true
                     }
@@ -406,9 +432,9 @@ public class LinkedBlockingQueue<E> {
     // rolls back the reserved putQsize; if the rollback crossed capacity->capacity-1 it calls
     // signalNotFull directly — safe whether the caller holds putMonitor (add path, reentrant)
     // or not (tryAdd fast path, normal cross-thread acquire). Then the error propagates.
-    // This eliminates any out-holder class entirely: the OOM signal decision and the normal
-    // tuple return both stay on the stack, zero heap allocation on the hot path.
-    private func tryAddCore(element: E): (Bool, Int64) {
+    // The result is returned as a value-type AddResult (stack-allocated, zero heap allocation
+    // on the hot path); the caller reads r.prev only when r.ok to decide the cross-monitor signal.
+    private func tryAddCore(element: E): AddResult {
         while (true) {
             let r: Int64 = putQsize.load()
             if (r >= capacity) {
@@ -417,7 +443,7 @@ public class LinkedBlockingQueue<E> {
             if (putQsize.compareAndSwap(r, r + 1)) {
                 try {
                     enqueueUnsafe(element)
-                    return (true, count.fetchAdd(1))
+                    return AddResult(true, count.fetchAdd(1))
                 } catch (e: Error) {
                     // Covers OutOfMemoryError (<: Error, not Exception) from newBlock heap allocation:
                     // the slot was reserved (+1) but enqueue failed, so roll it back or capacity is poisoned.
@@ -431,16 +457,16 @@ public class LinkedBlockingQueue<E> {
                 }
             }
         }
-        return (false, 0)
+        return AddResult(false, 0)
     }
 
     public func tryAdd(element: E): Bool {
         // Lock-free fast path: conditional consumer wake-up (prev==0 only, avoids a needless
         // takeMonitor round-trip on SPSC) and OOM-path producer re-issue are both handled inside
         // tryAddCore — no holder object, zero heap allocation.
-        let (ok, prev) = tryAddCore(element)
-        if (ok) {
-            if (prev == 0) {
+        let r = tryAddCore(element)
+        if (r.ok) {
+            if (r.prev == 0) {
                 signalNotEmpty()
             }
             return true
@@ -475,7 +501,8 @@ public class LinkedBlockingQueue<E> {
     // Exception path: dequeueUnsafe throws only its "Unreachable code." guard, so we keep the
     // Exception catch (defensive rollback of the claimed count). No reentrant-signal needed here
     // because this throw is under the claim protocol and does not represent a cross-boundary event.
-    private func tryRemoveCore(): (Option<E>, Int64, Int64) {
+    // The result is returned as a value-type RemoveResult<E> (stack-allocated, zero heap allocation).
+    private func tryRemoveCore(): RemoveResult<E> {
         while (true) {
             let c: Int64 = count.load()
             if (c == 0) {
@@ -484,7 +511,7 @@ public class LinkedBlockingQueue<E> {
             if (count.compareAndSwap(c, c - 1)) {
                 try {
                     let value = dequeueUnsafe()
-                    return (Some(value), c, putQsize.fetchSub(1))
+                    return RemoveResult<E>(Some(value), c, putQsize.fetchSub(1))
                 } catch (e: Exception) {
                     // Defensive: dequeueUnsafe's "Unreachable code." guard. Roll back the claimed
                     // count and let the error propagate; a new iteration will re-CAS if needed.
@@ -493,15 +520,15 @@ public class LinkedBlockingQueue<E> {
                 }
             }
         }
-        return (None<E>, 0, 0)
+        return RemoveResult<E>(None<E>, 0, 0)
     }
 
     public func tryRemove(): Option<E> {
         // Lock-free fast path: conditional producer wake-up (prevPut==capacity, reservation-edge
         // not count-edge) and any exception-path consumer re-issue — both handled inside tryRemoveCore.
-        let (opt, _, prevPut) = tryRemoveCore()
-        if (let Some(e) <- opt) {
-            if (prevPut == capacity) {
+        let r = tryRemoveCore()
+        if (let Some(e) <- r.opt) {
+            if (r.prevPut == capacity) {
                 signalNotFull()
             }
             return Some(e)
