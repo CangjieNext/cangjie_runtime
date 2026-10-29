@@ -1,0 +1,14 @@
+stdlib/doc/libs/std/ast/ast_package_api/ast_package_classes.md
+  h_6a43e5c473a09a 5773,5778,5784
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c9e0abdc7ab7ceeb0c5e5fca939319ea0d8c5cd7",
+  "prompts": {},
+  "humans": {
+    "h_6a43e5c473a09a": {
+      "author": "Xu Zhaoheng <xuzhaoheng1@huawei.com>"
+    }
+  }
+}
