@@ -1247,10 +1247,14 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
             var pre: Int64 = -1
             while (next >= 0) {
                 let item = entries[next]
-                if (predicate(item.key, item.value)) {
-                    if (lockVersion != modCount) {
-                        throw ConcurrentModificationException("The predicate cannot contain a modify operation.")
-                    }
+                // Call the predicate once, then validate the version a single time. The check has to
+                // stay after the predicate returns and before any unlink or `pre` update, and it
+                // applies whichever way the predicate decided.
+                let shouldRemove = predicate(item.key, item.value)
+                if (lockVersion != modCount) {
+                    throw ConcurrentModificationException("The predicate cannot contain a modify operation.")
+                }
+                if (shouldRemove) {
                     if (pre < 0) {
                         buckets[i] = item.next
                     } else {
@@ -1263,9 +1267,6 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
                     modCount++
                     lockVersion++
                 } else {
-                    if (lockVersion != modCount) {
-                        throw ConcurrentModificationException("The predicate cannot contain a modify operation.")
-                    }
                     pre = next
                 }
                 next = item.next
