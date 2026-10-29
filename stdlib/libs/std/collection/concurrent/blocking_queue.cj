@@ -512,6 +512,11 @@ public class LinkedBlockingQueue<E> {
                 try {
                     let value = dequeueUnsafe()
                     return RemoveResult<E>(Some(value), c, putQsize.fetchSub(1))
+                } catch (e: Error) {
+                    // Also covers any Error (e.g. OOM) from dequeue allocation: roll back the
+                    // claimed count so it is never leaked, symmetric with tryAddCore's Error path.
+                    count.fetchAdd(1)
+                    throw e
                 } catch (e: Exception) {
                     // Defensive: dequeueUnsafe's "Unreachable code." guard. Roll back the claimed
                     // count and let the error propagate; a new iteration will re-CAS if needed.
