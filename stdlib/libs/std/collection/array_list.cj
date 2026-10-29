@@ -1150,11 +1150,16 @@ public class ArrayList<T> <: List<T> {
         if (mySize == 0) {
             return ArrayList<R>()
         }
-        var newData: Array<R> @local! = Array<R>(mySize, repeat: unsafe { zeroValue2<R>() })
-        for (i in mySize - 1..=0 : -1) {
+
+        // Snapshot the length: `transform` can reach this list through an element and grow it, and
+        // the adopting constructor trusts the size it is handed. Passing a post-callback `mySize`
+        // would build a list whose size exceeds its buffer.
+        let srcSize: Int64 = mySize
+        var newData: Array<R> @local! = Array<R>(srcSize, repeat: unsafe { zeroValue2<R>() })
+        for (i in srcSize - 1..=0 : -1) {
             newData[i] = transform(myData[i])
         }
-        ArrayList<R>(newData, mySize)
+        ArrayList<R>(newData, srcSize)
     }
 
     /**
