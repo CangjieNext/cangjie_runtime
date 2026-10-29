@@ -882,99 +882,12 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
         return this.splitOfString(str, -1, removeEmpty)
     }
 
-    // 提案 9.2：@local! 版 split。两遍扫描（先计数后填充），零拷贝切片。
+    // 提案 9.2：@local! 版 split。无上限版本委托给带 maxSplits 的重载（-1 表示不限制），
+    // 匹配、空段与 UTF-8 处理只在那一处维护。
     @Frozen
     @OverflowWrapping
     public exclave func split(this @local!, str: String @local?, removeEmpty!: Bool = false): Array<String> @local! {
-        if (size == 0) {
-            return Array<String>()
-        }
-        let strLen: Int64 = str.size
-        var i: Int64 = 0
-        if (strLen == 0) {
-            // 空分隔符：按 Unicode 字符切分
-            var count: Int64 = 0
-            let runeEnd: Int64 = Int64(start) + Int64(length)
-            i = 0
-            while (i < size) {
-                let (_, num): (Rune, Int64) = Rune.fromUtf8(myData, Int64(start) + i, runeEnd)
-                count++
-                i = i + num
-            }
-            let ret: Array<String> @local! = Array<String>(count, repeat: unsafe { String() @local! })
-            var idx: Int64 = 0
-            i = 0
-            while (i < size) {
-                let (_, num): (Rune, Int64) = Rune.fromUtf8(myData, Int64(start) + i, runeEnd)
-                ret[idx] = String(myData, start + UInt32(i), UInt32(num)) @local!
-                idx++
-                i = i + num
-            }
-            return ret
-        }
-        // 第一遍：数分段（条件与第二遍填充对称：removeEmpty=false 时含空段）
-        var segCount: Int64 = 0
-        var segStart: Int64 = 0
-        i = 0
-        while (i <= size - strLen) {
-            var matched: Bool = true
-            var j: Int64 = 0
-            while (j < strLen) {
-                if (arrayGetUnchecked2<UInt8>(myData, Int64(start) + i + j) !=
-                    arrayGetUnchecked3<UInt8>(str.myData, Int64(str.start) + j)) {
-                    matched = false
-                    break
-                }
-                j = j + 1
-            }
-            if (matched) {
-                let segLen = i - segStart
-                if (!removeEmpty || segLen > 0) {
-                    segCount++
-                }
-                i = i + strLen
-                segStart = i
-            } else {
-                i = i + 1
-            }
-        }
-        let tailLen = size - segStart
-        if (!removeEmpty || tailLen > 0) {
-            segCount++
-        }
-        // 第二遍：填充（与计数条件完全对称，含空段）
-        let ret: Array<String> @local! = Array<String>(segCount, repeat: unsafe { String() @local! })
-        segStart = 0
-        var fillIdx: Int64 = 0
-        i = 0
-        while (i <= size - strLen) {
-            var matched: Bool = true
-            var j: Int64 = 0
-            while (j < strLen) {
-                if (arrayGetUnchecked2<UInt8>(myData, Int64(start) + i + j) !=
-                    arrayGetUnchecked3<UInt8>(str.myData, Int64(str.start) + j)) {
-                    matched = false
-                    break
-                }
-                j = j + 1
-            }
-            if (matched) {
-                let segLen = i - segStart
-                if (!removeEmpty || segLen > 0) {
-                    ret[fillIdx] = String(myData, start + UInt32(segStart), UInt32(segLen)) @local!
-                    fillIdx++
-                }
-                i = i + strLen
-                segStart = i
-            } else {
-                i = i + 1
-            }
-        }
-        let tailLen2 = size - segStart
-        if (!removeEmpty || tailLen2 > 0) {
-            ret[fillIdx] = String(myData, start + UInt32(segStart), UInt32(tailLen2)) @local!
-        }
-        ret
+        this.split(str, -1, removeEmpty: removeEmpty)
     }
 
     /**
@@ -1648,16 +1561,8 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
     }
     @Frozen
     public func contains(this @local?, str: String @local?): Bool {
-        if (str.size == 0) {
-            return true
-        }
-        if (this.size < str.size) {
-            return false
-        }
-        match (this.indexOf(str)) {
-            case None => false
-            case _ => true
-        }
+        // Empty pattern and over-long pattern are already handled by `indexOf`.
+        this.indexOf(str).isSome()
     }
 
     // Returns true if and only if this string starts with the given `prefix`.
