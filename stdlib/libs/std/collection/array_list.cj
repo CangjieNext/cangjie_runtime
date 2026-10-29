@@ -32,6 +32,54 @@ func checkIndexInInsertRange(index: Int64, size: Int64): Unit {
     }
 }
 
+// Range validation for slicing is one contract, so the plain, `@local!` and `@local?` rangeSlice
+// bodies share this definition and keep only their own array slicing and list construction.
+
+@Frozen
+private func validatedListSliceBounds(range: Range<Int64>, size: Int64): (Int64, Int64) {
+    if (range.step != 1) {
+        throw IllegalArgumentException("Illegal step ${range.step}, step should be 1.")
+    }
+
+    let start = if (range.hasStart) {
+        range.start
+    } else {
+        0
+    }
+
+    if (start > size) {
+        throw IndexOutOfBoundsException("Range start ${start} is greater than the size ${size}.")
+    } else if (range.start < 0) {
+        throw IndexOutOfBoundsException("Range start ${start} is less than 0.")
+    }
+
+    let end: Int64
+
+    if (range.hasEnd) {
+        if (range.isClosed) {
+            if (range.end >= size) {
+                throw IndexOutOfBoundsException(
+                    "The closed end of the range ${range.end} is greater than or equal to the size ${size}.")
+            }
+            end = range.end + 1
+        } else {
+            if (range.end > size) {
+                throw IndexOutOfBoundsException(
+                    "The opened end of the range ${range.end} is greater than the size ${size}.")
+            }
+            end = range.end
+        }
+    } else {
+        end = size
+    }
+
+    if (start > end) {
+        throw IndexOutOfBoundsException("The start ${start} is greater than the end ${end}.")
+    }
+
+    return (start, end)
+}
+
 
 /**
  * ArrayList-based Iterator.
@@ -1477,136 +1525,19 @@ public class ArrayList<T> <: List<T> {
      */
     @Frozen
     private func rangeSlice(arr: Array<T>, range: Range<Int64>, size: Int64): Array<T> {
-        if (range.step != 1) {
-            throw IllegalArgumentException("Illegal step ${range.step}, step should be 1.")
-        }
-
-        let start = if (range.hasStart) {
-            range.start
-        } else {
-            0
-        }
-
-        if (start > size) {
-            throw IndexOutOfBoundsException("Range start ${start} is greater than the size ${size}.")
-        } else if (range.start < 0) {
-            throw IndexOutOfBoundsException("Range start ${start} is less than 0.")
-        }
-
-        let end: Int64
-
-        if (range.hasEnd) {
-            if (range.isClosed) {
-                if (range.end >= size) {
-                    throw IndexOutOfBoundsException(
-                        "The closed end of the range ${range.end} is greater than or equal to the size ${size}.")
-                }
-                end = range.end + 1
-            } else {
-                if (range.end > size) {
-                    throw IndexOutOfBoundsException(
-                        "The opened end of the range ${range.end} is greater than the size ${size}.")
-                }
-                end = range.end
-            }
-        } else {
-            end = size
-        }
-
-        if (start > end) {
-            throw IndexOutOfBoundsException("The start ${start} is greater than the end ${end}.")
-        }
-
+        let (start, end) = validatedListSliceBounds(range, size)
         return arr[start..end]
     }
 
     @Frozen
     private exclave func rangeSlice(this @local!, arr: Array<T> @local!, range: Range<Int64>, size: Int64): Array<T> @local! {
-        if (range.step != 1) {
-            throw IllegalArgumentException("Illegal step ${range.step}, step should be 1.")
-        }
-
-        let start = if (range.hasStart) {
-            range.start
-        } else {
-            0
-        }
-
-        if (start > size) {
-            throw IndexOutOfBoundsException("Range start ${start} is greater than the size ${size}.")
-        } else if (range.start < 0) {
-            throw IndexOutOfBoundsException("Range start ${start} is less than 0.")
-        }
-
-        let end: Int64
-
-        if (range.hasEnd) {
-            if (range.isClosed) {
-                if (range.end >= size) {
-                    throw IndexOutOfBoundsException(
-                        "The closed end of the range ${range.end} is greater than or equal to the size ${size}.")
-                }
-                end = range.end + 1
-            } else {
-                if (range.end > size) {
-                    throw IndexOutOfBoundsException(
-                        "The opened end of the range ${range.end} is greater than the size ${size}.")
-                }
-                end = range.end
-            }
-        } else {
-            end = size
-        }
-
-        if (start > end) {
-            throw IndexOutOfBoundsException("The start ${start} is greater than the end ${end}.")
-        }
-
+        let (start, end) = validatedListSliceBounds(range, size)
         arr[start..end]
     }
 
     @Frozen
     private exclave func rangeSlice(this @local?, arr: Array<T> @local?, range: Range<Int64>, size: Int64): Array<T> @local? {
-        if (range.step != 1) {
-            throw IllegalArgumentException("Illegal step ${range.step}, step should be 1.")
-        }
-
-        let start = if (range.hasStart) {
-            range.start
-        } else {
-            0
-        }
-
-        if (start > size) {
-            throw IndexOutOfBoundsException("Range start ${start} is greater than the size ${size}.")
-        } else if (range.start < 0) {
-            throw IndexOutOfBoundsException("Range start ${start} is less than 0.")
-        }
-
-        let end: Int64
-
-        if (range.hasEnd) {
-            if (range.isClosed) {
-                if (range.end >= size) {
-                    throw IndexOutOfBoundsException(
-                        "The closed end of the range ${range.end} is greater than or equal to the size ${size}.")
-                }
-                end = range.end + 1
-            } else {
-                if (range.end > size) {
-                    throw IndexOutOfBoundsException(
-                        "The opened end of the range ${range.end} is greater than the size ${size}.")
-                }
-                end = range.end
-            }
-        } else {
-            end = size
-        }
-
-        if (start > end) {
-            throw IndexOutOfBoundsException("The start ${start} is greater than the end ${end}.")
-        }
-
+        let (start, end) = validatedListSliceBounds(range, size)
         arr[start..end]
     }
 
