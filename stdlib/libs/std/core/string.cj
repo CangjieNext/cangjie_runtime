@@ -622,9 +622,12 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
 
     @Frozen
     public exclave unsafe static func fromUtf8Unchecked(utf8Data: Array<UInt8> @local!): String @local! {
-        // The owned argument is adopted as-is; the shared overload below is the one
-        // that has to materialise an owned copy first.
-        String(utf8Data)
+        // `fromUtf8Unchecked` keeps its copy semantics for every receiver mode: the caller may
+        // still hold and mutate `utf8Data` after this returns (verified: adopting the array made
+        // an existing string change when the buffer was rewritten). Use `withRawData` when the
+        // no-copy contract is what you want.
+        let ret: Array<UInt8> @local! = utf8Data.cloneToLocal()
+        String(ret)
     }
 
     @Frozen

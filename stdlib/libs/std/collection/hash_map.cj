@@ -448,10 +448,15 @@ class HashMapEntryView<K, V> <: MapEntryView<K, V> where K <: Hashable & Equatab
 class HashMapLocalEntryView<K, V> <: MapEntryView<K, V> where K <: Hashable & Equatable<K> {
     private let map: HashMap<K, V>
     private let _key: K
+    // Version of the map at construction and after each modification made through this view.
+    // A view whose map changed elsewhere must not keep working (same contract as
+    // HashMapEntryView).
+    private var lockVersion: Int64
 
     exclave init(this @local!, map: HashMap<K, V> @local!, key: K @local!) {
         this.map = map
         this._key = key
+        this.lockVersion = map.version()
     }
 
     // Plain members: unavailable on a local instance, rejected with the local-mode
@@ -475,17 +480,31 @@ class HashMapLocalEntryView<K, V> <: MapEntryView<K, V> where K <: Hashable & Eq
 
     // Local members.
     public prop key: K @local? {
-        get() { _key }
+        get() {
+            exclave {
+                if (lockVersion != map.version()) {
+                    throw ConcurrentModificationException()
+                }
+                let k: K @local? = _key
+                k
+            }
+        }
     }
     public mut prop value: ?V @local! {
         get() {
             exclave {
-                let current: ?V @local! = map.get(_key)
-                current
+                if (lockVersion != map.version()) {
+                    throw ConcurrentModificationException()
+                }
+                let v0: ?V @local! = map.get(_key)
+                v0
             }
         }
         set(v) {
             exclave {
+                if (lockVersion != map.version()) {
+                    throw ConcurrentModificationException()
+                }
                 match (v) {
                     case Some(x) =>
                         let old: ?V @local? = map.add(_key, x)
@@ -494,6 +513,8 @@ class HashMapLocalEntryView<K, V> <: MapEntryView<K, V> where K <: Hashable & Eq
                         let old: ?V @local? = map.remove(_key)
                         let _ = old
                 }
+                // This view's own modification keeps it usable.
+                lockVersion = map.version()
             }
         }
     }
