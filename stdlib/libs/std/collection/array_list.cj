@@ -15,6 +15,23 @@ package std.collection
 
 import std.math.*
 
+// Index validation bodies live here so the plain and local callers share one definition. The two
+// bounds differ by design: element access rejects `index == size`, insertion accepts it.
+
+@Frozen
+func checkIndexInRange(index: Int64, size: Int64): Unit {
+    if (index >= size || index < 0) {
+        throw IndexOutOfBoundsException("index: ${index}, size: ${size}")
+    }
+}
+
+@Frozen
+func checkIndexInInsertRange(index: Int64, size: Int64): Unit {
+    if (index > size || index < 0) {
+        throw IndexOutOfBoundsException("index: ${index}, size: ${size}")
+    }
+}
+
 /**
  * ArrayList-based Iterator.
  *
@@ -1787,16 +1804,12 @@ public class ArrayList<T> <: List<T> {
      */
     @Frozen
     private func checkRange(this @local!, index: Int64): Unit {
-        if (index >= mySize || index < 0) {
-            throw IndexOutOfBoundsException("index: ${index}, size: ${mySize}")
-        }
+        checkIndexInRange(index, mySize)
     }
 
     @Frozen
     private func checkRange(this @local?, index: Int64): Unit {
-        if (index >= mySize || index < 0) {
-            throw IndexOutOfBoundsException("index: ${index}, size: ${mySize}")
-        }
+        checkIndexInRange(index, mySize)
     }
 
     /*
@@ -1810,16 +1823,12 @@ public class ArrayList<T> <: List<T> {
      */
     @Frozen
     private func checkRangeInsert(this @local!, index: Int64): Unit {
-        if (index > mySize || index < 0) {
-            throw IndexOutOfBoundsException("index: ${index}, size: ${mySize}")
-        }
+        checkIndexInInsertRange(index, mySize)
     }
 
     @Frozen
     private func checkRangeInsert(this @local?, index: Int64): Unit {
-        if (index > mySize || index < 0) {
-            throw IndexOutOfBoundsException("index: ${index}, size: ${mySize}")
-        }
+        checkIndexInInsertRange(index, mySize)
     }
 
     /*
