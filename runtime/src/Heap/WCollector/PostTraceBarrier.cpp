@@ -8,6 +8,7 @@
 #include "PostTraceBarrier.h"
 
 #include "Mutator/Mutator.h"
+#include "Mutator/SatbBuffer.h"
 #include "ObjectModel/MArray.h"
 #include "ObjectModel/RefField.inline.h"
 #if defined(CANGJIE_TSAN_SUPPORT)
@@ -28,23 +29,7 @@ BaseObject* PostTraceBarrier::ReadStaticRef(RefField<false>& field) const { retu
 
 BaseObject* PostTraceBarrier::ReadWeakRef(BaseObject* obj, RefField<false>& field) const
 {
-    RefField<> tmpField(field);
-    if (tmpField.IsTagged()) {
-        CHECK(theCollector.IsCurrentPointer(tmpField));
-    }
-    BaseObject* referent = tmpField.GetTargetObject();
-    if (referent == nullptr) {
-        return nullptr;
-    }
-    RegionInfo* regionInfo = RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(referent));
-    bool isMarked = regionInfo->IsMarkedObject(referent);
-    if (!isMarked) { // skip live referents
-        void** referentAddr = reinterpret_cast<void**>(reinterpret_cast<uintptr_t>(obj) + TYPEINFO_PTR_SIZE);
-        DLOG(BARRIER, "update referent@%p: 0x%zx -> %p", referentAddr, *referentAddr, nullptr);
-        *referentAddr = nullptr; // set referent field as null
-        return nullptr;
-    }
-    return tmpField.GetTargetObject();
+    return WeakRefBuffer::Instance().ReadWeakRefInPostTrace(obj, field, theCollector);
 }
 
 void PostTraceBarrier::ReadStruct(MAddress dst, BaseObject* obj, MAddress src, size_t size) const
@@ -95,6 +80,21 @@ void PostTraceBarrier::ReadStaticStruct(MAddress dst, MAddress src, size_t size,
 
 void PostTraceBarrier::WriteReference(BaseObject* obj, RefField<false>& field, BaseObject* ref) const
 {
+    if (obj != nullptr && obj->IsWeakRef() &&
+        reinterpret_cast<uintptr_t>(&field) == reinterpret_cast<uintptr_t>(obj) + TYPEINFO_PTR_SIZE) {
+        // WeakRef.clear() races with the collector's CAS and with weak reads.
+        // Use atomic accesses on this field even though it is an ordinary CJ
+        // field. Construction also comes here, before the wrapper is published.
+        RefField<> newField = theCollector.GetAndTryTagRefField(ref);
+        auto& atomicField = reinterpret_cast<RefField<true>&>(field);
+        RefField<> oldField(atomicField.GetFieldValue());
+        CHECK(!theCollector.IsOldPointer(oldField));
+        MAddress oldValue = oldField.GetFieldValue();
+        while (!atomicField.CompareExchange(oldValue, newField.GetFieldValue())) {
+            oldValue = atomicField.GetFieldValue();
+        }
+        return;
+    }
     RefField<> tmpField(field);
     CHECK(!theCollector.IsOldPointer(tmpField));
     DLOG(BARRIER, "write obj %p ref-field@%p: %#zx -> %p", obj, &field, tmpField.GetFieldValue(), ref);
