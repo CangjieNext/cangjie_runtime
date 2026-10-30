@@ -290,8 +290,12 @@ extend Rune {
         } else {
             throw IllegalArgumentException("Invalid Unicode scalar value: code point exceeds U+10FFFF.")
         }
-        if (lengthOfCharBytes + index > arrSize) {
-            throw IllegalArgumentException("Rune requires '${lengthOfCharBytes}' bytes for UTF-8 encoding, but array has only '${arrSize - index}' bytes available from index '${index}'.")
+        // Compare by subtraction: `index` may be Int64.Max, where adding the character
+        // length would overflow and raise OverflowException instead of the contract's
+        // IllegalArgumentException.
+        if (index > arrSize || lengthOfCharBytes > arrSize - index) {
+            throw IllegalArgumentException(
+                "The bytecode position occupied by this character is outside the range of the array.")
         }
     }
 
