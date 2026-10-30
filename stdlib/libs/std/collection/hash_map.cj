@@ -13,18 +13,19 @@
  */
 package std.collection
 
-// Bucket arithmetic: pure Int64 work with no receiver state, so one plain definition serves the
-// plain, `@local!` and `@local?` callers instead of one mode copy each.
+// Bucket arithmetic: pure Int64 work with no receiver state. The formulas live here once and the
+// `@Frozen` members below forward to them, so the declarations' contract stays intact while the
+// implementation has a single home.
 
 @Frozen
 @OverflowWrapping
-func getIndex(hash: Int64, size: Int64): Int64 {
+func bucketIndex(hash: Int64, size: Int64): Int64 {
     hash & (size - 1)
 }
 
 @Frozen
 @OverflowWrapping
-func getHash(hashCode: Int64): Int64 {
+func bucketHash(hashCode: Int64): Int64 {
     hashCode ^ (hashCode >> 32)
 }
 
@@ -428,14 +429,14 @@ class HashMapEntryView<K, V> <: MapEntryView<K, V> where K <: Hashable & Equatab
             throw ConcurrentModificationException()
         }
         if (_isAbsent) {
-            var bucketIndex: Int64 = getIndex(hash, map.buckets.size)
+            var bucketIndex: Int64 = map.getIndex(hash, map.buckets.size)
             if (map.freeSize > 0) {
                 index = map.freeIndex
                 map.freeIndex = map.entries[index].next
                 map.freeSize--
             } else {
                 if (map.resize(map.size + 1)) {
-                    bucketIndex = getIndex(hash, map.buckets.size)
+                    bucketIndex = map.getIndex(hash, map.buckets.size)
                 }
                 index = map.appendIndex
                 map.appendIndex++
@@ -1062,6 +1063,49 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
         for ((k, v) in all) {
             add(k, v)
         }
+    }
+
+    /**
+     * Associates the specified @p value with the specified @p key if the key is absent.
+     *
+     * @param key the key.
+     * @param value the value to add when the key is absent.
+     * @return None if inserted; Some(v) holding the existing value when the key was present.
+     *
+     * @since 0.59.3
+     */
+    @Frozen
+    @OverflowWrapping
+    public func addIfAbsent(key: K, value: V): ?V {
+        // Overrides the Map default: locate and insert in a single traversal, avoiding the
+        // HashMapEntryView allocation and the extra lookup the default performs.
+        let hash: Int64 = getHash(key.hashCode())
+        var bucketIndex: Int64 = getIndex(hash, buckets.size)
+        var entryIndex: Int64 = buckets[bucketIndex]
+        while (entryIndex >= 0) {
+            let entryHash: Int64 = entries[entryIndex].hash
+            if (hash == entryHash) {
+                if (key == entries[entryIndex].key) {
+                    return Some(entries[entryIndex].value)
+                }
+            }
+            entryIndex = entries[entryIndex].next
+        }
+        if (freeSize > 0) {
+            entryIndex = freeIndex
+            freeIndex = entries[entryIndex].next
+            freeSize--
+        } else {
+            if (resize(size + 1)) {
+                bucketIndex = getIndex(hash, buckets.size)
+            }
+            entryIndex = appendIndex
+            appendIndex++
+        }
+        entries[entryIndex] = HashMapEntry<K, V>(hash, buckets[bucketIndex], key, value)
+        modCount++
+        buckets[bucketIndex] = entryIndex
+        return Option<V>.None
     }
 
     /**
@@ -1887,6 +1931,24 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
      *
      * @since 0.18.4
      */
+    @Frozen
+    @OverflowWrapping
+    func getIndex(hash: Int64, size: Int64): Int64 {
+        return bucketIndex(hash, size)
+    }
+
+    @Frozen
+    @OverflowWrapping
+    func getIndex(this @local!, hash: Int64, size: Int64): Int64 {
+        return bucketIndex(hash, size)
+    }
+
+    @Frozen
+    @OverflowWrapping
+    func getIndex(this @local?, hash: Int64, size: Int64): Int64 {
+        return bucketIndex(hash, size)
+    }
+
     /*
      * Transfer the key to obtain the hash value.
      *
@@ -1895,6 +1957,24 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
      *
      * @since 0.18.4
      */
+    @Frozen
+    @OverflowWrapping
+    private func getHash(hashCode: Int64): Int64 {
+        return bucketHash(hashCode)
+    }
+
+    @Frozen
+    @OverflowWrapping
+    private func getHash(this @local!, hashCode: Int64): Int64 {
+        return bucketHash(hashCode)
+    }
+
+    @Frozen
+    @OverflowWrapping
+    private func getHash(this @local?, hashCode: Int64): Int64 {
+        return bucketHash(hashCode)
+    }
+
     /**
      * Returns sizes of key-value.
      *

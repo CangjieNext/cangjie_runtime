@@ -9,9 +9,13 @@
 package std.collection
 
 public class LinkedListNode<T> {
+
     var _next: ?LinkedListNode<T>
+
     var _prev: ?LinkedListNode<T>
+
     private var _item: T
+
     protected var _list: ?LinkedList<T>
 
     init(element: T, prev: ?LinkedListNode<T>, next: ?LinkedListNode<T>, belongs: ?LinkedList<T>) {
@@ -108,9 +112,13 @@ public class LinkedListNode<T> {
 }
 
 public class LinkedList<T> <: Collection<T> {
+
     var _size: Int64 = 0
+
     var _head: ?LinkedListNode<T> = None
+
     var _tail: ?LinkedListNode<T> = None
+
     var _version: Int64 = 0
 
     public init() {}
@@ -386,6 +394,7 @@ public class LinkedList<T> <: Collection<T> {
     /**
      * @description Applies a transformation closure (transform) to each element in the linked list. The closure returns a new linked list
                     and then all returned linked lists are "flattened" and concatenated into a single resulting linked list.
+
      *
      * @param transform the given mapping function.
      * @returns the new linked list after being "mapped" and "flattened".
@@ -586,6 +595,7 @@ public class LinkedList<T> <: Collection<T> {
         _tail = tmp
     }
 
+    @Frozen
     public func isEmpty(): Bool {
         return _size == 0
     }
@@ -595,6 +605,7 @@ public class LinkedList<T> <: Collection<T> {
         return LinkedListIterator<T>(this, _head, false)
     }
 
+    @Frozen
     public func removeFirst(): ?T {
         if (let Some(v) <- _head) {
             _version++
@@ -605,6 +616,7 @@ public class LinkedList<T> <: Collection<T> {
         return None
     }
 
+    @Frozen
     public func removeLast(): ?T {
         if (let Some(v) <- _tail) {
             _version++
@@ -694,6 +706,7 @@ public class LinkedList<T> <: Collection<T> {
 }
 
 extend<T> LinkedList<T> {
+
     /**
      * @description Merges two LinkedList into a new LinkedList (the length depends on the shorter linked list).
      *
@@ -735,6 +748,7 @@ extend<T> LinkedList<T> {
 }
 
 extend<T> LinkedList<T> <: ToString where T <: ToString {
+
     public func toString(): String {
         return collectionToString<LinkedList<T>, T>(this)
     }
@@ -774,9 +788,13 @@ extend<T> LinkedList<T> <: Equatable<LinkedList<T>> where T <: Equatable<T> {
 }
 
 class LinkedListIterator<T> <: Iterator<T> {
+
     private let _lockVersion: Int64
+
     private let _data: LinkedList<T>
+
     private var _currentNode: LinkedListNode<T>
+
     private let _backward: Bool
 
     init(data: LinkedList<T>, node: ?LinkedListNode<T>, backward: Bool) {
