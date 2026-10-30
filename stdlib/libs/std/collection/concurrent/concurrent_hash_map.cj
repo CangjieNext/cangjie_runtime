@@ -417,7 +417,12 @@ class HNode<K, V> where K <: Hashable & Equatable<K> {
                         case _ => None<V>
                     }
                 }
-                return None<V>
+                // Migration may finish and detach pre after the first bucket lookup.
+                // Recheck this table before reporting that the key is absent.
+                return match (buckets[index].find(hash, key)) {
+                    case FIND(v) => Some(v)
+                    case _ => None<V>
+                }
         }
     }
 
