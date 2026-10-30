@@ -51,24 +51,22 @@ private func validatedListSliceBounds(range: Range<Int64>, size: Int64): (Int64,
         throw IndexOutOfBoundsException("Range start ${start} is less than 0.")
     }
 
-    let end: Int64
-
-    if (range.hasEnd) {
+    let end = if (range.hasEnd) {
         if (range.isClosed) {
             if (range.end >= size) {
                 throw IndexOutOfBoundsException(
                     "The closed end of the range ${range.end} is greater than or equal to the size ${size}.")
             }
-            end = range.end + 1
+            range.end + 1
         } else {
             if (range.end > size) {
                 throw IndexOutOfBoundsException(
                     "The opened end of the range ${range.end} is greater than the size ${size}.")
             }
-            end = range.end
+            range.end
         }
     } else {
-        end = size
+        size
     }
 
     if (start > end) {
@@ -708,19 +706,13 @@ public class ArrayList<T> <: List<T> {
     @When[env != "ohos"]
     public exclave func add(this @local!, all!: Collection<T> @local!, at!: Int64): Unit {
         checkRangeInsert(at)
-        let cSize: Int64
         // Capture storage before a self insertion can replace myData.
-        let source: Array<T> @local!
-        match (all) {
-            case arr: Array<T> =>
-                cSize = arr.size
-                source = arr
-            case arr: ArrayList<T> =>
-                cSize = arr.size
-                source = arr.myData
+        let (cSize, source) = match (all) {
+            case arr: Array<T> => (arr.size, arr)
+            case arr: ArrayList<T> => (arr.size, arr.myData)
             case _ =>
-                source = all.toArray()
-                cSize = source.size
+                let taken: Array<T> @local! = all.toArray()
+                (taken.size, taken)
         }
         if (cSize <= 0) {
             return
