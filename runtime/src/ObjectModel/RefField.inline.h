@@ -43,7 +43,8 @@ void RefField<isAtomic>::SetTargetObject(const BaseObject* obj, std::memory_orde
 template<bool isAtomic>
 void RefField<isAtomic>::SetFieldValue(MAddress newVal, std::memory_order order)
 {
-    RefFieldValue oldVal = fieldVal;
+    // The diagnostic snapshot must respect the field's atomicity too.
+    RefFieldValue oldVal = static_cast<RefFieldValue>(GetFieldValue());
     (void)oldVal;
 
     if (isAtomic) {

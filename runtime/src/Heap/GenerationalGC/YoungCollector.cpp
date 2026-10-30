@@ -331,7 +331,7 @@ void YoungCollector::PostTrace()
     RegionSpace& space = reinterpret_cast<RegionSpace&>(theAllocator);
     space.GetRegionManager().HandleTraceRegions();
     // clear weakRef List, set the referent as null
-    WeakRefBuffer::Instance().ClearWeakRefBuffer();
+    WeakRefBuffer::Instance().ClearWeakRefBuffer(*this);
     // clear satb buffer when gc finish tracing.
     SatbBuffer::Instance().ClearBuffer();
     // reclaim large objects immediately after tracing is done.

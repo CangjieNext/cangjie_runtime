@@ -16,7 +16,8 @@ class GenerationPostTraceBarrier : public PostTraceBarrier {
 public:
     explicit GenerationPostTraceBarrier(Collector& collector) : PostTraceBarrier(collector) {}
 
-    BaseObject* ReadWeakRef(BaseObject* obj, RefField<false>& field) const override;
+    // Inherit PostTrace weak reads so Young/Mixed GC share the collector's
+    // synchronized weak processing. IsTargetAddress preserves old referents in Young GC.
 
     void WriteReference(BaseObject* obj, RefField<false>& field, BaseObject* ref) const override
     {

@@ -8,6 +8,7 @@
 #include "PostTraceBarrier.h"
 
 #include "Mutator/Mutator.h"
+#include "Mutator/SatbBuffer.h"
 #include "ObjectModel/MArray.h"
 #include "ObjectModel/RefField.inline.h"
 #if defined(CANGJIE_TSAN_SUPPORT)
@@ -28,23 +29,7 @@ BaseObject* PostTraceBarrier::ReadStaticRef(RefField<false>& field) const { retu
 
 BaseObject* PostTraceBarrier::ReadWeakRef(BaseObject* obj, RefField<false>& field) const
 {
-    RefField<> tmpField(field);
-    if (tmpField.IsTagged()) {
-        CHECK(theCollector.IsCurrentPointer(tmpField));
-    }
-    BaseObject* referent = tmpField.GetTargetObject();
-    if (referent == nullptr) {
-        return nullptr;
-    }
-    RegionInfo* regionInfo = RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(referent));
-    bool isMarked = regionInfo->IsMarkedObject(referent);
-    if (!isMarked) { // skip live referents
-        void** referentAddr = reinterpret_cast<void**>(reinterpret_cast<uintptr_t>(obj) + TYPEINFO_PTR_SIZE);
-        DLOG(BARRIER, "update referent@%p: 0x%zx -> %p", referentAddr, *referentAddr, nullptr);
-        *referentAddr = nullptr; // set referent field as null
-        return nullptr;
-    }
-    return tmpField.GetTargetObject();
+    return WeakRefBuffer::Instance().ReadWeakRefInPostTrace(obj, field, theCollector);
 }
 
 void PostTraceBarrier::ReadStruct(MAddress dst, BaseObject* obj, MAddress src, size_t size) const
@@ -95,11 +80,15 @@ void PostTraceBarrier::ReadStaticStruct(MAddress dst, MAddress src, size_t size,
 
 void PostTraceBarrier::WriteReference(BaseObject* obj, RefField<false>& field, BaseObject* ref) const
 {
-    RefField<> tmpField(field);
+    // The owner need not be fully initialized or have a valid TypeInfo here.
+    // Use atomic accesses for all reference fields without inspecting owner
+    // metadata, so WeakRef.clear() pairs with weak reads and the collector's CAS.
+    auto& atomicField = reinterpret_cast<RefField<true>&>(field);
+    RefField<> tmpField(atomicField.GetFieldValue());
     CHECK(!theCollector.IsOldPointer(tmpField));
     DLOG(BARRIER, "write obj %p ref-field@%p: %#zx -> %p", obj, &field, tmpField.GetFieldValue(), ref);
     RefField<> newField = theCollector.GetAndTryTagRefField(ref);
-    field.SetFieldValue(newField.GetFieldValue());
+    atomicField.SetFieldValue(newField.GetFieldValue());
 }
 
 void PostTraceBarrier::WriteStaticRef(RefField<false>& field, BaseObject* ref) const
