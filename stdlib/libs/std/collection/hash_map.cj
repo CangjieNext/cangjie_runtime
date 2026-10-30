@@ -459,7 +459,12 @@ class HashMapEntryView<K, V> <: MapEntryView<K, V> where K <: Hashable & Equatab
  *
  * The plain `key`/`value` members are required by `MapEntryView` but cannot be
  * served from a local instance, so they are explicitly rejected.
+ *
+ * The whole type is gated with the rest of the local-mode API: it is only
+ * constructed from the `@local!` `entryView` overload and its rejections throw
+ * `UnimplementedException`, which is itself local-mode only.
  */
+@When[env != "ohos"]
 class HashMapLocalEntryView<K, V> <: MapEntryView<K, V> where K <: Hashable & Equatable<K> {
     private let map: HashMap<K, V>
 
@@ -1656,6 +1661,7 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
      * 
      * @param action the given operation function.
      */
+    @When[env != "ohos"]
     @Frozen
     public func forEach(action: (K, V) -> Unit): Unit {
         let size: Int64 = entries.size
