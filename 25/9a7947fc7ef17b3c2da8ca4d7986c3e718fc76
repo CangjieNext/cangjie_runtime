@@ -1,0 +1,22 @@
+runtime/src/Common/MemCommon.h
+  s_dab96fdc302f21::t_53e7cb0ee93cbf 30,128,130,132,134,136,199
+  s_dab96fdc302f21::t_9cb76a0dae6237 200-203
+runtime/src/Heap/Allocator/RegionSpace.h
+  s_dab96fdc302f21::t_2b639421a37605 57-58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "259a7947fc7ef17b3c2da8ca4d7986c3e718fc76",
+  "prompts": {},
+  "sessions": {
+    "s_dab96fdc302f21": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18a80-1f35-7613-b895-9bbca345dd33",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "kongbx <kongbingxin@huawei.com>"
+    }
+  }
+}
