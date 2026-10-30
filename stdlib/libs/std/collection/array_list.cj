@@ -156,8 +156,7 @@ class ArrayListIterator<T> <: Iterator<T> {
             this.myPosition++
             return v
         } else {
-            let n: Option<T> @local! = Option<T>.None
-            return n
+            return Option<T>.None
         }
     }
 
@@ -174,8 +173,7 @@ class ArrayListIterator<T> <: Iterator<T> {
             this.myPosition++
             return v
         } else {
-            let n: Option<T> @local? = Option<T>.None
-            return n
+            return Option<T>.None
         }
     }
 }
@@ -684,11 +682,10 @@ public class ArrayList<T> <: List<T> {
         }
 
         // Keep the original source storage when insertion grows this list.
-        let source: Array<T>
-        match (all) {
-            case arr: Array<T> => source = arr
-            case arr: ArrayList<T> => source = arr.myData
-            case _ => source = all.toArray()
+        let source = match (all) {
+            case arr: Array<T> => arr
+            case arr: ArrayList<T> => arr.myData
+            case _ => all.toArray()
         }
 
         if (mySize + cSize > myData.size) {
@@ -879,9 +876,9 @@ public class ArrayList<T> <: List<T> {
     @Frozen
     public func removeIf(predicate: (T) -> Bool): Unit {
         var i: Int64 = 0
+        let lockVersion = myVersion
         for (j in 0..mySize) {
             let itemLocal = myData[j]
-            let lockVersion = myVersion
             let needDelete = predicate(itemLocal)
             if (myVersion != lockVersion) {
                 throw ConcurrentModificationException("The predicate cannot contain a modify operation.")
@@ -908,9 +905,9 @@ public class ArrayList<T> <: List<T> {
     @When[env != "ohos"]
     public exclave func removeIf(this @local!, predicate: ((T @local!) -> Bool) @local?): Unit {
         var i: Int64 = 0
+        let lockVersion = myVersion
         for (j in 0..mySize) {
             let itemLocal = myData[j]
-            let lockVersion = myVersion
             let needDelete = predicate(itemLocal)
             if (myVersion != lockVersion) {
                 throw ConcurrentModificationException("The predicate cannot contain a modify operation.")
@@ -1105,11 +1102,9 @@ public class ArrayList<T> <: List<T> {
         }
         var newData: Array<T> = Array<T>(mySize, repeat: unsafe { zeroValue<T>() })
         var j = 0;
-        for (i in 0..mySize) {
-            if (predicate(myData[i])) {
-                newData[j] = myData[i]
-                j++
-            }
+        for (i in 0..mySize where predicate(myData[i])) {
+            newData[j] = myData[i]
+            j++
         }
         return ArrayList<T>(newData.slice(0, j))
     }
@@ -1120,11 +1115,9 @@ public class ArrayList<T> <: List<T> {
         }
         var newData: Array<T> @local! = Array<T>(mySize, repeat: unsafe { zeroValue2<T>() })
         var j = 0;
-        for (i in 0..mySize) {
-            if (predicate(myData[i])) {
-                newData[j] = myData[i]
-                j++
-            }
+        for (i in 0..mySize where predicate(myData[i])) {
+            newData[j] = myData[i]
+            j++
         }
         ArrayList<T>(newData.slice(0, j))
     }
