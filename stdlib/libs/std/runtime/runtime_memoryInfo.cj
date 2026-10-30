@@ -44,6 +44,7 @@ func boxDumpCjHeapData(fd: Int32): Bool {
 public func blackBox<T>(input: T): T
 
 class MemoryInfoException <: Exception {
+
     init(message: String) {
         super(message)
     }
@@ -55,6 +56,7 @@ class MemoryInfoException <: Exception {
 
 @Deprecated[message: "All static Properties are converted to public functions."]
 public struct MemoryInfo {
+
     /**
      * Get the maximum heap size that can be used.
      */
@@ -97,12 +99,13 @@ public func getAllocatedHeapSize(): Int64 {
  * unused chunk tails. Local objects live outside the Cangjie heap and are
  * therefore not part of getAllocatedHeapSize.
  */
-@When[backend == "cjnative"]
+@When[backend == "cjnative" && os != "Linux"]
 public func getAllocatedLocalObjectSize(): Int64 {
     return Int64(unsafe { CJ_MCC_GetAllocatedLocalObjectSize() })
 }
 
 public func getUsedHeapSize(): Int64 {
+
     var ret = Int64(getRealHeapSize())
     match {
         case ret >= 0 => return ret
@@ -134,6 +137,7 @@ func validatePathString(pathStr: String): Bool {
 
 @When[backend == "cjnative"]
 func resolvePath(path: Path): Path {
+
     let absolutePath = if (path.isAbsolute()) {
         path
     } else {
@@ -162,6 +166,7 @@ func resolvePath(path: Path): Path {
 
 @When[backend == "cjnative"]
 func validateAndResolvePath(path: Path, invalidPathMsg: String): Path {
+
     let pathStr = path.toString()
     if (!validatePathString(pathStr)) {
         throw IllegalArgumentException(invalidPathMsg)
@@ -187,6 +192,7 @@ func executeWithWindowsFd(path: Path, action: (Int32) -> Bool): Bool {
 
 @When[backend == "cjnative" && os != "Windows"]
 public func dumpHeapData(path: Path): Unit {
+
     let resolvedPath = validateAndResolvePath(path,
         "Heap dump path is invalid or contains forbidden characters for security reasons.")
     try (file = File(resolvedPath, ReadWrite)) {
@@ -199,8 +205,10 @@ public func dumpHeapData(path: Path): Unit {
 
 @When[backend == "cjnative" && os == "Windows"]
 public func dumpHeapData(path: Path): Unit {
+
     let resolvedPath = validateAndResolvePath(path,
         "Heap dump path is invalid or contains forbidden characters for security reasons.")
+
     let success = executeWithWindowsFd(resolvedPath, boxDumpCjHeapData)
     if (!success) {
         throw MemoryInfoException("Failed to dump heap data.")
