@@ -732,7 +732,23 @@ public struct Array<T> {
         }
 
         let arr: Array<T> = this
-        let newSize: Int64 = rangeCloneSize(start_, end_, step)
+        // Size is ceil(|end_ - start_| / |step|). Computing it from magnitudes
+        // keeps the intermediate arithmetic inside Int64 even when step is
+        // Int64.Max or Int64.Min, where `(end_ - start_ + step - 1) / step`
+        // wraps around and yields a negative size.
+        let span: Int64 = end_ - start_
+        let magnitude: UInt64 = if (span < 0) {
+            UInt64(-span)
+        } else {
+            UInt64(span)
+        }
+        let stride: UInt64 = if (step < 0) {
+            UInt64(-(step + 1)) + 1
+        } else {
+            UInt64(step)
+        }
+        let quotient: UInt64 = magnitude / stride
+        let newSize: Int64 = Int64(quotient + (if (quotient * stride != magnitude) { 1 } else { 0 }))
         if (step == 1 && newSize != 0) {
             var newArr: Array<T> = Array<T>(newSize, repeat: unsafe { zeroValue<T>() })
             intrinsicBuiltInCopyTo<T>(this.rawptr, newArr.rawptr, this.start + start_, 0, newSize)

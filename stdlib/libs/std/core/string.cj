@@ -1264,13 +1264,15 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
             }
 
             let diff: Int64 = newSize - oldSize
+            let countSize: Int64
+
             if (diff > 0) {
                 let maxSize = Int64(UInt32.Max) - size
                 if (diff > maxSize / total) {
                     throw IllegalArgumentException("The size of String is too large.")
                 }
             }
-            let countSize: Int64 = size + diff * total
+            countSize = size + diff * total
             var itemArray: Array<UInt8> = Array<UInt8>(countSize, repeat: 0)
             var itemStart: Int64 = 0
             var orgStart: Int64 = 0
