@@ -44,6 +44,7 @@ extend Int64 <: ToString {
         numberToString(unum, numLen, buffer)
         return String(buffer)
     }
+
     @OverflowWrapping
     public exclave func toString(this @local?): String @local! {
         let (numLen, unum, buffer) = if (this < 0) {
@@ -66,6 +67,7 @@ extend IntNative <: ToString {
     public func toString(): String {
         return Int64(this).toString()
     }
+
     public exclave func toString(this @local?): String @local! {
         Int64(this).toString()
     }
@@ -75,6 +77,7 @@ extend Int32 <: ToString {
     public func toString(): String {
         return Int64(this).toString()
     }
+
     public exclave func toString(this @local?): String @local! {
         Int64(this).toString()
     }
@@ -84,6 +87,7 @@ extend Int16 <: ToString {
     public func toString(): String {
         return Int64(this).toString()
     }
+
     public exclave func toString(this @local?): String @local! {
         Int64(this).toString()
     }
@@ -93,6 +97,7 @@ extend Int8 <: ToString {
     public func toString(): String {
         return Int64(this).toString()
     }
+
     public exclave func toString(this @local?): String @local! {
         Int64(this).toString()
     }
@@ -105,6 +110,7 @@ extend UInt64 <: ToString {
         numberToString(this, numLen, buffer)
         return String(buffer)
     }
+
     public exclave func toString(this @local?): String @local! {
         let numLen = calcNumLen(this)
         let buffer = Array<Byte>(numLen, repeat: 0) @local!
@@ -118,6 +124,7 @@ extend UIntNative <: ToString {
     public func toString(): String {
         return UInt64(this).toString()
     }
+
     public exclave func toString(this @local?): String @local! {
         UInt64(this).toString()
     }
@@ -127,6 +134,7 @@ extend UInt32 <: ToString {
     public func toString(): String {
         return UInt64(this).toString()
     }
+
     public exclave func toString(this @local?): String @local! {
         UInt64(this).toString()
     }
@@ -136,6 +144,7 @@ extend UInt16 <: ToString {
     public func toString(): String {
         return UInt64(this).toString()
     }
+
     public exclave func toString(this @local?): String @local! {
         UInt64(this).toString()
     }
@@ -145,6 +154,7 @@ extend UInt8 <: ToString {
     public func toString(): String {
         return UInt64(this).toString()
     }
+
     public exclave func toString(this @local?): String @local! {
         UInt64(this).toString()
     }
@@ -160,6 +170,7 @@ extend Float64 <: ToString {
         unsafe { LibC.free(p) }
         return s
     }
+
     public exclave func toString(this @local?): String @local! {
         let p: CPointer<UInt8> = unsafe { CJ_CORE_Float64ToCPointer(this) }
         if (p.isNull()) {
@@ -175,6 +186,7 @@ extend Float32 <: ToString {
     public func toString(): String {
         return Float64(this).toString()
     }
+
     public exclave func toString(this @local?): String @local! {
         Float64(this).toString()
     }
@@ -184,6 +196,7 @@ extend Float16 <: ToString {
     public func toString(): String {
         return Float64(this).toString()
     }
+
     public exclave func toString(this @local?): String @local! {
         Float64(this).toString()
     }
@@ -197,6 +210,7 @@ extend Bool <: ToString {
             "false"
         }
     }
+
     public exclave func toString(this @local?): String @local! {
         if (this) {
             "true"
@@ -210,6 +224,7 @@ extend Rune <: ToString {
     public func toString(): String {
         return String([this])
     }
+
     public exclave func toString(this @local?): String @local! {
         let m: Array<Rune> @local! = [this]
         return String(m)
@@ -220,6 +235,7 @@ extend Unit <: ToString {
     public func toString(): String {
         return "()"
     }
+
     public exclave func toString(this @local?): String @local! {
         "()"
     }
