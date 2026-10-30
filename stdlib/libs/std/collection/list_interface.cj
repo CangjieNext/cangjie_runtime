@@ -60,6 +60,10 @@ public interface ReadOnlyList<T> <: Collection<T> {
             throw UnimplementedException("Current Type does not implement 'last' property for its @local? instance")
         }
     }
+    @When[env == "ohos"]
+    prop first: ?T
+    @When[env == "ohos"]
+    prop last: ?T
 }
 
 public interface List<T> <: ReadOnlyList<T> {

@@ -281,6 +281,7 @@ class HashMapEntryView<K, V> <: MapEntryView<K, V> where K <: Hashable & Equatab
             }
         }
     }
+    @When[env != "ohos"]
     @Frozen
     public mut prop value: ?V @local! {
         get() {
@@ -295,6 +296,7 @@ class HashMapEntryView<K, V> <: MapEntryView<K, V> where K <: Hashable & Equatab
                 "use HashMapLocalEntryView, which supports local writes.")
         }
     }
+    @When[env != "ohos"]
     @Frozen
     public mut prop value: ?V @local? {
         get() {
@@ -353,6 +355,7 @@ class HashMapEntryView<K, V> <: MapEntryView<K, V> where K <: Hashable & Equatab
             map.entries[index].value
         }
     }
+    @When[env != "ohos"]
     @Frozen
     exclave func getValue(this @local!): ?V @local! {
         if (lockVersion != map.version()) {
@@ -364,6 +367,7 @@ class HashMapEntryView<K, V> <: MapEntryView<K, V> where K <: Hashable & Equatab
             map.entries[index].value
         }
     }
+    @When[env != "ohos"]
     @Frozen
     exclave func getValue(this @local?): ?V @local? {
         if (lockVersion != map.version()) {
@@ -536,6 +540,7 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
         )
     }
     @Frozen
+    @When[env != "ohos"]
     public exclave init(this @local!) {
         buckets = Array<Int64>(DEFAULT_CAPACITY, repeat: -1)
         entries = Array<HashMapEntry<K, V>>(
@@ -561,6 +566,7 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
         }
     }
     @Frozen
+    @When[env != "ohos"]
     public exclave init(this @local!, elements: Collection<(K, V)> @local!) {
         // The Collection size member is not dispatchable on an @local! receiver, so the input cannot be
         // presized from the interface. For the two concrete container types the element count is known
@@ -607,6 +613,7 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
     }
 
     @Frozen
+    @When[env != "ohos"]
     public exclave init(this @local?, elements: Collection<(K, V)> @local?) {
         // Copy the table storage together with its counters so changes through the
         // source map cannot invalidate this map's size, bucket chains or free list.
@@ -641,6 +648,7 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
         }
     }
     @Frozen
+    @When[env != "ohos"]
     public exclave init(this @local!, elements: Array<(K, V)> @local!) {
         let bucketSize: Int64 = elements.size + (elements.size >> 1)
         buckets = Array<Int64>(tableSizeFor(bucketSize), repeat: -1)
@@ -651,6 +659,7 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
     }
 
     @Frozen
+    @When[env != "ohos"]
     public exclave init(this @local?, elements: Array<(K, V)> @local?) {
         // The @local? source elements are (K, V) @local? and cannot be written into a local hash table (Array's
         // `[]=(this @local?, ...)` is in the Copyable extension, K/V have no such constraint); explicitly rejected.
@@ -1287,6 +1296,11 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
      * @since 0.18.4
      */
     @Frozen
+    public prop capacity: Int64 {
+        get() {
+            return entries.size
+        }
+    }
     public prop capacity: Int64 @local? {
         get() {
             return entries.size
@@ -1434,7 +1448,6 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
      * @param transform the given mapping function.
      * @returns a new HashMap.
      */
-    @When[env != "ohos"]
     public func mapValues<R>(transform: (K, V) -> R): HashMap<K, R> {
         let size: Int64 = entries.size
         var newMap = HashMap<K, R>()
@@ -1465,7 +1478,6 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
      * @param transform the given mapping function.
      * @returns a new HashMap.
      */
-    @When[env != "ohos"]
     public func mapValues<R>(transform: (V) -> R): HashMap<K, R> {
         let size: Int64 = entries.size
         var newMap = HashMap<K, R>()
@@ -1496,7 +1508,6 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
      * @param predicate the given condition.
      * @returns a new collection of key-value pairs that satisfy the filtering condition.
      */
-    @When[env != "ohos"]
     public func filter(predicate: (K, V) -> Bool): HashMap<K, V> {
         let size: Int64 = entries.size
         var newMap = HashMap<K, V>()
@@ -1525,7 +1536,6 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
      * 
      * @param action the given operation function.
      */
-    @When[env != "ohos"]
     @Frozen
     public func forEach(action: (K, V) -> Unit): Unit {
         let size: Int64 = entries.size
@@ -1552,7 +1562,6 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
      * @param predicate the given condition.
      * @returns true if all key-value pairs in the HashMap satisfy the condition, otherwise returns false.
      */
-    @When[env != "ohos"]
     public func all(predicate: (K, V) -> Bool): Bool {
         let size: Int64 = entries.size
         for (i in 0..size) {
@@ -1579,7 +1588,6 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
      * @param predicate the given condition.
      * @returns Whether there is any key-value pair that satisfies the condition.
      */
-    @When[env != "ohos"]
     public func any(predicate: (K, V) -> Bool): Bool {
         let size: Int64 = entries.size
         for (i in 0..size) {
@@ -1606,7 +1614,6 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
      * @param predicate the given condition.
      * @returns Whether all key-value pairs in the current HashMap do not satisfy the condition.
      */
-    @When[env != "ohos"]
     public func none(predicate: (K, V) -> Bool): Bool {
         let size: Int64 = entries.size
         for (i in 0..size) {
@@ -1634,7 +1641,6 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
      * @param operation the given computation function.
      * @returns the final computed value.
      */
-    @When[env != "ohos"]
     public func fold<R>(initial: R, operation: (R, K, V) -> R): R {
         var result: R = initial
         let size: Int64 = entries.size
@@ -1664,7 +1670,6 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
      * @param operation the given computation function.
      * @returns the final computed value.
      */
-    @When[env != "ohos"]
     public func reduce(operation: (V, V) -> V): Option<V> {
         if (this.size == 0) {
             return None<V>

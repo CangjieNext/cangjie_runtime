@@ -314,6 +314,18 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
     }
     @Frozen
     @OverflowWrapping
+    internal func acquireRaw(): CPointer<UInt8> {
+        unsafe { acquireRawData<UInt8>(this.myData) + Int64(this.start) }
+    }
+
+    @Frozen
+    @OverflowWrapping
+    internal func releaseRaw(ptr: CPointer<UInt8>): Unit {
+        unsafe { releaseRawData<UInt8>(this.myData, ptr - Int64(start)) }
+    }
+
+    @Frozen
+    @OverflowWrapping
     internal func acquireRaw(this @local?): CPointer<UInt8> {
         unsafe { acquireRawData2<UInt8>(this.myData) + Int64(this.start) }
     }

@@ -550,6 +550,41 @@ class StringLazySplitIterator <: Iterator<String> {
     /**
      * @throws OutOfMemoryError if failed to call CJ_CORE_CountAndIndexString.
      */
+    init(orgStrData: Array<UInt8>, orgStrSize: Int64, str: String, maxSplits: Int64, removeEmpty: Bool) {
+        this.orgData = orgStrData
+        this.separatorLen = str.size
+        this.maxSplits = maxSplits
+        this.removeEmpty = removeEmpty
+        this.itemArr = EMPTY_INT64_ARRAY
+        if (this.separatorLen == 0) {
+            if (0 < maxSplits && maxSplits < orgStrSize) {
+                this.resLen = maxSplits
+            } else {
+                this.resLen = orgStrSize
+            }
+        } else {
+            unsafe {
+                let org: CPointerHandle<UInt8> = acquireArrayRawData<UInt8>(this.orgData)
+                let pat: CPointerHandle<UInt8> = acquireArrayRawData<UInt8>(str.rawData())
+                var res: CPointer<Int64> = CJ_CORE_CountAndIndexString(
+                    org.pointer,
+                    pat.pointer,
+                    this.orgData.size,
+                    this.separatorLen
+                )
+                releaseArrayRawData(org)
+                releaseArrayRawData(pat)
+                if (res.isNull()) {
+                    throw OutOfMemoryError("Failed to allocate memory in C code.")
+                }
+                try {
+                    convertCPointer2Array(res, maxSplits, removeEmpty)
+                } finally {
+                    LibC.free(res)
+                }
+            }
+        }
+    }
     init(orgStrData: Array<UInt8>, orgStrSize: Int64, str: String @local?, maxSplits: Int64, removeEmpty: Bool) {
         this.orgData = orgStrData
         this.separatorLen = str.size
