@@ -27,7 +27,7 @@ constexpr size_t MAX_BYTES = 256 * 1024;
 constexpr size_t NFREELIST = 208;
 constexpr int MIN_ALIGN_NUM = 8;
 
-enum AlignNmu { ALIGN_8 = 8, ALIGN_16 = 16, ALIGN_128 = 128, ALIGN_1024 = 1024, ALIGN_8192 = 8 * 1024 };
+enum class AlignNmu { ALIGN_8 = 8, ALIGN_16 = 16, ALIGN_128 = 128, ALIGN_1024 = 1024, ALIGN_8192 = 8 * 1024 };
 
 enum MemberSize {
     ALING_8_BYTE = 128,
@@ -196,7 +196,11 @@ public:
     }
 
 private:
-    static inline size_t RoundUp(size_t bytes, size_t alignNum) { return ((bytes + alignNum - 1) & ~(alignNum - 1)); }
+    static inline size_t RoundUp(size_t bytes, AlignNmu alignment)
+    {
+        size_t alignNum = static_cast<size_t>(alignment);
+        return ((bytes + alignNum - 1) & ~(alignNum - 1));
+    }
 
     static inline size_t Index(size_t bytes, size_t alignShift)
     {
