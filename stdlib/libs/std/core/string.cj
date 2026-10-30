@@ -1104,7 +1104,16 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
                 runeCount++
                 pos = pos + num
             }
-            let newSize: Int64 = size + newLen * (runeCount + 1)
+
+            // Check the multiplication before allocating: with empty `old` the insertion count is
+            // runeCount + 1, so a large `new` overflows the byte budget long before the UInt32
+            // conversion at the end. Same guard as the plain `insertString`.
+            let insertCount: Int64 = runeCount + 1
+            let maxSize: Int64 = Int64(UInt32.Max) - size
+            if (insertCount > 0 && newLen > maxSize / insertCount) {
+                throw IllegalArgumentException("The size of String is too large.")
+            }
+            let newSize: Int64 = size + newLen * insertCount
             let newRawPtr = rawArrayAllocate2<UInt8>(newSize)
             rawArrayInitByValue2(newRawPtr, newSize, 0)
             var cursor: Int64 = 0
