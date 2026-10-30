@@ -67,6 +67,13 @@ endif()
 include(${CMAKE_CURRENT_SOURCE_DIR}/config.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/SetupAr.cmake)
 
+# OHOS resolves symbols through .gnu.hash only, but the OHOS compiler driver still defaults to
+# --hash-style=both, which costs about 20 KB of .hash in libcangjie-runtime.so. Set it before the
+# shared targets are created so that cangjie-runtime and cangjie-demangle are both covered.
+if (OHOS_FLAG IN_LIST OHOS_FLAG_LIST)
+    set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--hash-style=gnu")
+endif()
+
 message("-- BUILD_CJTHREAD: " ${BUILD_CJTHREAD})
 message("-- BUILD_RUNTIME: "   ${BUILD_RUNTIME})
 
