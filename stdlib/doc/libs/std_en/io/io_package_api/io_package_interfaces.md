@@ -31,6 +31,10 @@ func read(buffer: Array<Byte>): Int64
 
 Function: Reads data from the input stream into `buffer`.
 
+A single call is not guaranteed to fill `buffer`. A concrete implementation may attempt to fill the buffer or read only currently available data. The call may block waiting for input when no data is available. Short-read semantics do not guarantee nonblocking I/O.
+
+The returned count `n` is the number of bytes actually read, where `0 <= n <= buffer.size`. Only the first `n` elements contain data from this call. For a nonempty buffer, a normal read returns `0` when the end of the stream is reached without reading any data. A result where `0 < n < buffer.size` does not indicate EOF. Empty-buffer handling and read failures are documented by each implementation.
+
 Parameters:
 
 - buffer: [Array](../../core/core_package_api/core_package_structs.md#struct-arrayt)\<[Byte](../../core/core_package_api/core_package_types.md#type-byte)> - Buffer for storing data read from the input stream.

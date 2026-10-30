@@ -6,6 +6,10 @@
  * See https://cangjie-lang.cn/pages/LICENSE for license information.
  */
 
+#include <errno.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include "securec.h"
@@ -13,7 +17,9 @@
 #ifdef WIN32
 #include <windows.h>
 #include <wchar.h>
-#endif  // WIN32
+#else
+#include <pthread.h>
+#endif // WIN32
 
 typedef struct StructureString {
     char* buffer;
@@ -23,6 +29,122 @@ typedef struct StructureString {
 #define INITIAL_BUFFER_SIZE 512
 #define WIN_EOF 0x1A
 #define STR_END '\0'
+
+// Line-oriented and byte-array reads share a cache to preserve the order of
+// bytes prefetched by either path.
+static char g_stdinBuffer[INITIAL_BUFFER_SIZE];
+static size_t g_stdinBufferStart = 0;
+static size_t g_stdinBufferEnd = 0;
+static bool g_stdinTextEof = false;
+
+#ifdef WIN32
+static SRWLOCK g_stdinLock = SRWLOCK_INIT;
+
+static void LockStdin(void)
+{
+    AcquireSRWLockExclusive(&g_stdinLock);
+}
+
+static void UnlockStdin(void)
+{
+    ReleaseSRWLockExclusive(&g_stdinLock);
+}
+#else
+static pthread_mutex_t g_stdinLock = PTHREAD_MUTEX_INITIALIZER;
+
+static void LockStdin(void)
+{
+    (void)pthread_mutex_lock(&g_stdinLock);
+}
+
+static void UnlockStdin(void)
+{
+    (void)pthread_mutex_unlock(&g_stdinLock);
+}
+#endif
+
+static int64_t ReadStdinBytes(char* buffer, size_t maxLen)
+{
+#ifdef WIN32
+    HANDLE hStdIn = GetStdHandle(STD_INPUT_HANDLE);
+    if (hStdIn == NULL || hStdIn == INVALID_HANDLE_VALUE) {
+        return -1;
+    }
+
+    DWORD numOfBytesToRead = maxLen > MAXDWORD ? MAXDWORD : (DWORD)maxLen;
+    DWORD numOfBytesRead = 0;
+    BOOL success = ReadFile(hStdIn, buffer, numOfBytesToRead, &numOfBytesRead, NULL);
+    if (!success) {
+        DWORD error = GetLastError();
+        if (error == ERROR_MORE_DATA) {
+            // Message-mode pipes can deliver a valid prefix without completing the message.
+            return (int64_t)numOfBytesRead;
+        }
+        if (error == ERROR_BROKEN_PIPE) {
+            return 0;
+        }
+        return -1;
+    }
+    return (int64_t)numOfBytesRead;
+#else
+    // Preserve prompt visibility for the default line-buffered terminal streams.
+    // Do not flush fully buffered redirected output as a side effect of input.
+    if (isatty(STDIN_FILENO) && isatty(STDOUT_FILENO)) {
+        (void)fflush(stdout);
+    }
+    ssize_t readSize;
+    do {
+        readSize = read(STDIN_FILENO, buffer, maxLen);
+    } while (readSize < 0 && errno == EINTR);
+    return (int64_t)readSize;
+#endif
+}
+
+static int ReadStdinByte(void)
+{
+    if (g_stdinBufferStart == g_stdinBufferEnd) {
+        int64_t readSize = ReadStdinBytes(g_stdinBuffer, sizeof(g_stdinBuffer));
+        if (readSize <= 0) {
+            // Preserve stdio EOF persistence for the line-reading path.
+            // Transient read failures do not set the persistent EOF state.
+            g_stdinTextEof = readSize == 0;
+            return EOF;
+        }
+        g_stdinBufferStart = 0;
+        g_stdinBufferEnd = (size_t)readSize;
+    }
+
+    return (unsigned char)g_stdinBuffer[g_stdinBufferStart++];
+}
+
+static int ReadStdinTextByte(void)
+{
+    if (g_stdinTextEof) {
+        return EOF;
+    }
+#ifdef WIN32
+    // Match the default Windows text-input semantics of getchar.
+    // Apply text conversion only to line reads; byte-array reads use raw bytes.
+    int c = ReadStdinByte();
+    if (c == WIN_EOF) {
+        g_stdinTextEof = true;
+        return EOF;
+    }
+    if (c == '\r') {
+        int next = ReadStdinByte();
+        if (next == '\n') {
+            return '\n';
+        }
+        if (next != EOF) {
+            // Restore the lookahead byte to the cache, including after a refill.
+            --g_stdinBufferStart;
+        }
+    }
+    return c;
+#else
+    return ReadStdinByte();
+#endif
+}
 
 /**
  * @brief Reads a line of text from the console or from redirected stdin until newline or EOF.
@@ -55,7 +177,7 @@ static StructureString* ConsoleReadLine(void)
 
     // Read characters from the console until EOF or \n is encountered
     int c;
-    while ((c = getchar()) != EOF) {
+    while ((c = ReadStdinTextByte()) != EOF) {
         if (str->length >= bufferSize) {
             size_t newBufferSize = bufferSize * 2;
             if (newBufferSize >= SECUREC_MEM_MAX_LEN) {
@@ -93,6 +215,35 @@ static StructureString* ConsoleReadLine(void)
     }
 
     return str;
+}
+
+extern int64_t CJ_CONSOLE_ReadBytes(char* buffer, size_t maxLen)
+{
+    if (maxLen == 0) {
+        return 0;
+    }
+
+    LockStdin();
+    // Return cached bytes without additional reads to fill the destination buffer.
+    size_t cachedSize = g_stdinBufferEnd - g_stdinBufferStart;
+    if (cachedSize > 0) {
+        size_t readSize = cachedSize < maxLen ? cachedSize : maxLen;
+        if (memcpy_s(buffer, maxLen, g_stdinBuffer + g_stdinBufferStart, readSize) != EOK) {
+            UnlockStdin();
+            return -1;
+        }
+        g_stdinBufferStart += readSize;
+        if (g_stdinBufferStart == g_stdinBufferEnd) {
+            g_stdinBufferStart = 0;
+            g_stdinBufferEnd = 0;
+        }
+        UnlockStdin();
+        return (int64_t)readSize;
+    }
+
+    int64_t readSize = ReadStdinBytes(buffer, maxLen);
+    UnlockStdin();
+    return readSize;
 }
 
 #ifdef WIN32
@@ -142,7 +293,7 @@ static StructureString* ConsoleReadWideChars(HANDLE hStdin)
     DWORD totalReadlen = 0;
     DWORD spareSize = bufferSize;
     DWORD readlen = 0;
-    char* pReadStart = buffer;
+    wchar_t* pReadStart = buffer;
 
     while (ReadConsoleW(hStdin, pReadStart, spareSize, &readlen, NULL)) {
         wchar_t* eof_pos = wcschr(buffer, WIN_EOF);
@@ -217,13 +368,23 @@ static StructureString* ConsoleReadWideChars(HANDLE hStdin)
  */
 extern StructureString* CJ_CONSOLE_Readline(void)
 {
+    LockStdin();
     HANDLE hStdIn = GetStdHandle(STD_INPUT_HANDLE);
+    StructureString* result;
     if (GetFileType(hStdIn) == FILE_TYPE_CHAR) {
         // a character file, typically an LPT device or a console
-        return ConsoleReadWideChars(hStdIn);
+        result = ConsoleReadWideChars(hStdIn);
     } else {
-        return ConsoleReadLine();
+        result = ConsoleReadLine();
     }
+    UnlockStdin();
+    return result;
+}
+
+extern bool CJ_CONSOLE_IsStdinCharDevice(void)
+{
+    HANDLE hStdIn = GetStdHandle(STD_INPUT_HANDLE);
+    return hStdIn != NULL && hStdIn != INVALID_HANDLE_VALUE && GetFileType(hStdIn) == FILE_TYPE_CHAR;
 }
 
 extern void CJ_CONSOLE_ClearstdInerr(void)
@@ -236,7 +397,15 @@ extern void CJ_CONSOLE_ClearstdInerr(void)
 // not WIN32
 extern StructureString* CJ_CONSOLE_Readline(void)
 {
-    return ConsoleReadLine();
+    LockStdin();
+    StructureString* result = ConsoleReadLine();
+    // Callers clear the input state after a null result. Reset the native EOF
+    // state here so their FastNative cleanup does not wait on the input lock.
+    if (result == NULL) {
+        g_stdinTextEof = false;
+    }
+    UnlockStdin();
+    return result;
 }
 
 extern void CJ_CONSOLE_ClearstdInerr(void)

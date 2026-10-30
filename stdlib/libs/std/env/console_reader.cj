@@ -105,8 +105,10 @@ public class ConsoleReader <: InputStream {
         }
     }
 
-    /*
-     * write Array<Byte> from stdIn to arr and return the length
+    /**
+     * Reads input through the line-reading path until arr is full or the line
+     * reader reports end of input or a read failure.
+     * Use readSome for redirected input that must not wait for a complete line.
      */
     public func read(arr: Array<Byte>): Int64 {
         let arraySize = arr.size
@@ -114,16 +116,79 @@ public class ConsoleReader <: InputStream {
             while (arraySize > endIndex - startIndex) {
                 if (!readFromConsole()) {
                     buffer.copyTo(arr, startIndex, 0, endIndex - startIndex)
-                    let ret = endIndex - startIndex
+                    let readSize = endIndex - startIndex
                     startIndex = 0
                     endIndex = 0
-                    return ret
+                    return readSize
                 }
             }
             buffer.copyTo(arr, startIndex, 0, arraySize)
             startIndex += arraySize
         }
         return arraySize
+    }
+
+    /**
+     * Reads bytes from standard input without additional reads to fill arr.
+     * The operation may block and is subject to the terminal input mode.
+     * Returns 0 for an empty array; read failures may also produce a return value of 0.
+     */
+    public func readSome(arr: Array<Byte>): Int64 {
+        let arraySize = arr.size
+        if (arraySize == 0) {
+            return 0
+        }
+
+        var readSize: Int64 = 0
+        synchronized(mutex) {
+            if (endIndex > startIndex) {
+                readSize = copyBufferedBytes(arr)
+            } else {
+                readSize = readAvailableBytes(arr)
+            }
+        }
+        return readSize
+    }
+
+    @When[os == "Windows"]
+    private func readAvailableBytes(arr: Array<Byte>): Int64 {
+        if (unsafe { CJ_CONSOLE_IsStdinCharDevice() }) {
+            if (!readFromConsole()) {
+                return 0
+            }
+            return copyBufferedBytes(arr)
+        }
+        return directRead(arr)
+    }
+
+    @When[os != "Windows"]
+    private func readAvailableBytes(arr: Array<Byte>): Int64 {
+        directRead(arr)
+    }
+
+    private func copyBufferedBytes(arr: Array<Byte>): Int64 {
+        let readSize = min(arr.size, endIndex - startIndex)
+        buffer.copyTo(arr, startIndex, 0, readSize)
+        startIndex += readSize
+        if (startIndex == endIndex) {
+            startIndex = 0
+            endIndex = 0
+        }
+        return readSize
+    }
+
+    private func directRead(arr: Array<Byte>): Int64 {
+        let readSize = unsafe {
+            let data: CPointerHandle<Byte> = acquireArrayRawData(arr)
+            let result = CJ_CONSOLE_ReadBytes(data.pointer, UIntNative(arr.size))
+            releaseArrayRawData(data)
+            result
+        }
+        return if (readSize < 0) {
+            0
+        } else {
+            readSize
+        }
     }
 
     private func readFromConsole(): Bool {

@@ -6,14 +6,14 @@
 public class ConsoleReader <: InputStream
 ```
 
-Function: Provides the capability to read data from the console and convert it into characters or strings.
+Function: Reads bytes, characters, or strings from the current process's standard input. The source is determined by the process's standard-input connection and can be a terminal, redirected file, or pipe.
 
 This type cannot be instantiated directly; instances can only be obtained via [getStdIn()](./env_package_funcs.md#func-getStdIn).  
-Read operations are synchronous, with an internal buffer storing console input content. When the end of the console input stream is reached, console reading functions will return `None`.
+Read operations are synchronous, with an internal buffer storing console input content. When the end of the input stream is reached and the current call has read no data, reading functions that return an optional type return `None`, while `read(arr: Array<Byte>)` and `readSome(arr: Array<Byte>)` return `0`.
 
 > **Note:**
 >
-> There is only one instance of [ConsoleReader](./env_package_classes.md#class-consolereader), with all methods sharing the same buffer. The `read` methods return `None` under the following circumstances:
+> There is only one instance of [ConsoleReader](./env_package_classes.md#class-consolereader), with all methods sharing the same buffer. For reading functions that return an optional type, the following circumstances may cause subsequent reads to return `None`:
 >
 > - When standard input is redirected to a file and the end-of-file (EOF) is reached.
 > - In Linux environments, when `Ctrl+D` is pressed.
@@ -30,6 +30,8 @@ public func read(): ?Rune
 ```
 
 Function: Reads the next character from standard input.
+
+A successful read returns one character; the call is not guaranteed to return after each keystroke. When the internal buffer contains insufficient data, the line-reading path supplies additional input. Terminal input typically becomes available after a line is submitted.
 
 Returns:
 
@@ -69,7 +71,19 @@ Input received: a
 public func read(arr: Array<Byte>): Int64
 ```
 
-Function: Reads from standard input and stores the data in `arr`.
+Function: Reads standard input into `arr` and attempts to fill the array. When the cache contains insufficient data, the line-reading path supplies more input.
+
+The call returns under the following conditions:
+
+- If `arr` is empty, it returns `0` without consuming input.
+- If the internal buffer contains at least `arr.size` bytes, it copies `arr.size` bytes and returns that count. The remaining data stays in the buffer for subsequent reads.
+- If the buffer contains insufficient data, the call obtains additional input through the line-reading path and continues attempting to fill the array. A newline terminates one line read but does not guarantee that the `read` call returns. If input ends or the line read fails, the call returns the number of bytes accumulated, which may be less than `arr.size`.
+
+For example, with a destination capacity of 8 bytes, the call may remain blocked waiting for another line if the writer sends `abc\n` and keeps the pipe open. If the writer sends `abcdefgh` without a newline, the underlying line read may remain blocked even though the data has reached the destination capacity. This method is unsuitable for pipe interactions where the writer sends partial data and waits for a response. For short-read semantics, use [readSome(Array\<Byte>)](#func-readsomearraybyte).
+
+An empty array, end of input with no data obtained by this call, and some read failures can all result in `0`. The return value alone cannot distinguish these cases.
+
+For redirected input on Windows, the line-reading path uses text semantics: CRLF becomes LF, and `Ctrl+Z` (`0x1A`) acts as EOF.
 
 > **Warning:**
 >
@@ -81,7 +95,7 @@ Parameters:
 
 Returns:
 
-- [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - Returns the number of bytes read.
+- [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - The number of bytes read by this call, `n`, where `0 <= n <= arr.size`. The data is stored in the first `n` elements of `arr`; the remaining elements are unchanged. Returns `0` if `arr` is empty, or if the end of the input stream is reached and the current call has read no data. Some read failures may also return `0`.
 
 Example:
 <!-- compile -->
@@ -90,22 +104,72 @@ Example:
 import std.env.*
 
 main() {
-    var arr = Array<Byte>(3, repeat: 0)
-    getStdOut().write("Please enter information: ")
-    getStdIn().read(arr) // Input: 567
-    getStdOut().write("Resulting array: ")
-    getStdOut().writeln(arr)
+    // Obtain the standard input stream.
+    let stdin = getStdIn()
 
-    return
+    // Create a byte array to receive data.
+    let buffer: Array<Byte> = [0, 0, 0, 0, 0]
+
+    // The return value may be less than buffer.size; process only the bytes read.
+    let readSize = stdin.read(buffer)
+    println("Bytes read: ${readSize}")
+    if (readSize > 0) {
+        println("Data read: ${buffer.slice(0, readSize)}")
+    }
 }
 ```
 
-Execution Result:
+With standard input redirected from a file containing only `abc` (without a newline), example output is:
 
 ```text
-Please enter information: 567
-Resulting array: 567
+Bytes read: 3
+Data read: [97, 98, 99]
 ```
+
+### func readSome(Array\<Byte>)
+
+```cangjie
+public func readSome(arr: Array<Byte>): Int64
+```
+
+Function: Reads up to `arr.size` bytes from standard input into `arr`, allowing fewer bytes than the array length to be returned.
+
+The return value `n` is the number of bytes read by this call, and the valid data is stored in `arr[..n]`. The read length is not fixed, and read boundaries are not guaranteed to coincide with protocol message boundaries. For a nonempty array, the return condition and byte count depend on the data source:
+
+- If the `ConsoleReader` instance buffer contains unread data, the call returns up to `arr.size` bytes from that buffer. It does not continue reading another source to fill the array.
+- If the instance buffer is empty but the native shared buffer for redirected input contains unread data, the call returns up to `arr.size` bytes from that buffer without waiting for new input.
+- For input using the byte-reading path, if both buffers are empty, the call reads from the process's standard input and returns the number of bytes obtained by that operation. This path uses `read` on POSIX and `ReadFile` for redirected input on Windows. The count depends on the destination capacity, input-source state, and system read result; it does not guarantee consuming all currently available data.
+
+Reading from a redirected pipe does not require a newline. After reading data, the call does not perform another read to fill the array, and closing the writer is not a condition for returning. The call may block if no data is available and input has not ended. Interactive terminal reads are subject to input modes, and Windows character devices use the line-reading path, so returning after each keystroke is not guaranteed. Short-read semantics do not guarantee nonblocking I/O.
+
+A short read does not indicate EOF or guarantee a complete message. Callers should accumulate data according to the protocol. A read may contain an incomplete UTF-8 encoding, which must be completed before conversion to a string.
+
+For redirected input on Windows, using `readSome` exclusively preserves raw bytes. If `read`, `readln`, or `readUntil` has prefetched data, `readSome` first returns the text-translated data in the buffer. Alternating methods within the same instance preserves consumption order but cannot recover the original bytes before conversion. When raw bytes are required, use `readSome` throughout. Other standard-input interfaces may maintain independent buffers; this ordering guarantee does not extend to arbitrary interleaving with interfaces such as `std.core.readln`.
+
+An empty array, end of input with no data obtained by this call, and some underlying read failures can all result in `0`. The return value alone cannot distinguish these cases.
+
+Parameters:
+
+- arr: [Array](../../core/core_package_api/core_package_structs.md#struct-arrayt)\<[Byte](../../core/core_package_api/core_package_types.md#type-byte)> - The destination array; an array slice may also be used.
+
+Returns:
+
+- [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - The number of bytes read, `n`, where `0 <= n <= arr.size`. Only the first `n` elements receive data from this call; the remaining elements are unchanged. Returns `0` for an empty array, normal EOF without data, or some read failures.
+
+Example:
+
+<!-- compile -->
+```cangjie
+import std.env.getStdIn
+
+main() {
+    let buffer = Array<Byte>(256, repeat: 0)
+    let count = getStdIn().readSome(buffer)
+    println(buffer.slice(0, count))
+}
+```
+
+If a pipe writer sends `abc` and keeps its end open, this program can print `[97, 98, 99]` without requiring a newline or the writer to close the pipe.
 
 ### func readToEnd()
 

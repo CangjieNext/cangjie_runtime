@@ -18,6 +18,10 @@ func read(buffer: Array<Byte>): Int64
 
 功能：从输入流中读取数据放到 `buffer` 中。
 
+单次调用不保证填满 `buffer`。具体实现可以尝试填满缓冲区，也可以仅读取当前可用的数据；没有可用数据时，调用可能阻塞等待输入。短读语义不保证非阻塞读取。
+
+返回值 `n` 表示本次实际读取的字节数，满足 `0 <= n <= buffer.size`。调用方应仅处理 `buffer` 的前 `n` 个元素。对于非空缓冲区，正常到达流末尾且本次未读取到数据时返回 `0`；`0 < n < buffer.size` 不表示流已结束。空缓冲区和读取失败的处理方式见具体实现说明。
+
 参数：
 
 - buffer: [Array](../../core/core_package_api/core_package_structs.md#struct-arrayt)\<[Byte](../../core/core_package_api/core_package_types.md#type-byte)> - 缓冲区，用于存放从输入流中读取的数据。

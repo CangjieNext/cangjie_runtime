@@ -6,14 +6,14 @@
 public class ConsoleReader <: InputStream {}
 ```
 
-功能：提供从控制台读出数据并转换成字符或字符串的功能。
+功能：从当前进程的标准输入读取字节、字符或字符串。数据源由进程的标准输入连接决定，可以是终端、重定向文件或管道。
 
 该类型无法构造实例，只能通过 [getStdIn()](./env_package_funcs.md#func-getstdin) 获取实例。
-读操作是同步的，内部设有缓冲区来保存控制台输入的内容，当到达控制台输入流的结尾时，控制台读取函数将返回 `None`。
+读操作是同步的，内部设有缓冲区来保存控制台输入的内容。到达输入流末尾且本次调用未读到数据时，返回可选类型的读取函数返回 `None`，`read(arr: Array<Byte>)` 和 `readSome(arr: Array<Byte>)` 返回 `0`。
 
 > **说明：**
 >
-> [ConsoleReader](./env_package_classes.md#class-consolereader) 只有一个实例，所有方法共享同一个缓冲区，相关 `read` 方法返回 `None` 的情形有：
+> [ConsoleReader](./env_package_classes.md#class-consolereader) 只有一个实例，所有方法共享同一个缓冲区。对于返回可选类型的读取函数，以下情形可能使后续读取返回 `None`：
 >
 > - 将标准输入重定向到文件时，读取到文件结尾 EOF。
 > - Linux 环境，按下 `Ctrl+D`。
@@ -30,6 +30,8 @@ public func read(): ?Rune
 ```
 
 功能：从标准输入中读取下一个字符。
+
+成功读取时返回一个字符，不保证逐键返回。内部缓存不足时，通过行读取路径补充数据；终端输入通常在提交一行后可供读取。
 
 返回值：
 
@@ -68,7 +70,19 @@ main() {
 public func read(arr: Array<Byte>): Int64
 ```
 
-功能：从标准输入中读取并放入 `arr` 中。
+功能：从标准输入中读取数据放入 `arr`，并尝试填满数组。缓存不足时，通过行读取路径补充数据。
+
+本次调用的返回条件如下：
+
+- `arr` 为空时返回 `0`，不消费输入。
+- 内部缓存已有至少 `arr.size` 个字节时，复制 `arr.size` 个字节并返回该计数，剩余数据保留在缓存中供后续读取。
+- 缓存不足时，通过行读取路径补充数据，并继续尝试填满数组。换行符仅结束一次行读取，不保证本次 `read` 返回；输入结束或行读取失败时，返回累计读取的字节数，该计数可能小于 `arr.size`。
+
+对于写端发送部分数据后等待响应的管道交互，应使用 [readSome(Array\<Byte>)](#func-readsomearraybyte)，避免因等待换行或填满数组而阻塞。
+
+空数组、输入结束且本次未取得数据，以及部分读取失败的情况均可能返回 `0`。仅凭返回值无法区分这些情况。
+
+Windows 重定向输入的行读取路径采用文本语义：CRLF 转为 LF，`Ctrl+Z`（`0x1A`）作为 EOF。
 
 > **注意：**
 >
@@ -80,7 +94,7 @@ public func read(arr: Array<Byte>): Int64
 
 返回值：
 
-- [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - 返回读取到的字节长度。
+- [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - 本次实际读取的字节数 `n`，满足 `0 <= n <= arr.size`。读取的数据存放在 `arr` 的前 `n` 个元素中，其余元素不变。`arr` 为空，或到达输入流末尾且本次调用未读到数据时，返回 `0`；部分读取失败也可能返回 `0`。
 
 示例：
 
@@ -95,18 +109,66 @@ main() {
     // 创建一个字节数组用于读取数据
     let buffer: Array<Byte> = [0, 0, 0, 0, 0]
 
-    // 从标准输入读取数据到数组中
-    // 注意：在实际运行中，程序会等待用户输入 5 个 Byte，假设输入 abcde
-    stdin.read(buffer)
-    println("buffer 中的内容是 ${buffer}")
+    // 返回值可能小于 buffer.size，只处理本次实际读取的字节。
+    let readSize = stdin.read(buffer)
+    println("读取到的字节数：${readSize}")
+    if (readSize > 0) {
+        println("读取到的数据：${buffer.slice(0, readSize)}")
+    }
 }
 ```
 
-运行结果：
+将仅包含 `abc`（无换行符）的文件重定向为标准输入，输出示例：
 
 ```text
-buffer 中的内容是 [97, 98, 99, 100, 101]
+读取到的字节数：3
+读取到的数据：[97, 98, 99]
 ```
+
+### func readSome(Array\<Byte>)
+
+```cangjie
+public func readSome(arr: Array<Byte>): Int64
+```
+
+功能：从标准输入中读取最多 `arr.size` 个字节并放入 `arr`，允许返回不足数组长度的数据。
+
+返回值 `n` 表示本次实际读取的字节数，有效数据位于 `arr[..n]`。单次读取的长度不固定，读取边界不保证与协议消息边界一致。对于非空数组，返回条件和字节数取决于数据来源：
+
+- `ConsoleReader` 实例缓存有剩余数据时，返回其中最多 `arr.size` 个字节；即使数组未满，也不继续读取其他来源的数据。
+- 实例缓存为空，且重定向输入的原生共享缓存有剩余数据时，返回该缓存中最多 `arr.size` 个字节，不再等待新输入。
+- 对于采用字节读取路径的输入，上述缓存均为空时，从进程标准输入发起底层读取，返回该次操作实际读取的字节数。此路径在 POSIX 上使用 `read`，在 Windows 上用于重定向输入并使用 `ReadFile`；读取长度受目标容量、输入源状态和系统读取结果影响，不保证读取全部当前可用数据。
+
+重定向管道读取不要求换行符，读取到数据后不会为填满数组再次读取，也不以写端关闭为返回条件；没有可用数据且输入未结束时仍可能阻塞。交互终端读取受输入模式影响，Windows 字符设备通过行读取路径获取数据，因此不保证逐键返回。短读语义不保证非阻塞读取。
+
+短读不表示 EOF，也不保证取得完整消息。调用方应按协议累计数据；读取结果可能包含不完整的 UTF-8 编码，应补齐后再转换为字符串。
+
+在 Windows 重定向输入中，独立使用 `readSome` 可保留原始字节。若 `read`、`readln` 或 `readUntil` 已预取数据，`readSome` 会优先返回缓存中经过文本转换的数据。同一实例内交替调用仍保持读取顺序，但无法恢复转换前的原始字节；需要原始字节时，应始终使用 `readSome`。不同标准输入读取接口可能维护独立缓存，不应据此推断与 `std.core.readln` 等接口任意交替调用时的读取顺序。
+
+空数组、到达 EOF 且本次未取得数据，以及部分底层读取失败均可能返回 `0`，因此不能仅凭返回值 `0` 判断是否正常到达 EOF。
+
+参数：
+
+- arr: [Array](../../core/core_package_api/core_package_structs.md#struct-arrayt)\<[Byte](../../core/core_package_api/core_package_types.md#type-byte)> - 目标数组，也可以传入数组切片。
+
+返回值：
+
+- [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - 实际读取的字节数 `n`，满足 `0 <= n <= arr.size`。仅前 `n` 个元素写入本次数据，其余元素不变。空数组，或正常到达输入结束且本次未读到数据时返回 `0`；部分读取失败也返回 `0`。
+
+示例：
+
+<!-- compile -->
+```cangjie
+import std.env.getStdIn
+
+main() {
+    let buffer = Array<Byte>(256, repeat: 0)
+    let count = getStdIn().readSome(buffer)
+    println(buffer.slice(0, count))
+}
+```
+
+管道写端发送 `abc` 并保持打开时，上述程序可以输出 `[97, 98, 99]`，无需写端发送换行或关闭管道。
 
 ### func readln()
 

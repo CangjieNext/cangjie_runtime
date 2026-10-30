@@ -32,7 +32,9 @@ public interface InputStream {
      *
      * @params buffer where write bytes to
      *
-     * @return number of bytes read and copied to the buffer (never zero) or 0 when end of stream reached
+     * @return number of bytes read and copied to the buffer; for a nonempty buffer,
+     * 0 indicates the end of the stream on a normal read.
+     * Empty-buffer handling and errors are documented by each implementation.
      */
     func read(buffer: Array<Byte>): Int64
 }
