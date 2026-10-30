@@ -282,24 +282,28 @@ class StringIteratorData {
         this.nextPos = 0
     }
 
+    @When[env != "ohos"]
     exclave init(this @local!, data: Array<UInt8> @local!) {
         myData = data
         end = myData.size
         nextPos = 0
     }
 
+    @When[env != "ohos"]
     exclave init(this @local!, data: RawArray<UInt8> @local!) {
         this.myData = toArray(data)
         this.end = myData.size
         this.nextPos = 0
     }
 
+    @When[env != "ohos"]
     exclave init(this @local?, data: Array<UInt8> @local?) {
         myData = data
         end = myData.size
         nextPos = 0
     }
 
+    @When[env != "ohos"]
     exclave init(this @local?, data: RawArray<UInt8> @local?) {
         this.myData = toArray(data)
         this.end = myData.size
@@ -312,11 +316,13 @@ class StringRuneIterator <: Iterator<Rune> {
     @Frozen
     StringRuneIterator(let iteratorData: StringIteratorData) {}
     @Frozen
+    @When[env != "ohos"]
     exclave init(this @local!, iteratorData: StringIteratorData @local!) {
         this.iteratorData = iteratorData
     }
 
     @Frozen
+    @When[env != "ohos"]
     exclave init(this @local?, iteratorData: StringIteratorData @local?) {
         this.iteratorData = iteratorData
     }
@@ -337,6 +343,7 @@ class StringRuneIterator <: Iterator<Rune> {
         return Some<Rune>(rune)
     }
 
+    @When[env != "ohos"]
     @OverflowWrapping
     @Frozen
     public exclave func next(this @local!): Option<Rune> @local! {
@@ -348,6 +355,7 @@ class StringRuneIterator <: Iterator<Rune> {
         return Some<Rune>(rune)
     }
 
+    @When[env != "ohos"]
     @OverflowWrapping
     @Frozen
     public exclave func next(this @local?): Option<Rune> @local? {
@@ -365,11 +373,13 @@ class StringByteIterator <: Iterator<Byte> {
     @Frozen
     StringByteIterator(let iteratorData: StringIteratorData) {}
     @Frozen
+    @When[env != "ohos"]
     exclave init(this @local!, iteratorData: StringIteratorData @local!) {
         this.iteratorData = iteratorData
     }
 
     @Frozen
+    @When[env != "ohos"]
     exclave init(this @local?, iteratorData: StringIteratorData @local?) {
         this.iteratorData = iteratorData
     }
@@ -390,6 +400,7 @@ class StringByteIterator <: Iterator<Byte> {
         return byte
     }
 
+    @When[env != "ohos"]
     @Frozen
     @OverflowWrapping
     public exclave func next(this @local!): Option<Byte> @local! {
@@ -401,6 +412,7 @@ class StringByteIterator <: Iterator<Byte> {
         return byte
     }
 
+    @When[env != "ohos"]
     @Frozen
     @OverflowWrapping
     public exclave func next(this @local?): Option<Byte> @local? {
@@ -419,11 +431,13 @@ class StringLineIterator <: Iterator<String> {
     @Frozen
     StringLineIterator(let iteratorData: StringIteratorData) {}
     @Frozen
+    @When[env != "ohos"]
     exclave init(this @local!, iteratorData: StringIteratorData @local!) {
         this.iteratorData = iteratorData
     }
 
     @Frozen
+    @When[env != "ohos"]
     exclave init(this @local?, iteratorData: StringIteratorData @local?) {
         this.iteratorData = iteratorData
     }
@@ -468,6 +482,7 @@ class StringLineIterator <: Iterator<String> {
         return Some(str)
     }
 
+@When[env != "ohos"]
     @Frozen
     @OverflowWrapping
     public exclave func next(this @local!): Option<String> @local! {
@@ -508,6 +523,7 @@ class StringLineIterator <: Iterator<String> {
         Some<String>(str)
     }
 
+@When[env != "ohos"]
     @Frozen
     @OverflowWrapping
     public exclave func next(this @local?): Option<String> @local? {
@@ -610,6 +626,7 @@ class StringLazySplitIterator <: Iterator<String> {
         }
     }
 
+    @When[env != "ohos"]
     init(orgStrData: Array<UInt8>, orgStrSize: Int64, str: String @local?, maxSplits: Int64, removeEmpty: Bool) {
         this.orgData = orgStrData
         this.separatorLen = str.size
