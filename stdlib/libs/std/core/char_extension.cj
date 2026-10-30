@@ -169,6 +169,7 @@ extend Rune {
     }
 
     @OverflowWrapping
+    @When[env != "ohos"]
     public static func fromUtf8(arr: Array<UInt8> @local?, index: Int64): (Rune, Int64) {
         if (index < 0 || index >= arr.size) {
             throw IllegalArgumentException("Invalid utf8 byte sequence.")
@@ -244,6 +245,7 @@ extend Rune {
     }
 
     @OverflowWrapping
+    @When[env != "ohos"]
     public static func intoUtf8Array(c: Rune, arr: Array<UInt8> @local?, index: Int64): Int64 {
         var ch = UInt32(c)
         checkIndexValid(c, arr, index)
@@ -295,6 +297,7 @@ extend Rune {
         }
     }
 
+    @When[env != "ohos"]
     private static func checkIndexValid(c: Rune, arr: Array<UInt8> @local?, index: Int64): Unit {
         if (index < 0) {
             throw IllegalArgumentException("The index cannot be less than 0.")
