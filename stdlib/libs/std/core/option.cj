@@ -27,6 +27,7 @@ public enum Option<T> {
      * @throws NoneValueException if the value of Option is None
      */
     @Frozen
+    @When[env != "ohos"]
     public exclave func getOrThrow(this @local!): T @local! {
         match (this) {
             case Some(v) => v
@@ -49,6 +50,7 @@ public enum Option<T> {
      * @throws input Exception if the value of Option is None
      */
     @Frozen
+    @When[env != "ohos"]
     public exclave func getOrThrow(this @local!, exception: () -> Exception): T @local! {
         match (this) {
             case Some(v) => v
@@ -73,6 +75,7 @@ public enum Option<T> {
     }
 
     @Frozen
+    @When[env != "ohos"]
     public func isNone(this @local?): Bool {
         match (this) {
             case None => true
@@ -89,6 +92,7 @@ public enum Option<T> {
     }
 
     @Frozen
+    @When[env != "ohos"]
     public func isSome(this @local?): Bool {
         match (this) {
             case Some(_) => true
@@ -150,12 +154,14 @@ extend<T> Option<T> <: Equatable<Option<T>> where T <: Equatable<T> {
 }
 
 extend<T> Option<T> <: ToString where T <: ToString {
+
     public func toString(): String {
         match (this) {
             case Some(s) => "Some(${s})"
             case None => "None"
         }
     }
+
     // toString(this @local?) is not implemented (open defect, localized 2026-10-16): a generic
     // `Option<T> @local!` match-unpack yields a corrupted payload reference; GC scanning reports
     // "heap object must not reference local object" -> SIGABRT. Construction and predicates
@@ -164,6 +170,7 @@ extend<T> Option<T> <: ToString where T <: ToString {
 }
 
 extend<T> Option<T> <: Hashable where T <: Hashable {
+
     public func hashCode(): Int64 {
         return match (this) {
             case Some(v) => v.hashCode()
@@ -171,6 +178,7 @@ extend<T> Option<T> <: Hashable where T <: Hashable {
         }
     }
 
+    @When[env != "ohos"]
     public func hashCode(this @local?): Int64 {
         return match (this) {
             case Some(v) => v.hashCode()
@@ -180,6 +188,7 @@ extend<T> Option<T> <: Hashable where T <: Hashable {
 }
 
 extend<T> Option<Option<T>> {
+
     public func flatten(): Option<T> {
         match (this) {
             case Some(o) => o

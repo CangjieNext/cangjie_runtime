@@ -9,10 +9,15 @@
 package std.core
 
 public interface Hashable {
+
     func hashCode(): Int64
+
+    @When[env != "ohos"]
     func hashCode(this @local?): Int64 {
         throw UnimplementedException("Current Type does not implement 'hashCode' method for its @local? instance")
     }
+
+    @When[env != "ohos"]
     func hashCode(this @local!): Int64 {
         throw UnimplementedException("Current Type does not implement 'hashCode' method for its @local! instance")
     }
@@ -22,6 +27,7 @@ public interface Hashable {
  * The hashcode is defined as: 3 for Ordering.GT, 2 for Ordering.EQ, 1 for Ordering.LT
  */
 extend Ordering <: Hashable {
+
     public func hashCode(): Int64 {
         match (this) {
             case Ordering.GT => return 3
@@ -29,6 +35,8 @@ extend Ordering <: Hashable {
             case _ => return 2
         }
     }
+
+    @When[env != "ohos"]
     public func hashCode(this @local?): Int64 {
         match (this) {
             case Ordering.GT => return 3
@@ -36,6 +44,8 @@ extend Ordering <: Hashable {
             case _ => return 2
         }
     }
+
+    @When[env != "ohos"]
     public func hashCode(this @local!): Int64 {
         match (this) {
             case Ordering.GT => return 3
@@ -46,30 +56,40 @@ extend Ordering <: Hashable {
 }
 
 extend Unit <: Hashable {
+
     public func hashCode(): Int64 {
         return 0
     }
+
+    @When[env != "ohos"]
     public func hashCode(this @local?): Int64 {
         return 0
     }
+
+    @When[env != "ohos"]
     public func hashCode(this @local!): Int64 {
         return 0
     }
 }
 
 extend Bool <: Hashable {
+
     public func hashCode(): Int64 {
         if (this) {
             return 1
         }
         return 0
     }
+
+    @When[env != "ohos"]
     public func hashCode(this @local?): Int64 {
         if (this) {
             return 1
         }
         return 0
     }
+
+    @When[env != "ohos"]
     public func hashCode(this @local!): Int64 {
         if (this) {
             return 1
@@ -79,47 +99,61 @@ extend Bool <: Hashable {
 }
 
 extend Rune <: Hashable {
+
     public func hashCode(): Int64 {
         return Int64(UInt32(this))
     }
+
+    @When[env != "ohos"]
     public func hashCode(this @local?): Int64 {
         return Int64(UInt32(this))
     }
+
+    @When[env != "ohos"]
     public func hashCode(this @local!): Int64 {
         return Int64(UInt32(this))
     }
 }
 
 func i32tof32(num: Int32): Float32 {
+
     var _src: Int32 = num
     return unsafe { CPointer<Float32>(inout _src).read() }
 }
 
 func f32toi32(num: Float32): Int32 {
+
     var _src: Float32 = num
     return unsafe { CPointer<Int32>(inout _src).read() }
 }
 
 func i64tof64(num: Int64): Float64 {
+
     var _src: Int64 = num
     return unsafe { CPointer<Float64>(inout _src).read() }
 }
 
 func f642i64(num: Float64): Int64 {
+
     var _src: Float64 = num
     return unsafe { CPointer<Int64>(inout _src).read() }
 }
 
 extend IntNative <: Hashable {
+
     @OverflowWrapping
     public func hashCode(): Int64 {
         return Int64(this)
     }
+
     @OverflowWrapping
+    @When[env != "ohos"]
     public func hashCode(this @local?): Int64 {
         return Int64(this)
     }
+
     @OverflowWrapping
+    @When[env != "ohos"]
     public func hashCode(this @local!): Int64 {
         return Int64(this)
     }
@@ -129,6 +163,7 @@ extend IntNative <: Hashable {
             IntNative(UIntNative.Max >> 1)
         }
     }
+
     public static prop Min: IntNative {
         get() {
             !IntNative.Max
@@ -137,12 +172,17 @@ extend IntNative <: Hashable {
 }
 
 extend Int64 <: Hashable {
+
     public func hashCode(): Int64 {
         return this
     }
+
+    @When[env != "ohos"]
     public func hashCode(this @local?): Int64 {
         return Int64(this)
     }
+
+    @When[env != "ohos"]
     public func hashCode(this @local!): Int64 {
         return Int64(this)
     }
@@ -161,14 +201,19 @@ extend Int64 <: Hashable {
 }
 
 extend Int32 <: Hashable {
+
     public func hashCode(): Int64 {
         return Int64(this)
     }
+
     @OverflowWrapping
+    @When[env != "ohos"]
     public func hashCode(this @local?): Int64 {
         return Int64(this)
     }
+
     @OverflowWrapping
+    @When[env != "ohos"]
     public func hashCode(this @local!): Int64 {
         return Int64(this)
     }
@@ -187,14 +232,19 @@ extend Int32 <: Hashable {
 }
 
 extend Int16 <: Hashable {
+
     public func hashCode(): Int64 {
         return Int64(this)
     }
+
     @OverflowWrapping
+    @When[env != "ohos"]
     public func hashCode(this @local?): Int64 {
         return Int64(this)
     }
+
     @OverflowWrapping
+    @When[env != "ohos"]
     public func hashCode(this @local!): Int64 {
         return Int64(this)
     }
@@ -213,14 +263,19 @@ extend Int16 <: Hashable {
 }
 
 extend Int8 <: Hashable {
+
     public func hashCode(): Int64 {
         return Int64(this)
     }
+
     @OverflowWrapping
+    @When[env != "ohos"]
     public func hashCode(this @local?): Int64 {
         return Int64(this)
     }
+
     @OverflowWrapping
+    @When[env != "ohos"]
     public func hashCode(this @local!): Int64 {
         return Int64(this)
     }
@@ -239,15 +294,20 @@ extend Int8 <: Hashable {
 }
 
 extend UIntNative <: Hashable {
+
     @OverflowWrapping
     public func hashCode(): Int64 {
         return Int64(this)
     }
+
     @OverflowWrapping
+    @When[env != "ohos"]
     public func hashCode(this @local?): Int64 {
         return Int64(this)
     }
+
     @OverflowWrapping
+    @When[env != "ohos"]
     public func hashCode(this @local!): Int64 {
         return Int64(this)
     }
@@ -266,15 +326,20 @@ extend UIntNative <: Hashable {
 }
 
 extend UInt64 <: Hashable {
+
     @OverflowWrapping
     public func hashCode(): Int64 {
         return Int64(this)
     }
+
     @OverflowWrapping
+    @When[env != "ohos"]
     public func hashCode(this @local?): Int64 {
         return Int64(this)
     }
+
     @OverflowWrapping
+    @When[env != "ohos"]
     public func hashCode(this @local!): Int64 {
         return Int64(this)
     }
@@ -293,12 +358,17 @@ extend UInt64 <: Hashable {
 }
 
 extend UInt32 <: Hashable {
+
     public func hashCode(): Int64 {
         return Int64(this)
     }
+
+    @When[env != "ohos"]
     public func hashCode(this @local?): Int64 {
         return Int64(this)
     }
+
+    @When[env != "ohos"]
     public func hashCode(this @local!): Int64 {
         return Int64(this)
     }
@@ -317,12 +387,17 @@ extend UInt32 <: Hashable {
 }
 
 extend UInt16 <: Hashable {
+
     public func hashCode(): Int64 {
         return Int64(this)
     }
+
+    @When[env != "ohos"]
     public func hashCode(this @local?): Int64 {
         return Int64(this)
     }
+
+    @When[env != "ohos"]
     public func hashCode(this @local!): Int64 {
         return Int64(this)
     }
@@ -341,12 +416,17 @@ extend UInt16 <: Hashable {
 }
 
 extend UInt8 <: Hashable {
+
     public func hashCode(): Int64 {
         return Int64(this)
     }
+
+    @When[env != "ohos"]
     public func hashCode(this @local?): Int64 {
         return Int64(this)
     }
+
+    @When[env != "ohos"]
     public func hashCode(this @local!): Int64 {
         return Int64(this)
     }
@@ -365,6 +445,7 @@ extend UInt8 <: Hashable {
 }
 
 extend Float64 <: Hashable {
+
     public func hashCode(): Int64 {
         let i = if (this == 0.0f64) {
             0
@@ -373,6 +454,8 @@ extend Float64 <: Hashable {
         }
         return wyrand(i)
     }
+
+    @When[env != "ohos"]
     public func hashCode(this @local?): Int64 {
         let i = if (this == 0.0f64) {
             0
@@ -381,6 +464,8 @@ extend Float64 <: Hashable {
         }
         return wyrand(i)
     }
+
+    @When[env != "ohos"]
     public func hashCode(this @local!): Int64 {
         let i = if (this == 0.0f64) {
             0
@@ -419,6 +504,7 @@ extend Float64 <: Hashable {
             Float64(Float64(1.0 / Float64(2.0 ** 0x3FE)) * Float64(1.0 / Float64(1 << 52)))
         }
     }
+
     public static prop MinNormal: Float64 {
         get() {
             i64tof64(Int64(0x1) << 52)
@@ -509,6 +595,7 @@ extend Float64 <: Hashable {
 }
 
 extend Float32 <: Hashable {
+
     public func hashCode(): Int64 {
         let i = if (this == 0.0f32) {
             0
@@ -517,6 +604,8 @@ extend Float32 <: Hashable {
         }
         return wyrand(i)
     }
+
+    @When[env != "ohos"]
     public func hashCode(this @local?): Int64 {
         let i = if (this == 0.0f32) {
             0
@@ -525,6 +614,8 @@ extend Float32 <: Hashable {
         }
         return wyrand(i)
     }
+
+    @When[env != "ohos"]
     public func hashCode(this @local!): Int64 {
         let i = if (this == 0.0f32) {
             0
@@ -654,6 +745,7 @@ extend Float32 <: Hashable {
 }
 
 extend Float16 <: Hashable {
+
     public func hashCode(): Int64 {
         let i = if (this == 0.0f16) {
             0
@@ -662,6 +754,8 @@ extend Float16 <: Hashable {
         }
         return wyrand(i)
     }
+
+    @When[env != "ohos"]
     public func hashCode(this @local?): Int64 {
         let i = if (this == 0.0f16) {
             0
@@ -670,6 +764,8 @@ extend Float16 <: Hashable {
         }
         return wyrand(i)
     }
+
+    @When[env != "ohos"]
     public func hashCode(this @local!): Int64 {
         let i = if (this == 0.0f16) {
             0
@@ -807,6 +903,7 @@ extend Float16 <: Hashable {
 }
 
 extend<T> Range<T> <: Hashable where T <: Hashable & Countable<T> & Comparable<T> & Equatable<T> {
+
     public func hashCode(): Int64 {
         var dfh: DefaultHasher = DefaultHasher()
         dfh.write(start.hashCode())
@@ -816,6 +913,7 @@ extend<T> Range<T> <: Hashable where T <: Hashable & Countable<T> & Comparable<T
         return dfh.finish()
     }
 
+    @When[env != "ohos"]
     public func hashCode(this @local?): Int64 {
         var dfh: DefaultHasher = DefaultHasher()
         dfh.write(start.hashCode())
@@ -824,6 +922,8 @@ extend<T> Range<T> <: Hashable where T <: Hashable & Countable<T> & Comparable<T
         dfh.write(isClosed.hashCode())
         return dfh.finish()
     }
+
+    @When[env != "ohos"]
     public func hashCode(this @local!): Int64 {
         let startQ: T @local? = start
         let endQ: T @local? = end
@@ -837,25 +937,42 @@ extend<T> Range<T> <: Hashable where T <: Hashable & Countable<T> & Comparable<T
 }
 
 public interface Hasher {
+
     func finish(): Int64
+
     mut func reset(): Unit
+
     mut func write(value: Bool): Unit
+
     mut func write(value: Rune): Unit
+
     mut func write(value: Int8): Unit
+
     mut func write(value: Int16): Unit
+
     mut func write(value: Int32): Unit
+
     mut func write(value: Int64): Unit
+
     mut func write(value: UInt8): Unit
+
     mut func write(value: UInt16): Unit
+
     mut func write(value: UInt32): Unit
+
     mut func write(value: UInt64): Unit
+
     mut func write(value: Float16): Unit
+
     mut func write(value: Float32): Unit
+
     mut func write(value: Float64): Unit
+
     mut func write(value: String): Unit
 }
 
 public struct DefaultHasher <: Hasher {
+
     private var res: Int64 = 0
 
     public func finish(): Int64 {
@@ -931,6 +1048,7 @@ public struct DefaultHasher <: Hasher {
         let a: Int64 = -7046029254386353131 // 0x9e3779b97f4a7c15
         return seed ^ (hashV + a + (seed << 6) + (seed >> 2))
     }
+
     public init(res!: Int64 = 0) {
         this.res = res
     }
@@ -950,17 +1068,21 @@ const SECRET3 = 0x589965cc75374cc3u64
 
 @OverflowWrapping
 func wyrand(seed: Int64) {
+
     let v: UInt64 = UInt64(seed) + SECRET0
     return Int64(mix(v, v ^ SECRET1))
 }
 
 @OverflowWrapping
 func wyhash(arr: RawArray<UInt8>, start: Int64, size: Int64, see: UInt64) {
+
     var seed = see ^ mix(see ^ SECRET0, SECRET1)
     if (size == 0) {
         return seed
     }
+
     var a: UInt64
+
     var b: UInt64
     match {
         case size < 4 =>
@@ -1009,11 +1131,14 @@ func wyhash(arr: RawArray<UInt8>, start: Int64, size: Int64, see: UInt64) {
 
 @OverflowWrapping
 func wyhash(arr: RawArray<UInt8> @local?, start: Int64, size: Int64, see: UInt64) {
+
     var seed = see ^ mix(see ^ SECRET0, SECRET1)
     if (size == 0) {
         return seed
     }
+
     var a: UInt64
+
     var b: UInt64
     match {
         case size < 4 =>
@@ -1062,26 +1187,38 @@ func wyhash(arr: RawArray<UInt8> @local?, start: Int64, size: Int64, see: UInt64
 
 @OverflowWrapping
 func mix(A: UInt64, B: UInt64) {
+
     let ha: UInt64 = A >> 32
+
     let hb: UInt64 = B >> 32
+
     let la: UInt64 = UInt64(UInt32(A))
+
     let lb: UInt64 = UInt64(UInt32(B))
+
     let rh = ha * hb
+
     let rm0 = ha * lb
+
     let rm1 = hb * la
+
     let rl = la * lb
+
     let t = rl + (rm0 << 32)
+
     var c: UInt64 = if (t < rl) {
         1
     } else {
         0
     }
+
     let lo = t + (rm1 << 32)
     c += if (lo < t) {
         1
     } else {
         0
     }
+
     let hi = rh + (rm0 >> 32) + (rm1 >> 32) + c
     return lo ^ hi
 }

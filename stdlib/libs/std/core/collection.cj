@@ -14,8 +14,10 @@ package std.core
    Some collections allow duplicate elements and others do not.
    Some are ordered and others unordered.
    This interface is typically used to pass collections around and manipulate them where maximum generality is desired.
+
  */
 public interface Collection<T> <: Iterable<T> {
+
     // Returns the number of elements in this collection.
     prop size: Int64
 
@@ -26,13 +28,17 @@ public interface Collection<T> <: Iterable<T> {
         return Array<T>(this)
     }
 
+    @When[env != "ohos"]
     func isEmpty(this @local?): Bool {
         throw UnimplementedException("Current Type does not implement 'isEmpty' method for its @local? instance")
     }
 
+    @When[env != "ohos"]
     func toArray(this @local?): Array<T> @local? {
         throw UnimplementedException("Current Type does not implement 'toArray' method for its @local? instance")
     }
+
+    @When[env != "ohos"]
     func toArray(this @local!): Array<T> @local! {
         throw UnimplementedException("Current Type does not implement 'toArray' method for its @local! instance")
     }

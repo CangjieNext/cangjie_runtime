@@ -21,6 +21,7 @@ public func print(str: String, flush!: Bool = false): Unit {
 }
 
 @Frozen
+@When[env != "ohos"]
 public func print(str: String @local?, flush!: Bool = false): Unit {
     unsafe {
         var cp = acquireArrayRawData(str.rawData())
@@ -52,6 +53,7 @@ public func println(str: String): Unit {
 }
 
 @Frozen
+@When[env != "ohos"]
 public func println(str: String @local?): Unit {
     unsafe {
         var cp = acquireArrayRawData(str.rawData())
@@ -112,6 +114,7 @@ public func println<T>(arg: T): Unit where T <: ToString {
 }
 
 public func readln(): String {
+
     let ln = readFromConsole()
     if (ln.endsWith("\r\n")) {
         return ln[..ln.size - 2]
@@ -122,13 +125,17 @@ public func readln(): String {
 }
 
 private func readFromConsole(): String {
+
     let build: StringBuilder = StringBuilder()
+
     let line: CPointer<StructureString> = unsafe { CJ_CONSOLE_Readline() }
     if (line.isNull()) {
         unsafe { CJ_CONSOLE_ClearstdInerr() }
         throw IllegalStateException("Failed to read from console: I/O error or EOF.")
     }
+
     let str = unsafe { line.read() }
+
     var itemLen = Int64(str.length)
     try {
         var buffer: Array<Byte> = Array<Byte>(itemLen, repeat: 0)

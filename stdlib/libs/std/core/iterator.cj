@@ -12,12 +12,16 @@ package std.core
  * Implementing this interface allows an object to be the target of the "for-in loop" expression.
  */
 public interface Iterable<E> {
+
     /* Returns an iterator over elements of type E. */
     func iterator(): Iterator<E>
 
+    @When[env != "ohos"]
     func iterator(this @local!): Iterator<E> @local! {
         throw IllegalStateException("Current Type does not implement 'iterator' method for its @local! instance")
     }
+
+    @When[env != "ohos"]
     func iterator(this @local?): Iterator<E> @local? {
         throw IllegalStateException("Current Type does not implement 'iterator' method for its @local? instance")
     }
@@ -27,19 +31,28 @@ public interface Iterable<E> {
  * An iterator over a collection.
  */
 public abstract class Iterator<T> <: Iterable<T> {
+
     public func next(): Option<T>
+
+    @When[env != "ohos"]
     public open func next(this @local!): ?T @local! {
         throw IllegalStateException("Current Iterator does not implement 'next' method for its @local! instance")
     }
+
+    @When[env != "ohos"]
     public open func next(this @local?): ?T @local? {
         throw IllegalStateException("Current Iterator does not implement 'next' method for its @local? instance")
     }
 
     @Frozen
     public init() {}
+
     @Frozen
+    @When[env != "ohos"]
     public exclave init(this @local!) {}
+
     @Frozen
+    @When[env != "ohos"]
     public exclave init(this @local?) {}
 
     /*
@@ -49,14 +62,20 @@ public abstract class Iterator<T> <: Iterable<T> {
      */
     @Frozen
     public func iterator(): Iterator<T> { this }
+
     @Frozen
+    @When[env != "ohos"]
     public func iterator(this @local!): Iterator<T> @local! { this }
+
     @Frozen
+    @When[env != "ohos"]
     public func iterator(this @local?): Iterator<T> @local? { this }
 }
 
 class FilterIterator<T> <: Iterator<T> {
+
     private let predicate: (T) -> Bool
+
     private let it: Iterator<T>
 
     /*
@@ -88,7 +107,9 @@ class FilterIterator<T> <: Iterator<T> {
 }
 
 class MapIterator<T, R> <: Iterator<R> {
+
     private let transform: (T) -> R
+
     private let it: Iterator<T>
 
     /*
@@ -120,8 +141,11 @@ class MapIterator<T, R> <: Iterator<R> {
 }
 
 class StepIterator<T> <: Iterator<T> {
+
     private let _count: Int64
+
     private let it: Iterator<T>
+
     private var index: Int64 = 0
 
     /*
@@ -160,7 +184,9 @@ class StepIterator<T> <: Iterator<T> {
 }
 
 class SkipIterator<T> <: Iterator<T> {
+
     private var _count: Int64
+
     private let it: Iterator<T>
 
     /*
@@ -205,7 +231,9 @@ class SkipIterator<T> <: Iterator<T> {
  * If count < 0, an exception is throw.
  */
 class TakeIterator<T> <: Iterator<T> {
+
     private var _count: Int64
+
     private let it: Iterator<T>
 
     /*
@@ -240,7 +268,9 @@ class TakeIterator<T> <: Iterator<T> {
 }
 
 class ConcatIterator<T> <: Iterator<T> {
+
     private let it: Iterator<T>
+
     private let other: Iterator<T>
 
     /** Whether it is used up. */
@@ -278,8 +308,11 @@ class ConcatIterator<T> <: Iterator<T> {
 }
 
 class FlatMapIterator<T, R> <: Iterator<R> {
+
     private var subIt: Option<Iterator<R>> = None
+
     private let transform: (T) -> Iterable<R>
+
     private let it: Iterator<T>
 
     /*
@@ -325,7 +358,9 @@ class FlatMapIterator<T, R> <: Iterator<R> {
 }
 
 class ZipIterator<T, R> <: Iterator<(T, R)> {
+
     private let itt: Iterator<T>
+
     private let itr: Iterator<R>
 
     /*
@@ -354,8 +389,10 @@ class ZipIterator<T, R> <: Iterator<(T, R)> {
 }
 
 class EnumerateIterator<T> <: Iterator<(Int64, T)> {
+
     /** The record of the index when EnumerateIterator run next. */
     private var index: Int64 = -1
+
     private let it: Iterator<T>
 
     /*
@@ -384,7 +421,9 @@ class EnumerateIterator<T> <: Iterator<(Int64, T)> {
 }
 
 class FilterMapIterator<T, R> <: Iterator<R> {
+
     private let transform: (T) -> Option<R>
+
     private let it: Iterator<T>
 
     init(it: Iterator<T>, transform: (T) -> Option<R>) {
@@ -404,7 +443,9 @@ class FilterMapIterator<T, R> <: Iterator<R> {
 }
 
 class InspectIterator<T> <: Iterator<T> {
+
     private let action: (T) -> Unit
+
     private let it: Iterator<T>
 
     init(it: Iterator<T>, action: (T) -> Unit) {
@@ -424,9 +465,13 @@ class InspectIterator<T> <: Iterator<T> {
 }
 
 class IntersperseIterator<T> <: Iterator<T> {
+
     private let separator: T
+
     private let it: Iterator<T>
+
     private var item: ?T
+
     private var isInsert = false
 
     init(it: Iterator<T>, separator: T) {
@@ -450,6 +495,7 @@ class IntersperseIterator<T> <: Iterator<T> {
 }
 
 extend<T> Iterator<T> where T <: Equatable<T> {
+
     @Frozen
     public func contains(element: T): Bool {
         for (item in this.iterator()) {
@@ -462,6 +508,7 @@ extend<T> Iterator<T> where T <: Equatable<T> {
 }
 
 extend<T> Iterator<T> where T <: Comparable<T> {
+
     public func max(): Option<T> {
         var result: Option<T> = None
         for (item in this.iterator()) {
@@ -492,6 +539,7 @@ extend<T> Iterator<T> where T <: Comparable<T> {
 }
 
 extend<T> Iterator<T> {
+
     @Frozen
     public func zip<R>(it: Iterator<R>): Iterator<(T, R)> {
         return ZipIterator<T, R>(this, it)

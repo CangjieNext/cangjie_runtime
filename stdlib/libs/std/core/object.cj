@@ -11,10 +11,13 @@ package std.core
 public interface Any {}
 
 public open class Object <: Any {
+
     public const init() {}
 
+    @When[env != "ohos"]
     public exclave const init(this @local!) { }
 
+    @When[env != "ohos"]
     public exclave const init(this @local?) { }
 }
 
@@ -36,6 +39,7 @@ public func refEq(a: Object, b: Object): Bool {
  *
  * @return true means they are the same Object.
  */
+@When[env != "ohos"]
 public func refEq(a: Object @local?, b: Object @local?): Bool {
     return intrinsicRefEq(a, b)
 }

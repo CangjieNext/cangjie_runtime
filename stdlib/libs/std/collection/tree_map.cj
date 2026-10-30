@@ -20,6 +20,7 @@ const MIN_CHILD_SIZE: Int64 = DEGREE
 const MAX_CHILD_SIZE: Int64 = 2 * DEGREE
 
 public class TreeMap<K, V> <: OrderedMap<K, V> where K <: Comparable<K> {
+
     /* The number of entries in the TreeMap. */
     private var _size: Int64 = 0
 
@@ -150,6 +151,7 @@ public class TreeMap<K, V> <: OrderedMap<K, V> where K <: Comparable<K> {
             splitNode(newNode, this.root, 0)
             this.root = newNode
         }
+
         //Insert Node.
         return inserEntry(this.root, TreeMapEntry<K, V>(key, value))
     }
@@ -665,6 +667,7 @@ public class TreeMap<K, V> <: OrderedMap<K, V> where K <: Comparable<K> {
         }
         return TreeMapEntryView<K, V>(this, searchEntry(this.root, result))
     }
+
     /**
      * Generate an iterator in positive order from the current node to the end of the bound node.
      *
@@ -791,6 +794,7 @@ public class TreeMap<K, V> <: OrderedMap<K, V> where K <: Comparable<K> {
                     node.insertEntry(sr.index, entry)
                     return None
                 }
+
                 //Find the child node and determine whether to split it.
                 var childNode: Node<K, V> = node.getChild(sr.index).getOrThrow()
                 if (childNode.entrySize == MAX_ENTRY_SIZE) {
@@ -823,6 +827,7 @@ public class TreeMap<K, V> <: OrderedMap<K, V> where K <: Comparable<K> {
         for (i in MAX_ENTRY_SIZE - 1..DEGREE - 2 : -1) {
             splitNode.entries.remove(at: i)
         }
+
         //If the node to be split is not a leaf node, assign the child to the right node.
         if (!splitNode.isLeaf()) {
             for (i in DEGREE..MAX_CHILD_SIZE) {
@@ -834,6 +839,7 @@ public class TreeMap<K, V> <: OrderedMap<K, V> where K <: Comparable<K> {
                 splitNode.children.remove(at: i)
             }
         }
+
         //Raise the split element to the parent node.
         node.insertEntry(midEntry)
         node.insertChild(index + 1, rightNode)
@@ -874,6 +880,7 @@ public class TreeMap<K, V> <: OrderedMap<K, V> where K <: Comparable<K> {
                     if (curNode._parent.isNone()) {
                         break
                     }
+
                     //Find the parent node of the current node.
                     let psr: SearchResult<K, V> = parentOf(curNode)
                     let parent: Node<K, V> = psr.replaceNode.getOrThrow()
@@ -894,6 +901,7 @@ public class TreeMap<K, V> <: OrderedMap<K, V> where K <: Comparable<K> {
                         broNode?.deleteEntry(broNode.getOrThrow().entrySize - 1)
                         continue
                     }
+
                     //If there is a right brother, and the right brother has an extra element, borrow an element from him.
                     if (psr.index < parent.childrenSize - 1 && parent.getChild(psr.index + 1).getOrThrow().entrySize >
                         MIN_ENTRY_SIZE) {
@@ -910,6 +918,7 @@ public class TreeMap<K, V> <: OrderedMap<K, V> where K <: Comparable<K> {
                         broNode?.deleteEntry(0)
                         continue
                     }
+
                     //Left and right brothers do not have redundant elements. Merge left and right brothers and parent nodes.
                     if (psr.index > 0) {
                         //There's left brother
@@ -947,6 +956,7 @@ public class TreeMap<K, V> <: OrderedMap<K, V> where K <: Comparable<K> {
                         parent.deleteEntry(psr.index)
                         parent.deleteChild(psr.index + 1)
                     }
+
                     //If the parent node of the current node is the root node and there is no element left, the current node is the new root node.
                     if (parent._parent.isNone() && parent.isEmpty()) {
                         this.root = if (broNode.getOrThrow().isEmpty()) {
@@ -975,6 +985,7 @@ public class TreeMap<K, V> <: OrderedMap<K, V> where K <: Comparable<K> {
                 curSr = parentOf(curNode)
                 curNode = curSr.replaceNode.getOrThrow()
             }
+
             //Find the top-most parent node.
             if (curSr.index < 1) {
                 //If the predecessor node is not found, there is no.
@@ -983,6 +994,7 @@ public class TreeMap<K, V> <: OrderedMap<K, V> where K <: Comparable<K> {
 
             return SearchResult<K, V>(curSr.index - 1, curNode)
         }
+
         //If the current node is a non-leaf node, it must have a left child.
         var leftChild = curNode.getChild(sr.index).getOrThrow()
         //If the left child is a leaf node, the rightmost element is returned, otherwise the loop looks for its rightmost child.
@@ -1014,6 +1026,7 @@ public class TreeMap<K, V> <: OrderedMap<K, V> where K <: Comparable<K> {
                 curSr = parentOf(curNode)
                 curNode = curSr.replaceNode.getOrThrow()
             }
+
             //Find the top-most parent node
             if (curSr.index > curNode.entrySize - 1) {
                 //If the successor node is not found, then there is no.
@@ -1022,6 +1035,7 @@ public class TreeMap<K, V> <: OrderedMap<K, V> where K <: Comparable<K> {
 
             return SearchResult<K, V>(curSr.index, curNode)
         }
+
         //If the current node is a non-leaf node, it must have a right child.
         var rightChild = curNode.getChild(curSr.index + 1).getOrThrow()
         //If the right child is a leaf node, the leftmost element is returned, otherwise the loop looks for its leftmost child.
@@ -1053,6 +1067,7 @@ public class TreeMap<K, V> <: OrderedMap<K, V> where K <: Comparable<K> {
 }
 
 extend<K, V> TreeMap<K, V> <: ToString where V <: ToString, K <: ToString & Comparable<K> {
+
     /**
      * Returns the string form of a TreeMap
      *
@@ -1123,10 +1138,15 @@ extend<K, V> TreeMap<K, V> <: Equatable<TreeMap<K, V>> where V <: Equatable<V> {
 }
 
 struct TreeMapEntryView<K, V> <: MapEntryView<K, V> where K <: Comparable<K> {
+
     let map: TreeMap<K, V>
+
     var curNode: SearchResult<K, V>
+
     var lockVersion: Int64
+
     var _key: ?K
+
     init(map: TreeMap<K, V>, curNode: SearchResult<K, V>, key!: ?K = None) {
         this.map = map
         this.curNode = curNode
@@ -1199,11 +1219,14 @@ struct TreeMapEntryView<K, V> <: MapEntryView<K, V> where K <: Comparable<K> {
 
     // TreeMap is not adapted to local mode (it has no local members at all); no valid instance exists
     // in a local context, so the local form of MapEntryView is explicitly rejected.
+    @When[env != "ohos"]
     public prop key: K @local? {
         get() {
             throw UnimplementedException("TreeMapEntryView does not support local mode")
         }
     }
+
+    @When[env != "ohos"]
     public mut prop value: ?V @local! {
         get() {
             throw UnimplementedException("TreeMapEntryView does not support local mode")
@@ -1229,8 +1252,11 @@ struct TreeMapEntryView<K, V> <: MapEntryView<K, V> where K <: Comparable<K> {
 }
 
 class ForwardIterator<K, V> <: Iterator<(K, V)> where K <: Comparable<K> {
+
     private var curNode: TreeMapEntryView<K, V>
+
     private var key: K
+
     private var inclusive: Bool
 
     /**
@@ -1275,8 +1301,11 @@ class ForwardIterator<K, V> <: Iterator<(K, V)> where K <: Comparable<K> {
 }
 
 class BackwardIterator<K, V> <: Iterator<(K, V)> where K <: Comparable<K> {
+
     private var curNode: TreeMapEntryView<K, V>
+
     private var key: K
+
     private var inclusive: Bool
 
     /**
@@ -1332,7 +1361,9 @@ func checkVersion<K, V>(node: TreeMapEntryView<K, V>) where K <: Comparable<K> {
  * @since 0.43.1
  */
 class TreeMapKeys<K, V> <: EquatableCollection<K> where K <: Comparable<K> {
+
     private let map: TreeMap<K, V>
+
     public init(m: TreeMap<K, V>) {
         this.map = m
     }
@@ -1404,6 +1435,7 @@ class TreeMapKeys<K, V> <: EquatableCollection<K> where K <: Comparable<K> {
  * @since 0.43.1
  */
 class TreeMapValues<K, V> <: Collection<V> where K <: Comparable<K> {
+
     private let map: TreeMap<K, V>
 
     public init(m: TreeMap<K, V>) {
@@ -1453,6 +1485,7 @@ class TreeMapValues<K, V> <: Collection<V> where K <: Comparable<K> {
  * @since 0.43.1
  */
 class TreeMapIterator<K, V> <: Iterator<(K, V)> where K <: Comparable<K> {
+
     private var curNode: TreeMapEntryView<K, V>
 
     /**
@@ -1488,8 +1521,11 @@ class TreeMapIterator<K, V> <: Iterator<(K, V)> where K <: Comparable<K> {
 }
 
 class Node<K, V> where K <: Comparable<K> {
+
     var entries: ArrayList<TreeMapEntry<K, V>>
+
     var _parent: ?Node<K, V>
+
     var children: ArrayList<Node<K, V>>
 
     static func nullNode(): ?Node<K, V> {
@@ -1600,7 +1636,9 @@ class Node<K, V> where K <: Comparable<K> {
 }
 
 struct SearchResult<K, V> where K <: Comparable<K> {
+
     private var _index: Int64
+
     private var _replaceNode: ?Node<K, V>
 
     init(index: Int64, node: ?Node<K, V>) {
@@ -1622,7 +1660,9 @@ struct SearchResult<K, V> where K <: Comparable<K> {
 }
 
 class TreeMapEntry<K, V> where K <: Comparable<K> {
+
     private var _key: K
+
     private var _value: V
 
     init(key: K, value: V) {
