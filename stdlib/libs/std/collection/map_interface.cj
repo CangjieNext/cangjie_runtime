@@ -14,11 +14,14 @@
 package std.collection
 
 public interface MapEntryView<K, V> {
+    // The plain forms carry throwing default bodies so that a plain receiver resolves to the plain
+    // member instead of being captured by the @local?/@local! overloads below.
     prop key: K {
         get() {
             throw UnimplementedException("Current Type does not implement 'key' property")
         }
     }
+
     mut prop value: ?V {
         get() {
             throw UnimplementedException("Current Type does not implement 'value' property")
@@ -27,6 +30,7 @@ public interface MapEntryView<K, V> {
             throw UnimplementedException("Current Type does not implement 'value' property")
         }
     }
+
     // The @local?/@local! forms carry throwing default bodies; the plain forms must also carry bodies so
     // that a plain receiver resolves to the plain member instead of being captured by the @local? one.
     prop key: K @local? {
@@ -34,6 +38,7 @@ public interface MapEntryView<K, V> {
             throw UnimplementedException("Current Type does not implement 'key' property for its @local? instance")
         }
     }
+
     mut prop value: ?V @local! {
         get() {
             throw UnimplementedException("Current Type does not implement 'value' property for its @local! instance")
@@ -42,13 +47,23 @@ public interface MapEntryView<K, V> {
             throw UnimplementedException("Current Type does not implement 'value' property for its @local! instance")
         }
     }
+
+    @When[env == "ohos"]
+    prop key: K
+
+    @When[env == "ohos"]
+    mut prop value: ?V
 }
 
 public interface ReadOnlyMap<K, V> <: Collection<(K, V)> {
     func get(key: K): ?V
+
     func contains(key: K): Bool
+
     func contains(all!: Collection<K>): Bool
+
     func keys(): EquatableCollection<K>
+
     func values(): Collection<V>
 
     operator func [](key: K): V
@@ -56,30 +71,39 @@ public interface ReadOnlyMap<K, V> <: Collection<(K, V)> {
     func get(this @local!, key: K @local?): ?V @local! {
         throw UnimplementedException("Current Type does not implement 'get' method for its @local! instance")
     }
+
     func get(this @local?, key: K @local?): ?V @local? {
         throw UnimplementedException("Current Type does not implement 'get' method for its @local? instance")
     }
+
     operator func [](this @local!, key: K @local?): V @local! {
         throw UnimplementedException("Current Type does not implement '[]' method for its @local! instance")
     }
+
     operator func [](this @local?, key: K @local?): V @local? {
         throw UnimplementedException("Current Type does not implement '[]' method for its @local? instance")
     }
+
     func contains(this @local?, key: K @local?): Bool {
         throw UnimplementedException("Current Type does not implement 'contains' method for its @local? instance")
     }
+
     func contains(this @local?, all!: Collection<K> @local?): Bool {
         throw UnimplementedException("Current Type does not implement 'contains' method for its @local? instance")
     }
+
     func keys(this @local!): EquatableCollection<K> @local! {
         throw UnimplementedException("Current Type does not implement 'keys' method for its @local! instance")
     }
+
     func keys(this @local?): EquatableCollection<K> @local? {
         throw UnimplementedException("Current Type does not implement 'keys' method for its @local? instance")
     }
+
     func values(this @local!): Collection<V> @local! {
         throw UnimplementedException("Current Type does not implement 'values' method for its @local! instance")
     }
+
     func values(this @local?): Collection<V> @local? {
         throw UnimplementedException("Current Type does not implement 'values' method for its @local? instance")
     }
@@ -160,21 +184,27 @@ public interface Map<K, V> <: ReadOnlyMap<K, V> {
     func add(this @local!, key: K @local!, value: V @local!): ?V @local! {
         throw UnimplementedException("Current Type does not implement 'add' method for its @local! instance")
     }
+
     func add(this @local!, all!: Collection<(K, V)> @local!): Unit {
         throw UnimplementedException("Current Type does not implement 'add' method for its @local! instance")
     }
+
     func remove(this @local!, key: K @local?): Option<V> @local! {
         throw UnimplementedException("Current Type does not implement 'remove' method for its @local! instance")
     }
+
     func remove(this @local!, all!: Collection<K> @local?): Unit {
         throw UnimplementedException("Current Type does not implement 'remove' method for its @local! instance")
     }
+
     func removeIf(this @local!, predicate: ((K @local?, V @local?) -> Bool) @local?): Unit {
         throw UnimplementedException("Current Type does not implement 'removeIf' method for its @local! instance")
     }
+
     func clear(this @local!): Unit {
         throw UnimplementedException("Current Type does not implement 'clear' method for its @local! instance")
     }
+
     operator func [](this @local!, key: K @local!, value!: V @local!): Unit {
         throw UnimplementedException("Current Type does not implement '[]' method for its @local! instance")
     }
@@ -184,6 +214,7 @@ public interface Map<K, V> <: ReadOnlyMap<K, V> {
     func entryView(this @local!, k: K @local!): MapEntryView<K, V> @local! {
         throw UnimplementedException("Current Type does not implement 'entryView' method for its @local! instance")
     }
+
     func entryView(this @local?, k: K @local!): MapEntryView<K, V> @local? {
         throw UnimplementedException("Current Type does not implement 'entryView' method for its @local? instance")
     }
@@ -276,6 +307,7 @@ public interface EquatableCollection<T> <: Collection<T> {
     func contains(this @local?, element: T @local?): Bool {
         throw UnimplementedException("Current Type does not implement 'contains' method for its @local? instance")
     }
+
     func contains(this @local?, all!: Collection<T> @local?): Bool {
         throw UnimplementedException("Current Type does not implement 'contains' method for its @local? instance")
     }
@@ -283,10 +315,14 @@ public interface EquatableCollection<T> <: Collection<T> {
 
 public interface OrderedMap<K, V> <: Map<K, V> {
     prop first: ?(K, V)
+
     prop last: ?(K, V)
+
     func removeFirst(): ?(K, V)
+
     func removeLast(): ?(K, V)
 
     func backward(mark: K, inclusive!: Bool): Iterator<(K, V)>
+
     func forward(mark: K, inclusive!: Bool): Iterator<(K, V)>
 }

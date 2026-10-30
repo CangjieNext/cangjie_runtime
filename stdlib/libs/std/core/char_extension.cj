@@ -117,11 +117,13 @@ extend Rune {
         if (byte < HIGH_1_UInt8) {
             return 1
         }
+
         // 0b_10xx_xxxx is not a Unicode Code Point's boundary, throw exception in this case
         if (byte < HIGH_2_UInt8) {
             var (char, _) = getPreviousFromUtf8(arr, index)
             throw IllegalArgumentException("Byte index ${index} is not a Rune boundary, it is inside '${char}'.")
         }
+
         // 0b_1111_1xxx and above are invalid UTF-8 sequences (5-6 byte sequences not allowed in Unicode)
         if (byte >= HIGH_5_UInt8) {
             throw IllegalArgumentException("Invalid UTF-8 character.")
@@ -271,6 +273,28 @@ extend Rune {
     /*
      * @throws IllegalArgumentException if the character occupies a position beyond the array range
      */
+    private static func checkIndexValid(c: Rune, arr: Array<UInt8>, index: Int64): Unit {
+        if (index < 0) {
+            throw IllegalArgumentException("Invalid argument 'index': expected a non-negative value, got '${index}'.")
+        }
+        let ch = UInt32(c)
+        let arrSize = arr.size
+        let lengthOfCharBytes = if (ch <= UTF8_1_MAX) {
+            1
+        } else if (ch <= UTF8_2_MAX) {
+            2
+        } else if (ch <= UTF8_3_MAX) {
+            3
+        } else if (ch <= UTF8_4_MAX) {
+            4
+        } else {
+            throw IllegalArgumentException("Invalid Unicode scalar value: code point exceeds U+10FFFF.")
+        }
+        if (lengthOfCharBytes + index > arrSize) {
+            throw IllegalArgumentException("Rune requires '${lengthOfCharBytes}' bytes for UTF-8 encoding, but array has only '${arrSize - index}' bytes available from index '${index}'.")
+        }
+    }
+
     private static func checkIndexValid(c: Rune, arr: Array<UInt8> @local?, index: Int64): Unit {
         if (index < 0) {
             throw IllegalArgumentException("The index cannot be less than 0.")
