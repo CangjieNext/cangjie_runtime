@@ -169,6 +169,58 @@ public class TreeMap<K, V> <: OrderedMap<K, V> where K <: Comparable<K> {
     }
 
     /**
+     * Associates the specified value with the specified key in this map if the key is absent.
+     *
+     * @param key the key to put.
+     * @param value the value to set if absent.
+     *
+     * @return:
+     * - Some(v): if the @p key exists in map before invoking this method, return the old value.
+     * - None: if @p key is not in the map, set the @p key and @p value pair and return None.
+     *
+     * @since 0.59.3
+     */
+    public func addIfAbsent(key: K, value: V): ?V {
+        // Overrides the default implementation in Map: the entryView-based default searches
+        // the tree once to build the view and twice more inside its value setter when the
+        // key is missing. The hit path below searches only once.
+        let sr: SearchResult<K, V> = searchEntryFromRoot(key)
+        if (let Some(node) <- sr.replaceNode) {
+            return Some(node.getEntry(sr.index).getOrThrow().value)
+        }
+        add(key, value)
+        return Option<V>.None
+    }
+
+    /**
+     * Replaces the value associated with @p key to @p value,
+     * if there exists a pair of @p key and some value v in this map.
+     * Otherwise, just returns 'None' and does nothing.
+     *
+     * @param key the key of the key-value pair, whose value needs to be replaced.
+     * @param value the value to be set.
+     *
+     * @return:
+     * - Some(v): if the pair of @p key and v exists in map before invoking this method.
+     * - None: if @p key is not in the map.
+     *
+     * @since 0.59.3
+     */
+    public func replace(key: K, value: V): ?V {
+        // Overrides the default implementation in Map: the entryView-based default searches
+        // the tree once to build the view and validates the version twice, while nothing can
+        // modify the map in between.
+        let sr: SearchResult<K, V> = searchEntryFromRoot(key)
+        if (let Some(node) <- sr.replaceNode) {
+            let entry: TreeMapEntry<K, V> = node.getEntry(sr.index).getOrThrow()
+            let oldValue: Option<V> = Some(entry.value)
+            entry.value = value
+            return oldValue
+        }
+        return Option<V>.None
+    }
+
+    /**
      * Removes the key-value pair corresponding to the key based on the specified key from this mapping, if one exists.
      *
      * @param key pass in the key to be deleted.

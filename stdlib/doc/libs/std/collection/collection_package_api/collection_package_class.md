@@ -4908,6 +4908,23 @@ main() {
 当前 'first' 的值: 200
 ```
 
+### func addIfAbsent(K, V)
+
+```cangjie
+public func addIfAbsent(key: K, value: V): ?V
+```
+
+功能：如果 key 不在当前 [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 中，添加指定键值对 key-value。否则不做修改。
+
+参数：
+
+- key: K - 待添加键值对的键。
+- value: V - 待添加键值对的值。
+
+返回值：
+
+- [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)\<V> - 如果调用该函数时当前 [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 中已有指定的 key，返回该 key 对应的旧值，否则返回 [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)\<V>.None。
+
 <!--Del-->
 ### func all((K, V) -> Bool)
 
@@ -5980,6 +5997,23 @@ main() {
 删除后大小: 2
 键 'b' 仍存在，值为: 2
 ```
+
+### func replace(K, V)
+
+```cangjie
+public func replace(key: K, value: V): ?V
+```
+
+功能：如果当前 [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 中已有指定 key，将其值修改为 value。否则不做修改。
+
+参数：
+
+- key: K - 待修改键值对的键。
+- value: V - 待修改键值对的新值。
+
+返回值：
+
+- [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)\<V> - 如果当前 [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 中已有指定 key，返回其旧值。否则返回 [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)\<V>.None。
 
 ### func reserve(Int64)
 
@@ -11518,6 +11552,23 @@ main() {
 最终的TreeMap: [(apple, 15), (banana, 20)]
 ```
 
+### func addIfAbsent(K, V)
+
+```cangjie
+public func addIfAbsent(key: K, value: V): ?V
+```
+
+功能：如果 key 不在当前 [TreeMap](collection_package_class.md#class-treemapk-v-where-k--comparablek) 中，添加指定键值对 key-value。否则不做修改。
+
+参数：
+
+- key: K - 待添加键值对的键。
+- value: V - 待添加键值对的值。
+
+返回值：
+
+- [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)\<V> - 如果调用该函数时当前 [TreeMap](collection_package_class.md#class-treemapk-v-where-k--comparablek) 中已有指定的 key，返回该 key 对应的旧值，否则返回 [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)\<V>.None。
+
 <!--Del-->
 ### func all((K, V) -> Bool)
 
@@ -12867,6 +12918,23 @@ main() {
 删除前的TreeMap: [(apple, 10), (banana, 20), (cherry, 30), (date, 40), (elderberry, 50), (fig, 60)]
 删除值大于30的元素后: [(apple, 10), (banana, 20), (cherry, 30)]
 ```
+
+### func replace(K, V)
+
+```cangjie
+public func replace(key: K, value: V): ?V
+```
+
+功能：如果当前 [TreeMap](collection_package_class.md#class-treemapk-v-where-k--comparablek) 中已有指定 key，将其值修改为 value。否则不做修改。
+
+参数：
+
+- key: K - 待修改键值对的键。
+- value: V - 待修改键值对的新值。
+
+返回值：
+
+- [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)\<V> - 如果当前 [TreeMap](collection_package_class.md#class-treemapk-v-where-k--comparablek) 中已有指定 key，返回其旧值。否则返回 [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)\<V>.None。
 
 ### func removeLast()
 

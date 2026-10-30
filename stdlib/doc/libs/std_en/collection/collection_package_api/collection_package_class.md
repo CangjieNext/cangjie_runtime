@@ -4631,6 +4631,23 @@ Size after adding collection: 3
 Value for 'a' after adding collection: 10
 ```
 
+### func addIfAbsent(K, V)
+
+```cangjie
+public func addIfAbsent(key: K, value: V): ?V
+```
+
+Function: Adds the specified key-value pair if the key is not already present in the current [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek). Otherwise, makes no modifications.
+
+Parameters:
+
+- key: K - The key of the key-value pair to be added.
+- value: V - The value of the key-value pair to be added.
+
+Returns:
+
+- [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)\<V> - Returns the old value if the key was already present, otherwise returns None.
+
 ### func all((K, V) -> Bool)
 
 ```cangjie
@@ -5398,6 +5415,23 @@ Size before removal: 4
 Size after removal: 2
 Key 'b' still exists with value: 2
 ```
+
+### func replace(K, V)
+
+```cangjie
+public func replace(key: K, value: V): ?V
+```
+
+Function: Replaces the value for the specified key with the new value if the key is present in the current [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek). Otherwise, makes no modifications.
+
+Parameters:
+
+- key: K - The key of the key-value pair to be modified.
+- value: V - The new value for the key-value pair.
+
+Returns:
+
+- [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)\<V> - Returns the old value if the key was present, otherwise returns None.
 
 ### func reserve(Int64)
 
@@ -11027,6 +11061,23 @@ d: 4
 e: 5
 ```
 
+### func addIfAbsent(K, V)
+
+```cangjie
+public func addIfAbsent(key: K, value: V): ?V
+```
+
+Function: Adds the specified key-value pair if the key is not already present in the current [TreeMap](collection_package_class.md#class-treemapk-v-where-k--comparablek). Otherwise, makes no modifications.
+
+Parameters:
+
+- key: K - The key of the key-value pair to be added.
+- value: V - The value of the key-value pair to be added.
+
+Returns:
+
+- [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)\<V> - Returns the old value if the key was already present, otherwise returns None.
+
 ### func all((K, V) -> Bool)
 
 ```cangjie
@@ -12019,6 +12070,23 @@ Size after removal: 3
 Removed first element again: (banana, 20)
 Final TreeMap: [(cherry, 30), (date, 40)]
 ```
+
+### func replace(K, V)
+
+```cangjie
+public func replace(key: K, value: V): ?V
+```
+
+Function: Replaces the value for the specified key with the new value if the key is present in the current [TreeMap](collection_package_class.md#class-treemapk-v-where-k--comparablek). Otherwise, makes no modifications.
+
+Parameters:
+
+- key: K - The key of the key-value pair to be modified.
+- value: V - The new value for the key-value pair.
+
+Returns:
+
+- [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)\<V> - Returns the old value if the key was present, otherwise returns None.
 
 ### func removeLast()
 
