@@ -116,13 +116,15 @@ public interface Map<K, V> <: ReadOnlyMap<K, V> {
      */
     @Frozen
     func addIfAbsent(key: K, value: V): ?V {
-        var view = entryView(key)
-        return match (view.value) {
-            case None =>
-                view.value = value
-                None
-            case _ => view.value
+        // Use get/add instead of entryView: entryView allocates a view object on every
+        // call for some implementations (e.g. HashMap), which dominates the cost of
+        // what is otherwise a single lookup.
+        let oldValue: ?V = get(key)
+        if (oldValue.isSome()) {
+            return oldValue
         }
+        add(key, value)
+        return None
     }
 
     /**
@@ -141,13 +143,14 @@ public interface Map<K, V> <: ReadOnlyMap<K, V> {
      */
     @Frozen
     func replace(key: K, value: V): ?V {
-        var view = entryView(key)
-        return match (view.value) {
-            case Some(v) =>
-                view.value = value
-                v
-            case _ => None
+        // Same reason as addIfAbsent: avoid the per-call entryView allocation, and do
+        // not rely on the return value of add() so that one extra get() is enough.
+        let oldValue: ?V = get(key)
+        if (!oldValue.isSome()) {
+            return None
         }
+        add(key, value)
+        return oldValue
     }
 }
 
