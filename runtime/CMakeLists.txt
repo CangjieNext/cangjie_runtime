@@ -12,6 +12,17 @@ if (OHOS_FLAG MATCHES 1 OR OHOS_FLAG MATCHES 2 OR OHOS_FLAG MATCHES 3)
     set(CMAKE_CXX_COMPILER_WORKS 1)
 endif()
 
+# OHOS only needs .gnu.hash: the .hash table is only looked up by very old linkers, and the OHOS
+# loader resolves symbols through .gnu.hash. The OHOS clang driver still defaults to
+# --hash-style=both, which costs about 20 KB of .hash in libcangjie-runtime.so alone, so pin the
+# hash style explicitly instead of relying on the toolchain default. Kept as a separate variable
+# (and left empty for every other target) so that no other platform changes its output.
+if (OHOS_FLAG IN_LIST OHOS_FLAG_LIST)
+    set(CJ_OHOS_HASH_STYLE_FLAG "-Wl,--hash-style=gnu")
+else()
+    set(CJ_OHOS_HASH_STYLE_FLAG "")
+endif()
+
 # 1 means android_aarch64, 2 means android_x86_64, 3 means android_arm
 if (ANDROID_FLAG MATCHES 1 OR ANDROID_FLAG MATCHES 2 OR ANDROID_FLAG MATCHES 3)
     set(ANDROID_OS "linux")
@@ -66,6 +77,17 @@ endif()
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/config.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/SetupAr.cmake)
+
+# OHOS only needs .gnu.hash: the .hash table is consulted by very old linkers only, and the OHOS
+# loader resolves symbols through .gnu.hash. The OHOS clang driver still defaults to
+# --hash-style=both, which costs about 20 KB of .hash in libcangjie-runtime.so, so pin the hash
+# style here, after config.cmake has defined OHOS_FLAG_LIST and before any shared target is
+# created. This has to be CMAKE_SHARED_LINKER_FLAGS rather than the flags of a single target so
+# that it covers cangjie-runtime and cangjie-demangle-shared, while leaving static libraries and
+# executables untouched.
+if (OHOS_FLAG IN_LIST OHOS_FLAG_LIST)
+    set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--hash-style=gnu")
+endif()
 
 message("-- BUILD_CJTHREAD: " ${BUILD_CJTHREAD})
 message("-- BUILD_RUNTIME: "   ${BUILD_RUNTIME})
@@ -311,7 +333,7 @@ if (MACOS_FLAG MATCHES 1 OR IOS_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MATCHES 1 O
     set(COMMON_LINK_FLAGS "-rdynamic")
 else()
     set(COMMON_LINK_FLAGS "-Wl,-z,relro -Wl,-z,now -Wl,-z,noexecstack -Wl,--gc-sections \
-        -Wl,-Bsymbolic -Wl,--no-undefined -rdynamic ${LINK_SCRIPTS}")
+        -Wl,-Bsymbolic -Wl,--no-undefined -rdynamic ${CJ_OHOS_HASH_STYLE_FLAG} ${LINK_SCRIPTS}")
 endif()
 
 if (COV MATCHES 1)
