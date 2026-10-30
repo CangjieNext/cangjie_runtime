@@ -392,6 +392,7 @@ extend IntNative <: Comparable<IntNative> {
             case _ => Ordering.EQ
         }
     }
+
     public func compare(this @local?, other: IntNative @local?): Ordering {
         let a: IntNative = this
         let b: IntNative = other
@@ -573,6 +574,7 @@ extend Int32 <: Comparable<Int32> {
     public operator func !=(other: Int32): Bool {
         return Int32NotEqual(this, other)
     }
+
     public func compare(this @local?, other: Int32 @local?): Ordering {
         let a: Int32 = this
         let b: Int32 = other
@@ -663,6 +665,7 @@ extend Int16 <: Comparable<Int16> {
     public operator func !=(other: Int16): Bool {
         return Int16NotEqual(this, other)
     }
+
     public func compare(this @local?, other: Int16 @local?): Ordering {
         let a: Int16 = this
         let b: Int16 = other
@@ -753,6 +756,7 @@ extend Int8 <: Comparable<Int8> {
     public operator func !=(other: Int8): Bool {
         return Int8NotEqual(this, other)
     }
+
     public func compare(this @local?, other: Int8 @local?): Ordering {
         let a: Int8 = this
         let b: Int8 = other
@@ -813,6 +817,7 @@ extend UIntNative <: Comparable<UIntNative> {
             case _ => Ordering.EQ
         }
     }
+
     public func compare(this @local?, other: UIntNative @local?): Ordering {
         let a: UIntNative = this
         let b: UIntNative = other
@@ -903,6 +908,7 @@ extend UInt64 <: Comparable<UInt64> {
     public operator func !=(other: UInt64): Bool {
         return UInt64NotEqual(this, other)
     }
+
     public func compare(this @local?, other: UInt64 @local?): Ordering {
         let a: UInt64 = this
         let b: UInt64 = other
@@ -993,6 +999,7 @@ extend UInt32 <: Comparable<UInt32> {
     public operator func !=(other: UInt32): Bool {
         return UInt32NotEqual(this, other)
     }
+
     public func compare(this @local?, other: UInt32 @local?): Ordering {
         let a: UInt32 = this
         let b: UInt32 = other
@@ -1083,6 +1090,7 @@ extend UInt16 <: Comparable<UInt16> {
     public operator func !=(other: UInt16): Bool {
         return UInt16NotEqual(this, other)
     }
+
     public func compare(this @local?, other: UInt16 @local?): Ordering {
         let a: UInt16 = this
         let b: UInt16 = other
@@ -1173,6 +1181,7 @@ extend UInt8 <: Comparable<UInt8> {
     public operator func !=(other: UInt8): Bool {
         return UInt8NotEqual(this, other)
     }
+
     public func compare(this @local?, other: UInt8 @local?): Ordering {
         let a: UInt8 = this
         let b: UInt8 = other
@@ -1263,6 +1272,7 @@ extend Float16 <: Comparable<Float16> {
     public operator func !=(other: Float16): Bool {
         return Float16NotEqual(this, other)
     }
+
     public func compare(this @local?, other: Float16 @local?): Ordering {
         let a: Float16 = this
         let b: Float16 = other
@@ -1353,6 +1363,7 @@ extend Float32 <: Comparable<Float32> {
     public operator func !=(other: Float32): Bool {
         return Float32NotEqual(this, other)
     }
+
     public func compare(this @local?, other: Float32 @local?): Ordering {
         let a: Float32 = this
         let b: Float32 = other
@@ -1443,6 +1454,7 @@ extend Float64 <: Comparable<Float64> {
     public operator func !=(other: Float64): Bool {
         return Float64NotEqual(this, other)
     }
+
     public func compare(this @local?, other: Float64 @local?): Ordering {
         let a: Float64 = this
         let b: Float64 = other

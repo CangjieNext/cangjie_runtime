@@ -25,6 +25,7 @@ type KeyValue<K, V> = (Int64, K, V)
  */
 class KVList<K, V> where K <: Equatable<K> {
     var myData: Array<KeyValue<K, V>>
+
     var mySize: Int64
 
     /**
@@ -338,6 +339,7 @@ struct Bucket<K, V> where K <: Equatable<K> {
  */
 class MutexLockGroup {
     let mutexes: Array<Mutex>
+
     private let mod: Int64
 
     init(cap: Int64) {
@@ -361,12 +363,18 @@ class MutexLockGroup {
 class HNode<K, V> where K <: Hashable & Equatable<K> {
     /* The collection of the buckets of the hash table */
     let buckets: Array<Bucket<K, V>>
+
     /* Freeze flags mark whether the corresponding bucket is frozen */
     var freezeFlags: Array<Bool>
+
     let lockG: MutexLockGroup
+
     let version: Int64
+
     let migratingIndex = AtomicInt64(0)
+
     let migratedIndex = AtomicInt64(0)
+
     /**
      * The reference of the previous hash table,
      * which is the current hash table before the latest size extension.
@@ -463,7 +471,9 @@ class HNode<K, V> where K <: Hashable & Equatable<K> {
 
 class ConcurrentHashMapEntryView<K, V> <: MapEntryView<K, V> {
     let _key: K
+
     var _value: ?V
+
     var update: Bool = false
 
     ConcurrentHashMapEntryView(key: K, value: ?V) {
@@ -494,6 +504,7 @@ class ConcurrentHashMapEntryView<K, V> <: MapEntryView<K, V> {
             throw UnimplementedException("ConcurrentHashMapEntryView does not support local mode")
         }
     }
+
     public mut prop value: ?V @local! {
         get() {
             throw UnimplementedException("ConcurrentHashMapEntryView does not support local mode")
