@@ -33,47 +33,57 @@ func checkIndexInInsertRange(index: Int64, size: Int64): Unit {
 
 // Range validation for slicing is one contract, so the plain, `@local!` and `@local?` rangeSlice
 // bodies share this definition and keep only their own array slicing and list construction.
+// The three steps are separate so each reads as one rule: the start bound, the end bound, and the
+// ordering between them.
 @Frozen
 private func validatedListSliceBounds(range: Range<Int64>, size: Int64): (Int64, Int64) {
     if (range.step != 1) {
         throw IllegalArgumentException("Illegal step ${range.step}, step should be 1.")
     }
+    let start = validatedSliceStart(range, size)
+    let end = validatedSliceEnd(range, size)
+    if (start > end) {
+        throw IndexOutOfBoundsException("The start ${start} is greater than the end ${end}.")
+    }
+    return (start, end)
+}
 
+// Resolves the lower bound and rejects one that falls outside [0, size].
+@Frozen
+private func validatedSliceStart(range: Range<Int64>, size: Int64): Int64 {
     let start = if (range.hasStart) {
         range.start
     } else {
         0
     }
-
     if (start > size) {
         throw IndexOutOfBoundsException("Range start ${start} is greater than the size ${size}.")
-    } else if (range.start < 0) {
+    }
+    if (range.start < 0) {
         throw IndexOutOfBoundsException("Range start ${start} is less than 0.")
     }
+    return start
+}
 
-    let end = if (range.hasEnd) {
-        if (range.isClosed) {
-            if (range.end >= size) {
-                throw IndexOutOfBoundsException(
-                    "The closed end of the range ${range.end} is greater than or equal to the size ${size}.")
-            }
-            range.end + 1
-        } else {
-            if (range.end > size) {
-                throw IndexOutOfBoundsException(
-                    "The opened end of the range ${range.end} is greater than the size ${size}.")
-            }
-            range.end
+// Resolves the upper bound, which is exclusive: a closed range gains one, and an absent end means
+// the size. A closed end equal to the size and an open end past it are both out of range.
+@Frozen
+private func validatedSliceEnd(range: Range<Int64>, size: Int64): Int64 {
+    if (!range.hasEnd) {
+        return size
+    }
+    if (range.isClosed) {
+        if (range.end >= size) {
+            throw IndexOutOfBoundsException(
+                "The closed end of the range ${range.end} is greater than or equal to the size ${size}.")
         }
-    } else {
-        size
+        return range.end + 1
     }
-
-    if (start > end) {
-        throw IndexOutOfBoundsException("The start ${start} is greater than the end ${end}.")
+    if (range.end > size) {
+        throw IndexOutOfBoundsException(
+            "The opened end of the range ${range.end} is greater than the size ${size}.")
     }
-
-    return (start, end)
+    return range.end
 }
 
 /**
