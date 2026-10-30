@@ -21,45 +21,59 @@ public interface ReadOnlyList<T> <: Collection<T> {
             throw UnimplementedException("Current Type does not implement 'first' property")
         }
     }
+
     prop last: ?T {
         get() {
             throw UnimplementedException("Current Type does not implement 'last' property")
         }
     }
+
     func get(index: Int64): ?T
     func get(this @local!, index: Int64): ?T @local! {
         throw UnimplementedException("Current Type does not implement 'get' method for its @local! instance")
     }
+
     func get(this @local?, index: Int64): ?T @local? {
         throw UnimplementedException("Current Type does not implement 'get' method for its @local? instance")
     }
+
     operator func [](index: Int64): T
     operator func [](this @local!, index: Int64): T @local! {
         throw UnimplementedException("Current Type does not implement '[]' method for its @local! instance")
     }
+
     operator func [](this @local?, index: Int64): T @local? {
         throw UnimplementedException("Current Type does not implement '[]' method for its @local? instance")
     }
+
     prop first: ?T @local! {
         get() {
             throw UnimplementedException("Current Type does not implement 'first' property for its @local! instance")
         }
     }
+
     prop first: ?T @local? {
         get() {
             throw UnimplementedException("Current Type does not implement 'first' property for its @local? instance")
         }
     }
+
     prop last: ?T @local! {
         get() {
             throw UnimplementedException("Current Type does not implement 'last' property for its @local! instance")
         }
     }
+
     prop last: ?T @local? {
         get() {
             throw UnimplementedException("Current Type does not implement 'last' property for its @local? instance")
         }
     }
+
+    @When[env == "ohos"]
+    prop first: ?T
+    @When[env == "ohos"]
+    prop last: ?T
 }
 
 public interface List<T> <: ReadOnlyList<T> {
@@ -75,27 +89,35 @@ public interface List<T> <: ReadOnlyList<T> {
     func add(this @local!, element: T @local!): Unit {
         throw UnimplementedException("Current Type does not implement 'add' method for its @local! instance")
     }
+
     func add(this @local!, all!: Collection<T> @local!): Unit {
         throw UnimplementedException("Current Type does not implement 'add' method for its @local! instance")
     }
+
     func add(this @local!, element: T @local!, at!: Int64): Unit {
         throw UnimplementedException("Current Type does not implement 'add' method for its @local! instance")
     }
+
     func add(this @local!, all!: Collection<T> @local!, at!: Int64): Unit {
         throw UnimplementedException("Current Type does not implement 'add' method for its @local! instance")
     }
+
     func remove(this @local!, at!: Int64): T @local! {
         throw UnimplementedException("Current Type does not implement 'remove' method for its @local! instance")
     }
+
     func remove(this @local!, range: Range<Int64>): Unit {
         throw UnimplementedException("Current Type does not implement 'remove' method for its @local! instance")
     }
+
     func removeIf(this @local!, predicate: ((T @local!) -> Bool) @local?): Unit {
         throw UnimplementedException("Current Type does not implement 'removeIf' method for its @local! instance")
     }
+
     func clear(this @local!): Unit {
         throw UnimplementedException("Current Type does not implement 'clear' method for its @local! instance")
     }
+
     operator func [](this @local!, index: Int64, value!: T @local!): Unit {
         throw UnimplementedException("Current Type does not implement '[]' method for its @local! instance")
     }
