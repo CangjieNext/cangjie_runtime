@@ -1739,6 +1739,11 @@ public class ArrayList<T> <: List<T> {
      * @since 0.18.2
      */
     @Frozen
+    private func checkRange(index: Int64): Unit {
+        checkIndexInRange(index, mySize)
+    }
+
+    @Frozen
     private func checkRange(this @local!, index: Int64): Unit {
         checkIndexInRange(index, mySize)
     }
@@ -1757,6 +1762,11 @@ public class ArrayList<T> <: List<T> {
      *
      * @since 0.18.2
      */
+    @Frozen
+    private func checkRangeInsert(index: Int64): Unit {
+        checkIndexInInsertRange(index, mySize)
+    }
+
     @Frozen
     private func checkRangeInsert(this @local!, index: Int64): Unit {
         checkIndexInInsertRange(index, mySize)
