@@ -690,10 +690,11 @@ public class ArrayList<T> <: List<T> {
         }
 
         // Keep the original source storage when insertion grows this list.
-        let source = match (all) {
-            case arr: Array<T> => arr
-            case arr: ArrayList<T> => arr.myData
-            case _ => all.toArray()
+        let source: Array<T>
+        match (all) {
+            case arr: Array<T> => source = arr
+            case arr: ArrayList<T> => source = arr.myData
+            case _ => source = all.toArray()
         }
 
         if (mySize + cSize > myData.size) {
@@ -878,9 +879,9 @@ public class ArrayList<T> <: List<T> {
     @Frozen
     public func removeIf(predicate: (T) -> Bool): Unit {
         var i: Int64 = 0
-        let lockVersion = myVersion
         for (j in 0..mySize) {
             let itemLocal = myData[j]
+            let lockVersion = myVersion
             let needDelete = predicate(itemLocal)
             if (myVersion != lockVersion) {
                 throw ConcurrentModificationException("The predicate cannot contain a modify operation.")
@@ -1104,9 +1105,11 @@ public class ArrayList<T> <: List<T> {
         }
         var newData: Array<T> = Array<T>(mySize, repeat: unsafe { zeroValue<T>() })
         var j = 0;
-        for (i in 0..mySize where predicate(myData[i])) {
-            newData[j] = myData[i]
-            j++
+        for (i in 0..mySize) {
+            if (predicate(myData[i])) {
+                newData[j] = myData[i]
+                j++
+            }
         }
         return ArrayList<T>(newData.slice(0, j))
     }
@@ -1571,7 +1574,46 @@ public class ArrayList<T> <: List<T> {
      */
     @Frozen
     private func rangeSlice(arr: Array<T>, range: Range<Int64>, size: Int64): Array<T> {
-        let (start, end) = validatedListSliceBounds(range, size)
+        if (range.step != 1) {
+            throw IllegalArgumentException("Illegal step ${range.step}, step should be 1.")
+        }
+
+        let start = if (range.hasStart) {
+            range.start
+        } else {
+            0
+        }
+
+        if (start > size) {
+            throw IndexOutOfBoundsException("Range start ${start} is greater than the size ${size}.")
+        } else if (range.start < 0) {
+            throw IndexOutOfBoundsException("Range start ${start} is less than 0.")
+        }
+
+        let end: Int64
+
+        if (range.hasEnd) {
+            if (range.isClosed) {
+                if (range.end >= size) {
+                    throw IndexOutOfBoundsException(
+                        "The closed end of the range ${range.end} is greater than or equal to the size ${size}.")
+                }
+                end = range.end + 1
+            } else {
+                if (range.end > size) {
+                    throw IndexOutOfBoundsException(
+                        "The opened end of the range ${range.end} is greater than the size ${size}.")
+                }
+                end = range.end
+            }
+        } else {
+            end = size
+        }
+
+        if (start > end) {
+            throw IndexOutOfBoundsException("The start ${start} is greater than the end ${end}.")
+        }
+
         return arr[start..end]
     }
 
