@@ -15,9 +15,12 @@ public interface Iterable<E> {
     /* Returns an iterator over elements of type E. */
     func iterator(): Iterator<E>
 
+    @When[env != "ohos"]
     func iterator(this @local!): Iterator<E> @local! {
         throw IllegalStateException("Current Type does not implement 'iterator' method for its @local! instance")
     }
+
+    @When[env != "ohos"]
     func iterator(this @local?): Iterator<E> @local? {
         throw IllegalStateException("Current Type does not implement 'iterator' method for its @local? instance")
     }
@@ -28,9 +31,12 @@ public interface Iterable<E> {
  */
 public abstract class Iterator<T> <: Iterable<T> {
     public func next(): Option<T>
+    @When[env != "ohos"]
     public open func next(this @local!): ?T @local! {
         throw IllegalStateException("Current Iterator does not implement 'next' method for its @local! instance")
     }
+
+    @When[env != "ohos"]
     public open func next(this @local?): ?T @local? {
         throw IllegalStateException("Current Iterator does not implement 'next' method for its @local? instance")
     }
@@ -38,8 +44,10 @@ public abstract class Iterator<T> <: Iterable<T> {
     @Frozen
     public init() {}
     @Frozen
+    @When[env != "ohos"]
     public exclave init(this @local!) {}
     @Frozen
+    @When[env != "ohos"]
     public exclave init(this @local?) {}
 
     /*
@@ -50,8 +58,10 @@ public abstract class Iterator<T> <: Iterable<T> {
     @Frozen
     public func iterator(): Iterator<T> { this }
     @Frozen
+    @When[env != "ohos"]
     public func iterator(this @local!): Iterator<T> @local! { this }
     @Frozen
+    @When[env != "ohos"]
     public func iterator(this @local?): Iterator<T> @local? { this }
 }
 
