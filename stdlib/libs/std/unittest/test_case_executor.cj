@@ -214,6 +214,11 @@ class TestCaseExecutor<T> <: Executor {
         }
     }
 
+    /**
+     * Pop the candidate with the highest score from the max-heap.
+     *
+     * @throws Exception if the heap is unexpectedly empty, i.e. the heap invariant is violated.
+     */
     private func popFromQue(que: MaxHeap<CovRandomSource>): (CovRandomSource, Int64) {
         match (que.popMax()) {
             case Some(entry) => entry
@@ -286,9 +291,8 @@ class TestCaseExecutor<T> <: Executor {
         // Classic binary max-heap replaces the previous ArrayList+sortBy() O(n log n) per put.
         // New implementation: O(log n) insert (siftUp) + O(log n) popMax (siftDown).
         // Fixed capacity with replace-min semantics preserves highest-score candidates.
-        let que = MaxHeap<CovRandomSource>(capacity: configuration.coverageGuidedMaxCandidates)
-
         progress.verboseLine("Seeding initial generation")
+        let que = MaxHeap<CovRandomSource>(capacity: configuration.coverageGuidedMaxCandidates)
         for (seed in initialSeeds) {
             let ss = CovRandomSource(seed: seed, mutator: mutator)
             localConfiguration.random = ss
