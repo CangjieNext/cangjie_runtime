@@ -67,6 +67,17 @@ endif()
 include(${CMAKE_CURRENT_SOURCE_DIR}/config.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/SetupAr.cmake)
 
+# OHOS only needs .gnu.hash: the .hash table is consulted by very old linkers only, and the OHOS
+# loader resolves symbols through .gnu.hash. The OHOS clang driver still defaults to
+# --hash-style=both, which costs about 20 KB of .hash in libcangjie-runtime.so, so pin the hash
+# style here, after config.cmake has defined OHOS_FLAG_LIST and before any shared target is
+# created. This has to be CMAKE_SHARED_LINKER_FLAGS rather than the flags of a single target so
+# that it covers cangjie-runtime and cangjie-demangle-shared, while leaving static libraries and
+# executables untouched.
+if (OHOS_FLAG IN_LIST OHOS_FLAG_LIST)
+    set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--hash-style=gnu")
+endif()
+
 message("-- BUILD_CJTHREAD: " ${BUILD_CJTHREAD})
 message("-- BUILD_RUNTIME: "   ${BUILD_RUNTIME})
 
