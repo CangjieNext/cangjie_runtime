@@ -19,6 +19,7 @@
 #include "Mutator/Mutator.inline.h"
 
 #include "cjthread.h"
+#include "ThreadCreatorInfo.h"
 #if defined(CANGJIE_SANITIZER_SUPPORT)
 #include "Sanitizer/SanitizerInterface.h"
 #endif
@@ -1026,8 +1027,10 @@ CJThreadHandle ExclusiveCJThreadNew(CJThreadFunc func,
 }
 
 /* Create a cjthread in the cjthread context. */
-CJThreadHandle CJThreadNew(ScheduleHandle schedule, const struct CJThreadAttr *attrUser, CJThreadFunc func,
-                           const void *argStart, unsigned int argSize, CJThreadCreateSource createSource)
+static CJThreadHandle CJThreadNewImpl(ScheduleHandle schedule, const struct CJThreadAttr *attrUser,
+                                      CJThreadFunc func, const void *argStart, unsigned int argSize,
+                                      CJThreadCreateSource createSource,
+                                      MapleRuntime::ThreadCreatorRecord *creatorRecord)
 {
     unsigned long long cjthreadId = CJThreadNewId();
 #ifdef __OHOS__
@@ -1044,10 +1047,24 @@ CJThreadHandle CJThreadNew(ScheduleHandle schedule, const struct CJThreadAttr *a
     struct CJThread* newCJThread = CJThreadBuild(schedule, attrUser, func, argStart, argSize, createSource);
     if (newCJThread == nullptr) {
         HILOG_ERROR(ERRNO_SCHD_CJTHREAD_NULL, "build cjthread failed");
+        // 记录尚未挂到子线程，释放。
+        free(creatorRecord);
         return nullptr;
     }
     // Set cjthread id in CJThreadNew
     CJThreadSetId(newCJThread, cjthreadId);
+    if (creatorRecord != nullptr) {
+        CJThreadKey key = MapleRuntime::GetThreadCreatorKey();
+        if (key != static_cast<CJThreadKey>(-1)) {
+            // 发布前把创建者记录挂到子线程的 keyed localData 上（父写，子读）。
+            newCJThread->localData[key] = creatorRecord;
+            creatorRecord = nullptr; // 所有权转移给子线程 localData（退出时由 key 析构器释放）
+        } else {
+            // key 注册失败（9 个 key 已耗尽）时不能越界写；放弃并释放，避免泄漏。
+            free(creatorRecord);
+            creatorRecord = nullptr;
+        }
+    }
     CJThreadBuf buf = (CJThreadGet() == nullptr || currentSchedule != targetSchedule ||
                        createSource == CJTHREAD_CREATE_SOURCE_SIGNAL) ? GLOBAL_BUF : LOCAL_BUF;
 #ifdef __OHOS__
@@ -1069,6 +1086,12 @@ CJThreadHandle CJThreadNew(ScheduleHandle schedule, const struct CJThreadAttr *a
     }
     if (error) {
         atomic_store_explicit(&newCJThread->state, CJTHREAD_IDLE, std::memory_order_relaxed);
+        // 入队失败：子线程不会跑，也不会走 CJThreadMexit 的 KeysClean，需手动释放并清空槽。
+        CJThreadKey key = MapleRuntime::GetThreadCreatorKey();
+        if (key != static_cast<CJThreadKey>(-1) && newCJThread->localData[key] != nullptr) {
+            free(newCJThread->localData[key]);
+            newCJThread->localData[key] = nullptr;
+        }
         CJThreadFree(newCJThread, true);
         if (targetSchedule->scheduleType != SCHEDULE_DEFAULT) {
             atomic_fetch_sub(&scheduleCJThread->cjthreadNum, 1ULL);
@@ -1089,6 +1112,25 @@ CJThreadHandle CJThreadNew(ScheduleHandle schedule, const struct CJThreadAttr *a
     // Attempt to start a thread to perform scheduling.
     ProcessorWake(targetSchedule, nullptr);
     return newCJThread;
+}
+
+CJThreadHandle CJThreadNew(ScheduleHandle schedule, const struct CJThreadAttr *attrUser, CJThreadFunc func,
+                           const void *argStart, unsigned int argSize, CJThreadCreateSource createSource)
+{
+    return CJThreadNewImpl(schedule, attrUser, func, argStart, argSize, createSource, nullptr);
+}
+
+// Runtime-internal creation helper used only by the two MCC entries. Kept out of
+// the public schedule.h on purpose.
+CJThreadHandle CJThreadNewWithCreator(void *schedule, const void *attrUser, void *func,
+                                          const void *argStart, unsigned int argSize,
+                                          unsigned int createSource,
+                                          MapleRuntime::ThreadCreatorRecord *creatorRecord)
+{
+    return CJThreadNewImpl(static_cast<ScheduleHandle>(schedule),
+                           static_cast<const struct CJThreadAttr *>(attrUser),
+                           reinterpret_cast<CJThreadFunc>(func), argStart, argSize,
+                           static_cast<CJThreadCreateSource>(createSource), creatorRecord);
 }
 
 /* Submit tasks from an external thread to the scheduling framework. */
