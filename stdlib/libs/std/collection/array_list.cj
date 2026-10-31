@@ -334,6 +334,7 @@ public class ArrayList<T> <: List<T> {
     // reachable alias; `clone` and the internal pipeline operations satisfy this because they build
     // the buffer on the spot.
     @Frozen
+    @When[env != "ohos"]
     private exclave init(this @local!, data: Array<T> @local!, size: Int64) {
         myData = data
         mySize = size
@@ -341,6 +342,7 @@ public class ArrayList<T> <: List<T> {
 
     // Same contract as the `@local!` adopting constructor above, for the shared view.
     @Frozen
+    @When[env != "ohos"]
     internal exclave init(this @local?, data: Array<T> @local?, size: Int64) {
         myData = data
         mySize = size

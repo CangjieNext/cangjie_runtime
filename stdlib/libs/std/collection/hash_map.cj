@@ -741,6 +741,7 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
     // other alias, so adopting them avoids the extra allocate-and-discard pass that the capacity
     // constructor would perform.
     @Frozen
+    @When[env != "ohos"]
     private exclave init(this @local!, buckets: Array<Int64> @local!,
                          entries: Array<HashMapEntry<K, V>> @local!,
                          appendIndex: Int64, freeIndex: Int64, freeSize: Int64, modCount: Int64) {
