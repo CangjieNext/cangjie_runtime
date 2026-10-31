@@ -205,7 +205,7 @@ public func cangjieLex(code: String, truncated: Bool): Tokens {
         let lexResultRaw: CPointer<ParseRes> = CJ_AST_Lex(fPtr, pCode)
         if (lexResultRaw.isNull()) {
             LibC.free(pCode)
-            throw IllegalMemoryException("Unable to get lexResult.")
+            throw IllegalMemoryException("malloc failed.")
         }
         let pTokens = lexResultRaw.read().node
         let pErrorMsg = lexResultRaw.read().errMsg
@@ -215,6 +215,9 @@ public func cangjieLex(code: String, truncated: Bool): Tokens {
                 if (errorMsg.size > 0) {
                     throw IllegalArgumentException(errorMsg)
                 }
+            }
+            if (pTokens.isNull()) {
+                throw IllegalMemoryException("malloc failed.")
             }
             getTokensFromBytes(pTokens)
         } finally {
