@@ -15,7 +15,7 @@ import std.collection.*
  * This class exposes constructors, construction, and deconstruction helpers for enums.
  */
 @When[env != "ohos"]
-public open class EnumTypeInfo <: TypeInfo {
+public class EnumTypeInfo <: TypeInfo {
     var _constructors: Option<Collection<EnumConstructorInfo>> = None
     var _constructorsByTypeInfo: Option<HashMap<UIntNative, EnumConstructorInfo>> = None
 
@@ -68,6 +68,7 @@ public open class EnumTypeInfo <: TypeInfo {
         try {
             match (TypeInfo.get(qualifiedName)) {
                 case ti: EnumTypeInfo => return ti
+                case ti: OptionTypeInfo => return ti.enumInfo
                 case other => throw IllegalTypeException(
                     "Expected enum type `${qualifiedName}`, but got `${other.qualifiedName}`.")
             }
@@ -90,6 +91,7 @@ public open class EnumTypeInfo <: TypeInfo {
                 case Some(superInfo) => return superInfo
                 case None => return eti
             }
+            case oti: OptionTypeInfo => return oti.enumInfo
             case other => throw IllegalTypeException(
                 "Parameter `instance` must be an Enum type instance (expected enum or enum case type), but got `${other.qualifiedName}`.")
         }
@@ -108,6 +110,7 @@ public open class EnumTypeInfo <: TypeInfo {
                 case Some(superInfo) => return superInfo
                 case None => return eti
             }
+            case oti: OptionTypeInfo => return oti.enumInfo
             case other => throw IllegalTypeException(
                 "Generic type `T` must be an Enum type, but got `${other.qualifiedName}`.")
         }
@@ -251,8 +254,11 @@ public class EnumConstructorInfo <: Equatable<EnumConstructorInfo> & Hashable & 
      */
     public prop enumTypeInfo: EnumTypeInfo {
         get() {
-            (TypeInfo.getOrCreate(_enumTypeInfoPointer) as EnumTypeInfo) ?? throw MisMatchException(
-                "Declaring type is not an Enum type.")
+            match (TypeInfo.getOrCreate(_enumTypeInfoPointer)) {
+                case eti: EnumTypeInfo => eti
+                case oti: OptionTypeInfo => oti.enumInfo
+                case _ => throw MisMatchException("Declaring type is not an Enum type.")
+            }
         }
     }
 
@@ -509,6 +515,7 @@ func getEnumSuperTypeInfo(ti: EnumTypeInfo): ?EnumTypeInfo {
     }
     match (TypeInfo.getOrCreate(superPointer)) {
         case eti: EnumTypeInfo => return Some(eti)
+        case oti: OptionTypeInfo => return Some(oti.enumInfo)
         case _ => return None
     }
 }

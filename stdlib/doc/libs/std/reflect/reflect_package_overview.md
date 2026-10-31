@@ -41,6 +41,7 @@
 | [InstancePropertyInfo](./reflect_package_api/reflect_package_classes.md#class-instancepropertyinfo) | 描述实例成员属性信息。                            |
 | [InstanceVariableInfo](./reflect_package_api/reflect_package_classes.md#class-instancevariableinfo) | 描述实例成员变量信息。                            |
 | [InterfaceTypeInfo](./reflect_package_api/reflect_package_classes.md#class-interfacetypeinfo) | 描述 `interface` 类型的类型信息。                  |
+| [OptionTypeInfo](./reflect_package_api/reflect_package_classes.md#class-optiontypeinfo) | 描述 `Option<T>` 类型信息，提供构造、分支判断和载荷提取操作。 |
 | [PackageInfo](./reflect_package_api/reflect_package_classes.md#class-packageinfo) | 描述包信息。                                 |
 | [ParameterInfo](./reflect_package_api/reflect_package_classes.md#class-parameterinfo) | 描述函数形参信息。                              |
 | [PrimitiveTypeInfo](./reflect_package_api/reflect_package_classes.md#class-primitivetypeinfo) | 描述原始数据类型的类型信息。                         |

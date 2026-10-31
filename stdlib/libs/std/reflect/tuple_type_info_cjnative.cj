@@ -25,9 +25,6 @@ public class TupleTypeInfo <: TypeInfo {
         get() {
             let count: Int64 = Int64(getNumOfFieldTypes(_info))
             let arr: CPointer<Unit> = getFieldTypes(_info)
-            if (count > 0 && arr.isNull()) {
-                throw InfoNotFoundException("Tuple element type info for `${qualifiedName}` not found.")
-            }
             return ArrayList<TypeInfo>(count) {
                 idx =>
                     let info = unsafe { CPointer<Byte>(arr) + 8 * idx } /* Tuple element type occupies 8 bytes */
@@ -105,9 +102,7 @@ public class TupleTypeInfo <: TypeInfo {
             throw IllegalTypeException(
                 "Tuple instance type mismatch: expected ${qualifiedName}, got ${instanceType.qualifiedName}.")
         }
-        match (getAssociatedValues(instance, TypeInfo.of<Array<Any>>()._info) as Array<Any>) {
-            case Some(arr) => ArrayList<Any>(arr)
-            case None => throw ReflectException("Failed to destruct tuple `${qualifiedName}`.")
-        }
+        let arr = getAssociatedValues(instance, TypeInfo.of<Array<Any>>()._info) as Array<Any>
+        return ArrayList<Any>(arr.getOrThrow())
     }
 }

@@ -7,46 +7,56 @@
  */
 package std.reflect
 
+import std.collection.*
+
 /**
- * Reflective information about Option<T> types.
- *
- * Option is represented by enum metadata at runtime. This type keeps the enum
- * capabilities from EnumTypeInfo and exposes Option-specific helpers so callers
- * do not need to depend on Option's constructor layout.
+ * Reflective information about Option<T>, using composed enum metadata.
  */
 @When[env != "ohos"]
-public class OptionTypeInfo <: EnumTypeInfo {
-    var _valueType: ?TypeInfo = None
+public class OptionTypeInfo <: TypeInfo {
+    let enumInfo: EnumTypeInfo
+    private let someConstructor: EnumConstructorInfo
+    private let noneConstructor: EnumConstructorInfo
+    private let _payloadType: TypeInfo
 
-    init(cp: CPointer<Unit>) {
-        super(cp)
+    private init(enumInfo: EnumTypeInfo, some: EnumConstructorInfo, none: EnumConstructorInfo) {
+        super(enumInfo._info)
+        this.enumInfo = enumInfo
+        someConstructor = some
+        noneConstructor = none
+        _payloadType = some.parameters[0]
     }
 
-    /**
-     * Returns the type info of Option<T>'s T.
-     */
-    public prop valueType: TypeInfo {
-        get() {
-            match (_valueType) {
-                case Some(res) => res
-                case None =>
-                    let typeArgs = getTypeArgs(_info)
-                    if (typeArgs.isNull()) {
-                        throw InfoNotFoundException("Option value type for `${qualifiedName}` not found.")
-                    }
-                    let valueTypePointer = unsafe { CPointer<CPointer<Unit>>(typeArgs).read() }
-                    if (valueTypePointer.isNull()) {
-                        throw InfoNotFoundException("Option value type for `${qualifiedName}` not found.")
-                    }
-                    let res = TypeInfo.getOrCreate(valueTypePointer)
-                    _valueType = res
-                    res
+    // Qualified names are already normalized by TypeInfo. Matching the complete
+    // name against Some's parameter also checks that there is exactly one T.
+    static func fromEnum(enumInfo: EnumTypeInfo, qualifiedName: String): TypeInfo {
+        if (!qualifiedName.startsWith("Option<")) {
+            return enumInfo
+        }
+        try {
+            if (enumInfo.constructors.size != 2) {
+                return enumInfo
             }
+            let some = enumInfo.getConstructor("Some", argsCount: 1)
+            let none = enumInfo.getConstructor("None")
+            if (qualifiedName != "Option<${some.parameters[0].qualifiedName}>") {
+                return enumInfo
+            }
+            OptionTypeInfo(enumInfo, some, none)
+        } catch (e: InfoNotFoundException) {
+            enumInfo
         }
     }
 
     /**
-     * Returns the OptionTypeInfo of the runtime type of the given Option instance.
+     * Returns the cached type information of T in Option<T>.
+     */
+    public prop payloadType: TypeInfo {
+        get() { _payloadType }
+    }
+
+    /**
+     * Returns Option type information, or throws IllegalTypeException.
      */
     public static redef func of(instance: Any): OptionTypeInfo {
         match (TypeInfo.of(instance)) {
@@ -57,7 +67,7 @@ public class OptionTypeInfo <: EnumTypeInfo {
     }
 
     /**
-     * Returns the OptionTypeInfo of Option type T.
+     * Returns Option type information, or throws IllegalTypeException.
      */
     public static redef func of<T>(): OptionTypeInfo {
         match (TypeInfo.of<T>()) {
@@ -68,7 +78,7 @@ public class OptionTypeInfo <: EnumTypeInfo {
     }
 
     /**
-     * Returns the OptionTypeInfo for a qualified Option type name.
+     * Finds Option type information by qualified name.
      */
     public static redef func get(qualifiedName: String): OptionTypeInfo {
         match (TypeInfo.get(qualifiedName)) {
@@ -79,55 +89,55 @@ public class OptionTypeInfo <: EnumTypeInfo {
     }
 
     /**
-     * Constructs Some(value) for this Option<T>.
+     * Constructs Some(payload), preserving the reflected Option<T> type.
      */
-    public func constructSome(value: Any): Any {
-        let actualType = TypeInfo.of(value)
-        if (!actualType.isSubtypeOf(valueType)) {
+    public func constructSome(payload: Any): Any {
+        let actualType = TypeInfo.of(payload)
+        if (!actualType.isSubtypeOf(payloadType)) {
             throw IllegalTypeException(
-                "Option Some value type mismatch for ${qualifiedName}: expected ${valueType.qualifiedName}, got ${actualType.qualifiedName}.")
+                "Option payload type mismatch for `${qualifiedName}`: expected `${payloadType.qualifiedName}`, got `${actualType.qualifiedName}`.")
         }
-        getConstructor("Some", argsCount: 1).apply(Array<Any>(1, repeat: value))
+        someConstructor.apply([payload])
     }
 
     /**
-     * Constructs None for this Option<T>.
+     * Constructs None, preserving the reflected Option<T> type.
      */
     public func constructNone(): Any {
-        getConstructor("None").apply(Array<Any>())
+        noneConstructor.apply([])
     }
 
     /**
-     * Returns true when the instance is Some(_).
+     * Returns whether the compatible Option instance is Some.
      */
     public func isSome(instance: Any): Bool {
-        constructorOf(instance).name == "Some"
+        associatedValues(instance).size == 1
     }
 
     /**
-     * Returns true when the instance is None.
+     * Returns whether the compatible Option instance is None.
      */
     public func isNone(instance: Any): Bool {
-        constructorOf(instance).name == "None"
+        associatedValues(instance).isEmpty()
     }
 
     /**
-     * Destructs Option<T> into Option<Any>.
+     * Returns Some(payload) or None; rejects incompatible instances and invalid metadata.
      */
-    public func getValue(instance: Any): Option<Any> {
-        let (ctor, values) = destruct(instance)
-        if (ctor.name == "None") {
-            return Option<Any>.None
+    public func getPayload(instance: Any): Option<Any> {
+        let values = associatedValues(instance)
+        if (values.isEmpty()) {
+            return None
         }
-        if (values.size != 1) {
-            throw ReflectException(
-                "Unexpected Option constructor `${ctor.name}` value count: expected 1, got ${values.size}.")
-        }
-        Option<Any>.Some(values[0])
+        Some(values[0])
     }
 
-    private func constructorOf(instance: Any): EnumConstructorInfo {
-        let (ctor, _) = destruct(instance)
-        ctor
+    private func associatedValues(instance: Any): ReadOnlyList<Any> {
+        let (ctor, values) = enumInfo.destruct(instance)
+        if ((ctor == someConstructor && values.size == 1) ||
+            (ctor == noneConstructor && values.isEmpty())) {
+            return values
+        }
+        throw ReflectException("Unexpected Option constructor or associated values for `${qualifiedName}`.")
     }
 }

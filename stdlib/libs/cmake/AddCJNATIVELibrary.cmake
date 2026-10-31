@@ -144,25 +144,27 @@ add_library(cangjie-std-collection.concurrent STATIC
 set_target_properties(cangjie-std-collection.concurrent PROPERTIES LINKER_LANGUAGE C)
 install(TARGETS cangjie-std-collection.concurrent DESTINATION lib/${output_triple_name}_${CJNATIVE_BACKEND}${SANITIZER_SUBPATH})
 
-make_cangjie_lib(
-    std-reflect IS_SHARED
-    DEPENDS cangjie${BACKEND_TYPE}Reflect
-    CANGJIE_STD_LIB_DEPENDS
-        std-core
-        std-collection
-        std-sync
-        std-overflow
-        std-time
-        std-sort
-        std-fs
-    CANGJIE_STD_LIB_INDIRECT_DEPENDS
-        std-math
-        std-unicode
-    OBJECTS ${output_cj_object_dir}/std/reflect.o)
+if(NOT DARWIN)
+    make_cangjie_lib(
+        std-reflect IS_SHARED
+        DEPENDS cangjie${BACKEND_TYPE}Reflect
+        CANGJIE_STD_LIB_DEPENDS
+            std-core
+            std-collection
+            std-sync
+            std-overflow
+            std-time
+            std-sort
+            std-fs
+        CANGJIE_STD_LIB_INDIRECT_DEPENDS
+            std-math
+            std-unicode
+        OBJECTS ${output_cj_object_dir}/std/reflect.o)
 
-add_library(cangjie-std-reflect STATIC ${output_cj_object_dir}/std/reflect.o)
-set_target_properties(cangjie-std-reflect PROPERTIES LINKER_LANGUAGE C)
-install(TARGETS cangjie-std-reflect DESTINATION lib/${output_triple_name}_${CJNATIVE_BACKEND}${SANITIZER_SUBPATH})
+    add_library(cangjie-std-reflect STATIC ${output_cj_object_dir}/std/reflect.o)
+    set_target_properties(cangjie-std-reflect PROPERTIES LINKER_LANGUAGE C)
+    install(TARGETS cangjie-std-reflect DESTINATION lib/${output_triple_name}_${CJNATIVE_BACKEND}${SANITIZER_SUBPATH})
+endif()
 
 make_cangjie_lib(
     std-interop IS_SHARED
@@ -948,16 +950,18 @@ add_cangjie_library(
     SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/std/ref
     DEPENDS ${REF_DEPENDENCIES})
 
-add_cangjie_library(
-    cangjie${BACKEND_TYPE}Reflect
-    NO_SUB_PKG
-    IS_STDLIB
-    IS_CJNATIVE_BACKEND
-    PACKAGE_NAME "reflect"
-    MODULE_NAME "std"
-    SOURCES ${REFLECT_SRCS}
-    SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/std/reflect
-    DEPENDS ${REFLECT_DEPENDENCIES})
+if(NOT DARWIN)
+    add_cangjie_library(
+        cangjie${BACKEND_TYPE}Reflect
+        NO_SUB_PKG
+        IS_STDLIB
+        IS_CJNATIVE_BACKEND
+        PACKAGE_NAME "reflect"
+        MODULE_NAME "std"
+        SOURCES ${REFLECT_SRCS}
+        SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/std/reflect
+        DEPENDS ${REFLECT_DEPENDENCIES})
+endif()
 
 add_cangjie_library(
     cangjie${BACKEND_TYPE}Sort

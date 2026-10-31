@@ -3415,6 +3415,240 @@ Exceptions:
 - [InfoNotFoundException](reflect_package_exceptions.md#class-infonotfoundexception) - Throws if type information for type T cannot be obtained.
 - [IllegalTypeException](./reflect_package_exceptions.md#class-illegaltypeexception) - Throws if the obtained type information is not [InterfaceTypeInfo](reflect_package_classes.md#class-interfacetypeinfo).
 
+## class OptionTypeInfo
+
+```cangjie
+public class OptionTypeInfo <: TypeInfo {}
+```
+
+Function: Describes `Option<T>` types and provides construction, case inspection, and payload extraction.
+
+Parent Type:
+
+- [TypeInfo](#class-typeinfo)
+
+`OptionTypeInfo` directly inherits `TypeInfo` and internally contains an [EnumTypeInfo](#class-enumtypeinfo). It reuses existing enum reflection without adding runtime ABI, Option-specific intrinsics, or metadata fields. `EnumTypeInfo` is not opened for inheritance. An `OptionTypeInfo` cannot be assigned or cast to `EnumTypeInfo`; obtain an enum view with `EnumTypeInfo.of(instance)`, `EnumTypeInfo.of<Option<T>>()`, or `EnumTypeInfo.get(qualifiedName)` instead.
+
+`TypeInfo.of(instance)`, `TypeInfo.of<T>()`, and `TypeInfo.get(qualifiedName)` automatically recognize Option types. Recognition checks the standard-library Option qualified name, exactly one type argument `T`, a one-parameter `Some` constructor, and a zero-parameter `None` constructor. Enums that do not meet these rules remain ordinary `EnumTypeInfo` values.
+
+This type requires complete generic enum constructor metadata from the compiler and runtime; the presence of intrinsic symbols alone does not guarantee that metadata is available. When metadata is missing, `TypeInfo` continues to return `EnumTypeInfo`, and `OptionTypeInfo.of/get` throws `IllegalTypeException`. This API is unavailable on OHOS.
+
+### prop payloadType
+
+```cangjie
+public prop payloadType: TypeInfo
+```
+
+Function: Gets the type information for the payload type `T` of `Option<T>`.
+
+Type: [TypeInfo](#class-typeinfo).
+
+### static func get(String)
+
+```cangjie
+public static redef func get(qualifiedName: String): OptionTypeInfo
+```
+
+Function: Gets Option type information by qualified name.
+
+Parameters:
+
+- qualifiedName: [String](../../core/core_package_api/core_package_structs.md#struct-string) - The qualified name of the Option type.
+
+Returns:
+
+- [OptionTypeInfo](#class-optiontypeinfo) - The corresponding Option type information.
+
+Exceptions:
+
+- [InfoNotFoundException](reflect_package_exceptions.md#class-infonotfoundexception) - The type information cannot be found.
+- [IllegalTypeException](reflect_package_exceptions.md#class-illegaltypeexception) - The type is not an Option satisfying the recognition rules.
+
+### static func of(Any)
+
+```cangjie
+public static redef func of(instance: Any): OptionTypeInfo
+```
+
+Function: Gets the type information of an Option instance.
+
+Parameters:
+
+- instance: [Any](../../core/core_package_api/core_package_interfaces.md#interface-any) - An Option instance.
+
+Returns:
+
+- [OptionTypeInfo](#class-optiontypeinfo) - The Option type information for the instance.
+
+Exceptions:
+
+- [InfoNotFoundException](reflect_package_exceptions.md#class-infonotfoundexception) - The instance's type information cannot be obtained.
+- [IllegalTypeException](reflect_package_exceptions.md#class-illegaltypeexception) - The instance does not belong to an Option satisfying the recognition rules.
+
+### static func of\<T>()
+
+```cangjie
+public static redef func of<T>(): OptionTypeInfo
+```
+
+Function: Gets Option type information for `T`. Here `T` must be a concrete Option type, such as `Option<Int64>`.
+
+Returns:
+
+- [OptionTypeInfo](#class-optiontypeinfo) - The corresponding Option type information.
+
+Exceptions:
+
+- [InfoNotFoundException](reflect_package_exceptions.md#class-infonotfoundexception) - The type information cannot be obtained.
+- [IllegalTypeException](reflect_package_exceptions.md#class-illegaltypeexception) - `T` is not an Option satisfying the recognition rules.
+
+### func constructSome(Any)
+
+```cangjie
+public func constructSome(payload: Any): Any
+```
+
+Function: Constructs a `Some` instance of the current `Option<T>` with `payload`.
+
+Parameters:
+
+- payload: [Any](../../core/core_package_api/core_package_interfaces.md#interface-any) - A payload assignable to `payloadType`.
+
+Returns:
+
+- [Any](../../core/core_package_api/core_package_interfaces.md#interface-any) - A `Some` instance retaining the dynamic type of the current `Option<T>`. The return type is `Any`, not `Option<Any>`, because Cangjie generics do not support automatically converting `Option<T>` to `Option<Any>`.
+
+Exceptions:
+
+- [IllegalTypeException](reflect_package_exceptions.md#class-illegaltypeexception) - The payload type is incompatible with `payloadType`.
+- [InvocationTargetException](reflect_package_exceptions.md#class-invocationtargetexception) - The underlying enum constructor invocation fails.
+
+### func constructNone()
+
+```cangjie
+public func constructNone(): Any
+```
+
+Function: Constructs a `None` instance of the current `Option<T>` without a payload.
+
+Returns:
+
+- [Any](../../core/core_package_api/core_package_interfaces.md#interface-any) - A `None` instance retaining the dynamic type of the current `Option<T>`. The reason for returning `Any` is the same as for `constructSome`.
+
+Exceptions:
+
+- [InvocationTargetException](reflect_package_exceptions.md#class-invocationtargetexception) - The underlying enum constructor invocation fails.
+
+### func isSome(Any)
+
+```cangjie
+public func isSome(instance: Any): Bool
+```
+
+Function: Checks whether an instance of the current `Option<T>` uses the `Some` constructor.
+
+Parameters:
+
+- instance: [Any](../../core/core_package_api/core_package_interfaces.md#interface-any) - An instance of the current `Option<T>`.
+
+Returns:
+
+- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - `true` for `Some`, or `false` for `None`.
+
+Exceptions:
+
+- [IllegalTypeException](reflect_package_exceptions.md#class-illegaltypeexception) - The instance type does not match the current `Option<T>`, including an Option with a different payload type.
+- [ReflectException](reflect_package_exceptions.md#class-reflectexception) - The constructor or associated-value shape is invalid.
+
+### func isNone(Any)
+
+```cangjie
+public func isNone(instance: Any): Bool
+```
+
+Function: Checks whether an instance of the current `Option<T>` uses the `None` constructor.
+
+Parameters:
+
+- instance: [Any](../../core/core_package_api/core_package_interfaces.md#interface-any) - An instance of the current `Option<T>`.
+
+Returns:
+
+- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - `true` for `None`, or `false` for `Some`.
+
+Exceptions:
+
+- [IllegalTypeException](reflect_package_exceptions.md#class-illegaltypeexception) - The instance type does not match the current `Option<T>`.
+- [ReflectException](reflect_package_exceptions.md#class-reflectexception) - The constructor or associated-value shape is invalid.
+
+### func getPayload(Any)
+
+```cangjie
+public func getPayload(instance: Any): Option<Any>
+```
+
+Function: Extracts the payload of an instance of the current `Option<T>`. For `Some(payload)`, returns a newly wrapped `Some(payload)` with the payload represented as `Any`; for `None`, returns `None`. This does not cast the original instance to `Option<Any>`. For nested Options, outer `Some(None)` still returns `Some` whose payload is the inner `None`.
+
+Parameters:
+
+- instance: [Any](../../core/core_package_api/core_package_interfaces.md#interface-any) - An instance of the current `Option<T>`.
+
+Returns:
+
+- [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)\<Any> - The optional payload.
+
+Exceptions:
+
+- [IllegalTypeException](reflect_package_exceptions.md#class-illegaltypeexception) - The instance type does not match the current `Option<T>`.
+- [ReflectException](reflect_package_exceptions.md#class-reflectexception) - The constructor or associated-value shape is invalid.
+
+Example: This complete program demonstrates construction, Some/None extraction, and a payload type mismatch.
+
+<!-- verify -->
+```cangjie
+import std.reflect.*
+
+main(): Unit {
+    let info = OptionTypeInfo.of<Option<Int64>>()
+    let some = info.constructSome(42i64)
+    let none = info.constructNone()
+    println(info.payloadType == TypeInfo.of<Int64>())
+    println(OptionTypeInfo.of(some) == info)
+    println(OptionTypeInfo.get(info.qualifiedName) == info)
+    println(info.isSome(some))
+    println(info.isNone(none))
+    match (info.getPayload(some)) {
+        case Some(value) => println((value as Int64).getOrThrow())
+        case None => println("no payload")
+    }
+    match (info.getPayload(none)) {
+        case Some(_) => println("unexpected payload")
+        case None => println("no payload")
+    }
+    let enumView = EnumTypeInfo.of(some)
+    println(enumView.qualifiedName == info.qualifiedName)
+    try {
+        info.constructSome("wrong type")
+    } catch (_: IllegalTypeException) {
+        println("payload type mismatch")
+    }
+}
+```
+
+Expected output:
+
+```text
+true
+true
+true
+true
+true
+42
+no payload
+true
+payload type mismatch
+```
+
 ## class PackageInfo
 
 ```cangjie

@@ -92,7 +92,7 @@ extern "C" MRT_EXPORT TypeInfo* CJ_MCC_GetObjClass(const ObjectPtr obj);
 __asm__(".global _CJ_MCC_GetObjClass\n\t.set _CJ_MCC_GetObjClass, _MCC_GetObjClass");
 
 extern "C" MRT_EXPORT TypeTemplate* CJ_MCC_GetTypeTemplate(char* name);
-__asm__(".global _CJ_MCC_GetTypeTemplate\n\t.set _CJ_MCC_GetTypeTemplate, _MCC_GetTypeTemplate");
+__asm__(".global _CJ_MCC_MCC_GetTypeTemplate\n\t.set _CJ_MCC_GetTypeTemplate, _MCC_GetTypeTemplate");
 
 extern "C" MRT_EXPORT TypeInfo* CJ_MCC_GetOrCreateTypeInfoForReflect(TypeTemplate* tt, void* args);
 __asm__(".global _CJ_MCC_GetOrCreateTypeInfoForReflect\n\t.set _CJ_MCC_GetOrCreateTypeInfoForReflect, "
@@ -101,7 +101,7 @@ __asm__(".global _CJ_MCC_GetOrCreateTypeInfoForReflect\n\t.set _CJ_MCC_GetOrCrea
 extern "C" MRT_EXPORT TypeInfo* CJ_MCC_GetTypeForAny(const ObjectPtr obj);
 __asm__(".global _CJ_MCC_GetTypeForAny\n\t.set _CJ_MCC_GetTypeForAny, _MCC_GetTypeForAny");
 
-extern "C" MRT_EXPORT bool CJ_MCC_IsWrapperClassForAutoEnv(TypeInfo* ti);
+extern "C" MRT_EXPORT bool MCC_IsWrapperClassForAutoEnv(const TypeInfo* ti);
 __asm__(".global _CJ_MCC_IsWrapperClassForAutoEnv\n\t.set _CJ_MCC_IsWrapperClassForAutoEnv, "
     "_MCC_IsWrapperClassForAutoEnv");
 
@@ -117,11 +117,6 @@ __asm__(".global _CJ_MCC_GetPackageVersion\n\t.set _CJ_MCC_GetPackageVersion, _M
 
 extern "C" MRT_EXPORT void* CJ_MCC_GetSubPackages(PackageInfo* packageInfo);
 __asm__(".global _CJ_MCC_GetSubPackages\n\t.set _CJ_MCC_GetSubPackages, _MCC_GetSubPackages");
-
-extern "C" MRT_EXPORT PackageInfo* CJ_MCC_GetRelatedPackageInfo(PackageInfo* packageInfo);
-__asm__(
-    ".global _CJ_MCC_GetRelatedPackageInfo\n\t.set _CJ_MCC_GetRelatedPackageInfo, "
-    "_MCC_GetRelatedPackageInfo");
 
 extern "C" MRT_EXPORT char* CJ_MCC_GetPackageName(PackageInfo* packageInfo);
 __asm__(".global _CJ_MCC_GetPackageName\n\t.set _CJ_MCC_GetPackageName, _MCC_GetPackageName");
@@ -162,10 +157,6 @@ extern "C" MRT_EXPORT U32 CJ_MCC_GetNumOfActualParameters(MethodInfo* methodInfo
 __asm__(".global _CJ_MCC_GetNumOfActualParameters\n\t.set _CJ_MCC_GetNumOfActualParameters, "
     "_MCC_GetNumOfActualParameters");
 
-extern "C" MRT_EXPORT U32 CJ_MCC_GetNumOfGenericParameters(MethodInfo* methodInfo);
-__asm__(".global _CJ_MCC_GetNumOfGenericParameters\n\t.set _CJ_MCC_GetNumOfGenericParameters, "
-    "_MCC_GetNumOfGenericParameters");
-
 extern "C" MRT_EXPORT ParameterInfoRef CJ_MCC_GetActualParameterInfo(MethodInfo* methodInfo, U32 index);
 __asm__(".global _CJ_MCC_GetActualParameterInfo\n\t.set _CJ_MCC_GetActualParameterInfo, _MCC_GetActualParameterInfo");
 
@@ -179,31 +170,28 @@ __asm__(".global _CJ_MCC_CheckMethodActualArgs\n\t.set _CJ_MCC_CheckMethodActual
     "_MCC_CheckMethodActualArgs");
 
 // for reflect, field
-extern "C" MRT_EXPORT const char* CJ_MCC_GetInstanceFieldName(InstanceFieldInfo* fieldInfo,
-    TypeInfo* declaringTypeInfo);
+extern "C" MRT_EXPORT const char* CJ_MCC_GetInstanceFieldName(InstanceFieldInfo* fieldInfo);
 __asm__(".global _CJ_MCC_GetInstanceFieldName\n\t.set _CJ_MCC_GetInstanceFieldName, _MCC_GetInstanceFieldName");
 
-extern "C" MRT_EXPORT const char* CJ_MCC_GetStaticFieldName(StaticFieldInfo* fieldInfo);
+extern "C" MRT_EXPORT const char* CJ_MCC_GetStaticFieldName(StaticFieldInfo fieldInfo);
 __asm__(".global _CJ_MCC_GetStaticFieldName\n\t.set _CJ_MCC_GetStaticFieldName, _MCC_GetStaticFieldName");
 
-extern "C" MRT_EXPORT TypeInfo* CJ_MCC_GetInstanceFieldType(InstanceFieldInfo* fieldInfo,
-    TypeInfo* declaringTypeInfo);
+extern "C" MRT_EXPORT TypeInfo* CJ_MCC_GetInstanceFieldType(InstanceFieldInfo* fieldInfo);
 __asm__(".global _CJ_MCC_GetInstanceFieldType\n\t.set _CJ_MCC_GetInstanceFieldType, _MCC_GetInstanceFieldType");
 
-extern "C" MRT_EXPORT TypeInfo* CJ_MCC_GetStaticFieldType(StaticFieldInfo* fieldInfo);
+extern "C" MRT_EXPORT TypeInfo* CJ_MCC_GetStaticFieldType(InstanceFieldInfo* fieldInfo);
 __asm__(".global _CJ_MCC_GetStaticFieldType\n\t.set _CJ_MCC_GetStaticFieldType, _MCC_GetStaticFieldType");
 
 extern "C" MRT_EXPORT U32 CJ_MCC_GetInstanceFieldModifier(InstanceFieldInfo* fieldInfo);
 __asm__(".global _CJ_MCC_GetInstanceFieldModifier\n\t.set _CJ_MCC_GetInstanceFieldModifier, "
     "_MCC_GetInstanceFieldModifier");
 
-extern "C" MRT_EXPORT U32 CJ_MCC_GetStaticFieldModifier(StaticFieldInfo* fieldInfo);
+extern "C" MRT_EXPORT U32 CJ_MCC_GetStaticFieldModifier(InstanceFieldInfo* fieldInfo);
 __asm__(".global _CJ_MCC_GetStaticFieldModifier\n\t.set _CJ_MCC_GetStaticFieldModifier, _MCC_GetStaticFieldModifier");
 
-extern "C" MRT_EXPORT void CJ_MCC_SetInstanceFieldValue(InstanceFieldInfo* fieldInfo, TypeInfo* declaringTypeInfo,
-    ObjRef obj, ObjRef newValue);
+extern "C" MRT_EXPORT void CJ_MCC_SetInstanceFieldValue(InstanceFieldInfo* fieldInfo, ObjRef obj, ObjRef newValue);
 __asm__(".global _CJ_MCC_SetInstanceFieldValue\n\t.set _CJ_MCC_SetInstanceFieldValue, _MCC_SetInstanceFieldValue");
-extern "C" MRT_EXPORT void CJ_MCC_SetStaticFieldValue(StaticFieldInfo* fieldInfo, ObjRef value);
+extern "C" MRT_EXPORT void CJ_MCC_SetStaticFieldValue(InstanceFieldInfo* fieldInfo, ObjRef value);
 __asm__(".global _CJ_MCC_SetStaticFieldValue\n\t.set _CJ_MCC_SetStaticFieldValue, _MCC_SetStaticFieldValue");
 
 // reflect, parameter
@@ -272,7 +260,7 @@ extern "C" MRT_EXPORT U32 CJ_MCC_GetNumOfEnumConstructorInfos(TypeInfo* ti);
 __asm__(
     ".global _CJ_MCC_GetNumOfEnumConstructorInfos\n\t.set _CJ_MCC_GetNumOfEnumConstructorInfos, "
     "_MCC_GetNumOfEnumConstructorInfos");
-extern "C" MRT_EXPORT TypeInfo* CJ_MCC_GetEnumConstructorInfo(TypeInfo* ti, U32 idx);
+extern "C" MRT_EXPORT TypeInfo* CJ_MCC_GetEnumConstructInfo(TypeInfo* ti, U32 idx);
 __asm__(".global _CJ_MCC_GetEnumConstructorInfo\n\t.set _CJ_MCC_GetEnumConstructorInfo, _MCC_GetEnumConstructorInfo");
 extern "C" MRT_EXPORT const char* CJ_MCC_GetEnumConstructorName(EnumCtorInfo* ti);
 __asm__(".global _CJ_MCC_GetEnumConstructorName\n\t.set _CJ_MCC_GetEnumConstructorName, _MCC_GetEnumConstructorName");
