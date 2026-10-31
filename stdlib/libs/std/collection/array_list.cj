@@ -93,9 +93,7 @@ private func validatedSliceEnd(range: Range<Int64>, size: Int64): Int64 {
  */
 class ArrayListIterator<T> <: Iterator<T> {
     private var myPosition: Int64 = 0
-
     private let myData: ArrayList<T>
-
     private let initVersion: Int64
 
     /**
@@ -111,14 +109,12 @@ class ArrayListIterator<T> <: Iterator<T> {
         myData = data
         initVersion = data.myVersion
     }
-
     @Frozen
     @When[env != "ohos"]
     exclave init(this @local!, data: ArrayList<T> @local!) {
         myData = data
         initVersion = data.myVersion
     }
-
     @Frozen
     @When[env != "ohos"]
     exclave init(this @local?, data: ArrayList<T> @local?) {
@@ -150,7 +146,6 @@ class ArrayListIterator<T> <: Iterator<T> {
             return None
         }
     }
-
     @When[env != "ohos"]
     @Frozen
     @OverflowWrapping
@@ -167,7 +162,6 @@ class ArrayListIterator<T> <: Iterator<T> {
             return Option<T>.None
         }
     }
-
     @When[env != "ohos"]
     @Frozen
     @OverflowWrapping
@@ -213,7 +207,6 @@ public class ArrayList<T> <: List<T> {
             this.myData.size
         }
     }
-
     @When[env != "ohos"]
     public prop capacity: Int64 @local? {
         get() {
@@ -231,7 +224,6 @@ public class ArrayList<T> <: List<T> {
         myData = Array<T>(DEFAULT_CAPACITY, repeat: unsafe { zeroValue<T>() })
         mySize = 0
     }
-
     @Frozen
     @When[env != "ohos"]
     public exclave init(this @local!) {
@@ -256,7 +248,6 @@ public class ArrayList<T> <: List<T> {
         }
         myData = Array<T>(cap, repeat: unsafe { zeroValue<T>() })
     }
-
     @Frozen
     @When[env != "ohos"]
     public exclave init(this @local!, capacity: Int64) {
@@ -332,14 +323,12 @@ public class ArrayList<T> <: List<T> {
         }
         mySize = elements.size
     }
-
     @When[env != "ohos"]
     @Frozen
     private exclave init(this @local!, elements: Array<T> @local!) {
         myData = elements.clone()
         mySize = elements.size
     }
-
     // Installs a buffer that the caller has just allocated and owns exclusively, skipping the extra
     // copy the constructor above performs for isolation. Callers must pass a buffer with no other
     // reachable alias; `clone` and the internal pipeline operations satisfy this because they build
@@ -356,14 +345,12 @@ public class ArrayList<T> <: List<T> {
         myData = data
         mySize = size
     }
-
     @Frozen
     @When[env != "ohos"]
     public exclave init(this @local?, elements: Array<T> @local?) {
         myData = elements.clone()
         mySize = elements.size
     }
-
     // The compiler does not support dispatching `size`/`toArray` on a `Collection<T> @local!`
     // receiver: only Array/ArrayList constructions are recognized; all others are explicitly rejected.
     @Frozen
@@ -388,7 +375,6 @@ public class ArrayList<T> <: List<T> {
                 mySize = src.size
         }
     }
-
     // A `Collection` that does not implement `toArray(this @local?)` falls to the interface default
     // body, which throws `UnimplementedException`.
     @Frozen
@@ -445,7 +431,6 @@ public class ArrayList<T> <: List<T> {
         this.myData.copyTo(newArr, 0, 0, mySize)
         return newArr
     }
-
     @Frozen
     @When[env != "ohos"]
     public exclave func toArray(this @local!): Array<T> @local! {
@@ -479,7 +464,6 @@ public class ArrayList<T> <: List<T> {
         }
         return myData.get(index)
     }
-
     @Frozen
     @When[env != "ohos"]
     public exclave func get(this @local!, index: Int64): ?T @local! {
@@ -488,7 +472,6 @@ public class ArrayList<T> <: List<T> {
         }
         return myData.get(index)
     }
-
     @Frozen
     @When[env != "ohos"]
     public exclave func get(this @local?, index: Int64): ?T @local? {
@@ -555,7 +538,6 @@ public class ArrayList<T> <: List<T> {
         mySize++
         myVersion++
     }
-
     @Frozen
     @When[env != "ohos"]
     public exclave func add(this @local!, element: T @local!): Unit {
@@ -594,7 +576,6 @@ public class ArrayList<T> <: List<T> {
         mySize = mySize + cSize
         myVersion++
     }
-
     @Frozen
     @When[env != "ohos"]
     public exclave func add(this @local!, all!: Collection<T> @local!): Unit {
@@ -651,7 +632,6 @@ public class ArrayList<T> <: List<T> {
         mySize++
         myVersion++
     }
-
     @Frozen
     @OverflowWrapping
     @When[env != "ohos"]
@@ -762,7 +742,6 @@ public class ArrayList<T> <: List<T> {
         myVersion++
         return removed
     }
-
     @Frozen
     @When[env != "ohos"]
     public exclave func remove(this @local!, at!: Int64): T @local! {
@@ -802,12 +781,10 @@ public class ArrayList<T> <: List<T> {
         if (!range.hasEnd) {
             end = this.mySize
         }
-
         // If start is omitted, start = 0.
         if (!range.hasStart) {
             start = 0
         }
-
         // If start >= end, do nothing.
         if (start >= end) {
             return
@@ -844,12 +821,10 @@ public class ArrayList<T> <: List<T> {
         if (!range.hasEnd) {
             end = this.mySize
         }
-
         // If start is omitted, start = 0.
         if (!range.hasStart) {
             start = 0
         }
-
         // If start >= end, do nothing.
         if (start >= end) {
             return
@@ -903,7 +878,6 @@ public class ArrayList<T> <: List<T> {
         mySize = i
         myVersion++
     }
-
     @Frozen
     @When[env != "ohos"]
     public exclave func removeIf(this @local!, predicate: ((T @local!) -> Bool) @local?): Unit {
@@ -951,7 +925,6 @@ public class ArrayList<T> <: List<T> {
         }
         myVersion++
     }
-
     @Frozen
     @When[env != "ohos"]
     public exclave func clear(this @local!): Unit {
@@ -993,7 +966,6 @@ public class ArrayList<T> <: List<T> {
         }
         return ArrayList<T>(newData)
     }
-
     @When[env != "ohos"]
     public exclave func step(this @local!, count: Int64): ArrayList<T> @local! {
         if (count <= 0) {
@@ -1036,7 +1008,6 @@ public class ArrayList<T> <: List<T> {
         myData.copyTo(newData, 0, 0, newSize)
         return ArrayList<T>(newData)
     }
-
     public exclave func take(this @local!, count: Int64): ArrayList<T> @local! {
         if (count == 0) {
             return ArrayList<T>()
@@ -1075,7 +1046,6 @@ public class ArrayList<T> <: List<T> {
         myData.copyTo(newData, count, 0, mySize - count)
         return ArrayList<T>(newData)
     }
-
     public exclave func skip(this @local!, count: Int64): ArrayList<T> @local! {
         if (count < 0) {
             throw IllegalArgumentException("skip count must be greater than 0!")
@@ -1113,7 +1083,6 @@ public class ArrayList<T> <: List<T> {
         }
         return ArrayList<T>(newData.slice(0, j))
     }
-
     public exclave func filter(this @local!, predicate: ((T @local?) -> Bool) @local?): ArrayList<T> @local! {
         if (mySize == 0) {
             return ArrayList<T>()
@@ -1143,7 +1112,6 @@ public class ArrayList<T> <: List<T> {
         }
         return ArrayList<R>(newData)
     }
-
     public exclave func map<R>(this @local!, transform: ((T @local!) -> R @local!) @local?): ArrayList<R> @local! {
         if (mySize == 0) {
             return ArrayList<R>()
@@ -1174,7 +1142,6 @@ public class ArrayList<T> <: List<T> {
         }
         return newList
     }
-
     public exclave func flatMap<R>(this @local!, transform: ((T @local!) -> ArrayList<R> @local!) @local?): ArrayList<R> @local! {
         // Amortised linear: grow the buffer geometrically and only copy the
         // newly appended run. The previous version allocated `Array<R>(oldLen + sz)`
@@ -1204,7 +1171,6 @@ public class ArrayList<T> <: List<T> {
                 }
                 newData = grown
             }
-
             // Copy only this append; the prefix already written stays in place.
             tempData.myData.copyTo(newData, 0, used, sz)
             used = need
@@ -1212,7 +1178,6 @@ public class ArrayList<T> <: List<T> {
         if (used == 0) {
             return ArrayList<R>() @local!
         }
-
         // Trim back to the logical length so the caller never observes the spare
         // capacity left over from geometric growth. When the buffer already fits
         // exactly it is adopted as-is instead of being copied once more.
@@ -1247,7 +1212,6 @@ public class ArrayList<T> <: List<T> {
         }
         return ArrayList<R>(newData.slice(0, j))
     }
-
     public exclave func filterMap<R>(this @local!, transform: ((T @local!) -> Option<R> @local!) @local?): ArrayList<R> @local! {
         if (mySize == 0) {
             return ArrayList<R>()
@@ -1285,7 +1249,6 @@ public class ArrayList<T> <: List<T> {
         newData[newSize - 1] = myData[mySize - 1]
         return ArrayList<T>(newData)
     }
-
     public exclave func intersperse(this @local!, separator: T @local!): ArrayList<T> @local! {
         if (mySize < 2) {
             var newData: Array<T> @local! = myData.clone(0..mySize)
@@ -1311,7 +1274,6 @@ public class ArrayList<T> <: List<T> {
             action(myData[i])
         }
     }
-
     /**
      * @description Determine whether all elements in the ArrayList satisfy the condition.
      * 
@@ -1326,7 +1288,6 @@ public class ArrayList<T> <: List<T> {
         }
         return true
     }
-
     public func all(this @local?, predicate: ((T @local?) -> Bool) @local?): Bool {
         for (i in 0..mySize) {
             if (!predicate(myData[i])) {
@@ -1350,7 +1311,6 @@ public class ArrayList<T> <: List<T> {
         }
         return false
     }
-
     public func any(this @local?, predicate: ((T @local?) -> Bool) @local?): Bool {
         for (i in 0..mySize) {
             if (predicate(myData[i])) {
@@ -1374,7 +1334,6 @@ public class ArrayList<T> <: List<T> {
         }
         return true
     }
-
     public func none(this @local?, predicate: ((T @local?) -> Bool) @local?): Bool {
         for (i in 0..mySize) {
             if (predicate(myData[i])) {
@@ -1398,7 +1357,6 @@ public class ArrayList<T> <: List<T> {
         }
         return result
     }
-
     public exclave func fold<R>(this @local!, initial: R @local!, operation: ((R @local!, T @local!) -> R @local!) @local?): R @local! {
         var result: R @local! = initial
         for (i in 0..mySize) {
@@ -1423,7 +1381,6 @@ public class ArrayList<T> <: List<T> {
         }
         return result
     }
-
     public exclave func reduce(this @local!, operation: ((T @local!, T @local!) -> T @local!) @local?): Option<T> @local! {
         if (mySize == 0) {
             return None<T>
@@ -1504,7 +1461,6 @@ public class ArrayList<T> <: List<T> {
         }
         myVersion++
     }
-
     @Frozen
     public exclave func reverse(this @local!): Unit {
         var i: Int64 = 0
@@ -1547,22 +1503,18 @@ public class ArrayList<T> <: List<T> {
     public func slice(range: Range<Int64>): ArrayList<T> {
         return ArrayList<T>(rangeSlice(this.myData, range, this.size))
     }
-
     @Frozen
     public exclave func slice(this @local!, range: Range<Int64>): ArrayList<T> @local! {
         ArrayList<T>(rangeSlice(this.myData, range, this.size))
     }
-
     @Frozen
     public exclave func slice(this @local?, range: Range<Int64>): ArrayList<T> @local? {
         ArrayList<T>(rangeSlice(this.myData, range, this.size))
     }
-
     @Frozen
     public exclave operator func [](this @local!, range: Range<Int64>): ArrayList<T> @local! {
         ArrayList<T>(rangeSlice(this.myData, range, this.size))
     }
-
     @Frozen
     public exclave operator func [](this @local?, range: Range<Int64>): ArrayList<T> @local? {
         this.slice(range)
@@ -1640,7 +1592,6 @@ public class ArrayList<T> <: List<T> {
     public func clone(): ArrayList<T> {
         return ArrayList<T>(this)
     }
-
     @Frozen
     public exclave func clone(this @local!): ArrayList<T> @local! {
         // `myData.clone()` already produced a buffer exclusive to this call, so install it directly.
@@ -1664,14 +1615,12 @@ public class ArrayList<T> <: List<T> {
         checkRange(index)
         return this.myData[index]
     }
-
     @Frozen
     @OverflowWrapping
     public exclave operator func [](this @local!, index: Int64): T @local! {
         checkRange(index)
         return this.myData[index]
     }
-
     @Frozen
     @OverflowWrapping
     public exclave operator func [](this @local?, index: Int64): T @local? {
@@ -1696,7 +1645,6 @@ public class ArrayList<T> <: List<T> {
         }
         unsafe { myData.setUnchecked(index, value) }
     }
-
     @Frozen
     @OverflowWrapping
     public exclave operator func [](this @local!, index: Int64, value!: T @local!): Unit {
@@ -1718,7 +1666,6 @@ public class ArrayList<T> <: List<T> {
     public func iterator(): Iterator<T> {
         return ArrayListIterator<T>(this)
     }
-
     @Frozen
     public exclave func iterator(this @local!): Iterator<T> @local! {
         ArrayListIterator<T>(this) @local!
@@ -1740,7 +1687,6 @@ public class ArrayList<T> <: List<T> {
     public func isEmpty(): Bool {
         return mySize == 0
     }
-
     @Frozen
     public func isEmpty(this @local?): Bool {
         return mySize == 0
@@ -1759,7 +1705,6 @@ public class ArrayList<T> <: List<T> {
             return mySize
         }
     }
-
     public prop size: Int64 @local? {
         get() {
             return mySize
@@ -1832,7 +1777,6 @@ public class ArrayList<T> <: List<T> {
         myData.copyTo(newArr, 0, startIndex, mySize)
         myData = newArr
     }
-
     @Frozen
     private exclave func grow(this @local!, minCapacity: Int64, startIndex!: Int64 = 0): Unit {
         let oldCapacity: Int64 = myData.size
@@ -1848,7 +1792,6 @@ public class ArrayList<T> <: List<T> {
     protected func updateVersion(): Unit {
         myVersion++
     }
-
     protected func updateVersion(this @local!): Unit {
         myVersion++
     }
@@ -1866,7 +1809,6 @@ extend<T> ArrayList<T> <: Equatable<ArrayList<T>> where T <: Equatable<T> {
         if (this.size != other.size) {
             return false
         }
-
         /* Back-to-front traversal can reduce boundary checks and improve performance */
         for (i in this.size - 1..=0 : -1) {
             if (unsafe { this.myData.getUnchecked(i) != other.myData.getUnchecked(i) }) {
@@ -1983,7 +1925,6 @@ extend<T> ArrayList<T> {
         }
         return ArrayList<(T, R)>(newData)
     }
-
     public exclave func zip<R>(this @local!, other: ArrayList<R> @local!): ArrayList<(T, R)> @local! {
         let newSize: Int64 = min(mySize, other.size)
         if (newSize == 0) {
@@ -2014,7 +1955,6 @@ extend<T> ArrayList<T> {
         }
         return ArrayList<(Int64, T)>(newData)
     }
-
     public exclave func enumerate(this @local!): ArrayList<(Int64, T)> @local! {
         if (mySize == 0) {
             return ArrayList<(Int64, T)>()
@@ -2064,7 +2004,6 @@ func stableSort<T>(data: Array<T>, compare: (T, T) -> Ordering): Unit {
     }
     data.timSort(compare)
 }
-
 // Temporary code, deleted when @Deprecated ends
 extend<T> Array<T> {
     // the value range of the parameter: 0 <= begin < end <= array.size - 1
@@ -2528,13 +2467,10 @@ extend<T> Array<T> {
         this.mergeAll(runStarts, runLengths, runTop, scratch, compare)
     }
 }
-
 // Temporary code, deleted when @Deprecated ends
 class TempArray<T> {
     private var data: Array<T>
-
     private let zero: T
-
     private let max: Int64
 
     init(runLength: Int64, z: T) {

@@ -27,7 +27,6 @@ let digits100: Array<Byte> = [
 
 public class StringBuilder <: ToString {
     private var data: Array<UInt8>
-
     private var endIndex: Int64
 
     /* defines the buffer defaultCapacity */

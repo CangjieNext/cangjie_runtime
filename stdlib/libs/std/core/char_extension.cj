@@ -117,13 +117,11 @@ extend Rune {
         if (byte < HIGH_1_UInt8) {
             return 1
         }
-
         // 0b_10xx_xxxx is not a Unicode Code Point's boundary, throw exception in this case
         if (byte < HIGH_2_UInt8) {
             var (char, _) = getPreviousFromUtf8(arr, index)
             throw IllegalArgumentException("Byte index ${index} is not a Rune boundary, it is inside '${char}'.")
         }
-
         // 0b_1111_1xxx and above are invalid UTF-8 sequences (5-6 byte sequences not allowed in Unicode)
         if (byte >= HIGH_5_UInt8) {
             throw IllegalArgumentException("Invalid UTF-8 character.")

@@ -10,11 +10,9 @@ package std.core
 
 public interface Hashable {
     func hashCode(): Int64
-
     func hashCode(this @local?): Int64 {
         throw UnimplementedException("Current Type does not implement 'hashCode' method for its @local? instance")
     }
-
     func hashCode(this @local!): Int64 {
         throw UnimplementedException("Current Type does not implement 'hashCode' method for its @local! instance")
     }
@@ -31,7 +29,6 @@ extend Ordering <: Hashable {
             case _ => return 2
         }
     }
-
     public func hashCode(this @local?): Int64 {
         match (this) {
             case Ordering.GT => return 3
@@ -39,7 +36,6 @@ extend Ordering <: Hashable {
             case _ => return 2
         }
     }
-
     public func hashCode(this @local!): Int64 {
         match (this) {
             case Ordering.GT => return 3
@@ -53,11 +49,9 @@ extend Unit <: Hashable {
     public func hashCode(): Int64 {
         return 0
     }
-
     public func hashCode(this @local?): Int64 {
         return 0
     }
-
     public func hashCode(this @local!): Int64 {
         return 0
     }
@@ -70,14 +64,12 @@ extend Bool <: Hashable {
         }
         return 0
     }
-
     public func hashCode(this @local?): Int64 {
         if (this) {
             return 1
         }
         return 0
     }
-
     public func hashCode(this @local!): Int64 {
         if (this) {
             return 1
@@ -90,11 +82,9 @@ extend Rune <: Hashable {
     public func hashCode(): Int64 {
         return Int64(UInt32(this))
     }
-
     public func hashCode(this @local?): Int64 {
         return Int64(UInt32(this))
     }
-
     public func hashCode(this @local!): Int64 {
         return Int64(UInt32(this))
     }
@@ -125,12 +115,10 @@ extend IntNative <: Hashable {
     public func hashCode(): Int64 {
         return Int64(this)
     }
-
     @OverflowWrapping
     public func hashCode(this @local?): Int64 {
         return Int64(this)
     }
-
     @OverflowWrapping
     public func hashCode(this @local!): Int64 {
         return Int64(this)
@@ -141,7 +129,6 @@ extend IntNative <: Hashable {
             IntNative(UIntNative.Max >> 1)
         }
     }
-
     public static prop Min: IntNative {
         get() {
             !IntNative.Max
@@ -153,11 +140,9 @@ extend Int64 <: Hashable {
     public func hashCode(): Int64 {
         return this
     }
-
     public func hashCode(this @local?): Int64 {
         return Int64(this)
     }
-
     public func hashCode(this @local!): Int64 {
         return Int64(this)
     }
@@ -179,12 +164,10 @@ extend Int32 <: Hashable {
     public func hashCode(): Int64 {
         return Int64(this)
     }
-
     @OverflowWrapping
     public func hashCode(this @local?): Int64 {
         return Int64(this)
     }
-
     @OverflowWrapping
     public func hashCode(this @local!): Int64 {
         return Int64(this)
@@ -207,12 +190,10 @@ extend Int16 <: Hashable {
     public func hashCode(): Int64 {
         return Int64(this)
     }
-
     @OverflowWrapping
     public func hashCode(this @local?): Int64 {
         return Int64(this)
     }
-
     @OverflowWrapping
     public func hashCode(this @local!): Int64 {
         return Int64(this)
@@ -235,12 +216,10 @@ extend Int8 <: Hashable {
     public func hashCode(): Int64 {
         return Int64(this)
     }
-
     @OverflowWrapping
     public func hashCode(this @local?): Int64 {
         return Int64(this)
     }
-
     @OverflowWrapping
     public func hashCode(this @local!): Int64 {
         return Int64(this)
@@ -264,12 +243,10 @@ extend UIntNative <: Hashable {
     public func hashCode(): Int64 {
         return Int64(this)
     }
-
     @OverflowWrapping
     public func hashCode(this @local?): Int64 {
         return Int64(this)
     }
-
     @OverflowWrapping
     public func hashCode(this @local!): Int64 {
         return Int64(this)
@@ -293,12 +270,10 @@ extend UInt64 <: Hashable {
     public func hashCode(): Int64 {
         return Int64(this)
     }
-
     @OverflowWrapping
     public func hashCode(this @local?): Int64 {
         return Int64(this)
     }
-
     @OverflowWrapping
     public func hashCode(this @local!): Int64 {
         return Int64(this)
@@ -321,11 +296,9 @@ extend UInt32 <: Hashable {
     public func hashCode(): Int64 {
         return Int64(this)
     }
-
     public func hashCode(this @local?): Int64 {
         return Int64(this)
     }
-
     public func hashCode(this @local!): Int64 {
         return Int64(this)
     }
@@ -347,11 +320,9 @@ extend UInt16 <: Hashable {
     public func hashCode(): Int64 {
         return Int64(this)
     }
-
     public func hashCode(this @local?): Int64 {
         return Int64(this)
     }
-
     public func hashCode(this @local!): Int64 {
         return Int64(this)
     }
@@ -373,11 +344,9 @@ extend UInt8 <: Hashable {
     public func hashCode(): Int64 {
         return Int64(this)
     }
-
     public func hashCode(this @local?): Int64 {
         return Int64(this)
     }
-
     public func hashCode(this @local!): Int64 {
         return Int64(this)
     }
@@ -404,7 +373,6 @@ extend Float64 <: Hashable {
         }
         return wyrand(i)
     }
-
     public func hashCode(this @local?): Int64 {
         let i = if (this == 0.0f64) {
             0
@@ -413,7 +381,6 @@ extend Float64 <: Hashable {
         }
         return wyrand(i)
     }
-
     public func hashCode(this @local!): Int64 {
         let i = if (this == 0.0f64) {
             0
@@ -452,7 +419,6 @@ extend Float64 <: Hashable {
             Float64(Float64(1.0 / Float64(2.0 ** 0x3FE)) * Float64(1.0 / Float64(1 << 52)))
         }
     }
-
     public static prop MinNormal: Float64 {
         get() {
             i64tof64(Int64(0x1) << 52)
@@ -551,7 +517,6 @@ extend Float32 <: Hashable {
         }
         return wyrand(i)
     }
-
     public func hashCode(this @local?): Int64 {
         let i = if (this == 0.0f32) {
             0
@@ -560,7 +525,6 @@ extend Float32 <: Hashable {
         }
         return wyrand(i)
     }
-
     public func hashCode(this @local!): Int64 {
         let i = if (this == 0.0f32) {
             0
@@ -698,7 +662,6 @@ extend Float16 <: Hashable {
         }
         return wyrand(i)
     }
-
     public func hashCode(this @local?): Int64 {
         let i = if (this == 0.0f16) {
             0
@@ -707,7 +670,6 @@ extend Float16 <: Hashable {
         }
         return wyrand(i)
     }
-
     public func hashCode(this @local!): Int64 {
         let i = if (this == 0.0f16) {
             0
@@ -862,7 +824,6 @@ extend<T> Range<T> <: Hashable where T <: Hashable & Countable<T> & Comparable<T
         dfh.write(isClosed.hashCode())
         return dfh.finish()
     }
-
     public func hashCode(this @local!): Int64 {
         let startQ: T @local? = start
         let endQ: T @local? = end
@@ -877,35 +838,20 @@ extend<T> Range<T> <: Hashable where T <: Hashable & Countable<T> & Comparable<T
 
 public interface Hasher {
     func finish(): Int64
-
     mut func reset(): Unit
-
     mut func write(value: Bool): Unit
-
     mut func write(value: Rune): Unit
-
     mut func write(value: Int8): Unit
-
     mut func write(value: Int16): Unit
-
     mut func write(value: Int32): Unit
-
     mut func write(value: Int64): Unit
-
     mut func write(value: UInt8): Unit
-
     mut func write(value: UInt16): Unit
-
     mut func write(value: UInt32): Unit
-
     mut func write(value: UInt64): Unit
-
     mut func write(value: Float16): Unit
-
     mut func write(value: Float32): Unit
-
     mut func write(value: Float64): Unit
-
     mut func write(value: String): Unit
 }
 
@@ -985,7 +931,6 @@ public struct DefaultHasher <: Hasher {
         let a: Int64 = -7046029254386353131 // 0x9e3779b97f4a7c15
         return seed ^ (hashV + a + (seed << 6) + (seed >> 2))
     }
-
     public init(res!: Int64 = 0) {
         this.res = res
     }

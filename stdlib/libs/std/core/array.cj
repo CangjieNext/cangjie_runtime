@@ -34,9 +34,7 @@ private func rangeCloneSize(start_: Int64, end_: Int64, step: Int64): Int64 {
 @ConstSafe
 public struct Array<T> {
     let rawptr: RawArray<T>
-
     let start: Int64
-
     let len: Int64
 
     @Frozen
@@ -366,7 +364,6 @@ public struct Array<T> {
         }
         exclave { arrayGetUnchecked2<T>(this.rawptr, start + index) }
     }
-
     @Frozen
     @OverflowWrapping
     @When[env != "ohos"]
@@ -926,7 +923,6 @@ public struct Array<T> {
     protected unsafe func setUnchecked(index: Int64, element: T): Unit {
         return arraySetUnchecked(this.rawptr, start + index, element)
     }
-
     @Frozen
     @OverflowWrapping
     protected exclave unsafe func setUnchecked(this @local!, index: Int64, element: T @local!): Unit {
@@ -1292,7 +1288,6 @@ public struct Array<T> {
      * 
      * @param transform the given mapping function. If the function's return value is Some, it corresponds to the filter's predicate being true; 
               otherwise, it is false.
-
      * @returns a new array after filtering and mapping.
      */
     public func filterMap<R>(transform: (T) -> ?R): Array<R> {
@@ -1625,6 +1620,7 @@ private func arrayInvalidRangeStepExceptionMessage(rangeStep: Int64): String {
 public interface Copyable {}
 
 extend<T> Array<T> where T <: Copyable {
+
     @Frozen
     @OverflowWrapping
     public operator func [](this @local?, index: Int64, value!: T): Unit {
