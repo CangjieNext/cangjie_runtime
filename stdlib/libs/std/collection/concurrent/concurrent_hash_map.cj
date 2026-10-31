@@ -154,6 +154,7 @@ class KVList<K, V> where K <: Equatable<K> {
                 if (!entryView.update) {
                     return (this, v, None)
                 }
+
                 // replace
                 let copyList = KVList<K, V>(this)
                 copyList.myData[i] = (hash, key, v)
@@ -491,12 +492,14 @@ class ConcurrentHashMapEntryView<K, V> <: MapEntryView<K, V> {
 
     // ConcurrentHashMap is not adapted to local mode (it has no local members at all); no valid
     // instance exists in a local context, so the local form of MapEntryView is explicitly rejected.
+    @When[env != "ohos"]
     public prop key: K @local? {
         get() {
             throw UnimplementedException("ConcurrentHashMapEntryView does not support local mode")
         }
     }
 
+    @When[env != "ohos"]
     public mut prop value: ?V @local! {
         get() {
             throw UnimplementedException("ConcurrentHashMapEntryView does not support local mode")
@@ -960,6 +963,7 @@ public class ConcurrentHashMap<K, V> <: ConcurrentMap<K, V> & Collection<(K, V)>
         if ((counts[hash & (counts.size - 1)].load() << COUNT_SIZE) < sz) {
             return
         }
+
         /* Migrate all elements in previous hashtable, before resizing */
         var i = curHT.migratingIndex.fetchAdd(1)
         var migrateCnt = 0

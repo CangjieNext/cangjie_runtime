@@ -849,6 +849,7 @@ public struct Array<T> {
     }
     
     @Frozen
+    @When[env != "ohos"]
     public func copyTo(this @local!, dst: Array<T> @local!): Unit {
         exclave {
         if (this.len == 0) {
@@ -885,6 +886,7 @@ public struct Array<T> {
     }
 
     @Frozen
+    @When[env != "ohos"]
     public func concat(this @local!, other: Array<T> @local!): Array<T> @local! {
         exclave {
             if (this.len == 0) {
@@ -948,6 +950,7 @@ public struct Array<T> {
     }
 
     @Frozen
+    @When[env != "ohos"]
     public exclave func swap(this @local!, index1: Int64, index2: Int64): Unit {
         if (index1 < 0 || len <= index1) {
             throw IllegalArgumentException("Index1 is less than 0 or not less than the size of this array.")
@@ -977,6 +980,7 @@ public struct Array<T> {
     }
 
     @Frozen
+    @When[env != "ohos"]
     public func splitAt(this @local!, mid: Int64): (Array<T>, Array<T>) @local! {
         exclave {
             if (mid < 0 || this.len < mid) {
@@ -1009,6 +1013,7 @@ public struct Array<T> {
     }
 
     @Frozen
+    @When[env != "ohos"]
     public func repeat(this @local!, n: Int64): Array<T> @local! {
         exclave {
             if (n <= 0) {
@@ -1035,6 +1040,7 @@ public struct Array<T> {
     }
 
     @Frozen
+    @When[env != "ohos"]
     public func map<R>(this @local!, transform: ((T @local!) -> R @local!) @local?): Array<R> @local! {
         exclave {
             let newRawPtr = rawArrayAllocate2<R>(this.len)
@@ -1057,6 +1063,7 @@ public struct Array<T> {
      * @returns a new array containing all elements extracted from the source array at intervals.
      * @throws IllegalArgumentException, if count < 0.
      */
+    @When[env != "ohos"]
     public func step(count: Int64): Array<T> {
         if (count <= 0) {
             throw IllegalArgumentException("Step count must be greater than 0!")
@@ -1078,6 +1085,7 @@ public struct Array<T> {
         return Array<T>()
     }
 
+    @When[env != "ohos"]
     public func step(this @local!, count: Int64): Array<T> @local! {
         exclave {
             if (count <= 0) {
@@ -1108,6 +1116,7 @@ public struct Array<T> {
      * @returns a new array with the specified number of elements taken.
      * @throws IllegalArgumentException, if count < 0.
      */
+    @When[env != "ohos"]
     public func take(count: Int64): Array<T> {
         if (count == 0) {
             return Array<T>()
@@ -1122,6 +1131,7 @@ public struct Array<T> {
         return Array<T>(newRawPtr, 0, newLen)
     }
 
+    @When[env != "ohos"]
     public func take(this @local!, count: Int64): Array<T> @local! {
         exclave {
             if (count == 0) {
@@ -1145,6 +1155,7 @@ public struct Array<T> {
      * @returns a new array with the specified number of elements skipped.
      * @throws IllegalArgumentException, if count < 0.
      */
+    @When[env != "ohos"]
     public func skip(count: Int64): Array<T> {
         if (count < 0) {
             throw IllegalArgumentException("skip count must be greater than 0!")
@@ -1163,6 +1174,7 @@ public struct Array<T> {
         return Array<T>(newRawPtr, 0, newLen)
     }
 
+    @When[env != "ohos"]
     public func skip(this @local!, count: Int64): Array<T> @local! {
         exclave {
             if (count < 0) {
@@ -1189,6 +1201,7 @@ public struct Array<T> {
      * @param predicate the given condition.
      * @returns a new array containing elements that satisfy the filtering condition.
      */
+    @When[env != "ohos"]
     public func filter(predicate: (T) -> Bool): Array<T> {
         if (this.len == 0) {
             return Array<T>()
@@ -1206,6 +1219,7 @@ public struct Array<T> {
         return Array<T>(newRawPtr, 0, t)
     }
 
+    @When[env != "ohos"]
     public func filter(this @local!, predicate: ((T @local?) -> Bool) @local?): Array<T> @local! {
         exclave {
             if (this.len == 0) {
@@ -1233,6 +1247,7 @@ public struct Array<T> {
      * @param transform the given mapping function.
      * @returns the new array after being "mapped" and "flattened".
      */
+    @When[env != "ohos"]
     public func flatMap<R>(transform: (T) -> Array<R>): Array<R> {
         var result: Array<R> = Array<R>()
         for (i in 0..this.len) {
@@ -1241,6 +1256,7 @@ public struct Array<T> {
         return result
     }
 
+    @When[env != "ohos"]
     public func flatMap<R>(this @local!, transform: ((T @local!) -> Array<R> @local!) @local?): Array<R> @local! {
         exclave {
             // Amortised linear: grow the buffer geometrically and copy only the newly appended run.
@@ -1293,6 +1309,7 @@ public struct Array<T> {
 
      * @returns a new array after filtering and mapping.
      */
+    @When[env != "ohos"]
     public func filterMap<R>(transform: (T) -> ?R): Array<R> {
         if (this.len == 0) {
             return Array<R>()
@@ -1313,6 +1330,7 @@ public struct Array<T> {
         return Array<R>(newRawPtr, 0, j)
     }
 
+    @When[env != "ohos"]
     public func filterMap<R>(this @local!, transform: ((T @local!) -> Option<R> @local!) @local?): Array<R> @local! {
         exclave {
             if (this.len == 0) {
@@ -1342,6 +1360,7 @@ public struct Array<T> {
      * @param separator the given element.
      * @returns a new array.
      */
+    @When[env != "ohos"]
     public func intersperse(separator: T): Array<T> {
         if (this.len < 2) {
             return this.clone()
@@ -1358,6 +1377,7 @@ public struct Array<T> {
         return Array<T>(newRawPtr,0,newSize)
     }
 
+    @When[env != "ohos"]
     public func intersperse(this @local!, separator: T @local!): Array<T> @local! {
         exclave {
             if (this.len < 2) {
@@ -1381,12 +1401,14 @@ public struct Array<T> {
      * 
      * @param action the given operation function.
      */
+    @When[env != "ohos"]
     public func forEach(action: (T) -> Unit): Unit {
         for (i in 0..this.len) {
             action(unsafe{ getUnchecked(i) })
         }
     }
 
+    @When[env != "ohos"]
     public exclave func forEach(this @local!, action: ((T @local!) -> Unit) @local?): Unit {
         var i: Int64 = 0
         while (i < this.len) {
@@ -1401,6 +1423,7 @@ public struct Array<T> {
      * @param predicate the given condition.
      * @returns true if all elements in the array satisfy the condition, otherwise returns false.
      */
+    @When[env != "ohos"]
     public func all(predicate: (T) -> Bool): Bool {
         for (i in 0..this.len) {
             if (!predicate(unsafe { getUnchecked(i) })) {
@@ -1410,6 +1433,7 @@ public struct Array<T> {
         return true
     }
 
+    @When[env != "ohos"]
     public func all(this @local?, predicate: ((T @local?) -> Bool) @local?): Bool {
         var i: Int64 = 0
         while (i < this.len) {
@@ -1427,6 +1451,7 @@ public struct Array<T> {
      * @param predicate the given condition.
      * @returns Whether there is any element that satisfies the condition.
      */
+    @When[env != "ohos"]
     public func any(predicate: (T) -> Bool): Bool {
         for (i in 0..this.len) {
             if (predicate(unsafe{getUnchecked(i)})) {
@@ -1436,6 +1461,7 @@ public struct Array<T> {
         return false
     }
 
+    @When[env != "ohos"]
     public func any(this @local?, predicate: ((T @local?) -> Bool) @local?): Bool {
         var i: Int64 = 0
         while (i < this.len) {
@@ -1453,6 +1479,7 @@ public struct Array<T> {
      * @param separator the given element.
      * @returns a new array.
      */
+    @When[env != "ohos"]
     public func none(predicate: (T) -> Bool): Bool {
         for (i in 0..this.len) {
             if (predicate(unsafe{getUnchecked(i)})) {
@@ -1462,6 +1489,7 @@ public struct Array<T> {
         return true
     }
 
+    @When[env != "ohos"]
     public func none(this @local?, predicate: ((T @local?) -> Bool) @local?): Bool {
         var i: Int64 = 0
         while (i < this.len) {
@@ -1480,6 +1508,7 @@ public struct Array<T> {
      * @param operation the given computation function.
      * @returns the final computed value.
      */
+    @When[env != "ohos"]
     public func fold<R>(initial: R, operation: (R, T) -> R): R {
         var result: R = initial
         for (i in 0..this.len) {
@@ -1488,6 +1517,7 @@ public struct Array<T> {
         return result
     }
 
+    @When[env != "ohos"]
     public func fold<R>(this @local!, initial: R @local!, operation: ((R @local!, T @local!) -> R @local!) @local?): R @local! {
         exclave {
             var result: R @local! = initial
@@ -1506,6 +1536,7 @@ public struct Array<T> {
      * @param operation the given computation function.
      * @returns the computation result.
      */
+    @When[env != "ohos"]
     public func reduce(operation: (T, T) -> T): Option<T> {
         if (this.len == 0) {
             return None<T>
@@ -1526,6 +1557,7 @@ extend<T> Array<T> {
      * @param other one of the arrays to be merged.
      * @returns a new array.
      */
+    @When[env != "ohos"]
     public func zip<R>(other: Array<R>): Array<(T, R)> {
         let newSize: Int64 = min(this.len, other.size)
         if (newSize == 0) {
@@ -1544,6 +1576,7 @@ extend<T> Array<T> {
      * 
      * @returns a new array with indices.
      */
+    @When[env != "ohos"]
     public func enumerate(): Array<(Int64, T)> {
         if (this.len == 0) {
             return Array<(Int64, T)>()
@@ -1622,6 +1655,7 @@ private func arrayInvalidRangeStepExceptionMessage(rangeStep: Int64): String {
 
 public interface Copyable {}
 
+@When[env != "ohos"]
 extend<T> Array<T> where T <: Copyable {
     @Frozen
     @OverflowWrapping

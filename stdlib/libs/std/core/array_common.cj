@@ -44,14 +44,18 @@ func toArray<T>(raw: RawArray<T>): Array<T> {
     }
     return Array<T>(raw, 0, arraySize(raw))
 }
+
 @Frozen
+@When[env != "ohos"]
 exclave func toArray<T>(raw: RawArray<T> @local!): Array<T> @local! {
     if (arraySize(raw) == 0) {
         return Array<T>()
     }
     return Array<T>(raw, 0, arraySize(raw))
 }
+
 @Frozen
+@When[env != "ohos"]
 exclave func toArray<T>(raw: RawArray<T> @local?): Array<T> @local? {
     if (arraySize(raw) == 0) {
         // Empty result keeps the @local? mode without the removed no-arg @local? ctor:
@@ -69,11 +73,13 @@ extend<T> Array<T> <: Collection<T> {
     }
 
     @Frozen
+    @When[env != "ohos"]
     public exclave func iterator(this @local!): Iterator<T> @local! {
         ArrayIterator<T>(this) @local!
     }
 
     @Frozen
+    @When[env != "ohos"]
     public exclave func iterator(this @local?): Iterator<T> @local? {
         ArrayIterator<T>(this) @local?
     }
@@ -90,6 +96,7 @@ extend<T> Array<T> <: Collection<T> {
     }
 
     @Frozen
+    @When[env != "ohos"]
     public prop size: Int64 @local? {
         get() {
             this.len
@@ -103,6 +110,7 @@ extend<T> Array<T> <: Collection<T> {
     }
 
     @Frozen
+    @When[env != "ohos"]
     public func isEmpty(this @local?): Bool {
         return this.size == 0
     }
@@ -113,12 +121,12 @@ extend<T> Array<T> <: Collection<T> {
     }
 
     @Frozen
+    @When[env != "ohos"]
     public exclave func toArray(this @local!): Array<T> @local! {
         this.clone()
     }
 
 }
-
 
 extend<T> Array<T> <: ToString where T <: ToString {
     @Frozen
@@ -138,6 +146,7 @@ extend<T> Array<T> <: ToString where T <: ToString {
     }
 
     @Frozen
+    @When[env != "ohos"]
     public exclave func toString(this @local?): String @local! {
         let sb: StringBuilder @local! = StringBuilder()
         sb.appendRune(r'[')
@@ -160,6 +169,7 @@ extend<T> Array<T> <: Equatable<Array<T>> where T <: Equatable<T> {
         if (this.size != other.size) {
             return false
         }
+
         /* Back-to-front traversal can reduce boundary checks and improve performance */
         for (i in this.size - 1..=0 : -1) {
             if (this[i] != other[i]) {
@@ -179,6 +189,7 @@ extend<T> Array<T> <: Equatable<Array<T>> where T <: Equatable<T> {
         if (this.size == 0) {
             return false
         }
+
         /* Back-to-front traversal can reduce boundary checks and improve performance */
         for (i in this.size - 1..=0 : -1) {
             if (this[i] == element) {
@@ -469,6 +480,7 @@ public class ArrayIterator<T> <: Iterator<T> {
     }
 
     @Frozen
+    @When[env != "ohos"]
     internal exclave init(this @local!, data: Array<T> @local!) {
         this.myData = data
         this.end = data.size
@@ -476,6 +488,7 @@ public class ArrayIterator<T> <: Iterator<T> {
     }
 
     @Frozen
+    @When[env != "ohos"]
     internal exclave init(this @local?, data: Array<T> @local?) {
         this.myData = data
         this.end = data.size
@@ -498,6 +511,7 @@ public class ArrayIterator<T> <: Iterator<T> {
     /** Returns the next element in the iteration. */
     @Frozen
     @OverflowWrapping
+    @When[env != "ohos"]
     public exclave func next(this @local!): Option<T> @local! {
         if (this.myPosition < this.end) {
             let v: T @local! = arrayGetUnchecked2<T>(this.myData.rawptr, this.myData.start + this.myPosition)
@@ -510,6 +524,7 @@ public class ArrayIterator<T> <: Iterator<T> {
     /** Returns the next element in the iteration. */
     @Frozen
     @OverflowWrapping
+    @When[env != "ohos"]
     public exclave func next(this @local?): Option<T> @local? {
         if (this.myPosition < this.end) {
             let v: T @local? = arrayGetUnchecked3<T>(this.myData.rawptr, this.myData.start + this.myPosition)
@@ -536,6 +551,7 @@ public struct CPointerHandle<T> where T <: CType {
         this.array = arr
     }
 
+    @When[env != "ohos"]
     internal exclave init(this @local?, ptr: CPointer<T> @local?, arr: Array<T> @local?) {
         pointer = ptr
         array = arr
@@ -554,6 +570,7 @@ public unsafe func acquireArrayRawData<T>(arr: Array<T>): CPointerHandle<T> wher
 }
 
 @Frozen
+@When[env != "ohos"]
 public exclave unsafe func acquireArrayRawData<T>(arr: Array<T> @local?): CPointerHandle<T> @local? where T <: CType {
     CPointerHandle<T>(acquireRawData2<T>(arr.rawptr) + arr.start, arr)
 }
@@ -564,15 +581,16 @@ public unsafe func releaseArrayRawData<T>(handle: CPointerHandle<T>): Unit where
 }
 
 @Frozen
+@When[env != "ohos"]
 public unsafe func releaseArrayRawData<T>(handle: CPointerHandle<T> @local?): Unit where T <: CType {
     releaseRawData2(handle.array.rawptr, handle.pointer - handle.array.start)
 }
-
 
 /**
  * @local? forms not provided in this file: contains, indexOf(element) without fromIndex,
  * and `==` / `!=` (==/!= are limited by extend member shadowing).
  */
+@When[env != "ohos"]
 extend<T> Array<T> where T <: Equatable<T> {
     @Frozen
     public func indexOf(this @local?, element: T @local?, fromIndex: Int64): Option<Int64> {
