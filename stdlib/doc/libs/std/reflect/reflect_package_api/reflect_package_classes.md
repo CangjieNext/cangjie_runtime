@@ -7784,6 +7784,8 @@ public class OptionTypeInfo <: TypeInfo {}
 
 `TypeInfo.of(instance)`、`TypeInfo.of<T>()` 和 `TypeInfo.get(qualifiedName)` 自动识别 Option。识别同时校验标准库 Option 限定名、唯一的类型参数 `T`、一个参数的 `Some` 构造器和零参数的 `None` 构造器；不满足规则的枚举仍返回普通 `EnumTypeInfo`。
 
+通过枚举视图获取的 `None` 构造器，其 `parameters` 和实例关联值列表均为空；运行时布局中的占位字段不属于载荷。此规则同时适用于值类型和引用类型的 `Option<T>`。
+
 本类型要求编译器和运行时提供完整的通用枚举构造器元信息；仅存在相关 intrinsic 符号并不代表元信息可用。缺失时，`TypeInfo` 保持返回 `EnumTypeInfo`，`OptionTypeInfo.of/get` 抛出 `IllegalTypeException`。此 API 不适用于 OHOS。
 
 ### prop payloadType
