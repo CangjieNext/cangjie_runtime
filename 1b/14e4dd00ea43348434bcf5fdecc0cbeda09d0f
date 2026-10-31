@@ -1,0 +1,29 @@
+stdlib/cmake/modules/AddCangjieSource.cmake
+  s_da4e28ed8cf9b9::t_473fbad1f82682 139-140
+stdlib/libs/std/ast/native/ast_api.cpp
+  s_f5ac9c3b14ab24::t_9d6a153ba7e04c 43-44,47,50-57,76,106,188,240,280,301,333,372,426
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1b14e4dd00ea43348434bcf5fdecc0cbeda09d0f",
+  "prompts": {},
+  "sessions": {
+    "s_da4e28ed8cf9b9": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "6adf19f45d9c5b6f1f6b5f10",
+        "model": "DeepSeek-V4.1-Flash-1017__dev"
+      },
+      "human_author": "kkkkkkkbbbbbbb <songjian59@huawei.com>"
+    },
+    "s_f5ac9c3b14ab24": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "6ae2b1a15d9c5b6f1f6b867d",
+        "model": "DeepSeek-V4.1-Flash-1017__dev"
+      },
+      "human_author": "kkkkkkkbbbbbbb <songjian59@huawei.com>"
+    }
+  }
+}
