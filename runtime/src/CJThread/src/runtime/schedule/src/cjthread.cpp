@@ -19,6 +19,7 @@
 #include "Mutator/Mutator.inline.h"
 
 #include "cjthread.h"
+#include "ThreadCreatorInfo.h"
 #if defined(CANGJIE_SANITIZER_SUPPORT)
 #include "Sanitizer/SanitizerInterface.h"
 #endif
@@ -115,6 +116,10 @@ void CJThreadStackMemFree(struct CJThread *cjthread, char *stackTopAddr, size_t 
 
 void CJThreadMemFree(struct CJThread *cjthread)
 {
+    // Run keyed-data destructors on every real free path. A cjthread that was enqueued but
+    // never ran (e.g. force-freed on scheduler teardown) still owns its keyed localData;
+    // skipping this would leak the value (idempotent for the normal CJThreadMexit path).
+    CJThreadKeysClean(cjthread);
     CJThreadStackMemFree(cjthread, cjthread->stack.stackTopAddr, cjthread->stack.stackSize);
     free(cjthread);
 }
@@ -1026,8 +1031,10 @@ CJThreadHandle ExclusiveCJThreadNew(CJThreadFunc func,
 }
 
 /* Create a cjthread in the cjthread context. */
-CJThreadHandle CJThreadNew(ScheduleHandle schedule, const struct CJThreadAttr *attrUser, CJThreadFunc func,
-                           const void *argStart, unsigned int argSize, CJThreadCreateSource createSource)
+static CJThreadHandle CJThreadNewImpl(ScheduleHandle schedule, const struct CJThreadAttr *attrUser,
+                                      CJThreadFunc func, const void *argStart, unsigned int argSize,
+                                      CJThreadCreateSource createSource,
+                                      MapleRuntime::ThreadCreatorRecord *creatorRecord)
 {
     unsigned long long cjthreadId = CJThreadNewId();
 #ifdef __OHOS__
@@ -1044,10 +1051,24 @@ CJThreadHandle CJThreadNew(ScheduleHandle schedule, const struct CJThreadAttr *a
     struct CJThread* newCJThread = CJThreadBuild(schedule, attrUser, func, argStart, argSize, createSource);
     if (newCJThread == nullptr) {
         HILOG_ERROR(ERRNO_SCHD_CJTHREAD_NULL, "build cjthread failed");
+        // The record was not yet attached to the child; free it.
+        free(creatorRecord);
         return nullptr;
     }
     // Set cjthread id in CJThreadNew
     CJThreadSetId(newCJThread, cjthreadId);
+    if (creatorRecord != nullptr) {
+        CJThreadKey key = MapleRuntime::GetThreadCreatorKey();
+        if (key != static_cast<CJThreadKey>(-1)) {
+            // Attach the creator record to the child's keyed localData before publishing (parent writes, child reads).
+            newCJThread->localData[key] = creatorRecord;
+            creatorRecord = nullptr; // ownership transferred to the child's localData (freed by the key destructor at exit)
+        } else {
+            // If key registration failed (all 9 keys in use) we must not write out of bounds; give up and free to avoid a leak.
+            free(creatorRecord);
+            creatorRecord = nullptr;
+        }
+    }
     CJThreadBuf buf = (CJThreadGet() == nullptr || currentSchedule != targetSchedule ||
                        createSource == CJTHREAD_CREATE_SOURCE_SIGNAL) ? GLOBAL_BUF : LOCAL_BUF;
 #ifdef __OHOS__
@@ -1069,6 +1090,12 @@ CJThreadHandle CJThreadNew(ScheduleHandle schedule, const struct CJThreadAttr *a
     }
     if (error) {
         atomic_store_explicit(&newCJThread->state, CJTHREAD_IDLE, std::memory_order_relaxed);
+        // Enqueue failure: the child will not run nor reach CJThreadMexit's KeysClean, so free and clear the slot manually.
+        CJThreadKey key = MapleRuntime::GetThreadCreatorKey();
+        if (key != static_cast<CJThreadKey>(-1) && newCJThread->localData[key] != nullptr) {
+            free(newCJThread->localData[key]);
+            newCJThread->localData[key] = nullptr;
+        }
         CJThreadFree(newCJThread, true);
         if (targetSchedule->scheduleType != SCHEDULE_DEFAULT) {
             atomic_fetch_sub(&scheduleCJThread->cjthreadNum, 1ULL);
@@ -1089,6 +1116,25 @@ CJThreadHandle CJThreadNew(ScheduleHandle schedule, const struct CJThreadAttr *a
     // Attempt to start a thread to perform scheduling.
     ProcessorWake(targetSchedule, nullptr);
     return newCJThread;
+}
+
+CJThreadHandle CJThreadNew(ScheduleHandle schedule, const struct CJThreadAttr *attrUser, CJThreadFunc func,
+                           const void *argStart, unsigned int argSize, CJThreadCreateSource createSource)
+{
+    return CJThreadNewImpl(schedule, attrUser, func, argStart, argSize, createSource, nullptr);
+}
+
+// Runtime-internal creation helper used only by the two MCC entries. Kept out of
+// the public schedule.h on purpose.
+CJThreadHandle CJThreadNewWithCreator(void *schedule, const void *attrUser, void *func,
+                                          const void *argStart, unsigned int argSize,
+                                          unsigned int createSource,
+                                          MapleRuntime::ThreadCreatorRecord *creatorRecord)
+{
+    return CJThreadNewImpl(static_cast<ScheduleHandle>(schedule),
+                           static_cast<const struct CJThreadAttr *>(attrUser),
+                           reinterpret_cast<CJThreadFunc>(func), argStart, argSize,
+                           static_cast<CJThreadCreateSource>(createSource), creatorRecord);
 }
 
 /* Submit tasks from an external thread to the scheduling framework. */
