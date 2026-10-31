@@ -41,6 +41,7 @@
 #endif
 #include "Sync/Sync.h"
 #include "UnwindStack/GcStackInfo.h"
+#include "ThreadCreatorInfo.h"
 #include "CpuProfiler/CpuProfiler.h"
 #ifdef __OHOS__
 #include "schedule.h"
@@ -561,6 +562,23 @@ extern "C" ArrayRef MCC_FillInStackTraceImpl(const TypeInfo* arrayInfo, const Ar
             liteFrameInfos.push_back(static_cast<uint64_t>(SofStackFlag::TOP_FOLDED));
         }
     }
+    // 当前线程是 spawn 创建且携带创建者记录：在帧尾追加一个哨兵三元组，
+    // 解码（MCC_DecodeStackTraceImpl）时识别并合成“创建者行”。哨兵保持为最后一个
+    // 完整三元组、折叠标记在最末，保证前端 arraySize/3 仍能解到哨兵并丢弃标记。
+    if (GetCurrentThreadCreator() != nullptr) {
+        const bool hasFoldFlag = (liteFrameInfos.size() % 3 == 1);
+        uint64_t foldFlag = 0;
+        if (hasFoldFlag) {
+            foldFlag = liteFrameInfos.back();
+            liteFrameInfos.pop_back();
+        }
+        liteFrameInfos.push_back(0);                  // ip
+        liteFrameInfos.push_back(kThreadCreatorSentinel); // funcStart（哨兵）
+        liteFrameInfos.push_back(0);                  // funcDesc
+        if (hasFoldFlag) {
+            liteFrameInfos.push_back(foldFlag);
+        }
+    }
     MIndex size = liteFrameInfos.size();
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
     if (UNLIKELY(ENABLE_LOG(EXCEPTION))) {
@@ -602,9 +620,56 @@ extern "C" ArrayRef MCC_FillInStackTraceImpl(const TypeInfo* arrayInfo, const Ar
     return array;
 }
 
+static ArrayRef CreateCharArrayFromCString(const TypeInfo* charArray, CString name);
+
 extern "C" StackTraceData MCC_DecodeStackTraceImpl(const uint64_t ip, const uint64_t pc, const uint64_t funcDesc,
                                                    const TypeInfo* charArray)
 {
+    if (pc == kThreadCreatorSentinel) {
+        // 先在 saferegion 内只做 native 工作（取 record、拼字符串），
+        // 再到 saferegion 外创建 GC raw-pointer 数组——与普通帧分支一致，避免
+        // 在 saferegion 内触碰 GC 堆。
+        CString methodName;
+        CString fileNameStr;
+        uint32_t lineNumber = 0;
+        bool hasCreator = false;
+        {
+            ScopedEnterSaferegion checkpoint(true);
+            ThreadCreatorRecord* creator = GetCurrentThreadCreator();
+            if (creator != nullptr) {
+                // record.name 已在采集时 demangle 成 pkg::method，直接拼接。
+                methodName = CString("Thread created by: ") + CString(creator->name);
+                fileNameStr = (creator->fileNameLength > 0) ? CString(creator->fileName) : CString("?");
+                lineNumber = creator->lineNumber;
+                hasCreator = true;
+            }
+        }
+        if (!hasCreator) {
+            // 理论上 fill 阶段追加过哨兵就必有 record；防御：仍构造“空且合法”的数组，
+            // 由前端 `lineNumber==0 && fileName 空` 过滤，避免返回含空 ArrayRef 的结构。
+            StackTraceData empty;
+            empty.methodName = CreateCharArrayFromCString(charArray, CString());
+            empty.fileName = CreateCharArrayFromCString(charArray, CString());
+            empty.className = CreateCharArrayFromCString(charArray, CString());
+            empty.lineNumber = 0;
+            AllocBuffer* emptyBuffer = AllocBuffer::GetAllocBuffer();
+            if (emptyBuffer != nullptr) {
+                emptyBuffer->CommitRawPointerRegions();
+            }
+            return empty;
+        }
+        StackTraceData creatorData;
+        creatorData.methodName = CreateCharArrayFromCString(charArray, methodName);
+        creatorData.fileName = CreateCharArrayFromCString(charArray, fileNameStr);
+        creatorData.className = CreateCharArrayFromCString(charArray, CString());
+        creatorData.lineNumber = lineNumber;
+        AllocBuffer* buffer = AllocBuffer::GetAllocBuffer();
+        if (buffer != nullptr) {
+            buffer->CommitRawPointerRegions();
+        }
+        return creatorData;
+    }
+
     StackTraceElement stackTrace;
     {
         ScopedEnterSaferegion checkpoint(true);
