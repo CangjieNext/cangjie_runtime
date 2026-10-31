@@ -1127,9 +1127,7 @@ struct TreeMapEntryView<K, V> <: MapEntryView<K, V> where K <: Comparable<K> {
     let map: TreeMap<K, V>
 
     var curNode: SearchResult<K, V>
-
     var lockVersion: Int64
-
     var _key: ?K
 
     init(map: TreeMap<K, V>, curNode: SearchResult<K, V>, key!: ?K = None) {
@@ -1236,9 +1234,7 @@ struct TreeMapEntryView<K, V> <: MapEntryView<K, V> where K <: Comparable<K> {
 
 class ForwardIterator<K, V> <: Iterator<(K, V)> where K <: Comparable<K> {
     private var curNode: TreeMapEntryView<K, V>
-
     private var key: K
-
     private var inclusive: Bool
 
     /**
@@ -1284,9 +1280,7 @@ class ForwardIterator<K, V> <: Iterator<(K, V)> where K <: Comparable<K> {
 
 class BackwardIterator<K, V> <: Iterator<(K, V)> where K <: Comparable<K> {
     private var curNode: TreeMapEntryView<K, V>
-
     private var key: K
-
     private var inclusive: Bool
 
     /**
@@ -1500,9 +1494,7 @@ class TreeMapIterator<K, V> <: Iterator<(K, V)> where K <: Comparable<K> {
 
 class Node<K, V> where K <: Comparable<K> {
     var entries: ArrayList<TreeMapEntry<K, V>>
-
     var _parent: ?Node<K, V>
-
     var children: ArrayList<Node<K, V>>
 
     static func nullNode(): ?Node<K, V> {
@@ -1614,7 +1606,6 @@ class Node<K, V> where K <: Comparable<K> {
 
 struct SearchResult<K, V> where K <: Comparable<K> {
     private var _index: Int64
-
     private var _replaceNode: ?Node<K, V>
 
     init(index: Int64, node: ?Node<K, V>) {
@@ -1637,7 +1628,6 @@ struct SearchResult<K, V> where K <: Comparable<K> {
 
 class TreeMapEntry<K, V> where K <: Comparable<K> {
     private var _key: K
-
     private var _value: V
 
     init(key: K, value: V) {

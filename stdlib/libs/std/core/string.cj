@@ -26,9 +26,7 @@ const VECTOR_OFFSET_32: Int64 = 32
 @ConstSafe
 public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToString {
     let myData: RawArray<UInt8>
-
     let start: UInt32
-
     let length: UInt32
 
     public static const empty: String = String()

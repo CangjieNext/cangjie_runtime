@@ -265,9 +265,7 @@ func checkInvalid(arr: RawArray<Byte> @local?, startIndex: Int64, endIndex: Int6
 
 class StringIteratorData {
     let myData: Array<UInt8>
-
     var end: Int64
-
     var nextPos: Int64 = 0
 
     init(data: Array<UInt8>) {
@@ -552,23 +550,14 @@ class StringLineIterator <: Iterator<String> {
 // String lazySplit Iterator.
 class StringLazySplitIterator <: Iterator<String> {
     private let orgData: Array<UInt8>
-
     private let separatorLen: Int64
-
     private var itemArr: Array<Int64>
-
     private var maxSplits: Int64
-
     private var removeEmpty: Bool
-
     private var resLen: Int64 = 0
-
     private var nextPos: Int64 = 0
-
     private var itemStart: Int64 = 0
-
     private var itemIndex: Int64 = 0
-
     private var itemTotal: Int64 = 0
 
     /**

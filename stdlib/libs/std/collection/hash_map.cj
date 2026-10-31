@@ -30,11 +30,8 @@ func bucketHash(hashCode: Int64): Int64 {
 
 struct HashMapEntry<K, V> {
     public let hash: Int64
-
     public let next: Int64
-
     public let key: K
-
     public let value: V
 
     @Frozen
@@ -467,7 +464,6 @@ class HashMapEntryView<K, V> <: MapEntryView<K, V> where K <: Hashable & Equatab
 @When[env != "ohos"]
 class HashMapLocalEntryView<K, V> <: MapEntryView<K, V> where K <: Hashable & Equatable<K> {
     private let map: HashMap<K, V>
-
     private let _key: K
 
     // Version of the map at construction and after each modification made through this view.
@@ -2452,9 +2448,7 @@ class HashMapKeysLocal<K, V> <: EquatableCollection<K> where K <: Hashable & Equ
 
 class HashMapKeysIteratorLocal<K, V> <: Iterator<K> where K <: Hashable & Equatable<K> {
     private let data: HashMap<K, V>
-
     private var pos: Int64 = 0
-
     private let lockVersion: Int64
 
     @Frozen
@@ -2585,9 +2579,7 @@ class HashMapValuesLocal<K, V> <: Collection<V> where K <: Hashable & Equatable<
 
 class HashMapValuesIteratorLocal<K, V> <: Iterator<V> where K <: Hashable & Equatable<K> {
     private let data: HashMap<K, V>
-
     private var pos: Int64 = 0
-
     private let lockVersion: Int64
 
     @Frozen
@@ -2648,11 +2640,8 @@ class HashMapValuesIteratorLocal<K, V> <: Iterator<V> where K <: Hashable & Equa
 public class HashMapIterator<K, V> <: Iterator<(K, V)> where K <: Hashable & Equatable<K> {
     /* Define an empty set */
     private var lockVersion: Int64
-
     private var index: Int64
-
     private let data: HashMap<K, V>
-
     private var isRemoved: Bool
 
     /**

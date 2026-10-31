@@ -93,9 +93,7 @@ private func validatedSliceEnd(range: Range<Int64>, size: Int64): Int64 {
  */
 class ArrayListIterator<T> <: Iterator<T> {
     private var myPosition: Int64 = 0
-
     private let myData: ArrayList<T>
-
     private let initVersion: Int64
 
     /**
@@ -2532,9 +2530,7 @@ extend<T> Array<T> {
 // Temporary code, deleted when @Deprecated ends
 class TempArray<T> {
     private var data: Array<T>
-
     private let zero: T
-
     private let max: Int64
 
     init(runLength: Int64, z: T) {
