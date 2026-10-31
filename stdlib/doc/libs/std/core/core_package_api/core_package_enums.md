@@ -821,6 +821,49 @@ Some(42)和Some(42)的哈希码是否相等: true
 Some(42)和Some(24)的哈希码是否相等: false
 ```
 
+#### func hashCode(this @local?)
+
+```cangjie
+public func hashCode(this @local?): Int64
+```
+
+功能：计算当前 `@local?` 实例的哈希值。
+
+[Some](#somet)\<T> 的哈希值等于 `T` 的值对应的哈希值，[None](#none) 的哈希值等于 [Int64](core_package_intrinsics.md#int64)(0)。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+
+返回值：
+
+- [Int64](core_package_intrinsics.md#int64) - 哈希值。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local? = [5, 6, 7]
+    let o: Option<Int64> @local? = arr.first
+    println("h=${o.hashCode()}")
+    let empty: Array<Int64> @local? = []
+    let n: Option<Int64> @local? = empty.first
+    println("h2=${n.hashCode()}")
+}
+```
+
+运行结果：
+
+```text
+h=5
+h2=0
+```
+
 ### extend\<T> Option\<T> <: ToString where T <: ToString
 
 ```cangjie
@@ -984,6 +1027,146 @@ LT.compare(GT): Ordering.LT
 GT.compare(GT): Ordering.EQ
 ```
 
+#### func compare(this @local?, Ordering @local?)
+
+```cangjie
+public func compare(this @local?, other: Ordering @local?): Ordering
+```
+
+功能：判断当前 `@local?` [Ordering](core_package_enums.md#enum-ordering) 实例与指定 `@local?` 实例的大小关系。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: [Ordering](core_package_enums.md#enum-ordering) @local? - 待比较的另一个 `@local?` 实例。
+
+返回值：
+
+- [Ordering](core_package_enums.md#enum-ordering) - 如果大于，返回 [Ordering](core_package_enums.md#enum-ordering).GT；如果等于，返回 [Ordering](core_package_enums.md#enum-ordering).EQ；如果小于，返回 [Ordering](core_package_enums.md#enum-ordering).LT。
+
+#### operator func ==(this @local?, Ordering @local?)
+
+```cangjie
+public operator func ==(this @local?, other: Ordering @local?): Bool
+```
+
+功能：判断当前 `@local?` 实例与指定 `@local?` 实例是否相等。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: [Ordering](core_package_enums.md#enum-ordering) @local? - 待比较的另一个 `@local?` 实例。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
+
+#### operator func !=(this @local?, Ordering @local?)
+
+```cangjie
+public operator func !=(this @local?, other: Ordering @local?): Bool
+```
+
+功能：判断当前 `@local?` 实例与指定 `@local?` 实例是否不等。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: [Ordering](core_package_enums.md#enum-ordering) @local? - 待比较的另一个 `@local?` 实例。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
+
+#### operator func <(this @local?, Ordering @local?)
+
+```cangjie
+public operator func <(this @local?, other: Ordering @local?): Bool
+```
+
+功能：判断当前 `@local?` 实例是否小于指定 `@local?` 实例。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: [Ordering](core_package_enums.md#enum-ordering) @local? - 待比较的另一个 `@local?` 实例。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果小于，返回 true，否则返回 false。
+
+#### operator func >(this @local?, Ordering @local?)
+
+```cangjie
+public operator func >(this @local?, other: Ordering @local?): Bool
+```
+
+功能：判断当前 `@local?` 实例是否大于指定 `@local?` 实例。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: [Ordering](core_package_enums.md#enum-ordering) @local? - 待比较的另一个 `@local?` 实例。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果大于，返回 true，否则返回 false。
+
+#### operator func <=(this @local?, Ordering @local?)
+
+```cangjie
+public operator func <=(this @local?, other: Ordering @local?): Bool
+```
+
+功能：判断当前 `@local?` 实例是否小于等于指定 `@local?` 实例。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: [Ordering](core_package_enums.md#enum-ordering) @local? - 待比较的另一个 `@local?` 实例。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果小于等于，返回 true，否则返回 false。
+
+#### operator func >=(this @local?, Ordering @local?)
+
+```cangjie
+public operator func >=(this @local?, other: Ordering @local?): Bool
+```
+
+功能：判断当前 `@local?` 实例是否大于等于指定 `@local?` 实例。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: [Ordering](core_package_enums.md#enum-ordering) @local? - 待比较的另一个 `@local?` 实例。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果大于等于，返回 true，否则返回 false。
+
 ### extend Ordering <: Hashable
 
 ```cangjie
@@ -1035,6 +1218,43 @@ main() {
 GT的哈希值: 3
 EQ的哈希值: 2
 LT的哈希值: 1
+```
+
+#### func hashCode(this @local?)
+
+```cangjie
+public func hashCode(this @local?): Int64
+```
+
+功能：计算当前 `@local?` 实例的哈希值，GT 的哈希值是 3，EQ 的哈希值是 2，LT 的哈希值是 1。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+
+返回值：
+
+- [Int64](core_package_intrinsics.md#int64) - 哈希值。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let ord: Ordering @local? = Ordering.LT
+    let h = ord.hashCode()
+    println("h=${h}")
+}
+```
+
+运行结果：
+
+```text
+h=1
 ```
 
 ### extend Ordering <: ToString
@@ -1094,6 +1314,38 @@ main() {
 GT转换为字符串: Ordering.GT
 EQ转换为字符串: Ordering.EQ
 LT转换为字符串: Ordering.LT
+```
+
+#### func toString(this @local?)
+
+```cangjie
+public func toString(this @local?): String @local!
+```
+
+功能：将当前 `@local?` [Ordering](core_package_enums.md#enum-ordering) 实例转换为可输出的字符串（`Ordering.GT`、`Ordering.LT` 或 `Ordering.EQ`），字符串与当前实例绑定在同一个 local region 中。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 当前编译器/运行时版本下，`Ordering` 枚举的 `@local?` 分派存在已知缺陷：在部分调用形态下该方法可能抛出 [UnimplementedException](core_package_exceptions.md#class-unimplementedexception)（默认实现未被覆写分派命中），请以实际 SDK 版本行为为准。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+
+返回值：
+
+- [String](core_package_structs.md#struct-string) @local! - 转化后的字符串。
+
+示例：
+
+<!-- code_no_check -->
+```cangjie
+main() {
+    let ord: Ordering @local? = Ordering.LT
+    let s: String @local! = ord.toString()
+    println(String(s))
+}
 ```
 
 ## enum ThreadState
