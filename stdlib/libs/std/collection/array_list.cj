@@ -93,9 +93,7 @@ private func validatedSliceEnd(range: Range<Int64>, size: Int64): Int64 {
  */
 class ArrayListIterator<T> <: Iterator<T> {
     private var myPosition: Int64 = 0
-
     private let myData: ArrayList<T>
-
     private let initVersion: Int64
 
     /**
@@ -213,7 +211,6 @@ public class ArrayList<T> <: List<T> {
             this.myData.size
         }
     }
-
     @When[env != "ohos"]
     public prop capacity: Int64 @local? {
         get() {
@@ -1311,7 +1308,6 @@ public class ArrayList<T> <: List<T> {
             action(myData[i])
         }
     }
-
     /**
      * @description Determine whether all elements in the ArrayList satisfy the condition.
      * 
@@ -1326,7 +1322,6 @@ public class ArrayList<T> <: List<T> {
         }
         return true
     }
-
     public func all(this @local?, predicate: ((T @local?) -> Bool) @local?): Bool {
         for (i in 0..mySize) {
             if (!predicate(myData[i])) {
@@ -1350,7 +1345,6 @@ public class ArrayList<T> <: List<T> {
         }
         return false
     }
-
     public func any(this @local?, predicate: ((T @local?) -> Bool) @local?): Bool {
         for (i in 0..mySize) {
             if (predicate(myData[i])) {
@@ -1374,7 +1368,6 @@ public class ArrayList<T> <: List<T> {
         }
         return true
     }
-
     public func none(this @local?, predicate: ((T @local?) -> Bool) @local?): Bool {
         for (i in 0..mySize) {
             if (predicate(myData[i])) {
@@ -1740,7 +1733,6 @@ public class ArrayList<T> <: List<T> {
     public func isEmpty(): Bool {
         return mySize == 0
     }
-
     @Frozen
     public func isEmpty(this @local?): Bool {
         return mySize == 0
@@ -1759,7 +1751,6 @@ public class ArrayList<T> <: List<T> {
             return mySize
         }
     }
-
     public prop size: Int64 @local? {
         get() {
             return mySize
@@ -1848,7 +1839,6 @@ public class ArrayList<T> <: List<T> {
     protected func updateVersion(): Unit {
         myVersion++
     }
-
     protected func updateVersion(this @local!): Unit {
         myVersion++
     }
@@ -2532,9 +2522,7 @@ extend<T> Array<T> {
 // Temporary code, deleted when @Deprecated ends
 class TempArray<T> {
     private var data: Array<T>
-
     private let zero: T
-
     private let max: Int64
 
     init(runLength: Int64, z: T) {

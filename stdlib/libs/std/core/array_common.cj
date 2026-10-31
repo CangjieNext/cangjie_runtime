@@ -101,7 +101,6 @@ extend<T> Array<T> <: Collection<T> {
     public func isEmpty(): Bool {
         return this.len == 0
     }
-
     @Frozen
     public func isEmpty(this @local?): Bool {
         return this.size == 0
@@ -458,9 +457,7 @@ extend<T> Array<T> <: Equatable<Array<T>> where T <: Equatable<T> {
  */
 public class ArrayIterator<T> <: Iterator<T> {
     private var myData: Array<T>
-
     private let end: Int64
-
     private var myPosition: Int64
 
     @Frozen
@@ -524,7 +521,6 @@ public class ArrayIterator<T> <: Iterator<T> {
 
 public struct CPointerHandle<T> where T <: CType {
     public let pointer: CPointer<T>
-
     public let array: Array<T>
 
     @Deprecated[message: "Use global function `public unsafe func acquireArrayRawData<T>(arr: Array<T>): CPointerHandle<T> where T <: CType` instead."]

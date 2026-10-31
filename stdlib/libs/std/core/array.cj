@@ -34,9 +34,7 @@ private func rangeCloneSize(start_: Int64, end_: Int64, step: Int64): Int64 {
 @ConstSafe
 public struct Array<T> {
     let rawptr: RawArray<T>
-
     let start: Int64
-
     let len: Int64
 
     @Frozen

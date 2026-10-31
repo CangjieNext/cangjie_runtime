@@ -30,11 +30,8 @@ func bucketHash(hashCode: Int64): Int64 {
 
 struct HashMapEntry<K, V> {
     public let hash: Int64
-
     public let next: Int64
-
     public let key: K
-
     public let value: V
 
     @Frozen
@@ -243,7 +240,6 @@ class HashMapValues<K, V> <: Collection<V> where K <: Hashable & Equatable<K> {
 class HashMapEntryView<K, V> <: MapEntryView<K, V> where K <: Hashable & Equatable<K> {
     // Reference to a HashMap.
     private let map: HashMap<K, V>
-
     // The specified key.
     private let _key: K
 
@@ -274,14 +270,12 @@ class HashMapEntryView<K, V> <: MapEntryView<K, V> where K <: Hashable & Equatab
             getKey()
         }
     }
-
     @Frozen
     public prop key: K @local! {
         get() {
             exclave { getKey() }
         }
     }
-
     @Frozen
     public prop key: K @local? {
         get() {
@@ -304,7 +298,6 @@ class HashMapEntryView<K, V> <: MapEntryView<K, V> where K <: Hashable & Equatab
             }
         }
     }
-
     @When[env != "ohos"]
     @Frozen
     public mut prop value: ?V @local! {
@@ -320,7 +313,6 @@ class HashMapEntryView<K, V> <: MapEntryView<K, V> where K <: Hashable & Equatab
                 "use HashMapLocalEntryView, which supports local writes.")
         }
     }
-
     @When[env != "ohos"]
     @Frozen
     public mut prop value: ?V @local? {
@@ -333,7 +325,6 @@ class HashMapEntryView<K, V> <: MapEntryView<K, V> where K <: Hashable & Equatab
                 "use HashMapLocalEntryView, which supports local writes.")
         }
     }
-
     /**
      * Get the key of HashMapEntryView with time complexity O(1).
      *
@@ -467,7 +458,6 @@ class HashMapEntryView<K, V> <: MapEntryView<K, V> where K <: Hashable & Equatab
 @When[env != "ohos"]
 class HashMapLocalEntryView<K, V> <: MapEntryView<K, V> where K <: Hashable & Equatable<K> {
     private let map: HashMap<K, V>
-
     private let _key: K
 
     // Version of the map at construction and after each modification made through this view.
@@ -489,7 +479,6 @@ class HashMapLocalEntryView<K, V> <: MapEntryView<K, V> where K <: Hashable & Eq
                 "access it through a @local! or @local? receiver.")
         }
     }
-
     public mut prop value: ?V {
         get() {
             throw UnimplementedException("HashMapEntryView.value is unavailable on a local instance: " +
@@ -513,7 +502,6 @@ class HashMapLocalEntryView<K, V> <: MapEntryView<K, V> where K <: Hashable & Eq
             }
         }
     }
-
     public mut prop value: ?V @local! {
         get() {
             exclave {
@@ -1440,7 +1428,6 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
         }
         return true
     }
-
     @Frozen
     public func contains(this @local?, all!: Collection<K> @local?): Bool {
         for (key in all) {
@@ -1697,7 +1684,6 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
         }
         return true
     }
-
     @Frozen
     public func all(this @local?, predicate: ((K @local?, V @local?) -> Bool) @local?): Bool {
         let size: Int64 = entries.size
@@ -1724,7 +1710,6 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
         }
         return false
     }
-
     @Frozen
     public func any(this @local?, predicate: ((K @local?, V @local?) -> Bool) @local?) : Bool {
         let size: Int64 = entries.size
@@ -1751,7 +1736,6 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
         }
         return true
     }
-
     @Frozen
     public func none(this @local?, predicate: ((K @local?, V @local?) -> Bool) @local?) : Bool {
         let size: Int64 = entries.size
@@ -1987,7 +1971,6 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
             return appendIndex - freeSize
         }
     }
-
     @Frozen
     public prop size: Int64 @local? {
         get() {
@@ -2045,7 +2028,6 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
     func version(): Int64 {
         return modCount
     }
-
     @Frozen
     func version(this @local!): Int64 {
         return modCount
@@ -2452,9 +2434,7 @@ class HashMapKeysLocal<K, V> <: EquatableCollection<K> where K <: Hashable & Equ
 
 class HashMapKeysIteratorLocal<K, V> <: Iterator<K> where K <: Hashable & Equatable<K> {
     private let data: HashMap<K, V>
-
     private var pos: Int64 = 0
-
     private let lockVersion: Int64
 
     @Frozen
@@ -2585,9 +2565,7 @@ class HashMapValuesLocal<K, V> <: Collection<V> where K <: Hashable & Equatable<
 
 class HashMapValuesIteratorLocal<K, V> <: Iterator<V> where K <: Hashable & Equatable<K> {
     private let data: HashMap<K, V>
-
     private var pos: Int64 = 0
-
     private let lockVersion: Int64
 
     @Frozen
@@ -2648,11 +2626,8 @@ class HashMapValuesIteratorLocal<K, V> <: Iterator<V> where K <: Hashable & Equa
 public class HashMapIterator<K, V> <: Iterator<(K, V)> where K <: Hashable & Equatable<K> {
     /* Define an empty set */
     private var lockVersion: Int64
-
     private var index: Int64
-
     private let data: HashMap<K, V>
-
     private var isRemoved: Bool
 
     /**

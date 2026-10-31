@@ -26,9 +26,7 @@ const VECTOR_OFFSET_32: Int64 = 32
 @ConstSafe
 public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToString {
     let myData: RawArray<UInt8>
-
     let start: UInt32
-
     let length: UInt32
 
     public static const empty: String = String()
@@ -545,7 +543,6 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
         }
         return true
     }
-
     @Frozen
     public func isAsciiBlank(this @local?): Bool {
         /* Back-to-front traversal can reduce boundary checks and improve performance */
@@ -664,7 +661,6 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
             case val => Some(val)
         }
     }
-
     // The vectorIndexByte32 intrinsic has no @local? form; the @local? indexOf degrades to a byte-by-byte scan.
     @Frozen
     public func indexOf(this @local?, b: Byte): Option<Int64> {
@@ -1601,7 +1597,6 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
             case _ => true
         }
     }
-
     @Frozen
     public func contains(this @local?, str: String @local?): Bool {
         // Empty pattern and over-long pattern are already handled by `indexOf`.
@@ -1912,7 +1907,6 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
         }
         return true
     }
-
     @Frozen
     @OverflowWrapping
     public func equalsIgnoreAsciiCase(this @local?, other: String @local?): Bool {
@@ -1948,7 +1942,6 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
         }
         return false
     }
-
     @Frozen
     private func byteEqualsIgnoreAsciiCase(this @local?, b1: Byte, b2: Byte): Bool {
         if (b1 == b2) {
@@ -2319,7 +2312,6 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
             case _ => false
         }
     }
-
     @Frozen
     public operator const func <=(this @local?, other: String @local?): Bool {
         return match (this.compare(other)) {
@@ -2327,7 +2319,6 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
             case _ => true
         }
     }
-
     @Frozen
     public operator const func >(this @local?, other: String @local?): Bool {
         return match (this.compare(other)) {
@@ -2335,7 +2326,6 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
             case _ => false
         }
     }
-
     @Frozen
     public operator const func >=(this @local?, other: String @local?): Bool {
         return match (this.compare(other)) {
@@ -2343,7 +2333,6 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
             case _ => true
         }
     }
-
     @Frozen
     public operator const func !=(this @local?, other: String @local?): Bool {
         !(this == other)
