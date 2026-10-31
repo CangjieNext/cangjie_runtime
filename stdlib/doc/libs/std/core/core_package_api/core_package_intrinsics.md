@@ -59,6 +59,22 @@ main() {
 1
 ```
 
+#### func hashCode(this @local?)
+
+```cangjie
+public func hashCode(this @local?): Int64
+```
+
+功能：计算当前 `@local?` Bool 实例的哈希值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+返回值：
+
+- [Int64](core_package_intrinsics.md#int64) - 哈希值。
+
 ### extend Bool <: ToString
 
 ```cangjie
@@ -103,6 +119,22 @@ main() {
 false
 true
 ```
+
+#### func toString(this @local?)
+
+```cangjie
+public exclave func toString(this @local?): String @local!
+```
+
+功能：将当前 `@local?` Bool 实例转换为可输出的字符串，字符串与当前实例绑定在同一个 local region 中。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+返回值：
+
+- [String](core_package_structs.md#struct-string) @local! - 转化后的字符串。
 
 ## CPointer\<T>
 
@@ -1616,6 +1648,186 @@ main() {
 Ordering.LT
 ```
 
+#### func compare(this @local?, Float16 @local?)
+
+```cangjie
+public func compare(this @local?, other: Float16 @local?): Ordering
+```
+
+功能：判断当前 `@local?` Float16 值与指定 `Float16` 值的大小关系。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: Float16 @local? - 待比较的另一个 `Float16` 值。
+
+返回值：
+
+- [Ordering](core_package_enums.md#enum-ordering) - 如果大于，返回 [Ordering](core_package_enums.md#enum-ordering).GT；如果等于，返回 [Ordering](core_package_enums.md#enum-ordering).EQ；如果小于，返回 [Ordering](core_package_enums.md#enum-ordering).LT。
+
+#### operator func ==(this @local!, Float16 @local!)
+
+```cangjie
+public operator func ==(this @local!, other: Float16 @local!): Bool
+```
+
+功能：判断当前 `@local!` Float16 值与指定 `Float16` 值是否相等。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: Float16 @local! - 待比较的另一个 `Float16` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
+
+#### operator func ==(this @local?, Float16 @local!)
+
+```cangjie
+public operator func ==(this @local?, other: Float16 @local?): Bool
+```
+
+功能：判断当前 `@local?` Float16 值与指定 `Float16` 值是否相等。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: Float16 @local! - 待比较的另一个 `Float16` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
+
+#### operator func !=(this @local!, Float16 @local!)
+
+```cangjie
+public operator func !=(this @local!, other: Float16 @local!): Bool
+```
+
+功能：判断当前 `@local!` Float16 值与指定 `Float16` 值是否不等。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: Float16 @local! - 待比较的另一个 `Float16` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
+
+#### operator func !=(this @local?, Float16 @local!)
+
+```cangjie
+public operator func !=(this @local?, other: Float16 @local?): Bool
+```
+
+功能：判断当前 `@local?` Float16 值与指定 `Float16` 值是否不等。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: Float16 @local! - 待比较的另一个 `Float16` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
+
+#### operator func <(this @local?, Float16 @local!)
+
+```cangjie
+public operator func <(this @local?, other: Float16 @local?): Bool
+```
+
+功能：判断当前 `@local?` Float16 值是否小于指定 `Float16` 值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: Float16 @local? - 待比较的另一个 `Float16` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果小于，返回 true，否则返回 false。
+
+#### operator func >(this @local?, Float16 @local!)
+
+```cangjie
+public operator func >(this @local?, other: Float16 @local?): Bool
+```
+
+功能：判断当前 `@local?` Float16 值是否大于指定 `Float16` 值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: Float16 @local? - 待比较的另一个 `Float16` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果大于，返回 true，否则返回 false。
+
+#### operator func <=(this @local?, Float16 @local!)
+
+```cangjie
+public operator func <=(this @local?, other: Float16 @local?): Bool
+```
+
+功能：判断当前 `@local?` Float16 值是否小于等于指定 `Float16` 值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: Float16 @local? - 待比较的另一个 `Float16` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果小于等于，返回 true，否则返回 false。
+
+#### operator func >=(this @local?, Float16 @local!)
+
+```cangjie
+public operator func >=(this @local?, other: Float16 @local?): Bool
+```
+
+功能：判断当前 `@local?` Float16 值是否大于等于指定 `Float16` 值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: Float16 @local? - 待比较的另一个 `Float16` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果大于等于，返回 true，否则返回 false。
+
 ### extend Float16 <: Hashable
 
 ```cangjie
@@ -1673,6 +1885,22 @@ main() {
 相等值的哈希值是否相同: true
 ```
 
+#### func hashCode(this @local?)
+
+```cangjie
+public func hashCode(this @local?): Int64
+```
+
+功能：计算当前 `@local?` Float16 实例的哈希值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+返回值：
+
+- [Int64](core_package_intrinsics.md#int64) - 哈希值。
+
 ### extend Float16 <: ToString
 
 ```cangjie
@@ -1729,6 +1957,22 @@ main() {
 -0.001f16 转换为字符串: "-0.001000"
 转换后的类型是否为 String: true
 ```
+
+#### func toString(this @local?)
+
+```cangjie
+public exclave func toString(this @local?): String @local!
+```
+
+功能：将当前 `@local?` Float16 实例转换为可输出的字符串，字符串与当前实例绑定在同一个 local region 中。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+返回值：
+
+- [String](core_package_structs.md#struct-string) @local! - 转化后的字符串。
 
 ## Float32
 
@@ -2253,6 +2497,186 @@ main() {
 Ordering.LT
 ```
 
+#### func compare(this @local?, Float32 @local?)
+
+```cangjie
+public func compare(this @local?, other: Float32 @local?): Ordering
+```
+
+功能：判断当前 `@local?` Float32 值与指定 `Float32` 值的大小关系。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: Float32 @local? - 待比较的另一个 `Float32` 值。
+
+返回值：
+
+- [Ordering](core_package_enums.md#enum-ordering) - 如果大于，返回 [Ordering](core_package_enums.md#enum-ordering).GT；如果等于，返回 [Ordering](core_package_enums.md#enum-ordering).EQ；如果小于，返回 [Ordering](core_package_enums.md#enum-ordering).LT。
+
+#### operator func ==(this @local!, Float32 @local!)
+
+```cangjie
+public operator func ==(this @local!, other: Float32 @local!): Bool
+```
+
+功能：判断当前 `@local!` Float32 值与指定 `Float32` 值是否相等。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: Float32 @local! - 待比较的另一个 `Float32` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
+
+#### operator func ==(this @local?, Float32 @local!)
+
+```cangjie
+public operator func ==(this @local?, other: Float32 @local?): Bool
+```
+
+功能：判断当前 `@local?` Float32 值与指定 `Float32` 值是否相等。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: Float32 @local! - 待比较的另一个 `Float32` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
+
+#### operator func !=(this @local!, Float32 @local!)
+
+```cangjie
+public operator func !=(this @local!, other: Float32 @local!): Bool
+```
+
+功能：判断当前 `@local!` Float32 值与指定 `Float32` 值是否不等。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: Float32 @local! - 待比较的另一个 `Float32` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
+
+#### operator func !=(this @local?, Float32 @local!)
+
+```cangjie
+public operator func !=(this @local?, other: Float32 @local?): Bool
+```
+
+功能：判断当前 `@local?` Float32 值与指定 `Float32` 值是否不等。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: Float32 @local! - 待比较的另一个 `Float32` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
+
+#### operator func <(this @local?, Float32 @local!)
+
+```cangjie
+public operator func <(this @local?, other: Float32 @local?): Bool
+```
+
+功能：判断当前 `@local?` Float32 值是否小于指定 `Float32` 值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: Float32 @local? - 待比较的另一个 `Float32` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果小于，返回 true，否则返回 false。
+
+#### operator func >(this @local?, Float32 @local!)
+
+```cangjie
+public operator func >(this @local?, other: Float32 @local?): Bool
+```
+
+功能：判断当前 `@local?` Float32 值是否大于指定 `Float32` 值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: Float32 @local? - 待比较的另一个 `Float32` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果大于，返回 true，否则返回 false。
+
+#### operator func <=(this @local?, Float32 @local!)
+
+```cangjie
+public operator func <=(this @local?, other: Float32 @local?): Bool
+```
+
+功能：判断当前 `@local?` Float32 值是否小于等于指定 `Float32` 值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: Float32 @local? - 待比较的另一个 `Float32` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果小于等于，返回 true，否则返回 false。
+
+#### operator func >=(this @local?, Float32 @local!)
+
+```cangjie
+public operator func >=(this @local?, other: Float32 @local?): Bool
+```
+
+功能：判断当前 `@local?` Float32 值是否大于等于指定 `Float32` 值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: Float32 @local? - 待比较的另一个 `Float32` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果大于等于，返回 true，否则返回 false。
+
 ### extend Float32 <: Hashable
 
 ```cangjie
@@ -2310,6 +2734,22 @@ main() {
 相等值的哈希值是否相同: true
 ```
 
+#### func hashCode(this @local?)
+
+```cangjie
+public func hashCode(this @local?): Int64
+```
+
+功能：计算当前 `@local?` Float32 实例的哈希值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+返回值：
+
+- [Int64](core_package_intrinsics.md#int64) - 哈希值。
+
 ### extend Float32 <: ToString
 
 ```cangjie
@@ -2366,6 +2806,22 @@ main() {
 -0.001f32 转换为字符串: "-0.001000"
 转换后的类型是否为 String: true
 ```
+
+#### func toString(this @local?)
+
+```cangjie
+public exclave func toString(this @local?): String @local!
+```
+
+功能：将当前 `@local?` Float32 实例转换为可输出的字符串，字符串与当前实例绑定在同一个 local region 中。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+返回值：
+
+- [String](core_package_structs.md#struct-string) @local! - 转化后的字符串。
 
 ## Float64
 
@@ -2890,6 +3346,186 @@ main() {
 Ordering.LT
 ```
 
+#### func compare(this @local?, Float64 @local?)
+
+```cangjie
+public func compare(this @local?, other: Float64 @local?): Ordering
+```
+
+功能：判断当前 `@local?` Float64 值与指定 `Float64` 值的大小关系。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: Float64 @local? - 待比较的另一个 `Float64` 值。
+
+返回值：
+
+- [Ordering](core_package_enums.md#enum-ordering) - 如果大于，返回 [Ordering](core_package_enums.md#enum-ordering).GT；如果等于，返回 [Ordering](core_package_enums.md#enum-ordering).EQ；如果小于，返回 [Ordering](core_package_enums.md#enum-ordering).LT。
+
+#### operator func ==(this @local!, Float64 @local!)
+
+```cangjie
+public operator func ==(this @local!, other: Float64 @local!): Bool
+```
+
+功能：判断当前 `@local!` Float64 值与指定 `Float64` 值是否相等。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: Float64 @local! - 待比较的另一个 `Float64` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
+
+#### operator func ==(this @local?, Float64 @local!)
+
+```cangjie
+public operator func ==(this @local?, other: Float64 @local?): Bool
+```
+
+功能：判断当前 `@local?` Float64 值与指定 `Float64` 值是否相等。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: Float64 @local! - 待比较的另一个 `Float64` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
+
+#### operator func !=(this @local!, Float64 @local!)
+
+```cangjie
+public operator func !=(this @local!, other: Float64 @local!): Bool
+```
+
+功能：判断当前 `@local!` Float64 值与指定 `Float64` 值是否不等。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: Float64 @local! - 待比较的另一个 `Float64` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
+
+#### operator func !=(this @local?, Float64 @local!)
+
+```cangjie
+public operator func !=(this @local?, other: Float64 @local?): Bool
+```
+
+功能：判断当前 `@local?` Float64 值与指定 `Float64` 值是否不等。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: Float64 @local! - 待比较的另一个 `Float64` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
+
+#### operator func <(this @local?, Float64 @local!)
+
+```cangjie
+public operator func <(this @local?, other: Float64 @local?): Bool
+```
+
+功能：判断当前 `@local?` Float64 值是否小于指定 `Float64` 值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: Float64 @local? - 待比较的另一个 `Float64` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果小于，返回 true，否则返回 false。
+
+#### operator func >(this @local?, Float64 @local!)
+
+```cangjie
+public operator func >(this @local?, other: Float64 @local?): Bool
+```
+
+功能：判断当前 `@local?` Float64 值是否大于指定 `Float64` 值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: Float64 @local? - 待比较的另一个 `Float64` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果大于，返回 true，否则返回 false。
+
+#### operator func <=(this @local?, Float64 @local!)
+
+```cangjie
+public operator func <=(this @local?, other: Float64 @local?): Bool
+```
+
+功能：判断当前 `@local?` Float64 值是否小于等于指定 `Float64` 值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: Float64 @local? - 待比较的另一个 `Float64` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果小于等于，返回 true，否则返回 false。
+
+#### operator func >=(this @local?, Float64 @local!)
+
+```cangjie
+public operator func >=(this @local?, other: Float64 @local?): Bool
+```
+
+功能：判断当前 `@local?` Float64 值是否大于等于指定 `Float64` 值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: Float64 @local? - 待比较的另一个 `Float64` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果大于等于，返回 true，否则返回 false。
+
 ### extend Float64 <: Hashable
 
 ```cangjie
@@ -2947,6 +3583,22 @@ main() {
 相等值的哈希值是否相同: true
 ```
 
+#### func hashCode(this @local?)
+
+```cangjie
+public func hashCode(this @local?): Int64
+```
+
+功能：计算当前 `@local?` Float64 实例的哈希值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+返回值：
+
+- [Int64](core_package_intrinsics.md#int64) - 哈希值。
+
 ### extend Float64 <: ToString
 
 ```cangjie
@@ -3003,6 +3655,22 @@ main() {
 -0.001f64 转换为字符串: "-0.001000"
 转换后的类型是否为 String: true
 ```
+
+#### func toString(this @local?)
+
+```cangjie
+public exclave func toString(this @local?): String @local!
+```
+
+功能：将当前 `@local?` Float64 实例转换为可输出的字符串，字符串与当前实例绑定在同一个 local region 中。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+返回值：
+
+- [String](core_package_structs.md#struct-string) @local! - 转化后的字符串。
 
 ## Int16
 
@@ -3122,6 +3790,186 @@ main() {
 ```text
 Ordering.LT
 ```
+
+#### func compare(this @local?, Int16 @local?)
+
+```cangjie
+public func compare(this @local?, other: Int16 @local?): Ordering
+```
+
+功能：判断当前 `@local?` Int16 值与指定 `Int16` 值的大小关系。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: Int16 @local? - 待比较的另一个 `Int16` 值。
+
+返回值：
+
+- [Ordering](core_package_enums.md#enum-ordering) - 如果大于，返回 [Ordering](core_package_enums.md#enum-ordering).GT；如果等于，返回 [Ordering](core_package_enums.md#enum-ordering).EQ；如果小于，返回 [Ordering](core_package_enums.md#enum-ordering).LT。
+
+#### operator func ==(this @local!, Int16 @local!)
+
+```cangjie
+public operator func ==(this @local!, other: Int16 @local!): Bool
+```
+
+功能：判断当前 `@local!` Int16 值与指定 `Int16` 值是否相等。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: Int16 @local! - 待比较的另一个 `Int16` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
+
+#### operator func ==(this @local?, Int16 @local!)
+
+```cangjie
+public operator func ==(this @local?, other: Int16 @local?): Bool
+```
+
+功能：判断当前 `@local?` Int16 值与指定 `Int16` 值是否相等。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: Int16 @local! - 待比较的另一个 `Int16` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
+
+#### operator func !=(this @local!, Int16 @local!)
+
+```cangjie
+public operator func !=(this @local!, other: Int16 @local!): Bool
+```
+
+功能：判断当前 `@local!` Int16 值与指定 `Int16` 值是否不等。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: Int16 @local! - 待比较的另一个 `Int16` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
+
+#### operator func !=(this @local?, Int16 @local!)
+
+```cangjie
+public operator func !=(this @local?, other: Int16 @local?): Bool
+```
+
+功能：判断当前 `@local?` Int16 值与指定 `Int16` 值是否不等。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: Int16 @local! - 待比较的另一个 `Int16` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
+
+#### operator func <(this @local?, Int16 @local!)
+
+```cangjie
+public operator func <(this @local?, other: Int16 @local?): Bool
+```
+
+功能：判断当前 `@local?` Int16 值是否小于指定 `Int16` 值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: Int16 @local? - 待比较的另一个 `Int16` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果小于，返回 true，否则返回 false。
+
+#### operator func >(this @local?, Int16 @local!)
+
+```cangjie
+public operator func >(this @local?, other: Int16 @local?): Bool
+```
+
+功能：判断当前 `@local?` Int16 值是否大于指定 `Int16` 值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: Int16 @local? - 待比较的另一个 `Int16` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果大于，返回 true，否则返回 false。
+
+#### operator func <=(this @local?, Int16 @local!)
+
+```cangjie
+public operator func <=(this @local?, other: Int16 @local?): Bool
+```
+
+功能：判断当前 `@local?` Int16 值是否小于等于指定 `Int16` 值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: Int16 @local? - 待比较的另一个 `Int16` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果小于等于，返回 true，否则返回 false。
+
+#### operator func >=(this @local?, Int16 @local!)
+
+```cangjie
+public operator func >=(this @local?, other: Int16 @local?): Bool
+```
+
+功能：判断当前 `@local?` Int16 值是否大于等于指定 `Int16` 值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: Int16 @local? - 待比较的另一个 `Int16` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果大于等于，返回 true，否则返回 false。
 
 ### extend Int16 <: Countable\<Int16>
 
@@ -3258,6 +4106,22 @@ main() {
 相等值的哈希值是否相同: true
 ```
 
+#### func hashCode(this @local?)
+
+```cangjie
+public func hashCode(this @local?): Int64
+```
+
+功能：计算当前 `@local?` Int16 实例的哈希值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+返回值：
+
+- [Int64](core_package_intrinsics.md#int64) - 哈希值。
+
 ### extend Int16 <: ToString
 
 ```cangjie
@@ -3314,6 +4178,22 @@ main() {
 0 转换为字符串: "0"
 转换后的类型是否为 String: true
 ```
+
+#### func toString(this @local?)
+
+```cangjie
+public exclave func toString(this @local?): String @local!
+```
+
+功能：将当前 `@local?` Int16 实例转换为可输出的字符串，字符串与当前实例绑定在同一个 local region 中。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+返回值：
+
+- [String](core_package_structs.md#struct-string) @local! - 转化后的字符串。
 
 ## Int32
 
@@ -3433,6 +4313,186 @@ main() {
 ```text
 Ordering.LT
 ```
+
+#### func compare(this @local?, Int32 @local?)
+
+```cangjie
+public func compare(this @local?, other: Int32 @local?): Ordering
+```
+
+功能：判断当前 `@local?` Int32 值与指定 `Int32` 值的大小关系。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: Int32 @local? - 待比较的另一个 `Int32` 值。
+
+返回值：
+
+- [Ordering](core_package_enums.md#enum-ordering) - 如果大于，返回 [Ordering](core_package_enums.md#enum-ordering).GT；如果等于，返回 [Ordering](core_package_enums.md#enum-ordering).EQ；如果小于，返回 [Ordering](core_package_enums.md#enum-ordering).LT。
+
+#### operator func ==(this @local!, Int32 @local!)
+
+```cangjie
+public operator func ==(this @local!, other: Int32 @local!): Bool
+```
+
+功能：判断当前 `@local!` Int32 值与指定 `Int32` 值是否相等。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: Int32 @local! - 待比较的另一个 `Int32` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
+
+#### operator func ==(this @local?, Int32 @local!)
+
+```cangjie
+public operator func ==(this @local?, other: Int32 @local?): Bool
+```
+
+功能：判断当前 `@local?` Int32 值与指定 `Int32` 值是否相等。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: Int32 @local! - 待比较的另一个 `Int32` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
+
+#### operator func !=(this @local!, Int32 @local!)
+
+```cangjie
+public operator func !=(this @local!, other: Int32 @local!): Bool
+```
+
+功能：判断当前 `@local!` Int32 值与指定 `Int32` 值是否不等。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: Int32 @local! - 待比较的另一个 `Int32` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
+
+#### operator func !=(this @local?, Int32 @local!)
+
+```cangjie
+public operator func !=(this @local?, other: Int32 @local?): Bool
+```
+
+功能：判断当前 `@local?` Int32 值与指定 `Int32` 值是否不等。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: Int32 @local! - 待比较的另一个 `Int32` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
+
+#### operator func <(this @local?, Int32 @local!)
+
+```cangjie
+public operator func <(this @local?, other: Int32 @local?): Bool
+```
+
+功能：判断当前 `@local?` Int32 值是否小于指定 `Int32` 值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: Int32 @local? - 待比较的另一个 `Int32` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果小于，返回 true，否则返回 false。
+
+#### operator func >(this @local?, Int32 @local!)
+
+```cangjie
+public operator func >(this @local?, other: Int32 @local?): Bool
+```
+
+功能：判断当前 `@local?` Int32 值是否大于指定 `Int32` 值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: Int32 @local? - 待比较的另一个 `Int32` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果大于，返回 true，否则返回 false。
+
+#### operator func <=(this @local?, Int32 @local!)
+
+```cangjie
+public operator func <=(this @local?, other: Int32 @local?): Bool
+```
+
+功能：判断当前 `@local?` Int32 值是否小于等于指定 `Int32` 值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: Int32 @local? - 待比较的另一个 `Int32` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果小于等于，返回 true，否则返回 false。
+
+#### operator func >=(this @local?, Int32 @local!)
+
+```cangjie
+public operator func >=(this @local?, other: Int32 @local?): Bool
+```
+
+功能：判断当前 `@local?` Int32 值是否大于等于指定 `Int32` 值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: Int32 @local? - 待比较的另一个 `Int32` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果大于等于，返回 true，否则返回 false。
 
 ### extend Int32 <: Countable\<Int32>
 
@@ -3563,6 +4623,22 @@ main() {
 相等值的哈希值是否相同: true
 ```
 
+#### func hashCode(this @local?)
+
+```cangjie
+public func hashCode(this @local?): Int64
+```
+
+功能：计算当前 `@local?` Int32 实例的哈希值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+返回值：
+
+- [Int64](core_package_intrinsics.md#int64) - 哈希值。
+
 ### extend Int32 <: ToString
 
 ```cangjie
@@ -3619,6 +4695,22 @@ main() {
 0 转换为字符串: "0"
 转换后的类型是否为 String: true
 ```
+
+#### func toString(this @local?)
+
+```cangjie
+public exclave func toString(this @local?): String @local!
+```
+
+功能：将当前 `@local?` Int32 实例转换为可输出的字符串，字符串与当前实例绑定在同一个 local region 中。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+返回值：
+
+- [String](core_package_structs.md#struct-string) @local! - 转化后的字符串。
 
 ## Int64
 
@@ -3738,6 +4830,186 @@ main() {
 ```text
 Ordering.LT
 ```
+
+#### func compare(this @local?, Int64 @local?)
+
+```cangjie
+public func compare(this @local?, other: Int64 @local?): Ordering
+```
+
+功能：判断当前 `@local?` Int64 值与指定 `Int64` 值的大小关系。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: Int64 @local? - 待比较的另一个 `Int64` 值。
+
+返回值：
+
+- [Ordering](core_package_enums.md#enum-ordering) - 如果大于，返回 [Ordering](core_package_enums.md#enum-ordering).GT；如果等于，返回 [Ordering](core_package_enums.md#enum-ordering).EQ；如果小于，返回 [Ordering](core_package_enums.md#enum-ordering).LT。
+
+#### operator func ==(this @local!, Int64 @local!)
+
+```cangjie
+public operator func ==(this @local!, other: Int64 @local!): Bool
+```
+
+功能：判断当前 `@local!` Int64 值与指定 `Int64` 值是否相等。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: Int64 @local! - 待比较的另一个 `Int64` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
+
+#### operator func ==(this @local?, Int64 @local!)
+
+```cangjie
+public operator func ==(this @local?, other: Int64 @local?): Bool
+```
+
+功能：判断当前 `@local?` Int64 值与指定 `Int64` 值是否相等。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: Int64 @local! - 待比较的另一个 `Int64` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
+
+#### operator func !=(this @local!, Int64 @local!)
+
+```cangjie
+public operator func !=(this @local!, other: Int64 @local!): Bool
+```
+
+功能：判断当前 `@local!` Int64 值与指定 `Int64` 值是否不等。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: Int64 @local! - 待比较的另一个 `Int64` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
+
+#### operator func !=(this @local?, Int64 @local!)
+
+```cangjie
+public operator func !=(this @local?, other: Int64 @local?): Bool
+```
+
+功能：判断当前 `@local?` Int64 值与指定 `Int64` 值是否不等。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: Int64 @local! - 待比较的另一个 `Int64` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
+
+#### operator func <(this @local?, Int64 @local!)
+
+```cangjie
+public operator func <(this @local?, other: Int64 @local?): Bool
+```
+
+功能：判断当前 `@local?` Int64 值是否小于指定 `Int64` 值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: Int64 @local? - 待比较的另一个 `Int64` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果小于，返回 true，否则返回 false。
+
+#### operator func >(this @local?, Int64 @local!)
+
+```cangjie
+public operator func >(this @local?, other: Int64 @local?): Bool
+```
+
+功能：判断当前 `@local?` Int64 值是否大于指定 `Int64` 值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: Int64 @local? - 待比较的另一个 `Int64` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果大于，返回 true，否则返回 false。
+
+#### operator func <=(this @local?, Int64 @local!)
+
+```cangjie
+public operator func <=(this @local?, other: Int64 @local?): Bool
+```
+
+功能：判断当前 `@local?` Int64 值是否小于等于指定 `Int64` 值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: Int64 @local? - 待比较的另一个 `Int64` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果小于等于，返回 true，否则返回 false。
+
+#### operator func >=(this @local?, Int64 @local!)
+
+```cangjie
+public operator func >=(this @local?, other: Int64 @local?): Bool
+```
+
+功能：判断当前 `@local?` Int64 值是否大于等于指定 `Int64` 值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: Int64 @local? - 待比较的另一个 `Int64` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果大于等于，返回 true，否则返回 false。
 
 ### extend Int64 <: Countable\<Int64>
 
@@ -3871,6 +5143,22 @@ Int64 值: 0
 hashCode: 0
 ```
 
+#### func hashCode(this @local?)
+
+```cangjie
+public func hashCode(this @local?): Int64
+```
+
+功能：计算当前 `@local?` Int64 实例的哈希值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+返回值：
+
+- [Int64](core_package_intrinsics.md#int64) - 哈希值。
+
 ### extend Int64 <: ToString
 
 ```cangjie
@@ -3945,6 +5233,22 @@ Int64 最大值: 9223372036854775807
 Int64 最小值: -9223372036854775808
 转换为字符串: -9223372036854775808
 ```
+
+#### func toString(this @local?)
+
+```cangjie
+public exclave func toString(this @local?): String @local!
+```
+
+功能：将当前 `@local?` Int64 实例转换为可输出的字符串，字符串与当前实例绑定在同一个 local region 中。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+返回值：
+
+- [String](core_package_structs.md#struct-string) @local! - 转化后的字符串。
 
 ## Int8
 
@@ -4064,6 +5368,186 @@ main() {
 ```text
 Ordering.LT
 ```
+
+#### func compare(this @local?, Int8 @local?)
+
+```cangjie
+public func compare(this @local?, other: Int8 @local?): Ordering
+```
+
+功能：判断当前 `@local?` Int8 值与指定 `Int8` 值的大小关系。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: Int8 @local? - 待比较的另一个 `Int8` 值。
+
+返回值：
+
+- [Ordering](core_package_enums.md#enum-ordering) - 如果大于，返回 [Ordering](core_package_enums.md#enum-ordering).GT；如果等于，返回 [Ordering](core_package_enums.md#enum-ordering).EQ；如果小于，返回 [Ordering](core_package_enums.md#enum-ordering).LT。
+
+#### operator func ==(this @local!, Int8 @local!)
+
+```cangjie
+public operator func ==(this @local!, other: Int8 @local!): Bool
+```
+
+功能：判断当前 `@local!` Int8 值与指定 `Int8` 值是否相等。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: Int8 @local! - 待比较的另一个 `Int8` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
+
+#### operator func ==(this @local?, Int8 @local!)
+
+```cangjie
+public operator func ==(this @local?, other: Int8 @local?): Bool
+```
+
+功能：判断当前 `@local?` Int8 值与指定 `Int8` 值是否相等。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: Int8 @local! - 待比较的另一个 `Int8` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
+
+#### operator func !=(this @local!, Int8 @local!)
+
+```cangjie
+public operator func !=(this @local!, other: Int8 @local!): Bool
+```
+
+功能：判断当前 `@local!` Int8 值与指定 `Int8` 值是否不等。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: Int8 @local! - 待比较的另一个 `Int8` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
+
+#### operator func !=(this @local?, Int8 @local!)
+
+```cangjie
+public operator func !=(this @local?, other: Int8 @local?): Bool
+```
+
+功能：判断当前 `@local?` Int8 值与指定 `Int8` 值是否不等。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: Int8 @local! - 待比较的另一个 `Int8` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
+
+#### operator func <(this @local?, Int8 @local!)
+
+```cangjie
+public operator func <(this @local?, other: Int8 @local?): Bool
+```
+
+功能：判断当前 `@local?` Int8 值是否小于指定 `Int8` 值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: Int8 @local? - 待比较的另一个 `Int8` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果小于，返回 true，否则返回 false。
+
+#### operator func >(this @local?, Int8 @local!)
+
+```cangjie
+public operator func >(this @local?, other: Int8 @local?): Bool
+```
+
+功能：判断当前 `@local?` Int8 值是否大于指定 `Int8` 值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: Int8 @local? - 待比较的另一个 `Int8` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果大于，返回 true，否则返回 false。
+
+#### operator func <=(this @local?, Int8 @local!)
+
+```cangjie
+public operator func <=(this @local?, other: Int8 @local?): Bool
+```
+
+功能：判断当前 `@local?` Int8 值是否小于等于指定 `Int8` 值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: Int8 @local? - 待比较的另一个 `Int8` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果小于等于，返回 true，否则返回 false。
+
+#### operator func >=(this @local?, Int8 @local!)
+
+```cangjie
+public operator func >=(this @local?, other: Int8 @local?): Bool
+```
+
+功能：判断当前 `@local?` Int8 值是否大于等于指定 `Int8` 值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: Int8 @local? - 待比较的另一个 `Int8` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果大于等于，返回 true，否则返回 false。
 
 ### extend Int8 <: Countable\<Int8>
 
@@ -4212,6 +5696,22 @@ Int8 最小值: -128
 hashCode: -128
 ```
 
+#### func hashCode(this @local?)
+
+```cangjie
+public func hashCode(this @local?): Int64
+```
+
+功能：计算当前 `@local?` Int8 实例的哈希值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+返回值：
+
+- [Int64](core_package_intrinsics.md#int64) - 哈希值。
+
 ### extend Int8 <: ToString
 
 ```cangjie
@@ -4286,6 +5786,22 @@ Int8 最大值: 127
 Int8 最小值: -128
 转换为字符串: -128
 ```
+
+#### func toString(this @local?)
+
+```cangjie
+public exclave func toString(this @local?): String @local!
+```
+
+功能：将当前 `@local?` Int8 实例转换为可输出的字符串，字符串与当前实例绑定在同一个 local region 中。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+返回值：
+
+- [String](core_package_structs.md#struct-string) @local! - 转化后的字符串。
 
 ## IntNative
 
@@ -4405,6 +5921,186 @@ main() {
 ```text
 Ordering.LT
 ```
+
+#### func compare(this @local?, IntNative @local?)
+
+```cangjie
+public func compare(this @local?, other: IntNative @local?): Ordering
+```
+
+功能：判断当前 `@local?` IntNative 值与指定 `IntNative` 值的大小关系。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: IntNative @local? - 待比较的另一个 `IntNative` 值。
+
+返回值：
+
+- [Ordering](core_package_enums.md#enum-ordering) - 如果大于，返回 [Ordering](core_package_enums.md#enum-ordering).GT；如果等于，返回 [Ordering](core_package_enums.md#enum-ordering).EQ；如果小于，返回 [Ordering](core_package_enums.md#enum-ordering).LT。
+
+#### operator func ==(this @local!, IntNative @local!)
+
+```cangjie
+public operator func ==(this @local!, other: IntNative @local!): Bool
+```
+
+功能：判断当前 `@local!` IntNative 值与指定 `IntNative` 值是否相等。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: IntNative @local! - 待比较的另一个 `IntNative` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
+
+#### operator func ==(this @local?, IntNative @local!)
+
+```cangjie
+public operator func ==(this @local?, other: IntNative @local?): Bool
+```
+
+功能：判断当前 `@local?` IntNative 值与指定 `IntNative` 值是否相等。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: IntNative @local! - 待比较的另一个 `IntNative` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
+
+#### operator func !=(this @local!, IntNative @local!)
+
+```cangjie
+public operator func !=(this @local!, other: IntNative @local!): Bool
+```
+
+功能：判断当前 `@local!` IntNative 值与指定 `IntNative` 值是否不等。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: IntNative @local! - 待比较的另一个 `IntNative` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
+
+#### operator func !=(this @local?, IntNative @local!)
+
+```cangjie
+public operator func !=(this @local?, other: IntNative @local?): Bool
+```
+
+功能：判断当前 `@local?` IntNative 值与指定 `IntNative` 值是否不等。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: IntNative @local! - 待比较的另一个 `IntNative` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
+
+#### operator func <(this @local?, IntNative @local!)
+
+```cangjie
+public operator func <(this @local?, other: IntNative @local?): Bool
+```
+
+功能：判断当前 `@local?` IntNative 值是否小于指定 `IntNative` 值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: IntNative @local? - 待比较的另一个 `IntNative` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果小于，返回 true，否则返回 false。
+
+#### operator func >(this @local?, IntNative @local!)
+
+```cangjie
+public operator func >(this @local?, other: IntNative @local?): Bool
+```
+
+功能：判断当前 `@local?` IntNative 值是否大于指定 `IntNative` 值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: IntNative @local? - 待比较的另一个 `IntNative` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果大于，返回 true，否则返回 false。
+
+#### operator func <=(this @local?, IntNative @local!)
+
+```cangjie
+public operator func <=(this @local?, other: IntNative @local?): Bool
+```
+
+功能：判断当前 `@local?` IntNative 值是否小于等于指定 `IntNative` 值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: IntNative @local? - 待比较的另一个 `IntNative` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果小于等于，返回 true，否则返回 false。
+
+#### operator func >=(this @local?, IntNative @local!)
+
+```cangjie
+public operator func >=(this @local?, other: IntNative @local?): Bool
+```
+
+功能：判断当前 `@local?` IntNative 值是否大于等于指定 `IntNative` 值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: IntNative @local? - 待比较的另一个 `IntNative` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果大于等于，返回 true，否则返回 false。
 
 ### extend IntNative <: Countable\<IntNative>
 
@@ -4553,6 +6249,22 @@ IntNative 最小值: -9223372036854775808
 hashCode: -9223372036854775808
 ```
 
+#### func hashCode(this @local?)
+
+```cangjie
+public func hashCode(this @local?): Int64
+```
+
+功能：计算当前 `@local?` IntNative 实例的哈希值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+返回值：
+
+- [Int64](core_package_intrinsics.md#int64) - 哈希值。
+
 ### extend IntNative <: ToString
 
 ```cangjie
@@ -4628,6 +6340,22 @@ IntNative 最小值: -9223372036854775808
 转换为字符串: -9223372036854775808
 ```
 
+#### func toString(this @local?)
+
+```cangjie
+public exclave func toString(this @local?): String @local!
+```
+
+功能：将当前 `@local?` IntNative 实例转换为可输出的字符串，字符串与当前实例绑定在同一个 local region 中。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+返回值：
+
+- [String](core_package_structs.md#struct-string) @local! - 转化后的字符串。
+
 ## Rune
 
 功能：表示 unicode 字符集中的字符。
@@ -4681,6 +6409,23 @@ main() {
 A
 1
 ```
+
+#### static func fromUtf8(Array\<UInt8> @local?, Int64)
+
+```cangjie
+public static func fromUtf8(arr: Array<UInt8> @local?, index: Int64): (Rune, Int64)
+```
+
+功能：从局部字节数组的指定位置解码一个 UTF-8 字符，返回字符和占用的字节数。支持 `@local!` 和 `@local?` 数组，编码校验与非局部重载相同。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- arr: Array<UInt8> @local? - 待解码的字节数组。
+- index: Int64 - 起始字节下标。
 
 #### static func getPreviousFromUtf8(Array\<UInt8>, Int64)
 
@@ -4766,6 +6511,24 @@ main() {
 3
 231
 ```
+
+#### static func intoUtf8Array(Rune, Array\<UInt8> @local?, Int64)
+
+```cangjie
+public static func intoUtf8Array(c: Rune, arr: Array<UInt8> @local?, index: Int64): Int64
+```
+
+功能：将字符编码为 UTF-8 字节，写入局部数组的指定位置并返回写入的字节数。支持 `@local!` 和 `@local?` 数组，边界校验与非局部重载相同。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- c: Rune - 待编码的字符。
+- arr: Array<UInt8> @local? - 目标数组。
+- index: Int64 - 起始字节下标。
 
 #### static func utf8Size(Array\<UInt8>, Int64)
 
@@ -5368,6 +7131,26 @@ main() {
 Ordering.LT
 ```
 
+#### func compare(this @local?, Rune @local?)
+
+```cangjie
+public func compare(this @local?, other: Rune @local?): Ordering
+```
+
+功能：判断当前 `@local?` Rune 值与指定 `Rune` 值的大小关系。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: Rune @local? - 待比较的另一个 `Rune` 值。
+
+返回值：
+
+- [Ordering](core_package_enums.md#enum-ordering) - 如果大于，返回 [Ordering](core_package_enums.md#enum-ordering).GT；如果等于，返回 [Ordering](core_package_enums.md#enum-ordering).EQ；如果小于，返回 [Ordering](core_package_enums.md#enum-ordering).LT。
+
 ### extend Rune <: Countable\<Rune>
 
 ```cangjie
@@ -5517,6 +7300,22 @@ main() {
 哈希值: 29233
 ```
 
+#### func hashCode(this @local?)
+
+```cangjie
+public func hashCode(this @local?): Int64
+```
+
+功能：计算当前 `@local?` Rune 实例的哈希值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+返回值：
+
+- [Int64](core_package_intrinsics.md#int64) - 哈希值。
+
 ### extend Rune <: ToString
 
 ```cangjie
@@ -5568,6 +7367,22 @@ main() {
 字符: 爱
 转换为字符串: 爱
 ```
+
+#### func toString(this @local?)
+
+```cangjie
+public exclave func toString(this @local?): String @local!
+```
+
+功能：将当前 `@local?` Rune 实例转换为可输出的字符串，字符串与当前实例绑定在同一个 local region 中。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+返回值：
+
+- [String](core_package_structs.md#struct-string) @local! - 转化后的字符串。
 
 ## UInt16
 
@@ -5696,6 +7511,186 @@ main() {
 Ordering.LT
 ```
 
+#### func compare(this @local?, UInt16 @local?)
+
+```cangjie
+public func compare(this @local?, other: UInt16 @local?): Ordering
+```
+
+功能：判断当前 `@local?` UInt16 值与指定 `UInt16` 值的大小关系。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: UInt16 @local? - 待比较的另一个 `UInt16` 值。
+
+返回值：
+
+- [Ordering](core_package_enums.md#enum-ordering) - 如果大于，返回 [Ordering](core_package_enums.md#enum-ordering).GT；如果等于，返回 [Ordering](core_package_enums.md#enum-ordering).EQ；如果小于，返回 [Ordering](core_package_enums.md#enum-ordering).LT。
+
+#### operator func ==(this @local!, UInt16 @local!)
+
+```cangjie
+public operator func ==(this @local!, other: UInt16 @local!): Bool
+```
+
+功能：判断当前 `@local!` UInt16 值与指定 `UInt16` 值是否相等。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: UInt16 @local! - 待比较的另一个 `UInt16` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
+
+#### operator func ==(this @local?, UInt16 @local!)
+
+```cangjie
+public operator func ==(this @local?, other: UInt16 @local?): Bool
+```
+
+功能：判断当前 `@local?` UInt16 值与指定 `UInt16` 值是否相等。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: UInt16 @local! - 待比较的另一个 `UInt16` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
+
+#### operator func !=(this @local!, UInt16 @local!)
+
+```cangjie
+public operator func !=(this @local!, other: UInt16 @local!): Bool
+```
+
+功能：判断当前 `@local!` UInt16 值与指定 `UInt16` 值是否不等。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: UInt16 @local! - 待比较的另一个 `UInt16` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
+
+#### operator func !=(this @local?, UInt16 @local!)
+
+```cangjie
+public operator func !=(this @local?, other: UInt16 @local?): Bool
+```
+
+功能：判断当前 `@local?` UInt16 值与指定 `UInt16` 值是否不等。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: UInt16 @local! - 待比较的另一个 `UInt16` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
+
+#### operator func <(this @local?, UInt16 @local!)
+
+```cangjie
+public operator func <(this @local?, other: UInt16 @local?): Bool
+```
+
+功能：判断当前 `@local?` UInt16 值是否小于指定 `UInt16` 值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: UInt16 @local? - 待比较的另一个 `UInt16` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果小于，返回 true，否则返回 false。
+
+#### operator func >(this @local?, UInt16 @local!)
+
+```cangjie
+public operator func >(this @local?, other: UInt16 @local?): Bool
+```
+
+功能：判断当前 `@local?` UInt16 值是否大于指定 `UInt16` 值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: UInt16 @local? - 待比较的另一个 `UInt16` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果大于，返回 true，否则返回 false。
+
+#### operator func <=(this @local?, UInt16 @local!)
+
+```cangjie
+public operator func <=(this @local?, other: UInt16 @local?): Bool
+```
+
+功能：判断当前 `@local?` UInt16 值是否小于等于指定 `UInt16` 值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: UInt16 @local? - 待比较的另一个 `UInt16` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果小于等于，返回 true，否则返回 false。
+
+#### operator func >=(this @local?, UInt16 @local!)
+
+```cangjie
+public operator func >=(this @local?, other: UInt16 @local?): Bool
+```
+
+功能：判断当前 `@local?` UInt16 值是否大于等于指定 `UInt16` 值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: UInt16 @local? - 待比较的另一个 `UInt16` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果大于等于，返回 true，否则返回 false。
+
 ### extend UInt16 <: Countable\<UInt16>
 
 ```cangjie
@@ -5820,6 +7815,22 @@ UInt16值: 42
 哈希值: 65535
 ```
 
+#### func hashCode(this @local?)
+
+```cangjie
+public func hashCode(this @local?): Int64
+```
+
+功能：计算当前 `@local?` UInt16 实例的哈希值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+返回值：
+
+- [Int64](core_package_intrinsics.md#int64) - 哈希值。
+
 ### extend UInt16 <: ToString
 
 ```cangjie
@@ -5871,6 +7882,22 @@ UInt16值: 42
 最大UInt16值: 65535
 转换为字符串: 65535
 ```
+
+#### func toString(this @local?)
+
+```cangjie
+public exclave func toString(this @local?): String @local!
+```
+
+功能：将当前 `@local?` UInt16 实例转换为可输出的字符串，字符串与当前实例绑定在同一个 local region 中。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+返回值：
+
+- [String](core_package_structs.md#struct-string) @local! - 转化后的字符串。
 
 ## UInt32
 
@@ -5980,6 +8007,186 @@ main() {
 ```text
 Ordering.LT
 ```
+
+#### func compare(this @local?, UInt32 @local?)
+
+```cangjie
+public func compare(this @local?, other: UInt32 @local?): Ordering
+```
+
+功能：判断当前 `@local?` UInt32 值与指定 `UInt32` 值的大小关系。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: UInt32 @local? - 待比较的另一个 `UInt32` 值。
+
+返回值：
+
+- [Ordering](core_package_enums.md#enum-ordering) - 如果大于，返回 [Ordering](core_package_enums.md#enum-ordering).GT；如果等于，返回 [Ordering](core_package_enums.md#enum-ordering).EQ；如果小于，返回 [Ordering](core_package_enums.md#enum-ordering).LT。
+
+#### operator func ==(this @local!, UInt32 @local!)
+
+```cangjie
+public operator func ==(this @local!, other: UInt32 @local!): Bool
+```
+
+功能：判断当前 `@local!` UInt32 值与指定 `UInt32` 值是否相等。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: UInt32 @local! - 待比较的另一个 `UInt32` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
+
+#### operator func ==(this @local?, UInt32 @local!)
+
+```cangjie
+public operator func ==(this @local?, other: UInt32 @local?): Bool
+```
+
+功能：判断当前 `@local?` UInt32 值与指定 `UInt32` 值是否相等。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: UInt32 @local! - 待比较的另一个 `UInt32` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
+
+#### operator func !=(this @local!, UInt32 @local!)
+
+```cangjie
+public operator func !=(this @local!, other: UInt32 @local!): Bool
+```
+
+功能：判断当前 `@local!` UInt32 值与指定 `UInt32` 值是否不等。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: UInt32 @local! - 待比较的另一个 `UInt32` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
+
+#### operator func !=(this @local?, UInt32 @local!)
+
+```cangjie
+public operator func !=(this @local?, other: UInt32 @local?): Bool
+```
+
+功能：判断当前 `@local?` UInt32 值与指定 `UInt32` 值是否不等。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: UInt32 @local! - 待比较的另一个 `UInt32` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
+
+#### operator func <(this @local?, UInt32 @local!)
+
+```cangjie
+public operator func <(this @local?, other: UInt32 @local?): Bool
+```
+
+功能：判断当前 `@local?` UInt32 值是否小于指定 `UInt32` 值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: UInt32 @local? - 待比较的另一个 `UInt32` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果小于，返回 true，否则返回 false。
+
+#### operator func >(this @local?, UInt32 @local!)
+
+```cangjie
+public operator func >(this @local?, other: UInt32 @local?): Bool
+```
+
+功能：判断当前 `@local?` UInt32 值是否大于指定 `UInt32` 值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: UInt32 @local? - 待比较的另一个 `UInt32` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果大于，返回 true，否则返回 false。
+
+#### operator func <=(this @local?, UInt32 @local!)
+
+```cangjie
+public operator func <=(this @local?, other: UInt32 @local?): Bool
+```
+
+功能：判断当前 `@local?` UInt32 值是否小于等于指定 `UInt32` 值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: UInt32 @local? - 待比较的另一个 `UInt32` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果小于等于，返回 true，否则返回 false。
+
+#### operator func >=(this @local?, UInt32 @local!)
+
+```cangjie
+public operator func >=(this @local?, other: UInt32 @local?): Bool
+```
+
+功能：判断当前 `@local?` UInt32 值是否大于等于指定 `UInt32` 值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: UInt32 @local? - 待比较的另一个 `UInt32` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果大于等于，返回 true，否则返回 false。
 
 ### extend UInt32 <: Countable\<UInt32>
 
@@ -6094,6 +8301,22 @@ main() {
 42
 ```
 
+#### func hashCode(this @local?)
+
+```cangjie
+public func hashCode(this @local?): Int64
+```
+
+功能：计算当前 `@local?` UInt32 实例的哈希值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+返回值：
+
+- [Int64](core_package_intrinsics.md#int64) - 哈希值。
+
 ### extend UInt32 <: ToString
 
 ```cangjie
@@ -6134,6 +8357,22 @@ main() {
 ```text
 42
 ```
+
+#### func toString(this @local?)
+
+```cangjie
+public exclave func toString(this @local?): String @local!
+```
+
+功能：将当前 `@local?` UInt32 实例转换为可输出的字符串，字符串与当前实例绑定在同一个 local region 中。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+返回值：
+
+- [String](core_package_structs.md#struct-string) @local! - 转化后的字符串。
 
 ## UInt64
 
@@ -6243,6 +8482,186 @@ main() {
 ```text
 Ordering.LT
 ```
+
+#### func compare(this @local?, UInt64 @local?)
+
+```cangjie
+public func compare(this @local?, other: UInt64 @local?): Ordering
+```
+
+功能：判断当前 `@local?` UInt64 值与指定 `UInt64` 值的大小关系。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: UInt64 @local? - 待比较的另一个 `UInt64` 值。
+
+返回值：
+
+- [Ordering](core_package_enums.md#enum-ordering) - 如果大于，返回 [Ordering](core_package_enums.md#enum-ordering).GT；如果等于，返回 [Ordering](core_package_enums.md#enum-ordering).EQ；如果小于，返回 [Ordering](core_package_enums.md#enum-ordering).LT。
+
+#### operator func ==(this @local!, UInt64 @local!)
+
+```cangjie
+public operator func ==(this @local!, other: UInt64 @local!): Bool
+```
+
+功能：判断当前 `@local!` UInt64 值与指定 `UInt64` 值是否相等。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: UInt64 @local! - 待比较的另一个 `UInt64` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
+
+#### operator func ==(this @local?, UInt64 @local!)
+
+```cangjie
+public operator func ==(this @local?, other: UInt64 @local?): Bool
+```
+
+功能：判断当前 `@local?` UInt64 值与指定 `UInt64` 值是否相等。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: UInt64 @local! - 待比较的另一个 `UInt64` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
+
+#### operator func !=(this @local!, UInt64 @local!)
+
+```cangjie
+public operator func !=(this @local!, other: UInt64 @local!): Bool
+```
+
+功能：判断当前 `@local!` UInt64 值与指定 `UInt64` 值是否不等。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: UInt64 @local! - 待比较的另一个 `UInt64` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
+
+#### operator func !=(this @local?, UInt64 @local!)
+
+```cangjie
+public operator func !=(this @local?, other: UInt64 @local?): Bool
+```
+
+功能：判断当前 `@local?` UInt64 值与指定 `UInt64` 值是否不等。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: UInt64 @local! - 待比较的另一个 `UInt64` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
+
+#### operator func <(this @local?, UInt64 @local!)
+
+```cangjie
+public operator func <(this @local?, other: UInt64 @local?): Bool
+```
+
+功能：判断当前 `@local?` UInt64 值是否小于指定 `UInt64` 值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: UInt64 @local? - 待比较的另一个 `UInt64` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果小于，返回 true，否则返回 false。
+
+#### operator func >(this @local?, UInt64 @local!)
+
+```cangjie
+public operator func >(this @local?, other: UInt64 @local?): Bool
+```
+
+功能：判断当前 `@local?` UInt64 值是否大于指定 `UInt64` 值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: UInt64 @local? - 待比较的另一个 `UInt64` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果大于，返回 true，否则返回 false。
+
+#### operator func <=(this @local?, UInt64 @local!)
+
+```cangjie
+public operator func <=(this @local?, other: UInt64 @local?): Bool
+```
+
+功能：判断当前 `@local?` UInt64 值是否小于等于指定 `UInt64` 值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: UInt64 @local? - 待比较的另一个 `UInt64` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果小于等于，返回 true，否则返回 false。
+
+#### operator func >=(this @local?, UInt64 @local!)
+
+```cangjie
+public operator func >=(this @local?, other: UInt64 @local?): Bool
+```
+
+功能：判断当前 `@local?` UInt64 值是否大于等于指定 `UInt64` 值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: UInt64 @local? - 待比较的另一个 `UInt64` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果大于等于，返回 true，否则返回 false。
 
 ### extend UInt64 <: Countable\<UInt64>
 
@@ -6357,6 +8776,22 @@ main() {
 42
 ```
 
+#### func hashCode(this @local?)
+
+```cangjie
+public func hashCode(this @local?): Int64
+```
+
+功能：计算当前 `@local?` UInt64 实例的哈希值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+返回值：
+
+- [Int64](core_package_intrinsics.md#int64) - 哈希值。
+
 ### extend UInt64 <: ToString
 
 ```cangjie
@@ -6397,6 +8832,22 @@ main() {
 ```text
 42
 ```
+
+#### func toString(this @local?)
+
+```cangjie
+public exclave func toString(this @local?): String @local!
+```
+
+功能：将当前 `@local?` UInt64 实例转换为可输出的字符串，字符串与当前实例绑定在同一个 local region 中。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+返回值：
+
+- [String](core_package_structs.md#struct-string) @local! - 转化后的字符串。
 
 ## UInt8
 
@@ -6506,6 +8957,186 @@ main() {
 ```text
 Ordering.LT
 ```
+
+#### func compare(this @local?, UInt8 @local?)
+
+```cangjie
+public func compare(this @local?, other: UInt8 @local?): Ordering
+```
+
+功能：判断当前 `@local?` UInt8 值与指定 `UInt8` 值的大小关系。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: UInt8 @local? - 待比较的另一个 `UInt8` 值。
+
+返回值：
+
+- [Ordering](core_package_enums.md#enum-ordering) - 如果大于，返回 [Ordering](core_package_enums.md#enum-ordering).GT；如果等于，返回 [Ordering](core_package_enums.md#enum-ordering).EQ；如果小于，返回 [Ordering](core_package_enums.md#enum-ordering).LT。
+
+#### operator func ==(this @local!, UInt8 @local!)
+
+```cangjie
+public operator func ==(this @local!, other: UInt8 @local!): Bool
+```
+
+功能：判断当前 `@local!` UInt8 值与指定 `UInt8` 值是否相等。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: UInt8 @local! - 待比较的另一个 `UInt8` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
+
+#### operator func ==(this @local?, UInt8 @local!)
+
+```cangjie
+public operator func ==(this @local?, other: UInt8 @local?): Bool
+```
+
+功能：判断当前 `@local?` UInt8 值与指定 `UInt8` 值是否相等。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: UInt8 @local! - 待比较的另一个 `UInt8` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
+
+#### operator func !=(this @local!, UInt8 @local!)
+
+```cangjie
+public operator func !=(this @local!, other: UInt8 @local!): Bool
+```
+
+功能：判断当前 `@local!` UInt8 值与指定 `UInt8` 值是否不等。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: UInt8 @local! - 待比较的另一个 `UInt8` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
+
+#### operator func !=(this @local?, UInt8 @local!)
+
+```cangjie
+public operator func !=(this @local?, other: UInt8 @local?): Bool
+```
+
+功能：判断当前 `@local?` UInt8 值与指定 `UInt8` 值是否不等。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: UInt8 @local! - 待比较的另一个 `UInt8` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
+
+#### operator func <(this @local?, UInt8 @local!)
+
+```cangjie
+public operator func <(this @local?, other: UInt8 @local?): Bool
+```
+
+功能：判断当前 `@local?` UInt8 值是否小于指定 `UInt8` 值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: UInt8 @local? - 待比较的另一个 `UInt8` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果小于，返回 true，否则返回 false。
+
+#### operator func >(this @local?, UInt8 @local!)
+
+```cangjie
+public operator func >(this @local?, other: UInt8 @local?): Bool
+```
+
+功能：判断当前 `@local?` UInt8 值是否大于指定 `UInt8` 值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: UInt8 @local? - 待比较的另一个 `UInt8` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果大于，返回 true，否则返回 false。
+
+#### operator func <=(this @local?, UInt8 @local!)
+
+```cangjie
+public operator func <=(this @local?, other: UInt8 @local?): Bool
+```
+
+功能：判断当前 `@local?` UInt8 值是否小于等于指定 `UInt8` 值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: UInt8 @local? - 待比较的另一个 `UInt8` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果小于等于，返回 true，否则返回 false。
+
+#### operator func >=(this @local?, UInt8 @local!)
+
+```cangjie
+public operator func >=(this @local?, other: UInt8 @local?): Bool
+```
+
+功能：判断当前 `@local?` UInt8 值是否大于等于指定 `UInt8` 值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: UInt8 @local? - 待比较的另一个 `UInt8` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果大于等于，返回 true，否则返回 false。
 
 ### extend UInt8 <: Countable\<UInt8>
 
@@ -6620,6 +9251,22 @@ main() {
 42
 ```
 
+#### func hashCode(this @local?)
+
+```cangjie
+public func hashCode(this @local?): Int64
+```
+
+功能：计算当前 `@local?` UInt8 实例的哈希值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+返回值：
+
+- [Int64](core_package_intrinsics.md#int64) - 哈希值。
+
 ### extend UInt8 <: ToString
 
 ```cangjie
@@ -6660,6 +9307,22 @@ main() {
 ```text
 42
 ```
+
+#### func toString(this @local?)
+
+```cangjie
+public exclave func toString(this @local?): String @local!
+```
+
+功能：将当前 `@local?` UInt8 实例转换为可输出的字符串，字符串与当前实例绑定在同一个 local region 中。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+返回值：
+
+- [String](core_package_structs.md#struct-string) @local! - 转化后的字符串。
 
 ## UIntNative
 
@@ -6769,6 +9432,186 @@ main() {
 ```text
 Ordering.LT
 ```
+
+#### func compare(this @local?, UIntNative @local?)
+
+```cangjie
+public func compare(this @local?, other: UIntNative @local?): Ordering
+```
+
+功能：判断当前 `@local?` UIntNative 值与指定 `UIntNative` 值的大小关系。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: UIntNative @local? - 待比较的另一个 `UIntNative` 值。
+
+返回值：
+
+- [Ordering](core_package_enums.md#enum-ordering) - 如果大于，返回 [Ordering](core_package_enums.md#enum-ordering).GT；如果等于，返回 [Ordering](core_package_enums.md#enum-ordering).EQ；如果小于，返回 [Ordering](core_package_enums.md#enum-ordering).LT。
+
+#### operator func ==(this @local!, UIntNative @local!)
+
+```cangjie
+public operator func ==(this @local!, other: UIntNative @local!): Bool
+```
+
+功能：判断当前 `@local!` UIntNative 值与指定 `UIntNative` 值是否相等。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: UIntNative @local! - 待比较的另一个 `UIntNative` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
+
+#### operator func ==(this @local?, UIntNative @local!)
+
+```cangjie
+public operator func ==(this @local?, other: UIntNative @local?): Bool
+```
+
+功能：判断当前 `@local?` UIntNative 值与指定 `UIntNative` 值是否相等。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: UIntNative @local! - 待比较的另一个 `UIntNative` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
+
+#### operator func !=(this @local!, UIntNative @local!)
+
+```cangjie
+public operator func !=(this @local!, other: UIntNative @local!): Bool
+```
+
+功能：判断当前 `@local!` UIntNative 值与指定 `UIntNative` 值是否不等。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: UIntNative @local! - 待比较的另一个 `UIntNative` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
+
+#### operator func !=(this @local?, UIntNative @local!)
+
+```cangjie
+public operator func !=(this @local?, other: UIntNative @local?): Bool
+```
+
+功能：判断当前 `@local?` UIntNative 值与指定 `UIntNative` 值是否不等。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: UIntNative @local! - 待比较的另一个 `UIntNative` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
+
+#### operator func <(this @local?, UIntNative @local!)
+
+```cangjie
+public operator func <(this @local?, other: UIntNative @local?): Bool
+```
+
+功能：判断当前 `@local?` UIntNative 值是否小于指定 `UIntNative` 值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: UIntNative @local? - 待比较的另一个 `UIntNative` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果小于，返回 true，否则返回 false。
+
+#### operator func >(this @local?, UIntNative @local!)
+
+```cangjie
+public operator func >(this @local?, other: UIntNative @local?): Bool
+```
+
+功能：判断当前 `@local?` UIntNative 值是否大于指定 `UIntNative` 值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: UIntNative @local? - 待比较的另一个 `UIntNative` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果大于，返回 true，否则返回 false。
+
+#### operator func <=(this @local?, UIntNative @local!)
+
+```cangjie
+public operator func <=(this @local?, other: UIntNative @local?): Bool
+```
+
+功能：判断当前 `@local?` UIntNative 值是否小于等于指定 `UIntNative` 值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: UIntNative @local? - 待比较的另一个 `UIntNative` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果小于等于，返回 true，否则返回 false。
+
+#### operator func >=(this @local?, UIntNative @local!)
+
+```cangjie
+public operator func >=(this @local?, other: UIntNative @local?): Bool
+```
+
+功能：判断当前 `@local?` UIntNative 值是否大于等于指定 `UIntNative` 值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+参数：
+
+- other: UIntNative @local? - 待比较的另一个 `UIntNative` 值。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果大于等于，返回 true，否则返回 false。
 
 ### extend UIntNative <: Countable
 
@@ -6924,6 +9767,22 @@ main() {
 The string representation is: 12345
 ```
 
+#### func toString(this @local?)
+
+```cangjie
+public exclave func toString(this @local?): String @local!
+```
+
+功能：将当前 `@local?` UIntNative 实例转换为可输出的字符串，字符串与当前实例绑定在同一个 local region 中。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+返回值：
+
+- [String](core_package_structs.md#struct-string) @local! - 转化后的字符串。
+
 ## Unit
 
 功能：表示仓颉语言中只关心副作用而不关心值的表达式的类型。
@@ -6985,6 +9844,22 @@ main() {
 0
 ```
 
+#### func hashCode(this @local?)
+
+```cangjie
+public func hashCode(this @local?): Int64
+```
+
+功能：计算当前 `@local?` Unit 实例的哈希值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+返回值：
+
+- [Int64](core_package_intrinsics.md#int64) - 哈希值。
+
 ### extend Unit <: ToString
 
 ```cangjie
@@ -7027,3 +9902,19 @@ main() {
 ```text
 The string representation is: ()
 ```
+
+#### func toString(this @local?)
+
+```cangjie
+public exclave func toString(this @local?): String @local!
+```
+
+功能：将当前 `@local?` Unit 实例转换为可输出的字符串，字符串与当前实例绑定在同一个 local region 中。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+
+返回值：
+
+- [String](core_package_structs.md#struct-string) @local! - 转化后的字符串。
