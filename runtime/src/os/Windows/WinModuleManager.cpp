@@ -7,6 +7,7 @@
 
 #include "WinModuleManager.h"
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <dbghelp.h>
@@ -40,17 +41,22 @@ struct LdrDataTableEntry {
 
 RuntimeFunction* WinModule::GetRuntimeFunction(Uptr pc) const
 {
+    if (funcTable == nullptr || funcTableCount == 0 || !IsInModule(pc)) {
+        return nullptr;
+    }
+
+    Uptr rvaPc = pc - imageBaseStart;
     uint32_t start = 0;
-    uint32_t end = funcTableCount - 1;
-    uint32_t mid = 0;
-    while (start <= end) {
-        mid = (start + end) / 2; // 2: half of (start + end)
+    uint32_t end = funcTableCount;
+    while (start < end) {
+        uint32_t mid = start + (end - start) / 2; // 2: half of (end - start)
         if (IsInRuntimeFunc(mid, pc)) {
             return &(funcTable[mid]);
-        } else if (pc - imageBaseStart > funcTable[mid].endAddress) {
+        }
+        if (rvaPc >= funcTable[mid].endAddress) {
             start = mid + 1;
         } else {
-            end = mid - 1;
+            end = mid;
         }
     }
     return nullptr;
@@ -119,16 +125,25 @@ void WinModuleManager::ReadModuleInfo(HMODULE* moduleHandlers, int moduleHandler
             continue;
         }
 
-        MODULEINFO module;
+        MODULEINFO module{};
         // Get image address
-        GetModuleInformation(GetCurrentProcess(), moduleHandlers[i], &module, sizeof(module));
+        if (!GetModuleInformation(GetCurrentProcess(), moduleHandlers[i], &module, sizeof(module))) {
+            LOG(RTLOG_ERROR, "GetModuleInformation failed, module=%p, error=%lu", moduleHandlers[i], GetLastError());
+            continue;
+        }
+        if (module.lpBaseOfDll == nullptr || module.SizeOfImage == 0) {
+            continue;
+        }
         Uptr imageBaseStart = reinterpret_cast<Uptr>(module.lpBaseOfDll);
         Uptr imageBaseEnd = reinterpret_cast<Uptr>(module.lpBaseOfDll) + module.SizeOfImage;
 
         ULONG funcTableSize = 0;
         RuntimeFunction* funcTable = reinterpret_cast<RuntimeFunction*>(
             ImageDirectoryEntryToData((PVOID)imageBaseStart, true, IMAGE_DIRECTORY_ENTRY_EXCEPTION, &funcTableSize));
-        uint32_t funcTableCount = funcTableSize / sizeof(RuntimeFunction);
+        uint32_t funcTableCount = 0;
+        if (funcTable != nullptr) {
+            funcTableCount = funcTableSize / sizeof(RuntimeFunction);
+        }
 
         WinModule* winModule =
             new (std::nothrow) WinModule(imageBaseStart, imageBaseEnd, funcTable, funcTableCount, moduleName.c_str());
@@ -144,10 +159,13 @@ void WinModuleManager::ReadWinModuleAtRunning()
     // It is hard to predict how many modules there will be in loading, here we assume 50 modules at the beginning.
     constexpr int moduleHandlerCapacity = 50;
     std::array<HMODULE, moduleHandlerCapacity> moduleHandlers;
-    DWORD neededModulesLength;
+    DWORD neededModulesLength = 0;
     HANDLE curProcess = GetCurrentProcess();
-    EnumProcessModules(curProcess, moduleHandlers.data(),
-                       static_cast<DWORD>(moduleHandlers.size() * sizeof(HMODULE)), &neededModulesLength);
+    if (!EnumProcessModules(curProcess, moduleHandlers.data(),
+                            static_cast<DWORD>(moduleHandlers.size() * sizeof(HMODULE)), &neededModulesLength)) {
+        LOG(RTLOG_ERROR, "EnumProcessModules failed, error=%lu", GetLastError());
+        return;
+    }
     int moduleNum = neededModulesLength / sizeof(HMODULE);
     if (moduleNum <= moduleHandlerCapacity) {
         ReadModuleInfo(moduleHandlers.data(), moduleNum);
@@ -155,9 +173,15 @@ void WinModuleManager::ReadWinModuleAtRunning()
     }
     // require capacity expansion.
     std::vector<HMODULE> expandedModuleHandlers(static_cast<size_t>(moduleNum));
-    EnumProcessModules(curProcess, expandedModuleHandlers.data(),
-                       static_cast<DWORD>(expandedModuleHandlers.size() * sizeof(HMODULE)), &neededModulesLength);
-    ReadModuleInfo(expandedModuleHandlers.data(), moduleNum);
+    DWORD expandedModulesLength = 0;
+    if (!EnumProcessModules(curProcess, expandedModuleHandlers.data(),
+                            static_cast<DWORD>(expandedModuleHandlers.size() * sizeof(HMODULE)),
+                            &expandedModulesLength)) {
+        LOG(RTLOG_ERROR, "EnumProcessModules failed after capacity expansion, error=%lu", GetLastError());
+        return;
+    }
+    int expandedModuleNum = expandedModulesLength / sizeof(HMODULE);
+    ReadModuleInfo(expandedModuleHandlers.data(), std::min(moduleNum, expandedModuleNum));
 }
 
 void WinModuleManager::Fini() const
