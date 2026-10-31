@@ -3431,6 +3431,8 @@ Parent Type:
 
 `TypeInfo.of(instance)`, `TypeInfo.of<T>()`, and `TypeInfo.get(qualifiedName)` automatically recognize Option types. Recognition checks the standard-library Option qualified name, exactly one type argument `T`, a one-parameter `Some` constructor, and a zero-parameter `None` constructor. Enums that do not meet these rules remain ordinary `EnumTypeInfo` values.
 
+The `None` constructor obtained through an enum view has no `parameters` or associated values; placeholder fields in the runtime layout are not payloads. This applies to both value-type and reference-type `Option<T>` payloads.
+
 This type requires complete generic enum constructor metadata from the compiler and runtime; the presence of intrinsic symbols alone does not guarantee that metadata is available. When metadata is missing, `TypeInfo` continues to return `EnumTypeInfo`, and `OptionTypeInfo.of/get` throws `IllegalTypeException`. This API is unavailable on OHOS.
 
 ### prop payloadType

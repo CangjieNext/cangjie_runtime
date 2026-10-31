@@ -12,7 +12,7 @@ import std.unittest.testmacro.*
 
 @When[env != "ohos"]
 enum OptionLookalike<T> {
-    Some(T) | None
+    LookalikeSome(T) | LookalikeNone
 }
 
 @When[env != "ohos"]
@@ -83,6 +83,24 @@ func optionPreservesNestedNonePayload() {
 
 @When[env != "ohos"]
 @Test
+func optionNoneHasNoAssociatedValues() {
+    let valueInfo = EnumTypeInfo.of<Option<Int64>>()
+    let referenceInfo = EnumTypeInfo.of<Option<String>>()
+    for (info in [valueInfo, referenceInfo]) {
+        let none = info.getConstructor("None")
+        @Assert(none.parameters.isEmpty())
+        let instance = none.apply([])
+        let (ctor, values) = info.destruct(instance)
+        @Assert(ctor, none)
+        @Assert(values.isEmpty())
+        @Assert(OptionTypeInfo.of(instance).isNone(instance))
+    }
+    @Assert((valueInfo.construct("None", []) as Option<Int64>).getOrThrow().isNone())
+    @Assert((referenceInfo.construct("None", []) as Option<String>).getOrThrow().isNone())
+}
+
+@When[env != "ohos"]
+@Test
 func optionRetainsComposedEnumView() {
     let info = OptionTypeInfo.of<Option<Int64>>()
     let typeInfo: TypeInfo = info
@@ -98,5 +116,5 @@ func optionRetainsComposedEnumView() {
     let ctor = enumView.getConstructor("Some", argsCount: 1)
     @Assert(ctor.enumTypeInfo, enumView)
     @Assert((ctor.getAssociatedValues(some)[0] as Int64).getOrThrow(), 7i64)
-    @Assert((enumView.construct("Some<Int64>", [9i64]) as Option<Int64>).getOrThrow(), Option<Int64>.Some(9i64))
+    @Assert((enumView.construct("Some(Int64)", [9i64]) as Option<Int64>).getOrThrow(), Option<Int64>.Some(9i64))
 }

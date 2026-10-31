@@ -966,8 +966,12 @@ bool TypeInfo::IsOptionLikeUnassociatedCtor()
     for (U32 idx = 0; idx < num; idx++) {
         TypeInfo* ctorTi = enumInfo->GetCtorTypeInfo(idx);
         if (ctorTi->GetUUID() == GetUUID()) {
-            CString ctorName = CString(enumInfo->GetEnumCtor(idx)->GetName());
-            return ctorName.StartWith("N$_");
+            const char* ctorName = enumInfo->GetEnumCtor(idx)->GetName();
+            // The compiler omits the N$_ marker only for std.core.Option.None.
+            constexpr char optionPrefix[] = "std.core:Option<";
+            return strncmp(ctorName, "N$_", 3) == 0 ||
+                (strcmp(ctorName, "None") == 0 &&
+                 strncmp(GetSuperTypeInfo()->GetName(), optionPrefix, sizeof(optionPrefix) - 1) == 0);
         }
     }
     return false;
