@@ -41,6 +41,7 @@
 #endif
 #include "Sync/Sync.h"
 #include "UnwindStack/GcStackInfo.h"
+#include "ThreadCreatorInfo.h"
 #include "CpuProfiler/CpuProfiler.h"
 #ifdef __OHOS__
 #include "schedule.h"
@@ -561,6 +562,23 @@ extern "C" ArrayRef MCC_FillInStackTraceImpl(const TypeInfo* arrayInfo, const Ar
             liteFrameInfos.push_back(static_cast<uint64_t>(SofStackFlag::TOP_FOLDED));
         }
     }
+    // 当前线程是 spawn 创建且携带创建者记录：在帧尾追加一个哨兵三元组，
+    // 解码（MCC_DecodeStackTraceImpl）时识别并合成“创建者行”。哨兵保持为最后一个
+    // 完整三元组、折叠标记在最末，保证前端 arraySize/3 仍能解到哨兵并丢弃标记。
+    if (GetCurrentThreadCreator() != nullptr) {
+        const bool hasFoldFlag = (liteFrameInfos.size() % 3 == 1);
+        uint64_t foldFlag = 0;
+        if (hasFoldFlag) {
+            foldFlag = liteFrameInfos.back();
+            liteFrameInfos.pop_back();
+        }
+        liteFrameInfos.push_back(0);                  // ip
+        liteFrameInfos.push_back(kThreadCreatorSentinel); // funcStart（哨兵）
+        liteFrameInfos.push_back(0);                  // funcDesc
+        if (hasFoldFlag) {
+            liteFrameInfos.push_back(foldFlag);
+        }
+    }
     MIndex size = liteFrameInfos.size();
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
     if (UNLIKELY(ENABLE_LOG(EXCEPTION))) {
@@ -602,9 +620,51 @@ extern "C" ArrayRef MCC_FillInStackTraceImpl(const TypeInfo* arrayInfo, const Ar
     return array;
 }
 
+static ArrayRef CreateCharArrayFromCString(const TypeInfo* charArray, CString name);
+
+// 把 (className, methodName, fileName, lineNumber) 打包成 StackTraceData，
+// 三个字段统一走 CreateCharArrayFromCString 并一次性 CommitRawPointerRegions。
+static StackTraceData BuildStackTraceData(const TypeInfo* charArray, const CString& className,
+                                          const CString& methodName, const CString& fileName, int64_t lineNumber)
+{
+    StackTraceData data;
+    data.className = CreateCharArrayFromCString(charArray, className);
+    data.methodName = CreateCharArrayFromCString(charArray, methodName);
+    data.fileName = CreateCharArrayFromCString(charArray, fileName);
+    data.lineNumber = lineNumber;
+    AllocBuffer* buffer = AllocBuffer::GetAllocBuffer();
+    if (buffer != nullptr) {
+        buffer->CommitRawPointerRegions();
+    }
+    return data;
+}
+
 extern "C" StackTraceData MCC_DecodeStackTraceImpl(const uint64_t ip, const uint64_t pc, const uint64_t funcDesc,
                                                    const TypeInfo* charArray)
 {
+    if (pc == kThreadCreatorSentinel) {
+        // 先在 saferegion 内只做 native 工作（取 record、拼字符串），再到 saferegion
+        // 外通过 BuildStackTraceData 创建 GC 数组（saferegion 内不碰 GC 堆）。
+        CString methodName;
+        CString fileNameStr;
+        uint32_t lineNumber = 0;
+        {
+            ScopedEnterSaferegion checkpoint(true);
+            ThreadCreatorRecord* creator = GetCurrentThreadCreator();
+            if (creator != nullptr) {
+                // record.name 已在采集时 demangle 成 pkg::method，直接拼接。
+                methodName = CString("Thread created by: ") + CString(creator->name);
+                fileNameStr = (creator->fileNameLength > 0) ? CString(creator->fileName) : CString("?");
+                lineNumber = creator->lineNumber;
+            }
+        }
+        if (methodName.IsEmpty()) {
+            // 防御：fill 阶段追加过哨兵就必有 record；返回空元素，由前端过滤。
+            return BuildStackTraceData(charArray, CString(), CString(), CString(), 0);
+        }
+        return BuildStackTraceData(charArray, CString(), methodName, fileNameStr, lineNumber);
+    }
+
     StackTraceElement stackTrace;
     {
         ScopedEnterSaferegion checkpoint(true);
@@ -619,50 +679,8 @@ extern "C" StackTraceData MCC_DecodeStackTraceImpl(const uint64_t ip, const uint
     DLOG(EXCEPTION, "   FileName  \t : \t%s", stackTrace.fileName.Str());
     DLOG(EXCEPTION, "   LineNumber  \t : \t%lu", stackTrace.lineNumber);
 #endif
-    StackTraceData std;
-    std.className = ObjectManager::NewKnownWidthArray(
-        stackTrace.className.Length(), charArray, ObjectManager::ArrayElemBits::ELEM_8B, AllocType::RAW_POINTER_OBJECT);
-    if (std.className != nullptr) {
-        for (MIndex i = 0; i < stackTrace.className.Length(); ++i) {
-            std.className->SetPrimitiveElement(i, static_cast<int8_t>(stackTrace.className[i]));
-        }
-    } else {
-        VLOG(REPORT, "Decoding stack trace class name %s length %zu failed and throw OutOfMemoryError",
-            charArray->GetName(), stackTrace.className.Length());
-        ExceptionManager::CheckAndThrowPendingException("ObjectManager::NewKnownWidthArray return nullptr");
-    }
-
-    std.fileName = ObjectManager::NewKnownWidthArray(
-        stackTrace.fileName.Length(), charArray, ObjectManager::ArrayElemBits::ELEM_8B, AllocType::RAW_POINTER_OBJECT);
-    if (std.fileName != nullptr) {
-        for (MIndex i = 0; i < stackTrace.fileName.Length(); ++i) {
-            std.fileName->SetPrimitiveElement(i, static_cast<int8_t>(stackTrace.fileName[i]));
-        }
-    } else {
-        VLOG(REPORT, "Decoding stack trace file name %s length %zu failed and throw OutOfMemoryError",
-            charArray->GetName(), stackTrace.fileName.Length());
-        ExceptionManager::CheckAndThrowPendingException("ObjectManager::NewKnownWidthArray return nullptr");
-    }
-
-    std.methodName =
-        ObjectManager::NewKnownWidthArray(stackTrace.methodName.Length(), charArray,
-                                          ObjectManager::ArrayElemBits::ELEM_8B, AllocType::RAW_POINTER_OBJECT);
-    if (std.methodName != nullptr) {
-        for (MIndex i = 0; i < stackTrace.methodName.Length(); ++i) {
-            std.methodName->SetPrimitiveElement(i, static_cast<int8_t>(stackTrace.methodName[i]));
-        }
-    } else {
-        VLOG(REPORT, "Decoding stack trace method name %s length %zu failed and throw OutOfMemoryError",
-            charArray->GetName(), stackTrace.methodName.Length());
-        ExceptionManager::CheckAndThrowPendingException("ObjectManager::NewKnownWidthArray return nullptr");
-    }
-
-    AllocBuffer* buffer = AllocBuffer::GetAllocBuffer();
-    if (buffer != nullptr) {
-        buffer->CommitRawPointerRegions();
-    }
-    std.lineNumber = stackTrace.lineNumber;
-    return std;
+    return BuildStackTraceData(charArray, stackTrace.className, stackTrace.methodName, stackTrace.fileName,
+                               stackTrace.lineNumber);
 }
 
 // Warning: Caller MUST call `CommitRawPointerRegions` to make sure that
