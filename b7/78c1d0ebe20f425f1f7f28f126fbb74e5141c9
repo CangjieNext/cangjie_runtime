@@ -1,0 +1,24 @@
+runtime/src/Common/MemCommon.h
+  s_476d24450a3ecb::t_a6cc7110102955 30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b778c1d0ebe20f425f1f7f28f126fbb74e5141c9",
+  "prompts": {},
+  "humans": {
+    "h_257b3b6b5da395": {
+      "author": "kongbx <kongbingxin@huawei.com>"
+    }
+  },
+  "sessions": {
+    "s_476d24450a3ecb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a181cd-c614-7712-b98e-3331d09aced3",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "kongbx <kongbingxin@huawei.com>"
+    }
+  }
+}

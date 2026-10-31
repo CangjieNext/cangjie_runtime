@@ -1,0 +1,24 @@
+runtime/src/Heap/Allocator/LocalObjectAllocator.h
+  s_1b1c8e9b04debd::t_088e013825c60f 50
+  s_1b1c8e9b04debd::t_4a614cd9486170 70-71,77-78,101
+runtime/src/Heap/Allocator/RegionSpace.cpp
+  s_1b1c8e9b04debd::t_088e013825c60f 130
+runtime/src/Heap/Allocator/LocalObjectAllocator.cpp
+  s_1b1c8e9b04debd::t_088e013825c60f 320
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "211b06517e4e4bbf6fc628b18ec856d6a3deb3c3",
+  "prompts": {},
+  "sessions": {
+    "s_1b1c8e9b04debd": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a05689-9e47-72d1-9797-92c1261179e2",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "kongbx <kongbingxin@huawei.com>"
+    }
+  }
+}
