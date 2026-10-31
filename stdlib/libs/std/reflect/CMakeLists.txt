@@ -9,6 +9,7 @@ if(CANGJIE_CODEGEN_CJNATIVE_BACKEND)
         tuple_type_info_cjnative.cj
         function_type_info_cjnative.cj
         enum_type_info_cjnative.cj
+        option_type_info_cjnative.cj
         class_type_info_cjnative.cj
         constants.cj
         exception.cj
@@ -16,7 +17,6 @@ if(CANGJIE_CODEGEN_CJNATIVE_BACKEND)
         interface_type_info_cjnative.cj
         intrinsic_cjnative.cj
         modifier_info.cj
-        option_type_info_cjnative.cj
         package_info_cjnative.cj
         parameter_info_cjnative.cj
         primitive_type_info_cjnative.cj

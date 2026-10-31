@@ -7768,6 +7768,240 @@ main(): Unit {
 Shape接口是否为sealed: true
 ```
 
+## class OptionTypeInfo
+
+```cangjie
+public class OptionTypeInfo <: TypeInfo {}
+```
+
+功能：描述 `Option<T>` 的类型信息，提供构造、分支判断和载荷提取操作。
+
+父类型：
+
+- [TypeInfo](#class-typeinfo)
+
+`OptionTypeInfo` 直接继承 `TypeInfo`，内部组合 [EnumTypeInfo](#class-enumtypeinfo)，复用已有枚举反射能力，不新增 runtime ABI、Option 专用 intrinsic 或元数据字段。`EnumTypeInfo` 不开放继承。`OptionTypeInfo` 不能赋值或强制转换为 `EnumTypeInfo`；需要枚举视图时，使用 `EnumTypeInfo.of(instance)`、`EnumTypeInfo.of<Option<T>>()` 或 `EnumTypeInfo.get(qualifiedName)`。
+
+`TypeInfo.of(instance)`、`TypeInfo.of<T>()` 和 `TypeInfo.get(qualifiedName)` 自动识别 Option。识别同时校验标准库 Option 限定名、唯一的类型参数 `T`、一个参数的 `Some` 构造器和零参数的 `None` 构造器；不满足规则的枚举仍返回普通 `EnumTypeInfo`。
+
+本类型要求编译器和运行时提供完整的通用枚举构造器元信息；仅存在相关 intrinsic 符号并不代表元信息可用。缺失时，`TypeInfo` 保持返回 `EnumTypeInfo`，`OptionTypeInfo.of/get` 抛出 `IllegalTypeException`。此 API 不适用于 OHOS。
+
+### prop payloadType
+
+```cangjie
+public prop payloadType: TypeInfo
+```
+
+功能：获取 `Option<T>` 的载荷类型 `T` 的类型信息。
+
+类型：[TypeInfo](#class-typeinfo)。
+
+### static func get(String)
+
+```cangjie
+public static redef func get(qualifiedName: String): OptionTypeInfo
+```
+
+功能：根据限定名称获取 Option 类型信息。
+
+参数：
+
+- qualifiedName: [String](../../core/core_package_api/core_package_structs.md#struct-string) - Option 类型的限定名称。
+
+返回值：
+
+- [OptionTypeInfo](#class-optiontypeinfo) - 对应的 Option 类型信息。
+
+异常：
+
+- [InfoNotFoundException](reflect_package_exceptions.md#class-infonotfoundexception) - 找不到对应类型信息。
+- [IllegalTypeException](reflect_package_exceptions.md#class-illegaltypeexception) - 对应类型不是符合识别规则的 Option 类型。
+
+### static func of(Any)
+
+```cangjie
+public static redef func of(instance: Any): OptionTypeInfo
+```
+
+功能：获取 Option 实例的类型信息。
+
+参数：
+
+- instance: [Any](../../core/core_package_api/core_package_interfaces.md#interface-any) - Option 实例。
+
+返回值：
+
+- [OptionTypeInfo](#class-optiontypeinfo) - 实例所属的 Option 类型信息。
+
+异常：
+
+- [InfoNotFoundException](reflect_package_exceptions.md#class-infonotfoundexception) - 无法获取实例的类型信息。
+- [IllegalTypeException](reflect_package_exceptions.md#class-illegaltypeexception) - 实例不属于符合识别规则的 Option 类型。
+
+### static func of\<T>()
+
+```cangjie
+public static redef func of<T>(): OptionTypeInfo
+```
+
+功能：获取类型 `T` 的 Option 类型信息；此处 `T` 必须为具体的 `Option` 类型，例如 `Option<Int64>`。
+
+返回值：
+
+- [OptionTypeInfo](#class-optiontypeinfo) - 对应的 Option 类型信息。
+
+异常：
+
+- [InfoNotFoundException](reflect_package_exceptions.md#class-infonotfoundexception) - 无法获取类型信息。
+- [IllegalTypeException](reflect_package_exceptions.md#class-illegaltypeexception) - `T` 不是符合识别规则的 Option 类型。
+
+### func constructSome(Any)
+
+```cangjie
+public func constructSome(payload: Any): Any
+```
+
+功能：使用 `payload` 构造当前 `Option<T>` 的 `Some` 实例。
+
+参数：
+
+- payload: [Any](../../core/core_package_api/core_package_interfaces.md#interface-any) - 可赋值给 `payloadType` 的载荷。
+
+返回值：
+
+- [Any](../../core/core_package_api/core_package_interfaces.md#interface-any) - 动态类型保持为当前 `Option<T>` 的 `Some` 实例。返回 `Any` 而非 `Option<Any>`，因为仓颉泛型不支持将 `Option<T>` 自动转换为 `Option<Any>`。
+
+异常：
+
+- [IllegalTypeException](reflect_package_exceptions.md#class-illegaltypeexception) - 载荷类型与 `payloadType` 不兼容。
+- [InvocationTargetException](reflect_package_exceptions.md#class-invocationtargetexception) - 底层枚举构造调用失败。
+
+### func constructNone()
+
+```cangjie
+public func constructNone(): Any
+```
+
+功能：构造当前 `Option<T>` 的 `None` 实例，不需要载荷。
+
+返回值：
+
+- [Any](../../core/core_package_api/core_package_interfaces.md#interface-any) - 动态类型保持为当前 `Option<T>` 的 `None` 实例；返回 `Any` 的原因与 `constructSome` 相同。
+
+异常：
+
+- [InvocationTargetException](reflect_package_exceptions.md#class-invocationtargetexception) - 底层枚举构造调用失败。
+
+### func isSome(Any)
+
+```cangjie
+public func isSome(instance: Any): Bool
+```
+
+功能：判断当前 `Option<T>` 的实例是否使用 `Some` 构造器。
+
+参数：
+
+- instance: [Any](../../core/core_package_api/core_package_interfaces.md#interface-any) - 当前 `Option<T>` 的实例。
+
+返回值：
+
+- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - `Some` 返回 `true`，`None` 返回 `false`。
+
+异常：
+
+- [IllegalTypeException](reflect_package_exceptions.md#class-illegaltypeexception) - 实例类型与当前 `Option<T>` 不匹配，包括其他载荷类型的 Option。
+- [ReflectException](reflect_package_exceptions.md#class-reflectexception) - 构造器或关联值形状异常。
+
+### func isNone(Any)
+
+```cangjie
+public func isNone(instance: Any): Bool
+```
+
+功能：判断当前 `Option<T>` 的实例是否使用 `None` 构造器。
+
+参数：
+
+- instance: [Any](../../core/core_package_api/core_package_interfaces.md#interface-any) - 当前 `Option<T>` 的实例。
+
+返回值：
+
+- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - `None` 返回 `true`，`Some` 返回 `false`。
+
+异常：
+
+- [IllegalTypeException](reflect_package_exceptions.md#class-illegaltypeexception) - 实例类型与当前 `Option<T>` 不匹配。
+- [ReflectException](reflect_package_exceptions.md#class-reflectexception) - 构造器或关联值形状异常。
+
+### func getPayload(Any)
+
+```cangjie
+public func getPayload(instance: Any): Option<Any>
+```
+
+功能：提取当前 `Option<T>` 实例的载荷。对于 `Some(payload)`，返回新包装的 `Some(payload)`，其中载荷按 `Any` 表示；对于 `None`，返回 `None`。这不是将原实例转换为 `Option<Any>`。对于嵌套 Option，外层 `Some(None)` 仍返回 `Some`，其载荷为内层 `None`。
+
+参数：
+
+- instance: [Any](../../core/core_package_api/core_package_interfaces.md#interface-any) - 当前 `Option<T>` 的实例。
+
+返回值：
+
+- [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)\<Any> - 可选载荷。
+
+异常：
+
+- [IllegalTypeException](reflect_package_exceptions.md#class-illegaltypeexception) - 实例类型与当前 `Option<T>` 不匹配。
+- [ReflectException](reflect_package_exceptions.md#class-reflectexception) - 构造器或关联值形状异常。
+
+示例：以下完整程序展示构造、Some/None 提取以及载荷类型不匹配。
+
+<!-- verify -->
+```cangjie
+import std.reflect.*
+
+main(): Unit {
+    let info = OptionTypeInfo.of<Option<Int64>>()
+    let some = info.constructSome(42i64)
+    let none = info.constructNone()
+    println(info.payloadType == TypeInfo.of<Int64>())
+    println(OptionTypeInfo.of(some) == info)
+    println(OptionTypeInfo.get(info.qualifiedName) == info)
+    println(info.isSome(some))
+    println(info.isNone(none))
+    match (info.getPayload(some)) {
+        case Some(value) => println((value as Int64).getOrThrow())
+        case None => println("no payload")
+    }
+    match (info.getPayload(none)) {
+        case Some(_) => println("unexpected payload")
+        case None => println("no payload")
+    }
+    let enumView = EnumTypeInfo.of(some)
+    println(enumView.qualifiedName == info.qualifiedName)
+    try {
+        info.constructSome("wrong type")
+    } catch (_: IllegalTypeException) {
+        println("payload type mismatch")
+    }
+}
+```
+
+预期输出：
+
+```text
+true
+true
+true
+true
+true
+42
+no payload
+true
+payload type mismatch
+```
+
 ## class PackageInfo
 
 ```cangjie

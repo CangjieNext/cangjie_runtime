@@ -11,7 +11,6 @@ This package currently does not support macOS platform.
 > - For global information reflection, only globally visible `public` variables and functions can be accessed.
 > - For the current package, reflection can access all globally defined types, while for externally imported packages or dynamically loaded modules, only globally defined types with `public` visibility can be accessed.
 > - For member information reflection, only members (instance/static member variables/properties/functions) with `public` visibility within a type can be accessed. Members modified with non-`public` modifiers or default modifiers are invisible.
-> - Currently, reflection does not support function types, tuple types, or `enum` types.
 
 ## API List
 
@@ -42,6 +41,7 @@ This package currently does not support macOS platform.
 | [InstancePropertyInfo](./reflect_package_api/reflect_package_classes.md#class-instancepropertyinfo) | Describes instance member property information.                            |
 | [InstanceVariableInfo](./reflect_package_api/reflect_package_classes.md#class-instancevariableinfo) | Describes instance member variable information.                            |
 | [InterfaceTypeInfo](./reflect_package_api/reflect_package_classes.md#class-interfacetypeinfo) | Describes type information for `interface` types.                  |
+| [OptionTypeInfo](./reflect_package_api/reflect_package_classes.md#class-optiontypeinfo) | Describes `Option<T>` types and provides construction, case inspection, and payload extraction. |
 | [PackageInfo](./reflect_package_api/reflect_package_classes.md#class-packageinfo) | Describes package information.                                 |
 | [ParameterInfo](./reflect_package_api/reflect_package_classes.md#class-parameterinfo) | Describes function parameter information.                              |
 | [PrimitiveTypeInfo](./reflect_package_api/reflect_package_classes.md#class-primitivetypeinfo) | Describes type information for primitive data types.                         |

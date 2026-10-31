@@ -136,27 +136,26 @@ extern "C" MRT_EXPORT GenericTypeInfo* CJ_MCC_CheckMethodActualArgs(MethodInfo* 
     void* genericArgs, void* args) __attribute__((alias("MCC_CheckMethodActualArgs")));
 
 // for reflect, field
-extern "C" MRT_EXPORT const char* CJ_MCC_GetInstanceFieldName(InstanceFieldInfo* fieldInfo, TypeInfo* declaringTypeInfo)
+extern "C" MRT_EXPORT const char* CJ_MCC_GetInstanceFieldName(InstanceFieldInfo* fieldInfo)
     __attribute__((alias("MCC_GetInstanceFieldName")));
 extern "C" MRT_EXPORT const char* CJ_MCC_GetStaticFieldName(StaticFieldInfo* fieldInfo)
     __attribute__((alias("MCC_GetStaticFieldName")));
 
-extern "C" MRT_EXPORT TypeInfo* CJ_MCC_GetInstanceFieldType(InstanceFieldInfo* fieldInfo, TypeInfo* declaringTypeInfo)
+extern "C" MRT_EXPORT TypeInfo* CJ_MCC_GetInstanceFieldType(InstanceFieldInfo* fieldInfo)
     __attribute__((alias("MCC_GetInstanceFieldType")));
 
-extern "C" MRT_EXPORT TypeInfo* CJ_MCC_GetStaticFieldType(StaticFieldInfo* fieldInfo)
+extern "C" MRT_EXPORT TypeInfo* CJ_MCC_GetStaticFieldType(InstanceFieldInfo* fieldInfo)
     __attribute__((alias("MCC_GetStaticFieldType")));
 
 extern "C" MRT_EXPORT U32 CJ_MCC_GetInstanceFieldModifier(InstanceFieldInfo* fieldInfo)
     __attribute__((alias("MCC_GetInstanceFieldModifier")));
 
-extern "C" MRT_EXPORT U32 CJ_MCC_GetStaticFieldModifier(StaticFieldInfo* fieldInfo)
+extern "C" MRT_EXPORT U32 CJ_MCC_GetStaticFieldModifier(InstanceFieldInfo* fieldInfo)
     __attribute__((alias("MCC_GetStaticFieldModifier")));
 
-extern "C" MRT_EXPORT void CJ_MCC_SetInstanceFieldValue(InstanceFieldInfo* fieldInfo, TypeInfo* declaringTypeInfo,
-    ObjRef obj, ObjRef newValue)
+extern "C" MRT_EXPORT void CJ_MCC_SetInstanceFieldValue(InstanceFieldInfo* fieldInfo, ObjRef obj, ObjRef newValue)
     __attribute__((alias("MCC_SetInstanceFieldValue")));
-extern "C" MRT_EXPORT void CJ_MCC_SetStaticFieldValue(StaticFieldInfo* fieldInfo, ObjRef value)
+extern "C" MRT_EXPORT void CJ_MCC_SetStaticFieldValue(InstanceFieldInfo* fieldInfo, ObjRef value)
     __attribute__((alias("MCC_SetStaticFieldValue")));
 
 // reflect, class/struct
