@@ -42,6 +42,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
     }
 
     @Frozen
+    @When[env != "ohos"]
     public exclave const init(this @local!) {
         myData = rawArrayAllocate2<UInt8>(0)
         start = 0
@@ -66,6 +67,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
 
     @Frozen
     @OverflowWrapping
+    @When[env != "ohos"]
     public exclave init(this @local!, value: Array<Rune> @local?) {
         if (value.size == 0) {
             myData = rawArrayAllocate2<UInt8>(0)
@@ -98,6 +100,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
     // a `Collection<Rune> @local?` receiver: match on the concrete type for the data; other implementations rely on the caller to convert to Array<Rune> first.
     @Frozen
     @OverflowWrapping
+    @When[env != "ohos"]
     public exclave init(this @local!, value: Collection<Rune> @local?) {
         match (value) {
             case runes: Array<Rune> =>
@@ -148,6 +151,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
         (this.myData, this.start, this.length) = (value, start, len)
     }
 
+    @When[env != "ohos"]
     public exclave init(this @local!, value: String @local?) {
         let newRawPtr = rawArrayAllocate2<UInt8>(value.size)
         rawArrayInitByValue3<UInt8>(newRawPtr, value.size, 0)
@@ -157,6 +161,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
         length = value.length
     }
 
+    @When[env != "ohos"]
     public init(value: String @local?) {
         let newRawPtr = rawArrayAllocate<UInt8>(value.size)
         rawArrayInitByValue3<UInt8>(newRawPtr, value.size, 0)
@@ -242,6 +247,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
      * @throws IllegalArgumentException if the C string length exceeds UInt32.Max.
      */
     @Frozen
+    @When[env != "ohos"]
     public exclave init(this @local!, ptr: CPointer<UInt8>) {
         let cSize = if (ptr.isNull()) {
             0
@@ -309,6 +315,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
 
     @Frozen
     @OverflowWrapping
+    @When[env != "ohos"]
     public func get(this @local?, index: Int64): Option<Byte> {
         if (UInt64(index) >= UInt64(length)) {
             return None<Byte>
@@ -364,6 +371,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
 
     @Frozen
     @OverflowWrapping
+    @When[env != "ohos"]
     public exclave func toRuneArray(this @local!): Array<Rune> @local! {
         var runeSize: Int64 = 0
         for (i in Int64(length) - 1..=0 : -1) {
@@ -394,6 +402,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
     }
 
     @Frozen
+    @When[env != "ohos"]
     public exclave func toArray(this @local!): Array<Byte> @local! {
         let newRawPtr = rawArrayAllocate2<UInt8>(this.size)
         rawArrayInitByValue2(newRawPtr, this.size, 0)
@@ -402,6 +411,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
     }
 
     @Frozen
+    @When[env != "ohos"]
     public exclave func toArray(this @local?): Array<Byte> @local? {
         let newRawPtr = rawArrayAllocate3<UInt8>(Int64(length))
         rawArrayInitByValue3<UInt8>(newRawPtr, Int64(length), 0)
@@ -415,6 +425,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
     }
 
     @Frozen
+    @When[env != "ohos"]
     public exclave func toString(this @local?): String @local! {
         let newRawPtr = rawArrayAllocate2<UInt8>(this.size)
         rawArrayInitByValue3<UInt8>(newRawPtr, this.size, 0)
@@ -435,11 +446,13 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
     }
 
     @Frozen
+    @When[env != "ohos"]
     public exclave func iterator(this @local!): Iterator<Byte> @local! {
         return StringByteIterator(StringIteratorData(unsafe { rawData() }) @local!) @local!
     }
 
     @Frozen
+    @When[env != "ohos"]
     public exclave func iterator(this @local?): Iterator<Byte> @local? {
         return StringByteIterator(StringIteratorData(unsafe { rawData() }) @local?) @local?
     }
@@ -450,11 +463,13 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
     }
 
     @Frozen
+    @When[env != "ohos"]
     public exclave func runes(this @local!): Iterator<Rune> @local! {
         return StringRuneIterator(StringIteratorData(unsafe { rawData() }) @local!) @local!
     }
 
     @Frozen
+    @When[env != "ohos"]
     public exclave func runes(this @local?): Iterator<Rune> @local? {
         return StringRuneIterator(StringIteratorData(unsafe { rawData() }) @local?) @local?
     }
@@ -465,11 +480,13 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
     }
 
     @Frozen
+    @When[env != "ohos"]
     public exclave func lines(this @local!): Iterator<String> @local! {
         return StringLineIterator(StringIteratorData(unsafe { rawData() }) @local!) @local!
     }
 
     @Frozen
+    @When[env != "ohos"]
     public exclave func lines(this @local?): Iterator<String> @local? {
         return StringLineIterator(StringIteratorData(unsafe { rawData() }) @local?) @local?
     }
@@ -483,6 +500,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
     }
 
     @Frozen
+    @When[env != "ohos"]
     public prop size: Int64 @local? {
         get() {
             Int64(length)
@@ -497,6 +515,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
 
     // Returns true if and only if this string is an empty string.
     @Frozen
+    @When[env != "ohos"]
     public func isEmpty(this @local?): Bool {
         return length == 0
     }
@@ -520,6 +539,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
     }
 
     @Frozen
+    @When[env != "ohos"]
     public func isAscii(this @local?): Bool {
         /* Back-to-front traversal can reduce boundary checks and improve performance */
         let b: Int64 = size
@@ -544,6 +564,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
         return true
     }
     @Frozen
+    @When[env != "ohos"]
     public func isAsciiBlank(this @local?): Bool {
         /* Back-to-front traversal can reduce boundary checks and improve performance */
         for (i in size - 1..=0 : -1) {
@@ -563,6 +584,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
     }
 
     @Frozen
+    @When[env != "ohos"]
     public exclave func clone(this @local!): String @local! {
         let newRawPtr = rawArrayAllocate2<UInt8>(this.size)
         rawArrayInitByValue2(newRawPtr, this.size, 0)
@@ -581,12 +603,14 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
 
     @Frozen
     @OverflowWrapping
+    @When[env != "ohos"]
     public exclave func hashCode(this @local!): Int64 {
         Int64(wyhash(myData, Int64(start), Int64(length), 0))
     }
 
     @Frozen
     @OverflowWrapping
+    @When[env != "ohos"]
     public func hashCode(this @local?): Int64 {
         Int64(wyhash(myData, Int64(start), Int64(length), 0))
     }
@@ -604,12 +628,14 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
     }
 
     @Frozen
+    @When[env != "ohos"]
     public exclave static func fromUtf8(utf8Data: Array<UInt8> @local!): String @local! {
         checkInvalid(utf8Data.rawptr, utf8Data.start, utf8Data.start + utf8Data.size)
         return String(utf8Data.clone())
     }
 
     @Frozen
+    @When[env != "ohos"]
     public exclave static func fromUtf8(utf8Data: Array<UInt8> @local?): String @local! {
         checkInvalid(utf8Data.rawptr, utf8Data.start, utf8Data.start + utf8Data.size)
         let ret: Array<UInt8> @local! = utf8Data.cloneToLocal()
@@ -627,16 +653,19 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
     }
 
     @Frozen
+    @When[env != "ohos"]
     public exclave unsafe func rawData(this @local!): Array<Byte> @local! {
         Array<Byte>(myData, Int64(start), Int64(length))
     }
 
     @Frozen
+    @When[env != "ohos"]
     public exclave unsafe func rawData(this @local?): Array<Byte> @local? {
         Array<Byte>(myData, Int64(start), Int64(length))
     }
 
     @Frozen
+    @When[env != "ohos"]
     public exclave unsafe static func fromUtf8Unchecked(utf8Data: Array<UInt8> @local!): String @local! {
         // `fromUtf8Unchecked` keeps its copy semantics for every receiver mode: the caller may
         // still hold and mutate `utf8Data` after this returns (verified: adopting the array made
@@ -647,6 +676,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
     }
 
     @Frozen
+    @When[env != "ohos"]
     public exclave unsafe static func fromUtf8Unchecked(utf8Data: Array<UInt8> @local?): String @local! {
         let ret: Array<UInt8> @local! = utf8Data.cloneToLocal()
         String(ret)
@@ -663,6 +693,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
     }
     // The vectorIndexByte32 intrinsic has no @local? form; the @local? indexOf degrades to a byte-by-byte scan.
     @Frozen
+    @When[env != "ohos"]
     public func indexOf(this @local?, b: Byte): Option<Int64> {
         var i: Int64 = 0
         while (i < size) {
@@ -785,6 +816,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
     // byte-by-byte loop was O(n*m) on inputs sharing a long prefix (measured: 14.40 ms plain vs
     // 1106.91 ms for the identical heap string bound as `@local?`).
     @Frozen
+    @When[env != "ohos"]
     public func indexOf(this @local?, str: String @local?): Option<Int64> {
         if (str.size == 0) {
             return Some<Int64>(0)
@@ -906,6 +938,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
     // 匹配、空段与 UTF-8 处理只在那一处维护。
     @Frozen
     @OverflowWrapping
+    @When[env != "ohos"]
     public exclave func split(this @local!, str: String @local?, removeEmpty!: Bool = false): Array<String> @local! {
         this.split(str, -1, removeEmpty: removeEmpty)
     }
@@ -925,6 +958,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
 
     @Frozen
     @OverflowWrapping
+    @When[env != "ohos"]
     public exclave func split(this @local!, str: String @local?, maxSplits: Int64, removeEmpty!: Bool = false): Array<String> @local! {
         if (size == 0 || maxSplits == 0) {
             return Array<String>()
@@ -1074,6 +1108,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
     }
 
     @Frozen
+    @When[env != "ohos"]
     public exclave func replace(this @local!, old: String @local?, new: String @local?): String @local! {
         let oldLen: Int64 = old.size
         let newLen: Int64 = new.size
@@ -1309,6 +1344,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
 
     @Frozen
     @OverflowWrapping
+    @When[env != "ohos"]
     public exclave func toAsciiLower(this @local!): String @local! {
         let newRawPtr = rawArrayAllocate2<UInt8>(this.size)
         rawArrayInitByValue2(newRawPtr, this.size, 0)
@@ -1343,6 +1379,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
 
     @Frozen
     @OverflowWrapping
+    @When[env != "ohos"]
     public exclave func toAsciiUpper(this @local!): String @local! {
         let newRawPtr = rawArrayAllocate2<UInt8>(this.size)
         rawArrayInitByValue2(newRawPtr, this.size, 0)
@@ -1389,6 +1426,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
 
     @Frozen
     @OverflowWrapping
+    @When[env != "ohos"]
     public exclave func toAsciiTitle(this @local!): String @local! {
         var i: Int64 = 0
         let newRawPtr = rawArrayAllocate2<UInt8>(this.size)
@@ -1422,6 +1460,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
     }
 
     @Frozen
+    @When[env != "ohos"]
     public exclave func trimAscii(this @local!): String @local! {
         trimAsciiStart().trimAsciiEnd()
     }
@@ -1446,6 +1485,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
 
     @Frozen
     @OverflowWrapping
+    @When[env != "ohos"]
     public exclave func trimAsciiStart(this @local!): String @local! {
         var start: Int64 = 0
         var foundFirst: Bool = false
@@ -1482,6 +1522,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
 
     @Frozen
     @OverflowWrapping
+    @When[env != "ohos"]
     public exclave func trimAsciiEnd(this @local!): String @local! {
         var end: Int64 = size - 1
         var foundLast: Bool = false
@@ -1564,6 +1605,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
     }
 
     @Frozen
+    @When[env != "ohos"]
     public exclave func removePrefix(this @local!, prefix: String @local?): String @local! {
         if (this.startsWith(prefix)) {
             return String(this.myData, this.start + UInt32(prefix.size), this.length - UInt32(prefix.size))
@@ -1580,6 +1622,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
     }
 
     @Frozen
+    @When[env != "ohos"]
     public exclave func removeSuffix(this @local!, suffix: String @local?): String @local! {
         if (this.endsWith(suffix)) {
             return String(this.myData, this.start, this.length - UInt32(suffix.size))
@@ -1598,6 +1641,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
         }
     }
     @Frozen
+    @When[env != "ohos"]
     public func contains(this @local?, str: String @local?): Bool {
         // Empty pattern and over-long pattern are already handled by `indexOf`.
         this.indexOf(str).isSome()
@@ -1636,6 +1680,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
 
     @Frozen
     @OverflowWrapping
+    @When[env != "ohos"]
     public exclave func startsWith(this @local!, prefix: String @local?): Bool {
         let strLen: Int64 = prefix.size
         if (strLen == 0) {
@@ -1649,6 +1694,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
 
     @Frozen
     @OverflowWrapping
+    @When[env != "ohos"]
     public func startsWith(this @local?, prefix: String @local?): Bool {
         let strLen: Int64 = prefix.size
         if (strLen == 0) {
@@ -1695,6 +1741,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
 
     @Frozen
     @OverflowWrapping
+    @When[env != "ohos"]
     public exclave func endsWith(this @local!, suffix: String @local?): Bool {
         let strLen: Int64 = suffix.size
         if (strLen == 0) {
@@ -1715,6 +1762,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
 
     @Frozen
     @OverflowWrapping
+    @When[env != "ohos"]
     public func endsWith(this @local?, suffix: String @local?): Bool {
         let strLen: Int64 = suffix.size
         if (strLen == 0) {
@@ -1776,6 +1824,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
     }
 
     @Frozen
+    @When[env != "ohos"]
     public exclave func padStart(this @local!, totalWidth: Int64, padding!: String @local? = " "): String @local! {
         if (totalWidth < 0) {
             throw IllegalArgumentException("Negative totalWidth.")
@@ -1852,6 +1901,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
     }
 
     @Frozen
+    @When[env != "ohos"]
     public exclave func padEnd(this @local!, totalWidth: Int64, padding!: String @local? = " "): String @local! {
         if (totalWidth < 0) {
             throw IllegalArgumentException("Negative totalWidth.")
@@ -1909,6 +1959,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
     }
     @Frozen
     @OverflowWrapping
+    @When[env != "ohos"]
     public func equalsIgnoreAsciiCase(this @local?, other: String @local?): Bool {
         if (this.length != other.length) {
             return false
@@ -1942,6 +1993,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
         }
         return false
     }
+    @When[env != "ohos"]
     @Frozen
     private func byteEqualsIgnoreAsciiCase(this @local?, b1: Byte, b2: Byte): Bool {
         if (b1 == b2) {
@@ -2119,6 +2171,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
     }
 
     @Frozen
+    @When[env != "ohos"]
     public func compare(this @local?, str: String @local?): Ordering {
         let minSize: Int64 = if (this.size < str.size) {
             this.size
@@ -2161,6 +2214,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
 
     @Frozen
     @OverflowWrapping
+    @When[env != "ohos"]
     public exclave operator const func +(this @local!, other: String @local?): String @local! {
         let newLen = size + other.size
         if (newLen > Int64(UInt32.Max)) {
@@ -2200,6 +2254,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
     }
 
     @Frozen
+    @When[env != "ohos"]
     public exclave operator const func *(this @local!, count: Int64): String @local! {
         if (count < 0) {
             throw IllegalArgumentException("Negative count.")
@@ -2273,6 +2328,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
     }
 
     @Frozen
+    @When[env != "ohos"]
     public exclave operator const func ==(this @local!, other: String @local!): Bool {
         if (this.length != other.length) {
             return false
@@ -2284,6 +2340,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
     }
 
     @Frozen
+    @When[env != "ohos"]
     public operator const func ==(this @local?, other: String @local?): Bool {
         if (this.length != other.length) {
             return false
@@ -2301,11 +2358,13 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
     }
 
     @Frozen
+    @When[env != "ohos"]
     public exclave operator const func !=(this @local!, other: String @local!): Bool {
         return !(this == other)
     }
 
     @Frozen
+    @When[env != "ohos"]
     public operator const func <(this @local?, other: String @local?): Bool {
         return match (this.compare(other)) {
             case LT => true
@@ -2313,6 +2372,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
         }
     }
     @Frozen
+    @When[env != "ohos"]
     public operator const func <=(this @local?, other: String @local?): Bool {
         return match (this.compare(other)) {
             case GT => false
@@ -2320,6 +2380,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
         }
     }
     @Frozen
+    @When[env != "ohos"]
     public operator const func >(this @local?, other: String @local?): Bool {
         return match (this.compare(other)) {
             case GT => true
@@ -2327,6 +2388,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
         }
     }
     @Frozen
+    @When[env != "ohos"]
     public operator const func >=(this @local?, other: String @local?): Bool {
         return match (this.compare(other)) {
             case LT => false
@@ -2334,6 +2396,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
         }
     }
     @Frozen
+    @When[env != "ohos"]
     public operator const func !=(this @local?, other: String @local?): Bool {
         !(this == other)
     }
@@ -2353,6 +2416,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
 
     @Frozen
     @OverflowWrapping
+    @When[env != "ohos"]
     public operator const func [](this @local?, index: Int64): Byte {
         if (index < 0 || index >= size) {
             throw IndexOutOfBoundsException(stringIndexOutOfBoundsExceptionMessage(index, size))
@@ -2367,11 +2431,13 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
         return String(Array<Byte>(myData, Int64(this.start) + startIndex, len))
     }
 
+@When[env != "ohos"]
     @Frozen
     private exclave func sliceUnchecked(this @local?, startIndex: Int64, len: Int64): String @local? {
         String(Array<Byte>(myData, Int64(this.start) + startIndex, len) @local?)
     }
 
+@When[env != "ohos"]
     @Frozen
     private exclave func sliceUnchecked(this @local!, startIndex: Int64, len: Int64): String @local! {
         String(Array<Byte>(myData, Int64(this.start) + startIndex, len) @local!) @local!
@@ -2423,6 +2489,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
 
     @OverflowWrapping
     @Frozen
+    @When[env != "ohos"]
     public operator const func [](this @local?, range: Range<Int64>): String @local? {
         let start: Int64 = range.start
         var end: Int64 = range.end
@@ -2461,6 +2528,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
 
     @OverflowWrapping
     @Frozen
+    @When[env != "ohos"]
     public exclave operator const func [](this @local!, range: Range<Int64>): String @local! {
         let start: Int64 = range.start
         var end: Int64 = range.end
@@ -2553,6 +2621,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
 
     @Frozen
     @OverflowWrapping
+    @When[env != "ohos"]
     public exclave static func join(strArray: Array<String> @local!, delimiter!: String @local?): String @local! {
         let strArraySize: Int64 = strArray.size
         if (strArraySize == 0) {
@@ -2796,6 +2865,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
     }
 
     @Frozen
+    @When[env != "ohos"]
     public exclave static unsafe func withRawData(rawData: Array<UInt8> @local!): String @local! {
         String(rawData)
     }
@@ -2873,6 +2943,7 @@ struct RunesToUtf8Bytes {
     }
 
     @OverflowWrapping
+    @When[env != "ohos"]
     public exclave static func getBytesLocal(runes: Array<Rune> @local?): Array<UInt8> @local! {
         var itemBytes: Array<UInt8> @local! = Array<UInt8>(getSize(runes), repeat: 0)
         var itemLen: Int64 = 0
@@ -2906,6 +2977,7 @@ struct RunesToUtf8Bytes {
     }
 
     @OverflowWrapping
+    @When[env != "ohos"]
     public exclave static func getBytesLocalCollection(value: Collection<Rune> @local?): Array<UInt8> @local! {
         // `size` prop is not dispatchable on a `@local?` interface receiver, so run two
         // passes with fresh iterators: one to count UTF-8 bytes, one to fill the buffer.
@@ -2942,6 +3014,7 @@ struct RunesToUtf8Bytes {
     }
 
     @OverflowWrapping
+    @When[env != "ohos"]
     public static func getSize(runes: Array<Rune> @local?): Int64 {
         var size: Int64 = 0
         /* Back-to-front traversal can reduce boundary checks and improve performance */

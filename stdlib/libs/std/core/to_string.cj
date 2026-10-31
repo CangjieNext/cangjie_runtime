@@ -23,6 +23,7 @@ public interface ToString {
      * (e.g. via `append<T>(this @local!, v: T @local?)`) should override
      * this to return a real `local!` String.
      */
+    @When[env != "ohos"]
     func toString(this @local?): String @local! {
         throw UnimplementedException("Current Type does not implement 'toString' method for its @local? instance")
     }
@@ -46,6 +47,7 @@ extend Int64 <: ToString {
     }
 
     @OverflowWrapping
+    @When[env != "ohos"]
     public exclave func toString(this @local?): String @local! {
         let (numLen, unum, buffer) = if (this < 0) {
             let unum = UInt64(-this)
@@ -68,6 +70,7 @@ extend IntNative <: ToString {
         return Int64(this).toString()
     }
 
+    @When[env != "ohos"]
     public exclave func toString(this @local?): String @local! {
         Int64(this).toString()
     }
@@ -78,6 +81,7 @@ extend Int32 <: ToString {
         return Int64(this).toString()
     }
 
+    @When[env != "ohos"]
     public exclave func toString(this @local?): String @local! {
         Int64(this).toString()
     }
@@ -88,6 +92,7 @@ extend Int16 <: ToString {
         return Int64(this).toString()
     }
 
+    @When[env != "ohos"]
     public exclave func toString(this @local?): String @local! {
         Int64(this).toString()
     }
@@ -98,6 +103,7 @@ extend Int8 <: ToString {
         return Int64(this).toString()
     }
 
+    @When[env != "ohos"]
     public exclave func toString(this @local?): String @local! {
         Int64(this).toString()
     }
@@ -111,6 +117,7 @@ extend UInt64 <: ToString {
         return String(buffer)
     }
 
+    @When[env != "ohos"]
     public exclave func toString(this @local?): String @local! {
         let numLen = calcNumLen(this)
         let buffer = Array<Byte>(numLen, repeat: 0) @local!
@@ -125,6 +132,7 @@ extend UIntNative <: ToString {
         return UInt64(this).toString()
     }
 
+    @When[env != "ohos"]
     public exclave func toString(this @local?): String @local! {
         UInt64(this).toString()
     }
@@ -135,6 +143,7 @@ extend UInt32 <: ToString {
         return UInt64(this).toString()
     }
 
+    @When[env != "ohos"]
     public exclave func toString(this @local?): String @local! {
         UInt64(this).toString()
     }
@@ -145,6 +154,7 @@ extend UInt16 <: ToString {
         return UInt64(this).toString()
     }
 
+    @When[env != "ohos"]
     public exclave func toString(this @local?): String @local! {
         UInt64(this).toString()
     }
@@ -155,6 +165,7 @@ extend UInt8 <: ToString {
         return UInt64(this).toString()
     }
 
+    @When[env != "ohos"]
     public exclave func toString(this @local?): String @local! {
         UInt64(this).toString()
     }
@@ -171,6 +182,7 @@ extend Float64 <: ToString {
         return s
     }
 
+    @When[env != "ohos"]
     public exclave func toString(this @local?): String @local! {
         let p: CPointer<UInt8> = unsafe { CJ_CORE_Float64ToCPointer(this) }
         if (p.isNull()) {
@@ -187,6 +199,7 @@ extend Float32 <: ToString {
         return Float64(this).toString()
     }
 
+    @When[env != "ohos"]
     public exclave func toString(this @local?): String @local! {
         Float64(this).toString()
     }
@@ -197,6 +210,7 @@ extend Float16 <: ToString {
         return Float64(this).toString()
     }
 
+    @When[env != "ohos"]
     public exclave func toString(this @local?): String @local! {
         Float64(this).toString()
     }
@@ -211,6 +225,7 @@ extend Bool <: ToString {
         }
     }
 
+    @When[env != "ohos"]
     public exclave func toString(this @local?): String @local! {
         if (this) {
             "true"
@@ -225,6 +240,7 @@ extend Rune <: ToString {
         return String([this])
     }
 
+    @When[env != "ohos"]
     public exclave func toString(this @local?): String @local! {
         let m: Array<Rune> @local! = [this]
         return String(m)
@@ -236,6 +252,7 @@ extend Unit <: ToString {
         return "()"
     }
 
+    @When[env != "ohos"]
     public exclave func toString(this @local?): String @local! {
         "()"
     }
