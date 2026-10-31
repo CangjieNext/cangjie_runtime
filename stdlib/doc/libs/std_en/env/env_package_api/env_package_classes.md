@@ -115,11 +115,15 @@ public func readToEnd(): ?String
 
 Function: Reads all characters from standard input.
 
-Reading continues until the end-of-file marker `EOF` is encountered, or until `Ctrl+D` is pressed in Linux or `Ctrl+Z` + Enter in Windows. Returns the read characters as ?[String](../../core/core_package_api/core_package_structs.md#struct-string), or `None` if no characters are read. This interface does not throw exceptions; even if the input is not a valid `UTF-8` encoded string, it will construct and return a [String](../../core/core_package_api/core_package_structs.md#struct-string), behaving equivalently to [String](../../core/core_package_api/core_package_structs.md#struct-string).[fromUtf8Uncheck](../../core/core_package_api/core_package_structs.md#static-func-fromutf8uncheckedarrayuint8)([Array](../../core/core_package_api/core_package_structs.md#struct-arrayt)\<[Byte](../../core/core_package_api/core_package_types.md#type-byte)>).
+Reading continues until the end-of-file marker `EOF` is encountered, or until `Ctrl+D` is pressed in Linux or `Ctrl+Z` + Enter in Windows. Returns the read characters as ?[String](../../core/core_package_api/core_package_structs.md#struct-string), or `None` if no characters are read.
 
 Returns:
 
 - ?[String](../../core/core_package_api/core_package_structs.md#struct-string) - Returns all read data as ?[String](../../core/core_package_api/core_package_structs.md#struct-string).
+
+Exceptions:
+
+- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown when the input does not conform to a `UTF-8` encoded string.
 
 ### func readUntil((Rune) -> Bool)
 
@@ -138,6 +142,10 @@ Parameters:
 Returns:
 
 - ?[String](../../core/core_package_api/core_package_structs.md#struct-string) - Returns the read data as ?[String](../../core/core_package_api/core_package_structs.md#struct-string).
+
+Exceptions:
+
+- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown when the input does not conform to a `UTF-8` encoded string.
 
 Example:
 <!-- compile -->
@@ -180,6 +188,10 @@ Returns:
 
 - ?[String](../../core/core_package_api/core_package_structs.md#struct-string) - Returns the read data as ?[String](../../core/core_package_api/core_package_structs.md#struct-string).
 
+Exceptions:
+
+- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown when the input does not conform to a `UTF-8` encoded string.
+
 Example:
 <!-- compile -->
 
@@ -212,11 +224,15 @@ public func readln(): ?String
 
 Function: Reads a line of text from standard input.
 
-Returns the read characters as ?[String](../../core/core_package_api/core_package_structs.md#struct-string), excluding the trailing newline character. This interface does not throw exceptions; even if the input is not a valid `UTF-8` encoded string, it will construct and return a [String](../../core/core_package_api/core_package_structs.md#struct-string), behaving equivalently to [String](../../core/core_package_api/core_package_structs.md#struct-string).[fromUtf8Uncheck](../../core/core_package_api/core_package_structs.md#static-func-fromutf8uncheckedarrayuint8)([Array](../../core/core_package_api/core_package_structs.md#struct-arrayt)\<[Byte](../../core/core_package_api/core_package_types.md#type-byte)>).
+Returns the read characters as ?[String](../../core/core_package_api/core_package_structs.md#struct-string), excluding the trailing newline character.
 
 Returns:
 
 - ?[String](../../core/core_package_api/core_package_structs.md#struct-string) - The read line of data, or `None` if reading fails.
+
+Exceptions:
+
+- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown when the input does not conform to a `UTF-8` encoded string.
 
 Example:
 <!-- compile -->
