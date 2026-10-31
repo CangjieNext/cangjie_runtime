@@ -41,6 +41,7 @@
 #endif
 #include "Sync/Sync.h"
 #include "UnwindStack/GcStackInfo.h"
+#include "ThreadCreatorInfo.h"
 #include "CpuProfiler/CpuProfiler.h"
 #ifdef __OHOS__
 #include "schedule.h"
@@ -561,6 +562,23 @@ extern "C" ArrayRef MCC_FillInStackTraceImpl(const TypeInfo* arrayInfo, const Ar
             liteFrameInfos.push_back(static_cast<uint64_t>(SofStackFlag::TOP_FOLDED));
         }
     }
+    // If the current thread was spawned and carries a creator record, append a sentinel triple at the end.
+    // decode (MCC_DecodeStackTraceImpl) recognizes it and synthesizes the "creator line". The sentinel stays a complete
+    // triple with the fold flag last, so the frontend arraySize/3 still decodes the sentinel and drops the flag.
+    if (GetCurrentThreadCreator() != nullptr) {
+        const bool hasFoldFlag = (liteFrameInfos.size() % 3 == 1);
+        uint64_t foldFlag = 0;
+        if (hasFoldFlag) {
+            foldFlag = liteFrameInfos.back();
+            liteFrameInfos.pop_back();
+        }
+        liteFrameInfos.push_back(0);                  // ip
+        liteFrameInfos.push_back(kThreadCreatorSentinel); // funcStart (sentinel)
+        liteFrameInfos.push_back(0);                  // funcDesc
+        if (hasFoldFlag) {
+            liteFrameInfos.push_back(foldFlag);
+        }
+    }
     MIndex size = liteFrameInfos.size();
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
     if (UNLIKELY(ENABLE_LOG(EXCEPTION))) {
@@ -602,9 +620,51 @@ extern "C" ArrayRef MCC_FillInStackTraceImpl(const TypeInfo* arrayInfo, const Ar
     return array;
 }
 
+static ArrayRef CreateCharArrayFromCString(const TypeInfo* charArray, CString name);
+
+// Packs (className, methodName, fileName, lineNumber) into a StackTraceData, building all
+// three fields via CreateCharArrayFromCString and committing the raw-pointer regions once.
+static StackTraceData BuildStackTraceData(const TypeInfo* charArray, const CString& className,
+                                          const CString& methodName, const CString& fileName, int64_t lineNumber)
+{
+    StackTraceData data;
+    data.className = CreateCharArrayFromCString(charArray, className);
+    data.methodName = CreateCharArrayFromCString(charArray, methodName);
+    data.fileName = CreateCharArrayFromCString(charArray, fileName);
+    data.lineNumber = lineNumber;
+    AllocBuffer* buffer = AllocBuffer::GetAllocBuffer();
+    if (buffer != nullptr) {
+        buffer->CommitRawPointerRegions();
+    }
+    return data;
+}
+
 extern "C" StackTraceData MCC_DecodeStackTraceImpl(const uint64_t ip, const uint64_t pc, const uint64_t funcDesc,
                                                    const TypeInfo* charArray)
 {
+    if (pc == kThreadCreatorSentinel) {
+        // Do only native work inside the saferegion (read the record, build the strings), then
+        // create the GC arrays outside via BuildStackTraceData (no GC heap access in the saferegion).
+        CString methodName;
+        CString fileNameStr;
+        uint32_t lineNumber = 0;
+        {
+            ScopedEnterSaferegion checkpoint(true);
+            ThreadCreatorRecord* creator = GetCurrentThreadCreator();
+            if (creator != nullptr) {
+                // record.name was already demangled to pkg::method at capture time, so just concatenate.
+                methodName = CString("Thread created by: ") + CString(creator->name);
+                fileNameStr = (creator->fileNameLength > 0) ? CString(creator->fileName) : CString("?");
+                lineNumber = creator->lineNumber;
+            }
+        }
+        if (methodName.IsEmpty()) {
+            // Defensive: a sentinel implies a record at fill time; return an empty element for the frontend to filter.
+            return BuildStackTraceData(charArray, CString(), CString(), CString(), 0);
+        }
+        return BuildStackTraceData(charArray, CString(), methodName, fileNameStr, lineNumber);
+    }
+
     StackTraceElement stackTrace;
     {
         ScopedEnterSaferegion checkpoint(true);
