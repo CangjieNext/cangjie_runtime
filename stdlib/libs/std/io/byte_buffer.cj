@@ -98,6 +98,9 @@ public class ByteBuffer <: IOStream & Seekable {
      * Returns a reference to the original Array, any modification changes the original Array.
      */
     public func bytes(): Array<Byte> {
+        if (_length <= 0) {
+            return myData.slice(0, 0)
+        }
         return myData.slice(start, _length)
     }
 
@@ -110,7 +113,7 @@ public class ByteBuffer <: IOStream & Seekable {
      * @throws IllegalArgumentException - If the buffer is empty.
      */
     public func read(buffer: Array<Byte>): Int64 {
-        if (_length == 0) {
+        if (_length <= 0) {
             return 0
         }
         let bufSize = buffer.size
@@ -136,7 +139,7 @@ public class ByteBuffer <: IOStream & Seekable {
      * @throws IllegalArgumentException - If the buffer is empty.
      */
     public func readByte(): ?Byte {
-        if (_length == 0) {
+        if (_length <= 0) {
             return None
         }
         let byteValue = myData[start]
