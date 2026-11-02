@@ -354,12 +354,7 @@ func createFuncParam(decl: ASTFormat_Decl): Decl {
     return createFuncParam(decl.GetDeclAsFuncParam(), 0, 1)
 }
 
-<<<<<<< HEAD
-func createMacroExpandParam(decl: ASTFormat_Decl): Decl {
-||||||| constructed merge base
-func createMacroExpandParam(decl: NodeFormat_Decl): Decl {
-=======
-func createThisParamDecl(decl: NodeFormat_Decl): Decl {
+func createThisParamDecl(decl: ASTFormat_Decl): Decl {
     var tp = match (decl.GetDeclAsThisParam()) {
         case Some(v) => v
         case None => throw ParseASTException()
@@ -373,8 +368,7 @@ func createThisParamDecl(decl: NodeFormat_Decl): Decl {
     return ThisParam(thisTok, modal, comma)
 }
 
-func createMacroExpandParam(decl: NodeFormat_Decl): Decl {
->>>>>>> feat: local mode
+func createMacroExpandParam(decl: ASTFormat_Decl): Decl {
     let pm = match (decl.GetDeclAsMacroExpandParam()) {
         case Some(v) => v
         case None => throw ParseASTException()
@@ -465,12 +459,7 @@ func generateFuncParams(funcBody: ASTFormat_FuncBody): ArrayList<FuncParam> {
     return funcParams
 }
 
-<<<<<<< HEAD
-func generateCommonFuncDecl(funcDecl: Option<ASTFormat_FuncDecl>, declNode: Decl) {
-||||||| constructed merge base
-func generateCommonFuncDecl(funcDecl: Option<NodeFormat_FuncDecl>, declNode: Decl) {
-=======
-func createThisParam(paramList: Option<NodeFormat_FuncParamList>): ?ThisParam {
+func createThisParam(paramList: ASTFormat_FuncParamList): ?ThisParam {
     var pl = match (paramList) {
         case Some(v) => v
         case None => return None<ThisParam>
@@ -488,8 +477,7 @@ func createThisParam(paramList: Option<NodeFormat_FuncParamList>): ?ThisParam {
     return Some<ThisParam>(ThisParam(thisTok, modal, comma))
 }
 
-func generateCommonFuncDecl(funcDecl: Option<NodeFormat_FuncDecl>, declNode: Decl) {
->>>>>>> feat: local mode
+func generateCommonFuncDecl(funcDecl: ASTFormat_FuncDecl, declNode: Decl) {
     var fd = match (funcDecl) {
         case Some(v) => v
         case None => throw ParseASTException()

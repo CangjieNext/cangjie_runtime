@@ -113,14 +113,7 @@ std::string LexWithError(void* fptr, const std::string code)
 
     diag.SetDisableWarning(true);
     Lexer lex(fileID, code, diag, sm, false);
-<<<<<<< HEAD
-    // Keep the EH keyword handling consistent with the main lexing path in
-    // CJ_AST_Lex, so diagnostics do not demote EH keywords to identifiers.
-    lex.SetEHEnabled(GetCompileEH(fptr));
-||||||| constructed merge base
-=======
     SetLexerOptions(lex, GetGlobalOptions(fptr));
->>>>>>> feat: local mode
     auto tokens = lex.GetTokens();
 
     std::string outStr;
@@ -202,14 +195,7 @@ ParseRes* CJ_AST_Lex(void* fptr, const char* code, int64_t codeLen)
     diag.SetDisableWarning(true);
     std::string cangjieCode(code, static_cast<size_t>(codeLen));
     Lexer lex(cangjieCode, diag, sm, false, false);
-<<<<<<< HEAD
-    // Follow the host compilation's --enable-eh so EH keywords are not demoted
-    // to identifiers when lexing macro input during macro expansion.
-    lex.SetEHEnabled(GetCompileEH(fptr));
-||||||| constructed merge base
-=======
     SetLexerOptions(lex, GetGlobalOptions(fptr));
->>>>>>> feat: local mode
     std::vector<Token> tokens{};
 
     MacroCall* macCall = nullptr;
