@@ -9,6 +9,9 @@ set(CANGJIE_LIB_DIR "modules")
 set(CANGJIE_EXECUTABLE_OUTPUT_DIR ${CMAKE_BINARY_DIR}/bin)
 set(CJNATIVE_BACKEND "cjnative")
 
+# Reusing this module must not enable experimental language features implicitly.
+option(CANGJIE_ENABLE_LOCAL_MODE "Enable experimental local mode for Cangjie libraries" OFF)
+
 # Resolve a list of CMake target names / plain file paths to the actual output
 # files those targets produce, so that add_custom_command(OUTPUT) DEPENDS can
 # track them via file timestamps.
@@ -134,6 +137,10 @@ function(add_cangjie_library target_name)
             list(APPEND cangjie_compile_flags "--trimpath")
             list(APPEND cangjie_compile_flags "${CMAKE_SOURCE_DIR}/libs/")
         endif()
+    endif()
+
+    if(CANGJIE_ENABLE_LOCAL_MODE)
+        list(APPEND cangjie_compile_flags "--experimental" "--enable-local-mode")
     endif()
 
     if (CANGJIELIB_IS_CJNATIVE_BACKEND)
