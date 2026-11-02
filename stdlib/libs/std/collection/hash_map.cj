@@ -2061,17 +2061,26 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
     exclave func resize(this @local!, argCap: Int64): Bool {
         var isRehash: Bool = false
         let oldBucketsSize = buckets.size
-        let allowedBucketSize = Int64(Float32(oldBucketsSize) * LOAD_FACTOR)
+        // 0.75 * oldBucketsSize as integer arithmetic (oldBucketsSize * 3 / 4).
+        // Equivalent because the bucket size is always a power of 2 (DEFAULT_CAPACITY is 16 and
+        // every resize goes through tableSizeFor, which rounds up to the next power of two);
+        // keep that invariant intact when modifying the capacity logic below.
+        let allowedBucketSize = oldBucketsSize - (oldBucketsSize >> 2)
 
         // Except for reserve, following two if condition would not be satisfied at the same time.
         if (argCap >= allowedBucketSize) {
             let newCapOfBuckets = max(oldBucketsSize << 1, tableSizeFor(argCap))
             let newBuckets: Array<Int64> @local! = Array<Int64>(newCapOfBuckets, repeat: -1)
             for (i in 0..entries.size) {
-                if (entries[i].hash >= 0) {
-                    let bucket: Int64 = getIndex(entries[i].hash, newCapOfBuckets)
-                    entries[i] = HashMapEntry<K, V>(entries[i].hash, newBuckets[bucket], entries[i].key,
-                        entries[i].value) @local!
+                // Read fields in place (no per-entry copy at -O2) and skip the rewrite
+                // when the new chain head already equals the existing next index.
+                let entryHash: Int64 = entries[i].hash
+                if (entryHash >= 0) {
+                    let bucket: Int64 = getIndex(entryHash, newCapOfBuckets)
+                    let newNext: Int64 = newBuckets[bucket]
+                    if (newNext != entries[i].next) {
+                        entries[i] = HashMapEntry<K, V>(entryHash, newNext, entries[i].key, entries[i].value)
+                    }
                     newBuckets[bucket] = i
                 }
             }
@@ -2083,7 +2092,7 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
             let newCapOfEntries = max(oldEntriesSize + (oldEntriesSize >> 1), argCap)
             let newEntries = Array<HashMapEntry<K, V>>(
                 newCapOfEntries,
-                repeat: HashMapEntry<K, V>() @local!
+                repeat: HashMapEntry<K, V>()
             ) @local!
             entries.copyTo(newEntries, 0, 0, oldEntriesSize)
             entries = newEntries

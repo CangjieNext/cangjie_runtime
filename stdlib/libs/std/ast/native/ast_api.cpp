@@ -57,16 +57,6 @@ void SetLexerOptions(Lexer& lex, const GlobalOptions* opts)
     lex.SetLocalModeEnabled(!opts || opts->enableLocalMode);
 }
 
-/// get the enableEH compile option from MacroCall* if not null
-bool GetCompileEH(void* fptr)
-{
-    if (!fptr) {
-        return false;
-    }
-    auto mc = reinterpret_cast<MacroCall*>(fptr);
-    return mc->ci->invocation.globalOptions.enableEH;
-}
-
 std::string ParseWithError(
     void* fptr, const std::vector<Token> oldTokens, ParseKind kind, ScopeKind scopeKind = ScopeKind::UNKNOWN_SCOPE)
 {

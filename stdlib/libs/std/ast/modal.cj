@@ -126,18 +126,17 @@ public class ModalInfo {
     }
 }
 
-// Build a ModalInfo from a flatbuffer NodeFormat_ModalInfo. Returns a default (empty) ModalInfo
-// when the optional field is absent.
-func createModalInfo(modal: Option<NodeFormat_ModalInfo>): ModalInfo {
+// Build a ModalInfo from an ASTFormat_ModalInfo. Returns an empty ModalInfo when absent.
+func createModalInfo(modal: Option<ASTFormat_ModalInfo>): ModalInfo {
     var info = match (modal) {
         case Some(v) => v
         case None => return ModalInfo()
     }
     var mode = match (info.GetLocal()) {
-        case NodeFormat_ASTMode.ASTMode_AST_MODE_NONE => ASTMode.MODAL_NONE
-        case NodeFormat_ASTMode.ASTMode_AST_MODE_NOT => ASTMode.MODAL_NOT
-        case NodeFormat_ASTMode.ASTMode_AST_MODE_HALF => ASTMode.MODAL_HALF
-        case NodeFormat_ASTMode.ASTMode_AST_MODE_FULL => ASTMode.MODAL_FULL
+        case ASTFormat_ASTMode.ASTMode_AST_MODE_NONE => ASTMode.MODAL_NONE
+        case ASTFormat_ASTMode.ASTMode_AST_MODE_NOT => ASTMode.MODAL_NOT
+        case ASTFormat_ASTMode.ASTMode_AST_MODE_HALF => ASTMode.MODAL_HALF
+        case ASTFormat_ASTMode.ASTMode_AST_MODE_FULL => ASTMode.MODAL_FULL
     }
     if (mode == ASTMode.MODAL_NONE) {
         return ModalInfo()

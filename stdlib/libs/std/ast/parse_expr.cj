@@ -649,7 +649,7 @@ func createPrimitiveTypeExpr(expr: ASTFormat_Expr, exprBase: ASTFormat_NodeBase)
     return primExpr
 }
 
-func createExclaveExpr(expr: NodeFormat_Expr, exprBase: NodeFormat_NodeBase): Expr {
+func createExclaveExpr(expr: ASTFormat_Expr, exprBase: ASTFormat_NodeBase): Expr {
     var exclaveExpr = match (expr.GetExprAsExclaveExpr()) {
         case Some(v) => v
         case None => throw ParseASTException()

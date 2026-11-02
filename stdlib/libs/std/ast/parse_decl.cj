@@ -459,7 +459,7 @@ func generateFuncParams(funcBody: ASTFormat_FuncBody): ArrayList<FuncParam> {
     return funcParams
 }
 
-func createThisParam(paramList: ASTFormat_FuncParamList): ?ThisParam {
+func createThisParam(paramList: ?ASTFormat_FuncParamList): ?ThisParam {
     var pl = match (paramList) {
         case Some(v) => v
         case None => return None<ThisParam>
@@ -477,7 +477,7 @@ func createThisParam(paramList: ASTFormat_FuncParamList): ?ThisParam {
     return Some<ThisParam>(ThisParam(thisTok, modal, comma))
 }
 
-func generateCommonFuncDecl(funcDecl: ASTFormat_FuncDecl, declNode: Decl) {
+func generateCommonFuncDecl(funcDecl: ?ASTFormat_FuncDecl, declNode: Decl) {
     var fd = match (funcDecl) {
         case Some(v) => v
         case None => throw ParseASTException()

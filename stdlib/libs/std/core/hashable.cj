@@ -1053,7 +1053,7 @@ func wyhash(arr: RawArray<UInt8> @local?, start: Int64, size: Int64, see: UInt64
         case _ =>
             // Long path: pin once; r8Wide matches r8 packing via unaligned-safe byte reads.
             unsafe {
-                let base = acquireRawData(arr)
+                let base = acquireRawData2(arr)
                 var pos = start
                 var l = size
                 if (l > 48) {
@@ -1081,7 +1081,7 @@ func wyhash(arr: RawArray<UInt8> @local?, start: Int64, size: Int64, see: UInt64
                 }
                 a = r8Wide(base, pos + l - 16)
                 b = r8Wide(base, pos + l - 8)
-                releaseRawData(arr, base)
+                releaseRawData2(arr, base)
             }
     }
     a ^= SECRET1
