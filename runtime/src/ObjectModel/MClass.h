@@ -215,14 +215,23 @@ struct MTableDesc {
     std::unordered_map<U32, InheritFuncTable> mTable;
     MTableBitmap mTableBitmap;
     std::recursive_mutex mTableMutex;
-    bool pending = false;
-    bool needsResolveInner = true;
-    bool needsResolveOuter = true;
+    // Publish-on-completion: writers build mTable under mTableMutex then store these
+    // flags with release; readers load with acquire, so observing IsFullyHandled()==true
+    // guarantees the fully-built mTable is visible.
+    std::atomic<bool> pending { false };
+    std::atomic<bool> needsResolveInner { true };
+    std::atomic<bool> needsResolveOuter { true };
     explicit MTableDesc(ArchUInt bitmap_);
     MTableDesc() = delete;
     bool IsFullyHandled() const { return !NeedResolveInner() && !NeedResolveOuter(); };
-    inline bool NeedResolveInner() const { return needsResolveInner; }
-    inline bool NeedResolveOuter() const { return needsResolveOuter; }
+    inline bool NeedResolveInner() const
+    {
+        return needsResolveInner.load(std::memory_order_acquire);
+    }
+    inline bool NeedResolveOuter() const
+    {
+        return needsResolveOuter.load(std::memory_order_acquire);
+    }
 };
 
 typedef TypeInfo* (*GenericFunc)(TypeInfo**);

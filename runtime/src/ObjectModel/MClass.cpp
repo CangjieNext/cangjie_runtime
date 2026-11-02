@@ -439,20 +439,26 @@ static void ResolveInnerExtensionDefs(
 
 void TypeInfo::TraverseInnerExtensionDefs(const std::function<void(TypeInfo*)> getInterface)
 {
-    if (!this->mTableDesc->needsResolveInner) {
+    if (!this->mTableDesc->needsResolveInner.load(std::memory_order_relaxed)) {
         return;
     }
     TypeInfo* curType = this;
-    this->mTableDesc->pending = true;
+    this->mTableDesc->pending.store(true, std::memory_order_relaxed);
     while (curType) {
+        // Guard the super's mTable against concurrent build while we merge it
+        // into this TI's mTable. Lock order is always child->super (acyclic),
+        // so this cannot deadlock with another child building the same super.
+        curType->TryInitMTable();
+        std::lock_guard<std::recursive_mutex> superLock(curType->GetMTableDesc()->mTableMutex);
         ResolveInnerExtensionDefs(this, curType, getInterface);
         if (curType->IsRawArray() || curType->IsVArray() || curType->IsCPointer()) {
             break;
         }
         curType = curType->GetSuperTypeInfo();
     }
-    this->mTableDesc->pending = false;
-    this->mTableDesc->needsResolveInner = false;
+    this->mTableDesc->pending.store(false, std::memory_order_relaxed);
+    // release: publish all mTable writes done above before readers see needsResolveInner==false.
+    this->mTableDesc->needsResolveInner.store(false, std::memory_order_release);
 }
 
 void TypeInfo::TraverseOuterExtensionDefs(const std::function<void(TypeInfo*)> getInterface)
@@ -494,7 +500,8 @@ void TypeInfo::TraverseOuterExtensionDefs(const std::function<void(TypeInfo*)> g
             return false;
         },
         sourceGeneric);
-    this->mTableDesc->needsResolveOuter = false;
+    // release: publish all mTable writes done above before readers see needsResolveOuter==false.
+    this->mTableDesc->needsResolveOuter.store(false, std::memory_order_release);
 }
 
 void TypeInfo::GetInterfaces(std::vector<TypeInfo*> &itfs)
@@ -554,7 +561,7 @@ ExtensionData* TypeInfo::FindExtensionData(TypeInfo* itf, bool searchRecursively
             // For the CA, when the CB is traversed, the CA is I1<CA> needs to be checked.
             // In this case, IsSubType() is invoked to repeatedly generate the mTable of the CA. And The repeated
             // invoking can be quickly filtered out.
-            if (mTableDesc->pending) {
+            if (mTableDesc->pending.load(std::memory_order_relaxed)) {
                 auto it = mTableDesc->mTable.find(itfUUID);
                 if (it != mTableDesc->mTable.end()) {
                     return it->second.GetExtensionData();
