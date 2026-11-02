@@ -134,28 +134,8 @@ public struct Path <: Equatable<Path> & Hashable & ToString {
             return
         }
         let specialPrefix = #"\??\"#
-<<<<<<< HEAD
         if (path.contains(specialPrefix)) {
             throw IllegalArgumentException("Invalid path '${path}': cannot contain '${specialPrefix}'.")
-||||||| constructed merge base
-        if (path.contains(specialPrefix)) {
-            throw IllegalArgumentException("Path `${path}` cannot contain `${specialPrefix}`!")
-=======
-        if (path.size < specialPrefix.size) {
-            return
-        }
-        for (i in 0..(path.size - specialPrefix.size + 1)) {
-            var matched = true
-            for (j in 0..specialPrefix.size) {
-                if (path[i + j] != specialPrefix[j]) {
-                    matched = false
-                    break
-                }
-            }
-            if (matched) {
-                throw IllegalArgumentException("Path `${path}` cannot contain `${specialPrefix}`!")
-            }
->>>>>>> feat: local mode
         }
     }
 

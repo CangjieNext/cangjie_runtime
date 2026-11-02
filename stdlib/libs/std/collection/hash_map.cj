@@ -1027,71 +1027,9 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
         }
     }
     @Frozen
-<<<<<<< HEAD
-    @OverflowWrapping
-    public func remove(key: K): Option<V> {
-        let hash: Int64 = getHash(key.hashCode())
-        let index: Int64 = getIndex(hash, buckets.size)
-        var bucket: Int64 = buckets[index]
-        var pre: Int64 = -1
-        while (bucket >= 0) {
-            // Compare hash by index first so the miss path does not copy the whole entry (K/V).
-            if (hash != entries[bucket].hash) {
-                pre = bucket
-                bucket = entries[bucket].next
-                continue
-            }
-            let entry = entries[bucket]
-            if (key != entry.key) {
-                pre = bucket
-                bucket = entry.next
-                continue
-            }
-            let NULL_KEY: K = unsafe { zeroValue<K>() }
-            let NULL_VALUE: V = unsafe { zeroValue<V>() }
-            if (pre < 0) {
-                buckets[index] = entry.next
-            } else {
-                let temp = entries[pre]
-                entries[pre] = HashMapEntry<K, V>(temp.hash, entry.next, temp.key, temp.value)
-            }
-            let removeEnt: V = entry.value
-            entries[bucket] = HashMapEntry<K, V>(-1, freeIndex, NULL_KEY, NULL_VALUE)
-            freeIndex = bucket
-            freeSize++
-            modCount++
-            return Some(removeEnt)
-||||||| constructed merge base
-    @OverflowWrapping
-    public func remove(key: K): Option<V> {
-        let NULL_KEY: K = unsafe { zeroValue<K>() }
-        let NULL_VALUE: V = unsafe { zeroValue<V>() }
-        let hash: Int64 = getHash(key.hashCode())
-        let index: Int64 = getIndex(hash, buckets.size)
-        var bucket: Int64 = buckets[index]
-        var pre: Int64 = -1
-        while (bucket >= 0) {
-            if (hash == entries[bucket].hash && key == entries[bucket].key) {
-                if (pre < 0) {
-                    buckets[index] = entries[bucket].next
-                } else {
-                    let temp = entries[pre]
-                    entries[pre] = HashMapEntry<K, V>(temp.hash, entries[bucket].next, temp.key, temp.value)
-                }
-                let removeEnt: V = entries[bucket].value
-                entries[bucket] = HashMapEntry<K, V>(-1, freeIndex, NULL_KEY, NULL_VALUE)
-                freeIndex = bucket
-                freeSize++
-                modCount++
-                return Some(removeEnt)
-            }
-            pre = bucket
-            bucket = entries[bucket].next
-=======
     public exclave func add(this @local!, all!: Collection<(K, V)> @local!) {
         for ((k, v) in all) {
             add(k, v)
->>>>>>> feat: local mode
         }
     }
 
@@ -1395,6 +1333,13 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
      *
      * @since 0.18.4
      */
+    @Frozen
+    public prop capacity: Int64 {
+        get() {
+            return entries.size
+        }
+    }
+
     @Frozen
     public prop capacity: Int64 @local? {
         get() {
