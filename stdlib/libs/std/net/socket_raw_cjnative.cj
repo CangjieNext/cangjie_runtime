@@ -30,6 +30,7 @@ public class RawSocket {
     private var isClosed: Bool = false
     private var readTimeout_: ?Duration = None
     private var writeTimeout_: ?Duration = None
+    private var sockType_: SocketType
     var localAddr_: ?RawAddress = None
     var remoteAddr_: ?RawAddress = None
 
@@ -97,7 +98,8 @@ public class RawSocket {
         }
     }
 
-    private init(fd: Int64) {
+    private init(fd: Int64, sockType: SocketType) {
+        this.sockType_ = sockType
         this.sockImpl = RawSocketImpl(fd)
     }
 
@@ -111,6 +113,7 @@ public class RawSocket {
      * @throws SocketException if fail to create socket.
      */
     public init(domain: SocketDomain, `type`: SocketType, protocol: ProtocolType) {
+        this.sockType_ = `type`
         unsafe {
             let cNet = LibC.mallocCString("raw")
             var sockFd = CJ_MRT_SockCreate(domain.val, `type`.val, protocol.val, cNet)
@@ -186,7 +189,7 @@ public class RawSocket {
         if (sockFd < 0) {
             socketProcessErrno(ErrnoLabel.Accept)
         }
-        let connSock = RawSocket(sockFd)
+        let connSock = RawSocket(sockFd, this.sockType_)
         connSock.localAddr_ = this.localAddr_
         connSock.remoteAddr_ = RawAddress(remoteAddr)
         return connSock
@@ -235,6 +238,9 @@ public class RawSocket {
      */
     public func sendTo(addr: RawAddress, buffer: Array<Byte>, flags: Int32): Unit {
         throwIfClosed()
+        if (sockType_ == SocketType.DATAGRAM && buffer.size > 65507) {
+            throw SocketException("Cannot send datagram larger than 65507 bytes.")
+        }
         let timeout = this.writeTimeout_?.toNanoseconds() ?? -1
         return sockImpl.sendTo(addr.addr, buffer, flags, timeout)
     }
