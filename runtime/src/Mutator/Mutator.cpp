@@ -16,7 +16,14 @@
 #include "Concurrency/ConcurrencyModel.h"
 #include "Heap/Collector/FinalizerProcessor.h"
 #include "Heap/WCollector/WCollector.h"
+<<<<<<< HEAD
 #include "Heap/GenerationalGC/RememberSet.h"
+||||||| constructed merge base
+=======
+#include "Heap/Allocator/LocalObjectUtil.h"
+#include "Heap/Allocator/RegionSpace.h"
+#include "Heap/Heap.h"
+>>>>>>> feat: local mode
 #include "ObjectModel/RefField.inline.h"
 #include "MutatorManager.h"
 #include "StackManager.h"
@@ -164,6 +171,15 @@ void Mutator::InitProtectStackAddr()
     ThreadLocal::SetProtectAddr(reinterpret_cast<uint8_t*>(reinterpret_cast<uintptr_t>(stackBoundAddr) + reversedSize));
 }
 
+void ReleaseMutatorLocalAllocatorData(Mutator& mutator)
+{
+    if (mutator.GetLocalObjectAllocatorData() == nullptr) {
+        return;
+    }
+    RegionSpace& regionSpace = reinterpret_cast<RegionSpace&>(Heap::GetHeap().GetAllocator());
+    regionSpace.GetLocalObjectAllocator().OnMutatorExit(mutator);
+}
+
 void Mutator::ResetMutator()
 {
     CHECK_DETAIL(nativeFrameRoots.empty(), "native frame roots are not released");
@@ -172,13 +188,18 @@ void Mutator::ResetMutator()
         SatbBuffer::Instance().RetireNode(satbNode);
         satbNode = nullptr;
     }
-    if (!localFinalizers.empty()) {
-        Heap::GetHeap().GetFinalizerProcessor().RegisterFinalizers(localFinalizers);
+    if (!pendingHeapFinalizers.empty()) {
+        Heap::GetHeap().GetFinalizerProcessor().RegisterFinalizers(pendingHeapFinalizers);
     }
+<<<<<<< HEAD
     if (!localRSetRegions.empty()) {
         RememberSet::Instance().MergeFrom(std::move(localRSetRegions));
         localRSetRegions.clear();
     }
+||||||| constructed merge base
+=======
+    ReleaseMutatorLocalAllocatorData(*this);
+>>>>>>> feat: local mode
     uwContext.Reset();
     exceptionWrapper.ClearInfo();
 }
@@ -324,6 +345,11 @@ void Mutator::VisitHeapReferences(const RootVisitor& rootVisitor, const DerivedP
     VisitHeapReferencesOnStack(rootVisitor, derivedPtrVisitor);
     VisitExceptionRoots(rootVisitor);
     VisitNativeFrameRoots(rootVisitor);
+    // Local-to-heap slots are enumerated through VisitMutatorRoots(), but they
+    // are not part of the stack-map scan above.  They must also participate in
+    // preforward so a moved target is written back to the local owner before
+    // the old region becomes reclaimable.
+    VisitLocalObjectAllocatorRoots(rootVisitor);
 }
 
 Mutator* Mutator::GetMutator() noexcept
@@ -603,11 +629,11 @@ inline void Mutator::GcPhaseEnum(GCPhase newPhase)
     }
 }
 
-inline void Mutator::ForwardLocalFinalizers(Collector& collector)
+inline void Mutator::ForwardPendingHeapFinalizers(Collector& collector)
 {
     WCollector& wcollector = reinterpret_cast<WCollector&>(collector);
     RootVisitor visitor = [&wcollector](ObjectRef& root) { wcollector.ForwardUpdateRawRef(root); };
-    for (BaseObject*& obj : localFinalizers) {
+    for (BaseObject*& obj : pendingHeapFinalizers) {
         visitor(reinterpret_cast<ObjectRef&>(obj));
     }
 }
@@ -677,6 +703,7 @@ inline void Mutator::GCPhasePreForward(GCPhase newPhase)
         }
     };
     VisitHeapReferences(visitor, derivedPtrVisitor);
+<<<<<<< HEAD
     ForwardLocalFinalizers(collector);
 
     if (newPhase == GCPhase::GC_PHASE_GENERATION_PREFORWARD) {
@@ -684,6 +711,11 @@ inline void Mutator::GCPhasePreForward(GCPhase newPhase)
         RememberSet::Instance().MergeFrom(std::move(localRSetRegions));
         localRSetRegions.clear();
     }
+||||||| constructed merge base
+    ForwardLocalFinalizers(collector);
+=======
+    ForwardPendingHeapFinalizers(collector);
+>>>>>>> feat: local mode
 }
 
 inline void Mutator::HandleGCPhase(GCPhase newPhase)
@@ -698,6 +730,7 @@ inline void Mutator::HandleGCPhase(GCPhase newPhase)
             }
             break;
         }
+<<<<<<< HEAD
         case GCPhase::GC_PHASE_ENUM:
         case GCPhase::GC_PHASE_GENERATION_ENUM: {
             auto& localFins = GetLocalFinalizers();
@@ -706,6 +739,17 @@ inline void Mutator::HandleGCPhase(GCPhase newPhase)
             }
             GcPhaseEnum(newPhase);
             break;
+||||||| constructed merge base
+    } else if (newPhase == GCPhase::GC_PHASE_ENUM) {
+        auto& localFins = GetLocalFinalizers();
+        if (!localFins.empty()) {
+            Heap::GetHeap().GetFinalizerProcessor().RegisterFinalizers(localFins);
+=======
+    } else if (newPhase == GCPhase::GC_PHASE_ENUM) {
+        auto& pendingFinalizers = GetPendingHeapFinalizers();
+        if (!pendingFinalizers.empty()) {
+            Heap::GetHeap().GetFinalizerProcessor().RegisterFinalizers(pendingFinalizers);
+>>>>>>> feat: local mode
         }
         case GCPhase::GC_PHASE_PREFORWARD:
         case GCPhase::GC_PHASE_GENERATION_PREFORWARD:
@@ -785,5 +829,48 @@ void Mutator::ReleaseForeignThread()
         delete buffer;
     }
     // We can remove foreign thread c-heap resource here.
+}
+
+// local object region related functions
+void Mutator::StartLocalObjectRegion(FrameAddress* ownerFA)
+{
+    RegionSpace& theAllocator = reinterpret_cast<RegionSpace&>(Heap::GetHeap().GetAllocator());
+    theAllocator.GetLocalObjectAllocator().StartRegion(*this, ownerFA);
+}
+
+void Mutator::EndLocalObjectRegion(FrameAddress* ownerFA)
+{
+    RegionSpace& theAllocator = reinterpret_cast<RegionSpace&>(Heap::GetHeap().GetAllocator());
+    theAllocator.GetLocalObjectAllocator().EndRegion(*this, ownerFA);
+}
+
+void Mutator::EndLocalObjectRegionsForFrame(FrameAddress* ownerFA)
+{
+    RegionSpace& theAllocator = reinterpret_cast<RegionSpace&>(Heap::GetHeap().GetAllocator());
+    theAllocator.GetLocalObjectAllocator().EndRegionsForFrame(*this, ownerFA);
+}
+
+void Mutator::AddLocalFinalizer(BaseObject* obj)
+{
+    RegionSpace& theAllocator = reinterpret_cast<RegionSpace&>(Heap::GetHeap().GetAllocator());
+    theAllocator.GetLocalObjectAllocator().AddFinalizer(*this, obj);
+}
+
+void Mutator::RemoveLocalFinalizer(BaseObject* obj)
+{
+    RegionSpace& theAllocator = reinterpret_cast<RegionSpace&>(Heap::GetHeap().GetAllocator());
+    theAllocator.GetLocalObjectAllocator().RemoveFinalizer(*this, obj);
+}
+
+void Mutator::AddLocalRoot(BaseObject* obj, RefField<false>* field)
+{
+    RegionSpace& theAllocator = reinterpret_cast<RegionSpace&>(Heap::GetHeap().GetAllocator());
+    theAllocator.GetLocalObjectAllocator().AddLocalRoot(*this, obj, field);
+}
+
+void Mutator::VisitLocalObjectAllocatorRoots(const RootVisitor& visitor)
+{
+    RegionSpace& theAllocator = reinterpret_cast<RegionSpace&>(Heap::GetHeap().GetAllocator());
+    theAllocator.GetLocalObjectAllocator().VisitLocalObjectRefFields(*this, visitor);
 }
 } // namespace MapleRuntime

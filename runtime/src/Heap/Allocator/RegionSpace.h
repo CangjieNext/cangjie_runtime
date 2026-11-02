@@ -18,6 +18,7 @@
 #include "AllocUtil.h"
 #include "Allocator.h"
 #include "ExceptionManager.h"
+#include "LocalObjectAllocator.h"
 #include "Mutator/Mutator.h"
 #include "RegionManager.h"
 #if defined(CANGJIE_SANITIZER_SUPPORT) || defined(CANGJIE_GWPASAN_SUPPORT)
@@ -58,6 +59,10 @@ public:
         : regionManager(manager != nullptr ? *manager : *CreateRegionManager()) {}
     ATTR_NO_INLINE ~RegionSpace() override
     {
+        if (localObjectAllocator != nullptr) {
+            delete localObjectAllocator;
+            localObjectAllocator = nullptr;
+        }
         if (allocBufferManager != nullptr) {
             delete allocBufferManager;
             allocBufferManager = nullptr;
@@ -74,6 +79,12 @@ public:
     MAddress Allocate(size_t size, AllocType allocType) override;
 
     RegionManager& GetRegionManager() const noexcept { return regionManager; }
+
+    LocalObjectAllocator& GetLocalObjectAllocator() noexcept
+    {
+        CHECK_DETAIL(localObjectAllocator != nullptr, "local object allocator is not initialized");
+        return *localObjectAllocator;
+    }
 
     MAddress GetSpaceStartAddress() const override { return reservedStart; }
 
@@ -261,6 +272,13 @@ private:
     bool ShouldRetryAllocation(size_t& tryTimes, size_t size) const;
     MAddress reservedStart = 0;
     MAddress reservedEnd = 0;
+<<<<<<< HEAD
+||||||| constructed merge base
+    RegionManager regionManager;
+=======
+    RegionManager regionManager;
+    LocalObjectAllocator* localObjectAllocator = nullptr;
+>>>>>>> feat: local mode
     MemMap* map{ nullptr };
 };
 } // namespace MapleRuntime

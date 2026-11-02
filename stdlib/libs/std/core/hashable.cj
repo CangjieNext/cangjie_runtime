@@ -10,6 +10,12 @@ package std.core
 
 public interface Hashable {
     func hashCode(): Int64
+    func hashCode(this @local?): Int64 {
+        throw UnimplementedException("Current Type does not implement 'hashCode' method for its @local? instance")
+    }
+    func hashCode(this @local!): Int64 {
+        throw UnimplementedException("Current Type does not implement 'hashCode' method for its @local! instance")
+    }
 }
 
 /**
@@ -23,10 +29,30 @@ extend Ordering <: Hashable {
             case _ => return 2
         }
     }
+    public func hashCode(this @local?): Int64 {
+        match (this) {
+            case Ordering.GT => return 3
+            case Ordering.LT => return 1
+            case _ => return 2
+        }
+    }
+    public func hashCode(this @local!): Int64 {
+        match (this) {
+            case Ordering.GT => return 3
+            case Ordering.LT => return 1
+            case _ => return 2
+        }
+    }
 }
 
 extend Unit <: Hashable {
     public func hashCode(): Int64 {
+        return 0
+    }
+    public func hashCode(this @local?): Int64 {
+        return 0
+    }
+    public func hashCode(this @local!): Int64 {
         return 0
     }
 }
@@ -38,10 +64,28 @@ extend Bool <: Hashable {
         }
         return 0
     }
+    public func hashCode(this @local?): Int64 {
+        if (this) {
+            return 1
+        }
+        return 0
+    }
+    public func hashCode(this @local!): Int64 {
+        if (this) {
+            return 1
+        }
+        return 0
+    }
 }
 
 extend Rune <: Hashable {
     public func hashCode(): Int64 {
+        return Int64(UInt32(this))
+    }
+    public func hashCode(this @local?): Int64 {
+        return Int64(UInt32(this))
+    }
+    public func hashCode(this @local!): Int64 {
         return Int64(UInt32(this))
     }
 }
@@ -71,6 +115,14 @@ extend IntNative <: Hashable {
     public func hashCode(): Int64 {
         return Int64(this)
     }
+    @OverflowWrapping
+    public func hashCode(this @local?): Int64 {
+        return Int64(this)
+    }
+    @OverflowWrapping
+    public func hashCode(this @local!): Int64 {
+        return Int64(this)
+    }
 
     public static prop Max: IntNative {
         get() {
@@ -88,6 +140,12 @@ extend Int64 <: Hashable {
     public func hashCode(): Int64 {
         return this
     }
+    public func hashCode(this @local?): Int64 {
+        return Int64(this)
+    }
+    public func hashCode(this @local!): Int64 {
+        return Int64(this)
+    }
 
     public static prop Max: Int64 {
         get() {
@@ -104,6 +162,14 @@ extend Int64 <: Hashable {
 
 extend Int32 <: Hashable {
     public func hashCode(): Int64 {
+        return Int64(this)
+    }
+    @OverflowWrapping
+    public func hashCode(this @local?): Int64 {
+        return Int64(this)
+    }
+    @OverflowWrapping
+    public func hashCode(this @local!): Int64 {
         return Int64(this)
     }
 
@@ -124,6 +190,14 @@ extend Int16 <: Hashable {
     public func hashCode(): Int64 {
         return Int64(this)
     }
+    @OverflowWrapping
+    public func hashCode(this @local?): Int64 {
+        return Int64(this)
+    }
+    @OverflowWrapping
+    public func hashCode(this @local!): Int64 {
+        return Int64(this)
+    }
 
     public static prop Max: Int16 {
         get() {
@@ -140,6 +214,14 @@ extend Int16 <: Hashable {
 
 extend Int8 <: Hashable {
     public func hashCode(): Int64 {
+        return Int64(this)
+    }
+    @OverflowWrapping
+    public func hashCode(this @local?): Int64 {
+        return Int64(this)
+    }
+    @OverflowWrapping
+    public func hashCode(this @local!): Int64 {
         return Int64(this)
     }
 
@@ -161,6 +243,14 @@ extend UIntNative <: Hashable {
     public func hashCode(): Int64 {
         return Int64(this)
     }
+    @OverflowWrapping
+    public func hashCode(this @local?): Int64 {
+        return Int64(this)
+    }
+    @OverflowWrapping
+    public func hashCode(this @local!): Int64 {
+        return Int64(this)
+    }
 
     public static prop Max: UIntNative {
         get() {
@@ -178,6 +268,14 @@ extend UIntNative <: Hashable {
 extend UInt64 <: Hashable {
     @OverflowWrapping
     public func hashCode(): Int64 {
+        return Int64(this)
+    }
+    @OverflowWrapping
+    public func hashCode(this @local?): Int64 {
+        return Int64(this)
+    }
+    @OverflowWrapping
+    public func hashCode(this @local!): Int64 {
         return Int64(this)
     }
 
@@ -198,6 +296,12 @@ extend UInt32 <: Hashable {
     public func hashCode(): Int64 {
         return Int64(this)
     }
+    public func hashCode(this @local?): Int64 {
+        return Int64(this)
+    }
+    public func hashCode(this @local!): Int64 {
+        return Int64(this)
+    }
 
     public static prop Max: UInt32 {
         get() {
@@ -214,6 +318,12 @@ extend UInt32 <: Hashable {
 
 extend UInt16 <: Hashable {
     public func hashCode(): Int64 {
+        return Int64(this)
+    }
+    public func hashCode(this @local?): Int64 {
+        return Int64(this)
+    }
+    public func hashCode(this @local!): Int64 {
         return Int64(this)
     }
 
@@ -234,6 +344,12 @@ extend UInt8 <: Hashable {
     public func hashCode(): Int64 {
         return Int64(this)
     }
+    public func hashCode(this @local?): Int64 {
+        return Int64(this)
+    }
+    public func hashCode(this @local!): Int64 {
+        return Int64(this)
+    }
 
     public static prop Max: UInt8 {
         get() {
@@ -250,6 +366,22 @@ extend UInt8 <: Hashable {
 
 extend Float64 <: Hashable {
     public func hashCode(): Int64 {
+        let i = if (this == 0.0f64) {
+            0
+        } else {
+            unsafe { CJ_CORE_Float64ToHash(this) }
+        }
+        return wyrand(i)
+    }
+    public func hashCode(this @local?): Int64 {
+        let i = if (this == 0.0f64) {
+            0
+        } else {
+            unsafe { CJ_CORE_Float64ToHash(this) }
+        }
+        return wyrand(i)
+    }
+    public func hashCode(this @local!): Int64 {
         let i = if (this == 0.0f64) {
             0
         } else {
@@ -385,6 +517,22 @@ extend Float32 <: Hashable {
         }
         return wyrand(i)
     }
+    public func hashCode(this @local?): Int64 {
+        let i = if (this == 0.0f32) {
+            0
+        } else {
+            unsafe { CJ_CORE_Float32ToHash(this) }
+        }
+        return wyrand(i)
+    }
+    public func hashCode(this @local!): Int64 {
+        let i = if (this == 0.0f32) {
+            0
+        } else {
+            unsafe { CJ_CORE_Float32ToHash(this) }
+        }
+        return wyrand(i)
+    }
 
     public static prop NaN: Float32 {
         get() {
@@ -507,6 +655,22 @@ extend Float32 <: Hashable {
 
 extend Float16 <: Hashable {
     public func hashCode(): Int64 {
+        let i = if (this == 0.0f16) {
+            0
+        } else {
+            unsafe { CJ_CORE_Float32ToHash(Float32(this)) }
+        }
+        return wyrand(i)
+    }
+    public func hashCode(this @local?): Int64 {
+        let i = if (this == 0.0f16) {
+            0
+        } else {
+            unsafe { CJ_CORE_Float32ToHash(Float32(this)) }
+        }
+        return wyrand(i)
+    }
+    public func hashCode(this @local!): Int64 {
         let i = if (this == 0.0f16) {
             0
         } else {
@@ -647,6 +811,25 @@ extend<T> Range<T> <: Hashable where T <: Hashable & Countable<T> & Comparable<T
         var dfh: DefaultHasher = DefaultHasher()
         dfh.write(start.hashCode())
         dfh.write(end.hashCode())
+        dfh.write(step.hashCode())
+        dfh.write(isClosed.hashCode())
+        return dfh.finish()
+    }
+
+    public func hashCode(this @local?): Int64 {
+        var dfh: DefaultHasher = DefaultHasher()
+        dfh.write(start.hashCode())
+        dfh.write(end.hashCode())
+        dfh.write(step.hashCode())
+        dfh.write(isClosed.hashCode())
+        return dfh.finish()
+    }
+    public func hashCode(this @local!): Int64 {
+        let startQ: T @local? = start
+        let endQ: T @local? = end
+        var dfh: DefaultHasher = DefaultHasher()
+        dfh.write(startQ.hashCode())
+        dfh.write(endQ.hashCode())
         dfh.write(step.hashCode())
         dfh.write(isClosed.hashCode())
         return dfh.finish()
@@ -801,9 +984,62 @@ func wyhash(arr: RawArray<UInt8>, start: Int64, size: Int64, see: UInt64) {
     var b: UInt64
     match {
         case size < 4 =>
-            a = (UInt64(arrayGetUnchecked(arr, start)) << 16) |
-                (UInt64(arrayGetUnchecked(arr, start + (size >> 1))) << 8) |
-                (UInt64(arrayGetUnchecked(arr, start + size - 1)))
+            a = (UInt64(arrayGetUnchecked3<UInt8>(arr, start)) << 16) |
+                (UInt64(arrayGetUnchecked3<UInt8>(arr, start + (size >> 1))) << 8) |
+                (UInt64(arrayGetUnchecked3<UInt8>(arr, start + size - 1)))
+            b = 0
+        case size == 4 =>
+            a = r4(arr, start)
+            b = a
+        case size < 8 =>
+            a = r4(arr, start)
+            b = r4(arr, start + size - 4)
+        case size <= 16 =>
+            a = r8(arr, start)
+            b = r8(arr, start + size - 8)
+        case _ =>
+            var pos = start
+            var l = size
+            if (l > 48) {
+                var seed1 = seed
+                var seed2 = seed
+
+                do {
+                    seed = mix(r8(arr, pos) ^ SECRET1, r8(arr, pos + 8) ^ seed)
+                    seed1 = mix(r8(arr, pos + 16) ^ SECRET2, r8(arr, pos + 24) ^ seed1)
+                    seed2 = mix(r8(arr, pos + 32) ^ SECRET3, r8(arr, pos + 40) ^ seed2)
+                    pos += 48
+                    l -= 48
+                } while (l > 48)
+                seed = seed ^ seed1 ^ seed2
+            }
+
+            while (l > 16) {
+                seed = mix(r8(arr, pos) ^ SECRET1, r8(arr, pos + 8) ^ seed)
+                l -= 16
+                pos += 16
+            }
+            a = r8(arr, pos + l - 16)
+            b = r8(arr, pos + l - 8)
+    }
+    a ^= SECRET1
+    b ^= seed
+    mix(a ^ SECRET0 ^ UInt64(size), b ^ SECRET1)
+}
+
+@OverflowWrapping
+func wyhash(arr: RawArray<UInt8> @local?, start: Int64, size: Int64, see: UInt64) {
+    var seed = see ^ mix(see ^ SECRET0, SECRET1)
+    if (size == 0) {
+        return seed
+    }
+    var a: UInt64
+    var b: UInt64
+    match {
+        case size < 4 =>
+            a = (UInt64(arrayGetUnchecked3<UInt8>(arr, start)) << 16) |
+                (UInt64(arrayGetUnchecked3<UInt8>(arr, start + (size >> 1))) << 8) |
+                (UInt64(arrayGetUnchecked3<UInt8>(arr, start + size - 1)))
             b = 0
         case size == 4 =>
             a = r4(arr, start)
@@ -850,7 +1086,7 @@ func wyhash(arr: RawArray<UInt8>, start: Int64, size: Int64, see: UInt64) {
     }
     a ^= SECRET1
     b ^= seed
-    return mix(a ^ SECRET0 ^ UInt64(size), b ^ SECRET1)
+    mix(a ^ SECRET0 ^ UInt64(size), b ^ SECRET1)
 }
 
 @OverflowWrapping
@@ -880,21 +1116,21 @@ func mix(A: UInt64, B: UInt64) {
 }
 
 @OverflowWrapping
-func r4(arr: RawArray<UInt8>, pos: Int64) {
-    (UInt64(arrayGetUnchecked(arr, pos)) << 24) |
-    (UInt64(arrayGetUnchecked(arr, pos + 1)) << 16) |
-    (UInt64(arrayGetUnchecked(arr, pos + 2)) << 8) |
-    UInt64(arrayGetUnchecked(arr, pos + 3))
+func r4(arr: RawArray<UInt8> @local?, pos: Int64) {
+    (UInt64(arrayGetUnchecked3<UInt8>(arr, pos)) << 24) |
+    (UInt64(arrayGetUnchecked3<UInt8>(arr, pos + 1)) << 16) |
+    (UInt64(arrayGetUnchecked3<UInt8>(arr, pos + 2)) << 8) |
+    UInt64(arrayGetUnchecked3<UInt8>(arr, pos + 3))
 }
 
 @OverflowWrapping
-func r8(arr: RawArray<UInt8>, pos: Int64) {
-    (UInt64(arrayGetUnchecked(arr, pos)) << 56) |
-    (UInt64(arrayGetUnchecked(arr, pos + 1)) << 48) |
-    (UInt64(arrayGetUnchecked(arr, pos + 2)) << 40) |
-    (UInt64(arrayGetUnchecked(arr, pos + 3)) << 32) |
-    (UInt64(arrayGetUnchecked(arr,pos + 4)) << 24) |
-    (UInt64(arrayGetUnchecked(arr, pos + 5)) << 16) |
-    (UInt64(arrayGetUnchecked(arr, pos + 6)) << 8) |
-        UInt64(arrayGetUnchecked(arr, pos + 7))
+func r8(arr: RawArray<UInt8> @local?, pos: Int64) {
+    (UInt64(arrayGetUnchecked3<UInt8>(arr, pos)) << 56) |
+    (UInt64(arrayGetUnchecked3<UInt8>(arr, pos + 1)) << 48) |
+    (UInt64(arrayGetUnchecked3<UInt8>(arr, pos + 2)) << 40) |
+    (UInt64(arrayGetUnchecked3<UInt8>(arr, pos + 3)) << 32) |
+    (UInt64(arrayGetUnchecked3<UInt8>(arr,pos + 4)) << 24) |
+    (UInt64(arrayGetUnchecked3<UInt8>(arr, pos + 5)) << 16) |
+    (UInt64(arrayGetUnchecked3<UInt8>(arr, pos + 6)) << 8) |
+        UInt64(arrayGetUnchecked3<UInt8>(arr, pos + 7))
 }
