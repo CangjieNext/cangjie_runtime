@@ -1468,18 +1468,8 @@ public class ArrayList<T> <: List<T> {
 
         if (range.hasEnd) {
             if (range.isClosed) {
-<<<<<<< HEAD
                 if (range.end > size) {
                     throw IndexOutOfBoundsException("Closed range end '${range.end}' is greater than size '${size}'.")
-||||||| constructed merge base
-                if (range.end > size) {
-                    throw IndexOutOfBoundsException(
-                        "The closed end of the range ${range.end} is greater than or equal to the size ${size}.")
-=======
-                if (range.end >= size) {
-                    throw IndexOutOfBoundsException(
-                        "The closed end of the range ${range.end} is greater than or equal to the size ${size}.")
->>>>>>> feat: local mode
                 }
                 end = range.end + 1
             } else {

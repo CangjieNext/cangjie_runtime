@@ -1609,14 +1609,7 @@ private func arrayInvalidRangeSizeExceptionMessage(arraySize: Int64, rangeSize: 
 }
 
 private func arrayInvalidRangeStepExceptionMessage(rangeStep: Int64): String {
-<<<<<<< HEAD
     "Array slice step must be 1, got '${rangeStep}'."
-}
-||||||| constructed merge base
-    "Illegal step ${rangeStep}, step should be 1."
-}
-=======
-    "Illegal step ${rangeStep}, step should be 1."
 }
 
 public interface Copyable {}
@@ -1745,4 +1738,3 @@ extend<T> Array<T> where T <: Copyable {
     }
 
 }
->>>>>>> feat: local mode

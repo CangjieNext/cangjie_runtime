@@ -472,13 +472,7 @@ public class File <: Resource & IOStream & Seekable {
             fsInfoCp = CJ_FS_OpenFile(cPath, openMode)
             LibC.free(cPath)
             if (fsInfoCp.isNull()) {
-<<<<<<< HEAD
                 throw FSException("Failed to open file '${pathStr}'.")
-||||||| constructed merge base
-                throw FSException("Failed to open the file `${pathStr}`.")
-=======
-                throw FSException("Failed to open the file `${_fileInfo.path}`.")
->>>>>>> feat: local mode
             }
             fsInfo = fsInfoCp.read()
             LibC.free(fsInfoCp)
@@ -490,13 +484,7 @@ public class File <: Resource & IOStream & Seekable {
             _fileDescriptor._fileHandle = fsInfo.fd
         }
         if (!isHandleValid(_fileDescriptor._fileHandle)) {
-<<<<<<< HEAD
             var errMsg = "Failed to open file '${pathStr}'."
-||||||| constructed merge base
-            var errMsg = "Failed to open the file `${pathStr}`."
-=======
-            var errMsg = "Failed to open the file `${_fileInfo.path}`."
->>>>>>> feat: local mode
             if (fsInfoErrMsg != "") {
                 errMsg += " ${fsInfoErrMsg}."
             }

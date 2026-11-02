@@ -160,16 +160,8 @@ extend Rune {
      */
     @OverflowWrapping
     public static func fromUtf8(arr: Array<UInt8>, index: Int64): (Rune, Int64) {
-<<<<<<< HEAD
         if (index >= arr.size) {
             throw IllegalArgumentException("Invalid UTF-8 byte sequence: index '${index}' is out of bounds, size is '${arr.size}'.")
-||||||| constructed merge base
-        if (index >= arr.size) {
-            throw IllegalArgumentException("Invalid utf8 byte sequence.")
-=======
-        if (index < 0 || index >= arr.size) {
-            throw IllegalArgumentException("Invalid utf8 byte sequence.")
->>>>>>> feat: local mode
         }
         return fromUtf8(arr.rawptr, arr.start + index, arr.start + arr.len)
     }
@@ -177,7 +169,7 @@ extend Rune {
     @OverflowWrapping
     public static func fromUtf8(arr: Array<UInt8> @local?, index: Int64): (Rune, Int64) {
         if (index < 0 || index >= arr.size) {
-            throw IllegalArgumentException("Invalid utf8 byte sequence.")
+            throw IllegalArgumentException("Invalid UTF-8 byte sequence: index '${index}' is out of bounds, size is '${arr.size}'.")
         }
         return fromUtf8(arr.rawptr, arr.start + index, arr.start + arr.len)
     }
@@ -296,18 +288,8 @@ extend Rune {
         } else {
             throw IllegalArgumentException("Invalid Unicode scalar value: code point exceeds U+10FFFF.")
         }
-<<<<<<< HEAD
-        if (lengthOfCharBytes + index > arrSize) {
-            throw IllegalArgumentException("Rune requires '${lengthOfCharBytes}' bytes for UTF-8 encoding, but array has only '${arrSize - index}' bytes available from index '${index}'.")
-||||||| constructed merge base
-        if (lengthOfCharBytes + index > arrSize) {
-            throw IllegalArgumentException(
-                "The bytecode position occupied by this character is outside the range of the array.")
-=======
         if (index > arrSize || lengthOfCharBytes > arrSize - index) {
-            throw IllegalArgumentException(
-                "The bytecode position occupied by this character is outside the range of the array.")
->>>>>>> feat: local mode
+            throw IllegalArgumentException("Rune requires '${lengthOfCharBytes}' bytes for UTF-8 encoding, but array has only '${arrSize - index}' bytes available from index '${index}'.")
         }
     }
 }

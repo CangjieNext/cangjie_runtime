@@ -447,18 +447,11 @@ class StringLineIterator <: Iterator<String> {
             }
             pos++
         }
-<<<<<<< HEAD
         let str = if (haveCR) {
             String(iteratorData.myData[iteratorData.nextPos..pos - 1])
         } else {
             String(iteratorData.myData[iteratorData.nextPos..])
         }
-||||||| constructed merge base
-        let str = String(iteratorData.myData[iteratorData.nextPos..])
-=======
-        let end = if (haveCR) { iteratorData.end - 1 } else { iteratorData.end }
-        let str = String(iteratorData.myData[iteratorData.nextPos..end])
->>>>>>> feat: local mode
         iteratorData.nextPos = iteratorData.end
         return Some(str)
     }
