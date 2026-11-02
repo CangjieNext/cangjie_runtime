@@ -73,6 +73,8 @@ void ExceptionWrapper::RestoreContext(CalleeSavedRegisterContext& context)
             break;
         }
 
+        Mutator::GetMutator()->EndLocalObjectRegionsForFrame(framePtr->GetFA());
+
         if (framePtr->GetIP() == throwingSOFFramePc) {
             framePtr->RestoreToCallerContext(context, adjustedSize);
             adjustedSize = 0;
