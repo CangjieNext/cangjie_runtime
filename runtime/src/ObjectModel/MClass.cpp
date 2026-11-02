@@ -390,18 +390,27 @@ static void ResolveInnerExtensionDefs(
     // then vExtensionDataStart is pointed to C_A, and validInheritNum is 2. Therefore, to get C_I1, we need to add
     // the offset value of ptrSize*validInheritNum.
     resolveTi->TryInitMTable();
-    // The MTable of `resolveTi` has been completed already, and can be merged into MTable of `ti`.
-    if (!resolveTi->GetMTableDesc()->NeedResolveInner()) {
-        if (ti == resolveTi) {
+    // Narrow lock: only serialize reading/merging resolveTi's (super) mTable.
+    // The callback execution below (whereCondFn / interfaceFn in
+    // ResolveExtensionData) can re-enter mTable building, so this lock MUST NOT
+    // span those callbacks — otherwise two threads resolving a child and its
+    // super respectively can deadlock (ABBA). Child->super order is still
+    // acyclic; the destination (ti) map is already protected by its own lock
+    // (held by TraverseInnerExtensionDefs).
+    {
+        std::lock_guard<std::recursive_mutex> superLock(resolveTi->GetMTableDesc()->mTableMutex);
+        if (!resolveTi->GetMTableDesc()->NeedResolveInner()) {
+            if (ti == resolveTi) {
+                return;
+            }
+            auto& resolve_ti_mtable = resolveTi->GetMTableDesc()->mTable;
+            ti->GetMTableDesc()->mTable.insert(resolve_ti_mtable.begin(), resolve_ti_mtable.end());
             return;
         }
-        auto& resolve_ti_mtable = resolveTi->GetMTableDesc()->mTable;
-        ti->GetMTableDesc()->mTable.insert(resolve_ti_mtable.begin(), resolve_ti_mtable.end());
-        return;
-    }
-    if (ti != resolveTi) {
-        auto& resolve_ti_mtable = resolveTi->GetMTableDesc()->mTable;
-        ti->GetMTableDesc()->mTable.insert(resolve_ti_mtable.begin(), resolve_ti_mtable.end());
+        if (ti != resolveTi) {
+            auto& resolve_ti_mtable = resolveTi->GetMTableDesc()->mTable;
+            ti->GetMTableDesc()->mTable.insert(resolve_ti_mtable.begin(), resolve_ti_mtable.end());
+        }
     }
 
     ExtensionData** vExtensionPtr = resolveTi->GetvExtensionDataStart();
@@ -439,17 +448,16 @@ static void ResolveInnerExtensionDefs(
 
 void TypeInfo::TraverseInnerExtensionDefs(const std::function<void(TypeInfo*)> getInterface)
 {
-    if (!this->mTableDesc->needsResolveInner.load(std::memory_order_relaxed)) {
+    // Hold this TI's own mTableMutex for the whole traversal: AddMTable /
+    // mTable.insert below write this TI's map, and this function is also reached
+    // without the lock from GetInterfaces() / TryUpdateExtensionData().
+    std::lock_guard<std::recursive_mutex> selfLock(mTableDesc->mTableMutex);
+    if (!mTableDesc->NeedResolveInner()) {
         return;
     }
     TypeInfo* curType = this;
     this->mTableDesc->pending.store(true, std::memory_order_relaxed);
     while (curType) {
-        // Guard the super's mTable against concurrent build while we merge it
-        // into this TI's mTable. Lock order is always child->super (acyclic),
-        // so this cannot deadlock with another child building the same super.
-        curType->TryInitMTable();
-        std::lock_guard<std::recursive_mutex> superLock(curType->GetMTableDesc()->mTableMutex);
         ResolveInnerExtensionDefs(this, curType, getInterface);
         if (curType->IsRawArray() || curType->IsVArray() || curType->IsCPointer()) {
             break;
