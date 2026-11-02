@@ -50,7 +50,7 @@ public struct LibC {
     public unsafe static func free<T>(p: CPointer<T>): Unit where T <: CType {
         freeWrapper(CPointer<Unit>(p))
     }
-
+    
     public unsafe static func mallocCString(str: String): CString {
         var length: Int64 = str.size
         var cp: CPointer<UInt8> = LibC.malloc<UInt8>(count: length + 1)
