@@ -35,6 +35,7 @@ const char* LOG_TYPE_NAMES[LOG_TYPE_NUMBER] = {
 #endif
     "promote",
     "sweep",
+    "local_region",
 };
 
 RTLogLevel LogFile::logLevel = InitLogLevel();

@@ -1153,12 +1153,7 @@ bool RegionManager::RequestForRegion(size_t size, bool isLoose)
 
     Heap& heap = Heap::GetHeap();
     GCStats& gcstats = heap.GetCollector().GetGCStats();
-<<<<<<< HEAD
     gcstats.RecordAllocation(size);
-    size_t allocatedBytes = GetAllocatedSize() - gcstats.liveBytesAfterGC;
-||||||| constructed merge base
-    size_t allocatedBytes = GetAllocatedSize() - gcstats.liveBytesAfterGC;
-=======
     RegionSpace& space = reinterpret_cast<RegionSpace&>(heap.GetAllocator());
     size_t tracingHeapBytes = GetAllocatedSize();
     size_t localHeapBytes = space.GetLocalObjectAllocator().GetHeapAllocatedBytes();
@@ -1169,7 +1164,6 @@ bool RegionManager::RequestForRegion(size_t size, bool isLoose)
     if (currentHeapBytes > gcstats.liveBytesAfterGC) {
         allocatedBytes = currentHeapBytes - gcstats.liveBytesAfterGC;
     }
->>>>>>> feat: local mode
     constexpr double pi = 3.14;
     size_t availableBytesAfterGC = heap.GetMaxCapacity() - gcstats.liveBytesAfterGC;
     double heuAllocRate = std::cos((pi / 2.0) * allocatedBytes / availableBytesAfterGC) * gcstats.collectionRate;

@@ -272,13 +272,7 @@ private:
     bool ShouldRetryAllocation(size_t& tryTimes, size_t size) const;
     MAddress reservedStart = 0;
     MAddress reservedEnd = 0;
-<<<<<<< HEAD
-||||||| constructed merge base
-    RegionManager regionManager;
-=======
-    RegionManager regionManager;
     LocalObjectAllocator* localObjectAllocator = nullptr;
->>>>>>> feat: local mode
     MemMap* map{ nullptr };
 };
 } // namespace MapleRuntime

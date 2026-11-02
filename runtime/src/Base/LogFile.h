@@ -56,16 +56,9 @@ enum LogType {
 #if defined(CANGJIE_SANITIZER_SUPPORT) || defined(CANGJIE_GWPASAN_SUPPORT)
     SANITIZER,
 #endif
-<<<<<<< HEAD
     PROMOTE,
     SWEEP,
-||||||| constructed merge base
-
-=======
-
     LOCAL_REGION,
-
->>>>>>> feat: local mode
     LOG_TYPE_NUMBER
 };
 

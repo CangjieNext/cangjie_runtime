@@ -7,12 +7,8 @@
 set(SRC_LIST
     "Allocator.cpp"
     "MemMap.cpp"
-<<<<<<< HEAD
     "RegionFreeSlotList.cpp"
-||||||| constructed merge base
-=======
     "LocalObjectAllocator.cpp"
->>>>>>> feat: local mode
     "RegionSpace.cpp"
     "RegionManager.cpp"
     "CartesianTree.cpp"

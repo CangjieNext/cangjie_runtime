@@ -16,14 +16,10 @@
 #include "Concurrency/ConcurrencyModel.h"
 #include "Heap/Collector/FinalizerProcessor.h"
 #include "Heap/WCollector/WCollector.h"
-<<<<<<< HEAD
 #include "Heap/GenerationalGC/RememberSet.h"
-||||||| constructed merge base
-=======
 #include "Heap/Allocator/LocalObjectUtil.h"
 #include "Heap/Allocator/RegionSpace.h"
 #include "Heap/Heap.h"
->>>>>>> feat: local mode
 #include "ObjectModel/RefField.inline.h"
 #include "MutatorManager.h"
 #include "StackManager.h"
@@ -191,15 +187,11 @@ void Mutator::ResetMutator()
     if (!pendingHeapFinalizers.empty()) {
         Heap::GetHeap().GetFinalizerProcessor().RegisterFinalizers(pendingHeapFinalizers);
     }
-<<<<<<< HEAD
     if (!localRSetRegions.empty()) {
         RememberSet::Instance().MergeFrom(std::move(localRSetRegions));
         localRSetRegions.clear();
     }
-||||||| constructed merge base
-=======
     ReleaseMutatorLocalAllocatorData(*this);
->>>>>>> feat: local mode
     uwContext.Reset();
     exceptionWrapper.ClearInfo();
 }
@@ -703,19 +695,13 @@ inline void Mutator::GCPhasePreForward(GCPhase newPhase)
         }
     };
     VisitHeapReferences(visitor, derivedPtrVisitor);
-<<<<<<< HEAD
-    ForwardLocalFinalizers(collector);
+    ForwardPendingHeapFinalizers(collector);
 
     if (newPhase == GCPhase::GC_PHASE_GENERATION_PREFORWARD) {
         // Merge local RSet into global RememberSet
         RememberSet::Instance().MergeFrom(std::move(localRSetRegions));
         localRSetRegions.clear();
     }
-||||||| constructed merge base
-    ForwardLocalFinalizers(collector);
-=======
-    ForwardPendingHeapFinalizers(collector);
->>>>>>> feat: local mode
 }
 
 inline void Mutator::HandleGCPhase(GCPhase newPhase)
@@ -730,26 +716,14 @@ inline void Mutator::HandleGCPhase(GCPhase newPhase)
             }
             break;
         }
-<<<<<<< HEAD
         case GCPhase::GC_PHASE_ENUM:
         case GCPhase::GC_PHASE_GENERATION_ENUM: {
-            auto& localFins = GetLocalFinalizers();
-            if (!localFins.empty()) {
-                Heap::GetHeap().GetFinalizerProcessor().RegisterFinalizers(localFins);
+            auto& pendingFinalizers = GetPendingHeapFinalizers();
+            if (!pendingFinalizers.empty()) {
+                Heap::GetHeap().GetFinalizerProcessor().RegisterFinalizers(pendingFinalizers);
             }
             GcPhaseEnum(newPhase);
             break;
-||||||| constructed merge base
-    } else if (newPhase == GCPhase::GC_PHASE_ENUM) {
-        auto& localFins = GetLocalFinalizers();
-        if (!localFins.empty()) {
-            Heap::GetHeap().GetFinalizerProcessor().RegisterFinalizers(localFins);
-=======
-    } else if (newPhase == GCPhase::GC_PHASE_ENUM) {
-        auto& pendingFinalizers = GetPendingHeapFinalizers();
-        if (!pendingFinalizers.empty()) {
-            Heap::GetHeap().GetFinalizerProcessor().RegisterFinalizers(pendingFinalizers);
->>>>>>> feat: local mode
         }
         case GCPhase::GC_PHASE_PREFORWARD:
         case GCPhase::GC_PHASE_GENERATION_PREFORWARD:

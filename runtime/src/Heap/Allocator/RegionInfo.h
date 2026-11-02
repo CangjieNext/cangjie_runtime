@@ -651,15 +651,11 @@ public:
         RECENT_LARGE_REGION,
 
         GARBAGE_REGION,
-<<<<<<< HEAD
 
         OBJECT_MOVE_REGION,
         SWEEP_REGION,
-||||||| constructed merge base
-=======
 
         LOCAL_MODE_REGION,
->>>>>>> feat: local mode
     };
 
     static void Initialize(size_t nUnit, uintptr_t heapAddress)

@@ -557,17 +557,12 @@ public:
         ClearLiveInfo(largeTraceRegions);
     }
 
-<<<<<<< HEAD
-protected:
-    virtual void CheckGC();
-||||||| constructed merge base
-private:
-=======
     RegionInfo* AllocateLocalModeRegion(bool expectPhysicalMem = false);
     RegionInfo* AllocateLocalModeRegion(size_t size, bool expectPhysicalMem = false);
 
-private:
->>>>>>> feat: local mode
+protected:
+    virtual void CheckGC();
+
     static const size_t MAX_UNIT_COUNT_PER_REGION;
     static const size_t HUGE_PAGE;
     inline void TagHugePage(RegionInfo* region, size_t num) const;

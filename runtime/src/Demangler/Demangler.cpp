@@ -184,19 +184,9 @@ T ReplaceString(T str, const char* pattern, const char* replacement)
     }
     auto pos = str.Find(pattern);
     auto pLen = strlen(pattern);
-<<<<<<< HEAD
     while (pos > -1 && str.Length() >= static_cast<size_t>(pos) + pLen) {
         auto n = str.Length();
-        str = str.SubStr(0, pos) + replacement + str.SubStr(pos + pLen, n - pos - pLen);
-||||||| constructed merge base
-    while (pos > -1 && n - pos - pLen > 0) {
-        n = str.Length();
-        str = str.SubStr(0, pos) + replacement + str.SubStr(pos + pLen, n - pos - pLen);
-=======
-    while (pos > -1 && n - static_cast<size_t>(pos) - pLen > 0) {
-        n = str.Length();
         str = str.SubStr(0, pos) + replacement + str.SubStr(pos + pLen, n - static_cast<size_t>(pos) - pLen);
->>>>>>> feat: local mode
         pos = str.Find(pattern);
     }
     return str;
