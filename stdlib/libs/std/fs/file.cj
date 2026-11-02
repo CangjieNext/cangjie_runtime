@@ -57,7 +57,7 @@ public enum OpenMode <: ToString & Equatable<OpenMode> {
 // FD numbers are indexes into the FD table.
 // Unix/Linux use the Int type for handle, while Windows use HANDLE type.
 // HANDLE is typedef'd void *, which is really just a 32-bit index, only for more opaque.
-public struct FileDescriptor {
+public struct FileDescriptor <: Copyable {
     var _fileHandle: IntNative = InvalidHandle
 
     public prop fileHandle: IntNative {
@@ -70,7 +70,7 @@ public struct FileDescriptor {
 public class File <: Resource & IOStream & Seekable {
     private var _fileInfo: FileInfo
     private var _openMode: OpenMode
-    var _fileDescriptor: FileDescriptor = FileDescriptor()
+    var _fileDescriptor: FileDescriptor
     private var _canRead: Bool = true
     private var _canWrite: Bool = true
     private var _canSeek: Bool = true
@@ -103,6 +103,7 @@ public class File <: Resource & IOStream & Seekable {
             throw FSException("Cannot open file: parent directory '${parent}' does not exist.")
         }
         // Because `filePath` may not exist before `openFile` is executed, `FileInfo` does not check whether the path exists.
+        _fileDescriptor = FileDescriptor()
         _fileInfo = FileInfo(filePath, false)
         _openMode = mode
         openFile()
@@ -129,6 +130,7 @@ public class File <: Resource & IOStream & Seekable {
             throw FSException("Invalid file handle: ${fd}.")
         }
         let filePath: Path = Path(path)
+        _fileDescriptor = FileDescriptor()
         _fileInfo = FileInfo(filePath, false)
         _openMode = mode
         fileHandle = fd
@@ -520,7 +522,6 @@ public class File <: Resource & IOStream & Seekable {
         if (!isHandleValid(_fileDescriptor._fileHandle)) {
             throw FSException("Cannot truncate file '${_fileInfo.path}': file is not opened.")
         }
-
         match (_openMode) {
             case Write | ReadWrite => ()
             case _ => throw FSException("Cannot truncate file '${_fileInfo.path}': file does not have write permission.")
@@ -538,7 +539,7 @@ public class File <: Resource & IOStream & Seekable {
     private func directRead(buffer: Array<Byte>): Int64 {
         unsafe {
             let bufPtr: CPointerHandle<Byte> = acquireArrayRawData(buffer)
-            let readSize: Int64 = CJ_FS_FileRead(fileHandle, bufPtr.pointer, UIntNative(buffer.size))
+            let readSize: Int64 = CJ_FS_FileRead(_fileDescriptor._fileHandle, bufPtr.pointer, UIntNative(buffer.size))
             releaseArrayRawData(bufPtr)
             return readSize
         }

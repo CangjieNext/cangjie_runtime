@@ -151,15 +151,18 @@ public struct Path <: Equatable<Path> & Hashable & ToString {
             if (isSlash(_rawPath[_rawPath.size - 1])) {
                 return this
             }
-            return Path(String.join([_rawPath, SLASH_STRING]))
+            let joinParts1: Array<String> = [_rawPath, SLASH_STRING]
+            return Path(String.join(joinParts1))
         }
         if (isAbsolutePath(path)) {
             throw FSException("Invalid argument 'path': '${path}' cannot be an absolute path.")
         }
         var newPath = if (isSlash(_rawPath[_rawPath.size - 1])) {
-            String.join([_rawPath, path])
+            let joinParts2: Array<String> = [_rawPath, path]
+            String.join(joinParts2)
         } else {
-            String.join([_rawPath, path], delimiter: SLASH_STRING)
+            let joinParts3: Array<String> = [_rawPath, path]
+            String.join(joinParts3, delimiter: SLASH_STRING)
         }
         checkWindowsSpecialPrefix(newPath)
         return Path(newPath)
@@ -364,7 +367,6 @@ class PathValidator {
             throw IllegalArgumentException(generateExceptionMessage(name, "cannot be empty", isInput))
         }
     }
-
     static func throwIfContainsNullByte(name: String, path: String, isInput: Bool): Unit {
         if (path.contains(NULL_BYTE)) {
             throw IllegalArgumentException(generateExceptionMessage(name, "value '${unsafe { path.rawData() }}' contains null character", isInput))
