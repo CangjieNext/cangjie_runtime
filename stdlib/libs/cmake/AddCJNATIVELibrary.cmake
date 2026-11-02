@@ -265,6 +265,7 @@ make_cangjie_lib(
     CANGJIE_STD_LIB_DEPENDS
         std-core
         std-io
+        std-sync
         std-time
         std-collection
     CANGJIE_STD_LIB_INDIRECT_DEPENDS

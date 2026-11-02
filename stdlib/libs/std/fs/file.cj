@@ -14,6 +14,7 @@
 package std.fs
 
 import std.io.*
+import std.sync.AtomicReference
 
 const SEEK_SET: Int32 = 0 /* Seek from beginning of file.  */
 const SEEK_CUR: Int32 = 1 /* Seek from current position.  */
@@ -169,6 +170,7 @@ public class File <: Resource & IOStream & Seekable {
 
         unsafe {
             let resultPtr = CJ_FS_Truncate(_fileDescriptor.fileHandle, length)
+            keepAlive(this)
             if (resultPtr.isNull()) {
                 throw FSException("Failed to truncate file '${_fileInfo.path}': native function returned null.")
             }
@@ -246,6 +248,7 @@ public class File <: Resource & IOStream & Seekable {
             case End(eOffset) => (SEEK_END, eOffset)
         }
         var val: Int64 = unsafe { CJ_FS_Seek(fileHandle, whence, offset) }
+        keepAlive(this)
         if (val < 0) {
             throw FSException("Failed to seek in file '${_fileInfo.path}': error code ${0 - val}.")
         }
@@ -286,6 +289,7 @@ public class File <: Resource & IOStream & Seekable {
         if (unsafe { CJ_FS_CloseFile(fileHandle) } < 0) {
             throw FSException("Failed to close file '${_fileInfo.path}'.")
         }
+        keepAlive(this)
         fileHandle = InvalidHandle
     }
 
@@ -495,7 +499,9 @@ public class File <: Resource & IOStream & Seekable {
             return -1
         }
         unsafe {
-            return CJ_FS_GetFileSize(_fileDescriptor._fileHandle)
+            let size = CJ_FS_GetFileSize(_fileDescriptor._fileHandle)
+            keepAlive(this)
+            return size
         }
     }
 
@@ -540,6 +546,7 @@ public class File <: Resource & IOStream & Seekable {
             let bufPtr: CPointerHandle<Byte> = acquireArrayRawData(buffer)
             let readSize: Int64 = CJ_FS_FileRead(fileHandle, bufPtr.pointer, UIntNative(buffer.size))
             releaseArrayRawData(bufPtr)
+            keepAlive(this)
             return readSize
         }
     }
@@ -559,9 +566,18 @@ public class File <: Resource & IOStream & Seekable {
             var bufPtr: CPointerHandle<Byte> = acquireArrayRawData(buffer)
             let writeSuccess: Bool = CJ_FS_FileWrite(fileHandle, bufPtr.pointer, UIntNative(bufSize))
             releaseArrayRawData(bufPtr)
+            keepAlive(this)
             if (!writeSuccess) {
                 throw FSException("Failed to write to file '${_fileInfo.path}'.")
             }
         }
     }
+}
+
+let _fsKeepAlivePhantom = Object()
+let _fsKeepAliveRef = AtomicReference<Object>(_fsKeepAlivePhantom)
+
+func keepAlive(o: Object) {
+    _fsKeepAliveRef.store(o)
+    _fsKeepAliveRef.store(_fsKeepAlivePhantom)
 }

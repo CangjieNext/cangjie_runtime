@@ -277,6 +277,7 @@ public class ArrayBlockingQueue<E> {
                     if (reserved.load() == roundIndex) { // LP: if returns 'Some(e)'
                         let e = buffer[index]
                         unsafe { CjStdSyncStateStore(state, index, roundState) }
+                        keepAlive(this)
                         return Some(e)
                     } else {
                         unsafe { CjStdSyncStateStore(state, index, roundState) }
@@ -326,6 +327,7 @@ public class ArrayBlockingQueue<E> {
                     sendMonitor.notify()
                     sendMonitor.unlock()
                 }
+                keepAlive(this)
                 return true
             } else if (roundIndex >= reserved.load() + unsignedCapacity) {
                 return false // buffer full
@@ -385,6 +387,7 @@ public class ArrayBlockingQueue<E> {
     private func releaseRemovedSlot(index: Int64, roundState: UInt8): Unit {
         let roundBit = roundState >> ROUND_BIT
         while (!unsafe { CjStdSyncStateCas(state, index, roundState, writeableState(roundBit)) }) {}
+        keepAlive(this)
 
         if (sendQSize.load() != 0) {
             receiveMonitor.lock()
@@ -442,4 +445,12 @@ func matchState(round: UInt64, roundBit: UInt8, state: UInt8, expectState: UInt8
         return true
     }
     return false
+}
+
+let _queueKeepAlivePhantom = Object()
+let _queueKeepAliveRef = AtomicReference<Object>(_queueKeepAlivePhantom)
+
+func keepAlive(o: Object) {
+    _queueKeepAliveRef.store(o)
+    _queueKeepAliveRef.store(_queueKeepAlivePhantom)
 }

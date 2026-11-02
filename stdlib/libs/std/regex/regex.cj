@@ -62,6 +62,7 @@ class FindIterator <: Iterator<MatchData> {
 
     public func next(): Option<MatchData> {
         let result = regex.find(input, inputCString, pcre2md, offset, group: group)
+        keepAlive(this)
         if (let Some(md) <- result) {
             if (offset == md.matchPosition().end) {
                 offset = md.matchPosition().end + 1
