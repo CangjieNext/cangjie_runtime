@@ -7182,7 +7182,8 @@ public override func read(buffer: Array<Byte>): Int64
 
 异常：
 
-- [SocketException](net_package_exceptions.md#class-socketexception) - 当 `buffer` 大小为 0 或者因系统原因读取失败时，抛出异常。
+- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 当 `buffer` 大小为 0 时，抛出异常。
+- [SocketException](net_package_exceptions.md#class-socketexception) - 当因系统原因读取失败时，抛出异常。
 - [SocketTimeoutException](net_package_exceptions.md#class-sockettimeoutexception) - 当读取超时时，抛出异常。
 
 示例：
@@ -7450,7 +7451,8 @@ public override func write(payload: Array<Byte>): Unit
 
 异常：
 
-- [SocketException](net_package_exceptions.md#class-socketexception) - 当 `buffer` 大小为 0 或者当因系统原因写入失败时，抛出异常。
+- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 当 `buffer` 大小为 0 时，抛出异常。
+- [SocketException](net_package_exceptions.md#class-socketexception) - 当因系统原因写入失败时，抛出异常。
 
 示例：
 
@@ -12763,7 +12765,8 @@ public override func read(buffer: Array<Byte>): Int64
 
 异常：
 
-- [SocketException](net_package_exceptions.md#class-socketexception) - 当 `buffer` 大小为 0 或者因系统原因读取失败时，抛出异常。
+- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 当 `buffer` 大小为 0 时，抛出异常。
+- [SocketException](net_package_exceptions.md#class-socketexception) - 当因系统原因读取失败时，抛出异常。
 - [SocketTimeoutException](net_package_exceptions.md#class-sockettimeoutexception) - 当读取超时时，抛出异常。
 
 示例：
@@ -13119,7 +13122,8 @@ public override func write(buffer: Array<Byte>): Unit
 
 异常：
 
-- [SocketException](net_package_exceptions.md#class-socketexception) - 当 `buffer` 大小为 0 时抛出异常，当因系统原因写入失败时，抛出异常。
+- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 当 `buffer` 大小为 0 时，抛出异常。
+- [SocketException](net_package_exceptions.md#class-socketexception) - 当因系统原因写入失败时，抛出异常。
 
 示例：
 

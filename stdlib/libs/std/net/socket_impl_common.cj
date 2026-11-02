@@ -257,6 +257,9 @@ class SocketCommon<NS> <: Resource & ToString where NS <: PlatformSocket<NS> {
     }
 
     func write(payload: Array<Byte>): Unit {
+        if (payload.isEmpty()) {
+            emptyBufferException()
+        }
         holder.write<Unit> {
             socket, state =>
                 state.ensureConnected()

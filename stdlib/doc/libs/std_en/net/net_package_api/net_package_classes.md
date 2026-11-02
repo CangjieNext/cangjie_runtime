@@ -2283,7 +2283,8 @@ Returns:
 
 Exceptions:
 
-- [SocketException](net_package_exceptions.md#class-socketexception) - Thrown when the `buffer` size is 0 or the read operation fails due to system reasons.
+- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown when the `buffer` size is 0.
+- [SocketException](net_package_exceptions.md#class-socketexception) - Thrown when the read operation fails due to system reasons.
 
 ### func setSocketOption(Int32, Int32, CPointer\<Unit>, UIntNative)
 
@@ -2379,7 +2380,10 @@ Parameters:
 
 Exceptions:
 
-- [SocketException](net_package_exceptions.md#class-socketexception) - Thrown when the `buffer` size## class UdpSocket
+- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown when the `buffer` size is 0.
+- [SocketException](net_package_exceptions.md#class-socketexception) - Thrown when the write operation fails due to system reasons.
+
+## class UdpSocket
 
 ```cangjie
 public class UdpSocket <: DatagramSocket {
