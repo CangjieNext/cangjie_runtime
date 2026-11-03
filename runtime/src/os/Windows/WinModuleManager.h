@@ -31,12 +31,12 @@ public:
           moduleName(name) {}
     ~WinModule() = default;
 
-    bool IsInModule(Uptr pc) const { return pc >= imageBaseStart && pc <= imageBaseEnd; }
+    bool IsInModule(Uptr pc) const { return pc >= imageBaseStart && pc < imageBaseEnd; }
 
     bool IsInRuntimeFunc(uint32_t index, Uptr pc) const
     {
         Uptr rvaPc = pc - imageBaseStart;
-        return rvaPc >= funcTable[index].startAddress && rvaPc <= funcTable[index].endAddress;
+        return rvaPc >= funcTable[index].startAddress && rvaPc < funcTable[index].endAddress;
     }
 
     Uptr GetImageBaseStart() const { return imageBaseStart; }

@@ -151,7 +151,11 @@ void Mutator::InitProtectStackAddr()
     _TEB* teb = NtCurrentTeb();
     stackBoundAddr = reinterpret_cast<void*>(reinterpret_cast<NT_TIB64*>(teb)->StackLimit);
 #elif defined(__APPLE__)
-    stackBoundAddr = pthread_get_stackaddr_np(pthread_self());
+    pthread_t thread = pthread_self();
+    uintptr_t stackTopAddr = reinterpret_cast<uintptr_t>(pthread_get_stackaddr_np(thread));
+    size_t stackSize = pthread_get_stacksize_np(thread);
+    // Darwin reports the high address of its downward-growing stack. Convert it to the low boundary used here.
+    stackBoundAddr = reinterpret_cast<void*>(stackTopAddr - stackSize);
 #else
     pthread_attr_t attr;
     pthread_t thread = pthread_self();

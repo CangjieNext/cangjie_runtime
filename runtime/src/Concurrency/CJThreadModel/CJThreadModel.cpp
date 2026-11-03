@@ -103,14 +103,16 @@ void CJThreadModel::Init(const ConcurrencyParam param, ScheduleType scheduleType
 
     ScheduleGetTlsHookRegister((GetTlsHookFunc)MRT_GetThreadLocalData);
 
-    // should not use system page size to calculate reserved stack size,
-    // because the page size could be different in different system.
+    // Reserve stack space for native calls and StackOverflowError handling.
+    // Use fixed byte sizes because the system page size varies across platforms.
 #ifdef _WIN64
-    constexpr uint32_t reservedStackSize = 24 * KB;
+    // Windows uses a 24 KiB stack reserve for native code.
+    this->reservedStackSize = 24 * KB;
 #else
-    constexpr uint32_t reservedStackSize = 8 * KB;
+    // Other platforms use an 8 KiB stack reserve for native code.
+    this->reservedStackSize = 8 * KB;
 #endif
-    CJThreadStackReversedSet(reservedStackSize);
+    CJThreadStackReversedSet(this->reservedStackSize);
     scheduler = ScheduleNew(scheduleType, &attr);
     Cki::CreateCKI();
 
