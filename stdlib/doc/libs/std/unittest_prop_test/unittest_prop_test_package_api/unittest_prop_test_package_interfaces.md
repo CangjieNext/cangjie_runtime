@@ -357,7 +357,7 @@ public static func arbitraryRange(random: RandomSource, min: Int64, max: Int64):
 #### func max()
 
 ```cangjie
-public staticfunc max(): Int64
+public static func max(): Int64
 ```
 
 功能：返回最大值。
@@ -369,7 +369,7 @@ public staticfunc max(): Int64
 #### func min()
 
 ```cangjie
-public staticfunc min(): Int64
+public static func min(): Int64
 ```
 
 功能：返回最小值。
@@ -411,7 +411,7 @@ public static func arbitraryRange(random: RandomSource, min: Int8, max: Int8): G
 #### func max()
 
 ```cangjie
-public staticfunc max(): Int8
+public static func max(): Int8
 ```
 
 功能：返回最大值。
@@ -423,7 +423,7 @@ public staticfunc max(): Int8
 #### func min()
 
 ```cangjie
-public staticfunc min(): Int8
+public static func min(): Int8
 ```
 
 功能：返回最小值。
@@ -465,7 +465,7 @@ public static func arbitraryRange(random: RandomSource, min: IntNative, max: Int
 #### func max()
 
 ```cangjie
-public staticfunc max(): IntNative
+public static func max(): IntNative
 ```
 
 功能：返回最大值。
@@ -477,7 +477,7 @@ public staticfunc max(): IntNative
 #### func min()
 
 ```cangjie
-public staticfunc min(): IntNative
+public static func min(): IntNative
 ```
 
 功能：返回最小值。
@@ -519,7 +519,7 @@ public static func arbitraryRange(random: RandomSource, min: UInt16, max: UInt16
 #### func max()
 
 ```cangjie
-public staticfunc max(): UInt16
+public static func max(): UInt16
 ```
 
 功能：返回最大值。
@@ -531,7 +531,7 @@ public staticfunc max(): UInt16
 #### func min()
 
 ```cangjie
-public staticfunc min(): UInt16
+public static func min(): UInt16
 ```
 
 功能：返回最小值。
@@ -573,7 +573,7 @@ public static func arbitraryRange(random: RandomSource, min: UInt32, max: UInt32
 #### func max()
 
 ```cangjie
-public staticfunc max(): UInt32
+public static func max(): UInt32
 ```
 
 功能：返回最大值。
@@ -585,7 +585,7 @@ public staticfunc max(): UInt32
 #### func min()
 
 ```cangjie
-public staticfunc min(): UInt32
+public static func min(): UInt32
 ```
 
 功能：返回最小值。
@@ -627,7 +627,7 @@ public static func arbitraryRange(random: RandomSource, min: UInt64, max: UInt64
 #### func max()
 
 ```cangjie
-public staticfunc max(): UInt64
+public static func max(): UInt64
 ```
 
 功能：返回最大值。
@@ -639,7 +639,7 @@ public staticfunc max(): UInt64
 #### func min()
 
 ```cangjie
-public staticfunc min(): UInt64
+public static func min(): UInt64
 ```
 
 功能：返回最小值。
@@ -681,7 +681,7 @@ public static func arbitraryRange(random: RandomSource, min: UInt8, max: UInt8):
 #### func max()
 
 ```cangjie
-public staticfunc max(): UInt8
+public static func max(): UInt8
 ```
 
 功能：返回最大值。
@@ -693,7 +693,7 @@ public staticfunc max(): UInt8
 #### func min()
 
 ```cangjie
-public staticfunc min(): UInt8
+public static func min(): UInt8
 ```
 
 功能：返回最小值。
@@ -735,7 +735,7 @@ public static func arbitraryRange(random: RandomSource, min: UIntNative, max: UI
 #### func max()
 
 ```cangjie
-public staticfunc max(): UIntNative
+public static func max(): UIntNative
 ```
 
 功能：返回最大值。
@@ -747,7 +747,7 @@ public staticfunc max(): UIntNative
 #### func min()
 
 ```cangjie
-public staticfunc min(): UIntNative
+public static func min(): UIntNative
 ```
 
 功能：返回最小值。
