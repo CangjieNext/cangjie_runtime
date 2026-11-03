@@ -160,7 +160,7 @@ ast 包主要包含了仓颉源码的语法解析器和仓颉语法树节点，�
 
 |                 枚举名             |                功能                |
 | --------------------------------- | ---------------------------------- |
-| [DiagReportLevel](./ast_package_api/ast_package_enums.md#enum-diagreportlevel) | 表示报错接口的信息等级，支持 `ERROR` 和 `WARNING` 两种格式。|
+| [DiagReportLevel](./ast_package_api/ast_package_enums.md#enum-diagreportlevel) | 表示报错接口的信息等级，支持 `ERROR` 和 `WARNING` 两种等级。|
 | [ImportKind](./ast_package_api/ast_package_enums.md#enum-importkind) | 表示导入语句的类型，包括单导入、别名导入、全导入和多导入四种类型。|
 | [TokenKind](./ast_package_api/ast_package_enums.md#enum-tokenkind) | 表示仓颉编译内部所有的词法结构，包括符号、关键字、标识符、换行等。|
 
