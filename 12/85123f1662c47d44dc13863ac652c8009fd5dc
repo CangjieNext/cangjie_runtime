@@ -1,0 +1,24 @@
+runtime/src/TypeInfoManager.cpp
+  s_595e55e2013b0d::t_49e219b943e525 9-10,155-158
+  s_595e55e2013b0d::t_bf729e691d7836 809-827
+runtime/src/ObjectModel/MClass.cpp
+  s_595e55e2013b0d::t_5b1b5764d0a10d 126-127,138-139
+runtime/src/TypeInfoManager.h
+  s_595e55e2013b0d::t_6220f08e202df5 53-54,56-59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1285123f1662c47d44dc13863ac652c8009fd5dc",
+  "prompts": {},
+  "sessions": {
+    "s_595e55e2013b0d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_e797f4508ffeUt0pb3P1cDupbp",
+        "model": "unknown"
+      },
+      "human_author": "leeguo <leeguo@126.com>"
+    }
+  }
+}
