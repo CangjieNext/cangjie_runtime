@@ -47,6 +47,87 @@ Some(1)
 None
 ```
 
+<!--Del-->
+<!-- markdownlint-disable-next-line MD026 -->
+### prop first @local!
+
+```cangjie
+public prop first: Option<T> @local!
+```
+
+Function: Gets the first element of the current `@local!` array. Returns None if the array is empty.
+
+The returned [Option](core_package_enums.md#enum-optiont)\<T> instance is bound to the same local region as the current array.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Type: [Option](core_package_enums.md#enum-optiont)\<T> @local!
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local! = [1, 2, 3]
+    let f: Option<Int64> @local! = arr.first
+    match (f) {
+        case Some(v) => println("first=${v}")
+        case None => println("empty")
+    }
+}
+```
+
+Output:
+
+```text
+first=1
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+### prop first @local?
+
+```cangjie
+public prop first: Option<T> @local?
+```
+
+Function: Gets the first element of the current `@local?` array. Returns None if the array is empty.
+
+The returned [Option](core_package_enums.md#enum-optiont)\<T> instance is bound to the same local region as the current array.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Type: [Option](core_package_enums.md#enum-optiont)\<T> @local?
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local? = [1, 2, 3]
+    let f: Option<Int64> @local? = arr.first
+    match (f) {
+        case Some(v) => println("first=${v}")
+        case None => println("empty")
+    }
+}
+```
+
+Output:
+
+```text
+first=1
+```
+
+<!--DelEnd-->
+
 ### prop last
 
 ```cangjie
@@ -79,6 +160,87 @@ Output:
 Some(3)
 None
 ```
+
+<!--Del-->
+<!-- markdownlint-disable-next-line MD026 -->
+### prop last @local!
+
+```cangjie
+public prop last: Option<T> @local!
+```
+
+Function: Gets the last element of the current `@local!` array. Returns None if the array is empty.
+
+The returned [Option](core_package_enums.md#enum-optiont)\<T> instance is bound to the same local region as the current array.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Type: [Option](core_package_enums.md#enum-optiont)\<T> @local!
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local! = [1, 2, 3]
+    let l: Option<Int64> @local! = arr.last
+    match (l) {
+        case Some(v) => println("last=${v}")
+        case None => println("empty")
+    }
+}
+```
+
+Output:
+
+```text
+last=3
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+### prop last @local?
+
+```cangjie
+public prop last: Option<T> @local?
+```
+
+Function: Gets the last element of the current `@local?` array. Returns None if the array is empty.
+
+The returned [Option](core_package_enums.md#enum-optiont)\<T> instance is bound to the same local region as the current array.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Type: [Option](core_package_enums.md#enum-optiont)\<T> @local?
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local? = [1, 2, 3]
+    let l: Option<Int64> @local? = arr.last
+    match (l) {
+        case Some(v) => println("last=${v}")
+        case None => println("empty")
+    }
+}
+```
+
+Output:
+
+```text
+last=3
+```
+
+<!--DelEnd-->
 
 ### init()
 
@@ -198,6 +360,169 @@ String array with repeated value: [Hello, Hello, Hello]
 Boolean array with repeated value: [true, true, true, true]
 ```
 
+<!--Del-->
+### init(this @local!)（const 修饰）
+
+```cangjie
+public const init(this @local!)
+```
+
+Function: Constructs an empty array in a local region.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local! = Array<Int64>() @local!
+    println("Empty local array size: ${arr.size}")
+}
+```
+
+Output:
+
+```text
+Empty local array size: 0
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+### init(this @local?, Int64, (Int64) -> T)
+
+```cangjie
+public init(this @local?, size: Int64, initElement: ((Int64) -> T @local?) @local?)
+```
+
+Function: Creates a `@local?` array of specified length in a local region, where elements are obtained by computing the initialization function.
+
+That is, the values in the range [0, size) are passed to the initialization function initElement respectively, and the results become the elements at the corresponding indexes of the array.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local? - The receiver is an `@local?` instance.
+- size: [Int64](core_package_intrinsics.md#int64) - Array size, valid range is [0, [Int64](core_package_intrinsics.md#int64).Max].
+- initElement: (([Int64](core_package_intrinsics.md#int64)) -> T @local?) @local? - The initialization function, whose return type is `T @local?`.
+
+Exceptions:
+
+- [NegativeArraySizeException](core_package_exceptions.md#class-negativearraysizeexception) - Throws an exception when size is less than 0.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local? = Array<Int64>(3, { index => index * 2 }) @local?
+    println("Local? array with initElement: ${arr[0]} ${arr[1]} ${arr[2]}")
+}
+```
+
+Output:
+
+```text
+Local? array with initElement: 0 2 4
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+### init(this @local!, Int64, T)
+
+```cangjie
+public init(this @local!, size: Int64, repeat!: T @local!)
+```
+
+Function: Constructs an array of specified length in a local region where all elements are initialized with the specified value.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+> - This constructor does not copy repeat. If repeat is a reference type, every element of the constructed array will point to the same reference.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+- size: [Int64](core_package_intrinsics.md#int64) - Array size, valid range is [0, [Int64](core_package_intrinsics.md#int64).Max].
+- repeat!: T @local! - Initial value for array elements.
+
+Exceptions:
+
+- [NegativeArraySizeException](core_package_exceptions.md#class-negativearraysizeexception) - Throws an exception when size is less than 0.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local! = Array<Int64>(3, repeat: 42) @local!
+    println("Repeated local array: ${arr[0]} ${arr[1]} ${arr[2]}")
+}
+```
+
+Output:
+
+```text
+Repeated local array: 42 42 42
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+### init(this @local!, Int64, (Int64) -> T)
+
+```cangjie
+public init(this @local!, size: Int64, initElement: ((Int64) -> T @local!) @local?)
+```
+
+Function: Creates an array of specified length in a local region, where elements are obtained by computing the initialization function.
+
+That is, the values in the range [0, size) are passed to the initialization function initElement respectively, and the results become the elements at the corresponding indexes of the array.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+- size: [Int64](core_package_intrinsics.md#int64) - Array size, valid range is [0, [Int64](core_package_intrinsics.md#int64).Max].
+- initElement: (([Int64](core_package_intrinsics.md#int64)) -> T @local!) @local? - The initialization function, whose return type is `T @local!`.
+
+Exceptions:
+
+- [NegativeArraySizeException](core_package_exceptions.md#class-negativearraysizeexception) - Throws an exception when size is less than 0.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local! = Array<Int64>(3) { index => index * 2 }
+    println("Local array with squares: ${arr[0]} ${arr[1]} ${arr[2]}")
+}
+```
+
+Output:
+
+```text
+Local array with squares: 0 2 4
+```
+
+<!--DelEnd-->
+
 ### func all((T) -> Bool)
 
 ```cangjie
@@ -205,7 +530,6 @@ public func all(predicate: (T) -> Bool): Bool
 ```
 
 Function: Determines whether all elements in the array satisfy the condition.
-
 
 > **Note：**
 >
@@ -218,6 +542,48 @@ Returns:
 
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - Returns true if all elements satisfy the condition, otherwise returns false.
 
+<!--Del-->
+### func all(this @local?, (T) -> Bool)
+
+```cangjie
+public func all(this @local?, predicate: ((T @local?) -> Bool) @local?): Bool
+```
+
+Function: Determines whether all elements in the current `@local?` array satisfy the condition.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local? - The receiver is an `@local?` instance.
+- predicate: ((T @local?) -> [Bool](core_package_intrinsics.md#bool)) @local? - The given condition.
+
+Returns:
+
+- [Bool](core_package_intrinsics.md#bool) - Returns true if all elements in the current array satisfy the condition, otherwise returns false.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local? = [2, 4, 6, 8]
+    let allEven = arr.all({e => e % 2 == 0})
+    println("allEven=${allEven}")
+}
+```
+
+Output:
+
+```text
+allEven=true
+```
+
+<!--DelEnd-->
+
 ### func any((T) -> Bool)
 
 ```cangjie
@@ -225,7 +591,6 @@ public func any(predicate: (T) -> Bool): Bool
 ```
 
 Function: Determines whether any element in the array satisfies the condition.
-
 
 > **Note：**
 >
@@ -237,6 +602,48 @@ Parameters:
 Returns:
 
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - Whether any element satisfies the condition.
+
+<!--Del-->
+### func any(this @local?, (T) -> Bool)
+
+```cangjie
+public func any(this @local?, predicate: ((T @local?) -> Bool) @local?): Bool
+```
+
+Function: Determines whether any element in the current `@local?` array satisfies the condition.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local? - The receiver is an `@local?` instance.
+- predicate: ((T @local?) -> [Bool](core_package_intrinsics.md#bool)) @local? - The given condition.
+
+Returns:
+
+- [Bool](core_package_intrinsics.md#bool) - Returns true if any element in the current array satisfies the condition, otherwise returns false.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local? = [1, 3, 5]
+    let hasEven = arr.any({e => e % 2 == 0})
+    println("hasEven=${hasEven}")
+}
+```
+
+Output:
+
+```text
+hasEven=false
+```
+
+<!--DelEnd-->
 
 ### func clone()
 
@@ -278,6 +685,93 @@ After modifying cloned array:
 Original array: [1, 2, 3, 4, 5]
 Cloned array: [10, 2, 3, 4, 5]
 ```
+
+<!--Del-->
+### func clone(this @local!)
+
+```cangjie
+public exclave func clone(this @local!): Array<T> @local!
+```
+
+Function: Clones the current `@local!` array with a deep copy of the array data. The cloned array is bound to the same local region as the current array.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Returns:
+
+- [Array](core_package_structs.md#struct-arrayt)\<T> @local! - The new `@local!` array obtained by cloning.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local! = [1, 2, 3]
+    let clonedArr: Array<Int64> @local! = arr.clone()
+    println("Cloned array size: ${clonedArr.size}")
+}
+```
+
+Output:
+
+```text
+Cloned array size: 3
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+### func clone(this @local!, Range\<Int64>)
+
+```cangjie
+public exclave func clone(this @local!, range: Range<Int64>): Array<T> @local!
+```
+
+Function: Clones the specified range of the current `@local!` array with a deep copy of the data in the range. The cloned array is bound to the same local region as the current array.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+> - If the parameter range is a [Range](core_package_structs.md#struct-ranget-where-t--countablet--comparablet--equatablet) instance constructed with the [Range](core_package_structs.md#struct-ranget-where-t--countablet--comparablet--equatablet) constructor, the behavior is as follows:
+>     - When hasStart is false, start is 0; otherwise start is the value passed to the constructor itself.
+>     - When hasEnd is false, end takes no effect regardless of the isClosed value passed at construction, and the array slice extends to the last element of the original array.
+> - The step of range may be positive or negative. When the step is negative, elements are cloned from the high end of the range to the low end.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+- range: [Range](core_package_structs.md#struct-ranget-where-t--countablet--comparablet--equatablet)\<[Int64](core_package_intrinsics.md#int64)> - The range to clone.
+
+Returns:
+
+- [Array](core_package_structs.md#struct-arrayt)\<T> @local! - The new `@local!` array obtained by cloning.
+
+Exceptions:
+
+- [IndexOutOfBoundsException](core_package_exceptions.md#class-indexoutofboundsexception) - Throws an exception when range exceeds the array range.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local! = [0, 1, 2, 3, 4, 5]
+    let new: Array<Int64> @local! = arr.clone(1..4)
+    println("Cloned range size: ${new.size}")
+}
+```
+
+Output:
+
+```text
+Cloned range size: 3
+```
+
+<!--DelEnd-->
 
 ### func clone(Range\<Int64>)
 
@@ -323,6 +817,47 @@ Output:
 [1, 2, 3]
 ```
 
+<!--Del-->
+### func clone(this @local?)
+
+```cangjie
+public func clone(this @local?): Array<T> @local?
+```
+
+Function: Clones the current `@local?` array with a deep copy of the array data. The cloned array is bound to the same local region as the current array.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local? - The receiver is an `@local?` instance.
+
+Returns:
+
+- [Array](core_package_structs.md#struct-arrayt)\<T> @local? - The new `@local?` array obtained by cloning.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local? = [1, 2, 3]
+    let clonedArr: Array<Int64> @local? = arr.clone()
+    println("Cloned array size: ${clonedArr.size}")
+}
+```
+
+Output:
+
+```text
+Cloned array size: 3
+```
+
+<!--DelEnd-->
+
 ### func concat(Array\<T>)
 
 ```cangjie
@@ -355,6 +890,49 @@ Output:
 ```text
 [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 ```
+
+<!--Del-->
+### func concat(this @local!, Array\<T>)
+
+```cangjie
+public func concat(this @local!, other: Array<T> @local!): Array<T> @local!
+```
+
+Function: Creates a new `@local!` array whose content is the current `@local!` array followed by the array referenced by other.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+- other: [Array](core_package_structs.md#struct-arrayt)\<T> @local! - The `@local!` array concatenated to the end of the current array.
+
+Returns:
+
+- [Array](core_package_structs.md#struct-arrayt)\<T> @local! - The new `@local!` array obtained by concatenation.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local! = [0, 1, 2]
+    let other: Array<Int64> @local! = [3, 4]
+    let new: Array<Int64> @local! = arr.concat(other)
+    println("Concat size: ${new.size}")
+}
+```
+
+Output:
+
+```text
+Concat size: 5
+```
+
+<!--DelEnd-->
 
 ### func copyTo(Array\<T>)
 
@@ -444,6 +1022,100 @@ Output:
 [0, 0, 2, 3, 4, 5]
 ```
 
+<!--Del-->
+### func copyTo(this @local!, Array\<T> @local!)
+
+```cangjie
+public func copyTo(this @local!, dst: Array<T> @local!): Unit
+```
+
+Function: Copies all elements of the current `@local!` array to the destination `@local!` array dst.
+
+The copy length is the length of the current array; writing starts at the beginning of the destination array, and the length of the current array must not be greater than that of the destination array.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+- dst: [Array](core_package_structs.md#struct-arrayt)\<T> @local! - The destination `@local!` array.
+
+Exceptions:
+
+- [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - The length of the current array is greater than the length of the destination array.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let src: Array<Int64> @local! = [1, 2, 3]
+    let dst: Array<Int64> @local! = [0, 0, 0]
+    src.copyTo(dst)
+    println("dst=${dst[0]} ${dst[1]} ${dst[2]}")
+}
+```
+
+Output:
+
+```text
+dst=1 2 3
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+### func copyTo(this @local!, Array\<T> @local!, Int64, Int64, Int64)
+
+```cangjie
+public exclave func copyTo(this @local!, dst: Array<T> @local!, srcStart: Int64, dstStart: Int64, copyLen: Int64): Unit
+```
+
+Function: Copies a segment of data from the current `@local!` array to the destination `@local!` array.
+
+When copyLen is 0, no copy is performed and the other parameters are not validated.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+- dst: [Array](core_package_structs.md#struct-arrayt)\<T> @local! - The destination `@local!` array.
+- srcStart: [Int64](core_package_intrinsics.md#int64) - Copying starts at index srcStart of this array, valid range is [0, this.size).
+- dstStart: [Int64](core_package_intrinsics.md#int64) - Writing starts at index dstStart of the destination array, valid range is [0, dst.size).
+- copyLen: [Int64](core_package_intrinsics.md#int64) - The number of elements to copy. Requires copyLen + srcStart <= this.size and copyLen + dstStart <= dst.size.
+
+Exceptions:
+
+- [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - Thrown when copyLen is less than 0.
+- [IndexOutOfBoundsException](core_package_exceptions.md#class-indexoutofboundsexception) - Thrown when the parameters do not satisfy the value ranges described above.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let src: Array<Int64> @local! = [1, 2, 3]
+    let dst: Array<Int64> @local! = [0, 0, 0, 0]
+    src.copyTo(dst, 0, 1, 3)
+    println("dst=${dst[1]} ${dst[2]} ${dst[3]}")
+}
+```
+
+Output:
+
+```text
+dst=1 2 3
+```
+
+<!--DelEnd-->
+
 ### func fill(T)
 
 ```cangjie
@@ -490,6 +1162,44 @@ Before partial fill: [1, 2, 3, 4, 5]
 After partial fill: [1, -1, -1, -1, 5]
 ```
 
+<!--Del-->
+### func fill(this @local!, T)
+
+```cangjie
+public exclave func fill(this @local!, value: T @local!): Unit
+```
+
+Function: Replaces all elements in the current `@local!` array with the specified value.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+- value: T @local! - The target value to set.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local! = [1, 2, 3]
+    arr.fill(0)
+    println("After fill: ${arr[0]} ${arr[1]} ${arr[2]}")
+}
+```
+
+Output:
+
+```text
+After fill: 0 0 0
+```
+
+<!--DelEnd-->
+
 ### func filter((T) -> Bool)
 
 ```cangjie
@@ -497,7 +1207,6 @@ public func filter(predicate: (T) -> Bool): Array<T>
 ```
 
 Function: Returns a new array containing elements that satisfy the given predicate.
-
 
 > **Note：**
 >
@@ -510,6 +1219,48 @@ Returns:
 
 - [Array](core_package_structs.md#struct-arrayt)\<T> - A new array containing elements that satisfy the predicate.
 
+<!--Del-->
+### func filter(this @local!, (T) -> Bool)
+
+```cangjie
+public func filter(this @local!, predicate: ((T @local?) -> Bool) @local?): Array<T> @local!
+```
+
+Function: Returns a new array containing the elements of the current `@local!` array that satisfy the filter condition. The new array is bound to the same local region as the current array.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+- predicate: ((T @local?) -> [Bool](core_package_intrinsics.md#bool)) @local? - The given condition.
+
+Returns:
+
+- [Array](core_package_structs.md#struct-arrayt)\<T> @local! - Returns a new array of elements that satisfy the filter condition.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local! = [1, 2, 3, 4, 5]
+    let even: Array<Int64> @local! = arr.filter({e => e % 2 == 0})
+    println("Even size: ${even.size}")
+}
+```
+
+Output:
+
+```text
+Even size: 2
+```
+
+<!--DelEnd-->
+
 ### func filterMap\<R>((T) -> ?R)
 
 ```cangjie
@@ -517,7 +1268,6 @@ public func filterMap<R>(transform: (T) -> ?R): Array<R>
 ```
 
 Function: Performs both filtering and mapping operations, returning a new array.
-
 
 > **Note：**
 >
@@ -530,6 +1280,56 @@ Returns:
 
 - [Array](core_package_structs.md#struct-arrayt)\<R> - A new array after filtering and mapping.
 
+<!--Del-->
+### func filterMap\<R>(this @local!, (T) -> ?R)
+
+```cangjie
+public func filterMap<R>(this @local!, transform: ((T @local!) -> Option<R> @local!) @local?): Array<R> @local!
+```
+
+Function: Performs both filtering and mapping on the current `@local!` array and returns a new array. The new array is bound to the same local region as the current array.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+- transform: ((T @local!) -> [Option](core_package_enums.md#enum-optiont)\<R> @local!) @local? - The function that filters and maps at the same time. A return value of Some corresponds to a filter predicate of true, and otherwise false.
+
+Returns:
+
+- [Array](core_package_structs.md#struct-arrayt)\<R> @local! - Returns a new array with filtering and mapping applied.
+
+Example:
+
+<!-- verify -->
+```cangjie
+exclave func keepEven(e: Int64 @local!): Option<Int64> @local! {
+    if (e % 2 == 0) {
+        Some(e * 10)
+    } else {
+        Option<Int64>.None
+    }
+}
+
+main() {
+    let arr: Array<Int64> @local! = [1, 2, 3, 4, 5]
+    let evens: Array<Int64> @local! = arr.filterMap(keepEven)
+    println("Even size: ${evens.size}")
+}
+```
+
+Output:
+
+```text
+Even size: 2
+```
+
+<!--DelEnd-->
+
 ### func flatMap\<R>((T) -> Array\<R>)
 
 ```cangjie
@@ -537,7 +1337,6 @@ public func flatMap<R>(transform: (T) -> Array<R>): Array<R>
 ```
 
 Function: Applies a transformation closure (transform) to each element in the array, where the closure returns an array, then flattens and concatenates all returned arrays into a single result array.
-
 
 > **Note：**
 >
@@ -550,6 +1349,52 @@ Returns:
 
 - [Array](core_package_structs.md#struct-arrayt)\<R> - A new array after "map" and "flatten" operations.
 
+<!--Del-->
+### func flatMap\<R>(this @local!, (T) -> Array\<R>)
+
+```cangjie
+public func flatMap<R>(this @local!, transform: ((T @local!) -> Array<R> @local!) @local?): Array<R> @local!
+```
+
+Function: Calls transform on each element of the current `@local!` array and concatenates the returned arrays in order into a new array. The new array is bound to the same local region as the current array.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+- transform: ((T @local!) -> [Array](core_package_structs.md#struct-arrayt)\<R> @local!) @local? - The given transform function.
+
+Returns:
+
+- [Array](core_package_structs.md#struct-arrayt)\<R> @local! - Returns the new concatenated array.
+
+Example:
+
+<!-- verify -->
+```cangjie
+exclave func repeatTwice(e: Int64 @local!): Array<Int64> @local! {
+    Array<Int64>(2, repeat: e) @local!
+}
+
+main() {
+    let arr: Array<Int64> @local! = [1, 2, 3]
+    let repeated: Array<Int64> @local! = arr.flatMap(repeatTwice)
+    println("Repeated size: ${repeated.size}")
+}
+```
+
+Output:
+
+```text
+Repeated size: 6
+```
+
+<!--DelEnd-->
+
 ### func fold\<R>(R, (R, T) -> R)
 
 ```cangjie
@@ -557,7 +1402,6 @@ public func fold<R>(initial: R, operation: (R, T) -> R): R
 ```
 
 Function: Computes from left to right using the specified initial value.
-
 
 > **Note：**
 >
@@ -571,6 +1415,49 @@ Returns:
 
 - R - The final computed value.
 
+<!--Del-->
+### func fold\<R>(this @local!, R, (R, T) -> R)
+
+```cangjie
+public func fold<R>(this @local!, initial: R @local!, operation: ((R @local!, T @local!) -> R @local!) @local?): R @local!
+```
+
+Function: Uses the specified initial value to accumulate the elements of the current `@local!` array from left to right.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+- initial: R @local! - The given initial value of type R.
+- operation: ((R @local!, T @local!) -> R @local!) @local? - The given computation function.
+
+Returns:
+
+- R @local! - Returns the final computed value.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local! = [1, 2, 3, 4, 5]
+    let sum: Int64 @local! = arr.fold(0, {acc, e => acc + e})
+    println("Sum: ${sum}")
+}
+```
+
+Output:
+
+```text
+Sum: 15
+```
+
+<!--DelEnd-->
+
 ### func forEach((T) -> Unit)
 
 ```cangjie
@@ -579,13 +1466,51 @@ public func forEach(action: (T) -> Unit): Unit
 
 Function: Iterates through all elements and executes the given action.
 
-
 > **Note：**
 >
 > Unsupported platform：OpenHarmony
 Parameters:
 
 - action: (T) -> [Unit](../../core/core_package_api/core_package_intrinsics.md#unit) - The given action function.
+
+<!--Del-->
+### func forEach(this @local!, (T) -> Unit)
+
+```cangjie
+public exclave func forEach(this @local!, action: ((T @local!) -> Unit) @local?): Unit
+```
+
+Function: Traverses all elements in the current `@local!` array and performs the given action.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+- action: ((T @local!) -> [Unit](core_package_intrinsics.md#unit)) @local? - The given action function.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let words: Array<String> @local! = ["a", "b", "c"]
+    words.forEach({w => println(String(w))})
+}
+```
+
+Output:
+
+```text
+a
+b
+c
+```
+
+<!--DelEnd-->
 
 ### func get(Int64)
 
@@ -624,6 +1549,100 @@ Output:
 Some(0)
 ```
 
+<!--Del-->
+### func get(this @local!, Int64)
+
+```cangjie
+public func get(this @local!, index: Int64): Option<T> @local!
+```
+
+Function: Gets the element at the specified index in the current `@local!` array.
+
+The returned [Option](core_package_enums.md#enum-optiont)\<T> instance is bound to the same local region as the current array.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+- index: [Int64](core_package_intrinsics.md#int64) - The index of the element to get.
+
+Returns:
+
+- [Option](core_package_enums.md#enum-optiont)\<T> @local! - The element at the index wrapped in [Option](core_package_enums.md#enum-optiont). Returns None if the index is out of bounds.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local! = [1, 2, 3]
+    let got: Option<Int64> @local! = arr.get(1)
+    match (got) {
+        case Some(v) => println("got=${v}")
+        case None => println("none")
+    }
+}
+```
+
+Output:
+
+```text
+got=2
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+### func get(this @local?, Int64)
+
+```cangjie
+public func get(this @local?, index: Int64): Option<T> @local?
+```
+
+Function: Gets the element at the specified index in the current `@local?` array.
+
+The returned [Option](core_package_enums.md#enum-optiont)\<T> instance is bound to the same local region as the current array.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local? - The receiver is an `@local?` instance.
+- index: [Int64](core_package_intrinsics.md#int64) - The index of the element to get.
+
+Returns:
+
+- [Option](core_package_enums.md#enum-optiont)\<T> @local? - The element at the index wrapped in [Option](core_package_enums.md#enum-optiont). Returns None if the index is out of bounds.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local? = [1, 2, 3]
+    let got: Option<Int64> @local? = arr.get(1)
+    match (got) {
+        case Some(v) => println("got=${v}")
+        case None => println("none")
+    }
+}
+```
+
+Output:
+
+```text
+got=2
+```
+
+<!--DelEnd-->
+
 ### func intersperse(T)
 
 ```cangjie
@@ -631,7 +1650,6 @@ public func intersperse(separator: T): Array<T>
 ```
 
 Function: Returns a new array with the given element inserted between every two existing elements.
-
 
 > **Note：**
 >
@@ -643,6 +1661,48 @@ Parameters:
 Returns:
 
 - [Array](core_package_structs.md#struct-arrayt)\<T> - A new array.
+
+<!--Del-->
+### func intersperse(this @local!, T)
+
+```cangjie
+public func intersperse(this @local!, separator: T @local!): Array<T> @local!
+```
+
+Function: Returns a new array with the given new element inserted between every two elements of the current `@local!` array. The new array is bound to the same local region as the current array.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+- separator: T @local! - The given element.
+
+Returns:
+
+- [Array](core_package_structs.md#struct-arrayt)\<T> @local! - Returns a new array.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local! = [1, 2, 3]
+    let result: Array<Int64> @local! = arr.intersperse(0)
+    println("Interspersed: ${result[0]} ${result[1]} ${result[2]} ${result[3]} ${result[4]}")
+}
+```
+
+Output:
+
+```text
+Interspersed: 1 0 2 0 3
+```
+
+<!--DelEnd-->
 
 ### func map\<R>((T)->R)
 
@@ -689,6 +1749,48 @@ Mapped array (each element + 1): [2, 3, 4, 5, 6]
 String array: [Number: 1, Number: 2, Number: 3, Number: 4, Number: 5]
 ```
 
+<!--Del-->
+### func map\<R>(this @local!, (T) -> R)
+
+```cangjie
+public func map<R>(this @local!, transform: ((T @local!) -> R @local!) @local?): Array<R> @local!
+```
+
+Function: Maps all elements of type T in the current `@local!` array to elements of type R according to transform, composing a new `@local!` array. The new array is bound to the same local region as the current array.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+- transform: ((T @local!) -> R @local!) @local? - The mapping function.
+
+Returns:
+
+- [Array](core_package_structs.md#struct-arrayt)\<R> @local! - The new array composed of the elements obtained by mapping all elements of the original array.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local! = [1, 2, 3]
+    let mapped: Array<Int64> @local! = arr.map({e => e * 2})
+    println("Mapped size: ${mapped.size}")
+}
+```
+
+Output:
+
+```text
+Mapped size: 3
+```
+
+<!--DelEnd-->
+
 ### func none((T) -> Bool)
 
 ```cangjie
@@ -696,7 +1798,6 @@ public func none(predicate: (T) -> Bool): Bool
 ```
 
 Function: Determines whether none of the elements in the array satisfy the given condition.
-
 
 > **Note：**
 >
@@ -709,6 +1810,48 @@ Returns:
 
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - Whether none of the elements satisfy the condition.
 
+<!--Del-->
+### func none(this @local?, (T) -> Bool)
+
+```cangjie
+public func none(this @local?, predicate: ((T @local?) -> Bool) @local?): Bool
+```
+
+Function: Determines whether none of the elements in the current `@local?` array satisfies the condition.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local? - The receiver is an `@local?` instance.
+- predicate: ((T @local?) -> [Bool](core_package_intrinsics.md#bool)) @local? - The given condition.
+
+Returns:
+
+- [Bool](core_package_intrinsics.md#bool) - Returns true if none of the elements in the current array satisfies the condition, otherwise returns false.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local? = [1, 3, 5]
+    let noEven = arr.none({e => e % 2 == 0})
+    println("noEven=${noEven}")
+}
+```
+
+Output:
+
+```text
+noEven=true
+```
+
+<!--DelEnd-->
+
 ### func reduce((T, T) -> T)
 
 ```cangjie
@@ -716,7 +1859,6 @@ public func reduce(operation: (T, T) -> T): Option<T>
 ```
 
 Function: Computes from left to right using the first element as the initial value.
-
 
 > **Note：**
 >
@@ -820,6 +1962,43 @@ Original string array: [Hello, World, Cangjie]
 Reversed string array: [Cangjie, World, Hello]
 ```
 
+<!--Del-->
+### func reverse(this @local!)
+
+```cangjie
+public exclave func reverse(this @local!): Unit
+```
+
+Function: Reverses the elements in the current `@local!` array.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local! = [3, 1, 2]
+    arr.reverse()
+    println("After reverse: ${arr[0]} ${arr[1]} ${arr[2]}")
+}
+```
+
+Output:
+
+```text
+After reverse: 2 1 3
+```
+
+<!--DelEnd-->
+
 ### func skip(Int64)
 
 ```cangjie
@@ -829,7 +2008,6 @@ public func skip(count: Int64): Array<T>
 Function: Skips a specified number of elements and returns a new array.
 
 Throws an exception if count is less than 0. When count equals 0, no elements are skipped, returning a new array with all elements. When count is greater than 0 but less than the array size, skips the first count elements and returns a new array with the remaining elements. When count is greater than or equal to the array size, returns an empty array.
-
 
 > **Note：**
 >
@@ -844,7 +2022,57 @@ Returns:
 
 Exceptions:
 
-- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown if count < 0.### func slice(Int64, Int64)
+- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown if count < 0.
+
+<!--Del-->
+### func skip(this @local!, Int64)
+
+```cangjie
+public func skip(this @local!, count: Int64): Array<T> @local!
+```
+
+Function: Skips a specific number of elements in the current `@local!` array and returns a new array. The new array is bound to the same local region as the current array.
+
+When count is 0, no element is skipped and a new array containing all elements of the source array is returned. When count is greater than 0 and less than the size of the source array, the first count elements are skipped and a new array containing the remaining elements is returned. When count is greater than or equal to the size of the array, an empty array is returned.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+- count: [Int64](core_package_intrinsics.md#int64) - The number of elements to skip.
+
+Returns:
+
+- [Array](core_package_structs.md#struct-arrayt)\<T> @local! - Returns a new array with the specified number of elements skipped.
+
+Exceptions:
+
+- [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - Throws an exception when count < 0.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local! = [1, 2, 3, 4, 5]
+    let skipped: Array<Int64> @local! = arr.skip(2)
+    println("Skipped: ${skipped[0]} ${skipped[1]} ${skipped[2]}")
+}
+```
+
+Output:
+
+```text
+Skipped: 3 4 5
+```
+
+<!--DelEnd-->
+
+### func slice(Int64, Int64)
 
 ```cangjie
 public func slice(start: Int64, len: Int64): Array<T>
@@ -900,6 +2128,100 @@ After modifying slice:
 Original array: [0, 1, -1, 3, 4, 5, 6, 7, 8, 9]
 Slice: [-1, 3, 4, 5]
 ```
+
+<!--Del-->
+### func slice(this @local!, Int64, Int64)
+
+```cangjie
+public func slice(this @local!, start: Int64, len: Int64): Array<T> @local!
+```
+
+Function: Gets a subarray slice of the current `@local!` array. The returned slice is bound to the same local region as the current array.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+- start: [Int64](core_package_intrinsics.md#int64) - The start index of the slice.
+- len: [Int64](core_package_intrinsics.md#int64) - The length of the slice.
+
+Returns:
+
+- [Array](core_package_structs.md#struct-arrayt)\<T> @local! - The sliced array.
+
+Exceptions:
+
+- [IndexOutOfBoundsException](core_package_exceptions.md#class-indexoutofboundsexception) - Throws an exception if start or len is negative, or if start + len exceeds the array size.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local! = [1, 2, 3, 4, 5]
+    let slice1: Array<Int64> @local! = arr.slice(1, 3)
+    println("Slice size: ${slice1.size}")
+}
+```
+
+Output:
+
+```text
+Slice size: 3
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+### func slice(this @local?, Int64, Int64)
+
+```cangjie
+public func slice(this @local?, start: Int64, len: Int64): Array<T> @local?
+```
+
+Function: Gets a subarray slice of the current `@local?` array. The returned slice is bound to the same local region as the current array.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local? - The receiver is an `@local?` instance.
+- start: [Int64](core_package_intrinsics.md#int64) - The start index of the slice.
+- len: [Int64](core_package_intrinsics.md#int64) - The length of the slice.
+
+Returns:
+
+- [Array](core_package_structs.md#struct-arrayt)\<T> @local? - The sliced array.
+
+Exceptions:
+
+- [IndexOutOfBoundsException](core_package_exceptions.md#class-indexoutofboundsexception) - Throws an exception if start or len is negative, or if start + len exceeds the array size.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local? = [1, 2, 3, 4, 5]
+    let slice1: Array<Int64> @local? = arr.slice(1, 3)
+    println("Slice size: ${slice1.size}")
+}
+```
+
+Output:
+
+```text
+Slice size: 3
+```
+
+<!--DelEnd-->
 
 ### func splitAt(Int64)
 
@@ -959,6 +2281,100 @@ Left slice: [-1, 1, 2]
 Right slice: [3, 4, 5]
 ```
 
+<!--Del-->
+### func splitAt(this @local!, Int64)
+
+```cangjie
+public func splitAt(this @local!, mid: Int64): (Array<T>, Array<T>) @local!
+```
+
+Function: Splits the current `@local!` array at the specified position mid. The two returned subarrays are bound to the same local region as the current array.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+- mid: [Int64](core_package_intrinsics.md#int64) - The position to split at. After splitting, the left array contains elements with indexes in [0, mid), and the right array contains elements with indexes in [mid, size).
+
+Returns:
+
+- ([Array](core_package_structs.md#struct-arrayt)\<T>, [Array](core_package_structs.md#struct-arrayt)\<T>) @local! - The two `@local!` subarrays obtained by splitting.
+
+Exceptions:
+
+- [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - Throws an exception if mid is less than 0 or greater than the array size.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local! = [1, 2, 3, 4, 5]
+    let pair = arr.splitAt(2)
+    let left: Array<Int64> @local! = pair[0]
+    let right: Array<Int64> @local! = pair[1]
+    println("Left size: ${left.size}, Right size: ${right.size}")
+}
+```
+
+Output:
+
+```text
+Left size: 2, Right size: 3
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+### func repeat(this @local!, Int64)
+
+```cangjie
+public func repeat(this @local!, n: Int64): Array<T> @local!
+```
+
+Function: Repeats the elements of the current `@local!` array n times and returns the new `@local!` array.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+- n: [Int64](core_package_intrinsics.md#int64) - The number of repetitions, valid range is [1, [Int64](core_package_intrinsics.md#int64).Max].
+
+Returns:
+
+- [Array](core_package_structs.md#struct-arrayt)\<T> @local! - The new `@local!` array obtained after repeating n times.
+
+Exceptions:
+
+- [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - Throws an exception if n is less than or equal to 0.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local! = [1, 2, 3]
+    let repeated: Array<Int64> @local! = arr.repeat(2)
+    println("Repeated size: ${repeated.size}")
+}
+```
+
+Output:
+
+```text
+Repeated size: 6
+```
+
+<!--DelEnd-->
+
 ### func step(Int64)
 
 ```cangjie
@@ -968,7 +2384,6 @@ public func step(count: Int64): Array<T>
 Function: Extracts elements from the array at specified intervals and returns a new array.
 
 Throws an exception if `count` is less than or equal to 0.
-
 
 > **Note：**
 >
@@ -984,6 +2399,54 @@ Returns:
 Exceptions:
 
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown if `count <= 0`.
+
+<!--Del-->
+### func step(this @local!, Int64)
+
+```cangjie
+public func step(this @local!, count: Int64): Array<T> @local!
+```
+
+Function: Extracts elements from the current `@local!` array at the specified interval and returns a new `@local!` array. The new array is bound to the same local region as the current array.
+
+Throws an exception when count is less than or equal to 0.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+- count: [Int64](core_package_intrinsics.md#int64) - The selection interval.
+
+Returns:
+
+- [Array](core_package_structs.md#struct-arrayt)\<T> @local! - Returns a new array with all elements extracted from the source array at the specified interval.
+
+Exceptions:
+
+- [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - Throws an exception when count <= 0.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local! = [1, 2, 3, 4, 5, 6]
+    let stepped: Array<Int64> @local! = arr.step(2)
+    println("Stepped: ${stepped[0]} ${stepped[1]} ${stepped[2]}")
+}
+```
+
+Output:
+
+```text
+Stepped: 1 3 5
+```
+
+<!--DelEnd-->
 
 ### func swap(Int64, Int64)
 
@@ -1033,6 +2496,49 @@ After swapping indices 1 and 3: [1, 4, 3, 2, 5]
 After swapping index 2 with itself: [1, 4, 3, 2, 5]
 ```
 
+<!--Del-->
+### func swap(this @local!, Int64, Int64)
+
+```cangjie
+public exclave func swap(this @local!, index1: Int64, index2: Int64): Unit
+```
+
+Function: Swaps the elements at index1 and index2 in the current `@local!` array.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+- index1: [Int64](core_package_intrinsics.md#int64) - The first index of the elements to swap.
+- index2: [Int64](core_package_intrinsics.md#int64) - The second index of the elements to swap.
+
+Exceptions:
+
+- [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - index1 / index2 is less than 0 or greater than or equal to this.size.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local! = [1, 2, 3, 4, 5]
+    arr.swap(1, 3)
+    println("After swapping: ${arr[1]} ${arr[3]}")
+}
+```
+
+Output:
+
+```text
+After swapping: 4 2
+```
+
+<!--DelEnd-->
+
 ### func take(Int64)
 
 ```cangjie
@@ -1042,7 +2548,6 @@ public func take(count: Int64): Array<T>
 Function: Extracts a specified number of elements from the array and returns a new array.
 
 Throws an exception if `count` is less than 0. If `count` is 0, returns an empty array. If `count` is greater than 0 but less than the source array size, extracts the first `count` elements and returns a new array. If `count` is greater than or equal to the array size, extracts all elements and returns a new array.
-
 
 > **Note：**
 >
@@ -1058,6 +2563,54 @@ Returns:
 Exceptions:
 
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown if `count < 0`.
+
+<!--Del-->
+### func take(this @local!, Int64)
+
+```cangjie
+public func take(this @local!, count: Int64): Array<T> @local!
+```
+
+Function: Takes a specific number of elements from the current `@local!` array and returns a new array. The new array is bound to the same local region as the current array.
+
+When count is 0, no element is taken and an empty array is returned. When count is greater than 0 and less than the size of the source array, the first count elements are taken and a new array is returned. When count is greater than or equal to the size of the array, all elements are taken and a new array is returned.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+- count: [Int64](core_package_intrinsics.md#int64) - The number of elements to take.
+
+Returns:
+
+- [Array](core_package_structs.md#struct-arrayt)\<T> @local! - Returns a new array with the specified number of elements taken.
+
+Exceptions:
+
+- [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - Throws an exception when count < 0.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local! = [1, 2, 3, 4, 5]
+    let taken: Array<Int64> @local! = arr.take(2)
+    println("Taken: ${taken[0]} ${taken[1]}")
+}
+```
+
+Output:
+
+```text
+Taken: 1 2
+```
+
+<!--DelEnd-->
 
 ### operator func \[](Int64)
 
@@ -1107,6 +2660,98 @@ Array: [10, 20, 30, 40, 50]
 Element at index 2: 30
 ```
 
+<!--Del-->
+### operator func \[](this @local!, Int64)
+
+```cangjie
+public operator func [](this @local!, index: Int64): T @local!
+```
+
+Function: Gets the value at the specified index of the current `@local!` array.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+- index: [Int64](core_package_intrinsics.md#int64) - The index of the element to get.
+
+Returns:
+
+- T @local! - The element at the index.
+
+Exceptions:
+
+- [IndexOutOfBoundsException](core_package_exceptions.md#class-indexoutofboundsexception) - Throws an exception if index is less than 0 or greater than or equal to the array length.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local! = [10, 20, 30]
+    let v: Int64 @local! = arr[1]
+    println("Element: ${v}")
+}
+```
+
+Output:
+
+```text
+Element: 20
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+### operator func \[](this @local?, Int64)
+
+```cangjie
+public exclave operator func [](this @local?, index: Int64): T @local?
+```
+
+Function: Gets the value at the specified index of the current `@local?` array.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local? - The receiver is an `@local?` instance.
+- index: [Int64](core_package_intrinsics.md#int64) - The index of the element to get.
+
+Returns:
+
+- T @local? - The element at the index.
+
+Exceptions:
+
+- [IndexOutOfBoundsException](core_package_exceptions.md#class-indexoutofboundsexception) - Throws an exception if index is less than 0 or greater than or equal to the array length.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local? = [10, 20, 30]
+    let v: Int64 @local? = arr[1]
+    println("Element: ${v}")
+}
+```
+
+Output:
+
+```text
+Element: 20
+```
+
+<!--DelEnd-->
+
 ### operator func \[](Int64, T)
 
 ```cangjie
@@ -1152,6 +2797,49 @@ Original array: [1, 2, 3, 4, 5]
 Array after setting index 2 to 100: [1, 2, 100, 4, 5]
 Array after setting index 0 to -1: [-1, 2, 100, 4, 5]
 ```
+
+<!--Del-->
+### operator func \[](this @local!, Int64, T)
+
+```cangjie
+public operator func [](this @local!, index: Int64, value!: T @local!): Unit
+```
+
+Function: Sets the element at the specified index of the current `@local!` array to value.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+- index: [Int64](core_package_intrinsics.md#int64) - The index of the element to set.
+- value!: T @local! - The element value to set.
+
+Exceptions:
+
+- [IndexOutOfBoundsException](core_package_exceptions.md#class-indexoutofboundsexception) - Throws an exception if index is less than 0 or greater than or equal to the array length.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local! = [1, 2, 3]
+    arr[1] = 20
+    println("After set: ${arr[1]}")
+}
+```
+
+Output:
+
+```text
+After set: 20
+```
+
+<!--DelEnd-->
 
 ### operator func \[](Range\<Int64>)
 
@@ -1199,6 +2887,108 @@ Execution Result:
 [1, 2, 10]
 ```
 
+<!--Del-->
+### operator func \[](this @local!, Range\<Int64>)
+
+```cangjie
+public exclave operator func [](this @local!, range: Range<Int64>): Array<T> @local!
+```
+
+Function: Gets a slice of the current `@local!` array according to the given range. The returned slice is bound to the same local region as the current array.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+> - If the parameter range is a [Range](core_package_structs.md#struct-ranget-where-t--countablet--comparablet--equatablet) instance constructed with the [Range](core_package_structs.md#struct-ranget-where-t--countablet--comparablet--equatablet) constructor, the behavior is as follows:
+>     - When hasStart is false, start is 0; otherwise start is the value passed to the constructor itself.
+>     - When hasEnd is false, end takes no effect regardless of the isClosed value passed at construction, and the array slice extends to the last element of the original array.
+> - The step of range can only be 1.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+- range: [Range](core_package_structs.md#struct-ranget-where-t--countablet--comparablet--equatablet)\<[Int64](core_package_intrinsics.md#int64)> - The range to slice. The range must not exceed the array range.
+
+Returns:
+
+- [Array](core_package_structs.md#struct-arrayt)\<T> @local! - The array slice.
+
+Exceptions:
+
+- [IndexOutOfBoundsException](core_package_exceptions.md#class-indexoutofboundsexception) - Throws an exception if the slice range exceeds the bounds of the original array.
+- [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - Throws an exception if the step of range is not 1.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local! = [0, 1, 2, 3, 4, 5]
+    let slice: Array<Int64> @local! = arr[1..4]
+    println("Slice size: ${slice.size}")
+}
+```
+
+Output:
+
+```text
+Slice size: 3
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+### operator func \[](this @local?, Range\<Int64>)
+
+```cangjie
+public exclave operator func [](this @local?, range: Range<Int64>): Array<T> @local?
+```
+
+Function: Gets a slice of the current `@local?` array according to the given range. The returned slice is bound to the same local region as the current array.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+> - If the parameter range is a [Range](core_package_structs.md#struct-ranget-where-t--countablet--comparablet--equatablet) instance constructed with the [Range](core_package_structs.md#struct-ranget-where-t--countablet--comparablet--equatablet) constructor, the behavior is as follows:
+>     - When hasStart is false, start is 0; otherwise start is the value passed to the constructor itself.
+>     - When hasEnd is false, end takes no effect regardless of the isClosed value passed at construction, and the array slice extends to the last element of the original array.
+> - The step of range can only be 1.
+
+Parameters:
+
+- this @local? - The receiver is an `@local?` instance.
+- range: [Range](core_package_structs.md#struct-ranget-where-t--countablet--comparablet--equatablet)\<[Int64](core_package_intrinsics.md#int64)> - The range to slice. The range must not exceed the array range.
+
+Returns:
+
+- [Array](core_package_structs.md#struct-arrayt)\<T> @local? - The array slice.
+
+Exceptions:
+
+- [IndexOutOfBoundsException](core_package_exceptions.md#class-indexoutofboundsexception) - Throws an exception if the slice range exceeds the bounds of the original array.
+- [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - Throws an exception if the step of range is not 1.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local? = [0, 1, 2, 3, 4, 5]
+    let slice: Array<Int64> @local? = arr[1..4]
+    println("Slice size: ${slice.size}")
+}
+```
+
+Output:
+
+```text
+Slice size: 3
+```
+
+<!--DelEnd-->
+
 ### operator func \[](Range\<Int64>, Array\<T>)
 
 ```cangjie
@@ -1243,6 +3033,51 @@ Execution Result:
 [0, 10, 11, 3, 4, 5]
 ```
 
+<!--Del-->
+### operator func \[](this @local!, Range\<Int64>, Array\<T> @local!)
+
+```cangjie
+public operator func [](this @local!, range: Range<Int64>, value!: Array<T> @local!): Unit
+```
+
+Function: Assigns the specified `@local!` array to a consecutive range of elements of the current `@local!` array.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+- range: [Range](core_package_structs.md#struct-ranget-where-t--countablet--comparablet--equatablet)\<[Int64](core_package_intrinsics.md#int64)> - The range to assign. The step of range is 1, and the size of the assignment range equals the size of value.
+- value!: [Array](core_package_structs.md#struct-arrayt)\<T> @local! - The `@local!` array used for assignment.
+
+Exceptions:
+
+- [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - Throws an exception if the step of range is not 1 or the length of range does not equal the length of value.
+- [IndexOutOfBoundsException](core_package_exceptions.md#class-indexoutofboundsexception) - Throws an exception if the array range represented by range is invalid.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local! = [0, 1, 2, 3, 4, 5]
+    let value: Array<Int64> @local! = [10, 11]
+    arr[1..3] = value
+    println("After set: ${arr[1]} ${arr[2]}")
+}
+```
+
+Output:
+
+```text
+After set: 10 11
+```
+
+<!--DelEnd-->
+
 ### extend\<T> Array\<T>
 
 ```cangjie
@@ -1271,7 +3106,6 @@ public func zip<R>(other: Array<R>): Array<(T, R)>
 
 Function: Merges two arrays into a new array (length determined by the shorter array).
 
-
 > **Note：**
 >
 > Unsupported platform：OpenHarmony
@@ -1282,7 +3116,8 @@ Parameters:
 
 Returns:
 
-- [Array](core_package_structs.md#struct-arrayt)\<(T, R)> - Returns a new array.### extend\<T> Array\<T> <: Collection\<T>
+- [Array](core_package_structs.md#struct-arrayt)\<(T, R)> - Returns a new array.
+### extend\<T> Array\<T> <: Collection\<T>
 
 ```cangjie
 extend<T> Array<T> <: Collection<T>
@@ -1339,6 +3174,40 @@ String array: [Hello, World, Cangjie, Language]
 Size of string array: 4
 ```
 
+<!--Del-->
+#### prop size @local?
+
+```cangjie
+public prop size: Int64 @local?
+```
+
+Function: Gets the number of elements in the current `@local?` array.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Type: [Int64](core_package_intrinsics.md#int64)
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local? = [1, 2, 3, 4, 5]
+    println("Size of local array: ${arr.size}")
+}
+```
+
+Output:
+
+```text
+Size of local array: 5
+```
+
+<!--DelEnd-->
+
 #### func isEmpty()
 
 ```cangjie
@@ -1385,6 +3254,49 @@ Is empty array empty? true
 String array: [Hello, World]
 Is string array empty? false
 ```
+
+<!--Del-->
+#### func isEmpty(this @local?)
+
+```cangjie
+public func isEmpty(this @local?): Bool
+```
+
+Function: Determines whether the current `@local?` array is empty. Returns true if the array is empty, otherwise returns false.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local? - The receiver is an `@local?` instance.
+
+Returns:
+
+- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - Returns true if the array is empty, otherwise returns false.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local? = [1, 2, 3]
+    let empty: Array<Int64> @local? = Array<Int64>() @local!
+    println("arr isEmpty=${arr.isEmpty()}")
+    println("empty isEmpty=${empty.isEmpty()}")
+}
+```
+
+Output:
+
+```text
+arr isEmpty=false
+empty isEmpty=true
+```
+
+<!--DelEnd-->
 
 #### func iterator()
 
@@ -1452,6 +3364,94 @@ Element: World
 Element: Cangjie
 ```
 
+<!--Del-->
+#### func iterator(this @local!)
+
+```cangjie
+public exclave func iterator(this @local!): Iterator<T> @local!
+```
+
+Function: Gets an iterator over the current `@local!` array. The returned iterator is bound to the same local region as the current array.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+
+Returns:
+
+- [Iterator](core_package_classes.md#class-iteratort)\<T> @local! - The iterator of the array.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local! = [1, 2, 3]
+    let it: Iterator<Int64> @local! = arr.iterator()
+    let first = it.next()
+    if (let Some(v) <- first) {
+        println("first=${v}")
+    }
+}
+```
+
+Output:
+
+```text
+first=1
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+#### func iterator(this @local?)
+
+```cangjie
+public exclave func iterator(this @local?): Iterator<T> @local?
+```
+
+Function: Gets an iterator over the current `@local?` array. The returned iterator is bound to the same local region as the current array.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local? - The receiver is an `@local?` instance.
+
+Returns:
+
+- [Iterator](core_package_classes.md#class-iteratort)\<T> @local? - The iterator of the array.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local? = [1, 2, 3]
+    let it: Iterator<Int64> @local? = arr.iterator()
+    let first = it.next()
+    if (let Some(v) <- first) {
+        println("first=${v}")
+    }
+}
+```
+
+Output:
+
+```text
+first=1
+```
+
+<!--DelEnd-->
+
 #### func toArray()
 
 ```cangjie
@@ -1514,6 +3514,88 @@ After modifying copied string array:
 Original string array: [Hello, World, Cangjie]
 Copied string array: [Hi, World, Cangjie]
 ```
+
+<!--Del-->
+#### func toArray(this @local!)
+
+```cangjie
+public exclave func toArray(this @local!): Array<T> @local!
+```
+
+Function: Converts the current `@local!` array to an `@local!` array instance bound to the same local region as the current array.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+
+Returns:
+
+- [Array](core_package_structs.md#struct-arrayt)\<T> @local! - The converted `@local!` array.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local! = [1, 2, 3]
+    let toArr: Array<Int64> @local! = arr.toArray()
+    println("toArray size: ${toArr.size}")
+}
+```
+
+Output:
+
+```text
+toArray size: 3
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+#### func toArray(this @local?)
+
+```cangjie
+public exclave func toArray(this @local?): Array<T> @local?
+```
+
+Function: Converts the current `@local?` array to an `@local?` array instance bound to the same local region as the current array.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local? - The receiver is an `@local?` instance.
+
+Returns:
+
+- [Array](core_package_structs.md#struct-arrayt)\<T> @local? - The converted `@local?` array.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local? = [1, 2, 3]
+    let toArr: Array<Int64> @local? = arr.toArray()
+    println("toArray size: ${toArr.size}")
+}
+```
+
+Output:
+
+```text
+toArray size: 3
+```
+
+<!--DelEnd-->
 
 ### extend\<T> Array\<T> <: Equatable\<Array\<T>> where T <: Equatable\<T>
 
@@ -1598,6 +3680,51 @@ Output:
 Some(1)
 ```
 
+<!--Del-->
+#### func indexOf(this @local?, Array\<T> @local?)
+
+```cangjie
+public func indexOf(this @local?, elements: Array<T> @local?): Option<Int64>
+```
+
+Function: Returns the index of the first occurrence of the subarray elements in the current `@local?` array. Returns None if it is not found.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local? - The receiver is an `@local?` instance.
+- elements: [Array](core_package_structs.md#struct-arrayt)\<T> @local? - The subarray to search for.
+
+Returns:
+
+- [Option](core_package_enums.md#enum-optiont)\<[Int64](core_package_intrinsics.md#int64)> - The position of the first occurrence of the subarray. Returns None if not found.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local? = [1, 2, 3]
+    let sub: Array<Int64> @local? = [2, 3]
+    let idx = arr.indexOf(sub)
+    if (let Some(v) <- idx) {
+        println("idx=${v}")
+    }
+}
+```
+
+Output:
+
+```text
+idx=1
+```
+
+<!--DelEnd-->
+
 #### func indexOf(Array\<T>, Int64)
 
 ```cangjie
@@ -1634,6 +3761,52 @@ Output:
 ```text
 Some(4)
 ```
+
+<!--Del-->
+#### func indexOf(this @local?, Array\<T> @local?, Int64)
+
+```cangjie
+public func indexOf(this @local?, elements: Array<T> @local?, fromIndex: Int64): Option<Int64>
+```
+
+Function: Returns the index of the first occurrence of the subarray elements in the current `@local?` array starting from position fromIndex. Returns None if it is not found.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local? - The receiver is an `@local?` instance.
+- elements: [Array](core_package_structs.md#struct-arrayt)\<T> @local? - The subarray to search for.
+- fromIndex: [Int64](core_package_intrinsics.md#int64) - The start position of the search.
+
+Returns:
+
+- [Option](core_package_enums.md#enum-optiont)\<[Int64](core_package_intrinsics.md#int64)> - The position of the first occurrence of the subarray. Returns None if not found.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local? = [1, 2, 3, 2]
+    let sub: Array<Int64> @local? = [2]
+    let idx = arr.indexOf(sub, 2)
+    if (let Some(v) <- idx) {
+        println("idx=${v}")
+    }
+}
+```
+
+Output:
+
+```text
+idx=3
+```
+
+<!--DelEnd-->
 
 #### func indexOf(T)
 
@@ -1689,6 +3862,52 @@ First occurrence of 6: None
 String array: [Hello, World, Hello, Cangjie]
 First occurrence of "Hello": Some(0)
 ```
+
+<!--Del-->
+#### func indexOf(this @local?, T @local?, Int64)
+
+```cangjie
+public func indexOf(this @local?, element: T @local?, fromIndex: Int64): Option<Int64>
+```
+
+Function: Returns the index of the first occurrence of the element element in the current `@local?` array starting from position fromIndex. Returns None if it is not found.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local? - The receiver is an `@local?` instance.
+- element: T @local? - The element to search for.
+- fromIndex: [Int64](core_package_intrinsics.md#int64) - The start position of the search.
+
+Returns:
+
+- [Option](core_package_enums.md#enum-optiont)\<[Int64](core_package_intrinsics.md#int64)> - The position of the first occurrence of the element. Returns None if not found.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local? = [1, 2, 3, 2]
+    let target: Int64 @local? = 2
+    let idx = arr.indexOf(target, 0)
+    if (let Some(v) <- idx) {
+        println("idx=${v}")
+    }
+}
+```
+
+Output:
+
+```text
+idx=1
+```
+
+<!--DelEnd-->
 
 #### func indexOf(T, Int64)
 
@@ -1813,6 +4032,51 @@ Last occurrence of [2, 3]: Some(6)
 Last occurrence of [5, 6]: None
 ```
 
+<!--Del-->
+#### func lastIndexOf(this @local?, Array\<T> @local?)
+
+```cangjie
+public func lastIndexOf(this @local?, elements: Array<T> @local?): Option<Int64>
+```
+
+Function: Returns the index of the last occurrence of the subarray elements in the current `@local?` array. Returns None if it is not found.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local? - The receiver is an `@local?` instance.
+- elements: [Array](core_package_structs.md#struct-arrayt)\<T> @local? - The subarray to search for.
+
+Returns:
+
+- [Option](core_package_enums.md#enum-optiont)\<[Int64](core_package_intrinsics.md#int64)> - The position of the last occurrence of the subarray. Returns None if not found.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local? = [1, 2, 3, 2]
+    let sub: Array<Int64> @local? = [2]
+    let idx = arr.lastIndexOf(sub)
+    if (let Some(v) <- idx) {
+        println("idx=${v}")
+    }
+}
+```
+
+Output:
+
+```text
+idx=3
+```
+
+<!--DelEnd-->
+
 #### func lastIndexOf(Array\<T>, Int64)
 
 ```cangjie
@@ -1861,6 +4125,52 @@ Sub-array: [2, 3]
 Last occurrence of [2, 3] starting from index 4: None
 Last occurrence of [2, 3] starting from index 2: Some(3)
 ```
+
+<!--Del-->
+#### func lastIndexOf(this @local?, Array\<T> @local?, Int64)
+
+```cangjie
+public func lastIndexOf(this @local?, elements: Array<T> @local?, fromIndex: Int64): Option<Int64>
+```
+
+Function: Searches the current `@local?` array backwards from the end for the subarray `elements`, only checking candidate positions with a start index not less than `fromIndex`. Returns the match with the largest start index, or None if not found. A negative `fromIndex` is treated as 0, and None is returned when `fromIndex` is greater than or equal to the array length.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local? - The receiver is an `@local?` instance.
+- elements: [Array](core_package_structs.md#struct-arrayt)\<T> @local? - The subarray to search for.
+- fromIndex: [Int64](core_package_intrinsics.md#int64) - The lower bound (inclusive) of candidate start indexes.
+
+Returns:
+
+- [Option](core_package_enums.md#enum-optiont)\<[Int64](core_package_intrinsics.md#int64)> - The position of the last occurrence of the subarray. Returns None if not found.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local? = [1, 2, 3, 2]
+    let sub: Array<Int64> @local? = [2]
+    let idx = arr.lastIndexOf(sub, 2)
+    if (let Some(v) <- idx) {
+        println("idx=${v}")
+    }
+}
+```
+
+Output:
+
+```text
+idx=3
+```
+
+<!--DelEnd-->
 
 #### func lastIndexOf(T)
 
@@ -1916,6 +4226,51 @@ Last occurrence of 6: None
 String array: [Hello, World, Hello, Cangjie, Hello]
 Last occurrence of "Hello": Some(4)
 ```
+
+<!--Del-->
+#### func lastIndexOf(this @local?, T @local?)
+
+```cangjie
+public func lastIndexOf(this @local?, element: T @local?): Option<Int64>
+```
+
+Function: Returns the index of the last occurrence of the element element in the current `@local?` array. Returns None if it is not found.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local? - The receiver is an `@local?` instance.
+- element: T @local? - The element to search for.
+
+Returns:
+
+- [Option](core_package_enums.md#enum-optiont)\<[Int64](core_package_intrinsics.md#int64)> - The position of the last occurrence of the element. Returns None if not found.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local? = [1, 2, 3, 2]
+    let target: Int64 @local? = 2
+    let idx = arr.lastIndexOf(target)
+    if (let Some(v) <- idx) {
+        println("idx=${v}")
+    }
+}
+```
+
+Output:
+
+```text
+idx=3
+```
+
+<!--DelEnd-->
 
 #### func lastIndexOf(T, Int64)
 
@@ -1974,6 +4329,52 @@ Last occurrence of 2 starting from index 3: Some(4)
 String array: [Hello, World, Hello, Cangjie, Hello]
 Last occurrence of "Hello" starting from index 2: Some(4)
 ```
+
+<!--Del-->
+#### func lastIndexOf(this @local?, T @local?, Int64)
+
+```cangjie
+public func lastIndexOf(this @local?, element: T @local?, fromIndex: Int64): Option<Int64>
+```
+
+Function: Searches the current `@local?` array backwards from the end for the element `element`, only checking positions with an index not less than `fromIndex`. Returns the largest matching index, or None if not found. A negative `fromIndex` is treated as 0, and None is returned when `fromIndex` is greater than or equal to the array length.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local? - The receiver is an `@local?` instance.
+- element: T @local? - The element to search for.
+- fromIndex: [Int64](core_package_intrinsics.md#int64) - The lower bound (inclusive) of the search index.
+
+Returns:
+
+- [Option](core_package_enums.md#enum-optiont)\<[Int64](core_package_intrinsics.md#int64)> - The position of the last occurrence of the element. Returns None if not found.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local? = [1, 2, 3, 2]
+    let target: Int64 @local? = 2
+    let idx = arr.lastIndexOf(target, 2)
+    if (let Some(v) <- idx) {
+        println("idx=${v}")
+    }
+}
+```
+
+Output:
+
+```text
+idx=3
+```
+
+<!--DelEnd-->
 
 #### func removePrefix(Array\<T>)
 
@@ -2362,6 +4763,316 @@ strArr1 == strArr2: true
 strArr1 == strArr3: false
 ```
 
+### extend\<T> Array\<T> where T <: Copyable
+
+```cangjie
+extend<T> Array<T> where T <: Copyable
+```
+
+Function: Extends the [Array](core_package_structs.md#struct-arrayt)\<T> type whose element type is Copyable, supporting element writing, in-place modification, and copying on `@local?` arrays.
+
+Since T is a Copyable type, reading and writing elements on an `@local?` receiver is safe and requires no `exclave` context.
+
+<!--Del-->
+#### operator func \[](this @local?, Int64, T)
+
+```cangjie
+public operator func [](this @local?, index: Int64, value!: T): Unit
+```
+
+Function: Sets the element at the specified index of the current `@local?` array to value.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local? - The receiver is an `@local?` instance.
+- index: [Int64](core_package_intrinsics.md#int64) - The index of the element to set.
+- value!: T - The element value to set.
+
+Exceptions:
+
+- [IndexOutOfBoundsException](core_package_exceptions.md#class-indexoutofboundsexception) - Throws an exception if index is less than 0 or greater than or equal to the array length.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local? = [1, 2, 3]
+    arr[1] = 20
+    println("After set: ${arr[1]}")
+}
+```
+
+Output:
+
+```text
+After set: 20
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+#### operator func \[](this @local?, Range\<Int64>, Array\<T> @local?)
+
+```cangjie
+public operator func [](this @local?, range: Range<Int64>, value!: Array<T> @local?): Unit
+```
+
+Function: Assigns the specified `@local?` array to a consecutive range of elements of the current `@local?` array.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local? - The receiver is an `@local?` instance.
+- range: [Range](core_package_structs.md#struct-ranget-where-t--countablet--comparablet--equatablet)\<[Int64](core_package_intrinsics.md#int64)> - The range to assign. The step of range is 1, and the size of the assignment range equals the size of value.
+- value!: [Array](core_package_structs.md#struct-arrayt)\<T> @local? - The `@local?` array used for assignment.
+
+Exceptions:
+
+- [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - Throws an exception if the step of range is not 1 or the length of range does not equal the length of value.
+- [IndexOutOfBoundsException](core_package_exceptions.md#class-indexoutofboundsexception) - Throws an exception if the array range represented by range is invalid.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local? = [0, 1, 2, 3]
+    let value: Array<Int64> @local! = [10, 11]
+    arr[1..3] = value
+    println("After set: ${arr[1]} ${arr[2]}")
+}
+```
+
+Output:
+
+```text
+After set: 10 11
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+#### func fill(this @local?, T)
+
+```cangjie
+public func fill(this @local?, value: T): Unit
+```
+
+Function: Replaces all elements in the current `@local?` array with the specified value.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local? - The receiver is an `@local?` instance.
+- value: T - The target value to set.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local? = [1, 2, 3]
+    arr.fill(0)
+    println("After fill: ${arr[0]} ${arr[1]} ${arr[2]}")
+}
+```
+
+Output:
+
+```text
+After fill: 0 0 0
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+#### func swap(this @local?, Int64, Int64)
+
+```cangjie
+public func swap(this @local?, index1: Int64, index2: Int64): Unit
+```
+
+Function: Swaps the elements at index1 and index2 in the current `@local?` array.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local? - The receiver is an `@local?` instance.
+- index1: [Int64](core_package_intrinsics.md#int64) - The first index of the elements to swap.
+- index2: [Int64](core_package_intrinsics.md#int64) - The second index of the elements to swap.
+
+Exceptions:
+
+- [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - index1 / index2 is less than 0 or greater than or equal to this.size.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local? = [1, 2, 3, 4, 5]
+    arr.swap(1, 3)
+    println("After swapping: ${arr[1]} ${arr[3]}")
+}
+```
+
+Output:
+
+```text
+After swapping: 4 2
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+#### func reverse(this @local?)
+
+```cangjie
+public func reverse(this @local?): Unit
+```
+
+Function: Reverses the elements in the current `@local?` array.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local? - The receiver is an `@local?` instance.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local? = [3, 1, 2]
+    arr.reverse()
+    println("After reverse: ${arr[0]} ${arr[2]}")
+}
+```
+
+Output:
+
+```text
+After reverse: 2 3
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+#### func copyTo(this @local?, Array\<T> @local?)
+
+```cangjie
+public func copyTo(this @local?, dst: Array<T> @local?): Unit
+```
+
+Function: Copies all elements of the current `@local?` array to the destination `@local?` array dst.
+
+The copy length is the length of the current array; writing starts at the beginning of the destination array, and the length of the current array must not be greater than that of the destination array.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local? - The receiver is an `@local?` instance.
+- dst: [Array](core_package_structs.md#struct-arrayt)\<T> @local? - The destination `@local?` array.
+
+Exceptions:
+
+- [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - The length of the current array is greater than the length of the destination array.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let src: Array<Int64> @local? = [1, 2, 3]
+    let dst: Array<Int64> @local? = [0, 0, 0]
+    src.copyTo(dst)
+    println("dst[2]=${dst[2]}")
+}
+```
+
+Output:
+
+```text
+dst[2]=3
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+#### func copyTo(this @local?, Array\<T> @local?, Int64, Int64, Int64)
+
+```cangjie
+public func copyTo(this @local?, dst: Array<T> @local?, srcStart: Int64, dstStart: Int64, copyLen: Int64): Unit
+```
+
+Function: Copies a segment of data from the current `@local?` array to the destination `@local?` array.
+
+When copyLen is 0, no copy is performed and the other parameters are not validated.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local? - The receiver is an `@local?` instance.
+- dst: [Array](core_package_structs.md#struct-arrayt)\<T> @local? - The destination `@local?` array.
+- srcStart: [Int64](core_package_intrinsics.md#int64) - Copying starts at index srcStart of this array, valid range is [0, this.size).
+- dstStart: [Int64](core_package_intrinsics.md#int64) - Writing starts at index dstStart of the destination array, valid range is [0, dst.size).
+- copyLen: [Int64](core_package_intrinsics.md#int64) - The number of elements to copy. Requires copyLen + srcStart <= this.size and copyLen + dstStart <= dst.size.
+
+Exceptions:
+
+- [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - Thrown when copyLen is less than 0.
+- [IndexOutOfBoundsException](core_package_exceptions.md#class-indexoutofboundsexception) - Thrown when the parameters do not satisfy the value ranges described above.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let src: Array<Int64> @local? = [1, 2, 3]
+    let dst: Array<Int64> @local? = [0, 0, 0, 0]
+    src.copyTo(dst, 0, 1, 3)
+    println("dst[3]=${dst[3]}")
+}
+```
+
+Output:
+
+```text
+dst[3]=3
+```
+
+<!--DelEnd-->
+
 ### extend\<T> Array\<T> where T <: ToString
 
 ```cangjie
@@ -2429,6 +5140,49 @@ toString() result: [Hello, World, Cangjie]
 2D array: [[1, 2], [3, 4], [5, 6]]
 toString() result: [[1, 2], [3, 4], [5, 6]]
 ```
+
+<!--Del-->
+#### func toString(this @local?)
+
+```cangjie
+public exclave func toString(this @local?): String @local!
+```
+
+Function: Converts the current `@local?` array to a printable string. The string is bound to the same local region as the current array.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+> - With the current compiler version, a `String @local!` result may trigger a runtime [StackOverflowError](core_package_exceptions.md#class-stackoverflowerror) defect when used in string interpolation and similar operations. It is recommended to pass the result only within local contexts and to call `String(...)` to convert it to a non-local string before output.
+
+Parameters:
+
+- this @local? - The receiver is an `@local?` instance.
+
+Returns:
+
+- [String](core_package_structs.md#struct-string) @local! - The converted string.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local? = [1, 2, 3]
+    let s: String @local! = arr.toString()
+    let heapS = String(s)
+    println(heapS)
+}
+```
+
+Output:
+
+```text
+[1, 2, 3]
+```
+
+<!--DelEnd-->
 
 ### extend\<T> Array\<Array\<T>>
 
@@ -5174,6 +7928,54 @@ Output:
 I like Cangjie
 ```
 
+<!--Del-->
+### static func mallocCString(String @local?)
+
+```cangjie
+public unsafe static func mallocCString(str: String @local?): CString
+```
+
+Function: Allocates a C-style string with the same character content as the `@local?` [String](core_package_structs.md#struct-string).
+
+The constructed C-style string ends with '\0'. If memory allocation fails, this function throws [IllegalMemoryException](core_package_exceptions.md#class-illegalmemoryexception) rather than returning a null pointer to indicate the failure.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- str: [String](core_package_structs.md#struct-string) @local? - The Cangjie string from which the C string is constructed.
+
+Returns:
+
+- [CString](core_package_intrinsics.md#cstring) - The newly constructed C-style string.
+
+Exceptions:
+
+- [IllegalMemoryException](core_package_exceptions.md#class-illegalmemoryexception) - Throws an exception when memory is insufficient.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local? = "I like Cangjie"
+    var str = unsafe { LibC.mallocCString(s) }
+    println(str)
+    unsafe { LibC.free(str) }
+}
+```
+
+Output:
+
+```text
+I like Cangjie
+```
+
+<!--DelEnd-->
+
 ### static func malloc\<T>(Int64) where T <: CType
 
 ```cangjie
@@ -5680,6 +8482,92 @@ Output:
 Range hash code: -198835925178762
 ```
 
+<!--Del-->
+#### func hashCode(this @local?)
+
+```cangjie
+public func hashCode(this @local?): Int64
+```
+
+Function: Gets the hash value of the current `@local?` range, which is the combined hash result of `start`, `end`, [step](#let-step), and `isClosed`.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local? - The receiver is an `@local?` instance.
+
+Returns:
+
+- [Int64](core_package_intrinsics.md#int64) - The hash value.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let r1: Range<Int64> @local? = Range<Int64>(1, 5, 1, true, false, false) @local?
+    let r2: Range<Int64> @local? = Range<Int64>(1, 5, 1, true, false, false) @local?
+    let h1 = r1.hashCode()
+    let h2 = r2.hashCode()
+    println("same=${h1 == h2}")
+}
+```
+
+Output:
+
+```text
+same=true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+#### func hashCode(this @local!)
+
+```cangjie
+public func hashCode(this @local!): Int64
+```
+
+Function: Gets the hash value of the current `@local!` range, which is the combined hash result of `start`, `end`, [step](#let-step), and `isClosed`.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+
+Returns:
+
+- [Int64](core_package_intrinsics.md#int64) - The hash value.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let r1: Range<Int64> @local! = Range<Int64>(1, 5, 1, true, false, false) @local!
+    let r2: Range<Int64> @local! = Range<Int64>(1, 5, 1, true, false, false) @local!
+    let h1 = r1.hashCode()
+    let h2 = r2.hashCode()
+    println("same=${h1 == h2}")
+}
+```
+
+Output:
+
+```text
+same=true
+```
+
+<!--DelEnd-->
+
 ## struct String
 
 ```cangjie
@@ -5770,6 +8658,41 @@ String: 'Hello, 世界'
 String size (bytes): 13
 Empty string size: 0
 ```
+
+<!--Del-->
+### prop size @local?
+
+```cangjie
+public prop size: Int64 @local?
+```
+
+Function: Gets the UTF-8 encoded byte length of the current `@local?` string.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Type: [Int64](core_package_intrinsics.md#int64)
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local? = "Hello"
+    let n: Int64 = s.size
+    println("Local string size: ${n}")
+}
+```
+
+Output:
+
+```text
+Local string size: 5
+```
+
+<!--DelEnd-->
 
 ### init()
 
@@ -5880,6 +8803,204 @@ String from Collection<Rune>: 'Hello 世界'
 String size: 12
 ```
 
+<!--Del-->
+### init(this @local!)（const 修饰）
+
+```cangjie
+public exclave const init(this @local!)
+```
+
+Function: Constructs an empty string in a local region.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local! = String() @local!
+    println("Empty local string size: ${s.size}")
+}
+```
+
+Output:
+
+```text
+Empty local string size: 0
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+### init(this @local!, Array\<Rune> @local?)
+
+```cangjie
+public exclave init(this @local!, value: Array<Rune> @local?)
+```
+
+Function: Constructs a `@local!` string in a local region from a rune array. The string content is all the runes in the array.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+- value: [Array](core_package_structs.md#struct-arrayt)\<Rune> @local? - The rune array from which the string is constructed.
+
+Exceptions:
+
+- [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - Throws an exception when attempting to construct a string whose length exceeds [the maximum value of UInt32](./core_package_intrinsics.md#uint32).
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let runes: Array<Rune> @local! = Array<Rune>(2, repeat: r'a') @local!
+    runes[1] = r'b'
+    let s: String @local! = String(runes)
+    println("Local string: '${String(s)}'")
+}
+```
+
+Output:
+
+```text
+Local string: 'ab'
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+### init(this @local!, Collection\<Rune> @local?)
+
+```cangjie
+public exclave init(this @local!, value: Collection<Rune> @local?)
+```
+
+Function: Constructs a `@local!` string in a local region from a rune collection. The string content is all the runes in the collection.
+
+> **Explanation:**
+>
+> This constructor takes a fast byte-copy path for the [Array](core_package_structs.md#struct-arrayt)\<Rune> type; for other Collection implementations, it copies rune by rune through interface iteration. With the current compiler version, non-Array collection implementations (such as an ArrayList in an `@local?` context) may throw [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) due to interface dispatch restrictions, so constructing from an [Array](core_package_structs.md#struct-arrayt)\<Rune> is recommended.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+- value: [Collection](core_package_interfaces.md#interface-collectiont)\<Rune> @local? - The rune collection from which the string is constructed.
+
+Exceptions:
+
+- [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - Throws an exception when attempting to construct a string whose length exceeds [the maximum value of UInt32](./core_package_intrinsics.md#uint32).
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let runes: Array<Rune> @local! = Array<Rune>(2, repeat: r'a') @local!
+    runes[1] = r'b'
+    let values: Collection<Rune> @local? = runes
+    let s: String @local! = String(values)
+    println("Local string from collection: '${String(s)}'")
+}
+```
+
+Output:
+
+```text
+Local string from collection: 'ab'
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+### init(this @local!, String @local?)
+
+```cangjie
+public exclave init(this @local!, value: String @local?)
+```
+
+Function: Constructs a `@local!` string in a local region from a `@local?` string, performing a deep-copy conversion of String across the heap and local boundary.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+- value: [String](core_package_structs.md#struct-string) @local? - The string from which the copy is constructed.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local! = "xyz"
+    let s2: String @local! = String(s)
+    println("Copied local string: '${String(s2)}'")
+}
+```
+
+Output:
+
+```text
+Copied local string: 'xyz'
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+### init(String @local?)
+
+```cangjie
+public init(value: String @local?)
+```
+
+Function: Constructs a non-local string from a `@local?` string, performing a deep-copy conversion of String across the local and heap boundary.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- value: [String](core_package_structs.md#struct-string) @local? - The string from which the copy is constructed.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local! = "abc"
+    let heapS: String = String(s)
+    println("Heap string: '${heapS}'")
+}
+```
+
+Output:
+
+```text
+Heap string: 'abc'
+```
+
+<!--DelEnd-->
+
 ### static func checkUtf8Encoding(Array\<UInt8>)
 
 ```cangjie
@@ -5939,6 +9060,105 @@ String from UTF-8 bytes: 'Hello 世界'
 String size: 12
 ```
 
+<!--Del-->
+### static func fromUtf8(Array\<UInt8> @local?)
+
+```cangjie
+public exclave static func fromUtf8(utf8Data: Array<UInt8> @local?): String @local!
+```
+
+Function: Constructs a `@local!` string from a `@local?` byte array, which must conform to UTF-8 encoding. This function is one of the boundary entries for conversion between local and non-local strings.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+> - This function always performs a copy and does not share data with the input array; the byte array is validated against UTF-8 encoding before conversion.
+
+Parameters:
+
+- utf8Data: [Array](core_package_structs.md#struct-arrayt)\<[UInt8](core_package_intrinsics.md#uint8)> @local? - The byte array to convert.
+
+Returns:
+
+- [String](core_package_structs.md#struct-string) @local! - The constructed `@local!` string.
+
+Exceptions:
+
+- [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - Throws an exception when the byte array does not conform to UTF-8 encoding, or when attempting to construct a string whose UTF-8 byte length exceeds [the maximum value of UInt32](./core_package_intrinsics.md#uint32).
+
+Example:
+
+<!-- verify -->
+```cangjie
+exclave func makeBytes(): Array<UInt8> @local? {
+    let arr: Array<UInt8> @local! = Array<UInt8>(2, repeat: 0) @local!
+    arr[0] = 104
+    arr[1] = 105
+    arr
+}
+
+main() {
+    let bytes: Array<UInt8> @local? = makeBytes()
+    let s: String @local! = String.fromUtf8(bytes)
+    println("s='${String(s)}'")
+}
+```
+
+Output:
+
+```text
+s='hi'
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+### static func fromUtf8(Array\<UInt8> @local!)
+
+```cangjie
+public exclave static func fromUtf8(utf8Data: Array<UInt8> @local!): String @local!
+```
+
+Function: Constructs a `@local!` string from an `@local!` byte array, which must conform to UTF-8 encoding. This function is one of the boundary entries for conversion between local and non-local strings.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+> - This function always performs a copy and does not share data with the input array; the byte array is validated against UTF-8 encoding before conversion.
+
+Parameters:
+
+- utf8Data: [Array](core_package_structs.md#struct-arrayt)\<[UInt8](core_package_intrinsics.md#uint8)> @local! - The byte array to convert.
+
+Returns:
+
+- [String](core_package_structs.md#struct-string) @local! - The constructed `@local!` string.
+
+Exceptions:
+
+- [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - Throws an exception when the byte array does not conform to UTF-8 encoding, or when attempting to construct a string whose UTF-8 byte length exceeds [the maximum value of UInt32](./core_package_intrinsics.md#uint32).
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let bytes: Array<UInt8> @local! = [104, 105]
+    let s: String @local! = String.fromUtf8(bytes)
+    println("s='${String(s)}'")
+}
+```
+
+Output:
+
+```text
+s='hi'
+```
+
+<!--DelEnd-->
+
 ### static func fromUtf8Unchecked(Array\<UInt8>)
 
 ```cangjie
@@ -5984,6 +9204,107 @@ String from UTF-8 bytes (unchecked): 'Hello 世界'
 String size: 12
 ```
 
+<!--Del-->
+### static func fromUtf8Unchecked(Array\<UInt8> @local?)
+
+```cangjie
+public exclave unsafe static func fromUtf8Unchecked(utf8Data: Array<UInt8> @local?): String @local!
+```
+
+Function: Constructs a `@local!` string from a `@local?` byte array. This function is one of the boundary entries for conversion between local and non-local strings.
+
+Compared with the [fromUtf8](core_package_structs.md#static-func-fromutf8arrayuint8) function, fromUtf8Unchecked does not check the byte array against UTF-8 rules, so the string it builds is not guaranteed to be valid and may even raise unexpected exceptions. Unless performance considerations in certain scenarios require it, prefer the safe fromUtf8 function.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- utf8Data: [Array](core_package_structs.md#struct-arrayt)\<[UInt8](core_package_intrinsics.md#uint8)> @local? - The byte array from which the string is constructed.
+
+Returns:
+
+- [String](core_package_structs.md#struct-string) @local! - The constructed `@local!` string.
+
+Exceptions:
+
+- [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - Throws an exception when attempting to construct a string whose length exceeds the maximum value of [UInt32](core_package_intrinsics.md#uint32).
+
+Example:
+
+<!-- verify -->
+```cangjie
+exclave func makeBytes(): Array<UInt8> @local? {
+    let arr: Array<UInt8> @local! = Array<UInt8>(2, repeat: 0) @local!
+    arr[0] = 104
+    arr[1] = 105
+    arr
+}
+
+main() {
+    let bytes: Array<UInt8> @local? = makeBytes()
+    let s: String @local! = unsafe { String.fromUtf8Unchecked(bytes) }
+    println("s='${String(s)}'")
+}
+```
+
+Output:
+
+```text
+s='hi'
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+### static func fromUtf8Unchecked(Array\<UInt8> @local!)
+
+```cangjie
+public exclave unsafe static func fromUtf8Unchecked(utf8Data: Array<UInt8> @local!): String @local!
+```
+
+Function: Constructs a `@local!` string from an `@local!` byte array. This function is one of the boundary entries for conversion between local and non-local strings.
+
+Compared with the [fromUtf8](core_package_structs.md#static-func-fromutf8arrayuint8) function, fromUtf8Unchecked does not check the byte array against UTF-8 rules, so the string it builds is not guaranteed to be valid and may even raise unexpected exceptions. Unless performance considerations in certain scenarios require it, prefer the safe fromUtf8 function.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- utf8Data: [Array](core_package_structs.md#struct-arrayt)\<[UInt8](core_package_intrinsics.md#uint8)> @local! - The byte array from which the string is constructed.
+
+Returns:
+
+- [String](core_package_structs.md#struct-string) @local! - The constructed `@local!` string.
+
+Exceptions:
+
+- [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - Throws an exception when attempting to construct a string whose length exceeds the maximum value of [UInt32](core_package_intrinsics.md#uint32).
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let bytes: Array<UInt8> @local! = [104, 105]
+    let s: String @local! = unsafe { String.fromUtf8Unchecked(bytes) }
+    println("s='${String(s)}'")
+}
+```
+
+Output:
+
+```text
+s='hi'
+```
+
+<!--DelEnd-->
+
 ### static func join(Array\<String>, String)
 
 ```cangjie
@@ -6022,6 +9343,52 @@ Output:
 I like Cangjie
 ```
 
+<!--Del-->
+### static func join(Array\<String> @local!, String @local?)
+
+```cangjie
+public exclave static func join(strArray: Array<String> @local!, delimiter!: String @local?): String @local!
+```
+
+Function: Joins all strings in the `@local!` string array separated by the specified delimiter and returns the resulting `@local!` string.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- strArray: [Array](core_package_structs.md#struct-arrayt)\<[String](core_package_structs.md#struct-string)> @local! - The `@local!` string array to join. Returns the empty string when the array is empty.
+- delimiter!: [String](core_package_structs.md#struct-string) @local? - The delimiter string used for joining.
+
+Returns:
+
+- [String](core_package_structs.md#struct-string) @local! - The new string after joining.
+
+Exceptions:
+
+- [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - Throws an exception when attempting to construct a string whose length exceeds the maximum value of [UInt32](core_package_intrinsics.md#uint32).
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<String> @local! = ["I", "like", "Cangjie"]
+    let s: String @local! = String.join(arr, delimiter: " ")
+    println("s=${String(s)}")
+}
+```
+
+Output:
+
+```text
+s=I like Cangjie
+```
+
+<!--DelEnd-->
+
 ### static func withRawData(Array\<UInt8>)
 
 ```cangjie
@@ -6054,6 +9421,51 @@ Returns:
 Exceptions:
 
 - [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - Thrown when attempting to construct a string whose length exceeds [the maximum value of UInt32](./core_package_intrinsics.md#uint32).
+
+<!--Del-->
+### static func withRawData(Array\<UInt8> @local!)
+
+```cangjie
+public exclave static unsafe func withRawData(rawData: Array<UInt8> @local!): String @local!
+```
+
+Function: Constructs a local string from a local UTF-8 byte array. The caller must guarantee that the byte sequence conforms to UTF-8 encoding and that the array is not modified after construction.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- rawData: Array\<UInt8> @local! - The UTF-8 byte array of the string.
+
+Returns:
+
+- String @local! - The constructed local string.
+
+Exceptions:
+
+- [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - Throws an exception when attempting to construct a string whose UTF-8 byte length exceeds [the maximum value of UInt32](./core_package_intrinsics.md#uint32).
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let bytes: Array<UInt8> @local! = [104, 105]
+    let s: String @local! = unsafe { String.withRawData(bytes) }
+    println("s='${String(s)}'")
+}
+```
+
+Output:
+
+```text
+s='hi'
+```
+
+<!--DelEnd-->
 
 ### func clone()
 
@@ -6091,6 +9503,47 @@ Original string: 'Hello, 世界'
 Cloned string: 'Hello, 世界'
 Are they equal? true
 ```
+
+<!--Del-->
+### func clone(this @local!)
+
+```cangjie
+public exclave func clone(this @local!): String @local!
+```
+
+Function: Returns a copy of the current `@local!` string. The copied string is bound to the same local region as the current string.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+
+Returns:
+
+- [String](core_package_structs.md#struct-string) @local! - The new `@local!` string obtained by copying.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local! = "hello"
+    let s2: String @local! = s.clone()
+    println("len=${s2.size}")
+}
+```
+
+Output:
+
+```text
+len=5
+```
+
+<!--DelEnd-->
 
 ### func compare(String)
 
@@ -6141,6 +9594,51 @@ Comparing 'banana' to 'apple': Ordering.GT
 Comparing 'apple' to 'apple': Ordering.EQ
 ```
 
+<!--Del-->
+### func compare(this @local?, String @local?)
+
+```cangjie
+public func compare(this @local?, str: String @local?): Ordering
+```
+
+Function: Compares the current `@local?` string with the `@local?` string specified by the parameter by size.
+
+Returns [Ordering](core_package_enums.md#enum-ordering).GT if the current string is greater than str, [Ordering](core_package_enums.md#enum-ordering).EQ if the current string equals str, and [Ordering](core_package_enums.md#enum-ordering).LT if the current string is less than str.
+
+String size order follows lexicographic order, compared based on Unicode code points.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local? - The receiver is an `@local?` instance.
+- str: [String](core_package_structs.md#struct-string) @local? - The other `@local?` string to compare with.
+
+Returns:
+
+- [Ordering](core_package_enums.md#enum-ordering) - Returns the comparison result.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local? = "abc"
+    println("cmp=${s.compare("abd")}")
+}
+```
+
+Output:
+
+```text
+cmp=Ordering.LT
+```
+
+<!--DelEnd-->
+
 ### func contains(String)
 
 ```cangjie
@@ -6188,6 +9686,51 @@ Contains '世界': true
 Contains 'World': false
 Contains empty string: true
 ```
+
+<!--Del-->
+### func contains(this @local?, String @local?)
+
+```cangjie
+public func contains(this @local?, str: String @local?): Bool
+```
+
+Function: Determines whether the current `@local?` string contains the specified string.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local? - The receiver is an `@local?` instance.
+- str: [String](core_package_structs.md#struct-string) @local? - The string to search for.
+
+Returns:
+
+- [Bool](core_package_intrinsics.md#bool) - Returns true if the specified string is contained in the current string, otherwise returns false. In particular, returns true when the length of the specified string is 0.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local? = "Hello, World"
+    println("c1=${s.contains("Hello")}")
+    println("c2=${s.contains("world")}")
+    println("c3=${s.contains("")}")
+}
+```
+
+Output:
+
+```text
+c1=true
+c2=false
+c3=true
+```
+
+<!--DelEnd-->
 
 ### func count(String)
 
@@ -6292,6 +9835,90 @@ Empty string ends with empty string: true
 String 1 ends with empty string: true
 ```
 
+<!--Del-->
+### func endsWith(this @local?, String @local?)
+
+```cangjie
+public func endsWith(this @local?, suffix: String @local?): Bool
+```
+
+Function: Determines whether the current `@local?` string ends with the `@local?` string specified by the parameter.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local? - The receiver is an `@local?` instance.
+- suffix: [String](core_package_structs.md#struct-string) @local? - The `@local?` string to check as the suffix.
+
+Returns:
+
+- [Bool](core_package_intrinsics.md#bool) - Returns true if the current string ends with suffix, otherwise returns false.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local? = "Hello"
+    let suffix: String @local? = "lo"
+    println("endsWith=${s.endsWith(suffix)}")
+}
+```
+
+Output:
+
+```text
+endsWith=true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+### func endsWith(this @local!, String @local?)
+
+```cangjie
+public exclave func endsWith(this @local!, suffix: String @local?): Bool
+```
+
+Function: Determines whether the current `@local!` string ends with the `@local?` string specified by the parameter.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+- suffix: [String](core_package_structs.md#struct-string) @local? - The `@local?` string to check as the suffix.
+
+Returns:
+
+- [Bool](core_package_intrinsics.md#bool) - Returns true if the current string ends with suffix, otherwise returns false.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local! = "Hello"
+    let suffix: String @local? = "lo"
+    println("endsWith=${s.endsWith(suffix)}")
+}
+```
+
+Output:
+
+```text
+endsWith=true
+```
+
+<!--DelEnd-->
+
 ### func equalsIgnoreAsciiCase(String): Bool
 
 ```cangjie
@@ -6361,6 +9988,48 @@ Equals ignore case (str6, str7): true
 Equals ignore case (str1, str4): false
 ```
 
+<!--Del-->
+### func equalsIgnoreAsciiCase(this @local?, String @local?)
+
+```cangjie
+public func equalsIgnoreAsciiCase(this @local?, other: String @local?): Bool
+```
+
+Function: Determines whether the current `@local?` string is equal to the `@local?` string specified by the parameter, ignoring ASCII case differences.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local? - The receiver is an `@local?` instance.
+- other: [String](core_package_structs.md#struct-string) @local? - The other `@local?` string to compare with.
+
+Returns:
+
+- [Bool](core_package_intrinsics.md#bool) - Returns true if they are equal ignoring ASCII case, otherwise returns false.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local? = "Hello"
+    let other: String @local? = "HELLO"
+    println("ignoreCaseEq=${s.equalsIgnoreAsciiCase(other)}")
+}
+```
+
+Output:
+
+```text
+ignoreCaseEq=true
+```
+
+<!--DelEnd-->
+
 ### func get(Int64)
 
 ```cangjie
@@ -6406,6 +10075,51 @@ Byte at index 7: Some(228)
 Byte at index 100: None
 ```
 
+<!--Del-->
+### func get(this @local?, Int64)
+
+```cangjie
+public func get(this @local?, index: Int64): Option<Byte>
+```
+
+Function: Gets the UTF-8 encoded byte at the specified index in the current `@local?` string.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local? - The receiver is an `@local?` instance.
+- index: [Int64](core_package_intrinsics.md#int64) - The index of the UTF-8 encoded byte to get.
+
+Returns:
+
+- [Option](core_package_enums.md#enum-optiont)\<[Byte](core_package_types.md#type-byte)> - The UTF-8 encoded byte at the index wrapped in [Option](core_package_enums.md#enum-optiont). Returns None if index is out of bounds.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local? = "abc"
+    let b = s.get(0)
+    match (b) {
+        case Some(v) => println("b=${v}")
+        case None => println("none")
+    }
+}
+```
+
+Output:
+
+```text
+b=97
+```
+
+<!--DelEnd-->
+
 ### func hashCode()
 
 ```cangjie
@@ -6437,6 +10151,82 @@ Output:
 ```text
 hashCode: -255291815105879447
 ```
+
+<!--Del-->
+### func hashCode(this @local?)
+
+```cangjie
+public func hashCode(this @local?): Int64
+```
+
+Function: Computes the hash value of the current `@local?` string.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Returns:
+
+- [Int64](core_package_intrinsics.md#int64) - The hash value.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local? = "Hello"
+    let h = s.hashCode()
+    let h2 = "Hello".hashCode()
+    println("equal hash: ${h == h2}")
+}
+```
+
+Output:
+
+```text
+equal hash: true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+### func hashCode(this @local!)
+
+```cangjie
+public exclave func hashCode(this @local!): Int64
+```
+
+Function: Computes the hash value of the current `@local!` string.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Returns:
+
+- [Int64](core_package_intrinsics.md#int64) - The hash value.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local! = "Hello"
+    let h = s.hashCode()
+    let h2 = "Hello".hashCode()
+    println("equal hash: ${h == h2}")
+}
+```
+
+Output:
+
+```text
+equal hash: true
+```
+
+<!--DelEnd-->
 
 ### func indexOf(Byte)
 
@@ -6636,6 +10426,96 @@ Index of 'llo' from index 5: Some(9)
 Index of 'World' from index 0: None
 ```
 
+<!--Del-->
+### func indexOf(this @local?, Byte)
+
+```cangjie
+public func indexOf(this @local?, b: Byte): Option<Int64>
+```
+
+Function: Gets the index of the first occurrence of the specified byte b in the current `@local?` string.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local? - The receiver is an `@local?` instance.
+- b: [Byte](core_package_types.md#type-byte) - The byte to search for.
+
+Returns:
+
+- [Option](core_package_enums.md#enum-optiont)\<[Int64](core_package_intrinsics.md#int64)> - Returns the index of the first occurrence if the current string contains the specified byte; returns [Option](core_package_enums.md#enum-optiont)\<[Int64](core_package_intrinsics.md#int64)>.None if the current string does not contain this byte.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local? = "Hello"
+    let index1 = s.indexOf(108u8) // The ASCII value of 'l' is 108.
+    let index2 = s.indexOf(122u8) // The ASCII value of 'z' is 122.
+    println("Index of 'l': ${index1}")
+    println("Index of 'z': ${index2}")
+}
+```
+
+Output:
+
+```text
+Index of 'l': Some(2)
+Index of 'z': None
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+### func indexOf(this @local?, String @local?)
+
+```cangjie
+public func indexOf(this @local?, str: String @local?): Option<Int64>
+```
+
+Function: Gets the start index of the first occurrence of the specified string str in the current `@local?` string.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local? - The receiver is an `@local?` instance.
+- str: [String](core_package_structs.md#struct-string) @local? - The string to search for.
+
+Returns:
+
+- [Option](core_package_enums.md#enum-optiont)\<[Int64](core_package_intrinsics.md#int64)> - Returns the start index of the first occurrence if the current string contains str; otherwise returns None. In particular, returns Some(0) when str is the empty string.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local? = "Hello, Hello"
+    let index1 = s.indexOf("Hello")
+    let index2 = s.indexOf("World")
+    println("Index of 'Hello': ${index1}")
+    println("Index of 'World': ${index2}")
+}
+```
+
+Output:
+
+```text
+Index of 'Hello': Some(0)
+Index of 'World': None
+```
+
+<!--DelEnd-->
+
 ### func isAscii()
 
 ```cangjie
@@ -6680,6 +10560,49 @@ String 2: 'Hello, 世界', is ASCII: false
 String 3: '', is ASCII: true
 String 4: '123456', is ASCII: true
 ```
+
+<!--Del-->
+### func isAscii(this @local?)
+
+```cangjie
+public func isAscii(this @local?): Bool
+```
+
+Function: Determines whether the current `@local?` string is an ASCII string. Returns true if the string is empty or contains no non-ASCII characters.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local? - The receiver is an `@local?` instance.
+
+Returns:
+
+- [Bool](core_package_intrinsics.md#bool) - Returns true if so, otherwise returns false.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let s1: String @local? = "Hello"
+    let s2: String @local? = "Hello, 世界"
+    println("s1 isAscii=${s1.isAscii()}")
+    println("s2 isAscii=${s2.isAscii()}")
+}
+```
+
+Output:
+
+```text
+s1 isAscii=true
+s2 isAscii=false
+```
+
+<!--DelEnd-->
 
 ### func isAsciiBlank()
 
@@ -6734,6 +10657,49 @@ String 5: '
  ', is ASCII blank: true
 ```
 
+<!--Del-->
+### func isAsciiBlank(this @local?)
+
+```cangjie
+public func isAsciiBlank(this @local?): Bool
+```
+
+Function: Determines whether the current `@local?` string is empty or all runes in the string are ASCII whitespace characters (including 0x09, 0x0A, 0x0B, 0x0C, 0x0D, and 0x20).
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local? - The receiver is an `@local?` instance.
+
+Returns:
+
+- [Bool](core_package_intrinsics.md#bool) - Returns true if so, otherwise returns false.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let s1: String @local? = "   "
+    let s2: String @local? = "Hello"
+    println("s1 isAsciiBlank=${s1.isAsciiBlank()}")
+    println("s2 isAsciiBlank=${s2.isAsciiBlank()}")
+}
+```
+
+Output:
+
+```text
+s1 isAsciiBlank=true
+s2 isAsciiBlank=false
+```
+
+<!--DelEnd-->
+
 ### func isEmpty()
 
 ```cangjie
@@ -6775,6 +10741,49 @@ String 2: 'Hello', is empty: false
 String 3: ' ', is empty: false
 ```
 
+<!--Del-->
+### func isEmpty(this @local?)
+
+```cangjie
+public func isEmpty(this @local?): Bool
+```
+
+Function: Determines whether the current `@local?` string is the empty string.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local? - The receiver is an `@local?` instance.
+
+Returns:
+
+- [Bool](core_package_intrinsics.md#bool) - Returns true if the string is empty, otherwise returns false.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local? = ""
+    println("isEmpty=${s.isEmpty()}")
+    let s2: String @local? = "a"
+    println("isEmpty2=${s2.isEmpty()}")
+}
+```
+
+Output:
+
+```text
+isEmpty=true
+isEmpty2=false
+```
+
+<!--DelEnd-->
+
 ### func iterator()
 
 ```cangjie
@@ -6808,6 +10817,94 @@ Output:
 98
 99
 ```
+
+<!--Del-->
+### func iterator(this @local!)
+
+```cangjie
+public exclave func iterator(this @local!): Iterator<Byte> @local!
+```
+
+Function: Gets an iterator over the UTF-8 encoded bytes of the current `@local!` string. The iterator is bound to the same local region as the current string.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+
+Returns:
+
+- [Iterator](core_package_classes.md#class-iteratort)\<[Byte](core_package_types.md#type-byte)> @local! - The UTF-8 encoded byte iterator of the string.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local! = "Hello"
+    let it: Iterator<Byte> @local! = s.iterator()
+    let first = it.next()
+    if (let Some(v) <- first) {
+        println("first=${v}")
+    }
+}
+```
+
+Output:
+
+```text
+first=72
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+### func iterator(this @local?)
+
+```cangjie
+public exclave func iterator(this @local?): Iterator<Byte> @local?
+```
+
+Function: Gets an iterator over the UTF-8 encoded bytes of the current `@local?` string. The iterator is bound to the same local region as the current string.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local? - The receiver is an `@local?` instance.
+
+Returns:
+
+- [Iterator](core_package_classes.md#class-iteratort)\<[Byte](core_package_types.md#type-byte)> @local? - The UTF-8 encoded byte iterator of the string.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local? = "Hello"
+    let it: Iterator<Byte> @local? = s.iterator()
+    let first = it.next()
+    if (let Some(v) <- first) {
+        println("first=${v}")
+    }
+}
+```
+
+Output:
+
+```text
+first=72
+```
+
+<!--DelEnd-->
 
 ### func lastIndexOf(Byte)
 
@@ -7134,6 +11231,96 @@ like
 Cangjie
 ```
 
+<!--Del-->
+### func lines(this @local!)
+
+```cangjie
+public exclave func lines(this @local!): Iterator<String> @local!
+```
+
+Function: Returns a line iterator over the current `@local!` string. The iterator yields lines separated by `\n`, `\r\n`, or a standalone `\r` (excluding the line separator). The iterator and the produced lines are bound to the same local region as the current string.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+
+Returns:
+
+- [Iterator](core_package_classes.md#class-iteratort)\<[String](core_package_structs.md#struct-string)> @local! - The line iterator.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local! = "a\nb"
+    let lines = s.lines()
+    let first = lines.next()
+    if (let Some(v) <- first) {
+        let heapLine = String(v)
+        println("line=${heapLine}")
+    }
+}
+```
+
+Output:
+
+```text
+line=a
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+### func lines(this @local?)
+
+```cangjie
+public exclave func lines(this @local?): Iterator<String> @local?
+```
+
+Function: Returns a line iterator over the current `@local?` string. The iterator yields lines separated by `\n`, `\r\n`, or a standalone `\r` (excluding the line separator). The iterator and the produced lines are bound to the same local region as the current string.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local? - The receiver is an `@local?` instance.
+
+Returns:
+
+- [Iterator](core_package_classes.md#class-iteratort)\<[String](core_package_structs.md#struct-string)> @local? - The line iterator.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local? = "a\nb"
+    let lines = s.lines()
+    let first = lines.next()
+    if (let Some(v) <- first) {
+        let heapLine = String(v)
+        println("line=${heapLine}")
+    }
+}
+```
+
+Output:
+
+```text
+line=a
+```
+
+<!--DelEnd-->
+
 ### func padEnd(Int64, String)
 
 ```cangjie
@@ -7189,6 +11376,60 @@ Padded string 2: 'World     '
 String padded to smaller width: 'Hello'
 ```
 
+<!--Del-->
+### func padEnd(this @local!, Int64, String)
+
+```cangjie
+public exclave func padEnd(this @local!, totalWidth: Int64, padding!: String @local? = " "): String @local!
+```
+
+Function: Left-aligns the current `@local!` string to the specified byte length, padding its right side with padding.
+
+First checks whether totalWidth is negative; a negative value throws an exception. After the check passes, if totalWidth is 0 or strictly less than the byte length of the current string, the current string is returned directly without checking padding.
+
+Padding reuses the complete padding repeatedly, so the byte length of the result may be greater than totalWidth.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+- totalWidth: [Int64](core_package_intrinsics.md#int64) - The target byte length of the padded string, valid range is [0, [UInt32](core_package_intrinsics.md#uint32).Max].
+- padding!: [String](core_package_structs.md#struct-string) @local? - The padding string, with a default value of `" "`.
+
+Returns:
+
+- [String](core_package_structs.md#struct-string) @local! - The padded `@local!` string.
+
+Exceptions:
+
+- [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - Throws an exception in any of the following cases:
+    - totalWidth is less than 0.
+    - No early return occurred and padding is the empty string.
+    - totalWidth or the actual padded byte length exceeds [UInt32](core_package_intrinsics.md#uint32).Max.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local! = "7"
+    let padded: String @local! = s.padEnd(3, padding: "0")
+    println("padded=${String(padded)}")
+}
+```
+
+Output:
+
+```text
+padded=700
+```
+
+<!--DelEnd-->
+
 ### func padStart(Int64, String)
 
 ```cangjie
@@ -7243,6 +11484,60 @@ Original string 2: 'World'
 Padded string 2: '     World'
 String padded to smaller width: 'Hello'
 ```
+
+<!--Del-->
+### func padStart(this @local!, Int64, String)
+
+```cangjie
+public exclave func padStart(this @local!, totalWidth: Int64, padding!: String @local? = " "): String @local!
+```
+
+Function: Right-aligns the current `@local!` string to the specified byte length, padding its left side with padding.
+
+First checks whether totalWidth is negative; a negative value throws an exception. After the check passes, if totalWidth is 0 or strictly less than the byte length of the current string, the current string is returned directly without checking padding.
+
+Padding reuses the complete padding repeatedly, so the byte length of the result may be greater than totalWidth.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+- totalWidth: [Int64](core_package_intrinsics.md#int64) - The target byte length of the padded string, valid range is [0, [UInt32](core_package_intrinsics.md#uint32).Max].
+- padding!: [String](core_package_structs.md#struct-string) @local? - The padding string, with a default value of `" "`.
+
+Returns:
+
+- [String](core_package_structs.md#struct-string) @local! - The padded `@local!` string.
+
+Exceptions:
+
+- [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - Throws an exception in any of the following cases:
+    - totalWidth is less than 0.
+    - No early return occurred and padding is the empty string.
+    - totalWidth or the actual padded byte length exceeds [UInt32](core_package_intrinsics.md#uint32).Max.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local! = "Hi"
+    let padded: String @local! = s.padStart(4, padding: "-")
+    println("padded=${String(padded)}")
+}
+```
+
+Output:
+
+```text
+padded=--Hi
+```
+
+<!--DelEnd-->
 
 ### func rawData()
 
@@ -7301,6 +11596,90 @@ Raw data bytes:
   Index 12: 140
 ```
 
+<!--Del-->
+### func rawData(this @local!)
+
+```cangjie
+public exclave unsafe func rawData(this @local!): Array<Byte> @local!
+```
+
+Function: Gets the raw UTF-8 encoded byte array of the current `@local!` string. The returned array is bound to the same local region as the current string.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+> - Users must not modify the obtained array, as this would break the immutability of the string.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+
+Returns:
+
+- [Array](core_package_structs.md#struct-arrayt)\<[Byte](core_package_types.md#type-byte)> @local! - The raw byte array corresponding to the current string.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local! = "hi"
+    let bytes: Array<Byte> @local! = unsafe { s.rawData() }
+    println("size=${bytes.size} first=${bytes[0]}")
+}
+```
+
+Output:
+
+```text
+size=2 first=104
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+### func rawData(this @local?)
+
+```cangjie
+public exclave unsafe func rawData(this @local?): Array<Byte> @local?
+```
+
+Function: Gets the raw UTF-8 encoded byte array of the current `@local?` string. The returned array is bound to the same local region as the current string.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+> - Users must not modify the obtained array, as this would break the immutability of the string.
+
+Parameters:
+
+- this @local? - The receiver is an `@local?` instance.
+
+Returns:
+
+- [Array](core_package_structs.md#struct-arrayt)\<[Byte](core_package_types.md#type-byte)> @local? - The raw byte array corresponding to the current string.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local? = "hi"
+    let bytes: Array<Byte> @local? = unsafe { s.rawData() }
+    println("size=${bytes.size} first=${bytes[0]}")
+}
+```
+
+Output:
+
+```text
+size=2 first=104
+```
+
+<!--DelEnd-->
+
 ### func removePrefix(String)
 
 ```cangjie
@@ -7357,6 +11736,50 @@ Original string 1: 'Hello, World'
 After removing 'World': 'Hello, World'
 ```
 
+<!--Del-->
+### func removePrefix(this @local!, String @local?)
+
+```cangjie
+public exclave func removePrefix(this @local!, prefix: String @local?): String @local!
+```
+
+Function: Removes the prefix from the current `@local!` string.
+
+If the beginning of the current string exactly matches prefix, the prefix is removed. The return value is the `@local!` slice of the current string after the prefix is removed.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+- prefix: [String](core_package_structs.md#struct-string) @local? - The prefix to remove.
+
+Returns:
+
+- [String](core_package_structs.md#struct-string) @local! - The `@local!` string slice obtained after removing the prefix.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local! = "a,b"
+    let removed: String @local! = s.removePrefix("a,")
+    println("removed=${String(removed)}")
+}
+```
+
+Output:
+
+```text
+removed=b
+```
+
+<!--DelEnd-->
+
 ### func removeSuffix(String)
 
 ```cangjie
@@ -7412,6 +11835,50 @@ After removing 'World': ''
 Original string 1: 'Hello, World'
 After removing 'Hello': 'Hello, World'
 ```
+
+<!--Del-->
+### func removeSuffix(this @local!, String @local?)
+
+```cangjie
+public exclave func removeSuffix(this @local!, suffix: String @local?): String @local!
+```
+
+Function: Removes the suffix from the current `@local!` string.
+
+If the end of the current string exactly matches suffix, the suffix is removed. The return value is the `@local!` slice of the current string after the suffix is removed.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+- suffix: [String](core_package_structs.md#struct-string) @local? - The suffix to remove.
+
+Returns:
+
+- [String](core_package_structs.md#struct-string) @local! - The `@local!` string slice obtained after removing the suffix.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local! = "a,b"
+    let removed: String @local! = s.removeSuffix(",b")
+    println("removed=${String(removed)}")
+}
+```
+
+Output:
+
+```text
+removed=a
+```
+
+<!--DelEnd-->
 
 ### func replace(String, String)
 
@@ -7474,6 +11941,54 @@ Original string 1: 'Hello, World'
 After replacing 'Hello' with empty string: ', World'
 ```
 
+<!--Del-->
+### func replace(this @local!, String @local?, String @local?)
+
+```cangjie
+public exclave func replace(this @local!, old: String @local?, new: String @local?): String @local!
+```
+
+Function: Replaces the old string old in the current `@local!` string with the new string new and returns the resulting `@local!` string.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+- old: [String](core_package_structs.md#struct-string) @local? - The old string.
+- new: [String](core_package_structs.md#struct-string) @local? - The new string.
+
+Returns:
+
+- [String](core_package_structs.md#struct-string) @local! - The new string after replacement.
+
+Exceptions:
+
+- [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - Thrown when the UTF-8 byte length of the replacement result exceeds the maximum value of [UInt32](core_package_intrinsics.md#uint32).
+- [OutOfMemoryError](core_package_exceptions.md#class-outofmemoryerror) - Throws an exception when this function fails to allocate memory.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local! = "Hello, World"
+    let replaced: String @local! = s.replace("World", "Cangjie")
+    println("replaced=${String(replaced)}")
+}
+```
+
+Output:
+
+```text
+replaced=Hello, Cangjie
+```
+
+<!--DelEnd-->
+
 ### func runes()
 
 ```cangjie
@@ -7532,6 +12047,94 @@ Runes:
   Index 7: 世
   Index 8: 界
 ```
+
+<!--Del-->
+#### func runes(this @local!)
+
+```cangjie
+public exclave func runes(this @local!): Iterator<Rune> @local!
+```
+
+Function: Gets an iterator over the Unicode code points of the current `@local!` string. The iterator is bound to the same local region as the current string.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+
+Returns:
+
+- [Iterator](core_package_classes.md#class-iteratort)\<Rune> @local! - The Unicode code point iterator of the string.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local! = "ab"
+    let it: Iterator<Rune> @local! = s.runes()
+    let first = it.next()
+    if (let Some(v) <- first) {
+        println("r=${v}")
+    }
+}
+```
+
+Output:
+
+```text
+r=a
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+#### func runes(this @local?)
+
+```cangjie
+public exclave func runes(this @local?): Iterator<Rune> @local?
+```
+
+Function: Gets an iterator over the Unicode code points of the current `@local?` string. The iterator is bound to the same local region as the current string.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local? - The receiver is an `@local?` instance.
+
+Returns:
+
+- [Iterator](core_package_classes.md#class-iteratort)\<Rune> @local? - The Unicode code point iterator of the string.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local? = "ab"
+    let it: Iterator<Rune> @local? = s.runes()
+    let first = it.next()
+    if (let Some(v) <- first) {
+        println("r=${v}")
+    }
+}
+```
+
+Output:
+
+```text
+r=a
+```
+
+<!--DelEnd-->
 
 ### func split(String, Bool)
 
@@ -7667,6 +12270,110 @@ Split with maxSplits = -1:
   Element 4: 'five'
 ```
 
+<!--Del-->
+#### func split(this @local!, String @local?, removeEmpty!)
+
+```cangjie
+public exclave func split(this @local!, str: String @local?, removeEmpty!: Bool = false): Array<String> @local!
+```
+
+Function: Splits the current `@local!` string by the delimiter string str and returns a `@local!` array containing the split result.
+
+When removeEmpty is true, the split result does not contain empty strings; when removeEmpty is false, the split result contains empty strings.
+
+> **Explanation:**
+>
+> The split operation is implemented with a two-pass scan (count first, then fill) to avoid intermediate array copies.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+- str: [String](core_package_structs.md#struct-string) @local? - The delimiter.
+- removeEmpty!: [Bool](core_package_intrinsics.md#bool) - Whether to remove empty strings from the split result. The default value is false.
+
+Returns:
+
+- [Array](core_package_structs.md#struct-arrayt)\<[String](core_package_structs.md#struct-string)> @local! - The `@local!` string array obtained by splitting.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local! = "a,b,c"
+    let parts: Array<String> @local! = s.split(",")
+    println("n=${parts.size} last=${String(parts[2])}")
+}
+```
+
+Output:
+
+```text
+n=3 last=c
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+#### func split(this @local!, String @local?, Int64, removeEmpty!)
+
+```cangjie
+public exclave func split(this @local!, str: String @local?, maxSplits: Int64, removeEmpty!: Bool = false): Array<String> @local!
+```
+
+Function: Splits the current `@local!` string by the delimiter string str into at most maxSplits substrings and returns a `@local!` array containing the split result.
+
+When removeEmpty is true, the split result does not contain empty strings; when removeEmpty is false, the split result contains empty strings.
+
+> **Explanation:**
+>
+> - When the current string is empty or maxSplits is 0, an empty string array is returned.
+> - When maxSplits is 1 and the current string is non-empty, an array containing only the current string is returned.
+> - When maxSplits is negative, the fully split string array is returned.
+> - When maxSplits is greater than the number of substrings produced by a full split, the fully split string array is returned.
+> - When the delimiter does not occur in the current string, a string array of length 1 is returned, whose only element is the current string.
+> - When the delimiter is empty, the string is split by rune; if maxSplits limits the number of results, the last substring contains the remaining characters.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+- str: [String](core_package_structs.md#struct-string) @local? - The delimiter.
+- maxSplits: [Int64](core_package_intrinsics.md#int64) - Splits into at most maxSplits substrings.
+- removeEmpty!: [Bool](core_package_intrinsics.md#bool) - Whether to remove empty strings from the split result. The default value is false.
+
+Returns:
+
+- [Array](core_package_structs.md#struct-arrayt)\<[String](core_package_structs.md#struct-string)> @local! - The `@local!` string array obtained by splitting.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local! = "one,two,three,four"
+    let parts: Array<String> @local! = s.split(",", 3)
+    println("n=${parts.size} last=${String(parts[2])}")
+}
+```
+
+Output:
+
+```text
+n=3 last=three,four
+```
+
+<!--DelEnd-->
+
 ### func startsWith(String)
 
 ```cangjie
@@ -7725,6 +12432,90 @@ Empty string starts with empty string: true
 String 1 starts with empty string: true
 ```
 
+<!--Del-->
+### func startsWith(this @local?, String @local?)
+
+```cangjie
+public func startsWith(this @local?, prefix: String @local?): Bool
+```
+
+Function: Determines whether the current `@local?` string starts with the `@local?` string specified by the parameter.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local? - The receiver is an `@local?` instance.
+- prefix: [String](core_package_structs.md#struct-string) @local? - The `@local?` string to check as the prefix.
+
+Returns:
+
+- [Bool](core_package_intrinsics.md#bool) - Returns true if the current string starts with prefix, otherwise returns false.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local? = "Hello"
+    let prefix: String @local? = "He"
+    println("startsWith=${s.startsWith(prefix)}")
+}
+```
+
+Output:
+
+```text
+startsWith=true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+### func startsWith(this @local!, String @local?)
+
+```cangjie
+public exclave func startsWith(this @local!, prefix: String @local?): Bool
+```
+
+Function: Determines whether the current `@local!` string starts with the `@local?` string specified by the parameter.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+- prefix: [String](core_package_structs.md#struct-string) @local? - The `@local?` string to check as the prefix.
+
+Returns:
+
+- [Bool](core_package_intrinsics.md#bool) - Returns true if the current string starts with prefix, otherwise returns false.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local! = "Hello"
+    let prefix: String @local? = "He"
+    println("startsWith=${s.startsWith(prefix)}")
+}
+```
+
+Output:
+
+```text
+startsWith=true
+```
+
+<!--DelEnd-->
+
 ### func toArray()
 
 ```cangjie
@@ -7774,6 +12565,88 @@ Byte array elements:
   Index 11: 149
   Index 12: 140
 ```
+
+<!--Del-->
+### func toArray(this @local!)
+
+```cangjie
+public exclave func toArray(this @local!): Array<Byte> @local!
+```
+
+Function: Gets a copy of the UTF-8 encoded byte array of the current `@local!` string. The array is bound to the same local region as the current string.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+
+Returns:
+
+- [Array](core_package_structs.md#struct-arrayt)\<[Byte](core_package_types.md#type-byte)> @local! - The copy of the UTF-8 encoded byte array of the string.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local! = "hi"
+    let bytes: Array<Byte> @local! = s.toArray()
+    println("n=${bytes.size} b0=${bytes[0]}")
+}
+```
+
+Output:
+
+```text
+n=2 b0=104
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+### func toArray(this @local?)
+
+```cangjie
+public exclave func toArray(this @local?): Array<Byte> @local?
+```
+
+Function: Gets a copy of the UTF-8 encoded byte array of the current `@local?` string. The array is bound to the same local region as the current string.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local? - The receiver is an `@local?` instance.
+
+Returns:
+
+- [Array](core_package_structs.md#struct-arrayt)\<[Byte](core_package_types.md#type-byte)> @local? - The copy of the UTF-8 encoded byte array of the string.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local? = "hi"
+    let bytes: Array<Byte> @local? = s.toArray()
+    println("n=${bytes.size} b0=${bytes[0]}")
+}
+```
+
+Output:
+
+```text
+n=2 b0=104
+```
+
+<!--DelEnd-->
 
 ### func toAsciiLower()
 
@@ -7830,6 +12703,47 @@ To ASCII lower 3: '123abc456'
 Original string 4: '你好World'
 To ASCII lower 4: '你好world'
 ```
+
+<!--Del-->
+### func toAsciiLower(this @local!)
+
+```cangjie
+public exclave func toAsciiLower(this @local!): String @local!
+```
+
+Function: Converts ASCII uppercase letters in the current `@local!` string to lowercase and returns the new `@local!` string. Non-ASCII characters remain unchanged.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+
+Returns:
+
+- [String](core_package_structs.md#struct-string) @local! - The new converted `@local!` string.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local! = "ABC"
+    let lower: String @local! = s.toAsciiLower()
+    println("lower=${String(lower)}")
+}
+```
+
+Output:
+
+```text
+lower=abc
+```
+
+<!--DelEnd-->
 
 ### func toAsciiTitle()
 
@@ -7889,6 +12803,47 @@ Original string 4: '你好world'
 To ASCII title 4: '你好World'
 ```
 
+<!--Del-->
+### func toAsciiTitle(this @local!)
+
+```cangjie
+public exclave func toAsciiTitle(this @local!): String @local!
+```
+
+Function: Converts the current `@local!` string to ASCII title format, that is, capitalizing the first letter of each word, and returns the new `@local!` string. Non-ASCII characters remain unchanged.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+
+Returns:
+
+- [String](core_package_structs.md#struct-string) @local! - The new converted `@local!` string.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local! = "hello world"
+    let title: String @local! = s.toAsciiTitle()
+    println("title=${String(title)}")
+}
+```
+
+Output:
+
+```text
+title=Hello World
+```
+
+<!--DelEnd-->
+
 ### func toAsciiUpper()
 
 ```cangjie
@@ -7945,6 +12900,47 @@ Original string 4: '你好world'
 To ASCII upper 4: '你好WORLD'
 ```
 
+<!--Del-->
+### func toAsciiUpper(this @local!)
+
+```cangjie
+public exclave func toAsciiUpper(this @local!): String @local!
+```
+
+Function: Converts ASCII lowercase letters in the current `@local!` string to uppercase and returns the new `@local!` string. Non-ASCII characters remain unchanged.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+
+Returns:
+
+- [String](core_package_structs.md#struct-string) @local! - The new converted `@local!` string.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local! = "abc"
+    let upper: String @local! = s.toAsciiUpper()
+    println("upper=${String(upper)}")
+}
+```
+
+Output:
+
+```text
+upper=ABC
+```
+
+<!--DelEnd-->
+
 ### func toRuneArray()
 
 ```cangjie
@@ -7994,6 +12990,47 @@ Rune array elements:
   Index 8: 界
 ```
 
+<!--Del-->
+### func toRuneArray(this @local!)
+
+```cangjie
+public exclave func toRuneArray(this @local!): Array<Rune> @local!
+```
+
+Function: Gets a `@local!` array composed of all runes in the current `@local!` string. The array is bound to the same local region as the current string.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+
+Returns:
+
+- [Array](core_package_structs.md#struct-arrayt)\<Rune> @local! - The `@local!` array composed of all runes in the string.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local! = "ab"
+    let runes: Array<Rune> @local! = s.toRuneArray()
+    println("n=${runes.size} r0=${runes[0]}")
+}
+```
+
+Output:
+
+```text
+n=2 r0=a
+```
+
+<!--DelEnd-->
+
 ### func toString()
 
 ```cangjie
@@ -8030,6 +13067,51 @@ Original string: 'Hello, World'
 String from toString(): 'Hello, World'
 Are they equal? true
 ```
+
+<!--Del-->
+### func toString(this @local?)
+
+```cangjie
+public exclave func toString(this @local?): String @local!
+```
+
+Function: Returns the `@local!` string corresponding to the `@local?` string itself (value-copy semantics, bound to the same local region as the current string).
+
+> **Explanation:**
+>
+> This method is the `@local?` adaptation of the [ToString](core_package_interfaces.md#interface-tostring) interface for the String type. To print the `@local!` result or interact with strings on the heap, call `String(...)` to convert it to a non-local string.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local? - The receiver is an `@local?` instance.
+
+Returns:
+
+- [String](core_package_structs.md#struct-string) @local! - The converted string.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local? = "abc"
+    let r: String @local! = s.toString()
+    println(String(r))
+}
+```
+
+Output:
+
+```text
+abc
+```
+
+<!--DelEnd-->
 
 ### func trimAscii()
 
@@ -8102,6 +13184,47 @@ Original string 4: '
 Trimmed string 4: ''
 ```
 
+<!--Del-->
+### func trimAscii(this @local!)
+
+```cangjie
+public exclave func trimAscii(this @local!): String @local!
+```
+
+Function: Removes leading and trailing ASCII whitespace characters (including spaces, tabs, etc.) from the current `@local!` string and returns the new `@local!` string.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+
+Returns:
+
+- [String](core_package_structs.md#struct-string) @local! - The new `@local!` string after removing leading and trailing ASCII whitespace characters.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local! = " Hello "
+    let t: String @local! = s.trimAscii()
+    println("t=${String(t)} len=${t.size}")
+}
+```
+
+Output:
+
+```text
+t=Hello len=5
+```
+
+<!--DelEnd-->
+
 ### func trimAsciiEnd()
 
 ```cangjie
@@ -8164,6 +13287,47 @@ Original string 4: '
 Trimmed end string 4: ''
 ```
 
+<!--Del-->
+### func trimAsciiEnd(this @local!)
+
+```cangjie
+public exclave func trimAsciiEnd(this @local!): String @local!
+```
+
+Function: Removes trailing ASCII whitespace characters (including spaces, tabs, etc.) from the current `@local!` string and returns the new `@local!` string.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+
+Returns:
+
+- [String](core_package_structs.md#struct-string) @local! - The new `@local!` string after removing trailing ASCII whitespace characters.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local! = " Hello "
+    let e: String @local! = s.trimAsciiEnd()
+    println("e='${String(e)}' len=${e.size}")
+}
+```
+
+Output:
+
+```text
+e=' Hello' len=6
+```
+
+<!--DelEnd-->
+
 ### func trimAsciiStart()
 
 ```cangjie
@@ -8225,6 +13389,47 @@ Original string 4: '
   '
 Trimmed start string 4: ''
 ```
+
+<!--Del-->
+### func trimAsciiStart(this @local!)
+
+```cangjie
+public exclave func trimAsciiStart(this @local!): String @local!
+```
+
+Function: Removes leading ASCII whitespace characters (including spaces, tabs, etc.) from the current `@local!` string and returns the new `@local!` string.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+
+Returns:
+
+- [String](core_package_structs.md#struct-string) @local! - The new `@local!` string after removing leading ASCII whitespace characters.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local! = " Hello "
+    let p: String @local! = s.trimAsciiStart()
+    println("p='${String(p)}' len=${p.size}")
+}
+```
+
+Output:
+
+```text
+p='Hello ' len=6
+```
+
+<!--DelEnd-->
 
 ### func trimEnd((Rune)->Bool)
 
@@ -8958,3 +14163,578 @@ String: 'Hello, 世界'
 str[0..5]: 'Hello'
 str[7..]: '世界'
 ```
+
+<!--Del-->
+### operator func \[](this @local?, Int64)
+
+```cangjie
+public operator const func [](this @local?, index: Int64): Byte
+```
+
+Function: Returns the UTF-8 encoded byte at the specified index in the current `@local?` string.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local? - The receiver is an `@local?` instance.
+- index: [Int64](core_package_intrinsics.md#int64) - The index of the UTF-8 encoded byte to get.
+
+Returns:
+
+- [Byte](core_package_types.md#type-byte) - The UTF-8 encoded byte at the index.
+
+Exceptions:
+
+- [IndexOutOfBoundsException](core_package_exceptions.md#class-indexoutofboundsexception) - Throws an exception if index is less than 0 or greater than or equal to the string length.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local? = "abc"
+    println("b=${s[0]}")
+}
+```
+
+Output:
+
+```text
+b=97
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+### operator func \[](this @local?, Range\<Int64>)
+
+```cangjie
+public operator const func [](this @local?, range: Range<Int64>): String @local?
+```
+
+Function: Gets a slice of the current `@local?` string according to the given range. The slice is bound to the same local region as the current string.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+> - If the parameter range is a [Range](core_package_structs.md#struct-ranget-where-t--countablet--comparablet--equatablet) instance constructed with the [Range](core_package_structs.md#struct-ranget-where-t--countablet--comparablet--equatablet) constructor, the behavior is as follows:
+>     - start is the value passed to the constructor itself, regardless of the hasStart value passed at construction.
+>     - When hasEnd is false, end takes no effect regardless of the isClosed value passed at construction, and the string slice extends to the last element of the original string.
+> - The step of range can only be 1.
+
+Parameters:
+
+- this @local? - The receiver is an `@local?` instance.
+- range: [Range](core_package_structs.md#struct-ranget-where-t--countablet--comparablet--equatablet)\<[Int64](core_package_intrinsics.md#int64)> - The range to slice.
+
+Returns:
+
+- [String](core_package_structs.md#struct-string) @local? - The string slice.
+
+Exceptions:
+
+- [IndexOutOfBoundsException](core_package_exceptions.md#class-indexoutofboundsexception) - Throws an exception if the slice range exceeds the bounds of the original string.
+- [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - Throws an exception if the step of range is not 1 or the range start or end is not a character boundary.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local? = "Hello"
+    let slice: String @local? = s[1..3]
+    println("slice=${String(slice)}")
+}
+```
+
+Output:
+
+```text
+slice=el
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+### operator func \[](this @local!, Range\<Int64>)
+
+```cangjie
+public exclave operator const func [](this @local!, range: Range<Int64>): String @local!
+```
+
+Function: Gets a slice of the current `@local!` string according to the given range. The slice is bound to the same local region as the current string.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+> - If the parameter range is a [Range](core_package_structs.md#struct-ranget-where-t--countablet--comparablet--equatablet) instance constructed with the [Range](core_package_structs.md#struct-ranget-where-t--countablet--comparablet--equatablet) constructor, the behavior is as follows:
+>     - start is the value passed to the constructor itself, regardless of the hasStart value passed at construction.
+>     - When hasEnd is false, end takes no effect regardless of the isClosed value passed at construction, and the string slice extends to the last element of the original string.
+> - The step of range can only be 1.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+- range: [Range](core_package_structs.md#struct-ranget-where-t--countablet--comparablet--equatablet)\<[Int64](core_package_intrinsics.md#int64)> - The range to slice.
+
+Returns:
+
+- [String](core_package_structs.md#struct-string) @local! - The string slice.
+
+Exceptions:
+
+- [IndexOutOfBoundsException](core_package_exceptions.md#class-indexoutofboundsexception) - Throws an exception if the slice range exceeds the bounds of the original string.
+- [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - Throws an exception if the step of range is not 1 or the range start or end is not a character boundary.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local! = "Hello"
+    let slice: String @local! = s[1..3]
+    println("slice=${String(slice)}")
+}
+```
+
+Output:
+
+```text
+slice=el
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+### operator func ==(this @local!, String @local!)
+
+```cangjie
+public exclave operator const func ==(this @local!, other: String @local!): Bool
+```
+
+Function: Determines whether the current `@local!` string is equal to the `@local!` string specified by the parameter.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+- other: [String](core_package_structs.md#struct-string) @local! - The other `@local!` string to compare with.
+
+Returns:
+
+- [Bool](core_package_intrinsics.md#bool) - Returns true if they are equal, otherwise returns false.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: String @local! = "hi"
+    let b: String @local! = "hi"
+    println("eq=${a == b}")
+}
+```
+
+Output:
+
+```text
+eq=true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+### operator func ==(this @local?, String @local?)
+
+```cangjie
+public operator const func ==(this @local?, other: String @local?): Bool
+```
+
+Function: Determines whether the current `@local?` string is equal to the `@local?` string specified by the parameter.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local? - The receiver is an `@local?` instance.
+- other: [String](core_package_structs.md#struct-string) @local? - The other `@local?` string to compare with.
+
+Returns:
+
+- [Bool](core_package_intrinsics.md#bool) - Returns true if they are equal, otherwise returns false.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local? = "abc"
+    let b: String @local! = "abc"
+    println("eq=${s == b}")
+}
+```
+
+Output:
+
+```text
+eq=true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+### operator func !=(this @local!, String @local!)
+
+```cangjie
+public exclave operator const func !=(this @local!, other: String @local!): Bool
+```
+
+Function: Determines whether the current `@local!` string is not equal to the `@local!` string specified by the parameter.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+- other: [String](core_package_structs.md#struct-string) @local! - The other `@local!` string to compare with.
+
+Returns:
+
+- [Bool](core_package_intrinsics.md#bool) - Returns true if they are not equal, otherwise returns false.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: String @local! = "hi"
+    let b: String @local! = "ho"
+    println("ne=${a != b}")
+}
+```
+
+Output:
+
+```text
+ne=true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+### operator func !=(this @local?, String @local?)
+
+```cangjie
+public operator const func !=(this @local?, other: String @local?): Bool
+```
+
+Function: Determines whether the current `@local?` string is not equal to the `@local?` string specified by the parameter.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local? - The receiver is an `@local?` instance.
+- other: [String](core_package_structs.md#struct-string) @local? - The other `@local?` string to compare with.
+
+Returns:
+
+- [Bool](core_package_intrinsics.md#bool) - Returns true if they are not equal, otherwise returns false.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local? = "abc"
+    let b: String @local! = "abd"
+    println("ne=${s != b}")
+}
+```
+
+Output:
+
+```text
+ne=true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+### operator func <(this @local?, String @local?)
+
+```cangjie
+public operator const func <(this @local?, other: String @local?): Bool
+```
+
+Function: Determines whether the current `@local?` string is less than the `@local?` string specified by the parameter (based on Unicode code point lexicographic order).
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local? - The receiver is an `@local?` instance.
+- other: [String](core_package_structs.md#struct-string) @local? - The other `@local?` string to compare with.
+
+Returns:
+
+- [Bool](core_package_intrinsics.md#bool) - Returns true if less than, otherwise returns false.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local? = "abc"
+    let t: String @local? = "abd"
+    println("lt=${s < t}")
+}
+```
+
+Output:
+
+```text
+lt=true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+### operator func <=(this @local?, String @local?)
+
+```cangjie
+public operator const func <=(this @local?, other: String @local?): Bool
+```
+
+Function: Determines whether the current `@local?` string is less than or equal to the `@local?` string specified by the parameter (based on Unicode code point lexicographic order).
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local? - The receiver is an `@local?` instance.
+- other: [String](core_package_structs.md#struct-string) @local? - The other `@local?` string to compare with.
+
+Returns:
+
+- [Bool](core_package_intrinsics.md#bool) - Returns true if less than or equal to, otherwise returns false.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local? = "abc"
+    let t: String @local? = "abd"
+    println("le=${s <= t}")
+}
+```
+
+Output:
+
+```text
+le=true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+### operator func >(this @local?, String @local?)
+
+```cangjie
+public operator const func >(this @local?, other: String @local?): Bool
+```
+
+Function: Determines whether the current `@local?` string is greater than the `@local?` string specified by the parameter (based on Unicode code point lexicographic order).
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local? - The receiver is an `@local?` instance.
+- other: [String](core_package_structs.md#struct-string) @local? - The other `@local?` string to compare with.
+
+Returns:
+
+- [Bool](core_package_intrinsics.md#bool) - Returns true if greater than, otherwise returns false.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local? = "abd"
+    let t: String @local? = "abc"
+    println("gt=${s > t}")
+}
+```
+
+Output:
+
+```text
+gt=true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+### operator func >=(this @local?, String @local?)
+
+```cangjie
+public operator const func >=(this @local?, other: String @local?): Bool
+```
+
+Function: Determines whether the current `@local?` string is greater than or equal to the `@local?` string specified by the parameter (based on Unicode code point lexicographic order).
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local? - The receiver is an `@local?` instance.
+- other: [String](core_package_structs.md#struct-string) @local? - The other `@local?` string to compare with.
+
+Returns:
+
+- [Bool](core_package_intrinsics.md#bool) - Returns true if greater than or equal to, otherwise returns false.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local? = "abd"
+    let t: String @local? = "abc"
+    println("ge=${s >= t}")
+}
+```
+
+Output:
+
+```text
+ge=true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+### operator func +(this @local!, String @local?)
+
+```cangjie
+public exclave operator const func +(this @local!, other: String @local?): String @local!
+```
+
+Function: Concatenates the current `@local!` string with the string specified by the parameter and returns the new `@local!` string.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+- other: [String](core_package_structs.md#struct-string) @local? - The string appended to the end of the current string.
+
+Returns:
+
+- [String](core_package_structs.md#struct-string) @local! - The new `@local!` string obtained by concatenation.
+
+Exceptions:
+
+- [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - Throws an exception when the UTF-8 byte length of the concatenated string exceeds [the maximum value of UInt32](./core_package_intrinsics.md#uint32).
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local! = "Hello"
+    let cat: String @local! = s + "!"
+    println("cat=${String(cat)}")
+}
+```
+
+Output:
+
+```text
+cat=Hello!
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+### operator func *(this @local!, Int64)
+
+```cangjie
+public exclave operator const func *(this @local!, count: Int64): String @local!
+```
+
+Function: Repeats the current `@local!` string count times and returns the new `@local!` string.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+- count: [Int64](core_package_intrinsics.md#int64) - The number of repetitions.
+
+Returns:
+
+- [String](core_package_structs.md#struct-string) @local! - The new `@local!` string obtained by repeating count times.
+
+Exceptions:
+
+- [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - Throws an exception if count is negative, or if the UTF-8 byte length of the repeated string exceeds [the maximum value of UInt32](./core_package_intrinsics.md#uint32).
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local! = "ab"
+    let rep: String @local! = s * 2
+    println("rep=${String(rep)}")
+}
+```
+
+Output:
+
+```text
+rep=abab
+```
+
+<!--DelEnd-->

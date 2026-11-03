@@ -1148,6 +1148,52 @@ Execution Result:
 32
 ```
 
+<!--Del-->
+### init(this @local!)
+
+```cangjie
+public exclave init(this @local!)
+```
+
+Function: Creates a [ByteBuffer](io_package_classes.md#class-bytebuffer) instance in the local region. The default initial capacity is 32.
+
+> **Note:**
+>
+> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+>
+> Platform not supported: OpenHarmony.
+
+Example:
+
+<!-- verify -->
+```cangjie
+import std.io.*
+
+main(): Unit {
+    // Create a ByteBuffer instance in the local region
+    let buffer: ByteBuffer @local! = ByteBuffer() @local!
+
+    // Write data
+    let data: Array<Byte> @local! = [72, 73] // HI
+    buffer.write(data)
+
+    // Read data
+    buffer.seek(SeekPosition.Begin(0))
+    let readBuf: Array<Byte> @local! = [0, 0]
+    let bytesRead = buffer.read(readBuf)
+    println("Bytes read: ${bytesRead}")
+    println("Content: ${readBuf[0]}, ${readBuf[1]}")
+}
+```
+
+Output:
+
+```text
+Bytes read: 2
+Content: 72, 73
+```
+
+<!--DelEnd-->
 ### init(Array\<Byte>)
 
 ```cangjie
@@ -1223,6 +1269,69 @@ Execution Result:
 Error: The capacity must be greater than or equal to 0: -1024.
 ```
 
+<!--Del-->
+### init(this @local!, Int64)
+
+```cangjie
+public exclave init(this @local!, capacity: Int64)
+```
+
+Function: Creates a [ByteBuffer](io_package_classes.md#class-bytebuffer) instance in the local region.
+
+> **Note:**
+>
+> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+>
+> Platform not supported: OpenHarmony.
+
+Parameters:
+
+- capacity: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - The specified initial capacity.
+
+Exceptions:
+
+- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown when capacity is less than 0.
+
+Example:
+
+<!-- verify -->
+```cangjie
+import std.io.*
+
+main(): Unit {
+    // Create a ByteBuffer instance with the specified capacity in the local region
+    let buffer: ByteBuffer @local! = ByteBuffer(16) @local!
+
+    // Write data
+    let data: Array<Byte> @local! = [82, 83] // RS
+    buffer.write(data)
+
+    // Read data
+    buffer.seek(SeekPosition.Begin(0))
+    let readBuf: Array<Byte> @local! = [0, 0]
+    let bytesRead = buffer.read(readBuf)
+    println("Bytes read: ${bytesRead}")
+    println("Content: ${readBuf[0]}, ${readBuf[1]}")
+
+    // Thrown when capacity is less than 0
+    try {
+        let errorBuffer: ByteBuffer @local! = ByteBuffer(-1) @local!
+        println("This line is unreachable")
+    } catch (e: IllegalArgumentException) {
+        println("Caught: ${e.message}")
+    }
+}
+```
+
+Output:
+
+```text
+Bytes read: 2
+Content: 82, 83
+Caught: The capacity must be greater than or equal to 0: -1.
+```
+
+<!--DelEnd-->
 ### func bytes()
 
 ```cangjie
@@ -1398,6 +1507,66 @@ Hello
 Error: The buffer is empty.
 ```
 
+<!--Del-->
+### func read(this @local!, Array\<Byte> @local!)
+
+```cangjie
+public exclave func read(this @local!, buffer: Array<Byte> @local!): Int64
+```
+
+Function: Reads data from the bound input stream into `buffer`; the buffer is located in the caller's local region. When the cursor is exactly at the end of the data, this function directly returns 0 without checking whether `buffer` is empty.
+
+> **Note:**
+>
+> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+>
+> Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+- buffer: [Array](../../core/core_package_api/core_package_structs.md#struct-arrayt)\<[Byte](../../core/core_package_api/core_package_types.md#type-byte)> @local! - The buffer that holds the read data.
+
+Returns:
+
+- [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - The number of bytes read.
+
+Exceptions:
+
+- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown when the cursor is not at the end of the data and `buffer` is empty. This condition also applies when seek has moved the cursor past the end of the data.
+
+Example:
+
+<!-- verify -->
+```cangjie
+import std.io.*
+
+main(): Unit {
+    // Create a ByteBuffer instance in the local region and write 3 bytes
+    let buffer: ByteBuffer @local! = ByteBuffer() @local!
+    let data: Array<Byte> @local! = [65, 66, 67] // ABC
+    buffer.write(data)
+
+    // Move the cursor to the beginning of the data
+    buffer.seek(SeekPosition.Begin(0))
+
+    // Allocate the `@local!` buffer and read data
+    let readBuf: Array<Byte> @local! = [0, 0]
+    println("First read: ${buffer.read(readBuf)}")
+    println("Second read: ${buffer.read(readBuf)}")
+    println("Third read: ${buffer.read(readBuf)}")
+}
+```
+
+Output:
+
+```text
+First read: 2
+Second read: 1
+Third read: 0
+```
+
+<!--DelEnd-->
 ### func readByte()
 
 ```cangjie
@@ -1508,6 +1677,78 @@ Error: The additional must be greater than or equal to 0.
 Error:The maximum value for capacity expansion cannot exceed the maximum value of Int64.
 ```
 
+<!--Del-->
+### func reserve(this @local!, Int64)
+
+```cangjie
+public exclave func reserve(this @local!, additional: Int64): Unit
+```
+
+Function: Grows the buffer by the specified size.
+
+> **Note:**
+>
+> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+>
+> Platform not supported: OpenHarmony.
+>
+> - If the cursor has not passed the end of the data and the remaining capacity after the end of the data ≥ additional, the buffer is not grown and the function returns directly.
+> - If the cursor has passed the end of the data and the remaining space from the cursor position to the end of the current capacity ≥ additional, the buffer is not grown and the function returns directly.
+> - Otherwise the buffer is grown; the capacity after growth is the larger of the following two values:
+>     - 1. 1.5 times the current capacity (the capacity of the buffer before growth), rounded down.
+>     - 2. The minimum required capacity: the current capacity + additional if the cursor has not passed the end of the data; the cursor position + additional if the cursor has passed the end of the data.
+> - additional being 0 does not guarantee no growth: if the cursor has been seeked to a position beyond the current capacity, the buffer is still grown by the rules above even when additional is 0.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+- additional: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - The size to grow by.
+
+Exceptions:
+
+- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown when additional is less than 0.
+- [OverflowException](../../core/core_package_api/core_package_exceptions.md#class-overflowexception) - Thrown when the grown buffer size exceeds the maximum value of [Int64](../../core/core_package_api/core_package_intrinsics.md#int64).
+
+Example:
+
+<!-- verify -->
+```cangjie
+import std.io.*
+
+main(): Unit {
+    // Create a ByteBuffer instance in the local region
+    let buffer: ByteBuffer @local! = ByteBuffer() @local!
+
+    // Grow the buffer
+    buffer.reserve(64)
+
+    // Write data
+    let data: Array<Byte> @local! = [84, 85] // TU
+    buffer.write(data)
+
+    // Read data
+    buffer.seek(SeekPosition.Begin(0))
+    let readBuf: Array<Byte> @local! = [0, 0]
+    buffer.read(readBuf)
+    println("Content: ${readBuf[0]}, ${readBuf[1]}")
+
+    // Thrown when additional is less than 0
+    try {
+        buffer.reserve(-1)
+    } catch (e: IllegalArgumentException) {
+        println("Caught: ${e.message}")
+    }
+}
+```
+
+Output:
+
+```text
+Content: 84, 85
+Caught: The additional must be greater than or equal to 0.
+```
+
+<!--DelEnd-->
 ### func seek(SeekPosition)
 
 ```cangjie
@@ -1570,6 +1811,66 @@ World
 Error: Can't move the position before the beginning of the stream.
 ```
 
+<!--Del-->
+### func seek(this @local!, SeekPosition)
+
+```cangjie
+public func seek(this @local!, sp: SeekPosition): Int64
+```
+
+Function: Moves the cursor to the specified position.
+
+> **Note:**
+>
+> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+>
+> Platform not supported: OpenHarmony.
+>
+> - The specified position cannot precede the beginning of the data in the stream.
+> - The specified position may exceed the end of the data in the stream.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+- sp: [SeekPosition](io_package_enums.md#enum-seekposition) - The position to move the cursor to.
+
+Returns:
+
+- [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - The offset (in bytes) from the beginning of the data in the stream to the position after the jump.
+
+Exceptions:
+
+- [IOException](io_package_exceptions.md#class-ioexception) - Thrown when the specified position precedes the beginning of the data in the stream.
+
+Example:
+
+<!-- verify -->
+```cangjie
+import std.io.*
+
+main(): Unit {
+    // Create a ByteBuffer instance in the local region and write 3 bytes
+    let buffer: ByteBuffer @local! = ByteBuffer() @local!
+    let data: Array<Byte> @local! = [86, 87, 88] // VWX
+    buffer.write(data)
+
+    // Move the cursor to the beginning of the data and read the first byte
+    let pos = buffer.seek(SeekPosition.Begin(0))
+    println("Position after seek: ${pos}")
+    let readBuf: Array<Byte> @local! = [0]
+    buffer.read(readBuf)
+    println("First byte: ${readBuf[0]}")
+}
+```
+
+Output:
+
+```text
+Position after seek: 0
+First byte: 86
+```
+
+<!--DelEnd-->
 ### func setLength(Int64)
 
 ```cangjie
@@ -1660,6 +1961,109 @@ Execution Result:
 Hello World
 ```
 
+<!--Del-->
+### func write(this @local!, Array\<Byte>)
+
+```cangjie
+public exclave func write(this @local!, buffer: Array<Byte>): Unit
+```
+
+Function: Writes the data in `buffer` to the bound output stream.
+
+> **Note:**
+>
+> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+>
+> Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+- buffer: [Array](../../core/core_package_api/core_package_structs.md#struct-arrayt)\<[Byte](../../core/core_package_api/core_package_types.md#type-byte)> - The buffer that holds the data to be written.
+
+Example:
+
+<!-- verify -->
+```cangjie
+import std.io.*
+
+main(): Unit {
+    // Create a ByteBuffer instance in the local region
+    let buffer: ByteBuffer @local! = ByteBuffer() @local!
+
+    // Write the byte array on the heap
+    let data: Array<Byte> = [77, 78] // MN
+    buffer.write(data)
+
+    // Read data
+    buffer.seek(SeekPosition.Begin(0))
+    let readBuf: Array<Byte> @local! = [0, 0]
+    let bytesRead = buffer.read(readBuf)
+    println("Bytes read: ${bytesRead}")
+    println("Content: ${readBuf[0]}, ${readBuf[1]}")
+}
+```
+
+Output:
+
+```text
+Bytes read: 2
+Content: 77, 78
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+### func write(this @local!, Array\<Byte> @local!)
+
+```cangjie
+public exclave func write(this @local!, buffer: Array<Byte> @local!): Unit
+```
+
+Function: Writes the data in `buffer` to the bound output stream; the buffer is located in the caller's local region
+
+> **Note:**
+>
+> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+>
+> Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+- buffer: [Array](../../core/core_package_api/core_package_structs.md#struct-arrayt)\<[Byte](../../core/core_package_api/core_package_types.md#type-byte)> @local! - The buffer that holds the data to be written.
+
+Example:
+
+<!-- verify -->
+```cangjie
+import std.io.*
+
+main(): Unit {
+    // Create a ByteBuffer instance in the local region
+    let buffer: ByteBuffer @local! = ByteBuffer() @local!
+
+    // Write the `@local!` byte array
+    let data: Array<Byte> @local! = [75, 76] // KL
+    buffer.write(data)
+
+    // Read data
+    buffer.seek(SeekPosition.Begin(0))
+    let readBuf: Array<Byte> @local! = [0, 0]
+    let bytesRead = buffer.read(readBuf)
+    println("Bytes read: ${bytesRead}")
+    println("Content: ${readBuf[0]}, ${readBuf[1]}")
+}
+```
+
+Output:
+
+```text
+Bytes read: 2
+Content: 75, 76
+```
+
+<!--DelEnd-->
 ### func writeByte(Byte)
 
 ```cangjie
@@ -2289,7 +2693,9 @@ Function: Writes a newline character.
 
 ```cangjie
 public func writeln(v: Bool): Unit
-```Function: Writes a [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) type + newline character.
+```
+
+Function: Writes a [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) type + newline character.
 
 Parameters:
 

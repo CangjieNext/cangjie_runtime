@@ -86,6 +86,105 @@ main() {
 4
 ```
 
+<!--Del-->
+### func next(this @local!)
+
+```cangjie
+public exclave func next(this @local!): Option<T> @local!
+```
+
+功能：获取迭代过程中的下一个 `@local!` 元素。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+>
+> 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local! - 接收者为 `@local!` 实例。
+
+返回值：
+
+- [Option](core_package_enums.md#enum-optiont)\<T> @local! - 迭代过程中的下一个元素。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local! = [1, 2, 3]
+    // 通过 @local! 数组的 iterator 方法获取局部迭代器
+    let it: Iterator<Int64> @local! = arr.iterator()
+    while (true) {
+        match (it.next()) {
+            case Some(v) => println("next=${v}")
+            case None => break
+        }
+    }
+}
+```
+
+运行结果：
+
+```text
+next=1
+next=2
+next=3
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+### func next(this @local?)
+
+```cangjie
+public exclave func next(this @local?): Option<T> @local?
+```
+
+功能：获取迭代过程中的下一个 `@local?` 元素。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+>
+> 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+
+返回值：
+
+- [Option](core_package_enums.md#enum-optiont)\<T> @local? - 迭代过程中的下一个元素。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local? = [1, 2, 3]
+    // 通过 @local? 数组的 iterator 方法获取局部迭代器
+    let it: Iterator<Int64> @local? = arr.iterator()
+    while (true) {
+        match (it.next()) {
+            case Some(v) => println("next=${v}")
+            case None => break
+        }
+    }
+}
+```
+
+运行结果：
+
+```text
+next=1
+next=2
+next=3
+```
+
+<!--DelEnd-->
 ## class Box\<T>
 
 ```cangjie
@@ -527,6 +626,7 @@ box3 hashCode: 100
 box1 and box2 have same hashCode: true
 ```
 
+<!--Del-->
 #### func hashCode(this @local?)
 
 ```cangjie
@@ -542,6 +642,8 @@ public func hashCode(this @local?): Int64
 > **注意：**
 >
 > 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+>
+> 不支持平台：OpenHarmony。
 
 参数：
 
@@ -555,6 +657,30 @@ public func hashCode(this @local?): Int64
 
 - [UnimplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception) - 当前类型未提供该 `@local?` 实现时抛出，继承自 [Hashable](core_package_interfaces.md#interface-hashable) 接口的默认实现。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    // 堆上构造的 Box 实例以 @local? 视图绑定
+    let box: Box<Int64> @local? = Box<Int64>(42)
+    // Box 未提供 hashCode 的 @local? 实现，调用命中 Hashable 接口默认实现
+    try {
+        box.hashCode()
+        println("no exception")
+    } catch (e: UnimplementedException) {
+        println("caught: ${e.message}")
+    }
+}
+```
+
+运行结果：
+
+```text
+caught: Current Type does not implement 'hashCode' method for its @local? instance
+```
+
+<!--DelEnd-->
 ### extend\<T> Box\<T> <: ToString where T <: ToString
 
 ```cangjie
@@ -859,6 +985,7 @@ public class MyIterator<T> <: Iterator<T> {
 抽象的子类完成了初始化
 ```
 
+<!--Del-->
 ### init(this @local!)
 
 ```cangjie
@@ -870,6 +997,37 @@ public exclave init(this @local!)
 > **注意：**
 >
 > 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+>
+> 不支持平台：OpenHarmony。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main(): Int64 {
+    // 抽象类 Iterator 本身无法初始化，通过子类在 local region 中构造
+    let it: MyIterator<Int64> @local! = MyIterator<Int64>() @local!
+    println("局部迭代器初始化成功")
+    return 0
+}
+
+public class MyIterator<T> <: Iterator<T> {
+    public init() {}
+    public exclave init(this @local!) {}
+    public func next(): ?T {
+        return None<T>
+    }
+}
+```
+
+运行结果：
+
+```text
+局部迭代器初始化成功
+```
+
+<!--DelEnd-->
+<!--Del-->
 
 ### init(this @local?)
 
@@ -882,7 +1040,37 @@ public exclave init(this @local?)
 > **注意：**
 >
 > 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+>
+> 不支持平台：OpenHarmony。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main(): Int64 {
+    // 抽象类 Iterator 本身无法初始化，通过子类在 local region 中构造
+    let it: MyIterator<Int64> @local? = MyIterator<Int64>() @local?
+    println("局部迭代器初始化成功")
+    return 0
+}
+
+public class MyIterator<T> <: Iterator<T> {
+    public init() {}
+    public exclave init(this @local!) {}
+    public exclave init(this @local?) {}
+    public func next(): ?T {
+        return None<T>
+    }
+}
+```
+
+运行结果：
+
+```text
+局部迭代器初始化成功
+```
+
+<!--DelEnd-->
 ### func iterator()
 
 ```cangjie
@@ -930,6 +1118,7 @@ Iterators are the same object
 打印迭代器 iter2 的第四个元素: None
 ```
 
+<!--Del-->
 ### func iterator(this @local!)
 
 ```cangjie
@@ -941,6 +1130,8 @@ public func iterator(this @local!): Iterator<T> @local!
 > **注意：**
 >
 > 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+>
+> 不支持平台：OpenHarmony。
 
 参数：
 
@@ -949,6 +1140,33 @@ public func iterator(this @local!): Iterator<T> @local!
 返回值：
 
 - [Iterator](core_package_classes.md#class-iteratort)\<T> @local! - 迭代器自身。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local! = [1, 2, 3]
+    let it: Iterator<Int64> @local! = arr.iterator()
+    // iterator 返回迭代器自身
+    let it2: Iterator<Int64> @local! = it.iterator()
+    println("refEq: ${refEq(it, it2)}")
+    match (it2.next()) {
+        case Some(v) => println("first=${v}")
+        case None => println("none")
+    }
+}
+```
+
+运行结果：
+
+```text
+refEq: true
+first=1
+```
+
+<!--DelEnd-->
+<!--Del-->
 
 ### func iterator(this @local?)
 
@@ -961,6 +1179,8 @@ public func iterator(this @local?): Iterator<T> @local?
 > **注意：**
 >
 > 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+>
+> 不支持平台：OpenHarmony。
 
 参数：
 
@@ -970,6 +1190,31 @@ public func iterator(this @local?): Iterator<T> @local?
 
 - [Iterator](core_package_classes.md#class-iteratort)\<T> @local? - 迭代器自身。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local? = [1, 2, 3]
+    let it: Iterator<Int64> @local? = arr.iterator()
+    // iterator 返回迭代器自身
+    let it2: Iterator<Int64> @local? = it.iterator()
+    println("refEq: ${refEq(it, it2)}")
+    match (it2.next()) {
+        case Some(v) => println("first=${v}")
+        case None => println("none")
+    }
+}
+```
+
+运行结果：
+
+```text
+refEq: true
+first=1
+```
+
+<!--DelEnd-->
 ### func next()
 
 ```cangjie
@@ -1011,6 +1256,7 @@ main(): Int64 {
 5
 ```
 
+<!--Del-->
 ### func next(this @local!)
 
 ```cangjie
@@ -1022,6 +1268,8 @@ public open func next(this @local!): ?T @local!
 > **注意：**
 >
 > 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+>
+> 不支持平台：OpenHarmony。
 
 参数：
 
@@ -1035,6 +1283,39 @@ public open func next(this @local!): ?T @local!
 
 - [IllegalStateException](../../core/core_package_api/core_package_exceptions.md#class-illegalstateexception) - 当前迭代器未提供该 `@local!` 实现时抛出。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let it: MyIterator<Int64> @local! = MyIterator<Int64>() @local!
+    // MyIterator 未提供 next 的 @local! 实现，调用命中 Iterator 的默认实现
+    try {
+        it.next()
+        println("no exception")
+    } catch (e: IllegalStateException) {
+        println("caught: ${e.message}")
+    }
+}
+
+public class MyIterator<T> <: Iterator<T> {
+    public init() {}
+    public exclave init(this @local!) {}
+    public func next(): ?T {
+        return None<T>
+    }
+}
+```
+
+运行结果：
+
+```text
+caught: Current Iterator does not implement 'next' method for its @local! instance
+```
+
+<!--DelEnd-->
+<!--Del-->
+
 ### func next(this @local?)
 
 ```cangjie
@@ -1046,6 +1327,8 @@ public open func next(this @local?): ?T @local?
 > **注意：**
 >
 > 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+>
+> 不支持平台：OpenHarmony。
 
 参数：
 
@@ -1059,6 +1342,38 @@ public open func next(this @local?): ?T @local?
 
 - [IllegalStateException](../../core/core_package_api/core_package_exceptions.md#class-illegalstateexception) - 当前迭代器未提供该 `@local?` 实现时抛出。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let it: MyIterator<Int64> @local? = MyIterator<Int64>() @local?
+    // MyIterator 未提供 next 的 @local? 实现，调用命中 Iterator 的默认实现
+    try {
+        it.next()
+        println("no exception")
+    } catch (e: IllegalStateException) {
+        println("caught: ${e.message}")
+    }
+}
+
+public class MyIterator<T> <: Iterator<T> {
+    public init() {}
+    public exclave init(this @local!) {}
+    public exclave init(this @local?) {}
+    public func next(): ?T {
+        return None<T>
+    }
+}
+```
+
+运行结果：
+
+```text
+caught: Current Iterator does not implement 'next' method for its @local? instance
+```
+
+<!--DelEnd-->
 ### extend\<T> Iterator\<T>
 
 ```cangjie
@@ -2271,6 +2586,7 @@ main(): Int64 {
 }
 ```
 
+<!--Del-->
 ### init(this @local!)
 
 ```cangjie
@@ -2282,6 +2598,31 @@ public exclave const init(this @local!)
 > **注意：**
 >
 > 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+>
+> 不支持平台：OpenHarmony。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let o1: Object @local! = Object() @local!
+    let o2: Object @local! = Object() @local!
+    // 同一实例的引用比较结果为 true，不同实例为 false
+    println("refEq(o1, o1): ${refEq(o1, o1)}")
+    println("refEq(o1, o2): ${refEq(o1, o2)}")
+}
+```
+
+运行结果：
+
+```text
+refEq(o1, o1): true
+refEq(o1, o2): false
+```
+
+<!--DelEnd-->
+<!--Del-->
 
 ### init(this @local?)
 
@@ -2294,7 +2635,30 @@ public exclave const init(this @local?)
 > **注意：**
 >
 > 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+>
+> 不支持平台：OpenHarmony。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let o1: Object @local? = Object() @local?
+    let o2: Object @local? = Object() @local?
+    // 同一实例的引用比较结果为 true，不同实例为 false
+    println("refEq(o1, o1): ${refEq(o1, o1)}")
+    println("refEq(o1, o2): ${refEq(o1, o2)}")
+}
+```
+
+运行结果：
+
+```text
+refEq(o1, o1): true
+refEq(o1, o2): false
+```
+
+<!--DelEnd-->
 ## class RangeIterator\<T> <: Iterator\<T> where T <: Countable\<T> & Comparable\<T> & Equatable\<T>
 
 ```cangjie
@@ -2742,6 +3106,7 @@ Initial size: 0
 Initial content: ''
 ```
 
+<!--Del-->
 ### init(this @local!)
 
 ```cangjie
@@ -2753,7 +3118,30 @@ public exclave init(this @local!)
 > **注意：**
 >
 > 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+>
+> 不支持平台：OpenHarmony。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let sb: StringBuilder @local! = StringBuilder() @local!
+    let n: Int64 @local! = 42
+    let s: String @local! = n.toString()
+    sb.append(s)
+    let r: String @local! = sb.toString()
+    println(r)
+}
+```
+
+运行结果：
+
+```text
+42
+```
+
+<!--DelEnd-->
 ### init(Array\<Rune>)
 
 ```cangjie
@@ -2935,6 +3323,50 @@ After append - Size: 22
 After append - Content: 'Hello, World! Welcome!'
 ```
 
+<!--Del-->
+### init(this @local!, Int64)
+
+```cangjie
+public exclave init(this @local!, capacity: Int64)
+```
+
+功能：在 local region 中构造一个具有指定初始容量的 `@local!` StringBuilder 实例。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+>
+> 不支持平台：OpenHarmony。
+
+参数：
+
+- capacity: [Int64](core_package_intrinsics.md#int64) - 指定的初始容量，必须大于 0。
+
+异常：
+
+- [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - 当 capacity 小于或等于 0 时，抛出异常。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let sb: StringBuilder @local! = StringBuilder(64) @local!
+    let n: Int64 @local! = 42
+    let s: String @local! = n.toString()
+    sb.append(s)
+    let r: String @local! = sb.toString()
+    println(r)
+}
+```
+
+运行结果：
+
+```text
+42
+```
+
+<!--DelEnd-->
 ### func append(Array\<Rune>)
 
 ```cangjie
@@ -3400,6 +3832,7 @@ Content: 'Hello, World!'
 Size: 13
 ```
 
+<!--Del-->
 ### func append(String @local?)
 
 ```cangjie
@@ -3411,10 +3844,35 @@ public func append(str: String @local?): Unit
 > **注意：**
 >
 > 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+>
+> 不支持平台：OpenHarmony。
 
 参数：
 
 - str: [String](core_package_structs.md#struct-string) @local? - 待追加的字符串，支持 `@local!` 和 `@local?` 实参。空字符串不改变已有内容。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let sb = StringBuilder()
+    let n: Int64 @local! = 42
+    let s: String @local! = n.toString()
+    // 向堆上的 StringBuilder 追加局部字符串
+    sb.append(s)
+    println(sb.toString())
+}
+```
+
+运行结果：
+
+```text
+42
+```
+
+<!--DelEnd-->
+<!--Del-->
 
 ### func append(this @local!, String @local?)
 
@@ -3427,11 +3885,37 @@ public exclave func append(this @local!, str: String @local?): Unit
 > **注意：**
 >
 > 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+>
+> 不支持平台：OpenHarmony。
 
 参数：
 
 - str: [String](core_package_structs.md#struct-string) @local? - 待追加的字符串。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let sb: StringBuilder @local! = StringBuilder() @local!
+    let n1: Int64 @local! = 42
+    let n2: Int64 @local! = 7
+    let s1: String @local! = n1.toString()
+    let s2: String @local! = n2.toString()
+    sb.append(s1)
+    sb.append(s2)
+    let r: String @local! = sb.toString()
+    println(r)
+}
+```
+
+运行结果：
+
+```text
+427
+```
+
+<!--DelEnd-->
 ### func append(StringBuilder)
 
 ```cangjie
@@ -3702,6 +4186,7 @@ Content: 'The answer is: 42'
 Size: 17
 ```
 
+<!--Del-->
 ### func append\<T>(this @local!, T @local?) where T <: ToString
 
 ```cangjie
@@ -3713,11 +4198,34 @@ public exclave func append<T>(this @local!, v: T @local?): Unit where T <: ToStr
 > **注意：**
 >
 > 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+>
+> 不支持平台：OpenHarmony。
 
 参数：
 
 - v: T @local? - 待转换并追加的值。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let sb: StringBuilder @local! = StringBuilder() @local!
+    let n: Int64 @local! = 123
+    // 追加实现了局部 toString 的 Int64 值
+    sb.append(n)
+    let r: String @local! = sb.toString()
+    println(r)
+}
+```
+
+运行结果：
+
+```text
+123
+```
+
+<!--DelEnd-->
 ### func appendFromUtf8(Array\<Byte>)
 
 ```cangjie
@@ -3955,6 +4463,7 @@ Size: 13
 Type check: true
 ```
 
+<!--Del-->
 ### func toString(this @local?)
 
 ```cangjie
@@ -3966,12 +4475,39 @@ public exclave func toString(this @local?): String @local!
 > **注意：**
 >
 > 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+>
+> 不支持平台：OpenHarmony。
 
 返回值：
 
 - [String](core_package_structs.md#struct-string) @local! - 当前内容的字符串副本。
 
+示例：
 
+<!-- verify -->
+```cangjie
+main() {
+    let sb: StringBuilder @local! = StringBuilder() @local!
+    let n: Int64 @local! = 42
+    let s: String @local! = n.toString()
+    sb.append(s)
+    let view: StringBuilder @local? = sb
+    let r: String @local! = view.toString()
+    // 后续追加内容不改变已返回的字符串
+    let n2: Int64 @local! = 7
+    let s2: String @local! = n2.toString()
+    sb.append(s2)
+    println(r)
+}
+```
+
+运行结果：
+
+```text
+42
+```
+
+<!--DelEnd-->
 ## class Thread
 
 ```cangjie

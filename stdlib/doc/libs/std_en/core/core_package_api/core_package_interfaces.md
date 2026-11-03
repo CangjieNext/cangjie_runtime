@@ -525,6 +525,47 @@ byte2 (0x122) converted to uppercase: 0x90
 byte3 (0x48) converted to uppercase: 0x48 (unchanged)
 ```
 
+<!--Del-->
+## interface Copyable
+
+```cangjie
+public interface Copyable {}
+```
+
+Function: An empty interface that marks copyable types.
+
+Part of the local-mode extension families are constrained by `T <: Copyable` (for example, the `@local` member extensions of [Array](core_package_structs.md#struct-arrayt)); only types implementing this interface can use those local extension members.
+
+> **Note:**
+>
+> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+>
+> Platform not supported: OpenHarmony.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    // Int64 implements Copyable, enabling the constrained fill extension on a @local? array.
+    let arr: Array<Int64> @local? = [1, 2, 3]
+    arr.fill(0)
+    let f: Option<Int64> @local? = arr.first
+    match (f) {
+        case Some(v) => println("first=${v}")
+        case None => println("none")
+    }
+}
+```
+
+Output:
+
+```text
+first=0
+```
+
+<!--DelEnd-->
+
 ## interface CType
 
 ```cangjie
@@ -611,6 +652,148 @@ Returns:
 
 - [Array](core_package_structs.md#struct-arrayt)\<T> - The resulting array after conversion.
 
+<!--Del-->
+### func isEmpty(this @local?)
+
+```cangjie
+func isEmpty(this @local?): Bool
+```
+
+Function: Determines whether the current `@local?` collection is empty.
+
+> **Note:**
+>
+> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+>
+> Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local? - The receiver is an `@local?` instance.
+
+Returns:
+
+- [Bool](core_package_intrinsics.md#bool) - Returns true if empty, otherwise false.
+
+Exceptions:
+
+- [UnimplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception) - Thrown when the current type does not provide the corresponding `@local?` implementation.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local? = [1, 2, 3]
+    println("arr isEmpty: ${arr.isEmpty()}")
+    let empty: Array<Int64> @local? = []
+    println("empty isEmpty: ${empty.isEmpty()}")
+}
+```
+
+Output:
+
+```text
+arr isEmpty: false
+empty isEmpty: true
+```
+
+<!--DelEnd-->
+<!--Del-->
+### func toArray(this @local?)
+
+```cangjie
+func toArray(this @local?): Array<T> @local?
+```
+
+Function: Converts the current `@local?` collection to a `@local?` array.
+
+> **Note:**
+>
+> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+>
+> Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local? - The receiver is an `@local?` instance.
+
+Returns:
+
+- [Array](core_package_structs.md#struct-arrayt)\<T> @local? - The resulting `@local?` array.
+
+Exceptions:
+
+- [UnimplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception) - Thrown when the current type does not provide the corresponding `@local?` implementation.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local? = [1, 2, 3]
+    let collection: Collection<Int64> @local? = arr
+    let copied: Array<Int64> @local? = collection.toArray()
+    println("size=${copied.size}")
+}
+```
+
+Output:
+
+```text
+size=3
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+### func toArray(this @local!)
+
+```cangjie
+func toArray(this @local!): Array<T> @local!
+```
+
+Function: Converts the current `@local!` collection to a `@local!` array.
+
+> **Note:**
+>
+> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+>
+> Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+
+Returns:
+
+- [Array](core_package_structs.md#struct-arrayt)\<T> @local! - The resulting `@local!` array.
+
+Exceptions:
+
+- [UnimplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception) - Thrown when the current type does not provide the corresponding `@local!` implementation.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local! = [1, 2, 3]
+    let copied: Array<Int64> @local! = arr.toArray()
+    match (copied.first) {
+        case Some(v) => println("first=${v}")
+        case None => println("none")
+    }
+}
+```
+
+Output:
+
+```text
+first=1
+```
+
+<!--DelEnd-->
 ## interface Comparable\<T>
 
 ```cangjie
@@ -732,6 +915,274 @@ Returns:
 
 - [Bool](core_package_intrinsics.md#bool) - Returns `true` if greater than or equal, otherwise `false`.
 
+<!--Del-->
+### func compare(this @local?, T @local?)
+
+```cangjie
+func compare(this @local?, other: T @local?): Ordering
+```
+
+Function: Determines the size relationship between the current `@local?` instance and the `@local?` instance specified by the parameter.
+
+> **Note:**
+>
+> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+>
+> Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local? - The receiver is an `@local?` instance.
+- other: T @local? - The other `@local?` instance to compare with.
+
+Returns:
+
+- [Ordering](core_package_enums.md#enum-ordering) - The comparison result.
+
+Exceptions:
+
+- [UnimplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception) - Thrown when the current type does not provide the corresponding `@local?` implementation.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Int64 @local? = 3
+    let c: Int64 @local? = 5
+    let r: Ordering = a.compare(c)
+    println("compare: ${r}")
+}
+```
+
+Output:
+
+```text
+compare: Ordering.LT
+```
+
+<!--DelEnd-->
+<!--Del-->
+### func ==(this @local?, T @local?)
+
+```cangjie
+operator func ==(this @local?, other: T @local?): Bool
+```
+
+Function: Determines whether the current `@local?` instance is equal to the `@local?` instance specified by the parameter. This function is the `@local?` default implementation of this interface.
+
+> **Note:**
+>
+> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+>
+> Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local? - The receiver is a `@local?` instance.
+- other: T @local? - The other `@local?` instance to compare with.
+
+Returns:
+
+- [Bool](core_package_intrinsics.md#bool) - Returns true if equal to, otherwise false.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Int64 @local? = 3
+    let b: Int64 @local? = 3
+    let c: Int64 @local? = 5
+    println("a == b: ${a == b}")
+    println("a == c: ${a == c}")
+}
+```
+
+Output:
+
+```text
+a == b: true
+a == c: false
+```
+
+<!--DelEnd-->
+<!--Del-->
+### func <(this @local?, T @local?)
+
+```cangjie
+operator func <(this @local?, other: T @local?): Bool
+```
+
+Function: Determines whether the current `@local?` instance is less than the `@local?` instance specified by the parameter. This function is the `@local?` default implementation of this interface.
+
+> **Note:**
+>
+> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+>
+> Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local? - The receiver is a `@local?` instance.
+- other: T @local? - The other `@local?` instance to compare with.
+
+Returns:
+
+- [Bool](core_package_intrinsics.md#bool) - Returns true if less than, otherwise false.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Int64 @local? = 3
+    let c: Int64 @local? = 5
+    println("a < c: ${a < c}")
+    println("c < a: ${c < a}")
+}
+```
+
+Output:
+
+```text
+a < c: true
+c < a: false
+```
+
+<!--DelEnd-->
+<!--Del-->
+### func >(this @local?, T @local?)
+
+```cangjie
+operator func >(this @local?, other: T @local?): Bool
+```
+
+Function: Determines whether the current `@local?` instance is greater than the `@local?` instance specified by the parameter. This function is the `@local?` default implementation of this interface.
+
+> **Note:**
+>
+> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+>
+> Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local? - The receiver is a `@local?` instance.
+- other: T @local? - The other `@local?` instance to compare with.
+
+Returns:
+
+- [Bool](core_package_intrinsics.md#bool) - Returns true if greater than, otherwise false.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Int64 @local? = 3
+    let c: Int64 @local? = 5
+    println("c > a: ${c > a}")
+    println("a > c: ${a > c}")
+}
+```
+
+Output:
+
+```text
+c > a: true
+a > c: false
+```
+
+<!--DelEnd-->
+<!--Del-->
+### func <=(this @local?, T @local?)
+
+```cangjie
+operator func <=(this @local?, other: T @local?): Bool
+```
+
+Function: Determines whether the current `@local?` instance is less than or equal to the `@local?` instance specified by the parameter. This function is the `@local?` default implementation of this interface.
+
+> **Note:**
+>
+> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+>
+> Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local? - The receiver is a `@local?` instance.
+- other: T @local? - The other `@local?` instance to compare with.
+
+Returns:
+
+- [Bool](core_package_intrinsics.md#bool) - Returns true if less than or equal to, otherwise false.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Int64 @local? = 3
+    let c: Int64 @local? = 5
+    println("a <= c: ${a <= c}")
+    println("c <= a: ${c <= a}")
+}
+```
+
+Output:
+
+```text
+a <= c: true
+c <= a: false
+```
+
+<!--DelEnd-->
+<!--Del-->
+### func >=(this @local?, T @local?)
+
+```cangjie
+operator func >=(this @local?, other: T @local?): Bool
+```
+
+Function: Determines whether the current `@local?` instance is greater than or equal to the `@local?` instance specified by the parameter. This function is the `@local?` default implementation of this interface.
+
+> **Note:**
+>
+> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+>
+> Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local? - The receiver is a `@local?` instance.
+- other: T @local? - The other `@local?` instance to compare with.
+
+Returns:
+
+- [Bool](core_package_intrinsics.md#bool) - Returns true if greater than or equal to, otherwise false.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Int64 @local? = 3
+    let c: Int64 @local? = 5
+    println("c >= a: ${c >= a}")
+    println("a >= c: ${a >= c}")
+}
+```
+
+Output:
+
+```text
+c >= a: true
+a >= c: false
+```
+
+<!--DelEnd-->
 ## interface Countable\<T>
 
 ```cangjie
@@ -912,6 +1363,107 @@ Returns:
 
 - [Bool](core_package_intrinsics.md#bool) - Returns `true` if equal, otherwise `false`.
 
+<!--Del-->
+### operator func ==(this @local!, T @local!)
+
+```cangjie
+operator func ==(this @local!, other: T @local!): Bool
+```
+
+Function: Determines whether the current `@local!` instance is equal to the specified `@local!` instance.
+
+> **Note:**
+>
+> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+>
+> Platform not supported: OpenHarmony.
+
+Parameters:
+
+- other: T @local! - The other `@local!` instance to compare with.
+
+Returns:
+
+- [Bool](core_package_intrinsics.md#bool) - Returns true if equal, otherwise false.
+
+Exceptions:
+
+- [UnimplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception) - Thrown when the current type does not provide the corresponding `@local!` implementation.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Bool @local! = true
+    let b: Bool @local! = true
+    // Bool does not provide the @local! implementation of ==; the call hits the default implementation of the Equal interface
+    try {
+        println("eq=${a == b}")
+    } catch (e: UnimplementedException) {
+        println("caught: ${e.message}")
+    }
+}
+```
+
+Output:
+
+```text
+caught: Current Type does not implement '==' method for its @local! instance
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+### operator func ==(this @local?, T @local?)
+
+```cangjie
+operator func ==(this @local?, other: T @local?): Bool
+```
+
+Function: Determines whether the current `@local?` instance is equal to the specified `@local?` instance.
+
+> **Note:**
+>
+> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+>
+> Platform not supported: OpenHarmony.
+
+Parameters:
+
+- other: T @local? - The other `@local?` instance to compare with.
+
+Returns:
+
+- [Bool](core_package_intrinsics.md#bool) - Returns true if equal, otherwise false.
+
+Exceptions:
+
+- [UnimplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception) - Thrown when the current type does not provide the corresponding `@local?` implementation.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Bool @local? = true
+    let b: Bool @local? = true
+    // Bool does not provide the @local? implementation of ==; the call hits the default implementation of the Equal interface
+    try {
+        println("eq=${a == b}")
+    } catch (e: UnimplementedException) {
+        println("caught: ${e.message}")
+    }
+}
+```
+
+Output:
+
+```text
+caught: Current Type does not implement '==' method for its @local? instance
+```
+
+<!--DelEnd-->
 ## interface Equatable\<T>
 
 ```cangjie
@@ -945,7 +1497,111 @@ Parameters:
 
 Returns:
 
-- [Bool](core_package_intrinsics.md#bool) - Returns `true` if not equal, otherwise `false`.## interface GreaterOrEqual\<T>
+- [Bool](core_package_intrinsics.md#bool) - Returns `true` if not equal, otherwise `false`.
+
+
+<!--Del-->
+### operator func !=(this @local!, T @local!)
+
+```cangjie
+operator func !=(this @local!, other: T @local!): Bool
+```
+
+Function: Determines whether the current `@local!` instance is not equal to the specified `@local!` instance.
+
+> **Note:**
+>
+> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+>
+> Platform not supported: OpenHarmony.
+
+Parameters:
+
+- other: T @local! - The other `@local!` instance to compare with.
+
+Returns:
+
+- [Bool](core_package_intrinsics.md#bool) - Returns true if not equal, otherwise false.
+
+Exceptions:
+
+- [UnimplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception) - Thrown when the current type does not provide the corresponding `@local!` implementation.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Bool @local! = true
+    let b: Bool @local! = false
+    // Bool does not provide the @local! implementation of !=; the call hits the default implementation of the Equatable interface
+    try {
+        println("ne=${a != b}")
+    } catch (e: UnimplementedException) {
+        println("caught: ${e.message}")
+    }
+}
+```
+
+Output:
+
+```text
+caught: Current Type does not implement '!=' method for its @local! instance
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+### operator func !=(this @local?, T @local?)
+
+```cangjie
+operator func !=(this @local?, other: T @local?): Bool
+```
+
+Function: Determines whether the current `@local?` instance is not equal to the specified `@local?` instance. This function is a default implementation of this interface; the default implementation delegates the result to the `==` operation (i.e., `!(this == other)`).
+
+> **Note:**
+>
+> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+>
+> Platform not supported: OpenHarmony.
+
+Parameters:
+
+- other: T @local? - The other `@local?` instance to compare with.
+
+Returns:
+
+- [Bool](core_package_intrinsics.md#bool) - Returns true if not equal, otherwise false.
+
+Exceptions:
+
+- [UnimplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception) - The default implementation itself does not throw directly; the exception propagates when the delegated `==` implementation throws it, for example when the type does not provide the `@local?` implementation of `==` and the default implementation of the [Equal](#interface-equalt) interface is hit.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Bool @local? = true
+    let b: Bool @local? = false
+    // The default implementation delegates to ==; Bool does not provide the @local? implementation of ==, so the call finally hits the default implementation of the Equal interface
+    try {
+        println("ne=${a != b}")
+    } catch (e: UnimplementedException) {
+        println("caught: ${e.message}")
+    }
+}
+```
+
+Output:
+
+```text
+caught: Current Type does not implement '==' method for its @local? instance
+```
+
+<!--DelEnd-->
+## interface GreaterOrEqual\<T>
 
 ```cangjie
 public interface GreaterOrEqual<T> {
@@ -1021,6 +1677,97 @@ Returns:
 
 - [Int64](core_package_intrinsics.md#int64) - Returns the hash value of the instance type.
 
+<!--Del-->
+### func hashCode(this @local?)
+
+```cangjie
+func hashCode(this @local?): Int64
+```
+
+Function: Computes the hash value of the current `@local?` instance.
+
+> **Note:**
+>
+> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+>
+> Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local? - The receiver is an `@local?` instance.
+
+Returns:
+
+- [Int64](core_package_intrinsics.md#int64) - Returns the hash value of the instance type.
+
+Exceptions:
+
+- [UnimplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception) - Thrown when the current type does not provide the corresponding `@local?` implementation.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let ord: Ordering @local? = Ordering.LT
+    // Ordering provides the @local? implementation of hashCode
+    println("h=${ord.hashCode()}")
+}
+```
+
+Output:
+
+```text
+h=1
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+### func hashCode(this @local!)
+
+```cangjie
+func hashCode(this @local!): Int64
+```
+
+Function: Computes the hash value of the current `@local!` instance.
+
+> **Note:**
+>
+> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+>
+> Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+
+Returns:
+
+- [Int64](core_package_intrinsics.md#int64) - Returns the hash value of the instance type.
+
+Exceptions:
+
+- [UnimplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception) - Thrown when the current type does not provide the corresponding `@local!` implementation.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let ord: Ordering @local! = Ordering.GT
+    // Ordering provides the @local! implementation of hashCode
+    println("h=${ord.hashCode()}")
+}
+```
+
+Output:
+
+```text
+h=3
+```
+
+<!--DelEnd-->
 ## interface Hasher
 
 ```cangjie
@@ -1260,6 +2007,105 @@ Returns:
 
 - [Iterator](core_package_classes.md#class-iteratort)\<E> - The iterator.
 
+<!--Del-->
+### func iterator(this @local!)
+
+```cangjie
+func iterator(this @local!): Iterator<E> @local!
+```
+
+Function: Obtains the iterator of the current `@local!` instance; the returned iterator is bound to the same local region as the current instance.
+
+> **Note:**
+>
+> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+>
+> Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+
+Returns:
+
+- [Iterator](core_package_classes.md#class-iteratort)\<E> @local! - The iterator.
+
+Exceptions:
+
+- [IllegalStateException](../../core/core_package_api/core_package_exceptions.md#class-illegalstateexception) - Thrown when the current type does not provide the corresponding `@local!` implementation.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local! = [1, 2, 3]
+    // Array provides the @local! implementation of iterator
+    let it: Iterator<Int64> @local! = arr.iterator()
+    match (it.next()) {
+        case Some(v) => println("first=${v}")
+        case None => println("none")
+    }
+}
+```
+
+Output:
+
+```text
+first=1
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+### func iterator(this @local?)
+
+```cangjie
+func iterator(this @local?): Iterator<E> @local?
+```
+
+Function: Obtains the iterator of the current `@local?` instance; the returned iterator is bound to the same local region as the current instance.
+
+> **Note:**
+>
+> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+>
+> Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local? - The receiver is an `@local?` instance.
+
+Returns:
+
+- [Iterator](core_package_classes.md#class-iteratort)\<E> @local? - The iterator.
+
+Exceptions:
+
+- [IllegalStateException](../../core/core_package_api/core_package_exceptions.md#class-illegalstateexception) - Thrown when the current type does not provide the corresponding `@local?` implementation.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local? = [1, 2, 3]
+    // Array provides the @local? implementation of iterator
+    let it: Iterator<Int64> @local? = arr.iterator()
+    match (it.next()) {
+        case Some(v) => println("first=${v}")
+        case None => println("none")
+    }
+}
+```
+
+Output:
+
+```text
+first=1
+```
+
+<!--DelEnd-->
 ## interface LessOrEqual\<T>
 
 ```cangjie
@@ -1338,6 +2184,122 @@ Returns:
 
 - [Bool](core_package_intrinsics.md#bool) - Returns true if not equal, otherwise returns false.
 
+<!--Del-->
+### operator func !=(this @local!, T @local!)
+
+```cangjie
+operator func !=(this @local!, other: T @local!): Bool
+```
+
+Function: Determines whether the current `@local!` instance is not equal to the specified `@local!` instance.
+
+> **Note:**
+>
+> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+>
+> Platform not supported: OpenHarmony.
+
+Parameters:
+
+- other: T @local! - The other `@local!` instance to compare with.
+
+Returns:
+
+- [Bool](core_package_intrinsics.md#bool) - Returns true if not equal, otherwise false.
+
+Exceptions:
+
+- [UnimplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception) - Thrown when the current type does not provide the corresponding `@local!` implementation.
+
+Example:
+
+<!-- verify -->
+```cangjie
+class MyType <: NotEqual<MyType> {
+    public operator func !=(other: MyType): Bool {
+        true
+    }
+    public exclave init(this @local!) {}
+}
+
+main() {
+    let a: MyType @local! = MyType() @local!
+    let b: MyType @local! = MyType() @local!
+    // MyType does not provide the @local! implementation of !=; the call hits the default implementation of the NotEqual interface
+    try {
+        println("ne=${a != b}")
+    } catch (e: UnimplementedException) {
+        println("caught: ${e.message}")
+    }
+}
+```
+
+Output:
+
+```text
+caught: Current Type does not implement '!=' method for its @local! instance
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+### operator func !=(this @local?, T @local?)
+
+```cangjie
+operator func !=(this @local?, other: T @local?): Bool
+```
+
+Function: Determines whether the current `@local?` instance is not equal to the specified `@local?` instance.
+
+> **Note:**
+>
+> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+>
+> Platform not supported: OpenHarmony.
+
+Parameters:
+
+- other: T @local? - The other `@local?` instance to compare with.
+
+Returns:
+
+- [Bool](core_package_intrinsics.md#bool) - Returns true if not equal, otherwise false.
+
+Exceptions:
+
+- [UnimplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception) - Thrown when the current type does not provide the corresponding `@local?` implementation.
+
+Example:
+
+<!-- verify -->
+```cangjie
+class MyType <: NotEqual<MyType> {
+    public operator func !=(other: MyType): Bool {
+        true
+    }
+    public exclave init(this @local!) {}
+    public exclave init(this @local?) {}
+}
+
+main() {
+    let a: MyType @local? = MyType() @local?
+    let b: MyType @local? = MyType() @local?
+    // MyType does not provide the @local? implementation of !=; the call hits the default implementation of the NotEqual interface
+    try {
+        println("ne=${a != b}")
+    } catch (e: UnimplementedException) {
+        println("caught: ${e.message}")
+    }
+}
+```
+
+Output:
+
+```text
+caught: Current Type does not implement '!=' method for its @local? instance
+```
+
+<!--DelEnd-->
 ## interface Resource
 
 ```cangjie
@@ -1426,3 +2388,49 @@ Function: Obtains the string representation of an instance type.
 Returns:
 
 - [String](core_package_structs.md#struct-string) - Returns the string representation of the instance type.
+<!--Del-->
+### func toString(this @local?)
+
+```cangjie
+func toString(this @local?): String @local!
+```
+
+Function: Converts the current `@local?` instance to an outputtable string; the returned string is bound to the caller's local region.
+
+> **Note:**
+>
+> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+>
+> Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local? - The receiver is an `@local?` instance.
+
+Returns:
+
+- [String](core_package_structs.md#struct-string) @local! - Returns the string representation of the instance type.
+
+Exceptions:
+
+- [UnimplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception) - Thrown when the current type does not provide the corresponding `@local?` implementation.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let n: Int64 @local? = 42
+    // Int64 provides the @local? implementation of toString
+    let s: String @local! = n.toString()
+    println(s)
+}
+```
+
+Output:
+
+```text
+42
+```
+
+<!--DelEnd-->

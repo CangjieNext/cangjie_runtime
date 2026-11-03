@@ -710,6 +710,8 @@ main() {
 添加17个元素后容量: 24
 ```
 
+<!--Del-->
+
 ### prop capacity @local?
 
 ```cangjie
@@ -720,7 +722,8 @@ public prop capacity: Int64 @local?
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 类型：[Int64](../../core/core_package_api/core_package_intrinsics.md#int64)
 
@@ -746,6 +749,8 @@ main() {
 ```text
 cap>=16: true
 ```
+
+<!--DelEnd-->
 
 ### prop first
 
@@ -784,6 +789,9 @@ main() {
 空列表第一个元素: None
 ```
 
+<!--Del-->
+
+<!-- markdownlint-disable-next-line MD026 -->
 ### prop first @local!
 
 ```cangjie
@@ -794,7 +802,8 @@ public prop first: ?T @local!
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 类型：?T @local!
 
@@ -821,6 +830,10 @@ main() {
 first=1
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
+
 ### prop first @local?
 
 ```cangjie
@@ -831,7 +844,8 @@ public prop first: ?T @local?
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 类型：?T @local?
 
@@ -863,6 +877,8 @@ main() {
 ```text
 first=1
 ```
+
+<!--DelEnd-->
 
 ### prop last
 
@@ -901,6 +917,9 @@ main() {
 空列表最后一个元素: None
 ```
 
+<!--Del-->
+
+<!-- markdownlint-disable-next-line MD026 -->
 ### prop last @local!
 
 ```cangjie
@@ -911,13 +930,14 @@ public prop last: ?T @local!
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 类型：?T @local!
 
 示例：
 
-<!-- compile -->
+<!-- verify -->
 ```cangjie
 import std.collection.*
 
@@ -932,6 +952,16 @@ main() {
 }
 ```
 
+运行结果：
+
+```text
+last=1
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+
 ### prop last @local?
 
 ```cangjie
@@ -942,13 +972,14 @@ public prop last: ?T @local?
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 类型：?T @local?
 
 示例：
 
-<!-- compile -->
+<!-- verify -->
 ```cangjie
 import std.collection.*
 
@@ -968,6 +999,14 @@ main() {
     }
 }
 ```
+
+运行结果：
+
+```text
+last=1
+```
+
+<!--DelEnd-->
 
 ### prop size
 
@@ -1004,6 +1043,8 @@ main() {
 添加2个元素后大小: 2
 ```
 
+<!--Del-->
+
 ### prop size @local?
 
 ```cangjie
@@ -1014,7 +1055,8 @@ public prop size: Int64 @local?
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 类型：[Int64](../../core/core_package_api/core_package_intrinsics.md#int64)
 
@@ -1037,6 +1079,8 @@ main() {
 ```text
 size=2
 ```
+
+<!--DelEnd-->
 
 ### init()
 
@@ -1188,6 +1232,8 @@ main() {
 列表大小: 5
 ```
 
+<!--Del-->
+
 ### init(this @local!)
 
 ```cangjie
@@ -1198,7 +1244,8 @@ public exclave init(this @local!)
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 示例：
 
@@ -1218,6 +1265,10 @@ main() {
 size=0
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
+
 ### init(this @local!, Int64)
 
 ```cangjie
@@ -1228,7 +1279,8 @@ public exclave init(this @local!, capacity: Int64)
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -1257,6 +1309,10 @@ main() {
 cap>=16: true
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
+
 ### init(this @local!, Int64, (Int64) -> T @local!)
 
 ```cangjie
@@ -1267,7 +1323,8 @@ public exclave init(this @local!, size: Int64, initElement: ((Int64) -> T @local
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -1281,7 +1338,7 @@ public exclave init(this @local!, size: Int64, initElement: ((Int64) -> T @local
 
 示例：
 
-<!-- compile -->
+<!-- verify -->
 ```cangjie
 import std.collection.*
 
@@ -1291,6 +1348,16 @@ main() {
 }
 ```
 
+运行结果：
+
+```text
+size=3 v2=4
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+
 ### init(this @local!, Collection\<T> @local!)
 
 ```cangjie
@@ -1299,14 +1366,21 @@ public exclave init(this @local!, elements: Collection<T> @local!)
 
 功能：在 local region 中根据 `@local!` 集合构造一个 `@local!` 动态数组。
 
+传入集合的动态类型为 [Array](../../core/core_package_api/core_package_structs.md#struct-arrayt) 或 [ArrayList](collection_package_class.md#class-arraylistt) 时，直接复制其底层存储；其他类型通过传入集合的 `toArray(this @local!)` 取得元素，若该类型未覆盖该方法，则进入 [Collection](../../core/core_package_api/core_package_interfaces.md#interface-collectiont) 接口的默认实现并抛出异常（见异常说明）。
+
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
 - this @local! - 接收者为 `@local!` 实例。
 - elements: [Collection](../../core/core_package_api/core_package_interfaces.md#interface-collectiont)\<T> @local! - 根据该集合构造动态数组。
+
+异常：
+
+- [UnimplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception) - 当传入集合的动态类型不是 [Array](../../core/core_package_api/core_package_structs.md#struct-arrayt) 或 [ArrayList](collection_package_class.md#class-arraylistt)，且其类型未覆盖 `toArray(this @local!)`（使用 [Collection](../../core/core_package_api/core_package_interfaces.md#interface-collectiont) 接口的默认实现）时，抛出异常。
 
 示例：
 
@@ -1328,6 +1402,10 @@ main() {
 size=3
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
+
 ### init(this @local?, Array\<T> @local?)
 
 ```cangjie
@@ -1338,7 +1416,8 @@ public exclave init(this @local?, elements: Array<T> @local?)
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -1369,6 +1448,108 @@ main() {
 ```text
 size=3
 ```
+
+<!--DelEnd-->
+
+<!--Del-->
+
+### init(this @local?, Int64, (Int64) -> T @local?)
+
+```cangjie
+public exclave init(this @local?, size: Int64, initElement: ((Int64) -> T @local?) @local?)
+```
+
+功能：构造具有指定初始元素个数和指定规则函数的 `@local?` [ArrayList](collection_package_class.md#class-arraylistt)，结果列表绑定在当前 local region 中。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+- size: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - 初始化函数元素个数。
+- initElement: (([Int64](../../core/core_package_api/core_package_intrinsics.md#int64)) -> T @local?) @local? - 传入初始化函数。
+
+异常：
+
+- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 如果 size 小于 0 则抛出异常。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let list: ArrayList<Int64> @local? = ArrayList<Int64>(3) { index => index * 2 } @local?
+    println("size=${list.size}")
+}
+```
+
+运行结果：
+
+```text
+size=3
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+
+### init(this @local?, Collection\<T> @local?)
+
+```cangjie
+public exclave init(this @local?, elements: Collection<T> @local?)
+```
+
+功能：构造一个包含指定集合中所有元素的 `@local?` [ArrayList](collection_package_class.md#class-arraylistt)，元素按传入集合的迭代器返回的顺序排列。
+
+新列表在调用方上下文中构造；结果与传入集合的分配区域是否相同，不由该 `@local?` 签名保证。传入集合的动态类型为 [Array](../../core/core_package_api/core_package_structs.md#struct-arrayt) 或 [ArrayList](collection_package_class.md#class-arraylistt) 时，直接复制其底层存储；其他类型通过传入集合的 `toArray(this @local?)` 取得元素，若该类型未覆盖该方法，则进入 [Collection](../../core/core_package_api/core_package_interfaces.md#interface-collectiont) 接口的默认实现并抛出异常（见异常说明）。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+- elements: [Collection](../../core/core_package_api/core_package_interfaces.md#interface-collectiont)\<T> @local? - 传入集合。
+
+异常：
+
+- [UnimplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception) - 当传入集合的动态类型不是 [Array](../../core/core_package_api/core_package_structs.md#struct-arrayt) 或 [ArrayList](collection_package_class.md#class-arraylistt)，且其类型未覆盖 `toArray(this @local?)`（使用 [Collection](../../core/core_package_api/core_package_interfaces.md#interface-collectiont) 接口的默认实现）时，抛出异常。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+exclave func makeList(): ArrayList<Int64> @local? {
+    let src: Array<Int64> @local! = [1, 2, 3]
+    let sharedSrc: Collection<Int64> @local? = src
+    let a: ArrayList<Int64> @local? = ArrayList<Int64>(sharedSrc) @local?
+    a
+}
+
+main() {
+    let list: ArrayList<Int64> @local? = makeList()
+    println("size=${list.size}")
+    println("first=${list[0]}")
+}
+```
+
+运行结果：
+
+```text
+size=3
+first=1
+```
+
+<!--DelEnd-->
 
 ### static func of(Array\<T>)
 
@@ -1582,6 +1763,8 @@ main() {
 列表大小: 3
 ```
 
+<!--Del-->
+
 ### func add(this @local!, Collection\<T> @local!)
 
 ```cangjie
@@ -1594,7 +1777,8 @@ public exclave func add(this @local!, all!: Collection<T> @local!): Unit
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -1627,6 +1811,66 @@ size=4
 last=4
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
+
+### func add(this @local!, Collection\<T> @local!, Int64)
+
+```cangjie
+public exclave func add(this @local!, all!: Collection<T> @local!, at!: Int64): Unit
+```
+
+功能：从当前 `@local!` 列表的指定位置开始，将指定集合中的所有元素插入此列表。
+
+函数会按照迭代器顺序遍历入参中的集合，并且将所有元素插入到指定位置，原先在指定位置及其后的元素会后移。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local! - 接收者为 `@local!` 实例。
+- all!: [Collection](../../core/core_package_api/core_package_interfaces.md#interface-collectiont)\<T> @local! - 要插入的 T 类型元素集合。
+- at!: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - 插入集合的目标索引。
+
+异常：
+
+- [IndexOutOfBoundsException](../../core/core_package_api/core_package_exceptions.md#class-indexoutofboundsexception) - 当 at 超出范围时，抛出异常。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let list: ArrayList<Int64> @local! = ArrayList<Int64>() @local!
+    list.add(1)
+    list.add(5)
+    let more: ArrayList<Int64> @local! = ArrayList<Int64>() @local!
+    more.add(2)
+    more.add(3)
+    more.add(4)
+    list.add(all: more, at: 1)
+    println("size=${list.size}")
+    println("at1=${list[1]}")
+}
+```
+
+运行结果：
+
+```text
+size=5
+at1=2
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+
 ### func add(this @local!, T @local!)
 
 ```cangjie
@@ -1637,7 +1881,8 @@ public exclave func add(this @local!, element: T @local!): Unit
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -1666,6 +1911,10 @@ size=2
 last=2
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
+
 ### func add(this @local!, T @local!, Int64)
 
 ```cangjie
@@ -1676,7 +1925,8 @@ public exclave func add(this @local!, element: T @local!, at!: Int64): Unit
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -1710,6 +1960,8 @@ main() {
 size=3
 at1=2
 ```
+
+<!--DelEnd-->
 
 <!--Del-->
 ### func all((T) -> Bool)
@@ -1963,6 +2215,8 @@ main() {
 列表是否为空: true
 ```
 
+<!--Del-->
+
 ### func clear(this @local!)
 
 ```cangjie
@@ -1973,7 +2227,8 @@ public exclave func clear(this @local!): Unit
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -2001,6 +2256,8 @@ main() {
 清空后大小: 0
 是否为空: true
 ```
+
+<!--DelEnd-->
 
 ### func clone()
 
@@ -2047,6 +2304,8 @@ main() {
 克隆列表保持不变: [1, 2, 3]
 ```
 
+<!--Del-->
+
 ### func clone(this @local!)
 
 ```cangjie
@@ -2057,7 +2316,8 @@ public exclave func clone(this @local!): ArrayList<T> @local!
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 返回值：
 
@@ -2086,6 +2346,59 @@ main() {
 克隆列表大小: 2
 克隆列表末尾元素: 2
 ```
+
+<!--DelEnd-->
+
+<!--Del-->
+
+### func clone(this @local?)
+
+```cangjie
+public exclave func clone(this @local?): ArrayList<T> @local?
+```
+
+功能：返回此 `@local?` [ArrayList](collection_package_class.md#class-arraylistt) 实例的拷贝（浅拷贝）。拷贝结果在调用方处构造为新列表，其底层数组为当前列表底层数组的克隆，元素引用与原列表共享。
+
+该成员由 `extend<T> ArrayList<T> where T <: Copyable` 扩展提供，仅当元素类型 T 为 Copyable 的子类型时可用。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+
+返回值：
+
+- [ArrayList](collection_package_class.md#class-arraylistt)\<T> @local? - 返回新 [ArrayList](collection_package_class.md#class-arraylistt)。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+exclave func makeList(): ArrayList<Int64> @local? {
+    let a: ArrayList<Int64> @local? = ArrayList<Int64>() @local!
+    a
+}
+
+main() {
+    let list: ArrayList<Int64> @local? = makeList()
+    let cloned: ArrayList<Int64> @local? = list.clone()
+    println("size=${cloned.size}")
+}
+```
+
+运行结果：
+
+```text
+size=0
+```
+
+<!--DelEnd-->
 
 <!--Del-->
 ### func filter((T) -> Bool)
@@ -2282,7 +2595,7 @@ main() {
     list.add(2)
     let positives: ArrayList<Int64> @local! = list.filterMap<Int64>({e =>
         if (e > 0) {
-            Some(e)
+            exclave { Some(e) }
         } else {
             None<Int64>
         }
@@ -2384,12 +2697,18 @@ public exclave func flatMap<R>(this @local!, transform: ((T @local!) -> ArrayLis
 ```cangjie
 import std.collection.*
 
+exclave func makePair(e: Int64 @local!): ArrayList<Int64> @local! {
+    let arr: Array<Int64> @local! = [e, e * e]
+    let result: ArrayList<Int64> @local! = ArrayList<Int64>(arr) @local!
+    result
+}
+
 main() {
     let list: ArrayList<Int64> @local! = ArrayList<Int64>() @local!
     list.add(1)
     list.add(2)
     list.add(3)
-    let flat: ArrayList<Int64> @local! = list.flatMap<Int64>({e => ArrayList<Int64>([e, e * e]) @local!})
+    let flat: ArrayList<Int64> @local! = list.flatMap<Int64>(makePair)
     println("size=${flat.size}")
     println("first=${flat[0]}")
     println("last=${flat[5]}")
@@ -2605,6 +2924,8 @@ main() {
 索引5处的元素: None
 ```
 
+<!--Del-->
+
 ### func get(this @local!, Int64)
 
 ```cangjie
@@ -2615,7 +2936,8 @@ public exclave func get(this @local!, index: Int64): ?T @local!
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -2649,17 +2971,22 @@ main() {
 g=10
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
+
 ### func get(this @local?, Int64)
 
 ```cangjie
 public exclave func get(this @local?, index: Int64): ?T @local?
 ```
 
-功能：获取当前 `@local?` 列表中 index 位置的元素，返回值与当前列表绑定在同一个 local region 中。
+功能：获取当前 `@local?` 列表中 index 位置的元素。下标越界时返回 None；否则返回封装该位置元素的 [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)。返回的 [Option](../../core/core_package_api/core_package_enums.md#enum-optiont) 在调用方处构造，不与当前列表绑定在同一分配区域。
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -2697,6 +3024,8 @@ main() {
 ```text
 g=20
 ```
+
+<!--DelEnd-->
 
 ### func getRawArray()
 
@@ -2894,6 +3223,8 @@ main() {
 非空列表是否为空: false
 ```
 
+<!--Del-->
+
 ### func isEmpty(this @local?)
 
 ```cangjie
@@ -2904,7 +3235,8 @@ public func isEmpty(this @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -2936,6 +3268,8 @@ main() {
 ```text
 isEmpty=true
 ```
+
+<!--DelEnd-->
 
 ### func iterator()
 
@@ -2975,6 +3309,8 @@ main() {
 3
 ```
 
+<!--Del-->
+
 ### func iterator(this @local!)
 
 ```cangjie
@@ -2985,7 +3321,8 @@ public exclave func iterator(this @local!): Iterator<T> @local!
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -3018,17 +3355,22 @@ main() {
 first=1
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
+
 ### func iterator(this @local?)
 
 ```cangjie
 public exclave func iterator(this @local?): Iterator<T> @local?
 ```
 
-功能：获取当前 `@local?` 列表的迭代器，迭代器与当前列表绑定在同一个 local region 中。
+功能：获取当前 `@local?` 列表的迭代器。迭代器实例在调用方处新构造，持有对当前列表的引用，并按列表的当前内容逐一返回元素。
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -3066,6 +3408,8 @@ main() {
 ```text
 first=7
 ```
+
+<!--DelEnd-->
 
 <!--Del-->
 ### func map\<R>((T) -> R)
@@ -3447,6 +3791,8 @@ main() {
 删除后的列表大小: 2
 ```
 
+<!--Del-->
+
 ### func remove(this @local!, Int64)
 
 ```cangjie
@@ -3457,7 +3803,8 @@ public exclave func remove(this @local!, at!: Int64): T @local!
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -3495,6 +3842,8 @@ main() {
 removed=2
 size=2
 ```
+
+<!--DelEnd-->
 
 ### func remove(Range\<Int64>)
 
@@ -3543,6 +3892,8 @@ main() {
 删除后的列表大小: 5
 ```
 
+<!--Del-->
+
 ### func remove(this @local!, Range\<Int64>)
 
 ```cangjie
@@ -3554,6 +3905,7 @@ public exclave func remove(this @local!, range: Range<Int64>): Unit
 > **注意：**
 >
 > - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 > - 如果参数 range 是使用 [Range](../../core/core_package_api/core_package_structs.md#struct-ranget-where-t--countablet--comparablet--equatablet) 构造函数构造的 [Range](../../core/core_package_api/core_package_structs.md#struct-ranget-where-t--countablet--comparablet--equatablet) 实例，hasEnd 为 false 时，end 值不生效，且不受构造时传入的 isClosed 的值的影响，删除范围从 start 延伸至当前列表末尾。
 
 参数：
@@ -3591,6 +3943,8 @@ main() {
 size=3
 at1=3
 ```
+
+<!--DelEnd-->
 
 ### func removeIf((T) -> Bool)
 
@@ -3636,6 +3990,8 @@ main() {
 删除后的列表大小: 3
 ```
 
+<!--Del-->
+
 ### func removeIf(this @local!, (T @local!) -> Bool)
 
 ```cangjie
@@ -3646,7 +4002,8 @@ public exclave func removeIf(this @local!, predicate: ((T @local!) -> Bool) @loc
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -3681,6 +4038,8 @@ main() {
 size=2
 first=1
 ```
+
+<!--DelEnd-->
 
 ### func reserve(Int64)
 
@@ -3775,6 +4134,8 @@ main() {
 反转后: [3, 2, 1, 0]
 ```
 
+<!--Del-->
+
 ### func reverse(this @local!)
 
 ```cangjie
@@ -3785,7 +4146,8 @@ public exclave func reverse(this @local!): Unit
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -3815,6 +4177,8 @@ main() {
 first=3
 last=0
 ```
+
+<!--DelEnd-->
 
 <!--Del-->
 ### func skip(Int64)
@@ -3997,6 +4361,8 @@ main() {
 通过 Range 构造函数切片: [2, 3, 4]
 ```
 
+<!--Del-->
+
 ### func slice(this @local!, Range\<Int64>)
 
 ```cangjie
@@ -4007,7 +4373,8 @@ public exclave func slice(this @local!, range: Range<Int64>): ArrayList<T> @loca
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -4046,17 +4413,22 @@ main() {
 sl=2
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
+
 ### func slice(this @local?, Range\<Int64>)
 
 ```cangjie
 public exclave func slice(this @local?, range: Range<Int64>): ArrayList<T> @local?
 ```
 
-功能：获取当前 `@local?` 列表的子列表切片，切片与当前列表绑定在同一个 local region 中。
+功能：获取当前 `@local?` 列表的子列表切片。切片是在调用方处新构造的 [ArrayList](collection_package_class.md#class-arraylistt)，其元素为当前列表中 range 范围内元素的拷贝，与当前列表不绑定在同一分配区域。
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -4097,6 +4469,8 @@ main() {
 ```text
 sl=2
 ```
+
+<!--DelEnd-->
 
 ### func sortBy((T, T) -> Ordering) <sup>(deprecated)</sup>
 
@@ -4473,6 +4847,8 @@ main() {
 数组: [0, 1, 2, 3]
 ```
 
+<!--Del-->
+
 ### func toArray(this @local!)
 
 ```cangjie
@@ -4483,7 +4859,8 @@ public exclave func toArray(this @local!): Array<T> @local!
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -4512,6 +4889,57 @@ main() {
 ```text
 arr=1
 ```
+
+<!--DelEnd-->
+
+<!--Del-->
+
+### func toArray(this @local?)
+
+```cangjie
+public exclave func toArray(this @local?): Array<T> @local?
+```
+
+功能：将当前 `@local?` 列表转换为 `@local?` 数组。返回的数组在调用方处新构造，包含当前列表的全部元素，与当前列表不绑定在同一分配区域。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+
+返回值：
+
+- [Array](../../core/core_package_api/core_package_structs.md#struct-arrayt)\<T> @local? - 转换得到的 `@local?` 数组。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+exclave func makeList(): ArrayList<Int64> @local? {
+    let a: ArrayList<Int64> @local? = ArrayList<Int64>() @local!
+    a
+}
+
+main() {
+    let list: ArrayList<Int64> @local? = makeList()
+    let arr: Array<Int64> @local? = list.toArray()
+    println("size=${arr.size}")
+}
+```
+
+运行结果：
+
+```text
+size=0
+```
+
+<!--DelEnd-->
 
 ### operator func \[](Int64)
 
@@ -4563,6 +4991,8 @@ main() {
 修改后的列表: [10, 25, 30]
 ```
 
+<!--Del-->
+
 ### operator func \[](this @local!, Int64)
 
 ```cangjie
@@ -4573,7 +5003,8 @@ public exclave operator func [](this @local!, index: Int64): T @local!
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -4608,6 +5039,10 @@ main() {
 idx1=20
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
+
 ### operator func \[](this @local?, Int64)
 
 ```cangjie
@@ -4618,7 +5053,8 @@ public exclave operator func [](this @local?, index: Int64): T @local?
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -4656,6 +5092,8 @@ main() {
 ```text
 idx1=20
 ```
+
+<!--DelEnd-->
 
 ### operator func \[](Int64, T)
 
@@ -4703,6 +5141,8 @@ main() {
 索引1处的元素: 25
 ```
 
+<!--Del-->
+
 ### operator func \[](this @local!, Int64, T @local!)
 
 ```cangjie
@@ -4713,7 +5153,8 @@ public exclave operator func [](this @local!, index: Int64, value!: T @local!): 
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -4745,6 +5186,8 @@ main() {
 ```text
 at1=25
 ```
+
+<!--DelEnd-->
 
 ### operator func \[](Range\<Int64>)
 
@@ -4804,6 +5247,8 @@ main() {
 切片列表大小: 3
 ```
 
+<!--Del-->
+
 ### operator func \[](this @local!, Range\<Int64>)
 
 ```cangjie
@@ -4814,7 +5259,8 @@ public exclave operator func [](this @local!, range: Range<Int64>): ArrayList<T>
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -4832,7 +5278,7 @@ public exclave operator func [](this @local!, range: Range<Int64>): ArrayList<T>
 
 示例：
 
-<!-- compile -->
+<!-- verify -->
 ```cangjie
 import std.collection.*
 
@@ -4845,17 +5291,28 @@ main() {
 }
 ```
 
+运行结果：
+
+```text
+sl=1
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+
 ### operator func \[](this @local?, Range\<Int64>)
 
 ```cangjie
 public exclave operator func [](this @local?, range: Range<Int64>): ArrayList<T> @local?
 ```
 
-功能：获取当前 `@local?` 列表的子列表切片，切片与当前列表绑定在同一个 local region 中。
+功能：获取当前 `@local?` 列表的子列表切片。切片是在调用方处新构造的 [ArrayList](collection_package_class.md#class-arraylistt)，其元素为当前列表中 range 范围内元素的拷贝，与当前列表不绑定在同一分配区域。
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -4896,6 +5353,8 @@ main() {
 ```text
 sl=2
 ```
+
+<!--DelEnd-->
 
 <!--Del-->
 ### extend\<T> ArrayList\<T>
@@ -4977,7 +5436,7 @@ public exclave func enumerate(this @local!): ArrayList<(Int64, T)> @local!
 
 示例：
 
-<!-- compile -->
+<!-- verify -->
 ```cangjie
 import std.collection.*
 
@@ -4985,46 +5444,19 @@ main() {
     let list: ArrayList<String> @local! = ArrayList<String>() @local!
     list.add("apple")
     let enumerated: ArrayList<(Int64, String)> @local! = list.enumerate()
+    let pair = enumerated[0]
     println("size=${enumerated.size}")
+    println("first idx=${pair[0]}")
+    println("first val=${pair[1]}")
 }
 ```
 
-#### func zip\<R>(this @local!, ArrayList\<R> @local!)
+运行结果：
 
-```cangjie
-public exclave func zip<R>(this @local!, other: ArrayList<R> @local!): ArrayList<(T, R)> @local!
-```
-
-功能：将当前 `@local!` 列表与 other 指向的 `@local!` 列表中的元素按位置一一配对，返回新的 `@local!` 列表，结果与当前列表绑定在同一个 local region 中。
-
-> **注意：**
->
-> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
-> - 不支持平台：OpenHarmony。
-
-参数：
-
-- this @local! - 接收者为 `@local!` 实例。
-- other: [ArrayList](collection_package_class.md#class-arraylistt)\<R> @local! - 待配对的另一个 `@local!` 列表。
-
-返回值：
-
-- [ArrayList](collection_package_class.md#class-arraylistt)\<(T, R)> @local! - 配对后的 `@local!` 新列表。
-
-示例：
-
-<!-- compile -->
-```cangjie
-import std.collection.*
-
-main() {
-    let a: ArrayList<Int64> @local! = ArrayList<Int64>() @local!
-    a.add(1)
-    let b: ArrayList<Int64> @local! = ArrayList<Int64>() @local!
-    b.add(2)
-    let zipped: ArrayList<(Int64, Int64)> @local! = a.zip(b)
-    println("size=${zipped.size}")
-}
+```text
+size=1
+first idx=0
+first val=apple
 ```
 
 #### func zip\<R>(ArrayList\<R>)
@@ -5079,6 +5511,52 @@ Bob 的年龄是 30 岁
 Charlie 的年龄是 35 岁
 ```
 
+#### func zip\<R>(this @local!, ArrayList\<R> @local!)
+
+```cangjie
+public exclave func zip<R>(this @local!, other: ArrayList<R> @local!): ArrayList<(T, R)> @local!
+```
+
+功能：将当前 `@local!` 列表与 other 指向的 `@local!` 列表中的元素按位置一一配对，返回新的 `@local!` 列表，结果与当前列表绑定在同一个 local region 中。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local! - 接收者为 `@local!` 实例。
+- other: [ArrayList](collection_package_class.md#class-arraylistt)\<R> @local! - 待配对的另一个 `@local!` 列表。
+
+返回值：
+
+- [ArrayList](collection_package_class.md#class-arraylistt)\<(T, R)> @local! - 配对后的 `@local!` 新列表。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let a: ArrayList<Int64> @local! = ArrayList<Int64>() @local!
+    a.add(1)
+    let b: ArrayList<Int64> @local! = ArrayList<Int64>() @local!
+    b.add(2)
+    let zipped: ArrayList<(Int64, Int64)> @local! = a.zip(b)
+    println("size=${zipped.size}")
+    println("first=${zipped[0]}")
+}
+```
+
+运行结果：
+
+```text
+size=1
+first=(1, 2)
+```
+
 <!--DelEnd-->
 ### extend\<T> ArrayList\<T> <: Equatable\<ArrayList\<T>> where T <: Equatable\<T>
 
@@ -5131,99 +5609,6 @@ main() {
 列表包含元素5: false
 ```
 
-#### operator func ==(this @local?, ArrayList\<T> @local?)
-
-```cangjie
-public operator func ==(this @local?, other: ArrayList<T> @local?): Bool
-```
-
-功能：判断当前 `@local?` 实例与指定 `@local?` [ArrayList](./collection_package_class.md#class-arraylistt) 实例是否相等。
-
-两个列表相等指的是其中的每个元素都相等。
-
-> **注意：**
->
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
-
-参数：
-
-- this @local? - 接收者为 `@local?` 实例。
-- other: [ArrayList](./collection_package_class.md#class-arraylistt)\<T> @local? - 用于与当前实例比较的另一个 `@local?` 实例。
-
-返回值：
-
-- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
-
-示例：
-
-<!-- verify -->
-```cangjie
-import std.collection.*
-
-main() {
-    let a: ArrayList<Int64> @local! = ArrayList<Int64>() @local!
-    a.add(5)
-    let b: ArrayList<Int64> @local! = ArrayList<Int64>() @local!
-    b.add(5)
-    let aq: ArrayList<Int64> @local? = a
-    let bq: ArrayList<Int64> @local? = b
-    println("eq=${aq == bq}")
-}
-```
-
-运行结果：
-
-```text
-eq=true
-```
-
-#### operator func !=(this @local?, ArrayList\<T> @local?)
-
-```cangjie
-public operator func !=(this @local?, other: ArrayList<T> @local?): Bool
-```
-
-功能：判断当前 `@local?` 实例与指定 `@local?` [ArrayList](./collection_package_class.md#class-arraylistt) 实例是否不等。
-
-> **注意：**
->
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
-
-参数：
-
-- this @local? - 接收者为 `@local?` 实例。
-- other: [ArrayList](./collection_package_class.md#class-arraylistt)\<T> @local? - 用于与当前实例比较的另一个 `@local?` 实例。
-
-返回值：
-
-- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
-
-示例：
-
-<!-- verify -->
-```cangjie
-import std.collection.*
-
-main() {
-    let a: ArrayList<Int64> @local! = ArrayList<Int64>() @local!
-    a.add(5)
-    let b: ArrayList<Int64> @local! = ArrayList<Int64>() @local!
-    b.add(6)
-    let c: ArrayList<Int64> @local! = ArrayList<Int64>() @local!
-    c.add(5)
-    let aq: ArrayList<Int64> @local? = a
-    println("ne1=${aq != b}")
-    println("ne2=${aq != c}")
-}
-```
-
-运行结果：
-
-```text
-ne1=true
-ne2=false
-```
-
 #### operator func !=(ArrayList\<T>)
 
 ```cangjie
@@ -5264,6 +5649,58 @@ main() {
 list1 != list2: true
 list1 != list3: false
 ```
+
+<!--Del-->
+
+#### operator func !=(this @local?, ArrayList\<T> @local?)
+
+```cangjie
+public operator func !=(this @local?, other: ArrayList<T> @local?): Bool
+```
+
+功能：判断当前 `@local?` 实例与指定 `@local?` [ArrayList](./collection_package_class.md#class-arraylistt) 实例是否不等。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+- other: [ArrayList](./collection_package_class.md#class-arraylistt)\<T> @local? - 用于与当前实例比较的另一个 `@local?` 实例。
+
+返回值：
+
+- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let a: ArrayList<Int64> @local! = ArrayList<Int64>() @local!
+    a.add(5)
+    let b: ArrayList<Int64> @local! = ArrayList<Int64>() @local!
+    b.add(6)
+    let c: ArrayList<Int64> @local! = ArrayList<Int64>() @local!
+    c.add(5)
+    let aq: ArrayList<Int64> @local? = a
+    println("ne1=${aq != b}")
+    println("ne2=${aq != c}")
+}
+```
+
+运行结果：
+
+```text
+ne1=true
+ne2=false
+```
+
+<!--DelEnd-->
 
 #### operator func ==(ArrayList\<T>)
 
@@ -5307,6 +5744,57 @@ main() {
 list1 == list2: true
 list1 == list3: false
 ```
+
+<!--Del-->
+
+#### operator func ==(this @local?, ArrayList\<T> @local?)
+
+```cangjie
+public operator func ==(this @local?, other: ArrayList<T> @local?): Bool
+```
+
+功能：判断当前 `@local?` 实例与指定 `@local?` [ArrayList](./collection_package_class.md#class-arraylistt) 实例是否相等。
+
+两个列表相等指的是其中的每个元素都相等。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+- other: [ArrayList](./collection_package_class.md#class-arraylistt)\<T> @local? - 用于与当前实例比较的另一个 `@local?` 实例。
+
+返回值：
+
+- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let a: ArrayList<Int64> @local! = ArrayList<Int64>() @local!
+    a.add(5)
+    let b: ArrayList<Int64> @local! = ArrayList<Int64>() @local!
+    b.add(5)
+    let aq: ArrayList<Int64> @local? = a
+    let bq: ArrayList<Int64> @local? = b
+    println("eq=${aq == bq}")
+}
+```
+
+运行结果：
+
+```text
+eq=true
+```
+
+<!--DelEnd-->
 
 ### extend\<T> ArrayList\<T> <: SortExtension where T <: Comparable\<T> <sup>(deprecated)</sup>
 
@@ -6806,6 +7294,50 @@ main() {
 指定容量: 32
 ```
 
+<!--Del-->
+
+### prop capacity @local?
+
+```cangjie
+public prop capacity: Int64 @local?
+```
+
+功能：返回当前 `@local?` [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 的容量。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+exclave func makeMap(): HashMap<Int64, Int64> @local? {
+    let m: HashMap<Int64, Int64> @local? = HashMap<Int64, Int64>(32) @local!
+    m
+}
+
+main() {
+    let map: HashMap<Int64, Int64> @local? = makeMap()
+    println("cap>=32: ${map.capacity >= 32}")
+}
+```
+
+运行结果：
+
+```text
+cap>=32: true
+```
+
+<!--DelEnd-->
+
 ### prop size
 
 ```cangjie
@@ -6844,6 +7376,51 @@ main() {
 初始大小: 0
 添加元素后大小: 2
 ```
+
+<!--Del-->
+
+### prop size @local?
+
+```cangjie
+public prop size: Int64 @local?
+```
+
+功能：返回当前 `@local?` [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 中键值对的个数。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+exclave func makeMap(): HashMap<Int64, Int64> @local? {
+    let m: HashMap<Int64, Int64> @local! = HashMap<Int64, Int64>() @local!
+    m.add(1, 100)
+    m
+}
+
+main() {
+    let map: HashMap<Int64, Int64> @local? = makeMap()
+    println("size=${map.size}")
+}
+```
+
+运行结果：
+
+```text
+size=1
+```
+
+<!--DelEnd-->
 
 ### init()
 
@@ -7069,6 +7646,377 @@ HashMap大小: 3
 键 'second' 对应的值: 10
 ```
 
+<!--Del-->
+
+### init(this @local!)
+
+```cangjie
+public exclave init(this @local!)
+```
+
+功能：在 local region 中构造一个具有默认初始容量的 `@local!` [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek)。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let map: HashMap<Int64, Int64> @local! = HashMap<Int64, Int64>() @local!
+    println("empty=${map.isEmpty()}")
+}
+```
+
+运行结果：
+
+```text
+empty=true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+
+### init(this @local!, Array\<(K, V)> @local!)
+
+```cangjie
+public exclave init(this @local!, elements: Array<(K, V)> @local!)
+```
+
+功能：通过传入的键值对数组构造一个 `@local!` [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek)。构造出的 [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 与传入数组的容量相关，且同处一个 local region。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local! - 接收者为 `@local!` 实例。
+- elements: [Array](../../core/core_package_api/core_package_structs.md#struct-arrayt)\<(K, V)> @local! - 初始化该 [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 的键值对数组。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let arr: Array<(Int64, Int64)> @local! = [(1, 10), (2, 20)]
+    let map: HashMap<Int64, Int64> @local! = HashMap<Int64, Int64>(arr) @local!
+    println("size=${map.size}")
+}
+```
+
+运行结果：
+
+```text
+size=2
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+
+### init(this @local?, Array\<(K, V)> @local?)
+
+```cangjie
+public exclave init(this @local?, elements: Array<(K, V)> @local?)
+```
+
+功能：通过传入的键值对数组构造一个 `@local?` [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek)。该 `@local?` 形式不支持以数组作为元素源，调用即抛出异常，请使用 `@local!` 重载。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+- elements: [Array](../../core/core_package_api/core_package_structs.md#struct-arrayt)\<(K, V)> @local? - 初始化该 [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 的键值对数组。
+
+异常：
+
+- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 该 `@local?` 形式不支持以数组作为元素源，调用即抛出异常，请使用 `@local!` 重载。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+exclave func makeMap(): HashMap<Int64, Int64> @local? {
+    let arr: Array<(Int64, Int64)> @local! = [(1, 10)]
+    let sharedArr: Array<(Int64, Int64)> @local? = arr
+    let m: HashMap<Int64, Int64> @local? = HashMap<Int64, Int64>(sharedArr) @local?
+    m
+}
+
+main() {
+    try {
+        let map: HashMap<Int64, Int64> @local? = makeMap()
+        println("size=${map.size}")
+    } catch (e: IllegalArgumentException) {
+        println("caught IllegalArgumentException")
+    }
+}
+```
+
+运行结果：
+
+```text
+caught IllegalArgumentException
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+
+### init(this @local!, Collection\<(K, V)> @local!)
+
+```cangjie
+public exclave init(this @local!, elements: Collection<(K, V)> @local!)
+```
+
+功能：通过传入的键值对集合构造一个 `@local!` [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek)。构造出的 [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 与传入集合同处一个 local region。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local! - 接收者为 `@local!` 实例。
+- elements: [Collection](../../core/core_package_api/core_package_interfaces.md#interface-collectiont)\<(K, V)> @local! - 初始化该 [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 的键值对集合。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let pairs: ArrayList<(Int64, Int64)> @local! = ArrayList<(Int64, Int64)>() @local!
+    pairs.add((1, 10))
+    pairs.add((2, 20))
+    let map: HashMap<Int64, Int64> @local! = HashMap<Int64, Int64>(pairs) @local!
+    println("size=${map.size}")
+}
+```
+
+运行结果：
+
+```text
+size=2
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+
+### init(this @local?, Collection\<(K, V)> @local?)
+
+```cangjie
+public exclave init(this @local?, elements: Collection<(K, V)> @local?)
+```
+
+功能：通过传入的键值对集合构造一个 `@local?` [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek)。
+
+仅当传入集合的实际动态类型为 [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek)\<K, V> 时，复制其桶表与条目存储（连同内部计数器）来构造新映射；新 [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 在调用方处构造，与原映射相互独立。其他动态类型（包括满足 [Collection](../../core/core_package_api/core_package_interfaces.md#interface-collectiont) 的 [Array](../../core/core_package_api/core_package_structs.md#struct-arrayt)、[ArrayList](collection_package_class.md#class-arraylistt) 等）不支持该构造，调用即抛出异常（见异常说明）。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+- elements: [Collection](../../core/core_package_api/core_package_interfaces.md#interface-collectiont)\<(K, V)> @local? - 初始化该 [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 的键值对集合。
+
+异常：
+
+- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 当传入集合的实际动态类型不是 [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek)\<K, V> 时，抛出异常。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+exclave func makeMap(): HashMap<Int64, Int64> @local? {
+    let base: HashMap<Int64, Int64> @local! = HashMap<Int64, Int64>() @local!
+    base.add(1, 10)
+    let shared: Collection<(Int64, Int64)> @local? = base
+    let m: HashMap<Int64, Int64> @local? = HashMap<Int64, Int64>(shared) @local?
+    m
+}
+
+main() {
+    let map: HashMap<Int64, Int64> @local? = makeMap()
+    println("size=${map.size}")
+}
+```
+
+运行结果：
+
+```text
+size=1
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+
+### init(this @local!, Int64)
+
+```cangjie
+public exclave init(this @local!, capacity: Int64)
+```
+
+功能：在 local region 中构造一个指定容量的 `@local!` [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek)。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local! - 接收者为 `@local!` 实例。
+- capacity: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - 哈希表容量。
+
+异常：
+
+- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 当 capacity 小于 0，抛出异常。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let map: HashMap<Int64, Int64> @local! = HashMap<Int64, Int64>(32) @local!
+    println("cap>=32: ${map.capacity >= 32}")
+}
+```
+
+运行结果：
+
+```text
+cap>=32: true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+
+### init(this @local!, Int64, (Int64) -> (K, V) @local!)
+
+```cangjie
+public exclave init(this @local!, size: Int64, initElement: (Int64) -> (K, V) @local!)
+```
+
+功能：通过传入的元素个数 size 和函数规则来构造 `@local!` [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek)。构造出的 [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 绑定在当前 local region 中。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local! - 接收者为 `@local!` 实例。
+- size: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - 初始化的键值对个数。
+- initElement: ([Int64](../../core/core_package_api/core_package_intrinsics.md#int64)) -> (K, V) @local! - 初始化该 [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 的函数规则。
+
+异常：
+
+- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 如果 size 小于 0 则抛出异常。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let map: HashMap<Int64, Int64> @local! = HashMap<Int64, Int64>(2) { index => (index, index * 10) }
+    println("size=${map.size}")
+}
+```
+
+运行结果：
+
+```text
+size=2
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+
+### init(this @local?, Int64, (Int64) -> (K, V) @local?)
+
+```cangjie
+public exclave init(this @local?, size: Int64, initElement: (Int64) -> (K, V) @local?)
+```
+
+功能：通过传入的元素个数 size 和函数规则来构造 `@local?` [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek)。该 `@local?` 形式不支持通过初始化函数构造，调用即抛出异常，请使用 `@local!` 重载。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+- size: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - 初始化的键值对个数。
+- initElement: ([Int64](../../core/core_package_api/core_package_intrinsics.md#int64)) -> (K, V) @local? - 初始化该 [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 的函数规则。
+
+异常：
+
+- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 该 `@local?` 形式不支持通过初始化函数构造，调用即抛出异常，请使用 `@local!` 重载。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+exclave func makeMap(): HashMap<Int64, Int64> @local? {
+    let m: HashMap<Int64, Int64> @local? = HashMap<Int64, Int64>(2) { index => (index, index * 10) } @local?
+    m
+}
+
+main() {
+    try {
+        let map: HashMap<Int64, Int64> @local? = makeMap()
+        println("size=${map.size}")
+    } catch (e: IllegalArgumentException) {
+        println("caught IllegalArgumentException")
+    }
+}
+```
+
+运行结果：
+
+```text
+caught IllegalArgumentException
+```
+
+<!--DelEnd-->
+
 ### func add(Collection\<(K, V)>)
 
 ```cangjie
@@ -7117,75 +8065,6 @@ main() {
 添加集合前 'a' 的值: 1
 添加集合后大小: 3
 添加集合后 'a' 的值: 10
-```
-
-### init(this @local!)
-
-```cangjie
-public exclave init(this @local!)
-```
-
-功能：在 local region 中构造一个具有默认初始容量的 `@local!` [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek)。
-
-> **注意：**
->
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
-
-示例：
-
-<!-- verify -->
-```cangjie
-import std.collection.*
-
-main() {
-    let map: HashMap<Int64, Int64> @local! = HashMap<Int64, Int64>() @local!
-    println("empty=${map.isEmpty()}")
-}
-```
-
-运行结果：
-
-```text
-empty=true
-```
-
-### init(this @local!, Int64)
-
-```cangjie
-public exclave init(this @local!, capacity: Int64)
-```
-
-功能：在 local region 中构造一个指定容量的 `@local!` [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek)。
-
-> **注意：**
->
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
-
-参数：
-
-- this @local! - 接收者为 `@local!` 实例。
-- capacity: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - 哈希表容量。
-
-异常：
-
-- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 当 capacity 小于 0，抛出异常。
-
-示例：
-
-<!-- verify -->
-```cangjie
-import std.collection.*
-
-main() {
-    let map: HashMap<Int64, Int64> @local! = HashMap<Int64, Int64>(32) @local!
-    println("cap>=32: ${map.capacity >= 32}")
-}
-```
-
-运行结果：
-
-```text
-cap>=32: true
 ```
 
 ### func add(K, V)
@@ -7241,6 +8120,52 @@ main() {
 当前 'first' 的值: 200
 ```
 
+<!--Del-->
+
+### func add(this @local!, Collection\<(K, V)> @local!)
+
+```cangjie
+public exclave func add(this @local!, all!: Collection<(K, V)> @local!)
+```
+
+功能：按照入参集合的迭代器顺序，将新的键值对集合放入当前 `@local!` [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 中。对于 [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 中已有的键，该键的值将被新值替换。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local! - 接收者为 `@local!` 实例。
+- all!: [Collection](../../core/core_package_api/core_package_interfaces.md#interface-collectiont)\<(K, V)> @local! - 需要添加进 [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 的键值对集合。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let map: HashMap<Int64, Int64> @local! = HashMap<Int64, Int64>() @local!
+    let pairs: ArrayList<(Int64, Int64)> @local! = ArrayList<(Int64, Int64)>() @local!
+    pairs.add((1, 10))
+    pairs.add((2, 20))
+    map.add(all: pairs)
+    println("size=${map.size}")
+}
+```
+
+运行结果：
+
+```text
+size=2
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+
 ### func add(this @local!, K @local!, V @local!)
 
 ```cangjie
@@ -7253,7 +8178,8 @@ public exclave func add(this @local!, key: K @local!, value: V @local!): Option<
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -7267,16 +8193,35 @@ public exclave func add(this @local!, key: K @local!, value: V @local!): Option<
 
 示例：
 
-<!-- compile -->
+<!-- verify -->
 ```cangjie
 import std.collection.*
 
 main() {
     let map: HashMap<Int64, Int64> @local! = HashMap<Int64, Int64>() @local!
-    map.add(1, 100)
+    let r1: Option<Int64> @local! = map.add(1, 100)
+    let r2: Option<Int64> @local! = map.add(1, 200)
     println("size=${map.size}")
+    match (r1) {
+        case Some(v) => println("r1=${v}")
+        case None => println("r1=None")
+    }
+    match (r2) {
+        case Some(v) => println("r2=${v}")
+        case None => println("r2=None")
+    }
 }
 ```
+
+运行结果：
+
+```text
+size=1
+r1=None
+r2=100
+```
+
+<!--DelEnd-->
 
 <!--Del-->
 ### func all((K, V) -> Bool)
@@ -7331,6 +8276,57 @@ main() {
 ```text
 所有值都大于5: true
 所有值都大于25: false
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+
+### func all(this @local?, (K @local?, V @local?) -> Bool)
+
+```cangjie
+public func all(this @local?, predicate: ((K @local?, V @local?) -> Bool) @local?): Bool
+```
+
+功能：判断当前 `@local?` [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 中所有键值对是否都满足条件。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+- predicate: ((K @local?, V @local?) -> [Bool](../../core/core_package_api/core_package_intrinsics.md#bool)) @local? - 给定的条件。
+
+返回值：
+
+- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 如果 [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 中所有键值对都满足条件，返回 true，否则返回 false。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+exclave func makeMap(): HashMap<Int64, Int64> @local? {
+    let m: HashMap<Int64, Int64> @local! = HashMap<Int64, Int64>() @local!
+    m.add(1, 10)
+    m.add(2, 20)
+    m
+}
+
+main() {
+    let map: HashMap<Int64, Int64> @local? = makeMap()
+    println("r=${map.all({k, v => v > 5})}")
+}
+```
+
+运行结果：
+
+```text
+r=true
 ```
 
 <!--DelEnd-->
@@ -7391,6 +8387,57 @@ main() {
 ```
 
 <!--DelEnd-->
+
+<!--Del-->
+
+### func any(this @local?, (K @local?, V @local?) -> Bool)
+
+```cangjie
+public func any(this @local?, predicate: ((K @local?, V @local?) -> Bool) @local?) : Bool
+```
+
+功能：判断当前 `@local?` [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 是否存在任意一个满足条件的键值对。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+- predicate: ((K @local?, V @local?) -> [Bool](../../core/core_package_api/core_package_intrinsics.md#bool)) @local? - 给定的条件。
+
+返回值：
+
+- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 是否存在任意满足条件的键值对。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+exclave func makeMap(): HashMap<Int64, Int64> @local? {
+    let m: HashMap<Int64, Int64> @local! = HashMap<Int64, Int64>() @local!
+    m.add(1, 10)
+    m.add(2, 20)
+    m
+}
+
+main() {
+    let map: HashMap<Int64, Int64> @local? = makeMap()
+    println("r=${map.any({k, v => v > 5})}")
+}
+```
+
+运行结果：
+
+```text
+r=true
+```
+
+<!--DelEnd-->
 ### func clear()
 
 ```cangjie
@@ -7433,6 +8480,47 @@ main() {
 清除后大小: 0
 清除后是否为空: true
 ```
+
+<!--Del-->
+
+### func clear(this @local!)
+
+```cangjie
+public exclave func clear(this @local!)
+```
+
+功能：清除当前 `@local!` [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 中的所有键值对。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local! - 接收者为 `@local!` 实例。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let map: HashMap<Int64, Int64> @local! = HashMap<Int64, Int64>() @local!
+    map.add(1, 100)
+    map.clear()
+    println("size=${map.size}")
+}
+```
+
+运行结果：
+
+```text
+size=0
+```
+
+<!--DelEnd-->
 
 ### func clone()
 
@@ -7481,6 +8569,51 @@ main() {
 修改后原始HashMap大小: 2
 修改后克隆HashMap大小: 3
 ```
+
+<!--Del-->
+
+### func clone(this @local!)
+
+```cangjie
+public exclave func clone(this @local!): HashMap<K, V> @local!
+```
+
+功能：克隆当前 `@local!` [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek)，克隆结果与当前映射绑定在同一个 local region 中。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local! - 接收者为 `@local!` 实例。
+
+返回值：
+
+- [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek)\<K, V> @local! - 返回一个 [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek)。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let map: HashMap<Int64, Int64> @local! = HashMap<Int64, Int64>() @local!
+    map.add(1, 100)
+    let cloned: HashMap<Int64, Int64> @local! = map.clone()
+    println("size=${cloned.size}")
+}
+```
+
+运行结果：
+
+```text
+size=1
+```
+
+<!--DelEnd-->
 
 ### func contains(Collection\<K>)
 
@@ -7577,6 +8710,61 @@ main() {
 是否包含键 'orange': false
 ```
 
+<!--Del-->
+
+### func contains(this @local?, Collection\<K> @local?)
+
+```cangjie
+public func contains(this @local?, all!: Collection<K> @local?): Bool
+```
+
+功能：判断当前 `@local?` [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 是否包含指定集合中所有键的映射。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+- all!: [Collection](../../core/core_package_api/core_package_interfaces.md#interface-collectiont)\<K> @local? - 待判断的键的集合。
+
+返回值：
+
+- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 如果包含，则返回 true；否则，返回 false。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+exclave func makeMap(): HashMap<Int64, Int64> @local? {
+    let m: HashMap<Int64, Int64> @local! = HashMap<Int64, Int64>() @local!
+    m.add(1, 100)
+    m
+}
+
+main() {
+    let map: HashMap<Int64, Int64> @local? = makeMap()
+    let keys: ArrayList<Int64> @local! = ArrayList<Int64>() @local!
+    keys.add(1)
+    keys.add(2)
+    println("all=${map.contains(all: keys)}")
+}
+```
+
+运行结果：
+
+```text
+all=false
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+
 ### func contains(this @local?, K @local?)
 
 ```cangjie
@@ -7590,7 +8778,8 @@ public func contains(this @local?, key: K @local?): Bool
 > **注意：**
 >
 > - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
-> - 本函数要求接收者为 `@local?` 实例，且键为 `@local?` 类型变量（通过 exclave 函数返回或从 `@local?` 接收者的其他成员获得）。
+> - 不支持平台：OpenHarmony。
+> - 本函数要求接收者为 `@local?` 实例，键参数为 `@local?` 模式（plain 与 `@local!` 值可按子模式传入）。
 
 参数：
 
@@ -7627,6 +8816,7 @@ main() {
 c=true
 ```
 
+<!--DelEnd-->
 
 ### func entryView(K)
 
@@ -7677,6 +8867,112 @@ main() {
 ```
 
 <!--Del-->
+
+### func entryView(this @local!, K @local!)
+
+```cangjie
+public exclave func entryView(this @local!, key: K @local!): MapEntryView<K, V> @local!
+```
+
+功能：返回当前 `@local!` [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 中指定键对应元素的引用视图，如果不包含特定键，返回一个空的引用视图。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local! - 接收者为 `@local!` 实例。
+- key: K @local! - 要获取视图的键。
+
+返回值：
+
+- [MapEntryView](collection_package_interface.md#interface-mapentryviewk-v)\<K, V> @local! - 一个引用视图。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let map: HashMap<Int64, Int64> @local! = HashMap<Int64, Int64>() @local!
+    map.add(1, 100)
+    let view: MapEntryView<Int64, Int64> @local! = map.entryView(1)
+    println("hasValue=${view.value.isSome()}")
+}
+```
+
+运行结果：
+
+```text
+hasValue=true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+
+### func entryView(this @local?, K @local!)
+
+```cangjie
+public exclave func entryView(this @local?, key: K @local!): MapEntryView<K, V> @local?
+```
+
+功能：返回当前 `@local?` [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 中指定键对应元素的引用视图，如果不包含特定键，返回一个空的引用视图。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+- key: K @local! - 要获取视图的键。
+
+返回值：
+
+- [MapEntryView](collection_package_interface.md#interface-mapentryviewk-v)\<K, V> @local? - 一个引用视图。
+
+异常：
+
+- [UnimplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception) - 该形式的 `entryView` 在 `@local?` 接收者上不可用，调用即抛出异常。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+exclave func makeMap(): HashMap<Int64, Int64> @local? {
+    let m: HashMap<Int64, Int64> @local! = HashMap<Int64, Int64>() @local!
+    m.add(1, 100)
+    m
+}
+
+main() {
+    let map: HashMap<Int64, Int64> @local? = makeMap()
+    let k: Int64 @local! = 1
+    try {
+        map.entryView(k)
+        println("view obtained")
+    } catch (e: UnimplementedException) {
+        println("caught UnimplementedException")
+    }
+}
+```
+
+运行结果：
+
+```text
+caught UnimplementedException
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 ### func filter((K, V) -> Bool)
 
 ```cangjie
@@ -7723,6 +9019,53 @@ main() {
 ```text
 原映射: [(a, 10), (b, 20), (c, 30), (d, 40)]
 筛选后: [(c, 30), (d, 40)]
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+
+### func filter(this @local!, (K @local?, V @local?) -> Bool)
+
+```cangjie
+public exclave func filter(this @local!, predicate: ((K @local?, V @local?) -> Bool) @local?): HashMap<K, V> @local!
+```
+
+功能：返回当前 `@local!` [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 中满足筛选条件的键值对组成的新 `@local!` [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek)，结果与当前映射绑定在同一个 local region 中。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local! - 接收者为 `@local!` 实例。
+- predicate: ((K @local?, V @local?) -> [Bool](../../core/core_package_api/core_package_intrinsics.md#bool)) @local? - 给定的条件。
+
+返回值：
+
+- [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek)\<K, V> @local! - 返回一个满足筛选条件的键值对的新集合。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let map: HashMap<Int64, Int64> @local! = HashMap<Int64, Int64>() @local!
+    map.add(1, 10)
+    map.add(2, 20)
+    let filtered: HashMap<Int64, Int64> @local! = map.filter({k, v => v > 10})
+    println("size=${filtered.size}")
+}
+```
+
+运行结果：
+
+```text
+size=1
 ```
 
 <!--DelEnd-->
@@ -7780,6 +9123,54 @@ main() {
 <!--DelEnd-->
 
 <!--Del-->
+
+### func fold\<R>(this @local!, R @local!, (R @local!, K @local?, V @local?) -> R @local!)
+
+```cangjie
+public exclave func fold<R>(this @local!, initial: R @local!, operation: ((R @local!, K @local?, V @local?) -> R @local!) @local?): R @local!
+```
+
+功能：使用指定初始值，对当前 `@local!` [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 从左向右计算。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local! - 接收者为 `@local!` 实例。
+- initial: R @local! - 给定的 R 类型的初始值。
+- operation: ((R @local!, K @local?, V @local?) -> R @local!) @local? - 给定的计算函数。
+
+返回值：
+
+- R @local! - 返回最终计算得到的值。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let map: HashMap<Int64, Int64> @local! = HashMap<Int64, Int64>() @local!
+    map.add(1, 10)
+    map.add(2, 20)
+    let sum: Int64 @local! = map.fold<Int64>(0) {acc, k, v => acc + v}
+    println("sum=${sum}")
+}
+```
+
+运行结果：
+
+```text
+sum=30
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 ### func forEach((K, V) -> Unit)
 
 ```cangjie
@@ -7824,6 +9215,8 @@ main() {
 ```
 
 <!--DelEnd-->
+<!--Del-->
+
 ### func forEach(this @local?, (K @local?, V @local?) -> Unit)
 
 ```cangjie
@@ -7834,7 +9227,8 @@ public func forEach(this @local?, action: ((K @local?, V @local?) -> Unit) @loca
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -7843,7 +9237,7 @@ public func forEach(this @local?, action: ((K @local?, V @local?) -> Unit) @loca
 
 示例：
 
-<!-- compile -->
+<!-- verify -->
 ```cangjie
 import std.collection.*
 
@@ -7855,9 +9249,17 @@ exclave func makeMap(): HashMap<Int64, Int64> @local? {
 
 main() {
     let map: HashMap<Int64, Int64> @local? = makeMap()
-    map.forEach({k: Int64 @local?, v: Int64 @local? => ()})
+    map.forEach({k, v => println("k=${k} v=${v}")})
 }
 ```
+
+运行结果：
+
+```text
+k=1 v=100
+```
+
+<!--DelEnd-->
 
 ### func get(K)
 
@@ -7910,6 +9312,8 @@ main() {
 键 'height' 不存在
 ```
 
+<!--Del-->
+
 ### func get(this @local!, K @local?)
 
 ```cangjie
@@ -7921,6 +9325,7 @@ public exclave func get(this @local!, key: K @local?): ?V @local!
 > **注意：**
 >
 > - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 > - 当前版本存在已知缺陷：当 K 为 String 等含引用成员的类型时，添加元素后调用 `get` 可能触发运行时写屏障缺陷导致进程异常中止。请以实际 SDK 版本行为为准，或使用 `contains` / `forEach` 等替代方式。
 
 参数：
@@ -7934,7 +9339,7 @@ public exclave func get(this @local!, key: K @local?): ?V @local!
 
 示例：
 
-<!-- code_no_check -->
+<!-- verify -->
 ```cangjie
 import std.collection.*
 
@@ -7947,6 +9352,68 @@ main() {
     }
 }
 ```
+
+运行结果：
+
+```text
+v=100
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+
+### func get(this @local?, K @local?)
+
+```cangjie
+public exclave func get(this @local?, key: K @local?): Option<V> @local?
+```
+
+功能：返回当前 `@local?` [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 中指定键映射到的值，如果不包含指定键的映射，则返回 [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)\<V>.None。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+- key: K @local? - 传入的键。
+
+返回值：
+
+- [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)\<V> @local? - 键对应的值。用 [Option](../../core/core_package_api/core_package_enums.md#enum-optiont) 封装。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+exclave func makeMap(): HashMap<Int64, Int64> @local? {
+    let m: HashMap<Int64, Int64> @local! = HashMap<Int64, Int64>() @local!
+    m.add(1, 100)
+    m
+}
+
+main() {
+    let map: HashMap<Int64, Int64> @local? = makeMap()
+    let k: Int64 @local? = 1
+    match (map.get(k)) {
+        case Some(v) => println("v=${v}")
+        case None => println("none")
+    }
+}
+```
+
+运行结果：
+
+```text
+v=100
+```
+
+<!--DelEnd-->
 
 ### func isEmpty()
 
@@ -7993,6 +9460,8 @@ main() {
 清空后是否为空: true
 ```
 
+<!--Del-->
+
 ### func isEmpty(this @local?)
 
 ```cangjie
@@ -8003,7 +9472,8 @@ public func isEmpty(this @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -8031,6 +9501,8 @@ main() {
 ```text
 isEmpty=false
 ```
+
+<!--DelEnd-->
 
 ### func iterator()
 
@@ -8082,6 +9554,107 @@ main() {
 迭代器遍历元素个数: 3
 ```
 
+<!--Del-->
+
+### func iterator(this @local!)
+
+```cangjie
+public exclave func iterator(this @local!): HashMapIterator<K, V> @local!
+```
+
+功能：返回当前 `@local!` [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 的迭代器，迭代器与当前映射绑定在同一个 local region 中。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local! - 接收者为 `@local!` 实例。
+
+返回值：
+
+- [HashMapIterator](collection_package_class.md#class-hashmapiteratork-v-where-k--hashable--equatablek)\<K, V> @local! - 返回 [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 的迭代器。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let map: HashMap<Int64, Int64> @local! = HashMap<Int64, Int64>() @local!
+    map.add(1, 100)
+    let it: HashMapIterator<Int64, Int64> @local! = map.iterator()
+    match (it.next()) {
+        case Some(p) => println("first=${p}")
+        case None => println("empty")
+    }
+}
+```
+
+运行结果：
+
+```text
+first=(1, 100)
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+
+### func iterator(this @local?)
+
+```cangjie
+public exclave func iterator(this @local?): HashMapIterator<K, V> @local?
+```
+
+功能：返回当前 `@local?` [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 的迭代器。迭代器实例在调用方处新构造，持有对当前映射的引用。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+
+返回值：
+
+- [HashMapIterator](collection_package_class.md#class-hashmapiteratork-v-where-k--hashable--equatablek)\<K, V> @local? - 返回 [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 的迭代器。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+exclave func makeMap(): HashMap<Int64, Int64> @local? {
+    let m: HashMap<Int64, Int64> @local! = HashMap<Int64, Int64>() @local!
+    m.add(1, 100)
+    m
+}
+
+main() {
+    let map: HashMap<Int64, Int64> @local? = makeMap()
+    let it: HashMapIterator<Int64, Int64> @local? = map.iterator()
+    match (it.next()) {
+        case Some(p) => println("first=${p}")
+        case None => println("empty")
+    }
+}
+```
+
+运行结果：
+
+```text
+first=(1, 100)
+```
+
+<!--DelEnd-->
+
 ### func keys()
 
 ```cangjie
@@ -8127,6 +9700,101 @@ main() {
 键的数量: 3
 包含键 'b'
 ```
+
+<!--Del-->
+
+### func keys(this @local!)
+
+```cangjie
+public exclave func keys(this @local!): EquatableCollection<K> @local!
+```
+
+功能：返回当前 `@local!` [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 中所有的 key，并将所有 key 存储在一个绑定在同一个 local region 中的 Keys 容器中。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local! - 接收者为 `@local!` 实例。
+
+返回值：
+
+- [EquatableCollection](collection_package_interface.md#interface-equatablecollectiont)\<K> @local! - 保存所有返回的 key。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let map: HashMap<Int64, Int64> @local! = HashMap<Int64, Int64>() @local!
+    map.add(1, 100)
+    let ks: EquatableCollection<Int64> @local! = map.keys()
+    println("has1=${ks.contains(1)}")
+}
+```
+
+运行结果：
+
+```text
+has1=true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+
+### func keys(this @local?)
+
+```cangjie
+public exclave func keys(this @local?): EquatableCollection<K> @local?
+```
+
+功能：返回当前 `@local?` [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 中所有的 key。返回的 Keys 容器在调用方处新构造，持有对当前映射的引用，映射的后续修改会反映到该容器的 size 与包含性判断中。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+
+返回值：
+
+- [EquatableCollection](collection_package_interface.md#interface-equatablecollectiont)\<K> @local? - 保存所有返回的 key。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+exclave func makeMap(): HashMap<Int64, Int64> @local? {
+    let m: HashMap<Int64, Int64> @local! = HashMap<Int64, Int64>() @local!
+    m.add(1, 100)
+    m
+}
+
+main() {
+    let map: HashMap<Int64, Int64> @local? = makeMap()
+    let ks: EquatableCollection<Int64> @local? = map.keys()
+    println("has1=${ks.contains(1)}")
+}
+```
+
+运行结果：
+
+```text
+has1=true
+```
+
+<!--DelEnd-->
 
 <!--Del-->
 ### func mapValues\<R>((K, V) -> R)
@@ -8229,6 +9897,110 @@ main() {
 <!--DelEnd-->
 
 <!--Del-->
+
+### func mapValues\<R>(this @local!, (K @local?, V @local?) -> R @local!)
+
+```cangjie
+public exclave func mapValues<R>(this @local!, transform: ((K @local?, V @local?) -> R @local!) @local?): HashMap<K, R> @local!
+```
+
+功能：对当前 `@local!` [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 进行映射并返回一个新的 `@local!` [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek)，结果与当前映射绑定在同一个 local region 中。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local! - 接收者为 `@local!` 实例。
+- transform: ((K @local?, V @local?) -> R @local!) @local? - 给定的映射函数。
+
+返回值：
+
+- [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek)\<K, R> @local! - 返回一个新的 [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek)。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let map: HashMap<Int64, Int64> @local! = HashMap<Int64, Int64>() @local!
+    map.add(1, 10)
+    map.add(2, 20)
+    let doubled: HashMap<Int64, Int64> @local! = map.mapValues<Int64>({k, v => v * 2})
+    println("size=${doubled.size}")
+    match (doubled.get(1)) {
+        case Some(v) => println("v=${v}")
+        case None => println("none")
+    }
+}
+```
+
+运行结果：
+
+```text
+size=2
+v=20
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+
+### func mapValues\<R>(this @local!, (V @local?) -> R @local!)
+
+```cangjie
+public exclave func mapValues<R>(this @local!, transform: ((V @local?) -> R @local!) @local?): HashMap<K, R> @local!
+```
+
+功能：对当前 `@local!` [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 中的每个值应用转换函数并返回一个新的 `@local!` [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek)，结果与当前映射绑定在同一个 local region 中。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local! - 接收者为 `@local!` 实例。
+- transform: ((V @local?) -> R @local!) @local? - 给定的映射函数。
+
+返回值：
+
+- [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek)\<K, R> @local! - 返回一个新的 [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek)。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let map: HashMap<Int64, Int64> @local! = HashMap<Int64, Int64>() @local!
+    map.add(1, 10)
+    map.add(2, 20)
+    let doubled: HashMap<Int64, Int64> @local! = map.mapValues<Int64>({v => v * 2})
+    println("size=${doubled.size}")
+    match (doubled.get(1)) {
+        case Some(v) => println("v=${v}")
+        case None => println("none")
+    }
+}
+```
+
+运行结果：
+
+```text
+size=2
+v=20
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 ### func none((K, V) -> Bool)
 
 ```cangjie
@@ -8277,6 +10049,57 @@ main() {
 ```text
 所有值都不大于50: true
 所有值都不大于35: false
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+
+### func none(this @local?, (K @local?, V @local?) -> Bool)
+
+```cangjie
+public func none(this @local?, predicate: ((K @local?, V @local?) -> Bool) @local?) : Bool
+```
+
+功能：判断当前 `@local?` [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 中所有键值对是否都不满足条件。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+- predicate: ((K @local?, V @local?) -> [Bool](../../core/core_package_api/core_package_intrinsics.md#bool)) @local? - 给定的条件。
+
+返回值：
+
+- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 当前 [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 中键值对是否都不满足条件。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+exclave func makeMap(): HashMap<Int64, Int64> @local? {
+    let m: HashMap<Int64, Int64> @local! = HashMap<Int64, Int64>() @local!
+    m.add(1, 10)
+    m.add(2, 20)
+    m
+}
+
+main() {
+    let map: HashMap<Int64, Int64> @local? = makeMap()
+    println("r=${map.none({k, v => v > 15})}")
+}
+```
+
+运行结果：
+
+```text
+r=false
 ```
 
 <!--DelEnd-->
@@ -8345,6 +10168,56 @@ main() {
 原映射: [(a, 10), (b, 20), (c, 30), (d, 40)]
 最大值: Some(40)
 空映射的最大值: None
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+
+### func reduce(this @local!, (V @local!, V @local?) -> V @local!)
+
+```cangjie
+public exclave func reduce(this @local!, operation: ((V @local!, V @local?) -> V @local!) @local?): Option<V> @local!
+```
+
+功能：使用第一个值作为初始值，对当前 `@local!` [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 的值从左向右计算。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local! - 接收者为 `@local!` 实例。
+- operation: ((V @local!, V @local?) -> V @local!) @local? - 给定的计算函数。
+
+返回值：
+
+- [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)\<V> @local! - 返回计算结果。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let map: HashMap<Int64, Int64> @local! = HashMap<Int64, Int64>() @local!
+    map.add(1, 10)
+    map.add(2, 20)
+    let sum: Option<Int64> @local! = map.reduce({a, b => a + b})
+    match (sum) {
+        case Some(v) => println("sum=${v}")
+        case None => println("empty")
+    }
+}
+```
+
+运行结果：
+
+```text
+sum=30
 ```
 
 <!--DelEnd-->
@@ -8457,6 +10330,103 @@ main() {
 删除后大小: 2
 ```
 
+<!--Del-->
+
+### func remove(this @local!, Collection\<K> @local?)
+
+```cangjie
+public exclave func remove(this @local!, all!: Collection<K> @local?)
+```
+
+功能：从当前 `@local!` [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 中删除指定集合中键的映射（如果存在）。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local! - 接收者为 `@local!` 实例。
+- all!: [Collection](../../core/core_package_api/core_package_interfaces.md#interface-collectiont)\<K> @local? - 传入要删除的键的集合。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let map: HashMap<Int64, Int64> @local! = HashMap<Int64, Int64>() @local!
+    map.add(1, 100)
+    map.add(2, 200)
+    let keys: ArrayList<Int64> @local! = ArrayList<Int64>() @local!
+    keys.add(1)
+    map.remove(all: keys)
+    println("size=${map.size}")
+}
+```
+
+运行结果：
+
+```text
+size=1
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+
+### func remove(this @local!, K @local?)
+
+```cangjie
+public exclave func remove(this @local!, key: K @local?): Option<V> @local!
+```
+
+功能：从当前 `@local!` [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 中删除指定键的映射（如果存在）。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local! - 接收者为 `@local!` 实例。
+- key: K @local? - 传入要删除的 key。
+
+返回值：
+
+- [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)\<V> @local! - 被从 [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 中移除的键对应的值，用 [Option](../../core/core_package_api/core_package_enums.md#enum-optiont) 封装，如果 [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 中不存在该键，返回 None。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let map: HashMap<Int64, Int64> @local! = HashMap<Int64, Int64>() @local!
+    map.add(1, 100)
+    map.add(2, 200)
+    let removed: Option<Int64> @local! = map.remove(1)
+    match (removed) {
+        case Some(v) => println("removed=${v}")
+        case None => println("removed=None")
+    }
+    println("size=${map.size}")
+}
+```
+
+运行结果：
+
+```text
+removed=100
+size=1
+```
+
+<!--DelEnd-->
+
 ### func removeIf((K, V) -> Bool)
 
 ```cangjie
@@ -8513,6 +10483,49 @@ main() {
 删除后大小: 2
 键 'b' 仍存在，值为: 2
 ```
+
+<!--Del-->
+
+### func removeIf(this @local!, (K @local?, V @local?) -> Bool)
+
+```cangjie
+public exclave func removeIf(this @local!, predicate: ((K @local?, V @local?) -> Bool) @local?)
+```
+
+功能：传入 lambda 表达式，如果满足条件，则删除当前 `@local!` [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 中对应的键值对。该函数会遍历整个 [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek)，所以满足 `predicate(K, V) == true` 的键值对都会被删除。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local! - 接收者为 `@local!` 实例。
+- predicate: ((K @local?, V @local?) -> [Bool](../../core/core_package_api/core_package_intrinsics.md#bool)) @local? - 传递一个 lambda 表达式进行判断。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let map: HashMap<Int64, Int64> @local! = HashMap<Int64, Int64>() @local!
+    map.add(1, 100)
+    map.add(2, 200)
+    map.removeIf({k, v => v > 100})
+    println("size=${map.size}")
+}
+```
+
+运行结果：
+
+```text
+size=1
+```
+
+<!--DelEnd-->
 
 ### func reserve(Int64)
 
@@ -8576,6 +10589,47 @@ main() {
 添加元素后大小: 30
 ```
 
+<!--Del-->
+
+### func reserve(this @local!, Int64)
+
+```cangjie
+public exclave func reserve(this @local!, additional: Int64)
+```
+
+功能：对当前 `@local!` [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 以指定大小进行扩容。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local! - 接收者为 `@local!` 实例。
+- additional: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - 将要扩容的大小。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let map: HashMap<Int64, Int64> @local! = HashMap<Int64, Int64>() @local!
+    map.reserve(20)
+    println("cap>=20: ${map.capacity >= 20}")
+}
+```
+
+运行结果：
+
+```text
+cap>=20: true
+```
+
+<!--DelEnd-->
+
 ### func toArray()
 
 ```cangjie
@@ -8625,6 +10679,109 @@ main() {
 键: c, 值: 3
 ```
 
+<!--Del-->
+
+### func toArray(this @local!)
+
+```cangjie
+public exclave func toArray(this @local!): Array<(K, V)> @local!
+```
+
+功能：构造一个包含当前 `@local!` [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 内键值对的数组并返回，数组与当前映射绑定在同一个 local region 中。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local! - 接收者为 `@local!` 实例。
+
+返回值：
+
+- [Array](../../core/core_package_api/core_package_structs.md#struct-arrayt)\<(K, V)> @local! - 包含容器内所有键值对的数组。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let map: HashMap<Int64, Int64> @local! = HashMap<Int64, Int64>() @local!
+    map.add(1, 100)
+    let arr: Array<(Int64, Int64)> @local! = map.toArray()
+    println("size=${arr.size}")
+}
+```
+
+运行结果：
+
+```text
+size=1
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+
+### func toArray(this @local?)
+
+```cangjie
+public exclave func toArray(this @local?): Array<(K, V)> @local?
+```
+
+功能：构造一个包含当前 `@local?` [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 内键值对的数组并返回，数组与当前映射绑定在同一个 local region 中。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+
+返回值：
+
+- [Array](../../core/core_package_api/core_package_structs.md#struct-arrayt)\<(K, V)> @local? - 包含容器内所有键值对的数组。
+
+异常：
+
+- [UnimplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception) - 该形式的 `toArray` 在 `@local?` 接收者上不可用，调用即抛出异常。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+exclave func makeMap(): HashMap<Int64, Int64> @local? {
+    let m: HashMap<Int64, Int64> @local! = HashMap<Int64, Int64>() @local!
+    m.add(1, 100)
+    m
+}
+
+main() {
+    let map: HashMap<Int64, Int64> @local? = makeMap()
+    try {
+        map.toArray()
+        println("array obtained")
+    } catch (e: UnimplementedException) {
+        println("caught UnimplementedException")
+    }
+}
+```
+
+运行结果：
+
+```text
+caught UnimplementedException
+```
+
+<!--DelEnd-->
+
 ### func values()
 
 ```cangjie
@@ -8673,6 +10830,101 @@ main() {
 20
 30
 ```
+
+<!--Del-->
+
+### func values(this @local!)
+
+```cangjie
+public exclave func values(this @local!): Collection<V> @local!
+```
+
+功能：返回当前 `@local!` [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 中包含的值，并将所有的 value 存储在一个绑定在同一个 local region 中的 Values 容器中。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local! - 接收者为 `@local!` 实例。
+
+返回值：
+
+- [Collection](../../core/core_package_api/core_package_interfaces.md#interface-collectiont)\<V> @local! - 保存所有返回的 value。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let map: HashMap<Int64, Int64> @local! = HashMap<Int64, Int64>() @local!
+    map.add(1, 100)
+    let vs: Collection<Int64> @local! = map.values()
+    println("empty=${vs.isEmpty()}")
+}
+```
+
+运行结果：
+
+```text
+empty=false
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+
+### func values(this @local?)
+
+```cangjie
+public exclave func values(this @local?): Collection<V> @local?
+```
+
+功能：返回当前 `@local?` [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 中包含的值。返回的 Values 容器在调用方处新构造，持有对当前映射的引用，映射的后续修改会反映到该容器的 size 与遍历结果中。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+
+返回值：
+
+- [Collection](../../core/core_package_api/core_package_interfaces.md#interface-collectiont)\<V> @local? - 保存所有返回的 value。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+exclave func makeMap(): HashMap<Int64, Int64> @local? {
+    let m: HashMap<Int64, Int64> @local! = HashMap<Int64, Int64>() @local!
+    m.add(1, 100)
+    m
+}
+
+main() {
+    let map: HashMap<Int64, Int64> @local? = makeMap()
+    let vs: Collection<Int64> @local? = map.values()
+    println("empty=${vs.isEmpty()}")
+}
+```
+
+运行结果：
+
+```text
+empty=false
+```
+
+<!--DelEnd-->
 
 ### operator func \[](K)
 
@@ -8771,6 +11023,8 @@ main() {
 'second' 的值: 200
 ```
 
+<!--Del-->
+
 ### operator func \[](this @local!, K @local?)
 
 ```cangjie
@@ -8781,7 +11035,8 @@ public exclave operator func [](this @local!, key: K @local?): V @local!
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -8798,7 +11053,7 @@ public exclave operator func [](this @local!, key: K @local?): V @local!
 
 示例：
 
-<!-- code_no_check -->
+<!-- verify -->
 ```cangjie
 import std.collection.*
 
@@ -8811,6 +11066,16 @@ main() {
 }
 ```
 
+运行结果：
+
+```text
+v=100
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+
 ### operator func \[](this @local!, K @local!, V @local!)
 
 ```cangjie
@@ -8821,7 +11086,8 @@ public exclave operator func [](this @local!, key: K @local!, value!: V @local!)
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -8848,6 +11114,63 @@ main() {
 ```text
 size=1
 ```
+
+<!--DelEnd-->
+
+<!--Del-->
+
+### operator func [](this @local?, K @local?)
+
+```cangjie
+public exclave operator func [](this @local?, key: K @local?): V @local?
+```
+
+功能：运算符重载 get 方法，如果当前 `@local?` [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 中键存在，返回键对应的值。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+- key: K @local? - 传递值进行判断。
+
+返回值：
+
+- V @local? - 与键对应的值。
+
+异常：
+
+- [NoneValueException](../../core/core_package_api/core_package_exceptions.md#class-nonevalueexception) - 如果该 [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 不存在该键，抛此异常。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+exclave func makeMap(): HashMap<Int64, Int64> @local? {
+    let m: HashMap<Int64, Int64> @local! = HashMap<Int64, Int64>() @local!
+    m.add(1, 100)
+    m
+}
+
+main() {
+    let map: HashMap<Int64, Int64> @local? = makeMap()
+    let k: Int64 @local? = 1
+    println("v=${map[k]}")
+}
+```
+
+运行结果：
+
+```text
+v=100
+```
+
+<!--DelEnd-->
 
 ### extend\<K, V> HashMap\<K, V> <: Equatable\<HashMap\<K, V>> where V <: Equatable\<V>
 
@@ -8969,6 +11292,57 @@ map1 == map2: true
 map1 == map3: false
 ```
 
+<!--Del-->
+
+### operator func ==(this @local?, HashMap\<K, V> @local?)
+
+```cangjie
+public operator func ==(this @local?, right: HashMap<K, V> @local?): Bool
+```
+
+功能：判断当前 `@local?` [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 与指定 `@local?` [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 是否相等。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+- right: [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek)\<K, V> @local? - 参与比较的 [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek)。
+
+返回值：
+
+- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 相等则返回 true，否则返回 false。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+exclave func makeMap(): HashMap<Int64, Int64> @local? {
+    let m: HashMap<Int64, Int64> @local! = HashMap<Int64, Int64>() @local!
+    m.add(1, 100)
+    m
+}
+
+main() {
+    let map: HashMap<Int64, Int64> @local? = makeMap()
+    let other: HashMap<Int64, Int64> @local? = makeMap()
+    println("eq=${map == other}")
+}
+```
+
+运行结果：
+
+```text
+eq=true
+```
+
+<!--DelEnd-->
+
 ### extend\<K, V> HashMap\<K, V> <: ToString where V <: ToString, K <: ToString
 
 ```cangjie
@@ -9025,6 +11399,56 @@ main() {
 HashMap的字符串表示: [(apple, 5), (banana, 3), (orange, 8)]
 ```
 
+<!--Del-->
+
+### func toString(this @local?)
+
+```cangjie
+public exclave func toString(this @local?): String @local!
+```
+
+功能：将当前 `@local?` [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 中所有键值对转换为 `@local!` 字符串。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+
+返回值：
+
+- [String](../../core/core_package_api/core_package_structs.md#struct-string) @local! - 转换得到的字符串。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+exclave func makeMap(): HashMap<Int64, Int64> @local? {
+    let m: HashMap<Int64, Int64> @local! = HashMap<Int64, Int64>() @local!
+    m.add(1, 100)
+    m
+}
+
+main() {
+    let map: HashMap<Int64, Int64> @local? = makeMap()
+    let s: String @local! = map.toString()
+    println("s=${s}")
+}
+```
+
+运行结果：
+
+```text
+s=[(1, 100)]
+```
+
+<!--DelEnd-->
+
 ## class HashMapIterator\<K, V> where K <: Hashable & Equatable\<K>
 
 ```cangjie
@@ -9070,6 +11494,8 @@ main() {
 }
 ```
 
+<!--Del-->
+
 ### init(this @local!, HashMap\<K, V> @local!)
 
 ```cangjie
@@ -9080,12 +11506,40 @@ public exclave init(this @local!, map: HashMap<K, V> @local!)
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
 - this @local! - 接收者为 `@local!` 实例。
 - map: [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek)\<K, V> @local! - 传入 `@local!` 哈希表。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let map: HashMap<Int64, Int64> @local! = HashMap<Int64, Int64>() @local!
+    map.add(1, 100)
+    let it: HashMapIterator<Int64, Int64> @local! = HashMapIterator<Int64, Int64>(map) @local!
+    match (it.next()) {
+        case Some(p) => println("first=${p}")
+        case None => println("empty")
+    }
+}
+```
+
+运行结果：
+
+```text
+first=(1, 100)
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 
 ### init(this @local?, HashMap\<K, V> @local?)
 
@@ -9097,12 +11551,43 @@ public exclave init(this @local?, map: HashMap<K, V> @local?)
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
 - this @local? - 接收者为 `@local?` 实例。
 - map: [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek)\<K, V> @local? - 传入 `@local?` 哈希表。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+exclave func makeMap(): HashMap<Int64, Int64> @local? {
+    let m: HashMap<Int64, Int64> @local! = HashMap<Int64, Int64>() @local!
+    m.add(1, 100)
+    m
+}
+
+main() {
+    let map: HashMap<Int64, Int64> @local? = makeMap()
+    let it: HashMapIterator<Int64, Int64> @local? = HashMapIterator<Int64, Int64>(map) @local?
+    match (it.next()) {
+        case Some(p) => println("first=${p}")
+        case None => println("empty")
+    }
+}
+```
+
+运行结果：
+
+```text
+first=(1, 100)
+```
+
+<!--DelEnd-->
 
 ### func next()
 
@@ -9152,6 +11637,8 @@ main() {
 成功获取到元素: one, 1
 ```
 
+<!--Del-->
+
 ### func next(this @local!)
 
 ```cangjie
@@ -9162,7 +11649,8 @@ public exclave func next(this @local!): ?(K, V) @local!
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -9176,6 +11664,38 @@ public exclave func next(this @local!): ?(K, V) @local!
 
 - [ConcurrentModificationException](collection_package_exception.md#class-concurrentmodificationexception) - 当函数检测到不同步的并发修改，抛出异常。
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let map: HashMap<Int64, Int64> @local! = HashMap<Int64, Int64>() @local!
+    map.add(1, 100)
+    let it: HashMapIterator<Int64, Int64> @local! = map.iterator()
+    match (it.next()) {
+        case Some(p) => println("first=${p}")
+        case None => println("empty")
+    }
+    match (it.next()) {
+        case Some(p) => println("second=${p}")
+        case None => println("end")
+    }
+}
+```
+
+运行结果：
+
+```text
+first=(1, 100)
+end
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+
 ### func next(this @local?)
 
 ```cangjie
@@ -9186,7 +11706,8 @@ public exclave func next(this @local?): ?(K, V) @local?
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -9199,6 +11720,41 @@ public exclave func next(this @local?): ?(K, V) @local?
 异常：
 
 - [ConcurrentModificationException](collection_package_exception.md#class-concurrentmodificationexception) - 当函数检测到不同步的并发修改，抛出异常。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+exclave func makeMap(): HashMap<Int64, Int64> @local? {
+    let m: HashMap<Int64, Int64> @local! = HashMap<Int64, Int64>() @local!
+    m.add(1, 100)
+    m
+}
+
+main() {
+    let map: HashMap<Int64, Int64> @local? = makeMap()
+    let it: HashMapIterator<Int64, Int64> @local? = map.iterator()
+    match (it.next()) {
+        case Some(p) => println("first=${p}")
+        case None => println("empty")
+    }
+    match (it.next()) {
+        case Some(p) => println("second=${p}")
+        case None => println("end")
+    }
+}
+```
+
+运行结果：
+
+```text
+first=(1, 100)
+end
+```
+
+<!--DelEnd-->
 
 ### func remove()
 
@@ -9593,6 +12149,8 @@ HashSet大小: 3
 包含 'banana'
 ```
 
+<!--Del-->
+
 ### init(this @local!)
 
 ```cangjie
@@ -9603,18 +12161,30 @@ public exclave init(this @local!)
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 示例：
 
-<!-- compile -->
+<!-- verify -->
 ```cangjie
 import std.collection.*
 
 main() {
     let set: HashSet<Int64> @local! = HashSet<Int64>() @local!
+    println("empty=${set.isEmpty()}")
 }
 ```
+
+运行结果：
+
+```text
+empty=true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 
 ### init(this @local!, Int64)
 
@@ -9626,7 +12196,8 @@ public exclave init(this @local!, capacity: Int64)
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -9639,14 +12210,23 @@ public exclave init(this @local!, capacity: Int64)
 
 示例：
 
-<!-- compile -->
+<!-- verify -->
 ```cangjie
 import std.collection.*
 
 main() {
     let set: HashSet<Int64> @local! = HashSet<Int64>(32) @local!
+    println("empty=${set.isEmpty()}")
 }
 ```
+
+运行结果：
+
+```text
+empty=true
+```
+
+<!--DelEnd-->
 
 ### func add(Collection\<T>)
 
@@ -9740,6 +12320,8 @@ main() {
 集合大小: 1
 ```
 
+<!--Del-->
+
 ### func add(this @local!, T @local!)
 
 ```cangjie
@@ -9750,7 +12332,8 @@ public exclave func add(this @local!, element: T @local!): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -9769,16 +12352,66 @@ import std.collection.*
 
 main() {
     let set: HashSet<Int64> @local! = HashSet<Int64>() @local!
-    set.add(5)
-    println("size=${set.size}")
+    let added = set.add(5)
+    println("added=${added}")
+    println("has5=${set.contains(5)}")
 }
 ```
 
 运行结果：
 
 ```text
-size=1
+added=true
+has5=true
 ```
+
+<!--DelEnd-->
+
+<!--Del-->
+
+### func add(this @local!, HashSet\<T> @local!)
+
+```cangjie
+public exclave func add(this @local!, all!: HashSet<T> @local!): Unit
+```
+
+功能：将指定 `@local!` [HashSet](collection_package_class.md#class-hashsett-where-t--hashable--equatablet) 中的所有元素添加至当前 `@local!` [HashSet](collection_package_class.md#class-hashsett-where-t--hashable--equatablet) 中，如果元素存在，则不添加。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local! - 接收者为 `@local!` 实例。
+- all!: [HashSet](collection_package_class.md#class-hashsett-where-t--hashable--equatablet)\<T> @local! - 需要被添加的元素的集合。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let set: HashSet<Int64> @local! = HashSet<Int64>() @local!
+    set.add(1)
+    let other: HashSet<Int64> @local! = HashSet<Int64>() @local!
+    other.add(2)
+    set.add(all: other)
+    println("has1=${set.contains(1)}")
+    println("has2=${set.contains(2)}")
+}
+```
+
+运行结果：
+
+```text
+has1=true
+has2=true
+```
+
+<!--DelEnd-->
 
 <!--Del-->
 ### func all((T) -> Bool)
@@ -10071,26 +12704,52 @@ main() {
 不包含 'grape'
 ```
 
-### func isEmpty(this @local?)
+<!--Del-->
+
+### func contains(this @local!, T @local!)
 
 ```cangjie
-public func isEmpty(this @local?): Bool
+public exclave func contains(this @local!, element: T @local!): Bool
 ```
 
-功能：判断当前 `@local?` [HashSet](collection_package_class.md#class-hashsett-where-t--hashable--equatablet) 是否为空。
+功能：判断当前 `@local!` [HashSet](collection_package_class.md#class-hashsett-where-t--hashable--equatablet) 是否包含指定元素。
 
 > **注意：**
 >
 > - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
-> - [HashSet](collection_package_class.md#class-hashsett-where-t--hashable--equatablet) 未提供该方法的 `@local?` 覆写；该形式继承自 [Collection](../../core/core_package_api/core_package_interfaces.md#interface-collectiont) 接口的默认实现；当调用绑定到该默认实现时，抛出 [UnimplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception)。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
-- this @local? - 接收者为 `@local?` 实例。
+- this @local! - 接收者为 `@local!` 实例。
+- element: T @local! - 指定的元素。
 
 返回值：
 
-- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 如果为空返回 true，否则返回 false。
+- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 如果包含指定元素，则返回 true；否则，返回 false。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let set: HashSet<Int64> @local! = HashSet<Int64>() @local!
+    set.add(5)
+    println("has5=${set.contains(5)}")
+    println("has6=${set.contains(6)}")
+}
+```
+
+运行结果：
+
+```text
+has5=true
+has6=false
+```
+
+<!--DelEnd-->
 
 <!--Del-->
 ### func filter((T) -> Bool)
@@ -10348,6 +13007,56 @@ main() {
 清空后大小: 0
 ```
 
+<!--Del-->
+
+### func isEmpty(this @local?)
+
+```cangjie
+public func isEmpty(this @local?): Bool
+```
+
+功能：判断当前 `@local?` [HashSet](collection_package_class.md#class-hashsett-where-t--hashable--equatablet) 是否为空。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+
+返回值：
+
+- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 如果为空返回 true，否则返回 false。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+exclave func makeSet(): HashSet<Int64> @local? {
+    let s: HashSet<Int64> @local! = HashSet<Int64>() @local!
+    s.add(5)
+    let v: HashSet<Int64> @local? = s
+    v
+}
+
+main() {
+    let set: HashSet<Int64> @local? = makeSet()
+    println("empty=${set.isEmpty()}")
+}
+```
+
+运行结果：
+
+```text
+empty=false
+```
+
+<!--DelEnd-->
+
 ### func iterator()
 
 ```cangjie
@@ -10390,6 +13099,8 @@ main() {
  orange
 ```
 
+<!--Del-->
+
 ### func iterator(this @local!)
 
 ```cangjie
@@ -10401,6 +13112,7 @@ public exclave func iterator(this @local!): Iterator<T> @local!
 > **注意：**
 >
 > - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 > - 当前运行时版本下，迭代器 `next()` 返回的元素写入 local Option payload 可能触发写屏障缺陷（Barrier::WriteGeneric does not support local object）导致进程中止，请以实际 SDK 版本行为为准。
 
 参数：
@@ -10413,7 +13125,7 @@ public exclave func iterator(this @local!): Iterator<T> @local!
 
 示例：
 
-<!-- code_no_check -->
+<!-- verify -->
 ```cangjie
 import std.collection.*
 
@@ -10428,10 +13140,20 @@ main() {
 }
 ```
 
+运行结果：
+
+```text
+first=5
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+
 ### func iterator(this @local?)
 
 ```cangjie
-public exclave func iterator(this @local?): Iterator<T> @local?
+func iterator(this @local?): Iterator<T> @local?
 ```
 
 功能：获取当前 `@local?` 集合的迭代器，迭代器与当前集合绑定在同一个 local region 中。
@@ -10439,6 +13161,7 @@ public exclave func iterator(this @local?): Iterator<T> @local?
 > **注意：**
 >
 > - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 > - [HashSet](collection_package_class.md#class-hashsett-where-t--hashable--equatablet) 未提供该方法的 `@local?` 覆写；该形式继承自 [Iterable](../../core/core_package_api/core_package_interfaces.md#interface-iterablee) 接口的默认实现；当调用绑定到该默认实现时，抛出 [IllegalStateException](../../core/core_package_api/core_package_exceptions.md#class-illegalstateexception)。
 
 参数：
@@ -10448,6 +13171,38 @@ public exclave func iterator(this @local?): Iterator<T> @local?
 返回值：
 
 - [Iterator](../../core/core_package_api/core_package_classes.md#class-iteratort)\<T> @local? - 集合的迭代器。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+exclave func makeSet(): HashSet<Int64> @local? {
+    let s: HashSet<Int64> @local! = HashSet<Int64>() @local!
+    s.add(5)
+    let v: HashSet<Int64> @local? = s
+    v
+}
+
+main() {
+    let set: HashSet<Int64> @local? = makeSet()
+    try {
+        set.iterator()
+        println("iterator obtained")
+    } catch (e: IllegalStateException) {
+        println("caught IllegalStateException")
+    }
+}
+```
+
+运行结果：
+
+```text
+caught IllegalStateException
+```
+
+<!--DelEnd-->
 
 <!--Del-->
 ### func map\<R>((T)->R)
@@ -10952,6 +13707,8 @@ main() {
 数组元素: [apple, banana, orange]
 ```
 
+<!--Del-->
+
 ### func toArray(this @local!)
 
 ```cangjie
@@ -10963,6 +13720,7 @@ public exclave func toArray(this @local!): Array<T> @local!
 > **注意：**
 >
 > - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 > - 当前运行时版本下，local 集合的元素拷贝可能触发写屏障缺陷（Barrier::WriteGeneric does not support local object）导致进程中止，请以实际 SDK 版本行为为准。
 
 参数：
@@ -10975,7 +13733,7 @@ public exclave func toArray(this @local!): Array<T> @local!
 
 示例：
 
-<!-- code_no_check -->
+<!-- verify -->
 ```cangjie
 import std.collection.*
 
@@ -10986,6 +13744,14 @@ main() {
     println("arr=${arr.size}")
 }
 ```
+
+运行结果：
+
+```text
+arr=1
+```
+
+<!--DelEnd-->
 
 ### operator func &(ReadOnlySet\<T>)
 

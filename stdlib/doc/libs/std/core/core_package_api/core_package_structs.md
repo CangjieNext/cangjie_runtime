@@ -47,6 +47,8 @@ Some(1)
 None
 ```
 
+<!--Del-->
+<!-- markdownlint-disable-next-line MD026 -->
 ### prop first @local!
 
 ```cangjie
@@ -59,13 +61,14 @@ public prop first: Option<T> @local!
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 类型：[Option](core_package_enums.md#enum-optiont)\<T> @local!
 
 示例：
 
-<!-- compile -->
+<!-- verify -->
 ```cangjie
 main() {
     let arr: Array<Int64> @local! = [1, 2, 3]
@@ -77,6 +80,15 @@ main() {
 }
 ```
 
+运行结果：
+
+```text
+first=1
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 ### prop first @local?
 
 ```cangjie
@@ -89,7 +101,8 @@ public prop first: Option<T> @local?
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 类型：[Option](core_package_enums.md#enum-optiont)\<T> @local?
 
@@ -112,6 +125,8 @@ main() {
 ```text
 first=1
 ```
+
+<!--DelEnd-->
 
 ### prop last
 
@@ -146,6 +161,8 @@ Some(3)
 None
 ```
 
+<!--Del-->
+<!-- markdownlint-disable-next-line MD026 -->
 ### prop last @local!
 
 ```cangjie
@@ -158,13 +175,14 @@ public prop last: Option<T> @local!
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 类型：[Option](core_package_enums.md#enum-optiont)\<T> @local!
 
 示例：
 
-<!-- compile -->
+<!-- verify -->
 ```cangjie
 main() {
     let arr: Array<Int64> @local! = [1, 2, 3]
@@ -176,6 +194,15 @@ main() {
 }
 ```
 
+运行结果：
+
+```text
+last=3
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 ### prop last @local?
 
 ```cangjie
@@ -188,7 +215,8 @@ public prop last: Option<T> @local?
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 类型：[Option](core_package_enums.md#enum-optiont)\<T> @local?
 
@@ -211,6 +239,8 @@ main() {
 ```text
 last=3
 ```
+
+<!--DelEnd-->
 
 ### init()
 
@@ -330,6 +360,7 @@ String array with repeated value: [Hello, Hello, Hello]
 Boolean array with repeated value: [true, true, true, true]
 ```
 
+<!--Del-->
 ### init(this @local!)（const 修饰）
 
 ```cangjie
@@ -340,7 +371,8 @@ public const init(this @local!)
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 示例：
 
@@ -358,6 +390,9 @@ main() {
 Empty local array size: 0
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### init(this @local?, Int64, (Int64) -> T)
 
 ```cangjie
@@ -370,7 +405,8 @@ public init(this @local?, size: Int64, initElement: ((Int64) -> T @local?) @loca
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -398,6 +434,9 @@ main() {
 Local? array with initElement: 0 2 4
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### init(this @local!, Int64, T)
 
 ```cangjie
@@ -409,6 +448,7 @@ public init(this @local!, size: Int64, repeat!: T @local!)
 > **注意：**
 >
 > - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 > - 该构造函数不会拷贝 repeat，如果 repeat 是一个引用类型，构造后数组的每一个元素都将指向相同的引用。
 
 参数：
@@ -437,6 +477,9 @@ main() {
 Repeated local array: 42 42 42
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### init(this @local!, Int64, (Int64) -> T)
 
 ```cangjie
@@ -449,7 +492,8 @@ public init(this @local!, size: Int64, initElement: ((Int64) -> T @local!) @loca
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -476,6 +520,8 @@ main() {
 ```text
 Local array with squares: 0 2 4
 ```
+
+<!--DelEnd-->
 
 <!--Del-->
 ### func all((T) -> Bool)
@@ -554,13 +600,19 @@ public func all(this @local?, predicate: ((T @local?) -> Bool) @local?): Bool
 
 示例：
 
-<!-- compile -->
+<!-- verify -->
 ```cangjie
 main() {
     let arr: Array<Int64> @local? = [2, 4, 6, 8]
     let allEven = arr.all({e => e % 2 == 0})
     println("allEven=${allEven}")
 }
+```
+
+运行结果：
+
+```text
+allEven=true
 ```
 
 <!--DelEnd-->
@@ -616,6 +668,7 @@ main() {
 ```
 
 <!--DelEnd-->
+
 <!--Del-->
 ### func any(this @local?, (T) -> Bool)
 
@@ -641,13 +694,19 @@ public func any(this @local?, predicate: ((T @local?) -> Bool) @local?): Bool
 
 示例：
 
-<!-- compile -->
+<!-- verify -->
 ```cangjie
 main() {
     let arr: Array<Int64> @local? = [1, 3, 5]
     let hasEven = arr.any({e => e % 2 == 0})
     println("hasEven=${hasEven}")
 }
+```
+
+运行结果：
+
+```text
+hasEven=false
 ```
 
 <!--DelEnd-->
@@ -693,6 +752,7 @@ Original array: [1, 2, 3, 4, 5]
 Cloned array: [10, 2, 3, 4, 5]
 ```
 
+<!--Del-->
 ### func clone(this @local!)
 
 ```cangjie
@@ -703,7 +763,8 @@ public exclave func clone(this @local!): Array<T> @local!
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 返回值：
 
@@ -711,7 +772,7 @@ public exclave func clone(this @local!): Array<T> @local!
 
 示例：
 
-<!-- compile -->
+<!-- verify -->
 ```cangjie
 main() {
     let arr: Array<Int64> @local! = [1, 2, 3]
@@ -720,6 +781,15 @@ main() {
 }
 ```
 
+运行结果：
+
+```text
+Cloned array size: 3
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 ### func clone(this @local!, Range\<Int64>)
 
 ```cangjie
@@ -731,9 +801,10 @@ public exclave func clone(this @local!, range: Range<Int64>): Array<T> @local!
 > **注意：**
 >
 > - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 > - 如果参数 range 是使用 [Range](core_package_structs.md#struct-ranget-where-t--countablet--comparablet--equatablet) 构造函数构造的 [Range](core_package_structs.md#struct-ranget-where-t--countablet--comparablet--equatablet) 实例，有如下行为：
->    - hasStart 为 false 时，start 值取 0；否则 start 的值就是构造函数传入的值本身。
->    - hasEnd 为 false 时，end 值不生效，且不受构造时传入的 isClosed 的值的影响，数组切片取到原数组最后一个元素。
+>     - hasStart 为 false 时，start 值取 0；否则 start 的值就是构造函数传入的值本身。
+>     - hasEnd 为 false 时，end 值不生效，且不受构造时传入的 isClosed 的值的影响，数组切片取到原数组最后一个元素。
 > - range 的步长允许为正数或负数；步长为负数时，按从区间高端到低端的顺序克隆元素。
 
 参数：
@@ -751,7 +822,7 @@ public exclave func clone(this @local!, range: Range<Int64>): Array<T> @local!
 
 示例：
 
-<!-- compile -->
+<!-- verify -->
 ```cangjie
 main() {
     let arr: Array<Int64> @local! = [0, 1, 2, 3, 4, 5]
@@ -759,6 +830,14 @@ main() {
     println("Cloned range size: ${new.size}")
 }
 ```
+
+运行结果：
+
+```text
+Cloned range size: 3
+```
+
+<!--DelEnd-->
 
 ### func clone(Range\<Int64>)
 
@@ -803,6 +882,46 @@ main() {
 ```text
 [1, 2, 3]
 ```
+<!--Del-->
+### func clone(this @local?)
+
+```cangjie
+public func clone(this @local?): Array<T> @local?
+```
+
+功能：克隆当前 `@local?` 数组，对数组数据进行深拷贝，克隆得到的数组与当前数组绑定在同一个 local region 中。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+
+返回值：
+
+- [Array](core_package_structs.md#struct-arrayt)\<T> @local? - 克隆得到的 `@local?` 新数组。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local? = [1, 2, 3]
+    let clonedArr: Array<Int64> @local? = arr.clone()
+    println("Cloned array size: ${clonedArr.size}")
+}
+```
+
+运行结果：
+
+```text
+Cloned array size: 3
+```
+
+<!--DelEnd-->
 
 ### func concat(Array\<T>)
 
@@ -837,6 +956,7 @@ main() {
 [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 ```
 
+<!--Del-->
 ### func concat(this @local!, Array\<T>)
 
 ```cangjie
@@ -847,7 +967,8 @@ public func concat(this @local!, other: Array<T> @local!): Array<T> @local!
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -860,7 +981,7 @@ public func concat(this @local!, other: Array<T> @local!): Array<T> @local!
 
 示例：
 
-<!-- compile -->
+<!-- verify -->
 ```cangjie
 main() {
     let arr: Array<Int64> @local! = [0, 1, 2]
@@ -869,6 +990,14 @@ main() {
     println("Concat size: ${new.size}")
 }
 ```
+
+运行结果：
+
+```text
+Concat size: 5
+```
+
+<!--DelEnd-->
 
 ### func copyTo(Array\<T>)
 
@@ -960,6 +1089,7 @@ main() {
 [0, 0, 2, 3, 4, 5]
 ```
 
+<!--Del-->
 ### func copyTo(this @local!, Array\<T> @local!)
 
 ```cangjie
@@ -972,7 +1102,8 @@ public func copyTo(this @local!, dst: Array<T> @local!): Unit
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -1001,6 +1132,9 @@ main() {
 dst=1 2 3
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### func copyTo(this @local!, Array\<T> @local!, Int64, Int64, Int64)
 
 ```cangjie
@@ -1013,7 +1147,8 @@ copyLen 为 0 时不执行拷贝，也不校验其余参数。
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -1045,6 +1180,8 @@ main() {
 ```text
 dst=1 2 3
 ```
+
+<!--DelEnd-->
 
 ### func fill(T)
 
@@ -1092,6 +1229,7 @@ Before partial fill: [1, 2, 3, 4, 5]
 After partial fill: [1, -1, -1, -1, 5]
 ```
 
+<!--Del-->
 ### func fill(this @local!, T)
 
 ```cangjie
@@ -1102,7 +1240,8 @@ public exclave func fill(this @local!, value: T @local!): Unit
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -1125,6 +1264,8 @@ main() {
 ```text
 After fill: 0 0 0
 ```
+
+<!--DelEnd-->
 
 <!--Del-->
 ### func filter((T) -> Bool)
@@ -1197,13 +1338,19 @@ public func filter(this @local!, predicate: ((T @local?) -> Bool) @local?): Arra
 
 示例：
 
-<!-- compile -->
+<!-- verify -->
 ```cangjie
 main() {
     let arr: Array<Int64> @local! = [1, 2, 3, 4, 5]
     let even: Array<Int64> @local! = arr.filter({e => e % 2 == 0})
     println("Even size: ${even.size}")
 }
+```
+
+运行结果：
+
+```text
+Even size: 2
 ```
 
 <!--DelEnd-->
@@ -1286,19 +1433,27 @@ public func filterMap<R>(this @local!, transform: ((T @local!) -> Option<R> @loc
 
 示例：
 
-<!-- compile -->
+<!-- verify -->
 ```cangjie
+exclave func keepEven(e: Int64 @local!): Option<Int64> @local! {
+    if (e % 2 == 0) {
+        Some(e * 10)
+    } else {
+        Option<Int64>.None
+    }
+}
+
 main() {
     let arr: Array<Int64> @local! = [1, 2, 3, 4, 5]
-    let evens: Array<Int64> @local! = arr.filterMap({
-        e => if (e % 2 == 0) {
-            Some(e * 10)
-        } else {
-            Option<Int64>.None
-        }
-    })
+    let evens: Array<Int64> @local! = arr.filterMap(keepEven)
     println("Even size: ${evens.size}")
 }
+```
+
+运行结果：
+
+```text
+Even size: 2
 ```
 
 <!--DelEnd-->
@@ -1376,13 +1531,23 @@ public func flatMap<R>(this @local!, transform: ((T @local!) -> Array<R> @local!
 
 示例：
 
-<!-- compile -->
+<!-- verify -->
 ```cangjie
+exclave func repeatTwice(e: Int64 @local!): Array<Int64> @local! {
+    Array<Int64>(2, repeat: e) @local!
+}
+
 main() {
     let arr: Array<Int64> @local! = [1, 2, 3]
-    let repeated: Array<Int64> @local! = arr.flatMap({e => Array<Int64>(2, repeat: e) @local!})
+    let repeated: Array<Int64> @local! = arr.flatMap(repeatTwice)
     println("Repeated size: ${repeated.size}")
 }
+```
+
+运行结果：
+
+```text
+Repeated size: 6
 ```
 
 <!--DelEnd-->
@@ -1460,13 +1625,19 @@ public func fold<R>(this @local!, initial: R @local!, operation: ((R @local!, T 
 
 示例：
 
-<!-- compile -->
+<!-- verify -->
 ```cangjie
 main() {
     let arr: Array<Int64> @local! = [1, 2, 3, 4, 5]
     let sum: Int64 @local! = arr.fold(0, {acc, e => acc + e})
     println("Sum: ${sum}")
 }
+```
+
+运行结果：
+
+```text
+Sum: 15
 ```
 
 <!--DelEnd-->
@@ -1517,6 +1688,7 @@ main() {
 ```
 
 <!--DelEnd-->
+
 <!--Del-->
 ### func forEach(this @local!, (T) -> Unit)
 
@@ -1593,6 +1765,7 @@ main() {
 Some(0)
 ```
 
+<!--Del-->
 ### func get(this @local!, Int64)
 
 ```cangjie
@@ -1605,7 +1778,8 @@ public func get(this @local!, index: Int64): Option<T> @local!
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -1618,7 +1792,7 @@ public func get(this @local!, index: Int64): Option<T> @local!
 
 示例：
 
-<!-- compile -->
+<!-- verify -->
 ```cangjie
 main() {
     let arr: Array<Int64> @local! = [1, 2, 3]
@@ -1630,6 +1804,15 @@ main() {
 }
 ```
 
+运行结果：
+
+```text
+got=2
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 ### func get(this @local?, Int64)
 
 ```cangjie
@@ -1642,7 +1825,8 @@ public func get(this @local?, index: Int64): Option<T> @local?
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -1672,6 +1856,8 @@ main() {
 ```text
 got=2
 ```
+
+<!--DelEnd-->
 
 <!--Del-->
 ### func intersperse(T)
@@ -1718,6 +1904,7 @@ main() {
 ```
 
 <!--DelEnd-->
+
 <!--Del-->
 ### func intersperse(this @local!, T)
 
@@ -1805,6 +1992,7 @@ Mapped array (each element + 1): [2, 3, 4, 5, 6]
 String array: [Number: 1, Number: 2, Number: 3, Number: 4, Number: 5]
 ```
 
+<!--Del-->
 ### func map\<R>(this @local!, (T) -> R)
 
 ```cangjie
@@ -1815,7 +2003,8 @@ public func map<R>(this @local!, transform: ((T @local!) -> R @local!) @local?):
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -1828,7 +2017,7 @@ public func map<R>(this @local!, transform: ((T @local!) -> R @local!) @local?):
 
 示例：
 
-<!-- compile -->
+<!-- verify -->
 ```cangjie
 main() {
     let arr: Array<Int64> @local! = [1, 2, 3]
@@ -1836,6 +2025,14 @@ main() {
     println("Mapped size: ${mapped.size}")
 }
 ```
+
+运行结果：
+
+```text
+Mapped size: 3
+```
+
+<!--DelEnd-->
 
 <!--Del-->
 ### func none((T) -> Bool)
@@ -1914,13 +2111,19 @@ public func none(this @local?, predicate: ((T @local?) -> Bool) @local?): Bool
 
 示例：
 
-<!-- compile -->
+<!-- verify -->
 ```cangjie
 main() {
     let arr: Array<Int64> @local? = [1, 3, 5]
     let noEven = arr.none({e => e % 2 == 0})
     println("noEven=${noEven}")
 }
+```
+
+运行结果：
+
+```text
+noEven=true
 ```
 
 <!--DelEnd-->
@@ -1974,6 +2177,7 @@ main() {
 ```
 
 <!--DelEnd-->
+
 ### func repeat(Int64)
 
 ```cangjie
@@ -2065,6 +2269,7 @@ Original string array: [Hello, World, Cangjie]
 Reversed string array: [Cangjie, World, Hello]
 ```
 
+<!--Del-->
 ### func reverse(this @local!)
 
 ```cangjie
@@ -2075,7 +2280,8 @@ public exclave func reverse(this @local!): Unit
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -2097,6 +2303,8 @@ main() {
 ```text
 After reverse: 2 1 3
 ```
+
+<!--DelEnd-->
 
 <!--Del-->
 ### func skip(Int64)
@@ -2160,6 +2368,7 @@ main() {
 ```
 
 <!--DelEnd-->
+
 <!--Del-->
 ### func skip(this @local!, Int64)
 
@@ -2265,6 +2474,7 @@ Original array: [0, 1, -1, 3, 4, 5, 6, 7, 8, 9]
 Slice: [-1, 3, 4, 5]
 ```
 
+<!--Del-->
 ### func slice(this @local!, Int64, Int64)
 
 ```cangjie
@@ -2275,7 +2485,8 @@ public func slice(this @local!, start: Int64, len: Int64): Array<T> @local!
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -2293,7 +2504,7 @@ public func slice(this @local!, start: Int64, len: Int64): Array<T> @local!
 
 示例：
 
-<!-- compile -->
+<!-- verify -->
 ```cangjie
 main() {
     let arr: Array<Int64> @local! = [1, 2, 3, 4, 5]
@@ -2302,6 +2513,15 @@ main() {
 }
 ```
 
+运行结果：
+
+```text
+Slice size: 3
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 ### func slice(this @local?, Int64, Int64)
 
 ```cangjie
@@ -2312,7 +2532,8 @@ public func slice(this @local?, start: Int64, len: Int64): Array<T> @local?
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -2330,7 +2551,7 @@ public func slice(this @local?, start: Int64, len: Int64): Array<T> @local?
 
 示例：
 
-<!-- compile -->
+<!-- verify -->
 ```cangjie
 main() {
     let arr: Array<Int64> @local? = [1, 2, 3, 4, 5]
@@ -2338,6 +2559,14 @@ main() {
     println("Slice size: ${slice1.size}")
 }
 ```
+
+运行结果：
+
+```text
+Slice size: 3
+```
+
+<!--DelEnd-->
 
 ### func splitAt(Int64)
 
@@ -2397,6 +2626,7 @@ Left slice: [-1, 1, 2]
 Right slice: [3, 4, 5]
 ```
 
+<!--Del-->
 ### func splitAt(this @local!, Int64)
 
 ```cangjie
@@ -2407,7 +2637,8 @@ public func splitAt(this @local!, mid: Int64): (Array<T>, Array<T>) @local!
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -2441,6 +2672,9 @@ main() {
 Left size: 2, Right size: 3
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### func repeat(this @local!, Int64)
 
 ```cangjie
@@ -2451,7 +2685,8 @@ public func repeat(this @local!, n: Int64): Array<T> @local!
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -2468,7 +2703,7 @@ public func repeat(this @local!, n: Int64): Array<T> @local!
 
 示例：
 
-<!-- compile -->
+<!-- verify -->
 ```cangjie
 main() {
     let arr: Array<Int64> @local! = [1, 2, 3]
@@ -2476,6 +2711,14 @@ main() {
     println("Repeated size: ${repeated.size}")
 }
 ```
+
+运行结果：
+
+```text
+Repeated size: 6
+```
+
+<!--DelEnd-->
 
 <!--Del-->
 ### func step(Int64)
@@ -2528,6 +2771,7 @@ main() {
 ```
 
 <!--DelEnd-->
+
 <!--Del-->
 ### func step(this @local!, Int64)
 
@@ -2624,6 +2868,7 @@ After swapping indices 1 and 3: [1, 4, 3, 2, 5]
 After swapping index 2 with itself: [1, 4, 3, 2, 5]
 ```
 
+<!--Del-->
 ### func swap(this @local!, Int64, Int64)
 
 ```cangjie
@@ -2634,7 +2879,8 @@ public exclave func swap(this @local!, index1: Int64, index2: Int64): Unit
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -2662,6 +2908,8 @@ main() {
 ```text
 After swapping: 4 2
 ```
+
+<!--DelEnd-->
 
 <!--Del-->
 ### func take(Int64)
@@ -2720,6 +2968,7 @@ main() {
 ```
 
 <!--DelEnd-->
+
 <!--Del-->
 ### func take(this @local!, Int64)
 
@@ -2815,6 +3064,7 @@ Array: [10, 20, 30, 40, 50]
 Element at index 2: 30
 ```
 
+<!--Del-->
 ### operator func \[](this @local!, Int64)
 
 ```cangjie
@@ -2825,7 +3075,8 @@ public operator func [](this @local!, index: Int64): T @local!
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -2842,7 +3093,7 @@ public operator func [](this @local!, index: Int64): T @local!
 
 示例：
 
-<!-- compile -->
+<!-- verify -->
 ```cangjie
 main() {
     let arr: Array<Int64> @local! = [10, 20, 30]
@@ -2851,6 +3102,15 @@ main() {
 }
 ```
 
+运行结果：
+
+```text
+Element: 20
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 ### operator func \[](this @local?, Int64)
 
 ```cangjie
@@ -2861,7 +3121,8 @@ public exclave operator func [](this @local?, index: Int64): T @local?
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -2892,6 +3153,8 @@ main() {
 ```text
 Element: 20
 ```
+
+<!--DelEnd-->
 
 ### operator func \[](Int64, T)
 
@@ -2939,6 +3202,7 @@ Array after setting index 2 to 100: [1, 2, 100, 4, 5]
 Array after setting index 0 to -1: [-1, 2, 100, 4, 5]
 ```
 
+<!--Del-->
 ### operator func \[](this @local!, Int64, T)
 
 ```cangjie
@@ -2949,7 +3213,8 @@ public operator func [](this @local!, index: Int64, value!: T @local!): Unit
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -2977,6 +3242,8 @@ main() {
 ```text
 After set: 20
 ```
+
+<!--DelEnd-->
 
 ### operator func \[](Range\<Int64>)
 
@@ -3024,6 +3291,7 @@ main() {
 [1, 2, 10]
 ```
 
+<!--Del-->
 ### operator func \[](this @local!, Range\<Int64>)
 
 ```cangjie
@@ -3035,9 +3303,10 @@ public exclave operator func [](this @local!, range: Range<Int64>): Array<T> @lo
 > **注意：**
 >
 > - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 > - 如果参数 range 是使用 [Range](core_package_structs.md#struct-ranget-where-t--countablet--comparablet--equatablet) 构造函数构造的 [Range](core_package_structs.md#struct-ranget-where-t--countablet--comparablet--equatablet) 实例，有如下行为：
->    - hasStart 为 false 时，start 值取 0；否则 start 的值就是构造函数传入的值本身。
->    - hasEnd 为 false 时，end 值不生效，且不受构造时传入的 isClosed 的值的影响，该数组切片取到原数组最后一个元素。
+>     - hasStart 为 false 时，start 值取 0；否则 start 的值就是构造函数传入的值本身。
+>     - hasEnd 为 false 时，end 值不生效，且不受构造时传入的 isClosed 的值的影响，该数组切片取到原数组最后一个元素。
 > - range 的步长只能为 1。
 
 参数：
@@ -3056,7 +3325,7 @@ public exclave operator func [](this @local!, range: Range<Int64>): Array<T> @lo
 
 示例：
 
-<!-- compile -->
+<!-- verify -->
 ```cangjie
 main() {
     let arr: Array<Int64> @local! = [0, 1, 2, 3, 4, 5]
@@ -3065,6 +3334,15 @@ main() {
 }
 ```
 
+运行结果：
+
+```text
+Slice size: 3
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 ### operator func \[](this @local?, Range\<Int64>)
 
 ```cangjie
@@ -3076,9 +3354,10 @@ public exclave operator func [](this @local?, range: Range<Int64>): Array<T> @lo
 > **注意：**
 >
 > - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 > - 如果参数 range 是使用 [Range](core_package_structs.md#struct-ranget-where-t--countablet--comparablet--equatablet) 构造函数构造的 [Range](core_package_structs.md#struct-ranget-where-t--countablet--comparablet--equatablet) 实例，有如下行为：
->    - hasStart 为 false 时，start 值取 0；否则 start 的值就是构造函数传入的值本身。
->    - hasEnd 为 false 时，end 值不生效，且不受构造时传入的 isClosed 的值的影响，该数组切片取到原数组最后一个元素。
+>     - hasStart 为 false 时，start 值取 0；否则 start 的值就是构造函数传入的值本身。
+>     - hasEnd 为 false 时，end 值不生效，且不受构造时传入的 isClosed 的值的影响，该数组切片取到原数组最后一个元素。
 > - range 的步长只能为 1。
 
 参数：
@@ -3111,6 +3390,8 @@ main() {
 ```text
 Slice size: 3
 ```
+
+<!--DelEnd-->
 
 ### operator func \[](Range\<Int64>, Array\<T>)
 
@@ -3156,6 +3437,7 @@ main() {
 [0, 10, 11, 3, 4, 5]
 ```
 
+<!--Del-->
 ### operator func \[](this @local!, Range\<Int64>, Array\<T> @local!)
 
 ```cangjie
@@ -3166,7 +3448,8 @@ public operator func [](this @local!, range: Range<Int64>, value!: Array<T> @loc
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -3181,7 +3464,7 @@ public operator func [](this @local!, range: Range<Int64>, value!: Array<T> @loc
 
 示例：
 
-<!-- compile -->
+<!-- verify -->
 ```cangjie
 main() {
     let arr: Array<Int64> @local! = [0, 1, 2, 3, 4, 5]
@@ -3190,6 +3473,14 @@ main() {
     println("After set: ${arr[1]} ${arr[2]}")
 }
 ```
+
+运行结果：
+
+```text
+After set: 10 11
+```
+
+<!--DelEnd-->
 
 ### extend\<T> Array\<Array\<T>>
 
@@ -3238,6 +3529,8 @@ extend<T> Array<T>
 ```
 
 功能：为 [Array](core_package_structs.md#struct-arrayt)\<T> 类型进行拓展
+
+<!--DelEnd-->
 
 #### func enumerate()
 
@@ -3337,7 +3630,6 @@ main() {
  (4, date)
 ```
 
-<!--DelEnd-->
 ### extend\<T> Array\<T> <: Collection\<T>
 
 ```cangjie
@@ -3395,6 +3687,7 @@ String array: [Hello, World, Cangjie, Language]
 Size of string array: 4
 ```
 
+<!--Del-->
 #### prop size @local?
 
 ```cangjie
@@ -3405,7 +3698,8 @@ public prop size: Int64 @local?
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 类型：[Int64](core_package_intrinsics.md#int64)
 
@@ -3424,6 +3718,8 @@ main() {
 ```text
 Size of local array: 5
 ```
+
+<!--DelEnd-->
 
 #### func isEmpty()
 
@@ -3472,6 +3768,7 @@ String array: [Hello, World]
 Is string array empty? false
 ```
 
+<!--Del-->
 #### func isEmpty(this @local?)
 
 ```cangjie
@@ -3482,7 +3779,8 @@ public func isEmpty(this @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -3510,6 +3808,8 @@ main() {
 arr isEmpty=false
 empty isEmpty=true
 ```
+
+<!--DelEnd-->
 
 #### func iterator()
 
@@ -3577,6 +3877,7 @@ Element: World
 Element: Cangjie
 ```
 
+<!--Del-->
 #### func iterator(this @local!)
 
 ```cangjie
@@ -3587,7 +3888,8 @@ public exclave func iterator(this @local!): Iterator<T> @local!
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -3617,6 +3919,9 @@ main() {
 first=1
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 #### func iterator(this @local?)
 
 ```cangjie
@@ -3627,7 +3932,8 @@ public exclave func iterator(this @local?): Iterator<T> @local?
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -3656,6 +3962,8 @@ main() {
 ```text
 first=1
 ```
+
+<!--DelEnd-->
 
 #### func toArray()
 
@@ -3720,6 +4028,7 @@ Original string array: [Hello, World, Cangjie]
 Copied string array: [Hi, World, Cangjie]
 ```
 
+<!--Del-->
 #### func toArray(this @local!)
 
 ```cangjie
@@ -3730,7 +4039,8 @@ public exclave func toArray(this @local!): Array<T> @local!
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -3756,6 +4066,48 @@ main() {
 ```text
 toArray size: 3
 ```
+
+<!--DelEnd-->
+<!--Del-->
+#### func toArray(this @local?)
+
+```cangjie
+public exclave func toArray(this @local?): Array<T> @local?
+```
+
+功能：将当前 `@local?` 数组转换为 `@local?` 数组实例，与当前数组绑定在同一个 local region 中。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+
+返回值：
+
+- [Array](core_package_structs.md#struct-arrayt)\<T> @local? - 转换得到的 `@local?` 数组。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local? = [1, 2, 3]
+    let toArr: Array<Int64> @local? = arr.toArray()
+    println("toArray size: ${toArr.size}")
+}
+```
+
+运行结果：
+
+```text
+toArray size: 3
+```
+
+<!--DelEnd-->
 
 ### extend\<T> Array\<T> <: Equatable\<Array\<T>> where T <: Equatable\<T>
 
@@ -3840,6 +4192,7 @@ main(): Int64 {
 Some(1)
 ```
 
+<!--Del-->
 #### func indexOf(this @local?, Array\<T> @local?)
 
 ```cangjie
@@ -3850,7 +4203,8 @@ public func indexOf(this @local?, elements: Array<T> @local?): Option<Int64>
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -3863,7 +4217,7 @@ public func indexOf(this @local?, elements: Array<T> @local?): Option<Int64>
 
 示例：
 
-<!-- compile -->
+<!-- verify -->
 ```cangjie
 main() {
     let arr: Array<Int64> @local? = [1, 2, 3]
@@ -3874,6 +4228,14 @@ main() {
     }
 }
 ```
+
+运行结果：
+
+```text
+idx=1
+```
+
+<!--DelEnd-->
 
 #### func indexOf(Array\<T>, Int64)
 
@@ -3912,6 +4274,7 @@ main(): Int64 {
 Some(4)
 ```
 
+<!--Del-->
 #### func indexOf(this @local?, Array\<T> @local?, Int64)
 
 ```cangjie
@@ -3922,7 +4285,8 @@ public func indexOf(this @local?, elements: Array<T> @local?, fromIndex: Int64):
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -3936,7 +4300,7 @@ public func indexOf(this @local?, elements: Array<T> @local?, fromIndex: Int64):
 
 示例：
 
-<!-- compile -->
+<!-- verify -->
 ```cangjie
 main() {
     let arr: Array<Int64> @local? = [1, 2, 3, 2]
@@ -3947,6 +4311,14 @@ main() {
     }
 }
 ```
+
+运行结果：
+
+```text
+idx=3
+```
+
+<!--DelEnd-->
 
 #### func indexOf(T)
 
@@ -4003,6 +4375,7 @@ String array: [Hello, World, Hello, Cangjie]
 First occurrence of "Hello": Some(0)
 ```
 
+<!--Del-->
 #### func indexOf(this @local?, T @local?, Int64)
 
 ```cangjie
@@ -4013,7 +4386,8 @@ public func indexOf(this @local?, element: T @local?, fromIndex: Int64): Option<
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -4044,6 +4418,8 @@ main() {
 ```text
 idx=1
 ```
+
+<!--DelEnd-->
 
 #### func indexOf(T, Int64)
 
@@ -4168,6 +4544,7 @@ Last occurrence of [2, 3]: Some(6)
 Last occurrence of [5, 6]: None
 ```
 
+<!--Del-->
 #### func lastIndexOf(this @local?, Array\<T> @local?)
 
 ```cangjie
@@ -4178,7 +4555,8 @@ public func lastIndexOf(this @local?, elements: Array<T> @local?): Option<Int64>
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -4191,7 +4569,7 @@ public func lastIndexOf(this @local?, elements: Array<T> @local?): Option<Int64>
 
 示例：
 
-<!-- compile -->
+<!-- verify -->
 ```cangjie
 main() {
     let arr: Array<Int64> @local? = [1, 2, 3, 2]
@@ -4202,6 +4580,14 @@ main() {
     }
 }
 ```
+
+运行结果：
+
+```text
+idx=3
+```
+
+<!--DelEnd-->
 
 #### func lastIndexOf(Array\<T>, Int64)
 
@@ -4252,6 +4638,7 @@ Last occurrence of [2, 3] starting from index 4: None
 Last occurrence of [2, 3] starting from index 2: Some(3)
 ```
 
+<!--Del-->
 #### func lastIndexOf(this @local?, Array\<T> @local?, Int64)
 
 ```cangjie
@@ -4262,7 +4649,8 @@ public func lastIndexOf(this @local?, elements: Array<T> @local?, fromIndex: Int
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -4276,7 +4664,7 @@ public func lastIndexOf(this @local?, elements: Array<T> @local?, fromIndex: Int
 
 示例：
 
-<!-- compile -->
+<!-- verify -->
 ```cangjie
 main() {
     let arr: Array<Int64> @local? = [1, 2, 3, 2]
@@ -4287,6 +4675,14 @@ main() {
     }
 }
 ```
+
+运行结果：
+
+```text
+idx=3
+```
+
+<!--DelEnd-->
 
 #### func lastIndexOf(T)
 
@@ -4343,6 +4739,7 @@ String array: [Hello, World, Hello, Cangjie, Hello]
 Last occurrence of "Hello": Some(4)
 ```
 
+<!--Del-->
 #### func lastIndexOf(this @local?, T @local?)
 
 ```cangjie
@@ -4353,7 +4750,8 @@ public func lastIndexOf(this @local?, element: T @local?): Option<Int64>
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -4383,6 +4781,8 @@ main() {
 ```text
 idx=3
 ```
+
+<!--DelEnd-->
 
 #### func lastIndexOf(T, Int64)
 
@@ -4442,6 +4842,7 @@ String array: [Hello, World, Hello, Cangjie, Hello]
 Last occurrence of "Hello" starting from index 2: Some(4)
 ```
 
+<!--Del-->
 #### func lastIndexOf(this @local?, T @local?, Int64)
 
 ```cangjie
@@ -4452,7 +4853,8 @@ public func lastIndexOf(this @local?, element: T @local?, fromIndex: Int64): Opt
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -4466,7 +4868,7 @@ public func lastIndexOf(this @local?, element: T @local?, fromIndex: Int64): Opt
 
 示例：
 
-<!-- compile -->
+<!-- verify -->
 ```cangjie
 main() {
     let arr: Array<Int64> @local? = [1, 2, 3, 2]
@@ -4477,6 +4879,14 @@ main() {
     }
 }
 ```
+
+运行结果：
+
+```text
+idx=3
+```
+
+<!--DelEnd-->
 
 #### func removePrefix(Array\<T>)
 
@@ -4876,6 +5286,7 @@ extend<T> Array<T> where T <: Copyable
 
 由于 T 是 Copyable 类型，在 `@local?` 接收者上读写元素是安全的，无需 `exclave` 上下文。
 
+<!--Del-->
 #### operator func \[](this @local?, Int64, T)
 
 ```cangjie
@@ -4886,7 +5297,8 @@ public operator func [](this @local?, index: Int64, value!: T): Unit
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -4915,6 +5327,9 @@ main() {
 After set: 20
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func \[](this @local?, Range\<Int64>, Array\<T> @local?)
 
 ```cangjie
@@ -4925,7 +5340,8 @@ public operator func [](this @local?, range: Range<Int64>, value!: Array<T> @loc
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -4940,7 +5356,7 @@ public operator func [](this @local?, range: Range<Int64>, value!: Array<T> @loc
 
 示例：
 
-<!-- compile -->
+<!-- verify -->
 ```cangjie
 main() {
     let arr: Array<Int64> @local? = [0, 1, 2, 3]
@@ -4950,6 +5366,15 @@ main() {
 }
 ```
 
+运行结果：
+
+```text
+After set: 10 11
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### func fill(this @local?, T)
 
 ```cangjie
@@ -4960,7 +5385,8 @@ public func fill(this @local?, value: T): Unit
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -4984,6 +5410,9 @@ main() {
 After fill: 0 0 0
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 #### func swap(this @local?, Int64, Int64)
 
 ```cangjie
@@ -4994,7 +5423,8 @@ public func swap(this @local?, index1: Int64, index2: Int64): Unit
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -5023,6 +5453,9 @@ main() {
 After swapping: 4 2
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 #### func reverse(this @local?)
 
 ```cangjie
@@ -5033,7 +5466,8 @@ public func reverse(this @local?): Unit
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -5056,6 +5490,9 @@ main() {
 After reverse: 2 3
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 #### func copyTo(this @local?, Array\<T> @local?)
 
 ```cangjie
@@ -5068,7 +5505,8 @@ public func copyTo(this @local?, dst: Array<T> @local?): Unit
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -5097,6 +5535,9 @@ main() {
 dst[2]=3
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 #### func copyTo(this @local?, Array\<T> @local?, Int64, Int64, Int64)
 
 ```cangjie
@@ -5109,7 +5550,8 @@ copyLen 为 0 时不执行拷贝，也不校验其余参数。
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -5141,6 +5583,8 @@ main() {
 ```text
 dst[3]=3
 ```
+
+<!--DelEnd-->
 
 ### extend\<T> Array\<T> where T <: ToString
 
@@ -5210,6 +5654,7 @@ toString() result: [Hello, World, Cangjie]
 toString() result: [[1, 2], [3, 4], [5, 6]]
 ```
 
+<!--Del-->
 #### func toString(this @local?)
 
 ```cangjie
@@ -5221,6 +5666,7 @@ public exclave func toString(this @local?): String @local!
 > **注意：**
 >
 > - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 > - 当前编译器版本下，`String @local!` 结果在参与字符串插值等操作时可能触发运行时 [StackOverflowError](core_package_exceptions.md#class-stackoverflowerror) 缺陷，建议仅在 local 上下文内传递该结果，输出前调用 `String(...)` 转换为非 local 字符串。
 
 参数：
@@ -5233,7 +5679,7 @@ public exclave func toString(this @local?): String @local!
 
 示例：
 
-<!-- code_no_check -->
+<!-- verify -->
 ```cangjie
 main() {
     let arr: Array<Int64> @local? = [1, 2, 3]
@@ -5242,6 +5688,14 @@ main() {
     println(heapS)
 }
 ```
+
+运行结果：
+
+```text
+[1, 2, 3]
+```
+
+<!--DelEnd-->
 
 ## struct CPointerHandle\<T> where T <: CType
 
@@ -7983,6 +8437,53 @@ main() {
 ```text
 I like Cangjie
 ```
+<!--Del-->
+### static func mallocCString(String @local?)
+
+```cangjie
+public unsafe static func mallocCString(str: String @local?): CString
+```
+
+功能：通过 `@local?` [String](core_package_structs.md#struct-string) 申请与之字符内容相同的 C 风格字符串。
+
+构造的 C 风格字符串将以 '\0' 结束。内存分配失败时抛出 [IllegalMemoryException](core_package_exceptions.md#class-illegalmemoryexception)，不会返回空指针作为分配失败的结果。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- str: [String](core_package_structs.md#struct-string) @local? - 根据该仓颉字符串构造 C 字符串。
+
+返回值：
+
+- [CString](core_package_intrinsics.md#cstring) - 新构造的 C 风格字符串。
+
+异常：
+
+- [IllegalMemoryException](core_package_exceptions.md#class-illegalmemoryexception) - 内存不足时，抛出异常。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local? = "I like Cangjie"
+    var str = unsafe { LibC.mallocCString(s) }
+    println(str)
+    unsafe { LibC.free(str) }
+}
+```
+
+运行结果：
+
+```text
+I like Cangjie
+```
+
+<!--DelEnd-->
 
 ## struct Range\<T> where T <: Countable\<T> & Comparable\<T> & Equatable\<T>
 
@@ -8450,6 +8951,91 @@ Range hash code: -1988359251787629792
 Same range hash code: -1988359251787629792
 Same ranges have the same hash code
 ```
+<!--Del-->
+#### func hashCode(this @local?)
+
+```cangjie
+public func hashCode(this @local?): Int64
+```
+
+功能：获取当前 `@local?` 区间的哈希值，该值为 `start`、`end`、[step](#let-step)、`isClosed` 的组合哈希运算结果。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+
+返回值：
+
+- [Int64](core_package_intrinsics.md#int64) - 哈希值。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let r1: Range<Int64> @local? = Range<Int64>(1, 5, 1, true, false, false) @local?
+    let r2: Range<Int64> @local? = Range<Int64>(1, 5, 1, true, false, false) @local?
+    let h1 = r1.hashCode()
+    let h2 = r2.hashCode()
+    println("same=${h1 == h2}")
+}
+```
+
+运行结果：
+
+```text
+same=true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+#### func hashCode(this @local!)
+
+```cangjie
+public func hashCode(this @local!): Int64
+```
+
+功能：获取当前 `@local!` 区间的哈希值，该值为 `start`、`end`、[step](#let-step)、`isClosed` 的组合哈希运算结果。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local! - 接收者为 `@local!` 实例。
+
+返回值：
+
+- [Int64](core_package_intrinsics.md#int64) - 哈希值。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let r1: Range<Int64> @local! = Range<Int64>(1, 5, 1, true, false, false) @local!
+    let r2: Range<Int64> @local! = Range<Int64>(1, 5, 1, true, false, false) @local!
+    let h1 = r1.hashCode()
+    let h2 = r2.hashCode()
+    println("same=${h1 == h2}")
+}
+```
+
+运行结果：
+
+```text
+same=true
+```
+
+<!--DelEnd-->
 
 ## struct String
 
@@ -8542,6 +9128,7 @@ String size (bytes): 13
 Empty string size: 0
 ```
 
+<!--Del-->
 ### prop size @local?
 
 ```cangjie
@@ -8552,7 +9139,8 @@ public prop size: Int64 @local?
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 类型：[Int64](core_package_intrinsics.md#int64)
 
@@ -8572,6 +9160,8 @@ main() {
 ```text
 Local string size: 5
 ```
+
+<!--DelEnd-->
 
 ### init()
 
@@ -8682,6 +9272,7 @@ String from Collection<Rune>: 'Hello 世界'
 String size: 12
 ```
 
+<!--Del-->
 ### init(this @local!)（const 修饰）
 
 ```cangjie
@@ -8692,7 +9283,8 @@ public exclave const init(this @local!)
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 示例：
 
@@ -8710,6 +9302,9 @@ main() {
 Empty local string size: 0
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### init(this @local!, Array\<Rune> @local?)
 
 ```cangjie
@@ -8720,7 +9315,8 @@ public exclave init(this @local!, value: Array<Rune> @local?)
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -8749,6 +9345,9 @@ main() {
 Local string: 'ab'
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### init(this @local!, Collection\<Rune> @local?)
 
 ```cangjie
@@ -8757,13 +9356,14 @@ public exclave init(this @local!, value: Collection<Rune> @local?)
 
 功能：在 local region 中根据字符集合构造一个 `@local!` 字符串，字符串内容为集合中的所有字符。
 
-> **注意：**
->
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
-
 > **说明：**
 >
 > 该构造函数对 [Array](core_package_structs.md#struct-arrayt)\<Rune> 类型走快速字节拷贝路径；对其他 Collection 实现，通过接口迭代完成逐字符拷贝。当前编译器版本下，非 Array 的集合实现（如 `@local?` 上下文中的 ArrayList）可能因接口分派限制抛出 [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception)，建议使用 [Array](core_package_structs.md#struct-arrayt)\<Rune> 构造。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -8793,6 +9393,9 @@ main() {
 Local string from collection: 'ab'
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### init(this @local!, String @local?)
 
 ```cangjie
@@ -8803,7 +9406,8 @@ public exclave init(this @local!, value: String @local?)
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -8827,6 +9431,9 @@ main() {
 Copied local string: 'xyz'
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### init(String @local?)
 
 ```cangjie
@@ -8837,7 +9444,8 @@ public init(value: String @local?)
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -8859,6 +9467,8 @@ main() {
 ```text
 Heap string: 'abc'
 ```
+
+<!--DelEnd-->
 
 ### static func checkUtf8Encoding(Array\<UInt8>)
 
@@ -8945,6 +9555,7 @@ String from UTF-8 bytes: 'Hello 世界'
 String size: 12
 ```
 
+<!--Del-->
 ### static func fromUtf8(Array\<UInt8> @local?)
 
 ```cangjie
@@ -8956,6 +9567,7 @@ public exclave static func fromUtf8(utf8Data: Array<UInt8> @local?): String @loc
 > **注意：**
 >
 > - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 > - 本函数总是执行拷贝，不与输入数组共享数据；转换前会校验字节数组是否符合 UTF-8 编码。
 
 参数：
@@ -8993,6 +9605,53 @@ main() {
 ```text
 s='hi'
 ```
+
+<!--DelEnd-->
+<!--Del-->
+### static func fromUtf8(Array\<UInt8> @local!)
+
+```cangjie
+public exclave static func fromUtf8(utf8Data: Array<UInt8> @local!): String @local!
+```
+
+功能：根据 `@local!` 字节数组构造一个 `@local!` 字符串，字节数组需要符合 UTF-8 编码。该函数是 local 与非 local 字符串之间转换的边界入口之一。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+> - 本函数总是执行拷贝，不与输入数组共享数据；转换前会校验字节数组是否符合 UTF-8 编码。
+
+参数：
+
+- utf8Data: [Array](core_package_structs.md#struct-arrayt)\<[UInt8](core_package_intrinsics.md#uint8)> @local! - 待转换的字节数组。
+
+返回值：
+
+- [String](core_package_structs.md#struct-string) @local! - 构造得到的 `@local!` 字符串。
+
+异常：
+
+- [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - 字节数组不符合 UTF-8 编码，或者试图构造 UTF-8 字节长度超过 [UInt32 的最大值](./core_package_intrinsics.md#uint32) 的字符串时，抛出异常。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let bytes: Array<UInt8> @local! = [104, 105]
+    let s: String @local! = String.fromUtf8(bytes)
+    println("s='${String(s)}'")
+}
+```
+
+运行结果：
+
+```text
+s='hi'
+```
+
+<!--DelEnd-->
 
 ### static func fromUtf8Unchecked(Array\<UInt8>)
 
@@ -9037,6 +9696,7 @@ main() {
 结果: 仓颉
 ```
 
+<!--Del-->
 ### static func fromUtf8Unchecked(Array\<UInt8> @local?)
 
 ```cangjie
@@ -9049,7 +9709,8 @@ public exclave unsafe static func fromUtf8Unchecked(utf8Data: Array<UInt8> @loca
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -9086,6 +9747,54 @@ main() {
 ```text
 s='hi'
 ```
+
+<!--DelEnd-->
+<!--Del-->
+### static func fromUtf8Unchecked(Array\<UInt8> @local!)
+
+```cangjie
+public exclave unsafe static func fromUtf8Unchecked(utf8Data: Array<UInt8> @local!): String @local!
+```
+
+功能：根据 `@local!` 字节数组构造一个 `@local!` 字符串，该函数是 local 与非 local 字符串之间转换的边界入口之一。
+
+相较于 [fromUtf8](core_package_structs.md#static-func-fromutf8arrayuint8) 函数，fromUtf8Unchecked 并没有针对字节数组进行 UTF-8 相关规则的检查，所以它所构建的字符串并不一定保证是合法的，甚至出现非预期的异常，如果不是某些场景下的性能考虑，请优先使用安全的 fromUtf8 函数。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- utf8Data: [Array](core_package_structs.md#struct-arrayt)\<[UInt8](core_package_intrinsics.md#uint8)> @local! - 根据该字节数组构造字符串。
+
+返回值：
+
+- [String](core_package_structs.md#struct-string) @local! - 构造得到的 `@local!` 字符串。
+
+异常：
+
+- [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - 当试图构造长度超过 [UInt32](core_package_intrinsics.md#uint32) 的最大值的字符串时，抛出异常。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let bytes: Array<UInt8> @local! = [104, 105]
+    let s: String @local! = unsafe { String.fromUtf8Unchecked(bytes) }
+    println("s='${String(s)}'")
+}
+```
+
+运行结果：
+
+```text
+s='hi'
+```
+
+<!--DelEnd-->
 
 ### static func join(Array\<String>, String)
 
@@ -9125,6 +9834,7 @@ main() {
 I like Cangjie
 ```
 
+<!--Del-->
 ### static func join(Array\<String> @local!, String @local?)
 
 ```cangjie
@@ -9135,7 +9845,8 @@ public exclave static func join(strArray: Array<String> @local!, delimiter!: Str
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -9166,6 +9877,8 @@ main() {
 ```text
 s=I like Cangjie
 ```
+
+<!--DelEnd-->
 
 ### static func withRawData(Array\<UInt8>)
 
@@ -9221,6 +9934,7 @@ main() {
 结果: 仓颉
 ```
 
+<!--Del-->
 ### static func withRawData(Array\<UInt8> @local!)
 
 ```cangjie
@@ -9231,11 +9945,12 @@ public exclave static unsafe func withRawData(rawData: Array<UInt8> @local!): St
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
-- rawData: Array<UInt8> @local! - 字符串的 UTF-8 字节数组。
+- rawData: Array\<UInt8> @local! - 字符串的 UTF-8 字节数组。
 
 返回值：
 
@@ -9244,6 +9959,25 @@ public exclave static unsafe func withRawData(rawData: Array<UInt8> @local!): St
 异常：
 
 - [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - 当试图构造 UTF-8 字节长度超过 [UInt32 的最大值](./core_package_intrinsics.md#uint32) 的字符串时，抛出异常。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let bytes: Array<UInt8> @local! = [104, 105]
+    let s: String @local! = unsafe { String.withRawData(bytes) }
+    println("s='${String(s)}'")
+}
+```
+
+运行结果：
+
+```text
+s='hi'
+```
+
+<!--DelEnd-->
 
 ### func clone()
 
@@ -9282,6 +10016,7 @@ Cloned string: 'Hello, 世界'
 Are they equal? true
 ```
 
+<!--Del-->
 ### func clone(this @local!)
 
 ```cangjie
@@ -9292,7 +10027,8 @@ public exclave func clone(this @local!): String @local!
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -9318,6 +10054,8 @@ main() {
 ```text
 len=5
 ```
+
+<!--DelEnd-->
 
 ### func compare(String)
 
@@ -9368,6 +10106,7 @@ Comparing 'banana' to 'apple': Ordering.GT
 Comparing 'apple' to 'apple': Ordering.EQ
 ```
 
+<!--Del-->
 ### func compare(this @local?, String @local?)
 
 ```cangjie
@@ -9382,7 +10121,8 @@ public func compare(this @local?, str: String @local?): Ordering
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -9408,6 +10148,8 @@ main() {
 ```text
 cmp=Ordering.LT
 ```
+
+<!--DelEnd-->
 
 ### func contains(String)
 
@@ -9457,6 +10199,7 @@ Contains 'World': false
 Contains empty string: true
 ```
 
+<!--Del-->
 ### func contains(this @local?, String @local?)
 
 ```cangjie
@@ -9467,7 +10210,8 @@ public func contains(this @local?, str: String @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -9497,6 +10241,8 @@ c1=true
 c2=false
 c3=true
 ```
+
+<!--DelEnd-->
 
 ### func count(String)
 
@@ -9601,6 +10347,7 @@ Empty string ends with empty string: true
 String 1 ends with empty string: true
 ```
 
+<!--Del-->
 ### func endsWith(this @local?, String @local?)
 
 ```cangjie
@@ -9611,7 +10358,8 @@ public func endsWith(this @local?, suffix: String @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -9638,6 +10386,49 @@ main() {
 ```text
 endsWith=true
 ```
+
+<!--DelEnd-->
+<!--Del-->
+### func endsWith(this @local!, String @local?)
+
+```cangjie
+public exclave func endsWith(this @local!, suffix: String @local?): Bool
+```
+
+功能：判断当前 `@local!` 字符串是否以参数指定的 `@local?` 字符串结尾。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local! - 接收者为 `@local!` 实例。
+- suffix: [String](core_package_structs.md#struct-string) @local? - 待判断是否为结尾的 `@local?` 字符串。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果当前字符串以 suffix 结尾，返回 true，否则返回 false。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local! = "Hello"
+    let suffix: String @local? = "lo"
+    println("endsWith=${s.endsWith(suffix)}")
+}
+```
+
+运行结果：
+
+```text
+endsWith=true
+```
+
+<!--DelEnd-->
 
 ### func equalsIgnoreAsciiCase(String): Bool
 
@@ -9708,6 +10499,7 @@ Equals ignore case (str6, str7): true
 Equals ignore case (str1, str4): false
 ```
 
+<!--Del-->
 ### func equalsIgnoreAsciiCase(this @local?, String @local?)
 
 ```cangjie
@@ -9718,7 +10510,8 @@ public func equalsIgnoreAsciiCase(this @local?, other: String @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -9745,6 +10538,8 @@ main() {
 ```text
 ignoreCaseEq=true
 ```
+
+<!--DelEnd-->
 
 ### func get(Int64)
 
@@ -9791,6 +10586,7 @@ Byte at index 7: Some(228)
 Byte at index 100: None
 ```
 
+<!--Del-->
 ### func get(this @local?, Int64)
 
 ```cangjie
@@ -9801,7 +10597,8 @@ public func get(this @local?, index: Int64): Option<Byte>
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -9831,6 +10628,8 @@ main() {
 ```text
 b=97
 ```
+
+<!--DelEnd-->
 
 ### func hashCode()
 
@@ -9864,6 +10663,7 @@ main() {
 hashCode: -255291815105879447
 ```
 
+<!--Del-->
 ### func hashCode(this @local?)
 
 ```cangjie
@@ -9874,7 +10674,8 @@ public func hashCode(this @local?): Int64
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 返回值：
 
@@ -9897,6 +10698,45 @@ main() {
 ```text
 equal hash: true
 ```
+
+<!--DelEnd-->
+<!--Del-->
+### func hashCode(this @local!)
+
+```cangjie
+public exclave func hashCode(this @local!): Int64
+```
+
+功能：计算当前 `@local!` 字符串的哈希值。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+返回值：
+
+- [Int64](core_package_intrinsics.md#int64) - 哈希值。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local! = "Hello"
+    let h = s.hashCode()
+    let h2 = "Hello".hashCode()
+    println("equal hash: ${h == h2}")
+}
+```
+
+运行结果：
+
+```text
+equal hash: true
+```
+
+<!--DelEnd-->
 
 ### func indexOf(Byte)
 
@@ -10095,6 +10935,95 @@ Index of 'Hello' from index 1: Some(7)
 Index of 'llo' from index 5: Some(9)
 Index of 'World' from index 0: None
 ```
+<!--Del-->
+### func indexOf(this @local?, Byte)
+
+```cangjie
+public func indexOf(this @local?, b: Byte): Option<Int64>
+```
+
+功能：从当前 `@local?` 字符串中获取指定字节 b 第一次出现的索引。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+- b: [Byte](core_package_types.md#type-byte) - 待搜索的字节。
+
+返回值：
+
+- [Option](core_package_enums.md#enum-optiont)\<[Int64](core_package_intrinsics.md#int64)> - 如果当前字符串中包含指定字节，返回其第一次出现的索引，如果当前字符串中没有此字节，返回 [Option](core_package_enums.md#enum-optiont)\<[Int64](core_package_intrinsics.md#int64)>.None。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local? = "Hello"
+    let index1 = s.indexOf(108u8) // 'l' 的ASCII码是108
+    let index2 = s.indexOf(122u8) // 'z' 的ASCII码是122
+    println("Index of 'l': ${index1}")
+    println("Index of 'z': ${index2}")
+}
+```
+
+运行结果：
+
+```text
+Index of 'l': Some(2)
+Index of 'z': None
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+### func indexOf(this @local?, String @local?)
+
+```cangjie
+public func indexOf(this @local?, str: String @local?): Option<Int64>
+```
+
+功能：获取指定字符串 str 第一次出现在当前 `@local?` 字符串中的起始索引。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+- str: [String](core_package_structs.md#struct-string) @local? - 待搜索的字符串。
+
+返回值：
+
+- [Option](core_package_enums.md#enum-optiont)\<[Int64](core_package_intrinsics.md#int64)> - 如果当前字符串中包含 str，返回其第一次出现的起始索引，否则返回 None。特别地，当 str 是空字符串时，返回 Some(0)。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local? = "Hello, Hello"
+    let index1 = s.indexOf("Hello")
+    let index2 = s.indexOf("World")
+    println("Index of 'Hello': ${index1}")
+    println("Index of 'World': ${index2}")
+}
+```
+
+运行结果：
+
+```text
+Index of 'Hello': Some(0)
+Index of 'World': None
+```
+
+<!--DelEnd-->
 
 ### func isAscii()
 
@@ -10141,6 +11070,7 @@ String 3: '', is ASCII: true
 String 4: '123456', is ASCII: true
 ```
 
+<!--Del-->
 ### func isAscii(this @local?)
 
 ```cangjie
@@ -10151,7 +11081,8 @@ public func isAscii(this @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -10179,6 +11110,8 @@ main() {
 s1 isAscii=true
 s2 isAscii=false
 ```
+
+<!--DelEnd-->
 
 ### func isAsciiBlank()
 
@@ -10233,6 +11166,7 @@ String 5: '
  ', is ASCII blank: true
 ```
 
+<!--Del-->
 ### func isAsciiBlank(this @local?)
 
 ```cangjie
@@ -10243,7 +11177,8 @@ public func isAsciiBlank(this @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -10271,6 +11206,8 @@ main() {
 s1 isAsciiBlank=true
 s2 isAsciiBlank=false
 ```
+
+<!--DelEnd-->
 
 ### func isEmpty()
 
@@ -10313,6 +11250,7 @@ String 2: 'Hello', is empty: false
 String 3: ' ', is empty: false
 ```
 
+<!--Del-->
 ### func isEmpty(this @local?)
 
 ```cangjie
@@ -10323,7 +11261,8 @@ public func isEmpty(this @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -10351,6 +11290,8 @@ main() {
 isEmpty=true
 isEmpty2=false
 ```
+
+<!--DelEnd-->
 
 ### func iterator()
 
@@ -10386,6 +11327,7 @@ main() {
 99
 ```
 
+<!--Del-->
 ### func iterator(this @local!)
 
 ```cangjie
@@ -10396,7 +11338,8 @@ public exclave func iterator(this @local!): Iterator<Byte> @local!
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -10426,6 +11369,9 @@ main() {
 first=72
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### func iterator(this @local?)
 
 ```cangjie
@@ -10436,7 +11382,8 @@ public exclave func iterator(this @local?): Iterator<Byte> @local?
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -10465,6 +11412,8 @@ main() {
 ```text
 first=72
 ```
+
+<!--DelEnd-->
 
 ### func lastIndexOf(Byte)
 
@@ -10791,6 +11740,7 @@ like
 Cangjie
 ```
 
+<!--Del-->
 ### func lines(this @local!)
 
 ```cangjie
@@ -10801,7 +11751,8 @@ public exclave func lines(this @local!): Iterator<String> @local!
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -10831,6 +11782,52 @@ main() {
 ```text
 line=a
 ```
+
+<!--DelEnd-->
+<!--Del-->
+### func lines(this @local?)
+
+```cangjie
+public exclave func lines(this @local?): Iterator<String> @local?
+```
+
+功能：返回当前 `@local?` 字符串的行迭代器，迭代器产出以 `\n`、`\r\n` 或单独的 `\r` 分隔的行（不含行分隔符），迭代器及产出的行与当前字符串绑定在同一个 local region 中。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+
+返回值：
+
+- [Iterator](core_package_classes.md#class-iteratort)\<[String](core_package_structs.md#struct-string)> @local? - 行迭代器。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local? = "a\nb"
+    let lines = s.lines()
+    let first = lines.next()
+    if (let Some(v) <- first) {
+        let heapLine = String(v)
+        println("line=${heapLine}")
+    }
+}
+```
+
+运行结果：
+
+```text
+line=a
+```
+
+<!--DelEnd-->
 
 ### func padEnd(Int64, String)
 
@@ -10887,6 +11884,7 @@ Padded string 2: 'World     '
 String padded to smaller width: 'Hello'
 ```
 
+<!--Del-->
 ### func padEnd(this @local!, Int64, String)
 
 ```cangjie
@@ -10901,7 +11899,8 @@ public exclave func padEnd(this @local!, totalWidth: Int64, padding!: String @lo
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -10916,9 +11915,9 @@ public exclave func padEnd(this @local!, totalWidth: Int64, padding!: String @lo
 异常：
 
 - [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - 在以下任一情况下抛出异常：
-  - totalWidth 小于 0。
-  - 未提前返回，且 padding 为空字符串。
-  - totalWidth 或实际填充后的字节长度超过 [UInt32](core_package_intrinsics.md#uint32).Max。
+    - totalWidth 小于 0。
+    - 未提前返回，且 padding 为空字符串。
+    - totalWidth 或实际填充后的字节长度超过 [UInt32](core_package_intrinsics.md#uint32).Max。
 
 示例：
 
@@ -10936,6 +11935,8 @@ main() {
 ```text
 padded=700
 ```
+
+<!--DelEnd-->
 
 ### func padStart(Int64, String)
 
@@ -10992,6 +11993,7 @@ Padded string 2: '     World'
 String padded to smaller width: 'Hello'
 ```
 
+<!--Del-->
 ### func padStart(this @local!, Int64, String)
 
 ```cangjie
@@ -11006,7 +12008,8 @@ public exclave func padStart(this @local!, totalWidth: Int64, padding!: String @
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -11021,9 +12024,9 @@ public exclave func padStart(this @local!, totalWidth: Int64, padding!: String @
 异常：
 
 - [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - 在以下任一情况下抛出异常：
-  - totalWidth 小于 0。
-  - 未提前返回，且 padding 为空字符串。
-  - totalWidth 或实际填充后的字节长度超过 [UInt32](core_package_intrinsics.md#uint32).Max。
+    - totalWidth 小于 0。
+    - 未提前返回，且 padding 为空字符串。
+    - totalWidth 或实际填充后的字节长度超过 [UInt32](core_package_intrinsics.md#uint32).Max。
 
 示例：
 
@@ -11041,6 +12044,8 @@ main() {
 ```text
 padded=--Hi
 ```
+
+<!--DelEnd-->
 
 ### func rawData()
 
@@ -11099,6 +12104,7 @@ Raw data bytes:
   Index 12: 140
 ```
 
+<!--Del-->
 ### func rawData(this @local!)
 
 ```cangjie
@@ -11110,6 +12116,7 @@ public exclave unsafe func rawData(this @local!): Array<Byte> @local!
 > **注意：**
 >
 > - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 > - 用户不应该对获取的数组进行修改，这将破坏字符串的不可变性。
 
 参数：
@@ -11136,6 +12143,49 @@ main() {
 ```text
 size=2 first=104
 ```
+
+<!--DelEnd-->
+<!--Del-->
+### func rawData(this @local?)
+
+```cangjie
+public exclave unsafe func rawData(this @local?): Array<Byte> @local?
+```
+
+功能：获取当前 `@local?` 字符串的 UTF-8 编码的原始字节数组，返回的数组与当前字符串绑定在同一个 local region 中。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+> - 用户不应该对获取的数组进行修改，这将破坏字符串的不可变性。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+
+返回值：
+
+- [Array](core_package_structs.md#struct-arrayt)\<[Byte](core_package_types.md#type-byte)> @local? - 当前字符串对应的原始字节数组。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local? = "hi"
+    let bytes: Array<Byte> @local? = unsafe { s.rawData() }
+    println("size=${bytes.size} first=${bytes[0]}")
+}
+```
+
+运行结果：
+
+```text
+size=2 first=104
+```
+
+<!--DelEnd-->
 
 ### func removePrefix(String)
 
@@ -11193,6 +12243,7 @@ Original string 1: 'Hello, World'
 After removing 'World': 'Hello, World'
 ```
 
+<!--Del-->
 ### func removePrefix(this @local!, String @local?)
 
 ```cangjie
@@ -11205,7 +12256,8 @@ public exclave func removePrefix(this @local!, prefix: String @local?): String @
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -11232,6 +12284,8 @@ main() {
 ```text
 removed=b
 ```
+
+<!--DelEnd-->
 
 ### func removeSuffix(String)
 
@@ -11289,6 +12343,7 @@ Original string 1: 'Hello, World'
 After removing 'Hello': 'Hello, World'
 ```
 
+<!--Del-->
 ### func removeSuffix(this @local!, String @local?)
 
 ```cangjie
@@ -11301,7 +12356,8 @@ public exclave func removeSuffix(this @local!, suffix: String @local?): String @
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -11328,6 +12384,8 @@ main() {
 ```text
 removed=a
 ```
+
+<!--DelEnd-->
 
 ### func replace(String, String)
 
@@ -11390,6 +12448,7 @@ Original string 1: 'Hello, World'
 After replacing 'Hello' with empty string: ', World'
 ```
 
+<!--Del-->
 ### func replace(this @local!, String @local?, String @local?)
 
 ```cangjie
@@ -11400,7 +12459,8 @@ public exclave func replace(this @local!, old: String @local?, new: String @loca
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -11414,6 +12474,7 @@ public exclave func replace(this @local!, old: String @local?, new: String @loca
 
 异常：
 
+- [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - 当替换结果的 UTF-8 字节数超过 [UInt32](core_package_intrinsics.md#uint32) 的最大值时，抛出异常。
 - [OutOfMemoryError](core_package_exceptions.md#class-outofmemoryerror) - 如果此函数分配内存时产生错误，抛出异常。
 
 示例：
@@ -11432,6 +12493,8 @@ main() {
 ```text
 replaced=Hello, Cangjie
 ```
+
+<!--DelEnd-->
 
 ### func runes()
 
@@ -11492,6 +12555,7 @@ Runes:
   Index 8: 界
 ```
 
+<!--Del-->
 #### func runes(this @local!)
 
 ```cangjie
@@ -11502,7 +12566,8 @@ public exclave func runes(this @local!): Iterator<Rune> @local!
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -11531,6 +12596,51 @@ main() {
 ```text
 r=a
 ```
+
+<!--DelEnd-->
+<!--Del-->
+#### func runes(this @local?)
+
+```cangjie
+public exclave func runes(this @local?): Iterator<Rune> @local?
+```
+
+功能：获取当前 `@local?` 字符串的 Unicode 码点迭代器，迭代器与当前字符串绑定在同一个 local region 中。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+
+返回值：
+
+- [Iterator](core_package_classes.md#class-iteratort)\<Rune> @local? - 字符串的 Unicode 码点迭代器。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local? = "ab"
+    let it: Iterator<Rune> @local? = s.runes()
+    let first = it.next()
+    if (let Some(v) <- first) {
+        println("r=${v}")
+    }
+}
+```
+
+运行结果：
+
+```text
+r=a
+```
+
+<!--DelEnd-->
 
 ### func split(String, Bool)
 
@@ -11651,6 +12761,7 @@ main() {
  'three,four,five'
 ```
 
+<!--Del-->
 #### func split(this @local!, String @local?, removeEmpty!)
 
 ```cangjie
@@ -11661,13 +12772,14 @@ public exclave func split(this @local!, str: String @local?, removeEmpty!: Bool 
 
 当 removeEmpty 为 true 时，分割结果中不包含空字符串；当 removeEmpty 为 false 时，分割结果中包含空字符串。
 
-> **注意：**
->
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
-
 > **说明：**
 >
 > 分割操作采用两遍扫描（先计数后填充）实现，避免中间数组拷贝。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -11696,6 +12808,9 @@ main() {
 n=3 last=c
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 #### func split(this @local!, String @local?, Int64, removeEmpty!)
 
 ```cangjie
@@ -11706,10 +12821,6 @@ public exclave func split(this @local!, str: String @local?, maxSplits: Int64, r
 
 当 removeEmpty 为 true 时，分割结果中不包含空字符串；当 removeEmpty 为 false 时，分割结果中包含空字符串。
 
-> **注意：**
->
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
-
 > **说明：**
 >
 > - 当前字符串为空或 maxSplits 为 0 时，返回空的字符串数组。
@@ -11718,6 +12829,11 @@ public exclave func split(this @local!, str: String @local?, maxSplits: Int64, r
 > - 当 maxSplits 大于完整分割出来的子字符串数量时，返回完整分割的字符串数组。
 > - 当分隔符未出现在当前字符串中，返回长度为 1 的字符串数组，唯一的元素为当前字符串。
 > - 当分隔符为空时，按 Rune 切分；如果 maxSplits 限制了结果数量，最后一个子串包含剩余字符。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -11746,6 +12862,8 @@ main() {
 ```text
 n=3 last=three,four
 ```
+
+<!--DelEnd-->
 
 ### func startsWith(String)
 
@@ -11807,6 +12925,7 @@ Empty string starts with empty string: true
 String 1 starts with empty string: true
 ```
 
+<!--Del-->
 ### func startsWith(this @local?, String @local?)
 
 ```cangjie
@@ -11817,7 +12936,8 @@ public func startsWith(this @local?, prefix: String @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -11844,6 +12964,49 @@ main() {
 ```text
 startsWith=true
 ```
+
+<!--DelEnd-->
+<!--Del-->
+### func startsWith(this @local!, String @local?)
+
+```cangjie
+public exclave func startsWith(this @local!, prefix: String @local?): Bool
+```
+
+功能：判断当前 `@local!` 字符串是否以参数指定的 `@local?` 字符串开头。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local! - 接收者为 `@local!` 实例。
+- prefix: [String](core_package_structs.md#struct-string) @local? - 待判断是否为开头的 `@local?` 字符串。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果当前字符串以 prefix 开头，返回 true，否则返回 false。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local! = "Hello"
+    let prefix: String @local? = "He"
+    println("startsWith=${s.startsWith(prefix)}")
+}
+```
+
+运行结果：
+
+```text
+startsWith=true
+```
+
+<!--DelEnd-->
 
 ### func toArray()
 
@@ -11898,6 +13061,7 @@ Byte array elements:
   Index 12: 140
 ```
 
+<!--Del-->
 ### func toArray(this @local!)
 
 ```cangjie
@@ -11908,7 +13072,8 @@ public exclave func toArray(this @local!): Array<Byte> @local!
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -11934,6 +13099,48 @@ main() {
 ```text
 n=2 b0=104
 ```
+
+<!--DelEnd-->
+<!--Del-->
+### func toArray(this @local?)
+
+```cangjie
+public exclave func toArray(this @local?): Array<Byte> @local?
+```
+
+功能：获取当前 `@local?` 字符串的 UTF-8 编码字节数组副本，数组与当前字符串绑定在同一个 local region 中。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+
+返回值：
+
+- [Array](core_package_structs.md#struct-arrayt)\<[Byte](core_package_types.md#type-byte)> @local? - 字符串的 UTF-8 编码字节数组副本。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local? = "hi"
+    let bytes: Array<Byte> @local? = s.toArray()
+    println("n=${bytes.size} b0=${bytes[0]}")
+}
+```
+
+运行结果：
+
+```text
+n=2 b0=104
+```
+
+<!--DelEnd-->
 
 ### func toAsciiLower()
 
@@ -11991,6 +13198,7 @@ Original string 4: '你好World'
 To ASCII lower 4: '你好world'
 ```
 
+<!--Del-->
 ### func toAsciiLower(this @local!)
 
 ```cangjie
@@ -12001,7 +13209,8 @@ public exclave func toAsciiLower(this @local!): String @local!
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -12027,6 +13236,8 @@ main() {
 ```text
 lower=abc
 ```
+
+<!--DelEnd-->
 
 ### func toAsciiTitle()
 
@@ -12086,6 +13297,7 @@ Original string 4: '你好world'
 To ASCII title 4: '你好World'
 ```
 
+<!--Del-->
 ### func toAsciiTitle(this @local!)
 
 ```cangjie
@@ -12096,7 +13308,8 @@ public exclave func toAsciiTitle(this @local!): String @local!
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -12122,6 +13335,8 @@ main() {
 ```text
 title=Hello World
 ```
+
+<!--DelEnd-->
 
 ### func toAsciiUpper()
 
@@ -12179,6 +13394,7 @@ Original string 4: '你好world'
 To ASCII upper 4: '你好WORLD'
 ```
 
+<!--Del-->
 ### func toAsciiUpper(this @local!)
 
 ```cangjie
@@ -12189,7 +13405,8 @@ public exclave func toAsciiUpper(this @local!): String @local!
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -12215,6 +13432,8 @@ main() {
 ```text
 upper=ABC
 ```
+
+<!--DelEnd-->
 
 ### func toRuneArray()
 
@@ -12265,6 +13484,7 @@ Rune array elements:
   Index 8: 界
 ```
 
+<!--Del-->
 ### func toRuneArray(this @local!)
 
 ```cangjie
@@ -12275,7 +13495,8 @@ public exclave func toRuneArray(this @local!): Array<Rune> @local!
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -12301,6 +13522,8 @@ main() {
 ```text
 n=2 r0=a
 ```
+
+<!--DelEnd-->
 
 ### func toString()
 
@@ -12339,6 +13562,7 @@ String from toString(): 'Hello, World'
 Are they equal? true
 ```
 
+<!--Del-->
 ### func toString(this @local?)
 
 ```cangjie
@@ -12347,13 +13571,14 @@ public exclave func toString(this @local?): String @local!
 
 功能：返回当前 `@local?` 字符串自身对应的 `@local!` 字符串（值拷贝语义，与当前字符串绑定在同一个 local region 中）。
 
-> **注意：**
->
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
-
 > **说明：**
 >
 > 该方法是 [ToString](core_package_interfaces.md#interface-tostring) 接口在 String 类型上的 `@local?` 适配实现。`@local!` 结果如需打印或与堆上字符串交互，可调用 `String(...)` 转换为非 local 字符串。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -12379,6 +13604,8 @@ main() {
 ```text
 abc
 ```
+
+<!--DelEnd-->
 
 ### func trimAscii()
 
@@ -12451,6 +13678,7 @@ Original string 4: '
 Trimmed string 4: ''
 ```
 
+<!--Del-->
 ### func trimAscii(this @local!)
 
 ```cangjie
@@ -12461,7 +13689,8 @@ public exclave func trimAscii(this @local!): String @local!
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -12487,6 +13716,8 @@ main() {
 ```text
 t=Hello len=5
 ```
+
+<!--DelEnd-->
 
 ### func trimAsciiEnd()
 
@@ -12550,6 +13781,7 @@ Original string 4: '
 Trimmed end string 4: ''
 ```
 
+<!--Del-->
 ### func trimAsciiEnd(this @local!)
 
 ```cangjie
@@ -12560,7 +13792,8 @@ public exclave func trimAsciiEnd(this @local!): String @local!
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -12586,6 +13819,8 @@ main() {
 ```text
 e=' Hello' len=6
 ```
+
+<!--DelEnd-->
 
 ### func trimAsciiStart()
 
@@ -12649,6 +13884,7 @@ Original string 4: '
 Trimmed start string 4: ''
 ```
 
+<!--Del-->
 ### func trimAsciiStart(this @local!)
 
 ```cangjie
@@ -12659,7 +13895,8 @@ public exclave func trimAsciiStart(this @local!): String @local!
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -12685,6 +13922,8 @@ main() {
 ```text
 p='Hello ' len=6
 ```
+
+<!--DelEnd-->
 
 ### func trimEnd((Rune)->Bool)
 
@@ -13410,6 +14649,7 @@ str[0..5]: 'Hello'
 str[7..]: '世界'
 ```
 
+<!--Del-->
 ### operator func \[](this @local?, Int64)
 
 ```cangjie
@@ -13420,7 +14660,8 @@ public operator const func [](this @local?, index: Int64): Byte
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -13451,6 +14692,9 @@ main() {
 b=97
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### operator func \[](this @local?, Range\<Int64>)
 
 ```cangjie
@@ -13462,9 +14706,10 @@ public operator const func [](this @local?, range: Range<Int64>): String @local?
 > **注意：**
 >
 > - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 > - 如果参数 range 是使用 [Range](core_package_structs.md#struct-ranget-where-t--countablet--comparablet--equatablet) 构造函数构造的 [Range](core_package_structs.md#struct-ranget-where-t--countablet--comparablet--equatablet) 实例，有如下行为：
->    - start 的值就是构造函数传入的值本身，不受构造时传入的 hasStart 的值的影响。
->    - hasEnd 为 false 时，end 值不生效，且不受构造时传入的 isClosed 的值的影响，该字符串切片取到原字符串最后一个元素。
+>     - start 的值就是构造函数传入的值本身，不受构造时传入的 hasStart 的值的影响。
+>     - hasEnd 为 false 时，end 值不生效，且不受构造时传入的 isClosed 的值的影响，该字符串切片取到原字符串最后一个元素。
 > - range 的步长只能为 1。
 
 参数：
@@ -13498,6 +14743,9 @@ main() {
 slice=el
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### operator func \[](this @local!, Range\<Int64>)
 
 ```cangjie
@@ -13509,9 +14757,10 @@ public exclave operator const func [](this @local!, range: Range<Int64>): String
 > **注意：**
 >
 > - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 > - 如果参数 range 是使用 [Range](core_package_structs.md#struct-ranget-where-t--countablet--comparablet--equatablet) 构造函数构造的 [Range](core_package_structs.md#struct-ranget-where-t--countablet--comparablet--equatablet) 实例，有如下行为：
->    - start 的值就是构造函数传入的值本身，不受构造时传入的 hasStart 的值的影响。
->    - hasEnd 为 false 时，end 值不生效，且不受构造时传入的 isClosed 的值的影响，该字符串切片取到原字符串最后一个元素。
+>     - start 的值就是构造函数传入的值本身，不受构造时传入的 hasStart 的值的影响。
+>     - hasEnd 为 false 时，end 值不生效，且不受构造时传入的 isClosed 的值的影响，该字符串切片取到原字符串最后一个元素。
 > - range 的步长只能为 1。
 
 参数：
@@ -13545,6 +14794,9 @@ main() {
 slice=el
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### operator func ==(this @local!, String @local!)
 
 ```cangjie
@@ -13555,7 +14807,8 @@ public exclave operator const func ==(this @local!, other: String @local!): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -13583,6 +14836,9 @@ main() {
 eq=true
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### operator func ==(this @local?, String @local?)
 
 ```cangjie
@@ -13593,7 +14849,8 @@ public operator const func ==(this @local?, other: String @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -13621,6 +14878,9 @@ main() {
 eq=true
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### operator func !=(this @local!, String @local!)
 
 ```cangjie
@@ -13631,7 +14891,8 @@ public exclave operator const func !=(this @local!, other: String @local!): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -13659,6 +14920,9 @@ main() {
 ne=true
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### operator func !=(this @local?, String @local?)
 
 ```cangjie
@@ -13669,7 +14933,8 @@ public operator const func !=(this @local?, other: String @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -13697,6 +14962,9 @@ main() {
 ne=true
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### operator func <(this @local?, String @local?)
 
 ```cangjie
@@ -13707,7 +14975,8 @@ public operator const func <(this @local?, other: String @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -13735,6 +15004,9 @@ main() {
 lt=true
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### operator func <=(this @local?, String @local?)
 
 ```cangjie
@@ -13745,7 +15017,8 @@ public operator const func <=(this @local?, other: String @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -13773,6 +15046,9 @@ main() {
 le=true
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### operator func >(this @local?, String @local?)
 
 ```cangjie
@@ -13783,7 +15059,8 @@ public operator const func >(this @local?, other: String @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -13811,6 +15088,9 @@ main() {
 gt=true
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### operator func >=(this @local?, String @local?)
 
 ```cangjie
@@ -13821,7 +15101,8 @@ public operator const func >=(this @local?, other: String @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -13849,6 +15130,9 @@ main() {
 ge=true
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### operator func +(this @local!, String @local?)
 
 ```cangjie
@@ -13859,7 +15143,8 @@ public exclave operator const func +(this @local!, other: String @local?): Strin
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -13891,6 +15176,9 @@ main() {
 cat=Hello!
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### operator func *(this @local!, Int64)
 
 ```cangjie
@@ -13901,7 +15189,8 @@ public exclave operator const func *(this @local!, count: Int64): String @local!
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -13932,3 +15221,5 @@ main() {
 ```text
 rep=abab
 ```
+
+<!--DelEnd-->

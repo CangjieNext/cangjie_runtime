@@ -575,6 +575,7 @@ func toArray(): Array<T>
 
 - [Array](core_package_structs.md#struct-arrayt)\<T> - 转换得到的数组。
 
+<!--Del-->
 ### func isEmpty(this @local?)
 
 ```cangjie
@@ -586,6 +587,8 @@ func isEmpty(this @local?): Bool
 > **注意：**
 >
 > 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+>
+> 不支持平台：OpenHarmony。
 
 参数：
 
@@ -599,6 +602,28 @@ func isEmpty(this @local?): Bool
 
 - [UnimplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception) - 当前类型未提供该 `@local?` 实现时抛出。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local? = [1, 2, 3]
+    println("arr isEmpty: ${arr.isEmpty()}")
+    let empty: Array<Int64> @local? = []
+    println("empty isEmpty: ${empty.isEmpty()}")
+}
+```
+
+运行结果：
+
+```text
+arr isEmpty: false
+empty isEmpty: true
+```
+
+<!--DelEnd-->
+<!--Del-->
+
 ### func toArray(this @local?)
 
 ```cangjie
@@ -610,6 +635,8 @@ func toArray(this @local?): Array<T> @local?
 > **注意：**
 >
 > 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+>
+> 不支持平台：OpenHarmony。
 
 参数：
 
@@ -623,6 +650,27 @@ func toArray(this @local?): Array<T> @local?
 
 - [UnimplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception) - 当前类型未提供该 `@local?` 实现时抛出。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local? = [1, 2, 3]
+    let collection: Collection<Int64> @local? = arr
+    let copied: Array<Int64> @local? = collection.toArray()
+    println("size=${copied.size}")
+}
+```
+
+运行结果：
+
+```text
+size=3
+```
+
+<!--DelEnd-->
+<!--Del-->
+
 ### func toArray(this @local!)
 
 ```cangjie
@@ -634,6 +682,8 @@ func toArray(this @local!): Array<T> @local!
 > **注意：**
 >
 > 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+>
+> 不支持平台：OpenHarmony。
 
 参数：
 
@@ -647,6 +697,27 @@ func toArray(this @local!): Array<T> @local!
 
 - [UnimplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception) - 当前类型未提供该 `@local!` 实现时抛出。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local! = [1, 2, 3]
+    let copied: Array<Int64> @local! = arr.toArray()
+    match (copied.first) {
+        case Some(v) => println("first=${v}")
+        case None => println("none")
+    }
+}
+```
+
+运行结果：
+
+```text
+first=1
+```
+
+<!--DelEnd-->
 ## interface Comparable\<T>
 
 ```cangjie
@@ -768,6 +839,7 @@ operator func >=(other: T): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果大于等于，返回 true，否则返回 false。
 
+<!--Del-->
 ### func compare(this @local?, T @local?)
 
 ```cangjie
@@ -779,6 +851,8 @@ func compare(this @local?, other: T @local?): Ordering
 > **注意：**
 >
 > 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+>
+> 不支持平台：OpenHarmony。
 
 参数：
 
@@ -793,6 +867,27 @@ func compare(this @local?, other: T @local?): Ordering
 
 - [UnimplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception) - 当前类型未提供该 `@local?` 实现时抛出。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Int64 @local? = 3
+    let c: Int64 @local? = 5
+    let r: Ordering = a.compare(c)
+    println("compare: ${r}")
+}
+```
+
+运行结果：
+
+```text
+compare: Ordering.LT
+```
+
+<!--DelEnd-->
+<!--Del-->
+
 ### func ==(this @local?, T @local?)
 
 ```cangjie
@@ -804,6 +899,8 @@ operator func ==(this @local?, other: T @local?): Bool
 > **注意：**
 >
 > 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+>
+> 不支持平台：OpenHarmony。
 
 参数：
 
@@ -813,6 +910,29 @@ operator func ==(this @local?, other: T @local?): Bool
 返回值：
 
 - [Bool](core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Int64 @local? = 3
+    let b: Int64 @local? = 3
+    let c: Int64 @local? = 5
+    println("a == b: ${a == b}")
+    println("a == c: ${a == c}")
+}
+```
+
+运行结果：
+
+```text
+a == b: true
+a == c: false
+```
+
+<!--DelEnd-->
+<!--Del-->
 
 ### func <(this @local?, T @local?)
 
@@ -825,6 +945,8 @@ operator func <(this @local?, other: T @local?): Bool
 > **注意：**
 >
 > 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+>
+> 不支持平台：OpenHarmony。
 
 参数：
 
@@ -834,6 +956,28 @@ operator func <(this @local?, other: T @local?): Bool
 返回值：
 
 - [Bool](core_package_intrinsics.md#bool) - 如果小于，返回 true，否则返回 false。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Int64 @local? = 3
+    let c: Int64 @local? = 5
+    println("a < c: ${a < c}")
+    println("c < a: ${c < a}")
+}
+```
+
+运行结果：
+
+```text
+a < c: true
+c < a: false
+```
+
+<!--DelEnd-->
+<!--Del-->
 
 ### func >(this @local?, T @local?)
 
@@ -846,6 +990,8 @@ operator func >(this @local?, other: T @local?): Bool
 > **注意：**
 >
 > 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+>
+> 不支持平台：OpenHarmony。
 
 参数：
 
@@ -855,6 +1001,28 @@ operator func >(this @local?, other: T @local?): Bool
 返回值：
 
 - [Bool](core_package_intrinsics.md#bool) - 如果大于，返回 true，否则返回 false。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Int64 @local? = 3
+    let c: Int64 @local? = 5
+    println("c > a: ${c > a}")
+    println("a > c: ${a > c}")
+}
+```
+
+运行结果：
+
+```text
+c > a: true
+a > c: false
+```
+
+<!--DelEnd-->
+<!--Del-->
 
 ### func <=(this @local?, T @local?)
 
@@ -867,6 +1035,8 @@ operator func <=(this @local?, other: T @local?): Bool
 > **注意：**
 >
 > 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+>
+> 不支持平台：OpenHarmony。
 
 参数：
 
@@ -876,6 +1046,28 @@ operator func <=(this @local?, other: T @local?): Bool
 返回值：
 
 - [Bool](core_package_intrinsics.md#bool) - 如果小于等于，返回 true，否则返回 false。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Int64 @local? = 3
+    let c: Int64 @local? = 5
+    println("a <= c: ${a <= c}")
+    println("c <= a: ${c <= a}")
+}
+```
+
+运行结果：
+
+```text
+a <= c: true
+c <= a: false
+```
+
+<!--DelEnd-->
+<!--Del-->
 
 ### func >=(this @local?, T @local?)
 
@@ -888,6 +1080,8 @@ operator func >=(this @local?, other: T @local?): Bool
 > **注意：**
 >
 > 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+>
+> 不支持平台：OpenHarmony。
 
 参数：
 
@@ -897,6 +1091,67 @@ operator func >=(this @local?, other: T @local?): Bool
 返回值：
 
 - [Bool](core_package_intrinsics.md#bool) - 如果大于等于，返回 true，否则返回 false。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Int64 @local? = 3
+    let c: Int64 @local? = 5
+    println("c >= a: ${c >= a}")
+    println("a >= c: ${a >= c}")
+}
+```
+
+运行结果：
+
+```text
+c >= a: true
+a >= c: false
+```
+
+<!--DelEnd-->
+<!--Del-->
+## interface Copyable
+
+```cangjie
+public interface Copyable {}
+```
+
+功能：用于标记可复制类型的空接口。
+
+local mode 的部分扩展族以 `T <: Copyable` 为约束（例如 [Array](core_package_structs.md#struct-arrayt) 的 `@local` 成员扩展），只有实现该接口的类型才能使用这些局部扩展成员。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+>
+> 不支持平台：OpenHarmony。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    // Int64 实现 Copyable，可在 @local? 数组上调用受此约束的 fill 扩展
+    let arr: Array<Int64> @local? = [1, 2, 3]
+    arr.fill(0)
+    let f: Option<Int64> @local? = arr.first
+    match (f) {
+        case Some(v) => println("first=${v}")
+        case None => println("none")
+    }
+}
+```
+
+运行结果：
+
+```text
+first=0
+```
+
+<!--DelEnd-->
 
 ## interface Countable\<T>
 
@@ -1114,6 +1369,7 @@ operator func ==(other: T): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
 
+<!--Del-->
 ### operator func ==(this @local!, T @local!)
 
 ```cangjie
@@ -1125,6 +1381,8 @@ operator func ==(this @local!, other: T @local!): Bool
 > **注意：**
 >
 > 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+>
+> 不支持平台：OpenHarmony。
 
 参数：
 
@@ -1138,6 +1396,31 @@ operator func ==(this @local!, other: T @local!): Bool
 
 - [UnimplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception) - 当前类型未提供该 `@local!` 实现时抛出。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Bool @local! = true
+    let b: Bool @local! = true
+    // Bool 未提供 == 的 @local! 实现，调用命中 Equal 接口默认实现
+    try {
+        println("eq=${a == b}")
+    } catch (e: UnimplementedException) {
+        println("caught: ${e.message}")
+    }
+}
+```
+
+运行结果：
+
+```text
+caught: Current Type does not implement '==' method for its @local! instance
+```
+
+<!--DelEnd-->
+<!--Del-->
+
 ### operator func ==(this @local?, T @local?)
 
 ```cangjie
@@ -1149,6 +1432,8 @@ operator func ==(this @local?, other: T @local?): Bool
 > **注意：**
 >
 > 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+>
+> 不支持平台：OpenHarmony。
 
 参数：
 
@@ -1162,6 +1447,29 @@ operator func ==(this @local?, other: T @local?): Bool
 
 - [UnimplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception) - 当前类型未提供该 `@local?` 实现时抛出。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Bool @local? = true
+    let b: Bool @local? = true
+    // Bool 未提供 == 的 @local? 实现，调用命中 Equal 接口默认实现
+    try {
+        println("eq=${a == b}")
+    } catch (e: UnimplementedException) {
+        println("caught: ${e.message}")
+    }
+}
+```
+
+运行结果：
+
+```text
+caught: Current Type does not implement '==' method for its @local? instance
+```
+
+<!--DelEnd-->
 ## interface Equatable\<T>
 
 ```cangjie
@@ -1197,6 +1505,7 @@ operator func !=(other: T): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
 
+<!--Del-->
 ### operator func !=(this @local!, T @local!)
 
 ```cangjie
@@ -1208,6 +1517,8 @@ operator func !=(this @local!, other: T @local!): Bool
 > **注意：**
 >
 > 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+>
+> 不支持平台：OpenHarmony。
 
 参数：
 
@@ -1221,17 +1532,44 @@ operator func !=(this @local!, other: T @local!): Bool
 
 - [UnimplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception) - 当前类型未提供该 `@local!` 实现时抛出。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Bool @local! = true
+    let b: Bool @local! = false
+    // Bool 未提供 != 的 @local! 实现，调用命中 Equatable 接口默认实现
+    try {
+        println("ne=${a != b}")
+    } catch (e: UnimplementedException) {
+        println("caught: ${e.message}")
+    }
+}
+```
+
+运行结果：
+
+```text
+caught: Current Type does not implement '!=' method for its @local! instance
+```
+
+<!--DelEnd-->
+<!--Del-->
+
 ### operator func !=(this @local?, T @local?)
 
 ```cangjie
 operator func !=(this @local?, other: T @local?): Bool
 ```
 
-功能：判断当前 `@local?` 实例与指定 `@local?` 实例是否不相等，该函数是此接口的一个默认实现函数，默认实现将运算结果委托给 == 运算（即 `!(this == other)`）。
+功能：判断当前 `@local?` 实例与指定 `@local?` 实例是否不相等。
 
 > **注意：**
 >
 > 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+>
+> 不支持平台：OpenHarmony。
 
 参数：
 
@@ -1245,6 +1583,29 @@ operator func !=(this @local?, other: T @local?): Bool
 
 - [UnimplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception) - 默认实现自身不直接抛出异常；当被委托的 == 实现抛出该异常时随之传播，例如类型未提供 == 的 `@local?` 实现而命中 [Equal](#interface-equalt) 接口的默认实现时。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Bool @local? = true
+    let b: Bool @local? = false
+    // 默认实现将运算委托给 ==，Bool 未提供 == 的 @local? 实现，最终命中 Equal 接口默认实现
+    try {
+        println("ne=${a != b}")
+    } catch (e: UnimplementedException) {
+        println("caught: ${e.message}")
+    }
+}
+```
+
+运行结果：
+
+```text
+caught: Current Type does not implement '==' method for its @local? instance
+```
+
+<!--DelEnd-->
 ## interface Greater\<T>
 
 ```cangjie
@@ -1321,6 +1682,7 @@ func hashCode(): Int64
 
 - [Int64](core_package_intrinsics.md#int64) - 返回实例类型的哈希值。
 
+<!--Del-->
 ### func hashCode(this @local?)
 
 ```cangjie
@@ -1332,6 +1694,8 @@ func hashCode(this @local?): Int64
 > **注意：**
 >
 > 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+>
+> 不支持平台：OpenHarmony。
 
 参数：
 
@@ -1345,6 +1709,69 @@ func hashCode(this @local?): Int64
 
 - [UnimplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception) - 当前类型未提供该 `@local?` 实现时抛出。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let ord: Ordering @local? = Ordering.LT
+    // Ordering 提供了 hashCode 的 @local? 实现
+    println("h=${ord.hashCode()}")
+}
+```
+
+运行结果：
+
+```text
+h=1
+```
+
+<!--DelEnd-->
+<!--Del-->
+### func hashCode(this @local!)
+
+```cangjie
+func hashCode(this @local!): Int64
+```
+
+功能：计算当前 `@local!` 实例的哈希值。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+>
+> 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local! - 接收者为 `@local!` 实例。
+
+返回值：
+
+- [Int64](core_package_intrinsics.md#int64) - 返回实例类型的哈希值。
+
+异常：
+
+- [UnimplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception) - 当前类型未提供该 `@local!` 实现时抛出。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let ord: Ordering @local! = Ordering.GT
+    // Ordering 提供了 hashCode 的 @local! 实现
+    println("h=${ord.hashCode()}")
+}
+```
+
+运行结果：
+
+```text
+h=3
+```
+
+<!--DelEnd-->
 ## interface Hasher
 
 ```cangjie
@@ -1584,6 +2011,7 @@ func iterator(): Iterator<E>
 
 - [Iterator](core_package_classes.md#class-iteratort)\<E> - 迭代器。
 
+<!--Del-->
 ### func iterator(this @local!)
 
 ```cangjie
@@ -1595,6 +2023,8 @@ func iterator(this @local!): Iterator<E> @local!
 > **注意：**
 >
 > 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+>
+> 不支持平台：OpenHarmony。
 
 参数：
 
@@ -1608,6 +2038,30 @@ func iterator(this @local!): Iterator<E> @local!
 
 - [IllegalStateException](../../core/core_package_api/core_package_exceptions.md#class-illegalstateexception) - 当前类型未提供该 `@local!` 实现时抛出。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local! = [1, 2, 3]
+    // Array 提供了 iterator 的 @local! 实现
+    let it: Iterator<Int64> @local! = arr.iterator()
+    match (it.next()) {
+        case Some(v) => println("first=${v}")
+        case None => println("none")
+    }
+}
+```
+
+运行结果：
+
+```text
+first=1
+```
+
+<!--DelEnd-->
+<!--Del-->
+
 ### func iterator(this @local?)
 
 ```cangjie
@@ -1619,6 +2073,8 @@ func iterator(this @local?): Iterator<E> @local?
 > **注意：**
 >
 > 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+>
+> 不支持平台：OpenHarmony。
 
 参数：
 
@@ -1632,6 +2088,28 @@ func iterator(this @local?): Iterator<E> @local?
 
 - [IllegalStateException](../../core/core_package_api/core_package_exceptions.md#class-illegalstateexception) - 当前类型未提供该 `@local?` 实现时抛出。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local? = [1, 2, 3]
+    // Array 提供了 iterator 的 @local? 实现
+    let it: Iterator<Int64> @local? = arr.iterator()
+    match (it.next()) {
+        case Some(v) => println("first=${v}")
+        case None => println("none")
+    }
+}
+```
+
+运行结果：
+
+```text
+first=1
+```
+
+<!--DelEnd-->
 ## interface Less\<T>
 
 ```cangjie
@@ -1710,6 +2188,122 @@ operator func !=(other: T): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
 
+<!--Del-->
+### operator func !=(this @local!, T @local!)
+
+```cangjie
+operator func !=(this @local!, other: T @local!): Bool
+```
+
+功能：判断当前 `@local!` 实例与指定 `@local!` 实例是否不相等。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+>
+> 不支持平台：OpenHarmony。
+
+参数：
+
+- other: T @local! - 待比较的另一个 `@local!` 实例。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
+
+异常：
+
+- [UnimplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception) - 当前类型未提供该 `@local!` 实现时抛出。
+
+示例：
+
+<!-- verify -->
+```cangjie
+class MyType <: NotEqual<MyType> {
+    public operator func !=(other: MyType): Bool {
+        true
+    }
+    public exclave init(this @local!) {}
+}
+
+main() {
+    let a: MyType @local! = MyType() @local!
+    let b: MyType @local! = MyType() @local!
+    // MyType 未提供 != 的 @local! 实现，调用命中 NotEqual 接口默认实现
+    try {
+        println("ne=${a != b}")
+    } catch (e: UnimplementedException) {
+        println("caught: ${e.message}")
+    }
+}
+```
+
+运行结果：
+
+```text
+caught: Current Type does not implement '!=' method for its @local! instance
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+### operator func !=(this @local?, T @local?)
+
+```cangjie
+operator func !=(this @local?, other: T @local?): Bool
+```
+
+功能：判断当前 `@local?` 实例与指定 `@local?` 实例是否不相等。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+>
+> 不支持平台：OpenHarmony。
+
+参数：
+
+- other: T @local? - 待比较的另一个 `@local?` 实例。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
+
+异常：
+
+- [UnimplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception) - 当前类型未提供该 `@local?` 实现时抛出。
+
+示例：
+
+<!-- verify -->
+```cangjie
+class MyType <: NotEqual<MyType> {
+    public operator func !=(other: MyType): Bool {
+        true
+    }
+    public exclave init(this @local!) {}
+    public exclave init(this @local?) {}
+}
+
+main() {
+    let a: MyType @local? = MyType() @local?
+    let b: MyType @local? = MyType() @local?
+    // MyType 未提供 != 的 @local? 实现，调用命中 NotEqual 接口默认实现
+    try {
+        println("ne=${a != b}")
+    } catch (e: UnimplementedException) {
+        println("caught: ${e.message}")
+    }
+}
+```
+
+运行结果：
+
+```text
+caught: Current Type does not implement '!=' method for its @local? instance
+```
+
+<!--DelEnd-->
 ## interface Resource
 
 ```cangjie
@@ -1800,6 +2394,7 @@ func toString(): String
 
 - [String](core_package_structs.md#struct-string) - 返回实例类型的字符串表示。
 
+<!--Del-->
 ### func toString(this @local?)
 
 ```cangjie
@@ -1811,6 +2406,8 @@ func toString(this @local?): String @local!
 > **注意：**
 >
 > 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+>
+> 不支持平台：OpenHarmony。
 
 参数：
 
@@ -1823,3 +2420,23 @@ func toString(this @local?): String @local!
 异常：
 
 - [UnimplementedException](../../core/core_package_api/core_package_exceptions.md#class-unimplementedexception) - 当前类型未提供该 `@local?` 实现时抛出。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let n: Int64 @local? = 42
+    // Int64 提供了 toString 的 @local? 实现
+    let s: String @local! = n.toString()
+    println(s)
+}
+```
+
+运行结果：
+
+```text
+42
+```
+
+<!--DelEnd-->

@@ -59,6 +59,7 @@ main() {
 1
 ```
 
+<!--Del-->
 #### func hashCode(this @local?)
 
 ```cangjie
@@ -69,11 +70,68 @@ public func hashCode(this @local?): Int64
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 返回值：
 
 - [Int64](core_package_intrinsics.md#int64) - 哈希值。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Bool @local? = true
+    let b: Bool @local? = true
+    println(a.hashCode() == b.hashCode())
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+#### func hashCode(this @local!)
+
+```cangjie
+public func hashCode(this @local!): Int64
+```
+
+功能：计算当前 `@local!` Bool 实例的哈希值。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+返回值：
+
+- [Int64](core_package_intrinsics.md#int64) - 哈希值。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Bool @local! = true
+    let b: Bool @local! = true
+    println(a.hashCode() == b.hashCode())
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
 
 ### extend Bool <: ToString
 
@@ -120,6 +178,7 @@ false
 true
 ```
 
+<!--Del-->
 #### func toString(this @local?)
 
 ```cangjie
@@ -130,11 +189,31 @@ public exclave func toString(this @local?): String @local!
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 返回值：
 
 - [String](core_package_structs.md#struct-string) @local! - 转化后的字符串。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Bool @local? = true
+    let s: String @local! = a.toString()
+    println(s)
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
 
 ## CPointer\<T>
 
@@ -1648,6 +1727,7 @@ main() {
 Ordering.LT
 ```
 
+<!--Del-->
 #### func compare(this @local?, Float16 @local?)
 
 ```cangjie
@@ -1658,7 +1738,8 @@ public func compare(this @local?, other: Float16 @local?): Ordering
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -1668,6 +1749,26 @@ public func compare(this @local?, other: Float16 @local?): Ordering
 
 - [Ordering](core_package_enums.md#enum-ordering) - 如果大于，返回 [Ordering](core_package_enums.md#enum-ordering).GT；如果等于，返回 [Ordering](core_package_enums.md#enum-ordering).EQ；如果小于，返回 [Ordering](core_package_enums.md#enum-ordering).LT。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Float16 @local? = 1.5f16
+    let b: Float16 @local? = 2.5f16
+    println(a.compare(b))
+}
+```
+
+运行结果：
+
+```text
+Ordering.LT
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func ==(this @local!, Float16 @local!)
 
 ```cangjie
@@ -1678,7 +1779,8 @@ public operator func ==(this @local!, other: Float16 @local!): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -1688,6 +1790,26 @@ public operator func ==(this @local!, other: Float16 @local!): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Float16 @local! = 1.5f16
+    let b: Float16 @local! = 1.5f16
+    println(a == b)
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func ==(this @local?, Float16 @local?)
 
 ```cangjie
@@ -1698,7 +1820,8 @@ public operator func ==(this @local?, other: Float16 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -1708,6 +1831,26 @@ public operator func ==(this @local?, other: Float16 @local?): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Float16 @local? = 1.5f16
+    let b: Float16 @local? = 1.5f16
+    println(a == b)
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func !=(this @local!, Float16 @local!)
 
 ```cangjie
@@ -1718,7 +1861,8 @@ public operator func !=(this @local!, other: Float16 @local!): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -1728,6 +1872,26 @@ public operator func !=(this @local!, other: Float16 @local!): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Float16 @local! = 1.5f16
+    let b: Float16 @local! = 1.5f16
+    println(a != b)
+}
+```
+
+运行结果：
+
+```text
+false
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func !=(this @local?, Float16 @local?)
 
 ```cangjie
@@ -1738,7 +1902,8 @@ public operator func !=(this @local?, other: Float16 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -1748,6 +1913,26 @@ public operator func !=(this @local?, other: Float16 @local?): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Float16 @local? = 1.5f16
+    let b: Float16 @local? = 1.5f16
+    println(a != b)
+}
+```
+
+运行结果：
+
+```text
+false
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func <(this @local?, Float16 @local?)
 
 ```cangjie
@@ -1758,7 +1943,8 @@ public operator func <(this @local?, other: Float16 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -1768,6 +1954,26 @@ public operator func <(this @local?, other: Float16 @local?): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果小于，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Float16 @local? = 1.5f16
+    let b: Float16 @local? = 2.5f16
+    println(a < b)
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func >(this @local?, Float16 @local?)
 
 ```cangjie
@@ -1778,7 +1984,8 @@ public operator func >(this @local?, other: Float16 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -1788,6 +1995,26 @@ public operator func >(this @local?, other: Float16 @local?): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果大于，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Float16 @local? = 1.5f16
+    let b: Float16 @local? = 2.5f16
+    println(a > b)
+}
+```
+
+运行结果：
+
+```text
+false
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func <=(this @local?, Float16 @local?)
 
 ```cangjie
@@ -1798,7 +2025,8 @@ public operator func <=(this @local?, other: Float16 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -1808,6 +2036,26 @@ public operator func <=(this @local?, other: Float16 @local?): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果小于等于，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Float16 @local? = 1.5f16
+    let b: Float16 @local? = 2.5f16
+    println(a <= b)
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func >=(this @local?, Float16 @local?)
 
 ```cangjie
@@ -1818,7 +2066,8 @@ public operator func >=(this @local?, other: Float16 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -1827,6 +2076,25 @@ public operator func >=(this @local?, other: Float16 @local?): Bool
 返回值：
 
 - [Bool](core_package_intrinsics.md#bool) - 如果大于等于，返回 true，否则返回 false。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Float16 @local? = 1.5f16
+    let b: Float16 @local? = 2.5f16
+    println(a >= b)
+}
+```
+
+运行结果：
+
+```text
+false
+```
+
+<!--DelEnd-->
 
 ### extend Float16 <: Hashable
 
@@ -1885,6 +2153,7 @@ main() {
 相等值的哈希值是否相同: true
 ```
 
+<!--Del-->
 #### func hashCode(this @local?)
 
 ```cangjie
@@ -1895,11 +2164,68 @@ public func hashCode(this @local?): Int64
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 返回值：
 
 - [Int64](core_package_intrinsics.md#int64) - 哈希值。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Float16 @local? = 1.5f16
+    let b: Float16 @local? = 1.5f16
+    println(a.hashCode() == b.hashCode())
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+#### func hashCode(this @local!)
+
+```cangjie
+public func hashCode(this @local!): Int64
+```
+
+功能：计算当前 `@local!` Float16 实例的哈希值。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+返回值：
+
+- [Int64](core_package_intrinsics.md#int64) - 哈希值。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Float16 @local! = 1.5f16
+    let b: Float16 @local! = 1.5f16
+    println(a.hashCode() == b.hashCode())
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
 
 ### extend Float16 <: ToString
 
@@ -1958,6 +2284,7 @@ main() {
 转换后的类型是否为 String: true
 ```
 
+<!--Del-->
 #### func toString(this @local?)
 
 ```cangjie
@@ -1968,11 +2295,31 @@ public exclave func toString(this @local?): String @local!
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 返回值：
 
 - [String](core_package_structs.md#struct-string) @local! - 转化后的字符串。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Float16 @local? = 1.5f16
+    let s: String @local! = a.toString()
+    println(s)
+}
+```
+
+运行结果：
+
+```text
+1.500000
+```
+
+<!--DelEnd-->
 
 ## Float32
 
@@ -2497,6 +2844,7 @@ main() {
 Ordering.LT
 ```
 
+<!--Del-->
 #### func compare(this @local?, Float32 @local?)
 
 ```cangjie
@@ -2507,7 +2855,8 @@ public func compare(this @local?, other: Float32 @local?): Ordering
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -2517,6 +2866,26 @@ public func compare(this @local?, other: Float32 @local?): Ordering
 
 - [Ordering](core_package_enums.md#enum-ordering) - 如果大于，返回 [Ordering](core_package_enums.md#enum-ordering).GT；如果等于，返回 [Ordering](core_package_enums.md#enum-ordering).EQ；如果小于，返回 [Ordering](core_package_enums.md#enum-ordering).LT。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Float32 @local? = 1.5f32
+    let b: Float32 @local? = 2.5f32
+    println(a.compare(b))
+}
+```
+
+运行结果：
+
+```text
+Ordering.LT
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func ==(this @local!, Float32 @local!)
 
 ```cangjie
@@ -2527,7 +2896,8 @@ public operator func ==(this @local!, other: Float32 @local!): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -2537,6 +2907,26 @@ public operator func ==(this @local!, other: Float32 @local!): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Float32 @local! = 1.5f32
+    let b: Float32 @local! = 1.5f32
+    println(a == b)
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func ==(this @local?, Float32 @local?)
 
 ```cangjie
@@ -2547,7 +2937,8 @@ public operator func ==(this @local?, other: Float32 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -2557,6 +2948,26 @@ public operator func ==(this @local?, other: Float32 @local?): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Float32 @local? = 1.5f32
+    let b: Float32 @local? = 1.5f32
+    println(a == b)
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func !=(this @local!, Float32 @local!)
 
 ```cangjie
@@ -2567,7 +2978,8 @@ public operator func !=(this @local!, other: Float32 @local!): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -2577,6 +2989,26 @@ public operator func !=(this @local!, other: Float32 @local!): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Float32 @local! = 1.5f32
+    let b: Float32 @local! = 1.5f32
+    println(a != b)
+}
+```
+
+运行结果：
+
+```text
+false
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func !=(this @local?, Float32 @local?)
 
 ```cangjie
@@ -2587,7 +3019,8 @@ public operator func !=(this @local?, other: Float32 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -2597,6 +3030,26 @@ public operator func !=(this @local?, other: Float32 @local?): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Float32 @local? = 1.5f32
+    let b: Float32 @local? = 1.5f32
+    println(a != b)
+}
+```
+
+运行结果：
+
+```text
+false
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func <(this @local?, Float32 @local?)
 
 ```cangjie
@@ -2607,7 +3060,8 @@ public operator func <(this @local?, other: Float32 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -2617,6 +3071,26 @@ public operator func <(this @local?, other: Float32 @local?): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果小于，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Float32 @local? = 1.5f32
+    let b: Float32 @local? = 2.5f32
+    println(a < b)
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func >(this @local?, Float32 @local?)
 
 ```cangjie
@@ -2627,7 +3101,8 @@ public operator func >(this @local?, other: Float32 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -2637,6 +3112,26 @@ public operator func >(this @local?, other: Float32 @local?): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果大于，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Float32 @local? = 1.5f32
+    let b: Float32 @local? = 2.5f32
+    println(a > b)
+}
+```
+
+运行结果：
+
+```text
+false
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func <=(this @local?, Float32 @local?)
 
 ```cangjie
@@ -2647,7 +3142,8 @@ public operator func <=(this @local?, other: Float32 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -2657,6 +3153,26 @@ public operator func <=(this @local?, other: Float32 @local?): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果小于等于，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Float32 @local? = 1.5f32
+    let b: Float32 @local? = 2.5f32
+    println(a <= b)
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func >=(this @local?, Float32 @local?)
 
 ```cangjie
@@ -2667,7 +3183,8 @@ public operator func >=(this @local?, other: Float32 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -2676,6 +3193,25 @@ public operator func >=(this @local?, other: Float32 @local?): Bool
 返回值：
 
 - [Bool](core_package_intrinsics.md#bool) - 如果大于等于，返回 true，否则返回 false。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Float32 @local? = 1.5f32
+    let b: Float32 @local? = 2.5f32
+    println(a >= b)
+}
+```
+
+运行结果：
+
+```text
+false
+```
+
+<!--DelEnd-->
 
 ### extend Float32 <: Hashable
 
@@ -2734,6 +3270,7 @@ main() {
 相等值的哈希值是否相同: true
 ```
 
+<!--Del-->
 #### func hashCode(this @local?)
 
 ```cangjie
@@ -2744,11 +3281,68 @@ public func hashCode(this @local?): Int64
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 返回值：
 
 - [Int64](core_package_intrinsics.md#int64) - 哈希值。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Float32 @local? = 1.5f32
+    let b: Float32 @local? = 1.5f32
+    println(a.hashCode() == b.hashCode())
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+#### func hashCode(this @local!)
+
+```cangjie
+public func hashCode(this @local!): Int64
+```
+
+功能：计算当前 `@local!` Float32 实例的哈希值。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+返回值：
+
+- [Int64](core_package_intrinsics.md#int64) - 哈希值。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Float32 @local! = 1.5f32
+    let b: Float32 @local! = 1.5f32
+    println(a.hashCode() == b.hashCode())
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
 
 ### extend Float32 <: ToString
 
@@ -2807,6 +3401,7 @@ main() {
 转换后的类型是否为 String: true
 ```
 
+<!--Del-->
 #### func toString(this @local?)
 
 ```cangjie
@@ -2817,11 +3412,31 @@ public exclave func toString(this @local?): String @local!
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 返回值：
 
 - [String](core_package_structs.md#struct-string) @local! - 转化后的字符串。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Float32 @local? = 1.5f32
+    let s: String @local! = a.toString()
+    println(s)
+}
+```
+
+运行结果：
+
+```text
+1.500000
+```
+
+<!--DelEnd-->
 
 ## Float64
 
@@ -3346,6 +3961,7 @@ main() {
 Ordering.LT
 ```
 
+<!--Del-->
 #### func compare(this @local?, Float64 @local?)
 
 ```cangjie
@@ -3356,7 +3972,8 @@ public func compare(this @local?, other: Float64 @local?): Ordering
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -3366,6 +3983,26 @@ public func compare(this @local?, other: Float64 @local?): Ordering
 
 - [Ordering](core_package_enums.md#enum-ordering) - 如果大于，返回 [Ordering](core_package_enums.md#enum-ordering).GT；如果等于，返回 [Ordering](core_package_enums.md#enum-ordering).EQ；如果小于，返回 [Ordering](core_package_enums.md#enum-ordering).LT。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Float64 @local? = 1.5
+    let b: Float64 @local? = 2.5
+    println(a.compare(b))
+}
+```
+
+运行结果：
+
+```text
+Ordering.LT
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func ==(this @local!, Float64 @local!)
 
 ```cangjie
@@ -3376,7 +4013,8 @@ public operator func ==(this @local!, other: Float64 @local!): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -3386,6 +4024,26 @@ public operator func ==(this @local!, other: Float64 @local!): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Float64 @local! = 1.5
+    let b: Float64 @local! = 1.5
+    println(a == b)
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func ==(this @local?, Float64 @local?)
 
 ```cangjie
@@ -3396,7 +4054,8 @@ public operator func ==(this @local?, other: Float64 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -3406,6 +4065,26 @@ public operator func ==(this @local?, other: Float64 @local?): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Float64 @local? = 1.5
+    let b: Float64 @local? = 1.5
+    println(a == b)
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func !=(this @local!, Float64 @local!)
 
 ```cangjie
@@ -3416,7 +4095,8 @@ public operator func !=(this @local!, other: Float64 @local!): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -3426,6 +4106,26 @@ public operator func !=(this @local!, other: Float64 @local!): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Float64 @local! = 1.5
+    let b: Float64 @local! = 1.5
+    println(a != b)
+}
+```
+
+运行结果：
+
+```text
+false
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func !=(this @local?, Float64 @local?)
 
 ```cangjie
@@ -3436,7 +4136,8 @@ public operator func !=(this @local?, other: Float64 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -3446,6 +4147,26 @@ public operator func !=(this @local?, other: Float64 @local?): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Float64 @local? = 1.5
+    let b: Float64 @local? = 1.5
+    println(a != b)
+}
+```
+
+运行结果：
+
+```text
+false
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func <(this @local?, Float64 @local?)
 
 ```cangjie
@@ -3456,7 +4177,8 @@ public operator func <(this @local?, other: Float64 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -3466,6 +4188,26 @@ public operator func <(this @local?, other: Float64 @local?): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果小于，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Float64 @local? = 1.5
+    let b: Float64 @local? = 2.5
+    println(a < b)
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func >(this @local?, Float64 @local?)
 
 ```cangjie
@@ -3476,7 +4218,8 @@ public operator func >(this @local?, other: Float64 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -3486,6 +4229,26 @@ public operator func >(this @local?, other: Float64 @local?): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果大于，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Float64 @local? = 1.5
+    let b: Float64 @local? = 2.5
+    println(a > b)
+}
+```
+
+运行结果：
+
+```text
+false
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func <=(this @local?, Float64 @local?)
 
 ```cangjie
@@ -3496,7 +4259,8 @@ public operator func <=(this @local?, other: Float64 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -3506,6 +4270,26 @@ public operator func <=(this @local?, other: Float64 @local?): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果小于等于，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Float64 @local? = 1.5
+    let b: Float64 @local? = 2.5
+    println(a <= b)
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func >=(this @local?, Float64 @local?)
 
 ```cangjie
@@ -3516,7 +4300,8 @@ public operator func >=(this @local?, other: Float64 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -3525,6 +4310,25 @@ public operator func >=(this @local?, other: Float64 @local?): Bool
 返回值：
 
 - [Bool](core_package_intrinsics.md#bool) - 如果大于等于，返回 true，否则返回 false。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Float64 @local? = 1.5
+    let b: Float64 @local? = 2.5
+    println(a >= b)
+}
+```
+
+运行结果：
+
+```text
+false
+```
+
+<!--DelEnd-->
 
 ### extend Float64 <: Hashable
 
@@ -3583,6 +4387,7 @@ main() {
 相等值的哈希值是否相同: true
 ```
 
+<!--Del-->
 #### func hashCode(this @local?)
 
 ```cangjie
@@ -3593,11 +4398,68 @@ public func hashCode(this @local?): Int64
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 返回值：
 
 - [Int64](core_package_intrinsics.md#int64) - 哈希值。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Float64 @local? = 1.5
+    let b: Float64 @local? = 1.5
+    println(a.hashCode() == b.hashCode())
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+#### func hashCode(this @local!)
+
+```cangjie
+public func hashCode(this @local!): Int64
+```
+
+功能：计算当前 `@local!` Float64 实例的哈希值。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+返回值：
+
+- [Int64](core_package_intrinsics.md#int64) - 哈希值。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Float64 @local! = 1.5
+    let b: Float64 @local! = 1.5
+    println(a.hashCode() == b.hashCode())
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
 
 ### extend Float64 <: ToString
 
@@ -3656,6 +4518,7 @@ main() {
 转换后的类型是否为 String: true
 ```
 
+<!--Del-->
 #### func toString(this @local?)
 
 ```cangjie
@@ -3666,11 +4529,31 @@ public exclave func toString(this @local?): String @local!
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 返回值：
 
 - [String](core_package_structs.md#struct-string) @local! - 转化后的字符串。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Float64 @local? = 1.5
+    let s: String @local! = a.toString()
+    println(s)
+}
+```
+
+运行结果：
+
+```text
+1.500000
+```
+
+<!--DelEnd-->
 
 ## Int16
 
@@ -3791,6 +4674,7 @@ main() {
 Ordering.LT
 ```
 
+<!--Del-->
 #### func compare(this @local?, Int16 @local?)
 
 ```cangjie
@@ -3801,7 +4685,8 @@ public func compare(this @local?, other: Int16 @local?): Ordering
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -3811,6 +4696,26 @@ public func compare(this @local?, other: Int16 @local?): Ordering
 
 - [Ordering](core_package_enums.md#enum-ordering) - 如果大于，返回 [Ordering](core_package_enums.md#enum-ordering).GT；如果等于，返回 [Ordering](core_package_enums.md#enum-ordering).EQ；如果小于，返回 [Ordering](core_package_enums.md#enum-ordering).LT。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Int16 @local? = 100
+    let b: Int16 @local? = 200
+    println(a.compare(b))
+}
+```
+
+运行结果：
+
+```text
+Ordering.LT
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func ==(this @local!, Int16 @local!)
 
 ```cangjie
@@ -3821,7 +4726,8 @@ public operator func ==(this @local!, other: Int16 @local!): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -3831,6 +4737,26 @@ public operator func ==(this @local!, other: Int16 @local!): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Int16 @local! = 100
+    let b: Int16 @local! = 100
+    println(a == b)
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func ==(this @local?, Int16 @local?)
 
 ```cangjie
@@ -3841,7 +4767,8 @@ public operator func ==(this @local?, other: Int16 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -3851,6 +4778,26 @@ public operator func ==(this @local?, other: Int16 @local?): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Int16 @local? = 100
+    let b: Int16 @local? = 100
+    println(a == b)
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func !=(this @local!, Int16 @local!)
 
 ```cangjie
@@ -3861,7 +4808,8 @@ public operator func !=(this @local!, other: Int16 @local!): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -3871,6 +4819,26 @@ public operator func !=(this @local!, other: Int16 @local!): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Int16 @local! = 100
+    let b: Int16 @local! = 100
+    println(a != b)
+}
+```
+
+运行结果：
+
+```text
+false
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func !=(this @local?, Int16 @local?)
 
 ```cangjie
@@ -3881,7 +4849,8 @@ public operator func !=(this @local?, other: Int16 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -3891,6 +4860,26 @@ public operator func !=(this @local?, other: Int16 @local?): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Int16 @local? = 100
+    let b: Int16 @local? = 100
+    println(a != b)
+}
+```
+
+运行结果：
+
+```text
+false
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func <(this @local?, Int16 @local?)
 
 ```cangjie
@@ -3901,7 +4890,8 @@ public operator func <(this @local?, other: Int16 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -3911,6 +4901,26 @@ public operator func <(this @local?, other: Int16 @local?): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果小于，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Int16 @local? = 100
+    let b: Int16 @local? = 200
+    println(a < b)
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func >(this @local?, Int16 @local?)
 
 ```cangjie
@@ -3921,7 +4931,8 @@ public operator func >(this @local?, other: Int16 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -3931,6 +4942,26 @@ public operator func >(this @local?, other: Int16 @local?): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果大于，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Int16 @local? = 100
+    let b: Int16 @local? = 200
+    println(a > b)
+}
+```
+
+运行结果：
+
+```text
+false
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func <=(this @local?, Int16 @local?)
 
 ```cangjie
@@ -3941,7 +4972,8 @@ public operator func <=(this @local?, other: Int16 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -3951,6 +4983,26 @@ public operator func <=(this @local?, other: Int16 @local?): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果小于等于，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Int16 @local? = 100
+    let b: Int16 @local? = 200
+    println(a <= b)
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func >=(this @local?, Int16 @local?)
 
 ```cangjie
@@ -3961,7 +5013,8 @@ public operator func >=(this @local?, other: Int16 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -3970,6 +5023,25 @@ public operator func >=(this @local?, other: Int16 @local?): Bool
 返回值：
 
 - [Bool](core_package_intrinsics.md#bool) - 如果大于等于，返回 true，否则返回 false。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Int16 @local? = 100
+    let b: Int16 @local? = 200
+    println(a >= b)
+}
+```
+
+运行结果：
+
+```text
+false
+```
+
+<!--DelEnd-->
 
 ### extend Int16 <: Countable\<Int16>
 
@@ -4106,6 +5178,7 @@ main() {
 相等值的哈希值是否相同: true
 ```
 
+<!--Del-->
 #### func hashCode(this @local?)
 
 ```cangjie
@@ -4116,11 +5189,68 @@ public func hashCode(this @local?): Int64
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 返回值：
 
 - [Int64](core_package_intrinsics.md#int64) - 哈希值。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Int16 @local? = 100
+    let b: Int16 @local? = 100
+    println(a.hashCode() == b.hashCode())
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+#### func hashCode(this @local!)
+
+```cangjie
+public func hashCode(this @local!): Int64
+```
+
+功能：计算当前 `@local!` Int16 实例的哈希值。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+返回值：
+
+- [Int64](core_package_intrinsics.md#int64) - 哈希值。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Int16 @local! = 100
+    let b: Int16 @local! = 100
+    println(a.hashCode() == b.hashCode())
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
 
 ### extend Int16 <: ToString
 
@@ -4179,6 +5309,7 @@ main() {
 转换后的类型是否为 String: true
 ```
 
+<!--Del-->
 #### func toString(this @local?)
 
 ```cangjie
@@ -4189,11 +5320,31 @@ public exclave func toString(this @local?): String @local!
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 返回值：
 
 - [String](core_package_structs.md#struct-string) @local! - 转化后的字符串。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Int16 @local? = 100
+    let s: String @local! = a.toString()
+    println(s)
+}
+```
+
+运行结果：
+
+```text
+100
+```
+
+<!--DelEnd-->
 
 ## Int32
 
@@ -4314,6 +5465,7 @@ main() {
 Ordering.LT
 ```
 
+<!--Del-->
 #### func compare(this @local?, Int32 @local?)
 
 ```cangjie
@@ -4324,7 +5476,8 @@ public func compare(this @local?, other: Int32 @local?): Ordering
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -4334,6 +5487,26 @@ public func compare(this @local?, other: Int32 @local?): Ordering
 
 - [Ordering](core_package_enums.md#enum-ordering) - 如果大于，返回 [Ordering](core_package_enums.md#enum-ordering).GT；如果等于，返回 [Ordering](core_package_enums.md#enum-ordering).EQ；如果小于，返回 [Ordering](core_package_enums.md#enum-ordering).LT。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Int32 @local? = 10
+    let b: Int32 @local? = 20
+    println(a.compare(b))
+}
+```
+
+运行结果：
+
+```text
+Ordering.LT
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func ==(this @local!, Int32 @local!)
 
 ```cangjie
@@ -4344,7 +5517,8 @@ public operator func ==(this @local!, other: Int32 @local!): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -4354,6 +5528,26 @@ public operator func ==(this @local!, other: Int32 @local!): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Int32 @local! = 10
+    let b: Int32 @local! = 10
+    println(a == b)
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func ==(this @local?, Int32 @local?)
 
 ```cangjie
@@ -4364,7 +5558,8 @@ public operator func ==(this @local?, other: Int32 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -4374,6 +5569,26 @@ public operator func ==(this @local?, other: Int32 @local?): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Int32 @local? = 10
+    let b: Int32 @local? = 10
+    println(a == b)
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func !=(this @local!, Int32 @local!)
 
 ```cangjie
@@ -4384,7 +5599,8 @@ public operator func !=(this @local!, other: Int32 @local!): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -4394,6 +5610,26 @@ public operator func !=(this @local!, other: Int32 @local!): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Int32 @local! = 10
+    let b: Int32 @local! = 10
+    println(a != b)
+}
+```
+
+运行结果：
+
+```text
+false
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func !=(this @local?, Int32 @local?)
 
 ```cangjie
@@ -4404,7 +5640,8 @@ public operator func !=(this @local?, other: Int32 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -4414,6 +5651,26 @@ public operator func !=(this @local?, other: Int32 @local?): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Int32 @local? = 10
+    let b: Int32 @local? = 10
+    println(a != b)
+}
+```
+
+运行结果：
+
+```text
+false
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func <(this @local?, Int32 @local?)
 
 ```cangjie
@@ -4424,7 +5681,8 @@ public operator func <(this @local?, other: Int32 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -4434,6 +5692,26 @@ public operator func <(this @local?, other: Int32 @local?): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果小于，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Int32 @local? = 10
+    let b: Int32 @local? = 20
+    println(a < b)
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func >(this @local?, Int32 @local?)
 
 ```cangjie
@@ -4444,7 +5722,8 @@ public operator func >(this @local?, other: Int32 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -4454,6 +5733,26 @@ public operator func >(this @local?, other: Int32 @local?): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果大于，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Int32 @local? = 10
+    let b: Int32 @local? = 20
+    println(a > b)
+}
+```
+
+运行结果：
+
+```text
+false
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func <=(this @local?, Int32 @local?)
 
 ```cangjie
@@ -4464,7 +5763,8 @@ public operator func <=(this @local?, other: Int32 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -4474,6 +5774,26 @@ public operator func <=(this @local?, other: Int32 @local?): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果小于等于，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Int32 @local? = 10
+    let b: Int32 @local? = 20
+    println(a <= b)
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func >=(this @local?, Int32 @local?)
 
 ```cangjie
@@ -4484,7 +5804,8 @@ public operator func >=(this @local?, other: Int32 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -4493,6 +5814,25 @@ public operator func >=(this @local?, other: Int32 @local?): Bool
 返回值：
 
 - [Bool](core_package_intrinsics.md#bool) - 如果大于等于，返回 true，否则返回 false。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Int32 @local? = 10
+    let b: Int32 @local? = 20
+    println(a >= b)
+}
+```
+
+运行结果：
+
+```text
+false
+```
+
+<!--DelEnd-->
 
 ### extend Int32 <: Countable\<Int32>
 
@@ -4623,6 +5963,7 @@ main() {
 相等值的哈希值是否相同: true
 ```
 
+<!--Del-->
 #### func hashCode(this @local?)
 
 ```cangjie
@@ -4633,11 +5974,68 @@ public func hashCode(this @local?): Int64
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 返回值：
 
 - [Int64](core_package_intrinsics.md#int64) - 哈希值。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Int32 @local? = 10
+    let b: Int32 @local? = 10
+    println(a.hashCode() == b.hashCode())
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+#### func hashCode(this @local!)
+
+```cangjie
+public func hashCode(this @local!): Int64
+```
+
+功能：计算当前 `@local!` Int32 实例的哈希值。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+返回值：
+
+- [Int64](core_package_intrinsics.md#int64) - 哈希值。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Int32 @local! = 10
+    let b: Int32 @local! = 10
+    println(a.hashCode() == b.hashCode())
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
 
 ### extend Int32 <: ToString
 
@@ -4696,6 +6094,7 @@ main() {
 转换后的类型是否为 String: true
 ```
 
+<!--Del-->
 #### func toString(this @local?)
 
 ```cangjie
@@ -4706,11 +6105,31 @@ public exclave func toString(this @local?): String @local!
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 返回值：
 
 - [String](core_package_structs.md#struct-string) @local! - 转化后的字符串。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Int32 @local? = 10
+    let s: String @local! = a.toString()
+    println(s)
+}
+```
+
+运行结果：
+
+```text
+10
+```
+
+<!--DelEnd-->
 
 ## Int64
 
@@ -4831,6 +6250,7 @@ main() {
 Ordering.LT
 ```
 
+<!--Del-->
 #### func compare(this @local?, Int64 @local?)
 
 ```cangjie
@@ -4841,7 +6261,8 @@ public func compare(this @local?, other: Int64 @local?): Ordering
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -4851,6 +6272,26 @@ public func compare(this @local?, other: Int64 @local?): Ordering
 
 - [Ordering](core_package_enums.md#enum-ordering) - 如果大于，返回 [Ordering](core_package_enums.md#enum-ordering).GT；如果等于，返回 [Ordering](core_package_enums.md#enum-ordering).EQ；如果小于，返回 [Ordering](core_package_enums.md#enum-ordering).LT。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Int64 @local? = 10
+    let b: Int64 @local? = 20
+    println(a.compare(b))
+}
+```
+
+运行结果：
+
+```text
+Ordering.LT
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func ==(this @local!, Int64 @local!)
 
 ```cangjie
@@ -4861,7 +6302,8 @@ public operator func ==(this @local!, other: Int64 @local!): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -4871,6 +6313,26 @@ public operator func ==(this @local!, other: Int64 @local!): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Int64 @local! = 10
+    let b: Int64 @local! = 10
+    println(a == b)
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func ==(this @local?, Int64 @local?)
 
 ```cangjie
@@ -4881,7 +6343,8 @@ public operator func ==(this @local?, other: Int64 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -4891,6 +6354,26 @@ public operator func ==(this @local?, other: Int64 @local?): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Int64 @local? = 10
+    let b: Int64 @local? = 10
+    println(a == b)
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func !=(this @local!, Int64 @local!)
 
 ```cangjie
@@ -4901,7 +6384,8 @@ public operator func !=(this @local!, other: Int64 @local!): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -4911,6 +6395,26 @@ public operator func !=(this @local!, other: Int64 @local!): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Int64 @local! = 10
+    let b: Int64 @local! = 10
+    println(a != b)
+}
+```
+
+运行结果：
+
+```text
+false
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func !=(this @local?, Int64 @local?)
 
 ```cangjie
@@ -4921,7 +6425,8 @@ public operator func !=(this @local?, other: Int64 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -4931,6 +6436,26 @@ public operator func !=(this @local?, other: Int64 @local?): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Int64 @local? = 10
+    let b: Int64 @local? = 10
+    println(a != b)
+}
+```
+
+运行结果：
+
+```text
+false
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func <(this @local?, Int64 @local?)
 
 ```cangjie
@@ -4941,7 +6466,8 @@ public operator func <(this @local?, other: Int64 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -4951,6 +6477,26 @@ public operator func <(this @local?, other: Int64 @local?): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果小于，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Int64 @local? = 10
+    let b: Int64 @local? = 20
+    println(a < b)
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func >(this @local?, Int64 @local?)
 
 ```cangjie
@@ -4961,7 +6507,8 @@ public operator func >(this @local?, other: Int64 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -4971,6 +6518,26 @@ public operator func >(this @local?, other: Int64 @local?): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果大于，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Int64 @local? = 10
+    let b: Int64 @local? = 20
+    println(a > b)
+}
+```
+
+运行结果：
+
+```text
+false
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func <=(this @local?, Int64 @local?)
 
 ```cangjie
@@ -4981,7 +6548,8 @@ public operator func <=(this @local?, other: Int64 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -4991,6 +6559,26 @@ public operator func <=(this @local?, other: Int64 @local?): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果小于等于，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Int64 @local? = 10
+    let b: Int64 @local? = 20
+    println(a <= b)
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func >=(this @local?, Int64 @local?)
 
 ```cangjie
@@ -5001,7 +6589,8 @@ public operator func >=(this @local?, other: Int64 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -5010,6 +6599,25 @@ public operator func >=(this @local?, other: Int64 @local?): Bool
 返回值：
 
 - [Bool](core_package_intrinsics.md#bool) - 如果大于等于，返回 true，否则返回 false。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Int64 @local? = 10
+    let b: Int64 @local? = 20
+    println(a >= b)
+}
+```
+
+运行结果：
+
+```text
+false
+```
+
+<!--DelEnd-->
 
 ### extend Int64 <: Countable\<Int64>
 
@@ -5143,6 +6751,7 @@ Int64 值: 0
 hashCode: 0
 ```
 
+<!--Del-->
 #### func hashCode(this @local?)
 
 ```cangjie
@@ -5153,11 +6762,68 @@ public func hashCode(this @local?): Int64
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 返回值：
 
 - [Int64](core_package_intrinsics.md#int64) - 哈希值。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Int64 @local? = 10
+    let b: Int64 @local? = 10
+    println(a.hashCode() == b.hashCode())
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+#### func hashCode(this @local!)
+
+```cangjie
+public func hashCode(this @local!): Int64
+```
+
+功能：计算当前 `@local!` Int64 实例的哈希值。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+返回值：
+
+- [Int64](core_package_intrinsics.md#int64) - 哈希值。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Int64 @local! = 10
+    let b: Int64 @local! = 10
+    println(a.hashCode() == b.hashCode())
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
 
 ### extend Int64 <: ToString
 
@@ -5234,6 +6900,7 @@ Int64 最小值: -9223372036854775808
 转换为字符串: -9223372036854775808
 ```
 
+<!--Del-->
 #### func toString(this @local?)
 
 ```cangjie
@@ -5244,11 +6911,31 @@ public exclave func toString(this @local?): String @local!
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 返回值：
 
 - [String](core_package_structs.md#struct-string) @local! - 转化后的字符串。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Int64 @local? = 10
+    let s: String @local! = a.toString()
+    println(s)
+}
+```
+
+运行结果：
+
+```text
+10
+```
+
+<!--DelEnd-->
 
 ## Int8
 
@@ -5369,6 +7056,7 @@ main() {
 Ordering.LT
 ```
 
+<!--Del-->
 #### func compare(this @local?, Int8 @local?)
 
 ```cangjie
@@ -5379,7 +7067,8 @@ public func compare(this @local?, other: Int8 @local?): Ordering
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -5389,6 +7078,26 @@ public func compare(this @local?, other: Int8 @local?): Ordering
 
 - [Ordering](core_package_enums.md#enum-ordering) - 如果大于，返回 [Ordering](core_package_enums.md#enum-ordering).GT；如果等于，返回 [Ordering](core_package_enums.md#enum-ordering).EQ；如果小于，返回 [Ordering](core_package_enums.md#enum-ordering).LT。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Int8 @local? = 3
+    let b: Int8 @local? = 5
+    println(a.compare(b))
+}
+```
+
+运行结果：
+
+```text
+Ordering.LT
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func ==(this @local!, Int8 @local!)
 
 ```cangjie
@@ -5399,7 +7108,8 @@ public operator func ==(this @local!, other: Int8 @local!): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -5409,6 +7119,26 @@ public operator func ==(this @local!, other: Int8 @local!): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Int8 @local! = 3
+    let b: Int8 @local! = 3
+    println(a == b)
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func ==(this @local?, Int8 @local?)
 
 ```cangjie
@@ -5419,7 +7149,8 @@ public operator func ==(this @local?, other: Int8 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -5429,6 +7160,26 @@ public operator func ==(this @local?, other: Int8 @local?): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Int8 @local? = 3
+    let b: Int8 @local? = 3
+    println(a == b)
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func !=(this @local!, Int8 @local!)
 
 ```cangjie
@@ -5439,7 +7190,8 @@ public operator func !=(this @local!, other: Int8 @local!): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -5449,6 +7201,26 @@ public operator func !=(this @local!, other: Int8 @local!): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Int8 @local! = 3
+    let b: Int8 @local! = 3
+    println(a != b)
+}
+```
+
+运行结果：
+
+```text
+false
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func !=(this @local?, Int8 @local?)
 
 ```cangjie
@@ -5459,7 +7231,8 @@ public operator func !=(this @local?, other: Int8 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -5469,6 +7242,26 @@ public operator func !=(this @local?, other: Int8 @local?): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Int8 @local? = 3
+    let b: Int8 @local? = 3
+    println(a != b)
+}
+```
+
+运行结果：
+
+```text
+false
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func <(this @local?, Int8 @local?)
 
 ```cangjie
@@ -5479,7 +7272,8 @@ public operator func <(this @local?, other: Int8 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -5489,6 +7283,26 @@ public operator func <(this @local?, other: Int8 @local?): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果小于，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Int8 @local? = 3
+    let b: Int8 @local? = 5
+    println(a < b)
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func >(this @local?, Int8 @local?)
 
 ```cangjie
@@ -5499,7 +7313,8 @@ public operator func >(this @local?, other: Int8 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -5509,6 +7324,26 @@ public operator func >(this @local?, other: Int8 @local?): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果大于，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Int8 @local? = 3
+    let b: Int8 @local? = 5
+    println(a > b)
+}
+```
+
+运行结果：
+
+```text
+false
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func <=(this @local?, Int8 @local?)
 
 ```cangjie
@@ -5519,7 +7354,8 @@ public operator func <=(this @local?, other: Int8 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -5529,6 +7365,26 @@ public operator func <=(this @local?, other: Int8 @local?): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果小于等于，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Int8 @local? = 3
+    let b: Int8 @local? = 5
+    println(a <= b)
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func >=(this @local?, Int8 @local?)
 
 ```cangjie
@@ -5539,7 +7395,8 @@ public operator func >=(this @local?, other: Int8 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -5548,6 +7405,25 @@ public operator func >=(this @local?, other: Int8 @local?): Bool
 返回值：
 
 - [Bool](core_package_intrinsics.md#bool) - 如果大于等于，返回 true，否则返回 false。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Int8 @local? = 3
+    let b: Int8 @local? = 5
+    println(a >= b)
+}
+```
+
+运行结果：
+
+```text
+false
+```
+
+<!--DelEnd-->
 
 ### extend Int8 <: Countable\<Int8>
 
@@ -5696,6 +7572,7 @@ Int8 最小值: -128
 hashCode: -128
 ```
 
+<!--Del-->
 #### func hashCode(this @local?)
 
 ```cangjie
@@ -5706,11 +7583,68 @@ public func hashCode(this @local?): Int64
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 返回值：
 
 - [Int64](core_package_intrinsics.md#int64) - 哈希值。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Int8 @local? = 3
+    let b: Int8 @local? = 3
+    println(a.hashCode() == b.hashCode())
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+#### func hashCode(this @local!)
+
+```cangjie
+public func hashCode(this @local!): Int64
+```
+
+功能：计算当前 `@local!` Int8 实例的哈希值。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+返回值：
+
+- [Int64](core_package_intrinsics.md#int64) - 哈希值。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Int8 @local! = 3
+    let b: Int8 @local! = 3
+    println(a.hashCode() == b.hashCode())
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
 
 ### extend Int8 <: ToString
 
@@ -5787,6 +7721,7 @@ Int8 最小值: -128
 转换为字符串: -128
 ```
 
+<!--Del-->
 #### func toString(this @local?)
 
 ```cangjie
@@ -5797,11 +7732,31 @@ public exclave func toString(this @local?): String @local!
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 返回值：
 
 - [String](core_package_structs.md#struct-string) @local! - 转化后的字符串。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Int8 @local? = 3
+    let s: String @local! = a.toString()
+    println(s)
+}
+```
+
+运行结果：
+
+```text
+3
+```
+
+<!--DelEnd-->
 
 ## IntNative
 
@@ -5922,6 +7877,7 @@ main() {
 Ordering.LT
 ```
 
+<!--Del-->
 #### func compare(this @local?, IntNative @local?)
 
 ```cangjie
@@ -5932,7 +7888,8 @@ public func compare(this @local?, other: IntNative @local?): Ordering
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -5942,6 +7899,26 @@ public func compare(this @local?, other: IntNative @local?): Ordering
 
 - [Ordering](core_package_enums.md#enum-ordering) - 如果大于，返回 [Ordering](core_package_enums.md#enum-ordering).GT；如果等于，返回 [Ordering](core_package_enums.md#enum-ordering).EQ；如果小于，返回 [Ordering](core_package_enums.md#enum-ordering).LT。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: IntNative @local? = 10
+    let b: IntNative @local? = 20
+    println(a.compare(b))
+}
+```
+
+运行结果：
+
+```text
+Ordering.LT
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func ==(this @local!, IntNative @local!)
 
 ```cangjie
@@ -5952,7 +7929,8 @@ public operator func ==(this @local!, other: IntNative @local!): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -5962,6 +7940,26 @@ public operator func ==(this @local!, other: IntNative @local!): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: IntNative @local! = 10
+    let b: IntNative @local! = 10
+    println(a == b)
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func ==(this @local?, IntNative @local?)
 
 ```cangjie
@@ -5972,7 +7970,8 @@ public operator func ==(this @local?, other: IntNative @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -5982,6 +7981,26 @@ public operator func ==(this @local?, other: IntNative @local?): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: IntNative @local? = 10
+    let b: IntNative @local? = 10
+    println(a == b)
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func !=(this @local!, IntNative @local!)
 
 ```cangjie
@@ -5992,7 +8011,8 @@ public operator func !=(this @local!, other: IntNative @local!): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -6002,6 +8022,26 @@ public operator func !=(this @local!, other: IntNative @local!): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: IntNative @local! = 10
+    let b: IntNative @local! = 10
+    println(a != b)
+}
+```
+
+运行结果：
+
+```text
+false
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func !=(this @local?, IntNative @local?)
 
 ```cangjie
@@ -6012,7 +8052,8 @@ public operator func !=(this @local?, other: IntNative @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -6022,6 +8063,26 @@ public operator func !=(this @local?, other: IntNative @local?): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: IntNative @local? = 10
+    let b: IntNative @local? = 10
+    println(a != b)
+}
+```
+
+运行结果：
+
+```text
+false
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func <(this @local?, IntNative @local?)
 
 ```cangjie
@@ -6032,7 +8093,8 @@ public operator func <(this @local?, other: IntNative @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -6042,6 +8104,26 @@ public operator func <(this @local?, other: IntNative @local?): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果小于，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: IntNative @local? = 10
+    let b: IntNative @local? = 20
+    println(a < b)
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func >(this @local?, IntNative @local?)
 
 ```cangjie
@@ -6052,7 +8134,8 @@ public operator func >(this @local?, other: IntNative @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -6062,6 +8145,26 @@ public operator func >(this @local?, other: IntNative @local?): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果大于，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: IntNative @local? = 10
+    let b: IntNative @local? = 20
+    println(a > b)
+}
+```
+
+运行结果：
+
+```text
+false
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func <=(this @local?, IntNative @local?)
 
 ```cangjie
@@ -6072,7 +8175,8 @@ public operator func <=(this @local?, other: IntNative @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -6082,6 +8186,26 @@ public operator func <=(this @local?, other: IntNative @local?): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果小于等于，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: IntNative @local? = 10
+    let b: IntNative @local? = 20
+    println(a <= b)
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func >=(this @local?, IntNative @local?)
 
 ```cangjie
@@ -6092,7 +8216,8 @@ public operator func >=(this @local?, other: IntNative @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -6101,6 +8226,25 @@ public operator func >=(this @local?, other: IntNative @local?): Bool
 返回值：
 
 - [Bool](core_package_intrinsics.md#bool) - 如果大于等于，返回 true，否则返回 false。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: IntNative @local? = 10
+    let b: IntNative @local? = 20
+    println(a >= b)
+}
+```
+
+运行结果：
+
+```text
+false
+```
+
+<!--DelEnd-->
 
 ### extend IntNative <: Countable\<IntNative>
 
@@ -6249,6 +8393,7 @@ IntNative 最小值: -9223372036854775808
 hashCode: -9223372036854775808
 ```
 
+<!--Del-->
 #### func hashCode(this @local?)
 
 ```cangjie
@@ -6259,11 +8404,68 @@ public func hashCode(this @local?): Int64
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 返回值：
 
 - [Int64](core_package_intrinsics.md#int64) - 哈希值。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: IntNative @local? = 10
+    let b: IntNative @local? = 10
+    println(a.hashCode() == b.hashCode())
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+#### func hashCode(this @local!)
+
+```cangjie
+public func hashCode(this @local!): Int64
+```
+
+功能：计算当前 `@local!` IntNative 实例的哈希值。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+返回值：
+
+- [Int64](core_package_intrinsics.md#int64) - 哈希值。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: IntNative @local! = 10
+    let b: IntNative @local! = 10
+    println(a.hashCode() == b.hashCode())
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
 
 ### extend IntNative <: ToString
 
@@ -6340,6 +8542,7 @@ IntNative 最小值: -9223372036854775808
 转换为字符串: -9223372036854775808
 ```
 
+<!--Del-->
 #### func toString(this @local?)
 
 ```cangjie
@@ -6350,11 +8553,31 @@ public exclave func toString(this @local?): String @local!
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 返回值：
 
 - [String](core_package_structs.md#struct-string) @local! - 转化后的字符串。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: IntNative @local? = 10
+    let s: String @local! = a.toString()
+    println(s)
+}
+```
+
+运行结果：
+
+```text
+10
+```
+
+<!--DelEnd-->
 
 ## Rune
 
@@ -6410,6 +8633,7 @@ A
 1
 ```
 
+<!--Del-->
 #### static func fromUtf8(Array\<UInt8> @local?, Int64)
 
 ```cangjie
@@ -6420,12 +8644,42 @@ public static func fromUtf8(arr: Array<UInt8> @local?, index: Int64): (Rune, Int
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
-- arr: Array<UInt8> @local? - 待解码的字节数组。
+- arr: Array\<UInt8> @local? - 待解码的字节数组。
 - index: Int64 - 起始字节下标。
+
+返回值：
+
+- ([Rune](core_package_intrinsics.md#rune), [Int64](core_package_intrinsics.md#int64)) - 转换得到的字符，以及该字符占用的字节长度。
+
+异常：
+
+- [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - 不合法的 UTF-8 字节序列。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<UInt8> @local? = [4, 8, 65]
+    let tuple = Rune.fromUtf8(arr, 2)
+    println(tuple[0])
+    println(tuple[1])
+}
+```
+
+运行结果：
+
+```text
+A
+1
+```
+
+<!--DelEnd-->
 
 #### static func getPreviousFromUtf8(Array\<UInt8>, Int64)
 
@@ -6512,6 +8766,7 @@ main() {
 231
 ```
 
+<!--Del-->
 #### static func intoUtf8Array(Rune, Array\<UInt8> @local?, Int64)
 
 ```cangjie
@@ -6522,13 +8777,43 @@ public static func intoUtf8Array(c: Rune, arr: Array<UInt8> @local?, index: Int6
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
 - c: Rune - 待编码的字符。
-- arr: Array<UInt8> @local? - 目标数组。
-- index: Int64 - 起始字节下标。
+- arr: Array\<UInt8> @local? - 目标数组。
+- index: Int64 - 起始字节下标，须满足 `0 <= index <= arr.size`，且数组从该下标起的剩余容量须足以容纳字符的 UTF-8 编码。
+
+返回值：
+
+- [Int64](core_package_intrinsics.md#int64) - 字符的字节码长度，例如中文是三个字节码长度。
+
+异常：
+
+- [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - 当 `index < 0`、`index > arr.size` 或剩余容量不足以容纳字符的 UTF-8 编码时，抛出异常；校验失败时不会写入数组。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<UInt8> @local? = [1, 2, 3, 230, 136, 145]
+    let len: Int64 = Rune.intoUtf8Array(r'爱', arr, 2)
+    println(len)
+    println(arr[2])
+}
+```
+
+运行结果：
+
+```text
+3
+231
+```
+
+<!--DelEnd-->
 
 #### static func utf8Size(Array\<UInt8>, Int64)
 
@@ -7131,6 +9416,7 @@ main() {
 Ordering.LT
 ```
 
+<!--Del-->
 #### func compare(this @local?, Rune @local?)
 
 ```cangjie
@@ -7143,7 +9429,8 @@ public func compare(this @local?, other: Rune @local?): Ordering
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -7156,6 +9443,29 @@ public func compare(this @local?, other: Rune @local?): Ordering
 异常：
 
 - [UnimplementedException](core_package_exceptions.md#class-unimplementedexception) - 当前类型未提供该 `@local?` 实现时抛出，继承自 [Comparable](core_package_interfaces.md#interface-comparablet) 接口的默认实现。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Rune @local? = r'A'
+    let b: Rune @local? = r'B'
+    try {
+        println(a.compare(b))
+    } catch (e: UnimplementedException) {
+        println("caught UnimplementedException")
+    }
+}
+```
+
+运行结果：
+
+```text
+caught UnimplementedException
+```
+
+<!--DelEnd-->
 
 ### extend Rune <: Countable\<Rune>
 
@@ -7306,6 +9616,7 @@ main() {
 哈希值: 29233
 ```
 
+<!--Del-->
 #### func hashCode(this @local?)
 
 ```cangjie
@@ -7316,11 +9627,68 @@ public func hashCode(this @local?): Int64
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 返回值：
 
 - [Int64](core_package_intrinsics.md#int64) - 哈希值。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Rune @local? = r'A'
+    let b: Rune @local? = r'A'
+    println(a.hashCode() == b.hashCode())
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+#### func hashCode(this @local!)
+
+```cangjie
+public func hashCode(this @local!): Int64
+```
+
+功能：计算当前 `@local!` Rune 实例的哈希值。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+返回值：
+
+- [Int64](core_package_intrinsics.md#int64) - 哈希值。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Rune @local! = r'A'
+    let b: Rune @local! = r'A'
+    println(a.hashCode() == b.hashCode())
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
 
 ### extend Rune <: ToString
 
@@ -7374,6 +9742,7 @@ main() {
 转换为字符串: 爱
 ```
 
+<!--Del-->
 #### func toString(this @local?)
 
 ```cangjie
@@ -7384,11 +9753,31 @@ public exclave func toString(this @local?): String @local!
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 返回值：
 
 - [String](core_package_structs.md#struct-string) @local! - 转化后的字符串。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Rune @local? = r'A'
+    let s: String @local! = a.toString()
+    println(s)
+}
+```
+
+运行结果：
+
+```text
+A
+```
+
+<!--DelEnd-->
 
 ## UInt16
 
@@ -7517,6 +9906,7 @@ main() {
 Ordering.LT
 ```
 
+<!--Del-->
 #### func compare(this @local?, UInt16 @local?)
 
 ```cangjie
@@ -7527,7 +9917,8 @@ public func compare(this @local?, other: UInt16 @local?): Ordering
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -7537,6 +9928,26 @@ public func compare(this @local?, other: UInt16 @local?): Ordering
 
 - [Ordering](core_package_enums.md#enum-ordering) - 如果大于，返回 [Ordering](core_package_enums.md#enum-ordering).GT；如果等于，返回 [Ordering](core_package_enums.md#enum-ordering).EQ；如果小于，返回 [Ordering](core_package_enums.md#enum-ordering).LT。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: UInt16 @local? = 100
+    let b: UInt16 @local? = 200
+    println(a.compare(b))
+}
+```
+
+运行结果：
+
+```text
+Ordering.LT
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func ==(this @local!, UInt16 @local!)
 
 ```cangjie
@@ -7547,7 +9958,8 @@ public operator func ==(this @local!, other: UInt16 @local!): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -7557,6 +9969,26 @@ public operator func ==(this @local!, other: UInt16 @local!): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: UInt16 @local! = 100
+    let b: UInt16 @local! = 100
+    println(a == b)
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func ==(this @local?, UInt16 @local?)
 
 ```cangjie
@@ -7567,7 +9999,8 @@ public operator func ==(this @local?, other: UInt16 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -7577,6 +10010,26 @@ public operator func ==(this @local?, other: UInt16 @local?): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: UInt16 @local? = 100
+    let b: UInt16 @local? = 100
+    println(a == b)
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func !=(this @local!, UInt16 @local!)
 
 ```cangjie
@@ -7587,7 +10040,8 @@ public operator func !=(this @local!, other: UInt16 @local!): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -7597,6 +10051,26 @@ public operator func !=(this @local!, other: UInt16 @local!): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: UInt16 @local! = 100
+    let b: UInt16 @local! = 100
+    println(a != b)
+}
+```
+
+运行结果：
+
+```text
+false
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func !=(this @local?, UInt16 @local?)
 
 ```cangjie
@@ -7607,7 +10081,8 @@ public operator func !=(this @local?, other: UInt16 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -7617,6 +10092,26 @@ public operator func !=(this @local?, other: UInt16 @local?): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: UInt16 @local? = 100
+    let b: UInt16 @local? = 100
+    println(a != b)
+}
+```
+
+运行结果：
+
+```text
+false
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func <(this @local?, UInt16 @local?)
 
 ```cangjie
@@ -7627,7 +10122,8 @@ public operator func <(this @local?, other: UInt16 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -7637,6 +10133,26 @@ public operator func <(this @local?, other: UInt16 @local?): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果小于，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: UInt16 @local? = 100
+    let b: UInt16 @local? = 200
+    println(a < b)
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func >(this @local?, UInt16 @local?)
 
 ```cangjie
@@ -7647,7 +10163,8 @@ public operator func >(this @local?, other: UInt16 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -7657,6 +10174,26 @@ public operator func >(this @local?, other: UInt16 @local?): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果大于，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: UInt16 @local? = 100
+    let b: UInt16 @local? = 200
+    println(a > b)
+}
+```
+
+运行结果：
+
+```text
+false
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func <=(this @local?, UInt16 @local?)
 
 ```cangjie
@@ -7667,7 +10204,8 @@ public operator func <=(this @local?, other: UInt16 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -7677,6 +10215,26 @@ public operator func <=(this @local?, other: UInt16 @local?): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果小于等于，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: UInt16 @local? = 100
+    let b: UInt16 @local? = 200
+    println(a <= b)
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func >=(this @local?, UInt16 @local?)
 
 ```cangjie
@@ -7687,7 +10245,8 @@ public operator func >=(this @local?, other: UInt16 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -7696,6 +10255,25 @@ public operator func >=(this @local?, other: UInt16 @local?): Bool
 返回值：
 
 - [Bool](core_package_intrinsics.md#bool) - 如果大于等于，返回 true，否则返回 false。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: UInt16 @local? = 100
+    let b: UInt16 @local? = 200
+    println(a >= b)
+}
+```
+
+运行结果：
+
+```text
+false
+```
+
+<!--DelEnd-->
 
 ### extend UInt16 <: Countable\<UInt16>
 
@@ -7821,6 +10399,7 @@ UInt16值: 42
 哈希值: 65535
 ```
 
+<!--Del-->
 #### func hashCode(this @local?)
 
 ```cangjie
@@ -7831,11 +10410,68 @@ public func hashCode(this @local?): Int64
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 返回值：
 
 - [Int64](core_package_intrinsics.md#int64) - 哈希值。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: UInt16 @local? = 100
+    let b: UInt16 @local? = 100
+    println(a.hashCode() == b.hashCode())
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+#### func hashCode(this @local!)
+
+```cangjie
+public func hashCode(this @local!): Int64
+```
+
+功能：计算当前 `@local!` UInt16 实例的哈希值。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+返回值：
+
+- [Int64](core_package_intrinsics.md#int64) - 哈希值。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: UInt16 @local! = 100
+    let b: UInt16 @local! = 100
+    println(a.hashCode() == b.hashCode())
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
 
 ### extend UInt16 <: ToString
 
@@ -7889,6 +10525,7 @@ UInt16值: 42
 转换为字符串: 65535
 ```
 
+<!--Del-->
 #### func toString(this @local?)
 
 ```cangjie
@@ -7899,11 +10536,31 @@ public exclave func toString(this @local?): String @local!
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 返回值：
 
 - [String](core_package_structs.md#struct-string) @local! - 转化后的字符串。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: UInt16 @local? = 100
+    let s: String @local! = a.toString()
+    println(s)
+}
+```
+
+运行结果：
+
+```text
+100
+```
+
+<!--DelEnd-->
 
 ## UInt32
 
@@ -8014,6 +10671,7 @@ main() {
 Ordering.LT
 ```
 
+<!--Del-->
 #### func compare(this @local?, UInt32 @local?)
 
 ```cangjie
@@ -8024,7 +10682,8 @@ public func compare(this @local?, other: UInt32 @local?): Ordering
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -8034,6 +10693,26 @@ public func compare(this @local?, other: UInt32 @local?): Ordering
 
 - [Ordering](core_package_enums.md#enum-ordering) - 如果大于，返回 [Ordering](core_package_enums.md#enum-ordering).GT；如果等于，返回 [Ordering](core_package_enums.md#enum-ordering).EQ；如果小于，返回 [Ordering](core_package_enums.md#enum-ordering).LT。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: UInt32 @local? = 10
+    let b: UInt32 @local? = 20
+    println(a.compare(b))
+}
+```
+
+运行结果：
+
+```text
+Ordering.LT
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func ==(this @local!, UInt32 @local!)
 
 ```cangjie
@@ -8044,7 +10723,8 @@ public operator func ==(this @local!, other: UInt32 @local!): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -8054,6 +10734,26 @@ public operator func ==(this @local!, other: UInt32 @local!): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: UInt32 @local! = 10
+    let b: UInt32 @local! = 10
+    println(a == b)
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func ==(this @local?, UInt32 @local?)
 
 ```cangjie
@@ -8064,7 +10764,8 @@ public operator func ==(this @local?, other: UInt32 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -8074,6 +10775,26 @@ public operator func ==(this @local?, other: UInt32 @local?): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: UInt32 @local? = 10
+    let b: UInt32 @local? = 10
+    println(a == b)
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func !=(this @local!, UInt32 @local!)
 
 ```cangjie
@@ -8084,7 +10805,8 @@ public operator func !=(this @local!, other: UInt32 @local!): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -8094,6 +10816,26 @@ public operator func !=(this @local!, other: UInt32 @local!): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: UInt32 @local! = 10
+    let b: UInt32 @local! = 10
+    println(a != b)
+}
+```
+
+运行结果：
+
+```text
+false
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func !=(this @local?, UInt32 @local?)
 
 ```cangjie
@@ -8104,7 +10846,8 @@ public operator func !=(this @local?, other: UInt32 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -8114,6 +10857,26 @@ public operator func !=(this @local?, other: UInt32 @local?): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: UInt32 @local? = 10
+    let b: UInt32 @local? = 10
+    println(a != b)
+}
+```
+
+运行结果：
+
+```text
+false
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func <(this @local?, UInt32 @local?)
 
 ```cangjie
@@ -8124,7 +10887,8 @@ public operator func <(this @local?, other: UInt32 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -8134,6 +10898,26 @@ public operator func <(this @local?, other: UInt32 @local?): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果小于，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: UInt32 @local? = 10
+    let b: UInt32 @local? = 20
+    println(a < b)
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func >(this @local?, UInt32 @local?)
 
 ```cangjie
@@ -8144,7 +10928,8 @@ public operator func >(this @local?, other: UInt32 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -8154,6 +10939,26 @@ public operator func >(this @local?, other: UInt32 @local?): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果大于，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: UInt32 @local? = 10
+    let b: UInt32 @local? = 20
+    println(a > b)
+}
+```
+
+运行结果：
+
+```text
+false
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func <=(this @local?, UInt32 @local?)
 
 ```cangjie
@@ -8164,7 +10969,8 @@ public operator func <=(this @local?, other: UInt32 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -8174,6 +10980,26 @@ public operator func <=(this @local?, other: UInt32 @local?): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果小于等于，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: UInt32 @local? = 10
+    let b: UInt32 @local? = 20
+    println(a <= b)
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func >=(this @local?, UInt32 @local?)
 
 ```cangjie
@@ -8184,7 +11010,8 @@ public operator func >=(this @local?, other: UInt32 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -8193,6 +11020,25 @@ public operator func >=(this @local?, other: UInt32 @local?): Bool
 返回值：
 
 - [Bool](core_package_intrinsics.md#bool) - 如果大于等于，返回 true，否则返回 false。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: UInt32 @local? = 10
+    let b: UInt32 @local? = 20
+    println(a >= b)
+}
+```
+
+运行结果：
+
+```text
+false
+```
+
+<!--DelEnd-->
 
 ### extend UInt32 <: Countable\<UInt32>
 
@@ -8307,6 +11153,7 @@ main() {
 42
 ```
 
+<!--Del-->
 #### func hashCode(this @local?)
 
 ```cangjie
@@ -8317,11 +11164,68 @@ public func hashCode(this @local?): Int64
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 返回值：
 
 - [Int64](core_package_intrinsics.md#int64) - 哈希值。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: UInt32 @local? = 10
+    let b: UInt32 @local? = 10
+    println(a.hashCode() == b.hashCode())
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+#### func hashCode(this @local!)
+
+```cangjie
+public func hashCode(this @local!): Int64
+```
+
+功能：计算当前 `@local!` UInt32 实例的哈希值。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+返回值：
+
+- [Int64](core_package_intrinsics.md#int64) - 哈希值。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: UInt32 @local! = 10
+    let b: UInt32 @local! = 10
+    println(a.hashCode() == b.hashCode())
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
 
 ### extend UInt32 <: ToString
 
@@ -8364,6 +11268,7 @@ main() {
 42
 ```
 
+<!--Del-->
 #### func toString(this @local?)
 
 ```cangjie
@@ -8374,11 +11279,31 @@ public exclave func toString(this @local?): String @local!
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 返回值：
 
 - [String](core_package_structs.md#struct-string) @local! - 转化后的字符串。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: UInt32 @local? = 10
+    let s: String @local! = a.toString()
+    println(s)
+}
+```
+
+运行结果：
+
+```text
+10
+```
+
+<!--DelEnd-->
 
 ## UInt64
 
@@ -8489,6 +11414,7 @@ main() {
 Ordering.LT
 ```
 
+<!--Del-->
 #### func compare(this @local?, UInt64 @local?)
 
 ```cangjie
@@ -8499,7 +11425,8 @@ public func compare(this @local?, other: UInt64 @local?): Ordering
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -8509,6 +11436,26 @@ public func compare(this @local?, other: UInt64 @local?): Ordering
 
 - [Ordering](core_package_enums.md#enum-ordering) - 如果大于，返回 [Ordering](core_package_enums.md#enum-ordering).GT；如果等于，返回 [Ordering](core_package_enums.md#enum-ordering).EQ；如果小于，返回 [Ordering](core_package_enums.md#enum-ordering).LT。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: UInt64 @local? = 10
+    let b: UInt64 @local? = 20
+    println(a.compare(b))
+}
+```
+
+运行结果：
+
+```text
+Ordering.LT
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func ==(this @local!, UInt64 @local!)
 
 ```cangjie
@@ -8519,7 +11466,8 @@ public operator func ==(this @local!, other: UInt64 @local!): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -8529,6 +11477,26 @@ public operator func ==(this @local!, other: UInt64 @local!): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: UInt64 @local! = 10
+    let b: UInt64 @local! = 10
+    println(a == b)
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func ==(this @local?, UInt64 @local?)
 
 ```cangjie
@@ -8539,7 +11507,8 @@ public operator func ==(this @local?, other: UInt64 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -8549,6 +11518,26 @@ public operator func ==(this @local?, other: UInt64 @local?): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: UInt64 @local? = 10
+    let b: UInt64 @local? = 10
+    println(a == b)
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func !=(this @local!, UInt64 @local!)
 
 ```cangjie
@@ -8559,7 +11548,8 @@ public operator func !=(this @local!, other: UInt64 @local!): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -8569,6 +11559,26 @@ public operator func !=(this @local!, other: UInt64 @local!): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: UInt64 @local! = 10
+    let b: UInt64 @local! = 10
+    println(a != b)
+}
+```
+
+运行结果：
+
+```text
+false
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func !=(this @local?, UInt64 @local?)
 
 ```cangjie
@@ -8579,7 +11589,8 @@ public operator func !=(this @local?, other: UInt64 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -8589,6 +11600,26 @@ public operator func !=(this @local?, other: UInt64 @local?): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: UInt64 @local? = 10
+    let b: UInt64 @local? = 10
+    println(a != b)
+}
+```
+
+运行结果：
+
+```text
+false
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func <(this @local?, UInt64 @local?)
 
 ```cangjie
@@ -8599,7 +11630,8 @@ public operator func <(this @local?, other: UInt64 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -8609,6 +11641,26 @@ public operator func <(this @local?, other: UInt64 @local?): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果小于，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: UInt64 @local? = 10
+    let b: UInt64 @local? = 20
+    println(a < b)
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func >(this @local?, UInt64 @local?)
 
 ```cangjie
@@ -8619,7 +11671,8 @@ public operator func >(this @local?, other: UInt64 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -8629,6 +11682,26 @@ public operator func >(this @local?, other: UInt64 @local?): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果大于，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: UInt64 @local? = 10
+    let b: UInt64 @local? = 20
+    println(a > b)
+}
+```
+
+运行结果：
+
+```text
+false
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func <=(this @local?, UInt64 @local?)
 
 ```cangjie
@@ -8639,7 +11712,8 @@ public operator func <=(this @local?, other: UInt64 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -8649,6 +11723,26 @@ public operator func <=(this @local?, other: UInt64 @local?): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果小于等于，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: UInt64 @local? = 10
+    let b: UInt64 @local? = 20
+    println(a <= b)
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func >=(this @local?, UInt64 @local?)
 
 ```cangjie
@@ -8659,7 +11753,8 @@ public operator func >=(this @local?, other: UInt64 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -8668,6 +11763,25 @@ public operator func >=(this @local?, other: UInt64 @local?): Bool
 返回值：
 
 - [Bool](core_package_intrinsics.md#bool) - 如果大于等于，返回 true，否则返回 false。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: UInt64 @local? = 10
+    let b: UInt64 @local? = 20
+    println(a >= b)
+}
+```
+
+运行结果：
+
+```text
+false
+```
+
+<!--DelEnd-->
 
 ### extend UInt64 <: Countable\<UInt64>
 
@@ -8782,6 +11896,7 @@ main() {
 42
 ```
 
+<!--Del-->
 #### func hashCode(this @local?)
 
 ```cangjie
@@ -8792,11 +11907,68 @@ public func hashCode(this @local?): Int64
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 返回值：
 
 - [Int64](core_package_intrinsics.md#int64) - 哈希值。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: UInt64 @local? = 10
+    let b: UInt64 @local? = 10
+    println(a.hashCode() == b.hashCode())
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+#### func hashCode(this @local!)
+
+```cangjie
+public func hashCode(this @local!): Int64
+```
+
+功能：计算当前 `@local!` UInt64 实例的哈希值。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+返回值：
+
+- [Int64](core_package_intrinsics.md#int64) - 哈希值。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: UInt64 @local! = 10
+    let b: UInt64 @local! = 10
+    println(a.hashCode() == b.hashCode())
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
 
 ### extend UInt64 <: ToString
 
@@ -8839,6 +12011,7 @@ main() {
 42
 ```
 
+<!--Del-->
 #### func toString(this @local?)
 
 ```cangjie
@@ -8849,11 +12022,31 @@ public exclave func toString(this @local?): String @local!
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 返回值：
 
 - [String](core_package_structs.md#struct-string) @local! - 转化后的字符串。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: UInt64 @local? = 10
+    let s: String @local! = a.toString()
+    println(s)
+}
+```
+
+运行结果：
+
+```text
+10
+```
+
+<!--DelEnd-->
 
 ## UInt8
 
@@ -8964,6 +12157,7 @@ main() {
 Ordering.LT
 ```
 
+<!--Del-->
 #### func compare(this @local?, UInt8 @local?)
 
 ```cangjie
@@ -8974,7 +12168,8 @@ public func compare(this @local?, other: UInt8 @local?): Ordering
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -8984,6 +12179,26 @@ public func compare(this @local?, other: UInt8 @local?): Ordering
 
 - [Ordering](core_package_enums.md#enum-ordering) - 如果大于，返回 [Ordering](core_package_enums.md#enum-ordering).GT；如果等于，返回 [Ordering](core_package_enums.md#enum-ordering).EQ；如果小于，返回 [Ordering](core_package_enums.md#enum-ordering).LT。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: UInt8 @local? = 3
+    let b: UInt8 @local? = 5
+    println(a.compare(b))
+}
+```
+
+运行结果：
+
+```text
+Ordering.LT
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func ==(this @local!, UInt8 @local!)
 
 ```cangjie
@@ -8994,7 +12209,8 @@ public operator func ==(this @local!, other: UInt8 @local!): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -9004,6 +12220,26 @@ public operator func ==(this @local!, other: UInt8 @local!): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: UInt8 @local! = 3
+    let b: UInt8 @local! = 3
+    println(a == b)
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func ==(this @local?, UInt8 @local?)
 
 ```cangjie
@@ -9014,7 +12250,8 @@ public operator func ==(this @local?, other: UInt8 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -9024,6 +12261,26 @@ public operator func ==(this @local?, other: UInt8 @local?): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: UInt8 @local? = 3
+    let b: UInt8 @local? = 3
+    println(a == b)
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func !=(this @local!, UInt8 @local!)
 
 ```cangjie
@@ -9034,7 +12291,8 @@ public operator func !=(this @local!, other: UInt8 @local!): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -9044,6 +12302,26 @@ public operator func !=(this @local!, other: UInt8 @local!): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: UInt8 @local! = 3
+    let b: UInt8 @local! = 3
+    println(a != b)
+}
+```
+
+运行结果：
+
+```text
+false
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func !=(this @local?, UInt8 @local?)
 
 ```cangjie
@@ -9054,7 +12332,8 @@ public operator func !=(this @local?, other: UInt8 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -9064,6 +12343,26 @@ public operator func !=(this @local?, other: UInt8 @local?): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: UInt8 @local? = 3
+    let b: UInt8 @local? = 3
+    println(a != b)
+}
+```
+
+运行结果：
+
+```text
+false
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func <(this @local?, UInt8 @local?)
 
 ```cangjie
@@ -9074,7 +12373,8 @@ public operator func <(this @local?, other: UInt8 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -9084,6 +12384,26 @@ public operator func <(this @local?, other: UInt8 @local?): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果小于，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: UInt8 @local? = 3
+    let b: UInt8 @local? = 5
+    println(a < b)
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func >(this @local?, UInt8 @local?)
 
 ```cangjie
@@ -9094,7 +12414,8 @@ public operator func >(this @local?, other: UInt8 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -9104,6 +12425,26 @@ public operator func >(this @local?, other: UInt8 @local?): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果大于，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: UInt8 @local? = 3
+    let b: UInt8 @local? = 5
+    println(a > b)
+}
+```
+
+运行结果：
+
+```text
+false
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func <=(this @local?, UInt8 @local?)
 
 ```cangjie
@@ -9114,7 +12455,8 @@ public operator func <=(this @local?, other: UInt8 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -9124,6 +12466,26 @@ public operator func <=(this @local?, other: UInt8 @local?): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果小于等于，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: UInt8 @local? = 3
+    let b: UInt8 @local? = 5
+    println(a <= b)
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func >=(this @local?, UInt8 @local?)
 
 ```cangjie
@@ -9134,7 +12496,8 @@ public operator func >=(this @local?, other: UInt8 @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -9143,6 +12506,25 @@ public operator func >=(this @local?, other: UInt8 @local?): Bool
 返回值：
 
 - [Bool](core_package_intrinsics.md#bool) - 如果大于等于，返回 true，否则返回 false。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: UInt8 @local? = 3
+    let b: UInt8 @local? = 5
+    println(a >= b)
+}
+```
+
+运行结果：
+
+```text
+false
+```
+
+<!--DelEnd-->
 
 ### extend UInt8 <: Countable\<UInt8>
 
@@ -9257,6 +12639,7 @@ main() {
 42
 ```
 
+<!--Del-->
 #### func hashCode(this @local?)
 
 ```cangjie
@@ -9267,11 +12650,68 @@ public func hashCode(this @local?): Int64
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 返回值：
 
 - [Int64](core_package_intrinsics.md#int64) - 哈希值。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: UInt8 @local? = 3
+    let b: UInt8 @local? = 3
+    println(a.hashCode() == b.hashCode())
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+#### func hashCode(this @local!)
+
+```cangjie
+public func hashCode(this @local!): Int64
+```
+
+功能：计算当前 `@local!` UInt8 实例的哈希值。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+返回值：
+
+- [Int64](core_package_intrinsics.md#int64) - 哈希值。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: UInt8 @local! = 3
+    let b: UInt8 @local! = 3
+    println(a.hashCode() == b.hashCode())
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
 
 ### extend UInt8 <: ToString
 
@@ -9314,6 +12754,7 @@ main() {
 42
 ```
 
+<!--Del-->
 #### func toString(this @local?)
 
 ```cangjie
@@ -9324,11 +12765,31 @@ public exclave func toString(this @local?): String @local!
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 返回值：
 
 - [String](core_package_structs.md#struct-string) @local! - 转化后的字符串。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: UInt8 @local? = 3
+    let s: String @local! = a.toString()
+    println(s)
+}
+```
+
+运行结果：
+
+```text
+3
+```
+
+<!--DelEnd-->
 
 ## UIntNative
 
@@ -9439,6 +12900,7 @@ main() {
 Ordering.LT
 ```
 
+<!--Del-->
 #### func compare(this @local?, UIntNative @local?)
 
 ```cangjie
@@ -9449,7 +12911,8 @@ public func compare(this @local?, other: UIntNative @local?): Ordering
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -9459,6 +12922,26 @@ public func compare(this @local?, other: UIntNative @local?): Ordering
 
 - [Ordering](core_package_enums.md#enum-ordering) - 如果大于，返回 [Ordering](core_package_enums.md#enum-ordering).GT；如果等于，返回 [Ordering](core_package_enums.md#enum-ordering).EQ；如果小于，返回 [Ordering](core_package_enums.md#enum-ordering).LT。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: UIntNative @local? = 10
+    let b: UIntNative @local? = 20
+    println(a.compare(b))
+}
+```
+
+运行结果：
+
+```text
+Ordering.LT
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func ==(this @local!, UIntNative @local!)
 
 ```cangjie
@@ -9469,7 +12952,8 @@ public operator func ==(this @local!, other: UIntNative @local!): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -9479,6 +12963,26 @@ public operator func ==(this @local!, other: UIntNative @local!): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: UIntNative @local! = 10
+    let b: UIntNative @local! = 10
+    println(a == b)
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func ==(this @local?, UIntNative @local?)
 
 ```cangjie
@@ -9489,7 +12993,8 @@ public operator func ==(this @local?, other: UIntNative @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -9499,6 +13004,26 @@ public operator func ==(this @local?, other: UIntNative @local?): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: UIntNative @local? = 10
+    let b: UIntNative @local? = 10
+    println(a == b)
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func !=(this @local!, UIntNative @local!)
 
 ```cangjie
@@ -9509,7 +13034,8 @@ public operator func !=(this @local!, other: UIntNative @local!): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -9519,6 +13045,26 @@ public operator func !=(this @local!, other: UIntNative @local!): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: UIntNative @local! = 10
+    let b: UIntNative @local! = 10
+    println(a != b)
+}
+```
+
+运行结果：
+
+```text
+false
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func !=(this @local?, UIntNative @local?)
 
 ```cangjie
@@ -9529,7 +13075,8 @@ public operator func !=(this @local?, other: UIntNative @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -9539,6 +13086,26 @@ public operator func !=(this @local?, other: UIntNative @local?): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: UIntNative @local? = 10
+    let b: UIntNative @local? = 10
+    println(a != b)
+}
+```
+
+运行结果：
+
+```text
+false
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func <(this @local?, UIntNative @local?)
 
 ```cangjie
@@ -9549,7 +13116,8 @@ public operator func <(this @local?, other: UIntNative @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -9559,6 +13127,26 @@ public operator func <(this @local?, other: UIntNative @local?): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果小于，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: UIntNative @local? = 10
+    let b: UIntNative @local? = 20
+    println(a < b)
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func >(this @local?, UIntNative @local?)
 
 ```cangjie
@@ -9569,7 +13157,8 @@ public operator func >(this @local?, other: UIntNative @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -9579,6 +13168,26 @@ public operator func >(this @local?, other: UIntNative @local?): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果大于，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: UIntNative @local? = 10
+    let b: UIntNative @local? = 20
+    println(a > b)
+}
+```
+
+运行结果：
+
+```text
+false
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func <=(this @local?, UIntNative @local?)
 
 ```cangjie
@@ -9589,7 +13198,8 @@ public operator func <=(this @local?, other: UIntNative @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -9599,6 +13209,26 @@ public operator func <=(this @local?, other: UIntNative @local?): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果小于等于，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: UIntNative @local? = 10
+    let b: UIntNative @local? = 20
+    println(a <= b)
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
 #### operator func >=(this @local?, UIntNative @local?)
 
 ```cangjie
@@ -9609,7 +13239,8 @@ public operator func >=(this @local?, other: UIntNative @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -9618,6 +13249,25 @@ public operator func >=(this @local?, other: UIntNative @local?): Bool
 返回值：
 
 - [Bool](core_package_intrinsics.md#bool) - 如果大于等于，返回 true，否则返回 false。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: UIntNative @local? = 10
+    let b: UIntNative @local? = 20
+    println(a >= b)
+}
+```
+
+运行结果：
+
+```text
+false
+```
+
+<!--DelEnd-->
 
 ### extend UIntNative <: Countable
 
@@ -9732,6 +13382,80 @@ main() {
 42
 ```
 
+<!--Del-->
+#### func hashCode(this @local?)
+
+```cangjie
+public func hashCode(this @local?): Int64
+```
+
+功能：计算当前 `@local?` UIntNative 实例的哈希值。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+返回值：
+
+- [Int64](core_package_intrinsics.md#int64) - 哈希值。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: UIntNative @local? = 10
+    let b: UIntNative @local? = 10
+    println(a.hashCode() == b.hashCode())
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+#### func hashCode(this @local!)
+
+```cangjie
+public func hashCode(this @local!): Int64
+```
+
+功能：计算当前 `@local!` UIntNative 实例的哈希值。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+返回值：
+
+- [Int64](core_package_intrinsics.md#int64) - 哈希值。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: UIntNative @local! = 10
+    let b: UIntNative @local! = 10
+    println(a.hashCode() == b.hashCode())
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
+<!--DelEnd-->
+
 ### extend UIntNative <: ToString
 
 ```cangjie
@@ -9773,6 +13497,7 @@ main() {
 The string representation is: 12345
 ```
 
+<!--Del-->
 #### func toString(this @local?)
 
 ```cangjie
@@ -9783,11 +13508,31 @@ public exclave func toString(this @local?): String @local!
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 返回值：
 
 - [String](core_package_structs.md#struct-string) @local! - 转化后的字符串。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: UIntNative @local? = 10
+    let s: String @local! = a.toString()
+    println(s)
+}
+```
+
+运行结果：
+
+```text
+10
+```
+
+<!--DelEnd-->
 
 ## Unit
 
@@ -9850,6 +13595,7 @@ main() {
 0
 ```
 
+<!--Del-->
 #### func hashCode(this @local?)
 
 ```cangjie
@@ -9860,11 +13606,66 @@ public func hashCode(this @local?): Int64
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 返回值：
 
 - [Int64](core_package_intrinsics.md#int64) - 哈希值。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Unit @local? = ()
+    println(a.hashCode())
+}
+```
+
+运行结果：
+
+```text
+0
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+#### func hashCode(this @local!)
+
+```cangjie
+public func hashCode(this @local!): Int64
+```
+
+功能：计算当前 `@local!` Unit 实例的哈希值。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+返回值：
+
+- [Int64](core_package_intrinsics.md#int64) - 哈希值。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Unit @local! = ()
+    println(a.hashCode())
+}
+```
+
+运行结果：
+
+```text
+0
+```
+
+<!--DelEnd-->
 
 ### extend Unit <: ToString
 
@@ -9909,6 +13710,7 @@ main() {
 The string representation is: ()
 ```
 
+<!--Del-->
 #### func toString(this @local?)
 
 ```cangjie
@@ -9919,8 +13721,28 @@ public exclave func toString(this @local?): String @local!
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 返回值：
 
 - [String](core_package_structs.md#struct-string) @local! - 转化后的字符串。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let a: Unit @local? = ()
+    let s: String @local! = a.toString()
+    println(s)
+}
+```
+
+运行结果：
+
+```text
+()
+```
+
+<!--DelEnd-->

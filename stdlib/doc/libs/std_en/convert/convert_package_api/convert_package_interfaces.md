@@ -1135,6 +1135,54 @@ Execution Result:
 After the conversion of parse, "3.141592653589793" became 3.141593
 ```
 
+<!--Del-->
+#### static func parse(String @local?)
+
+```cangjie
+public static func parse(data: String @local?): Float64
+```
+
+Function: Converts a string of [Float64](../../core/core_package_api/core_package_intrinsics.md#float64) literals to a [Float64](../../core/core_package_api/core_package_intrinsics.md#float64) value; `@local!` and `@local?` string arguments are supported.
+
+> **Note:**
+>
+> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+>
+> Platform not supported: OpenHarmony.
+
+Parameters:
+
+- data: [String](../../core/core_package_api/core_package_structs.md#struct-string) @local? - The string to be converted; `@local!` and `@local?` arguments are supported.
+
+Returns:
+
+- [Float64](../../core/core_package_api/core_package_intrinsics.md#float64) - Returns the converted [Float64](../../core/core_package_api/core_package_intrinsics.md#float64) value.
+
+Exceptions:
+
+- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown if the string does not comply with the floating point number syntax.
+
+Example:
+
+<!-- verify -->
+```cangjie
+import std.convert.*
+
+main() {
+    let data: String @local? = "3.14159"
+    let res = Float64.parse(data)
+
+    println("After the conversion of parse, \"3.14159\" became ${res}")
+}
+```
+
+Execution Result:
+
+```text
+After the conversion of parse, "3.14159" became 3.141590
+```
+
+<!--DelEnd-->
 #### static func tryParse(String)
 
 ```cangjie
@@ -2413,6 +2461,8 @@ Execution result:
 
 ```text
 After the conversion of toString, 71 in base-36 became "1z"
+```
+
 ### extend Int64 <: RadixConvertible\<Int64>
 
 ```cangjie
@@ -2465,6 +2515,54 @@ Execution Result:
 After the conversion of parse, "7fffffffffffffff" in hexadecimal became 9223372036854775807
 ```
 
+<!--Del-->
+#### static func parse(String @local?)
+
+```cangjie
+public static func parse(data: String @local?): Int64
+```
+
+Function: Converts a string of [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) literals to an [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) value; `@local!` and `@local?` string arguments are supported.
+
+> **Note:**
+>
+> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+>
+> Platform not supported: OpenHarmony.
+
+Parameters:
+
+- data: [String](../../core/core_package_api/core_package_structs.md#struct-string) @local? - The string to be converted; `@local!` and `@local?` arguments are supported.
+
+Returns:
+
+- [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - Returns the converted [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) value.
+
+Exceptions:
+
+- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown if the string is empty, if the string starts with `+`, if the conversion fails, if the value after conversion is out of the [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) range, or if there is an invalid UTF-8 code in the string.
+
+Example:
+
+<!-- verify -->
+```cangjie
+import std.convert.*
+
+main() {
+    let data: String @local? = "-9223372036854775808"
+    let res = Int64.parse(data)
+
+    println("After the conversion of parse, \"-9223372036854775808\" became ${res}")
+}
+```
+
+Execution Result:
+
+```text
+After the conversion of parse, "-9223372036854775808" became -9223372036854775808
+```
+
+<!--DelEnd-->
 #### static func tryParse(String, Int64)
 
 ```cangjie
@@ -2973,6 +3071,54 @@ Execution Result:
 After the conversion of parse, "ffffffffffffffff" in hexadecimal became 18446744073709551615
 ```
 
+<!--Del-->
+#### static func parse(String @local?)
+
+```cangjie
+public static func parse(data: String @local?): UInt64
+```
+
+Function: Converts a string of [UInt64](../../core/core_package_api/core_package_intrinsics.md#uint64) literals to a [UInt64](../../core/core_package_api/core_package_intrinsics.md#uint64) value; `@local!` and `@local?` string arguments are supported.
+
+> **Note:**
+>
+> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+>
+> Platform not supported: OpenHarmony.
+
+Parameters:
+
+- data: [String](../../core/core_package_api/core_package_structs.md#struct-string) @local? - The string to be converted; `@local!` and `@local?` arguments are supported.
+
+Returns:
+
+- [UInt64](../../core/core_package_api/core_package_intrinsics.md#uint64) - Returns the converted [UInt64](../../core/core_package_api/core_package_intrinsics.md#uint64) value.
+
+Exceptions:
+
+- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown if the string is empty, if the string starts with `+` or `-`, if the conversion fails, if the value after conversion is out of the [UInt64](../../core/core_package_api/core_package_intrinsics.md#uint64) range, or if there is an invalid UTF-8 code in the string.
+
+Example:
+
+<!-- verify -->
+```cangjie
+import std.convert.*
+
+main() {
+    let data: String @local? = "18446744073709551615"
+    let res = UInt64.parse(data)
+
+    println("After the conversion of parse, \"18446744073709551615\" became ${res}")
+}
+```
+
+Execution Result:
+
+```text
+After the conversion of parse, "18446744073709551615" became 18446744073709551615
+```
+
+<!--DelEnd-->
 #### static func tryParse(String, Int64)
 
 ```cangjie

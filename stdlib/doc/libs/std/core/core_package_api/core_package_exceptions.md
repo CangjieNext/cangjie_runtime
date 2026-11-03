@@ -960,6 +960,50 @@ main() {
 }
 ```
 
+<!--Del-->
+## class LocalRegionOutOfMemoryError
+
+```cangjie
+public class LocalRegionOutOfMemoryError <: Error {}
+```
+
+功能：表示 local region 内存分配失败的错误。当运行时在 local region 中为对象分配内存失败时，抛出该错误。
+
+局部对象不占用仓颉堆，其内存使用量不计入 `getAllocatedHeapSize` 的统计结果。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+>
+> 不支持平台：OpenHarmony。
+
+父类型：
+
+- [Error](#class-error)
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    try {
+        // 在 local region 中分配小容量数组，正常情况下分配成功
+        let arr: Array<Int64> @local! = [1, 2, 3]
+        println("allocated: ${arr.size}")
+    } catch (e: LocalRegionOutOfMemoryError) {
+        // local region 内存分配失败时抛出该错误
+        println("local region out of memory")
+    }
+}
+```
+
+运行结果：
+
+```text
+allocated: 3
+```
+
+<!--DelEnd-->
 ## class NegativeArraySizeException
 
 ```cangjie
@@ -1283,6 +1327,7 @@ main() {
 }
 ```
 
+<!--Del-->
 ## class UnimplementedException
 
 ```cangjie
@@ -1299,6 +1344,8 @@ public class UnimplementedException <: Exception {
 > **注意：**
 >
 > 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+>
+> 不支持平台：OpenHarmony。
 
 父类型：
 
@@ -1314,12 +1361,19 @@ public init()
 
 示例：
 
-<!-- run -->
+<!-- verify -->
 ```cangjie
 main() {
     // 使用默认构造函数创建UnimplementedException实例
     let exception = UnimplementedException()
+    println("created: ${exception.message}")
 }
+```
+
+运行结果：
+
+```text
+created: UnimplementedException
 ```
 
 ### init(String)
@@ -1387,6 +1441,7 @@ main() {
 UnimplementedException: test message
 ```
 
+<!--DelEnd-->
 ## class UnsupportedException
 
 ```cangjie

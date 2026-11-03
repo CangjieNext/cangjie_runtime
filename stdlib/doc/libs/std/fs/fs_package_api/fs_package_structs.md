@@ -3,7 +3,7 @@
 ## struct FileDescriptor
 
 ```cangjie
-public struct FileDescriptor {}
+public struct FileDescriptor <: Copyable {}
 ```
 
 功能：用于获取文件句柄信息。
@@ -53,6 +53,61 @@ main(): Unit {
 File fileHandle: 3
 ```
 
+父类型：
+
+- [Copyable](../../core/core_package_api/core_package_interfaces.md#interface-copyable)
+
+<!--Del-->
+### prop fileHandle @local?
+
+```cangjie
+public prop fileHandle: IntNative @local?
+```
+
+功能：获取文件句柄信息。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+>
+> 不支持平台：OpenHarmony。
+
+类型：[IntNative](../../core/core_package_api/core_package_intrinsics.md#intnative)
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.fs.*
+
+main(): Unit {
+    // 创建前先删除，以防创建失败
+    removeIfExists("./test_local_fd_file.txt", recursive: true)
+
+    // 创建一个文件
+    let file = File.create("./test_local_fd_file.txt")
+
+    // 获取文件描述符，并显式绑定 `@local?` 视图
+    let fd: FileDescriptor @local? = file.fileDescriptor
+
+    // 句柄数值与平台相关，这里仅验证重复读取结果一致
+    let first = fd.fileHandle
+    let second = fd.fileHandle
+    println("Same handle on repeated reads: ${first == second}")
+
+    // 关闭并删除文件
+    file.close()
+    removeIfExists("./test_local_fd_file.txt", recursive: true)
+}
+```
+
+运行结果：
+
+```text
+Same handle on repeated reads: true
+```
+
+<!--DelEnd-->
 ## struct FileInfo
 
 ```cangjie
@@ -254,6 +309,56 @@ main(): Unit {
 File name: test_info_file.txt
 ```
 
+<!--Del-->
+### prop name @local?
+
+```cangjie
+public prop name: String @local?
+```
+
+功能：获取当前实例对应的文件名或目录名。
+
+该属性与 this.path.fileName 等价，路径解析规则详见 [Path](./fs_package_structs.md#struct-path) 结构体的 [fileName](./fs_package_structs.md#prop-filename) 属性。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+>
+> 不支持平台：OpenHarmony。
+
+类型：[String](../../core/core_package_api/core_package_structs.md#struct-string)
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.fs.*
+
+main(): Unit {
+    // 创建前先删除，以防创建失败
+    removeIfExists("./test_local_info_name.txt", recursive: true)
+
+    // 创建一个文件
+    let file = File.create("./test_local_info_name.txt")
+
+    // 在 local region 中构造 FileInfo 实例，接收者显式绑定为 `@local?` 后获取文件名
+    let path: String @local! = "./test_local_info_name.txt"
+    let info: FileInfo @local? = FileInfo(path) @local!
+    println("File name: ${String(info.name)}")
+
+    // 删除，如果想保留就注释下面这行代码
+    file.close()
+    removeIfExists("./test_local_info_name.txt", recursive: true)
+}
+```
+
+运行结果：
+
+```text
+File name: test_local_info_name.txt
+```
+
+<!--DelEnd-->
 ### prop parentDirectory
 
 ```cangjie
@@ -334,6 +439,55 @@ main(): Unit {
 File path: /home/user/test_info_file.txt
 ```
 
+<!--Del-->
+### prop path @local?
+
+```cangjie
+public prop path: Path @local?
+```
+
+功能：获得当前文件路径，以 [Path](fs_package_structs.md#struct-path) 形式返回。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+>
+> 不支持平台：OpenHarmony。
+
+类型：[Path](fs_package_structs.md#struct-path)
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.fs.*
+
+main(): Unit {
+    // 创建前先删除，以防创建失败
+    removeIfExists("./test_local_info_path.txt", recursive: true)
+
+    // 创建一个文件
+    let file = File.create("./test_local_info_path.txt")
+
+    // 在 local region 中构造 FileInfo 实例，接收者显式绑定为 `@local?` 后获取文件路径
+    let path: String @local! = "./test_local_info_path.txt"
+    let info: FileInfo @local? = FileInfo(path) @local!
+    let infoPath: Path @local? = info.path
+    println("File name in path: ${String(infoPath.fileName)}")
+
+    // 删除，如果想保留就注释下面这行代码
+    file.close()
+    removeIfExists("./test_local_info_path.txt", recursive: true)
+}
+```
+
+运行结果：
+
+```text
+File name in path: test_local_info_path.txt
+```
+
+<!--DelEnd-->
 ### prop size
 
 ```cangjie
@@ -385,6 +539,63 @@ main(): Unit {
 File size: 4 bytes
 ```
 
+<!--Del-->
+### prop size @local?
+
+```cangjie
+public prop size: Int64 @local?
+```
+
+功能：返回当前文件大小。
+
+> **说明：**
+>
+> - 当前是文件时，表示单个文件占用磁盘空间的大小。
+> - 当前是目录时，表示当前目录的所有文件占用磁盘空间的大小。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+>
+> 不支持平台：OpenHarmony。
+
+类型：[Int64](../../core/core_package_api/core_package_intrinsics.md#int64)
+
+异常：
+
+- [FSException](fs_package_exceptions.md#class-fsexception) - 如果判断过程中底层接口发生错误，则抛出异常。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.fs.*
+
+main(): Unit {
+    // 创建前先删除，以防创建失败
+    removeIfExists("./test_local_info_size.txt", recursive: true)
+
+    // 创建一个文件并写入 4 个字节
+    let writeData: Array<Byte> = [83, 105, 122, 101] // "Size"
+    File.writeTo("./test_local_info_size.txt", writeData)
+
+    // 在 local region 中构造 FileInfo 实例，接收者显式绑定为 `@local?` 后获取文件大小
+    let path: String @local! = "./test_local_info_size.txt"
+    let info: FileInfo @local? = FileInfo(path) @local!
+    println("File size equals written bytes: ${info.size == 4}")
+
+    // 删除，如果想保留就注释下面这行代码
+    removeIfExists("./test_local_info_size.txt", recursive: true)
+}
+```
+
+运行结果：
+
+```text
+File size equals written bytes: true
+```
+
+<!--DelEnd-->
 ### init(Path)
 
 ```cangjie
@@ -480,6 +691,118 @@ main(): Unit {
 File name: test_init_string.txt
 ```
 
+<!--Del-->
+### init(this @local!, Path)
+
+```cangjie
+public exclave init(this @local!, path: Path @local!)
+```
+
+功能：在 local region 中创建 [FileInfo](fs_package_structs.md#struct-fileinfo) 实例。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+>
+> 不支持平台：OpenHarmony。
+
+参数：
+
+- path: [Path](fs_package_structs.md#struct-path) @local! - [Path](fs_package_structs.md#struct-path) 形式的目录路径。
+
+异常：
+
+- [FSException](fs_package_exceptions.md#class-fsexception) - 当路径非法时，抛出异常。
+- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 当路径为空，或包含字符串结束符则抛出异常。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.fs.*
+
+main(): Unit {
+    // 创建前先删除，以防创建失败
+    removeIfExists("./test_local_info_init_path.txt", recursive: true)
+
+    // 创建一个文件
+    let file = File.create("./test_local_info_init_path.txt")
+
+    // 在 local region 中根据 Path 实例创建 FileInfo 实例
+    let rawPath: String @local! = "./test_local_info_init_path.txt"
+    let path: Path @local! = Path(rawPath) @local!
+    let info: FileInfo @local! = FileInfo(path) @local!
+    println("File name: ${String(info.name)}")
+
+    // 删除，如果想保留就注释下面这行代码
+    file.close()
+    removeIfExists("./test_local_info_init_path.txt", recursive: true)
+}
+```
+
+运行结果：
+
+```text
+File name: test_local_info_init_path.txt
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+### init(this @local!, String)
+
+```cangjie
+public exclave init(this @local!, path: String @local!)
+```
+
+功能：在 local region 中创建 [FileInfo](fs_package_structs.md#struct-fileinfo) 实例。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+>
+> 不支持平台：OpenHarmony。
+
+参数：
+
+- path: [String](../../core/core_package_api/core_package_structs.md#struct-string) @local! - [String](../../core/core_package_api/core_package_structs.md#struct-string) 形式的目录路径。
+
+异常：
+
+- [FSException](fs_package_exceptions.md#class-fsexception) - 当路径非法时，抛出异常。
+- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 当路径为空，或包含字符串结束符则抛出异常。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.fs.*
+
+main(): Unit {
+    // 创建前先删除，以防创建失败
+    removeIfExists("./test_local_info_init_string.txt", recursive: true)
+
+    // 创建一个文件
+    let file = File.create("./test_local_info_init_string.txt")
+
+    // 在 local region 中根据路径字符串创建 FileInfo 实例
+    let path: String @local! = "./test_local_info_init_string.txt"
+    let info: FileInfo @local! = FileInfo(path) @local!
+    println("File name: ${String(info.name)}")
+
+    // 删除，如果想保留就注释下面这行代码
+    file.close()
+    removeIfExists("./test_local_info_init_string.txt", recursive: true)
+}
+```
+
+运行结果：
+
+```text
+File name: test_local_info_init_string.txt
+```
+
+<!--DelEnd-->
 ### func canExecute()
 
 ```cangjie
@@ -1310,6 +1633,50 @@ main(): Unit {
 File name: test_file.txt
 ```
 
+<!--Del-->
+### prop fileName @local?
+
+```cangjie
+public prop fileName: String @local?
+```
+
+功能：获得 [Path](fs_package_structs.md#struct-path) 的文件名（含扩展名）部分。
+
+整个路径字符串被划分为 parent 和 fileName 两部分，详见 [parent](./fs_package_structs.md#prop-parent)。无文件名时返回空字符串。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+>
+> 不支持平台：OpenHarmony。
+
+类型：[String](../../core/core_package_api/core_package_structs.md#struct-string)
+
+异常：
+
+- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 当路径为空或包含字符串结束符则抛出异常。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.fs.*
+
+main(): Unit {
+    // 在 local region 中创建 Path 实例，接收者显式绑定为 `@local?` 后获取文件名
+    let rawPath: String @local! = "./test_local_path.txt"
+    let path: Path @local? = Path(rawPath) @local!
+    println("File name: ${String(path.fileName)}")
+}
+```
+
+运行结果：
+
+```text
+File name: test_local_path.txt
+```
+
+<!--DelEnd-->
 ### prop fileNameWithoutExtension
 
 ```cangjie
@@ -1417,6 +1784,54 @@ main(): Unit {
 Parent path: /home/user
 ```
 
+<!--Del-->
+<!-- markdownlint-disable-next-line MD026 -->
+### prop parent @local!
+
+```cangjie
+public prop parent: Path @local!
+```
+
+功能：获得该 [Path](fs_package_structs.md#struct-path) 实例的父路径，返回的 [Path](fs_package_structs.md#struct-path) 实例绑定在调用者的 local region 中。
+
+整个路径字符串被划分为 parent 和 fileName，以最后一个有效文件分隔符（末尾的分隔符会被忽略）作为分界。如果 parent 不存在，就返回空字符串构造的 Path 实例。parent 和 fileName 部分都不包含末尾分隔符，parent 保留表示根目录的分隔符。无父目录时返回空的 [Path](./fs_package_structs.md#struct-path) 实例。
+
+该属性不会访问文件系统，也不会消除特殊名称。如果有需要可以跟规范化搭配使用。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+>
+> 不支持平台：OpenHarmony。
+
+类型：[Path](fs_package_structs.md#struct-path)
+
+异常：
+
+- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 当路径为空或包含字符串结束符则抛出异常。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.fs.*
+
+main(): Unit {
+    // 在 local region 中创建 Path 实例并获取父路径
+    let rawPath: String @local! = "./dir/test_local_path.txt"
+    let path: Path @local! = Path(rawPath) @local!
+    let parent: Path @local! = path.parent
+    println("Parent path: ${String(parent.toString())}")
+}
+```
+
+运行结果：
+
+```text
+Parent path: ./dir
+```
+
+<!--DelEnd-->
 ### init(String)
 
 ```cangjie
@@ -1450,6 +1865,46 @@ main(): Unit {
 Path: /home/user/test_file.txt
 ```
 
+<!--Del-->
+### init(this @local!, String)
+
+```cangjie
+public exclave init(this @local!, rawPath: String @local!)
+```
+
+功能：在 local region 中创建 [Path](fs_package_structs.md#struct-path) 实例，创建时不检查路径字符串是否合法，支持绝对路径和相对路径；创建的实例与入参字符串均绑定在调用者的 local region 中。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+>
+> 不支持平台：OpenHarmony。
+
+参数：
+
+- rawPath: [String](../../core/core_package_api/core_package_structs.md#struct-string) @local! - 路径的字符串。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.fs.*
+
+main(): Unit {
+    // 在 local region 中根据字符串创建 Path 实例
+    let rawPath: String @local! = "./test_local_path.txt"
+    let path: Path @local! = Path(rawPath) @local!
+    println("Path: ${String(path.toString())}")
+}
+```
+
+运行结果：
+
+```text
+Path: ./test_local_path.txt
+```
+
+<!--DelEnd-->
 ### func hashCode()
 
 ```cangjie
@@ -1529,6 +1984,54 @@ Path '/home/user/test_file.txt' is absolute: true
 Path './test_file.txt' is absolute: false
 ```
 
+<!--Del-->
+### func isAbsolute(this @local?)
+
+```cangjie
+public func isAbsolute(this @local?): Bool
+```
+
+功能：判断 [Path](fs_package_structs.md#struct-path) 是否是绝对路径。在 Unix 中，以 `/` 开头的路径为绝对路径。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+>
+> 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+
+返回值：
+
+- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - true，是绝对路径；false，不是绝对路径。
+
+异常：
+
+- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 当路径为空或包含字符串结束符则抛出异常。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.fs.*
+
+main(): Unit {
+    // 在 local region 中创建相对路径实例并判断是否为绝对路径
+    let rawPath: String @local! = "./test_local_path.txt"
+    let path: Path @local? = Path(rawPath) @local!
+    println("Is absolute path: ${path.isAbsolute()}")
+}
+```
+
+运行结果：
+
+```text
+Is absolute path: false
+```
+
+<!--DelEnd-->
 ### func isEmpty()
 
 ```cangjie
@@ -1570,6 +2073,54 @@ Path '' is empty: true
 Path '/home/user/test_file.txt' is empty: false
 ```
 
+<!--Del-->
+### func isEmpty(this @local?)
+
+```cangjie
+public func isEmpty(this @local?): Bool
+```
+
+功能：判断当前实例是否为空路径。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+>
+> 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+
+返回值：
+
+- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 如果当前实例为空路径，返回 true，否则返回 false。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.fs.*
+
+main(): Unit {
+    // 在 local region 中创建空路径与非空路径实例并判断是否为空路径
+    let rawEmpty: String @local! = ""
+    let emptyPath: Path @local? = Path(rawEmpty) @local!
+    let rawNonEmpty: String @local! = "./test_local_path.txt"
+    let nonEmptyPath: Path @local? = Path(rawNonEmpty) @local!
+    println("Empty path is empty: ${emptyPath.isEmpty()}")
+    println("Non-empty path is empty: ${nonEmptyPath.isEmpty()}")
+}
+```
+
+运行结果：
+
+```text
+Empty path is empty: true
+Non-empty path is empty: false
+```
+
+<!--DelEnd-->
 ### func isRelative()
 
 ```cangjie
@@ -1726,6 +2277,122 @@ Base path: /home/user
 Joined path: /home/user/documents/file.txt
 ```
 
+<!--Del-->
+### func join(this @local!, String)
+
+```cangjie
+public func join(this @local!, path: String @local!): Path @local!
+```
+
+功能：在当前路径后拼接另一个路径字符串形成新路径；结果 [Path](fs_package_structs.md#struct-path) 实例绑定在调用者的 local region 中。
+
+- 对于路径 "a/b"，"c"，返回 "a/b/c"。
+- 对于路径 "a"，"b/c"，返回 "a/b/c"。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+>
+> 不支持平台：OpenHarmony。
+>
+> 本方法仅进行字符串拼接，不处理 ".." 等路径遍历组件。如需安全验证，请先调用 [func canonicalize](./fs_package_funcs.md#func-canonicalizestring) 并检查路径范围。
+
+参数：
+
+- this @local! - 接收者为 `@local!` 实例。
+- path: [String](../../core/core_package_api/core_package_structs.md#struct-string) @local! - 另一个路径的字符串。
+
+返回值：
+
+- [Path](fs_package_structs.md#struct-path) @local! - 新路径的 [Path](fs_package_structs.md#struct-path) 实例。
+
+异常：
+
+- [FSException](fs_package_exceptions.md#class-fsexception) - 如果参数 path 是绝对路径则抛出异常。
+- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 当前路径为空或当前路径、入参路径非法时抛出异常。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.fs.*
+
+main(): Unit {
+    // 在 local region 中拼接路径字符串
+    let basePath: String @local! = "./dir"
+    let base: Path @local! = Path(basePath) @local!
+    let part: String @local! = "test_local_path.txt"
+    let joined: Path @local! = base.join(part)
+    println("Joined path: ${String(joined.toString())}")
+}
+```
+
+运行结果：
+
+```text
+Joined path: ./dir/test_local_path.txt
+```
+
+<!--DelEnd-->
+
+<!--Del-->
+### func join(this @local!, Path)
+
+```cangjie
+public func join(this @local!, path: Path @local!): Path @local!
+```
+
+功能：在当前路径后拼接另一个路径字符串形成新路径；结果 [Path](fs_package_structs.md#struct-path) 实例绑定在调用者的 local region 中。
+
+- 对于路径 "a/b"，"c"，返回 "a/b/c"。
+- 对于路径 "a"，"b/c"，返回 "a/b/c"。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+>
+> 不支持平台：OpenHarmony。
+>
+> 本方法仅进行字符串拼接，不处理 ".." 等路径遍历组件。如需安全验证，请先调用 [func canonicalize](./fs_package_funcs.md#func-canonicalizepath) 并检查路径范围。
+
+参数：
+
+- this @local! - 接收者为 `@local!` 实例。
+- path: [Path](fs_package_structs.md#struct-path) @local! - 另一个 [Path](fs_package_structs.md#struct-path)。
+
+返回值：
+
+- [Path](fs_package_structs.md#struct-path) @local! - 新路径的 [Path](fs_package_structs.md#struct-path) 实例。
+
+异常：
+
+- [FSException](fs_package_exceptions.md#class-fsexception) - 如果参数 path 是绝对路径则抛出异常。
+- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 当前路径为空或当前路径、入参路径非法时抛出异常。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.fs.*
+
+main(): Unit {
+    // 在 local region 中拼接 Path 实例
+    let basePath: String @local! = "./dir"
+    let base: Path @local! = Path(basePath) @local!
+    let partPath: String @local! = "test_local_path.txt"
+    let part: Path @local! = Path(partPath) @local!
+    let joined: Path @local! = base.join(part)
+    println("Joined path: ${String(joined.toString())}")
+}
+```
+
+运行结果：
+
+```text
+Joined path: ./dir/test_local_path.txt
+```
+
+<!--DelEnd-->
 ### func normalize()
 
 ```cangjie
@@ -1824,6 +2491,51 @@ Path: /home/user/documents/file.txt
 Path string: /home/user/documents/file.txt
 ```
 
+<!--Del-->
+### func toString(this @local?)
+
+```cangjie
+public exclave func toString(this @local?): String @local!
+```
+
+功能：获得 [Path](fs_package_structs.md#struct-path) 的路径字符串，返回的字符串绑定在调用者的 local region 中。
+
+> **注意：**
+>
+> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+>
+> 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+
+返回值：
+
+- [String](../../core/core_package_api/core_package_structs.md#struct-string) @local! - [Path](fs_package_structs.md#struct-path) 的路径字符串。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.fs.*
+
+main(): Unit {
+    // 在 local region 中获取路径字符串
+    let rawPath: String @local! = "./test_local_path.txt"
+    let path: Path @local? = Path(rawPath) @local!
+    let pathString: String @local! = path.toString()
+    println("Path string: ${String(pathString)}")
+}
+```
+
+运行结果：
+
+```text
+Path string: ./test_local_path.txt
+```
+
+<!--DelEnd-->
 ### operator func ==(Path)
 
 ```cangjie

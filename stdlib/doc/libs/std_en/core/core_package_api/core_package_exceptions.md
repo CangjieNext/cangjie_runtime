@@ -1299,6 +1299,50 @@ Exception message: Custom exception message
 Exception class name: IndexOutOfBoundsException: Custom exception message
 ```
 
+<!--Del-->
+## class LocalRegionOutOfMemoryError
+
+```cangjie
+public class LocalRegionOutOfMemoryError <: Error {}
+```
+
+Function: Represents the error raised when memory allocation in a local region fails. This error is thrown when the runtime fails to allocate memory for an object in a local region.
+
+Local objects do not occupy the Cangjie heap, and their memory usage is not counted in the result of `getAllocatedHeapSize`.
+
+> **Note:**
+>
+> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+>
+> Platform not supported: OpenHarmony.
+
+Parent Type:
+
+- [Error](#class-error)
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    try {
+        // Allocate a small array in the local region; the allocation normally succeeds
+        let arr: Array<Int64> @local! = [1, 2, 3]
+        println("allocated: ${arr.size}")
+    } catch (e: LocalRegionOutOfMemoryError) {
+        // This error is thrown when memory allocation in the local region fails
+        println("local region out of memory")
+    }
+}
+```
+
+Execution Result:
+
+```text
+allocated: 3
+```
+
+<!--DelEnd-->
 ## class NegativeArraySizeException
 
 ```cangjie
@@ -1774,6 +1818,121 @@ Error message: Custom error message
 Exception class name: TimeoutException: Custom error message
 ```
 
+<!--Del-->
+## class UnimplementedException
+
+```cangjie
+public class UnimplementedException <: Exception {
+    public init()
+    public init(message: String)
+}
+```
+
+Function: Represents the exception thrown when the current type has not yet provided the `@local!` or `@local?` adaptation implementation required by some interfaces.
+
+When a type does not provide the corresponding local implementation, the default implementations of interfaces such as [ToString](core_package_interfaces.md#interface-tostring) and [Hashable](core_package_interfaces.md#interface-hashable) throw this exception. The local default implementations of [Iterable](core_package_interfaces.md#interface-iterablee) and [Iterator](core_package_classes.md#class-iteratort) throw [IllegalStateException](#class-illegalstateexception) instead.
+
+> **Note:**
+>
+> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+>
+> Platform not supported: OpenHarmony.
+
+Parent Type:
+
+- [Exception](#class-exception)
+
+### init()
+
+```cangjie
+public init()
+```
+
+Function: Constructs a default [UnimplementedException](core_package_exceptions.md#class-unimplementedexception) instance with the default error message "UnimplementedException".
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    // Create an UnimplementedException instance using the default constructor
+    let exception = UnimplementedException()
+    println("created: ${exception.message}")
+}
+```
+
+Execution Result:
+
+```text
+created: UnimplementedException
+```
+
+### init(String)
+
+```cangjie
+public init(message: String)
+```
+
+Function: Constructs an [UnimplementedException](core_package_exceptions.md#class-unimplementedexception) instance with the specified error message.
+
+Parameters:
+
+- message: [String](core_package_structs.md#struct-string) - The error message.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    try {
+        throw UnimplementedException("test message")
+    } catch (e: UnimplementedException) {
+        println("caught: ${e.message}")
+    }
+}
+```
+
+Execution Result:
+
+```text
+caught: test message
+```
+
+### func getClassName()
+
+```cangjie
+protected override func getClassName(): String
+```
+
+Function: Obtains the class name.
+
+This function is a `protected` member and can only be accessed inside the class or its subclasses; external code that needs to display exception information can use the public `toString` function.
+
+Returns:
+
+- [String](core_package_structs.md#struct-string) - The class name "UnimplementedException".
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    try {
+        throw UnimplementedException("test message")
+    } catch (e: UnimplementedException) {
+        // Use the public toString to obtain the exception information containing the class name
+        println(e.toString())
+    }
+}
+```
+
+Execution Result:
+
+```text
+UnimplementedException: test message
+```
+
+<!--DelEnd-->
 ## class UnsupportedException
 
 ```cangjie
