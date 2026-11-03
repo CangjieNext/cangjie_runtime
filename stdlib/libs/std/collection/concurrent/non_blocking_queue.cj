@@ -10,6 +10,7 @@ package std.collection.concurrent
 
 import std.sync.*
 import std.collection.ArrayList
+import std.time.*
 
 /**
  * ENTRY<E> Type defines the result of getting an element at the head of the block:
@@ -359,16 +360,35 @@ public class ConcurrentLinkedQueue<E> <: Collection<E> {
  */
 func newBlock<E>(tailBlock: Block<E>, tail: AtomicReference<Block<E>>): Unit {
     if (!tailBlock.isExtended.compareAndSwap(false, true)) {
+        // Lost the extension race: spin until the winner links `next`. Back off to avoid
+        // saturating the CPU during a prolonged allocation window.
         while (true) {
             if (let Some(_) <- tailBlock.next.load()) {
                 return
             }
+            // The winner may have OOM'd and reset isExtended to false. If so, take over the
+            // extension ourselves instead of spinning forever on an unwritten `next` (which
+            // would deadlock while we still hold putMonitor). A successful re-claim falls
+            // through to the allocation below.
+            if (tailBlock.isExtended.compareAndSwap(false, true)) {
+                break
+            }
+            sleep(Duration.microsecond * 100)
         }
     }
 
-    let newBlock = Block<E>(tailBlock.version + 1)
-    tailBlock.next.store(newBlock)
-    tail.store(newBlock)
+    // Won the extension race: allocate and link the new block. If allocation fails
+    // (OutOfMemoryError <: Error), reset isExtended so a later thread can retry the extension
+    // instead of every producer spinning forever on an unwritten `next` (which would deadlock
+    // the queue). The reservation counter putQsize is rolled back separately in tryAddCore.
+    try {
+        let newBlock = Block<E>(tailBlock.version + 1)
+        tailBlock.next.store(newBlock)
+        tail.store(newBlock)
+    } catch (e: Error) {
+        tailBlock.isExtended.store(false)
+        throw e
+    }
 }
 
 /**
