@@ -1,0 +1,59 @@
+stdlib/cmake/modules/AddCangjieSource.cmake
+  s_da4e28ed8cf9b9::t_473fbad1f82682 140-141,142
+  s_da4e28ed8cf9b9::t_bbd93eb0f54d08 139
+stdlib/libs/std/ast/native/ast_api.cpp
+  s_f5ac9c3b14ab24::t_9d6a153ba7e04c 43-44,47,50-57,76,106,188,240,280,301,333,372,426
+stdlib/libs/std/io/io_utils.cj
+  h_7fa24ec5a32f2d 90-136
+stdlib/libs/std/fs/common.cj
+  h_7fa24ec5a32f2d 99-103,106-117
+stdlib/libs/std/fs/utils.cj
+  h_7fa24ec5a32f2d 52,67-79,114-120,149,170-185,243-271,291-314,316,324,354,397-410,442-469,489-507,513-517,558,577
+stdlib/libs/std/convert/parsable.cj
+  h_7fa24ec5a32f2d 57,759-777,902-913,984-1004,1352-1357
+stdlib/libs/std/io/byte_buffer.cj
+  h_7fa24ec5a32f2d 40-43,60-68,143-161,197-222,289-310,339-355,368-379,381
+stdlib/libs/std/collection/hash_set.cj
+  h_7fa24ec5a32f2d 121-126,211-221,539-544
+stdlib/libs/std/fs/file.cj
+  h_7fa24ec5a32f2d 63,78,112-126,174-182,190-196,246-259,280-281,304-321,358-371,375-378,472-481,545,587,600,613,631,633
+stdlib/libs/std/convert/base.cj
+  h_7fa24ec5a32f2d 198
+stdlib/libs/std/core/libc.cj
+  h_7fa24ec5a32f2d 71-109
+stdlib/libs/std/fs/path.cj
+  h_7fa24ec5a32f2d 25-35,46-57,84-87,99-107,119-127,167-171,182,216,222,224,230-259,268-274,278-281,431-434,464-492,498,509-524,528
+stdlib/libs/std/fs/file_info.cj
+  h_7fa24ec5a32f2d 24-27,32-35,46-52,59-66,83-88,128-133,223,225,227,229,245,248,250,252,271,273,275,277
+stdlib/libs/std/io/stream.cj
+  h_7fa24ec5a32f2d 38-41,54-57,82-85,95-100,116-129,145-158
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "691036dcc89d35fc4b7e9555935261ed08fded70",
+  "prompts": {},
+  "humans": {
+    "h_7fa24ec5a32f2d": {
+      "author": "kkkkkkkbbbbbbb <songjian59@huawei.com>"
+    }
+  },
+  "sessions": {
+    "s_da4e28ed8cf9b9": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "6adf19f45d9c5b6f1f6b5f10",
+        "model": "DeepSeek-V4.1-Flash-1017__dev"
+      },
+      "human_author": "kkkkkkkbbbbbbb <songjian59@huawei.com>"
+    },
+    "s_f5ac9c3b14ab24": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "6ae2b1a15d9c5b6f1f6b867d",
+        "model": "DeepSeek-V4.1-Flash-1017__dev"
+      },
+      "human_author": "kkkkkkkbbbbbbb <songjian59@huawei.com>"
+    }
+  }
+}
