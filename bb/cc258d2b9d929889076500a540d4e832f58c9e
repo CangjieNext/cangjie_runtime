@@ -1,0 +1,37 @@
+runtime/src/TypeInfoManager.h
+  s_697df1ddf2c39c::t_5fea5c77396529 64-65,67-69
+  s_697df1ddf2c39c::t_d59fa9e83c9b1b 70
+runtime/src/TypeInfoManager.cpp
+  s_1c37dfd59f1787::t_e13fa2a431a0d0 933-935
+  s_697df1ddf2c39c::t_b6e23e81962c34 924
+  s_1c37dfd59f1787::t_adacea5c813767 9-10,154-156,923,925-932
+  s_697df1ddf2c39c::t_b70ae3492f1bdf 157
+  s_1c37dfd59f1787::t_9e21b8b4a7dec1 936-940
+  s_1c37dfd59f1787::t_a89b7591b8a3ea 941
+runtime/src/ObjectModel/MClass.cpp
+  s_697df1ddf2c39c::t_e6f6f5b7d4c7cb 176-177
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "bbcc258d2b9d929889076500a540d4e832f58c9e",
+  "prompts": {},
+  "sessions": {
+    "s_1c37dfd59f1787": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a13e55-baf7-75b3-a615-9c9e686059c8",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "leeguo <leeguo@126.com>"
+    },
+    "s_697df1ddf2c39c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb68f0011ffeskieqx59ZLE3jD",
+        "model": "unknown"
+      },
+      "human_author": "leeguo <leeguo@126.com>"
+    }
+  }
+}
