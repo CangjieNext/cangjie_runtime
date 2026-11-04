@@ -4066,6 +4066,7 @@ toArray size: 3
 ```
 
 <!--DelEnd-->
+
 <!--Del-->
 #### func toArray()
 
@@ -9605,6 +9606,7 @@ s='hi'
 ```
 
 <!--DelEnd-->
+
 <!--Del-->
 ### static func fromUtf8(Array\<UInt8>)
 
@@ -9747,6 +9749,7 @@ s='hi'
 ```
 
 <!--DelEnd-->
+
 <!--Del-->
 ### static func fromUtf8Unchecked(Array\<UInt8>)
 
@@ -10386,6 +10389,7 @@ endsWith=true
 ```
 
 <!--DelEnd-->
+
 <!--Del-->
 ### func endsWith(String)
 
@@ -10698,6 +10702,7 @@ equal hash: true
 ```
 
 <!--DelEnd-->
+
 <!--Del-->
 ### func hashCode()
 
@@ -11782,6 +11787,7 @@ line=a
 ```
 
 <!--DelEnd-->
+
 <!--Del-->
 ### func lines()
 
@@ -12143,6 +12149,7 @@ size=2 first=104
 ```
 
 <!--DelEnd-->
+
 <!--Del-->
 ### func rawData()
 
@@ -12596,6 +12603,7 @@ r=a
 ```
 
 <!--DelEnd-->
+
 <!--Del-->
 #### func runes()
 
@@ -12964,6 +12972,7 @@ startsWith=true
 ```
 
 <!--DelEnd-->
+
 <!--Del-->
 ### func startsWith(String)
 
@@ -13099,6 +13108,7 @@ n=2 b0=104
 ```
 
 <!--DelEnd-->
+
 <!--Del-->
 ### func toArray()
 

@@ -621,6 +621,7 @@ empty isEmpty: true
 ```
 
 <!--DelEnd-->
+
 <!--Del-->
 
 ### func toArray()
@@ -667,6 +668,7 @@ size=3
 ```
 
 <!--DelEnd-->
+
 <!--Del-->
 
 ### func toArray()
@@ -882,6 +884,7 @@ compare: Ordering.LT
 ```
 
 <!--DelEnd-->
+
 <!--Del-->
 
 ### func ==(T)
@@ -927,6 +930,7 @@ a == c: false
 ```
 
 <!--DelEnd-->
+
 <!--Del-->
 
 ### func <(T)
@@ -971,6 +975,7 @@ c < a: false
 ```
 
 <!--DelEnd-->
+
 <!--Del-->
 
 ### func >(T)
@@ -1015,6 +1020,7 @@ a > c: false
 ```
 
 <!--DelEnd-->
+
 <!--Del-->
 
 ### func <=(T)
@@ -1059,6 +1065,7 @@ c <= a: false
 ```
 
 <!--DelEnd-->
+
 <!--Del-->
 
 ### func >=(T)
@@ -1103,6 +1110,7 @@ a >= c: false
 ```
 
 <!--DelEnd-->
+
 <!--Del-->
 ## interface Copyable
 
@@ -1408,6 +1416,7 @@ caught: Current Type does not implement '==' method for its @local! instance
 ```
 
 <!--DelEnd-->
+
 <!--Del-->
 
 ### operator func ==(T)
@@ -1542,6 +1551,7 @@ caught: Current Type does not implement '!=' method for its @local! instance
 ```
 
 <!--DelEnd-->
+
 <!--Del-->
 
 ### operator func !=(T)
@@ -1712,6 +1722,7 @@ h=1
 ```
 
 <!--DelEnd-->
+
 <!--Del-->
 ### func hashCode()
 
@@ -2043,6 +2054,7 @@ first=1
 ```
 
 <!--DelEnd-->
+
 <!--Del-->
 
 ### func iterator()

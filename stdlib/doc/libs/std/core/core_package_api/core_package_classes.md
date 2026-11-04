@@ -1023,6 +1023,7 @@ public class MyIterator<T> <: Iterator<T> {
 ```
 
 <!--DelEnd-->
+
 <!--Del-->
 
 ### init()
@@ -1160,6 +1161,7 @@ first=1
 ```
 
 <!--DelEnd-->
+
 <!--Del-->
 
 ### func iterator()
@@ -1306,6 +1308,7 @@ caught: Current Iterator does not implement 'next' method for its @local! instan
 ```
 
 <!--DelEnd-->
+
 <!--Del-->
 
 ### func next()
@@ -2612,6 +2615,7 @@ refEq(o1, o2): false
 ```
 
 <!--DelEnd-->
+
 <!--Del-->
 
 ### init()
@@ -3858,6 +3862,7 @@ main() {
 ```
 
 <!--DelEnd-->
+
 <!--Del-->
 
 ### func append(String)

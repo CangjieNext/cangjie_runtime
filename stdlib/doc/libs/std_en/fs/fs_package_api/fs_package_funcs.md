@@ -106,6 +106,7 @@ Canonical file name: test_local_canonicalize.txt
 ```
 
 <!--DelEnd-->
+
 <!--Del-->
 ## func canonicalize(Path)
 
@@ -314,6 +315,7 @@ File exists after removal: false
 ```
 
 <!--DelEnd-->
+
 <!--Del-->
 ## func exists(String)
 

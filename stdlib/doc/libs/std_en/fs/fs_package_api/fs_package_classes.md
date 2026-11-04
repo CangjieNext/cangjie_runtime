@@ -585,6 +585,7 @@ Content: 74, 75, 76
 ```
 
 <!--DelEnd-->
+
 <!--Del-->
 ### func close()
 

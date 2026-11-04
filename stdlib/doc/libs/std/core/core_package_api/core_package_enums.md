@@ -1270,6 +1270,7 @@ EQ.compare(EQ): Ordering.EQ
 ```
 
 <!--DelEnd-->
+
 <!--Del-->
 
 #### operator func ==(Ordering)
@@ -1314,6 +1315,7 @@ lt == gt: false
 ```
 
 <!--DelEnd-->
+
 <!--Del-->
 
 #### operator func !=(Ordering)
@@ -1358,6 +1360,7 @@ lt != gt: true
 ```
 
 <!--DelEnd-->
+
 <!--Del-->
 
 #### operator func <(Ordering)
@@ -1401,6 +1404,7 @@ gt < lt: false
 ```
 
 <!--DelEnd-->
+
 <!--Del-->
 
 #### operator func >(Ordering)
@@ -1444,6 +1448,7 @@ lt > gt: false
 ```
 
 <!--DelEnd-->
+
 <!--Del-->
 
 #### operator func <=(Ordering)
@@ -1487,6 +1492,7 @@ eq <= lt: false
 ```
 
 <!--DelEnd-->
+
 <!--Del-->
 
 #### operator func >=(Ordering)
@@ -1623,6 +1629,7 @@ h=1
 ```
 
 <!--DelEnd-->
+
 <!--Del-->
 #### func hashCode()
 

@@ -1270,6 +1270,7 @@ EQ.compare(EQ): Ordering.EQ
 ```
 
 <!--DelEnd-->
+
 <!--Del-->
 #### operator func ==(Ordering)
 
