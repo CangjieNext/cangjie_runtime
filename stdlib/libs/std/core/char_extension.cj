@@ -160,7 +160,7 @@ extend Rune {
      */
     @OverflowWrapping
     public static func fromUtf8(arr: Array<UInt8>, index: Int64): (Rune, Int64) {
-        if (index >= arr.size) {
+        if (UInt64(index) >= UInt64(arr.size)) {
             throw IllegalArgumentException("Invalid UTF-8 byte sequence: index '${index}' is out of bounds, size is '${arr.size}'.")
         }
         return fromUtf8(arr.rawptr, arr.start + index, arr.start + arr.len)
@@ -168,7 +168,7 @@ extend Rune {
 
     @OverflowWrapping
     public static func fromUtf8(arr: Array<UInt8> @local?, index: Int64): (Rune, Int64) {
-        if (index < 0 || index >= arr.size) {
+        if (UInt64(index) >= UInt64(arr.size)) {
             throw IllegalArgumentException("Invalid UTF-8 byte sequence: index '${index}' is out of bounds, size is '${arr.size}'.")
         }
         return fromUtf8(arr.rawptr, arr.start + index, arr.start + arr.len)

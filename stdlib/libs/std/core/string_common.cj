@@ -224,10 +224,10 @@ func checkUtf8Of4BytesWithoutException(arr: RawArray<UInt8>, startIndex: Int64, 
 func checkInvalid(arr: RawArray<Byte>, startIndex: Int64, endIndex: Int64): Unit {
     var i = startIndex
     while (i < endIndex) {
-        var nowByte: UInt8 = arrayGetUnchecked3<UInt8>(arr, i)
+        var nowByte: UInt8 = arrayGetUnchecked<UInt8>(arr, i)
         match {
             case nowByte < HIGH_1_UInt8 => i += 1
-            case nowByte < HIGH_2_UInt8 => throw IllegalArgumentException("Invalid utf8 byte sequence.")
+            case nowByte < HIGH_2_UInt8 => throw IllegalArgumentException("Invalid UTF-8: unexpected continuation byte '${nowByte}' at index '${i}' (missing leading byte).")
             case nowByte < HIGH_3_UInt8 =>
                 checkUtf8Of2Bytes(arr, i, endIndex)
                 i += 2
@@ -237,7 +237,7 @@ func checkInvalid(arr: RawArray<Byte>, startIndex: Int64, endIndex: Int64): Unit
             case nowByte < HIGH_5_UInt8 =>
                 checkUtf8Of4Bytes(arr, i, endIndex)
                 i += 4
-            case _ => throw IllegalArgumentException("Invalid unicode scalar value.")
+            case _ => throw IllegalArgumentException("Invalid UTF-8: byte '${nowByte}' at index '${i}' is not a valid UTF-8 leading byte.")
         }
     }
 }

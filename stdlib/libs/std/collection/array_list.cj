@@ -1468,8 +1468,8 @@ public class ArrayList<T> <: List<T> {
 
         if (range.hasEnd) {
             if (range.isClosed) {
-                if (range.end > size) {
-                    throw IndexOutOfBoundsException("Closed range end '${range.end}' is greater than size '${size}'.")
+                if (range.end >= size) {
+                    throw IndexOutOfBoundsException("Closed range end '${range.end}' is greater than or equal to size '${size}'.")
                 }
                 end = range.end + 1
             } else {
