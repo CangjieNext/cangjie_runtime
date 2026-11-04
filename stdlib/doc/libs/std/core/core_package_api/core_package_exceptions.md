@@ -985,9 +985,9 @@ public class LocalRegionOutOfMemoryError <: Error {}
 <!-- verify -->
 ```cangjie
 main() {
+    // 在 local region 中分配小容量数组，正常情况下分配成功
+    let arr: Array<Int64> @local! = [1, 2, 3]
     try {
-        // 在 local region 中分配小容量数组，正常情况下分配成功
-        let arr: Array<Int64> @local! = [1, 2, 3]
         println("allocated: ${arr.size}")
     } catch (e: LocalRegionOutOfMemoryError) {
         // local region 内存分配失败时抛出该错误

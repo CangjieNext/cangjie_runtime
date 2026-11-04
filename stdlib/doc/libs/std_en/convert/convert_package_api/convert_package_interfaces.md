@@ -1169,7 +1169,7 @@ import std.convert.*
 
 main() {
     let data: String @local? = "3.14159"
-    let res = Float64.parse(data)
+    let res = Float64.parse(String(data))
 
     println("After the conversion of parse, \"3.14159\" became ${res}")
 }
@@ -1786,7 +1786,7 @@ import std.convert.*
 
 main() {
     var strUInt: String = "4294967295"
-   极客时间 var res = UInt32.parse(strUInt)
+    var res = UInt32.parse(strUInt)
     
     println("After the conversion of parse, \"4294967295\" became ${res}")
 }
@@ -2548,7 +2548,7 @@ import std.convert.*
 
 main() {
     let data: String @local? = "-9223372036854775808"
-    let res = Int64.parse(data)
+    let res = Int64.parse(String(data))
 
     println("After the conversion of parse, \"-9223372036854775808\" became ${res}")
 }
@@ -3103,7 +3103,7 @@ import std.convert.*
 
 main() {
     let data: String @local? = "18446744073709551615"
-    let res = UInt64.parse(data)
+    let res = UInt64.parse(String(data))
 
     println("After the conversion of parse, \"18446744073709551615\" became ${res}")
 }

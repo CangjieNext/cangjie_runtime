@@ -8477,7 +8477,9 @@ main() {
 Output:
 
 ```text
-Range hash code: -198835925178762
+Range hash code: -1988359251787629792
+Same range hash code: -1988359251787629792
+Same ranges have the same hash code
 ```
 
 <!--Del-->
@@ -8507,8 +8509,8 @@ Example:
 <!-- verify -->
 ```cangjie
 main() {
-    let r1: Range<Int64> @local? = Range<Int64>(1, 5, 1, true, false, false) @local?
-    let r2: Range<Int64> @local? = Range<Int64>(1, 5, 1, true, false, false) @local?
+    let r1 = Range<Int64>(1, 5, 1, true, false, false)
+    let r2 = Range<Int64>(1, 5, 1, true, false, false)
     let h1 = r1.hashCode()
     let h2 = r2.hashCode()
     println("same=${h1 == h2}")
@@ -8550,8 +8552,8 @@ Example:
 <!-- verify -->
 ```cangjie
 main() {
-    let r1: Range<Int64> @local! = Range<Int64>(1, 5, 1, true, false, false) @local!
-    let r2: Range<Int64> @local! = Range<Int64>(1, 5, 1, true, false, false) @local!
+    let r1 = Range<Int64>(1, 5, 1, true, false, false)
+    let r2 = Range<Int64>(1, 5, 1, true, false, false)
     let h1 = r1.hashCode()
     let h2 = r2.hashCode()
     println("same=${h1 == h2}")

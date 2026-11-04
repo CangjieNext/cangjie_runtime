@@ -848,6 +848,7 @@ public func unregisterSignalHandler(sig: Signal, handler: SignalHandlerFunc): Un
 ```cangjie
 import std.runtime.*
 import std.env.*
+import std.posix.*
 
 func signalHandler1(sigValue: Int32): Bool {
     println("signalHandler1 接收到信号: ${sigValue}")
@@ -893,7 +894,6 @@ main() {
 ```text
 信号处理器注册成功
 信号处理器1，注销成功，期望仅调用信号处理器2
-25973 E CJNative Handle signal: 10.
 signalHandler2 接收到信号: 10
 signalHandler2 是否停止后续？false
 end

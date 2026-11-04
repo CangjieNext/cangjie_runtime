@@ -8977,8 +8977,8 @@ public func hashCode(this @local?): Int64
 <!-- verify -->
 ```cangjie
 main() {
-    let r1: Range<Int64> @local? = Range<Int64>(1, 5, 1, true, false, false) @local?
-    let r2: Range<Int64> @local? = Range<Int64>(1, 5, 1, true, false, false) @local?
+    let r1 = Range<Int64>(1, 5, 1, true, false, false)
+    let r2 = Range<Int64>(1, 5, 1, true, false, false)
     let h1 = r1.hashCode()
     let h2 = r2.hashCode()
     println("same=${h1 == h2}")
@@ -9020,8 +9020,8 @@ public func hashCode(this @local!): Int64
 <!-- verify -->
 ```cangjie
 main() {
-    let r1: Range<Int64> @local! = Range<Int64>(1, 5, 1, true, false, false) @local!
-    let r2: Range<Int64> @local! = Range<Int64>(1, 5, 1, true, false, false) @local!
+    let r1 = Range<Int64>(1, 5, 1, true, false, false)
+    let r2 = Range<Int64>(1, 5, 1, true, false, false)
     let h1 = r1.hashCode()
     let h2 = r2.hashCode()
     println("same=${h1 == h2}")

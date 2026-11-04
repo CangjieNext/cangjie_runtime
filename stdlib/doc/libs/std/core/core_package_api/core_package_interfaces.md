@@ -1398,9 +1398,9 @@ operator func ==(this @local!, other: T @local!): Bool
 <!-- verify -->
 ```cangjie
 main() {
-    let a: Bool @local! = true
-    let b: Bool @local! = true
-    // Bool 未提供 == 的 @local! 实现，调用命中 Equal 接口默认实现
+    let a: Array<Int64> @local! = Array<Int64>(1) {i => i}
+    let b: Array<Int64> @local! = Array<Int64>(1) {i => i}
+    // Array 未提供 == 的 @local! 实现，调用命中 Equal 接口默认实现
     try {
         println("eq=${a == b}")
     } catch (e: UnimplementedException) {
@@ -1449,11 +1449,13 @@ operator func ==(this @local?, other: T @local?): Bool
 <!-- verify -->
 ```cangjie
 main() {
-    let a: Bool @local? = true
-    let b: Bool @local? = true
-    // Bool 未提供 == 的 @local? 实现，调用命中 Equal 接口默认实现
+    let a: Array<Int64> @local! = Array<Int64>(1) {i => i}
+    let b: Array<Int64> @local! = Array<Int64>(1) {i => i}
+    let x: Array<Int64> @local? = a
+    let y: Array<Int64> @local? = b
+    // Array 未提供 == 的 @local? 实现，调用命中 Equal 接口默认实现
     try {
-        println("eq=${a == b}")
+        println("eq=${x == y}")
     } catch (e: UnimplementedException) {
         println("caught: ${e.message}")
     }
@@ -1533,9 +1535,9 @@ operator func !=(this @local!, other: T @local!): Bool
 <!-- verify -->
 ```cangjie
 main() {
-    let a: Bool @local! = true
-    let b: Bool @local! = false
-    // Bool 未提供 != 的 @local! 实现，调用命中 Equatable 接口默认实现
+    let a: Array<Int64> @local! = Array<Int64>(1) {i => i}
+    let b: Array<Int64> @local! = Array<Int64>(1) {i => i}
+    // Array 未提供 != 的 @local! 实现，调用命中 Equatable 接口默认实现
     try {
         println("ne=${a != b}")
     } catch (e: UnimplementedException) {
@@ -1584,11 +1586,13 @@ operator func !=(this @local?, other: T @local?): Bool
 <!-- verify -->
 ```cangjie
 main() {
-    let a: Bool @local? = true
-    let b: Bool @local? = false
-    // 默认实现将运算委托给 ==，Bool 未提供 == 的 @local? 实现，最终命中 Equal 接口默认实现
+    let a: Array<Int64> @local! = Array<Int64>(1) {i => i}
+    let b: Array<Int64> @local! = Array<Int64>(1) {i => i}
+    let x: Array<Int64> @local? = a
+    let y: Array<Int64> @local? = b
+    // 默认实现将运算委托给 ==，Array 未提供 == 的 @local? 实现，最终命中 Equal 接口默认实现
     try {
-        println("ne=${a != b}")
+        println("ne=${x != y}")
     } catch (e: UnimplementedException) {
         println("caught: ${e.message}")
     }

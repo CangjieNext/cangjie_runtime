@@ -7710,9 +7710,9 @@ Execution results:
 
 ```text
 Int8 value: 42
-Converted to string: 42
+Converted string: 42
 Int8 value: -42
-Converted to string: -42
+Converted string: -42
 Int8 value: 0
 Converted to string: 0
 Int8 maximum value: 127

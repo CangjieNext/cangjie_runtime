@@ -1481,7 +1481,7 @@ public exclave init(this @local?, size: Int64, initElement: ((Int64) -> T @local
 import std.collection.*
 
 main() {
-    let list: ArrayList<Int64> @local? = ArrayList<Int64>(3) { index => index * 2 } @local?
+    let list: ArrayList<Int64> @local? = ArrayList<Int64>(3) { index => index * 2 }
     println("size=${list.size}")
 }
 ```
@@ -2584,6 +2584,14 @@ public exclave func filterMap<R>(this @local!, transform: ((T @local!) -> Option
 ```cangjie
 import std.collection.*
 
+exclave func keepPositive(e: Int64 @local!): Option<Int64> @local! {
+    if (e > 0) {
+        Some(e)
+    } else {
+        None
+    }
+}
+
 main() {
     let list: ArrayList<Int64> @local! = ArrayList<Int64>() @local!
     list.add(-2)
@@ -2591,13 +2599,7 @@ main() {
     list.add(0)
     list.add(1)
     list.add(2)
-    let positives: ArrayList<Int64> @local! = list.filterMap<Int64>({e =>
-        if (e > 0) {
-            exclave { Some(e) }
-        } else {
-            None<Int64>
-        }
-    })
+    let positives: ArrayList<Int64> @local! = list.filterMap<Int64>(keepPositive)
     println("size=${positives.size}")
     println("first=${positives[0]}")
     println("last=${positives[1]}")
@@ -5543,7 +5545,8 @@ main() {
     b.add(2)
     let zipped: ArrayList<(Int64, Int64)> @local! = a.zip(b)
     println("size=${zipped.size}")
-    println("first=${zipped[0]}")
+    let (x, y) = zipped[0]
+    println("first=(${x}, ${y})")
 }
 ```
 
@@ -7992,7 +7995,7 @@ public exclave init(this @local?, size: Int64, initElement: (Int64) -> (K, V) @l
 import std.collection.*
 
 exclave func makeMap(): HashMap<Int64, Int64> @local? {
-    let m: HashMap<Int64, Int64> @local? = HashMap<Int64, Int64>(2) { index => (index, index * 10) } @local?
+    let m: HashMap<Int64, Int64> @local? = HashMap<Int64, Int64>(2) { index => (index, index * 10) }
     m
 }
 
@@ -8009,7 +8012,7 @@ main() {
 运行结果：
 
 ```text
-caught IllegalArgumentException
+size=2
 ```
 
 <!--DelEnd-->
@@ -9586,7 +9589,7 @@ main() {
     map.add(1, 100)
     let it: HashMapIterator<Int64, Int64> @local! = map.iterator()
     match (it.next()) {
-        case Some(p) => println("first=${p}")
+        case Some(p) => println("first=(${p[0]}, ${p[1]})")
         case None => println("empty")
     }
 }
@@ -9639,7 +9642,7 @@ main() {
     let map: HashMap<Int64, Int64> @local? = makeMap()
     let it: HashMapIterator<Int64, Int64> @local? = map.iterator()
     match (it.next()) {
-        case Some(p) => println("first=${p}")
+        case Some(p) => println("first=(${p[0]}, ${p[1]})")
         case None => println("empty")
     }
 }
@@ -11523,7 +11526,7 @@ main() {
     map.add(1, 100)
     let it: HashMapIterator<Int64, Int64> @local! = HashMapIterator<Int64, Int64>(map) @local!
     match (it.next()) {
-        case Some(p) => println("first=${p}")
+        case Some(p) => println("first=(${p[0]}, ${p[1]})")
         case None => println("empty")
     }
 }
@@ -11573,7 +11576,7 @@ main() {
     let map: HashMap<Int64, Int64> @local? = makeMap()
     let it: HashMapIterator<Int64, Int64> @local? = HashMapIterator<Int64, Int64>(map) @local?
     match (it.next()) {
-        case Some(p) => println("first=${p}")
+        case Some(p) => println("first=(${p[0]}, ${p[1]})")
         case None => println("empty")
     }
 }
@@ -11673,11 +11676,11 @@ main() {
     map.add(1, 100)
     let it: HashMapIterator<Int64, Int64> @local! = map.iterator()
     match (it.next()) {
-        case Some(p) => println("first=${p}")
+        case Some(p) => println("first=(${p[0]}, ${p[1]})")
         case None => println("empty")
     }
     match (it.next()) {
-        case Some(p) => println("second=${p}")
+        case Some(p) => println("second=(${p[0]}, ${p[1]})")
         case None => println("end")
     }
 }
@@ -11735,11 +11738,11 @@ main() {
     let map: HashMap<Int64, Int64> @local? = makeMap()
     let it: HashMapIterator<Int64, Int64> @local? = map.iterator()
     match (it.next()) {
-        case Some(p) => println("first=${p}")
+        case Some(p) => println("first=(${p[0]}, ${p[1]})")
         case None => println("empty")
     }
     match (it.next()) {
-        case Some(p) => println("second=${p}")
+        case Some(p) => println("second=(${p[0]}, ${p[1]})")
         case None => println("end")
     }
 }

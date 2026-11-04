@@ -102,7 +102,7 @@ main(): Unit {
 
     // 验证结果
     println("Original path: ${testPath}")
-    println("Canonical path: ${canonicalPath}")
+    println("Canonical paths match: ${canonicalPath.toString() == canonicalize("./test_canonicalize_string.txt").toString()}")
 
     // 删除测试路径，如果想保留目录就注释下面这行代码
     removeIfExists("./test/../test_canonicalize_string.txt", recursive: true)
@@ -112,8 +112,8 @@ main(): Unit {
 可能的运行结果：
 
 ```text
-Original path: ./test/../test_canonicalize_path.txt
-Canonical path: /home/user/test/test_canonicalize_path.txt
+Original path: ./test/../test_canonicalize_string.txt
+Canonical paths match: true
 ```
 
 <!--Del-->

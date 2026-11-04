@@ -1324,9 +1324,9 @@ Example:
 <!-- verify -->
 ```cangjie
 main() {
+    // Allocate a small array in the local region; the allocation normally succeeds
+    let arr: Array<Int64> @local! = [1, 2, 3]
     try {
-        // Allocate a small array in the local region; the allocation normally succeeds
-        let arr: Array<Int64> @local! = [1, 2, 3]
         println("allocated: ${arr.size}")
     } catch (e: LocalRegionOutOfMemoryError) {
         // This error is thrown when memory allocation in the local region fails

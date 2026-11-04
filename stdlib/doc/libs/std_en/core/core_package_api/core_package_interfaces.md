@@ -45,8 +45,8 @@ main() {
 Output:
 
 ```text
-byte1 (65) is within ASCII range: true
-byte2 (200) is within ASCII range: false
+Is byte1 (65) within ASCII range: true
+Is byte2 (200) within ASCII range: false
 ```
 
 #### func isAsciiControl()
@@ -80,9 +80,9 @@ main() {
 Output:
 
 ```text
-byte1 (0x9) is an ASCII control character: true
-byte2 (0x32) is an ASCII control character: false
-byte3 (0x127) is an ASCII control character: true
+Is byte1 (0x9) an ASCII control character: true
+Is byte2 (0x32) an ASCII control character: false
+Is byte3 (0x127) an ASCII control character: true
 ```
 
 #### func isAsciiGraphic()
@@ -116,9 +116,9 @@ main() {
 Output:
 
 ```text
-byte1 (0x33) is an ASCII graphic character: true
-byte2 (0x126) is an ASCII graphic character: true
-byte3 (0x32) is an ASCII graphic character: false
+Is byte1 (0x33) an ASCII graphic character: true
+Is byte2 (0x126) an ASCII graphic character: true
+Is byte3 (0x32) an ASCII graphic character: false
 ```
 
 #### func isAsciiHex()
@@ -152,9 +152,9 @@ main() {
 Output:
 
 ```text
-byte1 (0x48) is an ASCII hexadecimal digit: true
-byte2 (0x70) is an ASCII hexadecimal digit: true
-byte3 (0x103) is an ASCII hexadecimal digit: false
+Is byte1 (0x48) an ASCII hexadecimal digit: true
+Is byte2 (0x70) an ASCII hexadecimal digit: true
+Is byte3 (0x103) an ASCII hexadecimal digit: false
 ```
 
 #### func isAsciiLetter()
@@ -188,9 +188,9 @@ main() {
 Output:
 
 ```text
-byte1 (0x65) is an ASCII Latin letter: true
-byte2 (0x122) is an ASCII Latin letter: true
-byte3 (0x48) is an ASCII Latin letter: false
+Is byte1 (0x65) an ASCII Latin letter: true
+Is byte2 (0x122) an ASCII Latin letter: true
+Is byte3 (0x48) an ASCII Latin letter: false
 ```
 
 #### func isAsciiLowerCase()
@@ -224,9 +224,9 @@ main() {
 Output:
 
 ```text
-byte1 (0x97) is an ASCII lowercase Latin letter: true
-byte2 (0x122) is an ASCII lowercase Latin letter: true
-byte3 (0x65) is an ASCII lowercase Latin letter: false
+Is byte1 (0x97) an ASCII lowercase Latin letter: true
+Is byte2 (0x122) an ASCII lowercase Latin letter: true
+Is byte3 (0x65) an ASCII lowercase Latin letter: false
 ```
 
 #### func isAsciiNumber()
@@ -260,9 +260,9 @@ main() {
 Output:
 
 ```text
-byte1 (0x48) is an ASCII decimal digit: true
-byte2 (0x57) is an ASCII decimal digit: true
-byte3 (0x65) is an ASCII decimal digit: false
+Is byte1 (0x48) an ASCII decimal digit: true
+Is byte2 (0x57) an ASCII decimal digit: true
+Is byte3 (0x65) an ASCII decimal digit: false
 ```
 
 #### func isAsciiNumberOrLetter()
@@ -296,9 +296,9 @@ main() {
 Output:
 
 ```text
-byte1 (0x48) is an ASCII decimal digit or Latin letter: true
-byte2 (0x65) is an ASCII decimal digit or Latin letter: true
-byte3 (0x32) is an ASCII decimal digit or Latin letter: false
+Is byte1 (0x48) an ASCII decimal digit or Latin letter: true
+Is byte2 (0x65) an ASCII decimal digit or Latin letter: true
+Is byte3 (0x32) an ASCII decimal digit or Latin letter: false
 ```
 
 #### func isAsciiOct()
@@ -332,9 +332,9 @@ main() {
 Output:
 
 ```text
-byte1 (0x48) is an ASCII octal digit: true
-byte2 (0x55) is an ASCII octal digit: true
-byte3 (0x56) is an ASCII octal digit: false
+Is byte1 (0x48) an ASCII octal digit: true
+Is byte2 (0x55) an ASCII octal digit: true
+Is byte3 (0x56) an ASCII octal digit: false
 ```
 
 #### func isAsciiPunctuation()
@@ -368,9 +368,9 @@ main() {
 Output:
 
 ```text
-byte1 (0x33) is an ASCII punctuation: true
-byte2 (0x44) is an ASCII punctuation: true
-byte3 (0x48) is an ASCII punctuation: false
+Is byte1 (0x33) an ASCII punctuation: true
+Is byte2 (0x44) an ASCII punctuation: true
+Is byte3 (0x48) an ASCII punctuation: false
 ```
 
 #### func isAsciiUpperCase()
@@ -404,9 +404,9 @@ main() {
 Output:
 
 ```text
-byte1 (0x65) is an ASCII uppercase Latin letter: true
-byte2 (0x90) is an ASCII uppercase Latin letter: true
-byte3 (0x97) is an ASCII uppercase Latin letter: false
+Is byte1 (0x65) an ASCII uppercase Latin letter: true
+Is byte2 (0x90) an ASCII uppercase Latin letter: true
+Is byte3 (0x97) an ASCII uppercase Latin letter: false
 ```
 
 #### func isAsciiWhiteSpace()
@@ -440,9 +440,9 @@ main() {
 Output:
 
 ```text
-byte1 (0x9) is an ASCII whitespace character: true
-byte2 (0x32) is an ASCII whitespace character: true
-byte3 (0x65) is an ASCII whitespace character: false
+Is byte1 (0x9) an ASCII whitespace character: true
+Is byte2 (0x32) an ASCII whitespace character: true
+Is byte3 (0x65) an ASCII whitespace character: false
 ```
 
 #### func toAsciiLowerCase()
@@ -1390,9 +1390,9 @@ Example:
 <!-- verify -->
 ```cangjie
 main() {
-    let a: Bool @local! = true
-    let b: Bool @local! = true
-    // Bool does not provide the @local! implementation of ==; the call hits the default implementation of the Equal interface
+    let a: Array<Int64> @local! = Array<Int64>(1) {i => i}
+    let b: Array<Int64> @local! = Array<Int64>(1) {i => i}
+    // Array does not provide the @local! implementation of ==; the call hits the default implementation of the Equal interface
     try {
         println("eq=${a == b}")
     } catch (e: UnimplementedException) {
@@ -1440,11 +1440,13 @@ Example:
 <!-- verify -->
 ```cangjie
 main() {
-    let a: Bool @local? = true
-    let b: Bool @local? = true
-    // Bool does not provide the @local? implementation of ==; the call hits the default implementation of the Equal interface
+    let a: Array<Int64> @local! = Array<Int64>(1) {i => i}
+    let b: Array<Int64> @local! = Array<Int64>(1) {i => i}
+    let x: Array<Int64> @local? = a
+    let y: Array<Int64> @local? = b
+    // Array does not provide the @local? implementation of ==; the call hits the default implementation of the Equal interface
     try {
-        println("eq=${a == b}")
+        println("eq=${x == y}")
     } catch (e: UnimplementedException) {
         println("caught: ${e.message}")
     }
@@ -1525,9 +1527,9 @@ Example:
 <!-- verify -->
 ```cangjie
 main() {
-    let a: Bool @local! = true
-    let b: Bool @local! = false
-    // Bool does not provide the @local! implementation of !=; the call hits the default implementation of the Equatable interface
+    let a: Array<Int64> @local! = Array<Int64>(1) {i => i}
+    let b: Array<Int64> @local! = Array<Int64>(1) {i => i}
+    // Array does not provide the @local! implementation of !=; the call hits the default implementation of the Equatable interface
     try {
         println("ne=${a != b}")
     } catch (e: UnimplementedException) {
@@ -1575,11 +1577,13 @@ Example:
 <!-- verify -->
 ```cangjie
 main() {
-    let a: Bool @local? = true
-    let b: Bool @local? = false
-    // The default implementation delegates to ==; Bool does not provide the @local? implementation of ==, so the call finally hits the default implementation of the Equal interface
+    let a: Array<Int64> @local! = Array<Int64>(1) {i => i}
+    let b: Array<Int64> @local! = Array<Int64>(1) {i => i}
+    let x: Array<Int64> @local? = a
+    let y: Array<Int64> @local? = b
+    // The default implementation delegates to ==; Array does not provide the @local? implementation of ==, so the call finally hits the default implementation of the Equal interface
     try {
-        println("ne=${a != b}")
+        println("ne=${x != y}")
     } catch (e: UnimplementedException) {
         println("caught: ${e.message}")
     }
