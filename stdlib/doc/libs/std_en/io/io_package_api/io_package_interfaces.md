@@ -50,9 +50,8 @@ Function: Reads data from the input stream into `buffer`; both the receiver and 
 
 > **Note:**
 >
-> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
->
-> Platform not supported: OpenHarmony.
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
 
 Parameters:
 
@@ -142,9 +141,8 @@ Function: Writes the data in `buffer` to the output stream; both the receiver an
 
 > **Note:**
 >
-> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
->
-> Platform not supported: OpenHarmony.
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
 
 Parameters:
 
@@ -218,9 +216,8 @@ Function: Returns the total amount of data in the current stream (in bytes). Thi
 
 > **Note:**
 >
-> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
->
-> Platform not supported: OpenHarmony.
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
 
 Type: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64)
 
@@ -273,9 +270,8 @@ Function: Returns the current cursor position. This property is implemented by c
 
 > **Note:**
 >
-> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
->
-> Platform not supported: OpenHarmony.
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
 
 Type: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64)
 
@@ -333,9 +329,8 @@ Function: Returns the amount of unread data in the current stream (in bytes). Th
 
 > **Note:**
 >
-> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
->
-> Platform not supported: OpenHarmony.
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
 
 Type: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64)
 
@@ -398,9 +393,8 @@ Function: Moves the cursor to the specified position. When the current type does
 
 > **Note:**
 >
-> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
->
-> Platform not supported: OpenHarmony.
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
 
 Parameters:
 

@@ -54,12 +54,10 @@ Function: Obtains a raw pointer instance to the data in a `@local?` [Array](core
 
 > **Note:**
 >
-> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
->
-> Platform not supported: OpenHarmony.
->
-> The pointer must be released in time with the [releaseArrayRawData](core_package_funcs.md#func-releasearrayrawdatatcpointerhandlet-where-t--ctype) function after use.
-> Between acquiring and releasing the pointer, only simple logic such as foreign C function calls is allowed; do not construct Cangjie objects such as [CString](core_package_intrinsics.md#cstring), otherwise unpredictable behavior may occur.
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+> - The pointer must be released in time with the [releaseArrayRawData](core_package_funcs.md#func-releasearrayrawdatatcpointerhandlet-where-t--ctype) function after use.
+> - Between acquiring and releasing the pointer, only simple logic such as foreign C function calls is allowed; do not construct Cangjie objects such as [CString](core_package_intrinsics.md#cstring), otherwise unpredictable behavior may occur.
 
 Parameters:
 
@@ -883,9 +881,8 @@ Function: Outputs the specified string to the console; local strings are support
 
 > **Note:**
 >
-> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
->
-> Platform not supported: OpenHarmony.
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
 
 Parameters:
 
@@ -1437,9 +1434,8 @@ Function: Outputs the specified string to the console with a line break at the e
 
 > **Note:**
 >
-> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
->
-> Platform not supported: OpenHarmony.
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
 
 Parameters:
 
@@ -1712,9 +1708,8 @@ The parameters can be `@local?` instances, so this function can be used to compa
 
 > **Note:**
 >
-> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
->
-> Platform not supported: OpenHarmony.
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
 
 Parameters:
 
@@ -1793,9 +1788,8 @@ Function: Releases a raw pointer instance obtained through [acquireArrayRawData]
 
 > **Note:**
 >
-> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
->
-> Platform not supported: OpenHarmony.
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
 
 Parameters:
 

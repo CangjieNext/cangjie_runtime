@@ -400,9 +400,8 @@ public exclave func getOrThrow(this @local!, exception: () -> Exception): T @loc
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
->
-> 不支持平台：OpenHarmony。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -503,9 +502,8 @@ public exclave func getOrThrow(this @local!): T @local!
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
->
-> 不支持平台：OpenHarmony。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 返回值：
 
@@ -592,9 +590,8 @@ public func isNone(this @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
->
-> 不支持平台：OpenHarmony。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -675,9 +672,8 @@ public func isSome(this @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
->
-> 不支持平台：OpenHarmony。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -1030,9 +1026,8 @@ public func hashCode(this @local?): Int64
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
->
-> 不支持平台：OpenHarmony。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -1238,9 +1233,8 @@ public func compare(this @local?, other: Ordering @local?): Ordering
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
->
-> 不支持平台：OpenHarmony。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -1288,9 +1282,8 @@ public operator func ==(this @local?, other: Ordering @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
->
-> 不支持平台：OpenHarmony。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -1333,9 +1326,8 @@ public operator func !=(this @local?, other: Ordering @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
->
-> 不支持平台：OpenHarmony。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -1378,9 +1370,8 @@ public operator func <(this @local?, other: Ordering @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
->
-> 不支持平台：OpenHarmony。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -1422,9 +1413,8 @@ public operator func >(this @local?, other: Ordering @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
->
-> 不支持平台：OpenHarmony。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -1466,9 +1456,8 @@ public operator func <=(this @local?, other: Ordering @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
->
-> 不支持平台：OpenHarmony。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -1510,9 +1499,8 @@ public operator func >=(this @local?, other: Ordering @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
->
-> 不支持平台：OpenHarmony。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -1606,9 +1594,8 @@ public func hashCode(this @local?): Int64
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
->
-> 不支持平台：OpenHarmony。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -1647,9 +1634,8 @@ public func hashCode(this @local!): Int64
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
->
-> 不支持平台：OpenHarmony。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 

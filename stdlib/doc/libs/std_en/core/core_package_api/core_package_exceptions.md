@@ -1312,9 +1312,8 @@ Local objects do not occupy the Cangjie heap, and their memory usage is not coun
 
 > **Note:**
 >
-> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
->
-> Platform not supported: OpenHarmony.
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
 
 Parent Type:
 
@@ -1834,9 +1833,8 @@ When a type does not provide the corresponding local implementation, the default
 
 > **Note:**
 >
-> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
->
-> Platform not supported: OpenHarmony.
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
 
 Parent Type:
 

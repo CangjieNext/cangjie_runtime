@@ -1146,9 +1146,8 @@ Function: Converts a string of [Float64](../../core/core_package_api/core_packag
 
 > **Note:**
 >
-> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
->
-> Platform not supported: OpenHarmony.
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
 
 Parameters:
 
@@ -2526,9 +2525,8 @@ Function: Converts a string of [Int64](../../core/core_package_api/core_package_
 
 > **Note:**
 >
-> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
->
-> Platform not supported: OpenHarmony.
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
 
 Parameters:
 
@@ -3082,9 +3080,8 @@ Function: Converts a string of [UInt64](../../core/core_package_api/core_package
 
 > **Note:**
 >
-> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
->
-> Platform not supported: OpenHarmony.
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
 
 Parameters:
 

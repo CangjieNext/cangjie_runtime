@@ -54,12 +54,10 @@ public exclave unsafe func acquireArrayRawData<T>(arr: Array<T> @local?): CPoint
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
->
-> 不支持平台：OpenHarmony。
->
-> 指针使用完后需要及时用 [releaseArrayRawData](core_package_funcs.md#func-releasearrayrawdatatcpointerhandlet-where-t--ctype) 函数释放该指针。
-> 指针的获取和释放之间仅可包含简单的 foreign C 函数调用等逻辑，不构造例如 [CString](core_package_intrinsics.md#cstring) 等的仓颉对象，否则可能造成不可预期现象。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+> - 指针使用完后需要及时用 [releaseArrayRawData](core_package_funcs.md#func-releasearrayrawdatatcpointerhandlet-where-t--ctype) 函数释放该指针。
+> - 指针的获取和释放之间仅可包含简单的 foreign C 函数调用等逻辑，不构造例如 [CString](core_package_intrinsics.md#cstring) 等的仓颉对象，否则可能造成不可预期现象。
 
 参数：
 
@@ -889,9 +887,8 @@ public func print(str: String @local?, flush!: Bool = false): Unit
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
->
-> 不支持平台：OpenHarmony。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -1443,9 +1440,8 @@ public func println(str: String @local?): Unit
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
->
-> 不支持平台：OpenHarmony。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -1718,9 +1714,8 @@ public func refEq(a: Object @local?, b: Object @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
->
-> 不支持平台：OpenHarmony。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -1799,9 +1794,8 @@ public unsafe func releaseArrayRawData<T>(handle: CPointerHandle<T> @local?): Un
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
->
-> 不支持平台：OpenHarmony。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 

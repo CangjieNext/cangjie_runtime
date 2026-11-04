@@ -68,9 +68,8 @@ public prop fileHandle: IntNative @local?
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
->
-> 不支持平台：OpenHarmony。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 类型：[IntNative](../../core/core_package_api/core_package_intrinsics.md#intnative)
 
@@ -322,9 +321,8 @@ public prop name: String @local?
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
->
-> 不支持平台：OpenHarmony。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 类型：[String](../../core/core_package_api/core_package_structs.md#struct-string)
 
@@ -450,9 +448,8 @@ public prop path: Path @local?
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
->
-> 不支持平台：OpenHarmony。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 类型：[Path](fs_package_structs.md#struct-path)
 
@@ -555,9 +552,8 @@ public prop size: Int64 @local?
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
->
-> 不支持平台：OpenHarmony。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 类型：[Int64](../../core/core_package_api/core_package_intrinsics.md#int64)
 
@@ -702,9 +698,8 @@ public exclave init(this @local!, path: Path @local!)
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
->
-> 不支持平台：OpenHarmony。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -759,9 +754,8 @@ public exclave init(this @local!, path: String @local!)
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
->
-> 不支持平台：OpenHarmony。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -1646,9 +1640,8 @@ public prop fileName: String @local?
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
->
-> 不支持平台：OpenHarmony。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 类型：[String](../../core/core_package_api/core_package_structs.md#struct-string)
 
@@ -1799,9 +1792,8 @@ public prop parent: Path @local!
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
->
-> 不支持平台：OpenHarmony。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 类型：[Path](fs_package_structs.md#struct-path)
 
@@ -1875,9 +1867,8 @@ public exclave init(this @local!, rawPath: String @local!)
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
->
-> 不支持平台：OpenHarmony。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -1994,9 +1985,8 @@ public func isAbsolute(this @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
->
-> 不支持平台：OpenHarmony。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -2083,9 +2073,8 @@ public func isEmpty(this @local?): Bool
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
->
-> 不支持平台：OpenHarmony。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 
@@ -2290,11 +2279,9 @@ public func join(this @local!, path: String @local!): Path @local!
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
->
-> 不支持平台：OpenHarmony。
->
-> 本方法仅进行字符串拼接，不处理 ".." 等路径遍历组件。如需安全验证，请先调用 [func canonicalize](./fs_package_funcs.md#func-canonicalizestring) 并检查路径范围。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+> - 本方法仅进行字符串拼接，不处理 ".." 等路径遍历组件。如需安全验证，请先调用 [func canonicalize](./fs_package_funcs.md#func-canonicalizestring) 并检查路径范围。
 
 参数：
 
@@ -2348,11 +2335,9 @@ public func join(this @local!, path: Path @local!): Path @local!
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
->
-> 不支持平台：OpenHarmony。
->
-> 本方法仅进行字符串拼接，不处理 ".." 等路径遍历组件。如需安全验证，请先调用 [func canonicalize](./fs_package_funcs.md#func-canonicalizepath) 并检查路径范围。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+> - 本方法仅进行字符串拼接，不处理 ".." 等路径遍历组件。如需安全验证，请先调用 [func canonicalize](./fs_package_funcs.md#func-canonicalizepath) 并检查路径范围。
 
 参数：
 
@@ -2501,9 +2486,8 @@ public exclave func toString(this @local?): String @local!
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
->
-> 不支持平台：OpenHarmony。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 参数：
 

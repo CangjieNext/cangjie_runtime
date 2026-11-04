@@ -973,9 +973,8 @@ public class LocalRegionOutOfMemoryError <: Error {}
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
->
-> 不支持平台：OpenHarmony。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 父类型：
 
@@ -1343,9 +1342,8 @@ public class UnimplementedException <: Exception {
 
 > **注意：**
 >
-> 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
->
-> 不支持平台：OpenHarmony。
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
 
 父类型：
 

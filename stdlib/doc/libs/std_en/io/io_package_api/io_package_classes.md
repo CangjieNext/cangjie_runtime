@@ -1159,9 +1159,8 @@ Function: Creates a [ByteBuffer](io_package_classes.md#class-bytebuffer) instanc
 
 > **Note:**
 >
-> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
->
-> Platform not supported: OpenHarmony.
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
 
 Example:
 
@@ -1280,9 +1279,8 @@ Function: Creates a [ByteBuffer](io_package_classes.md#class-bytebuffer) instanc
 
 > **Note:**
 >
-> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
->
-> Platform not supported: OpenHarmony.
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
 
 Parameters:
 
@@ -1518,9 +1516,8 @@ Function: Reads data from the bound input stream into `buffer`; the buffer is lo
 
 > **Note:**
 >
-> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
->
-> Platform not supported: OpenHarmony.
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
 
 Parameters:
 
@@ -1688,15 +1685,13 @@ Function: Grows the buffer by the specified size.
 
 > **Note:**
 >
-> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
->
-> Platform not supported: OpenHarmony.
->
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
 > - If the cursor has not passed the end of the data and the remaining capacity after the end of the data ≥ additional, the buffer is not grown and the function returns directly.
 > - If the cursor has passed the end of the data and the remaining space from the cursor position to the end of the current capacity ≥ additional, the buffer is not grown and the function returns directly.
 > - Otherwise the buffer is grown; the capacity after growth is the larger of the following two values:
->     - 1. 1.5 times the current capacity (the capacity of the buffer before growth), rounded down.
->     - 2. The minimum required capacity: the current capacity + additional if the cursor has not passed the end of the data; the cursor position + additional if the cursor has passed the end of the data.
+>     1. 1.5 times the current capacity (the capacity of the buffer before growth), rounded down.
+>     2. The minimum required capacity: the current capacity + additional if the cursor has not passed the end of the data; the cursor position + additional if the cursor has passed the end of the data.
 > - additional being 0 does not guarantee no growth: if the cursor has been seeked to a position beyond the current capacity, the buffer is still grown by the rules above even when additional is 0.
 
 Parameters:
@@ -1822,10 +1817,8 @@ Function: Moves the cursor to the specified position.
 
 > **Note:**
 >
-> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
->
-> Platform not supported: OpenHarmony.
->
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
 > - The specified position cannot precede the beginning of the data in the stream.
 > - The specified position may exceed the end of the data in the stream.
 
@@ -1972,9 +1965,8 @@ Function: Writes the data in `buffer` to the bound output stream.
 
 > **Note:**
 >
-> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
->
-> Platform not supported: OpenHarmony.
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
 
 Parameters:
 
@@ -2024,9 +2016,8 @@ Function: Writes the data in `buffer` to the bound output stream; the buffer is 
 
 > **Note:**
 >
-> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
->
-> Platform not supported: OpenHarmony.
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
 
 Parameters:
 

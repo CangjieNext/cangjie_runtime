@@ -3035,9 +3035,8 @@ public unsafe func getRawArray(): Array<T>
 
 > **注意：**
 >
-> 这是一个 unsafe 的接口，使用处需要在 unsafe 上下文中。
->
-> 原始数据是指 [ArrayList](collection_package_class.md#class-arraylistt) 底层实现的数组，其大小大于等于 [ArrayList](collection_package_class.md#class-arraylistt) 中的元素数量，且索引大于等于 [ArrayList](collection_package_class.md#class-arraylistt) 大小的位置中可能包含有未初始化的元素，对其进行访问可能会产生未定义的行为。
+> - 这是一个 unsafe 的接口，使用处需要在 unsafe 上下文中。
+> - 原始数据是指 [ArrayList](collection_package_class.md#class-arraylistt) 底层实现的数组，其大小大于等于 [ArrayList](collection_package_class.md#class-arraylistt) 中的元素数量，且索引大于等于 [ArrayList](collection_package_class.md#class-arraylistt) 大小的位置中可能包含有未初始化的元素，对其进行访问可能会产生未定义的行为。
 
 返回值：
 

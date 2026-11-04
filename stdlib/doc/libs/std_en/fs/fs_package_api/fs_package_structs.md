@@ -39,9 +39,8 @@ Function: Obtains the file handle information.
 
 > **Note:**
 >
-> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
->
-> Platform not supported: OpenHarmony.
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
 
 Type: [IntNative](../../core/core_package_api/core_package_intrinsics.md#IntNative)
 
@@ -171,9 +170,8 @@ This property is equivalent to `this.path.fileName`. For path resolution rules, 
 
 > **Note:**
 >
-> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
->
-> Platform not supported: OpenHarmony.
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
 
 Type: [String](../../core/core_package_api/core_package_structs.md#struct-string)
 
@@ -240,9 +238,8 @@ Function: Obtains the current file path, returned as a [Path](fs_package_structs
 
 > **Note:**
 >
-> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
->
-> Platform not supported: OpenHarmony.
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
 
 Type: [Path](fs_package_structs.md#struct-path)
 
@@ -310,9 +307,8 @@ Function: Returns the current file size.
 
 > **Note:**
 >
-> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
->
-> Platform not supported: OpenHarmony.
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
 
 Type: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64)
 
@@ -397,9 +393,8 @@ Function: Creates a [FileInfo](fs_package_structs.md#struct-fileinfo) instance i
 
 > **Note:**
 >
-> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
->
-> Platform not supported: OpenHarmony.
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
 
 Parameters:
 
@@ -454,9 +449,8 @@ Function: Creates a [FileInfo](fs_package_structs.md#struct-fileinfo) instance i
 
 > **Note:**
 >
-> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
->
-> Platform not supported: OpenHarmony.
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
 
 Parameters:
 
@@ -842,9 +836,8 @@ The entire path string is divided into parent and fileName parts; see [parent](.
 
 > **Note:**
 >
-> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
->
-> Platform not supported: OpenHarmony.
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
 
 Type: [String](../../core/core_package_api/core_package_structs.md#struct-string)
 
@@ -952,9 +945,8 @@ This property does not access the file system and does not eliminate special nam
 
 > **Note:**
 >
-> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
->
-> Platform not supported: OpenHarmony.
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
 
 Type: [Path](fs_package_structs.md#struct-path)
 
@@ -1007,9 +999,8 @@ Function: Creates a [Path](fs_package_structs.md#struct-path) instance in the lo
 
 > **Note:**
 >
-> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
->
-> Platform not supported: OpenHarmony.
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
 
 Parameters:
 
@@ -1075,9 +1066,8 @@ Function: Determines whether the [Path](fs_package_structs.md#struct-path) is an
 
 > **Note:**
 >
-> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
->
-> Platform not supported: OpenHarmony.
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
 
 Parameters:
 
@@ -1135,9 +1125,8 @@ Function: Determines whether the current instance is an empty path.
 
 > **Note:**
 >
-> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
->
-> Platform not supported: OpenHarmony.
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
 
 Parameters:
 
@@ -1250,11 +1239,9 @@ Function: Concatenates another path string after the current path to form a new 
 
 > **Note:**
 >
-> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
->
-> Platform not supported: OpenHarmony.
->
-> This method only performs string concatenation and does not handle path traversal components such as "..". For security verification, call [func canonicalize](./fs_package_funcs.md#func-canonicalizestring) first and check the path range.
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+> - This method only performs string concatenation and does not handle path traversal components such as "..". For security verification, call [func canonicalize](./fs_package_funcs.md#func-canonicalizestring) first and check the path range.
 
 Parameters:
 
@@ -1308,11 +1295,9 @@ Function: Concatenates another path string after the current path to form a new 
 
 > **Note:**
 >
-> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
->
-> Platform not supported: OpenHarmony.
->
-> This method only performs string concatenation and does not handle path traversal components such as "..". For security verification, call [func canonicalize](./fs_package_funcs.md#func-canonicalizepath) first and check the path range.
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+> - This method only performs string concatenation and does not handle path traversal components such as "..". For security verification, call [func canonicalize](./fs_package_funcs.md#func-canonicalizepath) first and check the path range.
 
 Parameters:
 
@@ -1399,9 +1384,8 @@ Function: Obtains the path string of the [Path](fs_package_structs.md#struct-pat
 
 > **Note:**
 >
-> Experimental API, for test verification only; the specification and implementation may still change; use with caution.
->
-> Platform not supported: OpenHarmony.
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
 
 Parameters:
 
