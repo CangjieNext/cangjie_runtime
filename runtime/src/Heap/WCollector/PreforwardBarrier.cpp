@@ -64,13 +64,15 @@ void PreforwardBarrier::ReadStruct(MAddress dst, BaseObject* obj, MAddress src, 
     }
 
     CHECK_DETAIL(memcpy_s(reinterpret_cast<void*>(dst), size, reinterpret_cast<void*>(src), size) == EOK,
-                 "read struct memcpy_s failed");
+                 "Preforward ReadStruct memcpy_s failed, object: %p, dst: %#zx/%zu, src: %#zx/%zu",
+                 obj, static_cast<size_t>(dst), size, static_cast<size_t>(src), size);
 }
 
 void PreforwardBarrier::ReadStaticStruct(MAddress dst, MAddress src, size_t size, const GCTib gctib) const
 {
     CHECK_DETAIL(memcpy_s(reinterpret_cast<void*>(dst), size, reinterpret_cast<void*>(src), size) == EOK,
-                 "read struct memcpy_s failed");
+                 "Preforward ReadStaticStruct memcpy_s failed, dst: %#zx/%zu, src: %#zx/%zu",
+                 static_cast<size_t>(dst), size, static_cast<size_t>(src), size);
     gctib.ForEachBitmapWord(dst, [=](RefField<>& field) {
         RefField<> oldField(field);
         BaseObject* target = ReadReference(nullptr, field);

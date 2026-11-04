@@ -81,13 +81,16 @@ void IdleBarrier::ReadStruct(MAddress dst, BaseObject* obj, MAddress src, size_t
     }
 
     CHECK_DETAIL(memcpy_s(reinterpret_cast<void*>(dst), size, reinterpret_cast<void*>(src), size) == EOK,
-                 "read struct memcpy_s failed");
+                 "Idle ReadStruct memcpy_s failed, object: %p, dst: %#zx/%zu, src: %#zx/%zu",
+                 obj, static_cast<size_t>(dst), size,
+                 static_cast<size_t>(src), size);
 }
 
 void IdleBarrier::ReadStaticStruct(MAddress dst, MAddress src, size_t size, const GCTib gctib) const
 {
     CHECK_DETAIL(memcpy_s(reinterpret_cast<void*>(dst), size, reinterpret_cast<void*>(src), size) == EOK,
-                 "read struct memcpy_s failed");
+                 "Idle ReadStaticStruct memcpy_s failed, dst: %#zx/%zu, src: %#zx/%zu",
+                 static_cast<size_t>(dst), size, static_cast<size_t>(src), size);
     gctib.ForEachBitmapWord(dst, [=](RefField<>& field) {
         BaseObject* target = ReadReference(nullptr, field);
         (void)target;
@@ -238,7 +241,9 @@ void IdleBarrier::CopyStructArray(BaseObject* dstObj, MAddress dstField, MIndex 
 
     CHECK_DETAIL(memmove_s(reinterpret_cast<void*>(dstField), dstSize, reinterpret_cast<void*>(srcField), srcSize) ==
                      EOK,
-                 "memmove_s failed");
+                 "Idle CopyStructArray memmove_s failed, dst: %#zx/%llu, src: %#zx/%llu",
+                 static_cast<size_t>(dstField), static_cast<unsigned long long>(dstSize),
+                 static_cast<size_t>(srcField), static_cast<unsigned long long>(srcSize));
 
 #if defined(CANGJIE_TSAN_SUPPORT)
     Sanitizer::TsanWriteMemoryRange(reinterpret_cast<void*>(dstField), dstSize);

@@ -37,7 +37,8 @@ public:
             int writeSize = std::min(static_cast<int>(end - cur), dstSize);
             ASSERT(writeSize > 0);
             if (memcpy_s(chunk_.data() + current_, dstSize, cur, writeSize) != EOK) {
-                LOG(RTLOG_ERROR, "memcpy_s failed");
+                LOG(RTLOG_ERROR, "StreamWriter memcpy_s failed, offset: %d, available: %d, size: %d", current_,
+                    dstSize, writeSize);
             }
             cur += writeSize;
             current_ += writeSize;

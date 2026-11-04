@@ -1171,7 +1171,9 @@ bool RegionManager::RequestForRegion(size_t size, bool isLoose)
 bool RegionManager::RouteOrCompactRegionImpl(RegionInfo* region)
 {
     CHECK(region->IsRoutingState());
-    CHECK_DETAIL(region->GetRawPointerObjectCount() <= 0, "pinned region shouldn't be moved");
+    CHECK_DETAIL(region->GetRawPointerObjectCount() <= 0,
+                 "pinned region shouldn't be moved, region: %p, raw pointer objects: %d, live bytes: %u",
+                 region, region->GetRawPointerObjectCount(), region->GetLiveByteCount());
     size_t fromBytes = region->GetLiveByteCount();
     AllocBuffer* buffer = AllocBuffer::GetOrCreateAllocBuffer();
     RegionInfo* toRegion1 = buffer->GetRegion();
@@ -1274,7 +1276,9 @@ void RegionManager::CompactRegion(RegionInfo* region)
     MAddress cur = region->GetRegionAllocPtr();
     if (regionLimit > cur) {
         size_t reclaimSize = regionLimit - cur;
-        CHECK_DETAIL(memset_s(reinterpret_cast<void*>(cur), reclaimSize, 0, reclaimSize) == EOK, "clear buffer failed");
+        CHECK_DETAIL(memset_s(reinterpret_cast<void*>(cur), reclaimSize, 0, reclaimSize) == EOK,
+                     "clear buffer failed, region: %p, address: %#zx, size: %zu", region,
+                     static_cast<size_t>(cur), reclaimSize);
     }
     region->ClearFreeSlotList();
 
@@ -1329,7 +1333,9 @@ void RegionManager::CompactRegion(RegionInfo* region, RegionInfo* toRegion1)
     MAddress cur = target;
     if (regionLimit > cur) {
         size_t reclaimSize = regionLimit - cur;
-        CHECK_DETAIL(memset_s(reinterpret_cast<void*>(cur), reclaimSize, 0, reclaimSize) == EOK, "clear buffer failed");
+        CHECK_DETAIL(memset_s(reinterpret_cast<void*>(cur), reclaimSize, 0, reclaimSize) == EOK,
+                     "clear buffer failed, region: %p, address: %#zx, size: %zu", region,
+                     static_cast<size_t>(cur), reclaimSize);
     }
     region->ClearFreeSlotList();
 
@@ -1344,7 +1350,10 @@ void RegionManager::ForwardRegion(RegionInfo* region)
 {
     CHECK_DETAIL(region->IsFromRegion() || region->IsLoneFromRegion() || ((region->IsThreadLocalRegion() ||
         region->GetRegionType() == RegionInfo::RegionType::RECENT_FULL_REGION) &&
-        (region->IsRoutingState() || region->IsCompacted())), "region type %u", region->GetRegionType());
+        (region->IsRoutingState() || region->IsCompacted())),
+        "invalid region state, region: %p, type: %u, alloc: %#zx, live bytes: %u",
+        region, static_cast<unsigned>(region->GetRegionType()),
+        static_cast<size_t>(region->GetRegionAllocPtr()), region->GetLiveByteCount());
 
     DLOG(FORWARD, "try forward region %p @[0x%zx+%zu, 0x%zx) type %u, live bytes %u",
         region, region->GetRegionStart(), region->GetRegionAllocatedSize(), region->GetRegionEnd(),

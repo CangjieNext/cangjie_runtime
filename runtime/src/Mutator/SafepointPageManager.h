@@ -29,7 +29,8 @@ public:
             mmap(nullptr, MapleRuntime::MRT_PAGE_SIZE, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0));
         CHECK_DETAIL(
             (readablePage != MAP_FAILED && unreadablePage != MAP_FAILED && unreadablePageForRawData != MAP_FAILED),
-            "allocate safepoint page failed!");
+            "allocate safepoint page failed, readable failed: %d, unreadable failed: %d, raw-data failed: %d",
+            readablePage == MAP_FAILED, unreadablePage == MAP_FAILED, unreadablePageForRawData == MAP_FAILED);
     }
 
     ~SafepointPageManager()

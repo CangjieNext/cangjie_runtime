@@ -251,7 +251,9 @@ void TypeInfo::TryUpdateExtensionData(TypeInfo* itf, ExtensionData* extensionDat
             extensionData->SetFuncTableUpdated();
             return;
         }
-        CHECK_DETAIL(incrementalSize > 0, "An incompatible module is imported.");
+        CHECK_DETAIL(incrementalSize > 0,
+                     "An incompatible module is imported, ti: %s, interface: %s, old table size: %u, new table size: %u",
+                     GetName(), itf->GetName(), static_cast<unsigned>(ftSize), static_cast<unsigned>(itfFtSize));
 
         if (!extensionData->TryLockFuncTable()) {
             continue;
@@ -990,7 +992,8 @@ bool TypeInfo::IsEnumKind0()
     } else {
         enumInfo = GetEnumInfo();
     }
-    CHECK_DETAIL(enumInfo != nullptr, "EnumInfo is nullptr.");
+    CHECK_DETAIL(enumInfo != nullptr, "EnumInfo is nullptr, typeInfo: %s",
+                 GetName() == nullptr ? "<unknown>" : GetName());
     return enumInfo->IsEnumKind0();
 }
 
@@ -1005,7 +1008,8 @@ bool TypeInfo::IsEnumKind1()
     } else {
         enumInfo = GetEnumInfo();
     }
-    CHECK_DETAIL(enumInfo != nullptr, "EnumInfo is nullptr.");
+    CHECK_DETAIL(enumInfo != nullptr, "EnumInfo is nullptr, typeInfo: %s",
+                 GetName() == nullptr ? "<unknown>" : GetName());
     return enumInfo->IsEnumKind1();
 }
 

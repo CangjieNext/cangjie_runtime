@@ -153,7 +153,8 @@ void EnumBarrier::WriteStruct(BaseObject* obj, MAddress dst, size_t dstLen, MAdd
     }
     std::atomic_thread_fence(std::memory_order_seq_cst);
     CHECK_DETAIL(memcpy_s(reinterpret_cast<void*>(dst), dstLen, reinterpret_cast<void*>(src), srcLen) == EOK,
-                 "memcpy_s failed");
+                 "Enum WriteStruct memcpy_s failed, object: %p, dst: %#zx/%zu, src: %#zx/%zu",
+                 obj, static_cast<size_t>(dst), dstLen, static_cast<size_t>(src), srcLen);
 
     if (obj != nullptr) {
         obj->ForEachRefInStruct(
@@ -186,7 +187,8 @@ void EnumBarrier::WriteStaticStruct(MAddress dst, size_t dstLen, MAddress src, s
     });
     std::atomic_thread_fence(std::memory_order_seq_cst);
     CHECK_DETAIL(memcpy_s(reinterpret_cast<void*>(dst), dstLen, reinterpret_cast<void*>(src), srcLen) == EOK,
-                 "memcpy_s failed");
+                 "Enum WriteStaticStruct memcpy_s failed, dst: %#zx/%zu, src: %#zx/%zu",
+                 static_cast<size_t>(dst), dstLen, static_cast<size_t>(src), srcLen);
 
     gctib.ForEachBitmapWord(dst, [=](RefField<>& refField) {
         RefField<> oldField(refField);
@@ -290,7 +292,9 @@ void EnumBarrier::CopyStructArray(BaseObject* dstObj, MAddress dstField, MIndex 
     if (!dstObj->HasRefField()) {
         CHECK_DETAIL(
             memmove_s(reinterpret_cast<void*>(dstField), dstSize, reinterpret_cast<void*>(srcField), srcSize) == EOK,
-            "memmove_s failed");
+            "Enum CopyStructArray memmove_s failed, dst object: %p, dst: %#zx/%llu, src object: %p, src: %#zx/%llu",
+            dstObj, static_cast<size_t>(dstField), static_cast<unsigned long long>(dstSize),
+            srcObj, static_cast<size_t>(srcField), static_cast<unsigned long long>(srcSize));
 #if defined(CANGJIE_TSAN_SUPPORT)
         Sanitizer::TsanWriteMemoryRange(reinterpret_cast<void*>(dstField), dstSize);
         Sanitizer::TsanReadMemoryRange(reinterpret_cast<void*>(srcField), srcSize);
@@ -336,7 +340,8 @@ void EnumBarrier::WriteGeneric(const ObjectPtr obj, void* fieldPtr, const Object
         CHECK_DETAIL(memcpy_s(fieldPtr, size,
                               reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(src) + TYPEINFO_PTR_SIZE),
                               size) == EOK,
-                     "WriteGeneric memcpy_s failed");
+                     "Enum WriteGeneric memcpy_s failed, object: %p, field: %p, source: %p, size: %zu", obj, fieldPtr,
+                     src, size);
 #if defined(CANGJIE_TSAN_SUPPORT)
         if (Heap::IsHeapAddress(src)) {
             Sanitizer::TsanReadMemoryRange(
@@ -369,7 +374,8 @@ void EnumBarrier::ReadGeneric(const ObjectPtr dstObj, ObjectPtr obj, void* field
     if (!Heap::IsHeapAddress(dstObj) && !Heap::IsHeapAddress(obj)) {
         CHECK_DETAIL(memcpy_s(reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(dstObj) + TYPEINFO_PTR_SIZE), size,
                               fieldPtr, size) == EOK,
-                     "ReadGeneric memcpy_s failed");
+                     "Enum ReadGeneric memcpy_s failed, destination: %p, object: %p, field: %p, size: %zu", dstObj,
+                     obj, fieldPtr, size);
     } else if (!Heap::IsHeapAddress(dstObj) && Heap::IsHeapAddress(obj)) {
         MAddress dstAddr = reinterpret_cast<MAddress>(dstObj) + TYPEINFO_PTR_SIZE;
         MAddress srcAddr = reinterpret_cast<MAddress>(fieldPtr);

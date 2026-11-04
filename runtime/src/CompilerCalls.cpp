@@ -317,7 +317,8 @@ extern "C" void MCC_WriteStructField(ObjectPtr obj, MAddress dst, size_t dstLen,
     }
     if (UNLIKELY(!Heap::IsHeapAddress(obj))) {
         CHECK_DETAIL(memcpy_s(reinterpret_cast<void*>(dst), dstLen, reinterpret_cast<void*>(src), srcLen) == EOK,
-                     "memcpy_s failed");
+                     "MCC_WriteStructField memcpy_s failed, object: %p, dst: %#zx/%zu, src: %#zx/%zu",
+                     obj, static_cast<size_t>(dst), dstLen, static_cast<size_t>(src), srcLen);
         return;
     }
     Heap::GetBarrier().WriteStruct(obj, dst, dstLen, src, srcLen);
@@ -1728,7 +1729,9 @@ extern "C" void CJ_MCC_AssignGeneric(ObjectPtr dst, ObjectPtr src, TypeInfo* typ
                               instanceSize,
                               reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(src) + TYPEINFO_PTR_SIZE),
                               instanceSize) == EOK,
-                     "MCC_AssignGeneric memcpy_s failed");
+                     "MCC_AssignGeneric memcpy_s failed, dst: %#zx/%zu, src: %#zx/%zu",
+                     static_cast<size_t>(reinterpret_cast<MAddress>(dst) + TYPEINFO_PTR_SIZE), instanceSize,
+                     static_cast<size_t>(reinterpret_cast<MAddress>(src) + TYPEINFO_PTR_SIZE), instanceSize);
     } else {
         MAddress dstAddr = reinterpret_cast<MAddress>(dst) + TYPEINFO_PTR_SIZE;
         Heap::GetBarrier().WriteGeneric(dst, reinterpret_cast<void*>(dstAddr), src, instanceSize);
@@ -1747,7 +1750,9 @@ extern "C" void CJ_MCC_WriteGenericPayload(ObjectPtr dst, MAddress srcField, siz
                               GENERIC_PAYLOAD_SIZE,
                               reinterpret_cast<void*>(srcField),
                               srcSize) == EOK,
-                     "MCC_WriteGenericPayload memcpy_s failed");
+                     "MCC_WriteGenericPayload memcpy_s failed, dst: %#zx/%zu, src: %#zx/%zu",
+                     static_cast<size_t>(reinterpret_cast<MAddress>(dst) + TYPEINFO_PTR_SIZE), GENERIC_PAYLOAD_SIZE,
+                     static_cast<size_t>(srcField), srcSize);
     } else {
         MAddress dstAddr = reinterpret_cast<MAddress>(dst) + TYPEINFO_PTR_SIZE;
         Heap::GetBarrier().WriteStruct(dst, dstAddr, srcSize, srcField, srcSize);
@@ -1892,7 +1897,9 @@ extern "C" void CJ_MCC_ArrayCopyGeneric(const ObjectPtr dstObj, MAddress dstFiel
     if (componentTypeInfo->IsStructType() && !componentTypeInfo->HasRefField()) {
         CHECK_DETAIL(memmove_s(reinterpret_cast<void*>(dstField), dstSize,
                                reinterpret_cast<void*>(srcField), srcSize) == EOK,
-                     "MCC_ArrayCopyGeneric memmove_s failed");
+                     "MCC_ArrayCopyGeneric memmove_s failed, dst: %#zx/%llu, src: %#zx/%llu",
+                     static_cast<size_t>(dstField), static_cast<unsigned long long>(dstSize),
+                     static_cast<size_t>(srcField), static_cast<unsigned long long>(srcSize));
         return;
     }
     switch (type) {
@@ -1930,7 +1937,9 @@ extern "C" void CJ_MCC_ArrayCopyGeneric(const ObjectPtr dstObj, MAddress dstFiel
         case TypeKind::TYPE_KIND_VARRAY: {
             CHECK_DETAIL(memmove_s(reinterpret_cast<void*>(dstField), dstSize,
                                    reinterpret_cast<void*>(srcField), srcSize) == EOK,
-                         "MCC_ArrayCopyGeneric memmove_s failed");
+                         "MCC_ArrayCopyGeneric memmove_s failed, dst: %#zx/%llu, src: %#zx/%llu",
+                         static_cast<size_t>(dstField), static_cast<unsigned long long>(dstSize),
+                         static_cast<size_t>(srcField), static_cast<unsigned long long>(srcSize));
             break;
         }
         case TypeKind::TYPE_KIND_TUPLE:

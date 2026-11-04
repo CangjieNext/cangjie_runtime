@@ -36,7 +36,8 @@ void Barrier::WriteReference(BaseObject* obj, RefField<false>& field, BaseObject
 void Barrier::WriteStruct(BaseObject* obj, MAddress dst, size_t dstLen, MAddress src, size_t srcLen) const
 {
     CHECK_DETAIL(memcpy_s(reinterpret_cast<void*>(dst), dstLen, reinterpret_cast<void*>(src), srcLen) == EOK,
-                 "memcpy_s failed");
+                 "WriteStruct memcpy_s failed, object: %p, dst: %#zx/%zu, src: %#zx/%zu",
+                 obj, static_cast<size_t>(dst), dstLen, static_cast<size_t>(src), srcLen);
 #if defined(CANGJIE_TSAN_SUPPORT)
     CHECK_EQ(srcLen, dstLen);
     Sanitizer::TsanWriteMemoryRange(reinterpret_cast<void*>(dst), dstLen);
@@ -53,7 +54,8 @@ void Barrier::WriteStaticRef(RefField<false>& field, BaseObject* ref) const
 void Barrier::WriteStaticStruct(MAddress dst, size_t dstLen, MAddress src, size_t srcLen, const GCTib gctib) const
 {
     CHECK_DETAIL(memcpy_s(reinterpret_cast<void*>(dst), dstLen, reinterpret_cast<void*>(src), srcLen) == EOK,
-                 "memcpy_s failed");
+                 "WriteStaticStruct memcpy_s failed, dst: %#zx/%zu, src: %#zx/%zu",
+                 static_cast<size_t>(dst), dstLen, static_cast<size_t>(src), srcLen);
 #if defined(CANGJIE_TSAN_SUPPORT)
     size_t copyLen = (dstLen < srcLen ? dstLen : srcLen);
     Sanitizer::TsanWriteMemoryRange(reinterpret_cast<void*>(dst), copyLen);
@@ -152,7 +154,9 @@ void Barrier::CopyRefArray(BaseObject* dstObj, MAddress dstField, MIndex dstSize
 {
     CHECK_DETAIL(memmove_s(reinterpret_cast<void*>(dstField), dstSize, reinterpret_cast<void*>(srcField), srcSize) ==
                      EOK,
-                 "memmove_s failed");
+                 "CopyRefArray memmove_s failed, dst object: %p, dst: %#zx/%llu, src object: %p, src: %#zx/%llu",
+                 dstObj, static_cast<size_t>(dstField), static_cast<unsigned long long>(dstSize),
+                 srcObj, static_cast<size_t>(srcField), static_cast<unsigned long long>(srcSize));
 #if defined(CANGJIE_TSAN_SUPPORT)
     size_t copyLen = (dstSize < srcSize ? dstSize : srcSize);
     Sanitizer::TsanWriteMemoryRange(reinterpret_cast<void*>(dstField), copyLen);
@@ -165,7 +169,9 @@ void Barrier::CopyStructArray(BaseObject* dstObj, MAddress dstField, MIndex dstS
 {
     CHECK_DETAIL(memmove_s(reinterpret_cast<void*>(dstField), dstSize, reinterpret_cast<void*>(srcField), srcSize) ==
                      EOK,
-                 "memmove_s failed");
+                 "CopyStructArray memmove_s failed, dst object: %p, dst: %#zx/%llu, src object: %p, src: %#zx/%llu",
+                 dstObj, static_cast<size_t>(dstField), static_cast<unsigned long long>(dstSize),
+                 srcObj, static_cast<size_t>(srcField), static_cast<unsigned long long>(srcSize));
 #if defined(CANGJIE_TSAN_SUPPORT)
     size_t copyLen = (dstSize < srcSize ? dstSize : srcSize);
     Sanitizer::TsanWriteMemoryRange(reinterpret_cast<void*>(dstField), copyLen);
@@ -191,7 +197,8 @@ void Barrier::ReadStruct(MAddress dst, BaseObject* obj, MAddress src, size_t siz
     }
 
     CHECK_DETAIL(memcpy_s(reinterpret_cast<void*>(dst), dstSize, reinterpret_cast<void*>(src), srcSize) == EOK,
-                 "read struct memcpy_s failed");
+                 "ReadStruct memcpy_s failed, object: %p, dst: %#zx/%zu, src: %#zx/%zu",
+                 obj, static_cast<size_t>(dst), dstSize, static_cast<size_t>(src), srcSize);
 }
 
 void Barrier::ReadStaticStruct(MAddress dst, MAddress src, size_t size, const GCTib gctib) const
@@ -199,7 +206,8 @@ void Barrier::ReadStaticStruct(MAddress dst, MAddress src, size_t size, const GC
     size_t dstSize = size;
     size_t srcSize = size;
     CHECK_DETAIL(memcpy_s(reinterpret_cast<void*>(dst), dstSize, reinterpret_cast<void*>(src), srcSize) == EOK,
-                 "read struct memcpy_s failed");
+                 "ReadStaticStruct memcpy_s failed, dst: %#zx/%zu, src: %#zx/%zu",
+                 static_cast<size_t>(dst), dstSize, static_cast<size_t>(src), srcSize);
     gctib.ForEachBitmapWord(dst, [this](RefField<>& refField) {
         BaseObject* toVersion = nullptr;
         theCollector.TryUpdateRefField(nullptr, refField, toVersion);
@@ -212,7 +220,7 @@ void Barrier::WriteGeneric(const ObjectPtr obj, void* fieldPtr, const ObjectPtr 
         CHECK_DETAIL(memcpy_s(fieldPtr, size,
                               reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(src) + TYPEINFO_PTR_SIZE),
                               size) == EOK,
-                     "WriteGeneric memcpy_s failed");
+                     "WriteGeneric memcpy_s failed, object: %p, field: %p, source: %p, size: %zu", obj, fieldPtr, src, size);
 #if defined(CANGJIE_TSAN_SUPPORT)
         if (Heap::IsHeapAddress(src)) {
             Sanitizer::TsanReadMemoryRange(
@@ -238,7 +246,8 @@ void Barrier::ReadGeneric(const ObjectPtr dstObj, ObjectPtr obj, void* fieldPtr,
     if (!Heap::IsHeapAddress(dstObj) && !Heap::IsHeapAddress(obj)) {
         CHECK_DETAIL(memcpy_s(reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(dstObj) + TYPEINFO_PTR_SIZE),
                               size, fieldPtr, size) == EOK,
-                     "ReadGeneric memcpy_s failed");
+                     "ReadGeneric memcpy_s failed, destination: %p, object: %p, field: %p, size: %zu",
+                     dstObj, obj, fieldPtr, size);
     } else if (!Heap::IsHeapAddress(dstObj) && Heap::IsHeapAddress(obj)) {
         MAddress dstAddr = reinterpret_cast<MAddress>(dstObj) + TYPEINFO_PTR_SIZE;
         MAddress srcAddr = reinterpret_cast<MAddress>(fieldPtr);

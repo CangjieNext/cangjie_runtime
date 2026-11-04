@@ -257,7 +257,9 @@ void PostTraceBarrier::CopyStructArray(BaseObject* dstObj, MAddress dstField, MI
     }
     CHECK_DETAIL(memmove_s(reinterpret_cast<void*>(dstField), dstSize, reinterpret_cast<void*>(srcField), srcSize) ==
                      EOK,
-                 "memmove_s failed");
+                 "PostTrace CopyStructArray memmove_s failed, dst object: %p, dst: %#zx/%llu, src object: %p, src: %#zx/%llu",
+                 dstObj, static_cast<size_t>(dstField), static_cast<unsigned long long>(dstSize),
+                 srcObj, static_cast<size_t>(srcField), static_cast<unsigned long long>(srcSize));
 
 #if defined(CANGJIE_TSAN_SUPPORT)
     Sanitizer::TsanWriteMemoryRange(reinterpret_cast<void*>(dstField), dstSize);

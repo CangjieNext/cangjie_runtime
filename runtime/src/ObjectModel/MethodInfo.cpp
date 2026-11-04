@@ -214,6 +214,9 @@ bool MethodInfo::CheckMethodActualArgs(void* genericArgsArray, void* actualArgsA
         GenericTypeInfo* genericTi = GetGenericParameterInfo(genericIdx);
         TypeInfo* ti = GetActualTypeFromGenericType(genericTi, genericArgsArray);
         if (genericTi->GetGenericConstraintNum() > 0 && !CheckGenericConstraint(genericTi, ti, genericArgsArray)) {
+            DLOG(DEBUG, "Reflect argument check failed, method: %s, declaringTi: %p, generic index: %u, "
+                 "actualTi: %p, reason: generic constraint mismatch", GetMethodName(), declaringTi,
+                 static_cast<unsigned>(genericIdx), ti);
             return false;
         }
     }
@@ -224,6 +227,9 @@ bool MethodInfo::CheckMethodActualArgs(void* genericArgsArray, void* actualArgsA
         Heap::GetBarrier().ReadReference(nullptr, *actualRawPtrField));
     U64 actualArgCnt = cjRawArray->len;
     if (actualArgCnt != GetNumOfActualParameterInfos()) {
+        DLOG(DEBUG, "Reflect argument check failed, method: %s, declaringTi: %p, expected count: %u, "
+             "actual count: %llu", GetMethodName(), declaringTi, static_cast<unsigned>(GetNumOfActualParameterInfos()),
+             static_cast<unsigned long long>(actualArgCnt));
         return false;
     }
     ObjRef rawArray = reinterpret_cast<ObjRef>(cjRawArray);
@@ -236,10 +242,16 @@ bool MethodInfo::CheckMethodActualArgs(void* genericArgsArray, void* actualArgsA
             argType = GetActualTypeFromGenericType(reinterpret_cast<GenericTypeInfo*>(argType), genericArgsArray);
         }
         if (argType == nullptr) {
+            DLOG(DEBUG, "Reflect argument check failed, method: %s, declaringTi: %p, argument index: %llu, "
+                 "reason: unresolved parameter type", GetMethodName(), declaringTi,
+                 static_cast<unsigned long long>(actualArgIdx));
             return false;
         }
         refField++;
         if (!argObj->GetTypeInfo()->IsSubType(argType)) {
+            DLOG(DEBUG, "Reflect argument check failed, method: %s, declaringTi: %p, argument index: %llu, "
+                 "expected type: %s, actual type: %s", GetMethodName(), declaringTi,
+                 static_cast<unsigned long long>(actualArgIdx), argType->GetName(), argObj->GetTypeInfo()->GetName());
             return false;
         }
     }

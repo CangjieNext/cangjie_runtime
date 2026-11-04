@@ -142,7 +142,7 @@ public:
         if (UNLIKELY(message == nullptr)) {
             LOG(RTLOG_FATAL, "Exception message init failed");
         }
-        CHECK_DETAIL(memcpy_s(message, len, ptr, len) == EOK, "memcpy_s failed");
+        CHECK_DETAIL(memcpy_s(message, len, ptr, len) == EOK, "Exception message memcpy_s failed, length: %zu", len);
         message[len] = '\0';
         messageLength = len + 1;
     }

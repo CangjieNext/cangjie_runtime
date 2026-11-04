@@ -296,7 +296,9 @@ void TraceBarrier::CopyStructArray(BaseObject* dstObj, MAddress dstField, MIndex
 
     CHECK_DETAIL(memmove_s(reinterpret_cast<void*>(dstField), dstSize, reinterpret_cast<void*>(srcField), srcSize) ==
                      EOK,
-                 "memmove_s failed");
+                 "Trace CopyStructArray memmove_s failed, dst object: %p, dst: %#zx/%llu, src object: %p, src: %#zx/%llu",
+                 dstObj, static_cast<size_t>(dstField), static_cast<unsigned long long>(dstSize),
+                 srcObj, static_cast<size_t>(srcField), static_cast<unsigned long long>(srcSize));
 
 #if defined(CANGJIE_TSAN_SUPPORT)
     Sanitizer::TsanWriteMemoryRange(reinterpret_cast<void*>(dstField), dstSize);
@@ -310,7 +312,8 @@ void TraceBarrier::WriteGeneric(const ObjectPtr obj, void* fieldPtr, const Objec
         CHECK_DETAIL(memcpy_s(fieldPtr, size,
                               reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(src) + TYPEINFO_PTR_SIZE),
                               size) == EOK,
-                     "WriteGeneric memcpy_s failed");
+                     "Trace WriteGeneric memcpy_s failed, object: %p, field: %p, source: %p, size: %zu", obj, fieldPtr,
+                     src, size);
 #if defined(CANGJIE_TSAN_SUPPORT)
         if (Heap::IsHeapAddress(src)) {
             Sanitizer::TsanReadMemoryRange(
@@ -343,7 +346,8 @@ void TraceBarrier::ReadGeneric(const ObjectPtr dstObj, ObjectPtr obj, void* fiel
     if (!Heap::IsHeapAddress(dstObj) && !Heap::IsHeapAddress(obj)) {
         CHECK_DETAIL(memcpy_s(reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(dstObj) + TYPEINFO_PTR_SIZE),
                               size, fieldPtr, size) == EOK,
-                     "ReadGeneric memcpy_s failed");
+                     "Trace ReadGeneric memcpy_s failed, destination: %p, object: %p, field: %p, size: %zu", dstObj,
+                     obj, fieldPtr, size);
     } else if (!Heap::IsHeapAddress(dstObj) && Heap::IsHeapAddress(obj)) {
         MAddress dstAddr = reinterpret_cast<MAddress>(dstObj) + TYPEINFO_PTR_SIZE;
         MAddress srcAddr = reinterpret_cast<MAddress>(fieldPtr);
