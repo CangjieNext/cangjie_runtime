@@ -58,7 +58,7 @@ File fileHandle: 3
 - [Copyable](../../core/core_package_api/core_package_interfaces.md#interface-copyable)
 
 <!--Del-->
-### prop fileHandle @local?
+### prop fileHandle
 
 ```cangjie
 public prop fileHandle: IntNative @local?
@@ -310,7 +310,7 @@ File name: test_info_file.txt
 ```
 
 <!--Del-->
-### prop name @local?
+### prop name
 
 ```cangjie
 public prop name: String @local?
@@ -440,7 +440,7 @@ File path: /home/user/test_info_file.txt
 ```
 
 <!--Del-->
-### prop path @local?
+### prop path
 
 ```cangjie
 public prop path: Path @local?
@@ -540,7 +540,7 @@ File size: 4 bytes
 ```
 
 <!--Del-->
-### prop size @local?
+### prop size
 
 ```cangjie
 public prop size: Int64 @local?
@@ -692,7 +692,7 @@ File name: test_init_string.txt
 ```
 
 <!--Del-->
-### init(this @local!, Path)
+### init(Path)
 
 ```cangjie
 public exclave init(this @local!, path: Path @local!)
@@ -749,7 +749,7 @@ File name: test_local_info_init_path.txt
 <!--DelEnd-->
 
 <!--Del-->
-### init(this @local!, String)
+### init(String)
 
 ```cangjie
 public exclave init(this @local!, path: String @local!)
@@ -1634,7 +1634,7 @@ File name: test_file.txt
 ```
 
 <!--Del-->
-### prop fileName @local?
+### prop fileName
 
 ```cangjie
 public prop fileName: String @local?
@@ -1785,7 +1785,7 @@ Parent path: /home/user
 ```
 
 <!--Del-->
-### prop parent `@local!`
+### prop parent
 
 ```cangjie
 public prop parent: Path @local!
@@ -1865,7 +1865,7 @@ Path: /home/user/test_file.txt
 ```
 
 <!--Del-->
-### init(this @local!, String)
+### init(String)
 
 ```cangjie
 public exclave init(this @local!, rawPath: String @local!)
@@ -1984,7 +1984,7 @@ Path './test_file.txt' is absolute: false
 ```
 
 <!--Del-->
-### func isAbsolute(this @local?)
+### func isAbsolute()
 
 ```cangjie
 public func isAbsolute(this @local?): Bool
@@ -2073,7 +2073,7 @@ Path '/home/user/test_file.txt' is empty: false
 ```
 
 <!--Del-->
-### func isEmpty(this @local?)
+### func isEmpty()
 
 ```cangjie
 public func isEmpty(this @local?): Bool
@@ -2277,7 +2277,7 @@ Joined path: /home/user/documents/file.txt
 ```
 
 <!--Del-->
-### func join(this @local!, String)
+### func join(String)
 
 ```cangjie
 public func join(this @local!, path: String @local!): Path @local!
@@ -2335,7 +2335,7 @@ Joined path: ./dir/test_local_path.txt
 <!--DelEnd-->
 
 <!--Del-->
-### func join(this @local!, Path)
+### func join(Path)
 
 ```cangjie
 public func join(this @local!, path: Path @local!): Path @local!
@@ -2491,7 +2491,7 @@ Path string: /home/user/documents/file.txt
 ```
 
 <!--Del-->
-### func toString(this @local?)
+### func toString()
 
 ```cangjie
 public exclave func toString(this @local?): String @local!

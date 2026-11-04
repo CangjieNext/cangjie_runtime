@@ -202,7 +202,7 @@ Hello, World!
 ```
 
 <!--Del-->
-## func readToEnd\<T>(T @local!) where T <: InputStream & Seekable
+## func readToEnd\<T>(T) where T <: InputStream & Seekable
 
 ```cangjie
 public exclave func readToEnd<T>(from: T @local!): Array<Byte> @local! where T <: InputStream & Seekable

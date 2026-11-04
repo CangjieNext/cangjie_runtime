@@ -718,7 +718,7 @@ File length: 6
 ```
 
 <!--Del-->
-### prop length `@local!`
+### prop length
 
 ```cangjie
 public prop length: Int64 @local!
@@ -869,7 +869,7 @@ Was the file created successfully? true
 ```
 
 <!--Del-->
-### init(this @local!, String, OpenMode)
+### init(String, OpenMode)
 
 ```cangjie
 public exclave init(this @local!, path: String @local!, mode: OpenMode @local!)
@@ -1356,7 +1356,7 @@ Is the file content correct? result: true
 ```
 
 <!--Del-->
-### static func readFrom(String @local!)
+### static func readFrom(String)
 
 ```cangjie
 public static exclave func readFrom(path: String @local!): Array<Byte> @local!
@@ -1666,7 +1666,7 @@ File is closed after close: true
 ```
 
 <!--Del-->
-### func close(this @local!)
+### func close()
 
 ```cangjie
 public exclave func close(this @local!): Unit
@@ -1755,7 +1755,7 @@ main(): Unit {
 ```
 
 <!--Del-->
-### func flush(this @local?)
+### func flush()
 
 ```cangjie
 public func flush(this @local?): Unit
@@ -1858,7 +1858,7 @@ File is closed after close: true
 ```
 
 <!--Del-->
-### func isClosed(this @local?)
+### func isClosed()
 
 ```cangjie
 public func isClosed(this @local?): Bool
@@ -1981,7 +1981,7 @@ Buffer content matches: true
 ```
 
 <!--Del-->
-### func read(this @local!, Array\<Byte> @local!)
+### func read(Array\<Byte>)
 
 ```cangjie
 public exclave func read(this @local!, buffer: Array<Byte> @local!): Int64
@@ -2127,7 +2127,7 @@ Last byte: 69
 ```
 
 <!--Del-->
-### func seek(this @local!, SeekPosition)
+### func seek(SeekPosition)
 
 ```cangjie
 public func seek(this @local!, sp: SeekPosition): Int64

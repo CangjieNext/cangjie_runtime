@@ -47,7 +47,7 @@ Exceptions:
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown when the path is empty or contains a string terminator.
 
 <!--Del-->
-## func canonicalize(String @local!)
+## func canonicalize(String)
 
 ```cangjie
 public func canonicalize(path: String @local!): Path @local!
@@ -108,7 +108,7 @@ Canonical file name: test_local_canonicalize.txt
 
 <!--DelEnd-->
 <!--Del-->
-## func canonicalize(Path @local!)
+## func canonicalize(Path)
 
 ```cangjie
 public func canonicalize(path: Path @local!): Path @local!
@@ -252,7 +252,7 @@ Exceptions:
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown when the path is empty or contains a string terminator.
 
 <!--Del-->
-## func exists(Path @local?)
+## func exists(Path)
 
 ```cangjie
 public func exists(path: Path @local?): Bool
@@ -318,7 +318,7 @@ File exists after removal: false
 
 <!--DelEnd-->
 <!--Del-->
-## func exists(String @local?)
+## func exists(String)
 
 ```cangjie
 public func exists(path: String @local?): Bool

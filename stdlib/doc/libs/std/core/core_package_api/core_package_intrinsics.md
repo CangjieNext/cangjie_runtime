@@ -60,7 +60,7 @@ main() {
 ```
 
 <!--Del-->
-#### func hashCode(this @local?)
+#### func hashCode()
 
 ```cangjie
 public func hashCode(this @local?): Int64
@@ -97,7 +97,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### func hashCode(this @local!)
+#### func hashCode()
 
 ```cangjie
 public func hashCode(this @local!): Int64
@@ -179,7 +179,7 @@ true
 ```
 
 <!--Del-->
-#### func toString(this @local?)
+#### func toString()
 
 ```cangjie
 public exclave func toString(this @local?): String @local!
@@ -1728,7 +1728,7 @@ Ordering.LT
 ```
 
 <!--Del-->
-#### func compare(this @local?, Float16 @local?)
+#### func compare(Float16)
 
 ```cangjie
 public func compare(this @local?, other: Float16 @local?): Ordering
@@ -1769,7 +1769,7 @@ Ordering.LT
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func ==(this @local!, Float16 @local!)
+#### operator func ==(Float16)
 
 ```cangjie
 public operator func ==(this @local!, other: Float16 @local!): Bool
@@ -1810,7 +1810,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func ==(this @local?, Float16 @local?)
+#### operator func ==(Float16)
 
 ```cangjie
 public operator func ==(this @local?, other: Float16 @local?): Bool
@@ -1851,7 +1851,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func !=(this @local!, Float16 @local!)
+#### operator func !=(Float16)
 
 ```cangjie
 public operator func !=(this @local!, other: Float16 @local!): Bool
@@ -1892,7 +1892,7 @@ false
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func !=(this @local?, Float16 @local?)
+#### operator func !=(Float16)
 
 ```cangjie
 public operator func !=(this @local?, other: Float16 @local?): Bool
@@ -1933,7 +1933,7 @@ false
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func <(this @local?, Float16 @local?)
+#### operator func <(Float16)
 
 ```cangjie
 public operator func <(this @local?, other: Float16 @local?): Bool
@@ -1974,7 +1974,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func >(this @local?, Float16 @local?)
+#### operator func >(Float16)
 
 ```cangjie
 public operator func >(this @local?, other: Float16 @local?): Bool
@@ -2015,7 +2015,7 @@ false
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func <=(this @local?, Float16 @local?)
+#### operator func <=(Float16)
 
 ```cangjie
 public operator func <=(this @local?, other: Float16 @local?): Bool
@@ -2056,7 +2056,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func >=(this @local?, Float16 @local?)
+#### operator func >=(Float16)
 
 ```cangjie
 public operator func >=(this @local?, other: Float16 @local?): Bool
@@ -2154,7 +2154,7 @@ main() {
 ```
 
 <!--Del-->
-#### func hashCode(this @local?)
+#### func hashCode()
 
 ```cangjie
 public func hashCode(this @local?): Int64
@@ -2191,7 +2191,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### func hashCode(this @local!)
+#### func hashCode()
 
 ```cangjie
 public func hashCode(this @local!): Int64
@@ -2285,7 +2285,7 @@ main() {
 ```
 
 <!--Del-->
-#### func toString(this @local?)
+#### func toString()
 
 ```cangjie
 public exclave func toString(this @local?): String @local!
@@ -2845,7 +2845,7 @@ Ordering.LT
 ```
 
 <!--Del-->
-#### func compare(this @local?, Float32 @local?)
+#### func compare(Float32)
 
 ```cangjie
 public func compare(this @local?, other: Float32 @local?): Ordering
@@ -2886,7 +2886,7 @@ Ordering.LT
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func ==(this @local!, Float32 @local!)
+#### operator func ==(Float32)
 
 ```cangjie
 public operator func ==(this @local!, other: Float32 @local!): Bool
@@ -2927,7 +2927,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func ==(this @local?, Float32 @local?)
+#### operator func ==(Float32)
 
 ```cangjie
 public operator func ==(this @local?, other: Float32 @local?): Bool
@@ -2968,7 +2968,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func !=(this @local!, Float32 @local!)
+#### operator func !=(Float32)
 
 ```cangjie
 public operator func !=(this @local!, other: Float32 @local!): Bool
@@ -3009,7 +3009,7 @@ false
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func !=(this @local?, Float32 @local?)
+#### operator func !=(Float32)
 
 ```cangjie
 public operator func !=(this @local?, other: Float32 @local?): Bool
@@ -3050,7 +3050,7 @@ false
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func <(this @local?, Float32 @local?)
+#### operator func <(Float32)
 
 ```cangjie
 public operator func <(this @local?, other: Float32 @local?): Bool
@@ -3091,7 +3091,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func >(this @local?, Float32 @local?)
+#### operator func >(Float32)
 
 ```cangjie
 public operator func >(this @local?, other: Float32 @local?): Bool
@@ -3132,7 +3132,7 @@ false
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func <=(this @local?, Float32 @local?)
+#### operator func <=(Float32)
 
 ```cangjie
 public operator func <=(this @local?, other: Float32 @local?): Bool
@@ -3173,7 +3173,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func >=(this @local?, Float32 @local?)
+#### operator func >=(Float32)
 
 ```cangjie
 public operator func >=(this @local?, other: Float32 @local?): Bool
@@ -3271,7 +3271,7 @@ main() {
 ```
 
 <!--Del-->
-#### func hashCode(this @local?)
+#### func hashCode()
 
 ```cangjie
 public func hashCode(this @local?): Int64
@@ -3308,7 +3308,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### func hashCode(this @local!)
+#### func hashCode()
 
 ```cangjie
 public func hashCode(this @local!): Int64
@@ -3402,7 +3402,7 @@ main() {
 ```
 
 <!--Del-->
-#### func toString(this @local?)
+#### func toString()
 
 ```cangjie
 public exclave func toString(this @local?): String @local!
@@ -3962,7 +3962,7 @@ Ordering.LT
 ```
 
 <!--Del-->
-#### func compare(this @local?, Float64 @local?)
+#### func compare(Float64)
 
 ```cangjie
 public func compare(this @local?, other: Float64 @local?): Ordering
@@ -4003,7 +4003,7 @@ Ordering.LT
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func ==(this @local!, Float64 @local!)
+#### operator func ==(Float64)
 
 ```cangjie
 public operator func ==(this @local!, other: Float64 @local!): Bool
@@ -4044,7 +4044,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func ==(this @local?, Float64 @local?)
+#### operator func ==(Float64)
 
 ```cangjie
 public operator func ==(this @local?, other: Float64 @local?): Bool
@@ -4085,7 +4085,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func !=(this @local!, Float64 @local!)
+#### operator func !=(Float64)
 
 ```cangjie
 public operator func !=(this @local!, other: Float64 @local!): Bool
@@ -4126,7 +4126,7 @@ false
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func !=(this @local?, Float64 @local?)
+#### operator func !=(Float64)
 
 ```cangjie
 public operator func !=(this @local?, other: Float64 @local?): Bool
@@ -4167,7 +4167,7 @@ false
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func <(this @local?, Float64 @local?)
+#### operator func <(Float64)
 
 ```cangjie
 public operator func <(this @local?, other: Float64 @local?): Bool
@@ -4208,7 +4208,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func >(this @local?, Float64 @local?)
+#### operator func >(Float64)
 
 ```cangjie
 public operator func >(this @local?, other: Float64 @local?): Bool
@@ -4249,7 +4249,7 @@ false
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func <=(this @local?, Float64 @local?)
+#### operator func <=(Float64)
 
 ```cangjie
 public operator func <=(this @local?, other: Float64 @local?): Bool
@@ -4290,7 +4290,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func >=(this @local?, Float64 @local?)
+#### operator func >=(Float64)
 
 ```cangjie
 public operator func >=(this @local?, other: Float64 @local?): Bool
@@ -4388,7 +4388,7 @@ main() {
 ```
 
 <!--Del-->
-#### func hashCode(this @local?)
+#### func hashCode()
 
 ```cangjie
 public func hashCode(this @local?): Int64
@@ -4425,7 +4425,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### func hashCode(this @local!)
+#### func hashCode()
 
 ```cangjie
 public func hashCode(this @local!): Int64
@@ -4519,7 +4519,7 @@ main() {
 ```
 
 <!--Del-->
-#### func toString(this @local?)
+#### func toString()
 
 ```cangjie
 public exclave func toString(this @local?): String @local!
@@ -4675,7 +4675,7 @@ Ordering.LT
 ```
 
 <!--Del-->
-#### func compare(this @local?, Int16 @local?)
+#### func compare(Int16)
 
 ```cangjie
 public func compare(this @local?, other: Int16 @local?): Ordering
@@ -4716,7 +4716,7 @@ Ordering.LT
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func ==(this @local!, Int16 @local!)
+#### operator func ==(Int16)
 
 ```cangjie
 public operator func ==(this @local!, other: Int16 @local!): Bool
@@ -4757,7 +4757,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func ==(this @local?, Int16 @local?)
+#### operator func ==(Int16)
 
 ```cangjie
 public operator func ==(this @local?, other: Int16 @local?): Bool
@@ -4798,7 +4798,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func !=(this @local!, Int16 @local!)
+#### operator func !=(Int16)
 
 ```cangjie
 public operator func !=(this @local!, other: Int16 @local!): Bool
@@ -4839,7 +4839,7 @@ false
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func !=(this @local?, Int16 @local?)
+#### operator func !=(Int16)
 
 ```cangjie
 public operator func !=(this @local?, other: Int16 @local?): Bool
@@ -4880,7 +4880,7 @@ false
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func <(this @local?, Int16 @local?)
+#### operator func <(Int16)
 
 ```cangjie
 public operator func <(this @local?, other: Int16 @local?): Bool
@@ -4921,7 +4921,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func >(this @local?, Int16 @local?)
+#### operator func >(Int16)
 
 ```cangjie
 public operator func >(this @local?, other: Int16 @local?): Bool
@@ -4962,7 +4962,7 @@ false
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func <=(this @local?, Int16 @local?)
+#### operator func <=(Int16)
 
 ```cangjie
 public operator func <=(this @local?, other: Int16 @local?): Bool
@@ -5003,7 +5003,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func >=(this @local?, Int16 @local?)
+#### operator func >=(Int16)
 
 ```cangjie
 public operator func >=(this @local?, other: Int16 @local?): Bool
@@ -5179,7 +5179,7 @@ main() {
 ```
 
 <!--Del-->
-#### func hashCode(this @local?)
+#### func hashCode()
 
 ```cangjie
 public func hashCode(this @local?): Int64
@@ -5216,7 +5216,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### func hashCode(this @local!)
+#### func hashCode()
 
 ```cangjie
 public func hashCode(this @local!): Int64
@@ -5310,7 +5310,7 @@ main() {
 ```
 
 <!--Del-->
-#### func toString(this @local?)
+#### func toString()
 
 ```cangjie
 public exclave func toString(this @local?): String @local!
@@ -5466,7 +5466,7 @@ Ordering.LT
 ```
 
 <!--Del-->
-#### func compare(this @local?, Int32 @local?)
+#### func compare(Int32)
 
 ```cangjie
 public func compare(this @local?, other: Int32 @local?): Ordering
@@ -5507,7 +5507,7 @@ Ordering.LT
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func ==(this @local!, Int32 @local!)
+#### operator func ==(Int32)
 
 ```cangjie
 public operator func ==(this @local!, other: Int32 @local!): Bool
@@ -5548,7 +5548,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func ==(this @local?, Int32 @local?)
+#### operator func ==(Int32)
 
 ```cangjie
 public operator func ==(this @local?, other: Int32 @local?): Bool
@@ -5589,7 +5589,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func !=(this @local!, Int32 @local!)
+#### operator func !=(Int32)
 
 ```cangjie
 public operator func !=(this @local!, other: Int32 @local!): Bool
@@ -5630,7 +5630,7 @@ false
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func !=(this @local?, Int32 @local?)
+#### operator func !=(Int32)
 
 ```cangjie
 public operator func !=(this @local?, other: Int32 @local?): Bool
@@ -5671,7 +5671,7 @@ false
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func <(this @local?, Int32 @local?)
+#### operator func <(Int32)
 
 ```cangjie
 public operator func <(this @local?, other: Int32 @local?): Bool
@@ -5712,7 +5712,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func >(this @local?, Int32 @local?)
+#### operator func >(Int32)
 
 ```cangjie
 public operator func >(this @local?, other: Int32 @local?): Bool
@@ -5753,7 +5753,7 @@ false
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func <=(this @local?, Int32 @local?)
+#### operator func <=(Int32)
 
 ```cangjie
 public operator func <=(this @local?, other: Int32 @local?): Bool
@@ -5794,7 +5794,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func >=(this @local?, Int32 @local?)
+#### operator func >=(Int32)
 
 ```cangjie
 public operator func >=(this @local?, other: Int32 @local?): Bool
@@ -5964,7 +5964,7 @@ main() {
 ```
 
 <!--Del-->
-#### func hashCode(this @local?)
+#### func hashCode()
 
 ```cangjie
 public func hashCode(this @local?): Int64
@@ -6001,7 +6001,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### func hashCode(this @local!)
+#### func hashCode()
 
 ```cangjie
 public func hashCode(this @local!): Int64
@@ -6095,7 +6095,7 @@ main() {
 ```
 
 <!--Del-->
-#### func toString(this @local?)
+#### func toString()
 
 ```cangjie
 public exclave func toString(this @local?): String @local!
@@ -6251,7 +6251,7 @@ Ordering.LT
 ```
 
 <!--Del-->
-#### func compare(this @local?, Int64 @local?)
+#### func compare(Int64)
 
 ```cangjie
 public func compare(this @local?, other: Int64 @local?): Ordering
@@ -6292,7 +6292,7 @@ Ordering.LT
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func ==(this @local!, Int64 @local!)
+#### operator func ==(Int64)
 
 ```cangjie
 public operator func ==(this @local!, other: Int64 @local!): Bool
@@ -6333,7 +6333,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func ==(this @local?, Int64 @local?)
+#### operator func ==(Int64)
 
 ```cangjie
 public operator func ==(this @local?, other: Int64 @local?): Bool
@@ -6374,7 +6374,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func !=(this @local!, Int64 @local!)
+#### operator func !=(Int64)
 
 ```cangjie
 public operator func !=(this @local!, other: Int64 @local!): Bool
@@ -6415,7 +6415,7 @@ false
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func !=(this @local?, Int64 @local?)
+#### operator func !=(Int64)
 
 ```cangjie
 public operator func !=(this @local?, other: Int64 @local?): Bool
@@ -6456,7 +6456,7 @@ false
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func <(this @local?, Int64 @local?)
+#### operator func <(Int64)
 
 ```cangjie
 public operator func <(this @local?, other: Int64 @local?): Bool
@@ -6497,7 +6497,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func >(this @local?, Int64 @local?)
+#### operator func >(Int64)
 
 ```cangjie
 public operator func >(this @local?, other: Int64 @local?): Bool
@@ -6538,7 +6538,7 @@ false
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func <=(this @local?, Int64 @local?)
+#### operator func <=(Int64)
 
 ```cangjie
 public operator func <=(this @local?, other: Int64 @local?): Bool
@@ -6579,7 +6579,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func >=(this @local?, Int64 @local?)
+#### operator func >=(Int64)
 
 ```cangjie
 public operator func >=(this @local?, other: Int64 @local?): Bool
@@ -6752,7 +6752,7 @@ hashCode: 0
 ```
 
 <!--Del-->
-#### func hashCode(this @local?)
+#### func hashCode()
 
 ```cangjie
 public func hashCode(this @local?): Int64
@@ -6789,7 +6789,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### func hashCode(this @local!)
+#### func hashCode()
 
 ```cangjie
 public func hashCode(this @local!): Int64
@@ -6901,7 +6901,7 @@ Int64 最小值: -9223372036854775808
 ```
 
 <!--Del-->
-#### func toString(this @local?)
+#### func toString()
 
 ```cangjie
 public exclave func toString(this @local?): String @local!
@@ -7057,7 +7057,7 @@ Ordering.LT
 ```
 
 <!--Del-->
-#### func compare(this @local?, Int8 @local?)
+#### func compare(Int8)
 
 ```cangjie
 public func compare(this @local?, other: Int8 @local?): Ordering
@@ -7098,7 +7098,7 @@ Ordering.LT
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func ==(this @local!, Int8 @local!)
+#### operator func ==(Int8)
 
 ```cangjie
 public operator func ==(this @local!, other: Int8 @local!): Bool
@@ -7139,7 +7139,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func ==(this @local?, Int8 @local?)
+#### operator func ==(Int8)
 
 ```cangjie
 public operator func ==(this @local?, other: Int8 @local?): Bool
@@ -7180,7 +7180,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func !=(this @local!, Int8 @local!)
+#### operator func !=(Int8)
 
 ```cangjie
 public operator func !=(this @local!, other: Int8 @local!): Bool
@@ -7221,7 +7221,7 @@ false
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func !=(this @local?, Int8 @local?)
+#### operator func !=(Int8)
 
 ```cangjie
 public operator func !=(this @local?, other: Int8 @local?): Bool
@@ -7262,7 +7262,7 @@ false
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func <(this @local?, Int8 @local?)
+#### operator func <(Int8)
 
 ```cangjie
 public operator func <(this @local?, other: Int8 @local?): Bool
@@ -7303,7 +7303,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func >(this @local?, Int8 @local?)
+#### operator func >(Int8)
 
 ```cangjie
 public operator func >(this @local?, other: Int8 @local?): Bool
@@ -7344,7 +7344,7 @@ false
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func <=(this @local?, Int8 @local?)
+#### operator func <=(Int8)
 
 ```cangjie
 public operator func <=(this @local?, other: Int8 @local?): Bool
@@ -7385,7 +7385,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func >=(this @local?, Int8 @local?)
+#### operator func >=(Int8)
 
 ```cangjie
 public operator func >=(this @local?, other: Int8 @local?): Bool
@@ -7573,7 +7573,7 @@ hashCode: -128
 ```
 
 <!--Del-->
-#### func hashCode(this @local?)
+#### func hashCode()
 
 ```cangjie
 public func hashCode(this @local?): Int64
@@ -7610,7 +7610,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### func hashCode(this @local!)
+#### func hashCode()
 
 ```cangjie
 public func hashCode(this @local!): Int64
@@ -7722,7 +7722,7 @@ Int8 最小值: -128
 ```
 
 <!--Del-->
-#### func toString(this @local?)
+#### func toString()
 
 ```cangjie
 public exclave func toString(this @local?): String @local!
@@ -7878,7 +7878,7 @@ Ordering.LT
 ```
 
 <!--Del-->
-#### func compare(this @local?, IntNative @local?)
+#### func compare(IntNative)
 
 ```cangjie
 public func compare(this @local?, other: IntNative @local?): Ordering
@@ -7919,7 +7919,7 @@ Ordering.LT
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func ==(this @local!, IntNative @local!)
+#### operator func ==(IntNative)
 
 ```cangjie
 public operator func ==(this @local!, other: IntNative @local!): Bool
@@ -7960,7 +7960,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func ==(this @local?, IntNative @local?)
+#### operator func ==(IntNative)
 
 ```cangjie
 public operator func ==(this @local?, other: IntNative @local?): Bool
@@ -8001,7 +8001,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func !=(this @local!, IntNative @local!)
+#### operator func !=(IntNative)
 
 ```cangjie
 public operator func !=(this @local!, other: IntNative @local!): Bool
@@ -8042,7 +8042,7 @@ false
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func !=(this @local?, IntNative @local?)
+#### operator func !=(IntNative)
 
 ```cangjie
 public operator func !=(this @local?, other: IntNative @local?): Bool
@@ -8083,7 +8083,7 @@ false
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func <(this @local?, IntNative @local?)
+#### operator func <(IntNative)
 
 ```cangjie
 public operator func <(this @local?, other: IntNative @local?): Bool
@@ -8124,7 +8124,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func >(this @local?, IntNative @local?)
+#### operator func >(IntNative)
 
 ```cangjie
 public operator func >(this @local?, other: IntNative @local?): Bool
@@ -8165,7 +8165,7 @@ false
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func <=(this @local?, IntNative @local?)
+#### operator func <=(IntNative)
 
 ```cangjie
 public operator func <=(this @local?, other: IntNative @local?): Bool
@@ -8206,7 +8206,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func >=(this @local?, IntNative @local?)
+#### operator func >=(IntNative)
 
 ```cangjie
 public operator func >=(this @local?, other: IntNative @local?): Bool
@@ -8394,7 +8394,7 @@ hashCode: -9223372036854775808
 ```
 
 <!--Del-->
-#### func hashCode(this @local?)
+#### func hashCode()
 
 ```cangjie
 public func hashCode(this @local?): Int64
@@ -8431,7 +8431,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### func hashCode(this @local!)
+#### func hashCode()
 
 ```cangjie
 public func hashCode(this @local!): Int64
@@ -8543,7 +8543,7 @@ IntNative 最小值: -9223372036854775808
 ```
 
 <!--Del-->
-#### func toString(this @local?)
+#### func toString()
 
 ```cangjie
 public exclave func toString(this @local?): String @local!
@@ -8634,7 +8634,7 @@ A
 ```
 
 <!--Del-->
-#### static func fromUtf8(Array\<UInt8> @local?, Int64)
+#### static func fromUtf8(Array\<UInt8>, Int64)
 
 ```cangjie
 public static func fromUtf8(arr: Array<UInt8> @local?, index: Int64): (Rune, Int64)
@@ -8767,7 +8767,7 @@ main() {
 ```
 
 <!--Del-->
-#### static func intoUtf8Array(Rune, Array\<UInt8> @local?, Int64)
+#### static func intoUtf8Array(Rune, Array\<UInt8>, Int64)
 
 ```cangjie
 public static func intoUtf8Array(c: Rune, arr: Array<UInt8> @local?, index: Int64): Int64
@@ -9417,7 +9417,7 @@ Ordering.LT
 ```
 
 <!--Del-->
-#### func compare(this @local?, Rune @local?)
+#### func compare(Rune)
 
 ```cangjie
 public func compare(this @local?, other: Rune @local?): Ordering
@@ -9617,7 +9617,7 @@ main() {
 ```
 
 <!--Del-->
-#### func hashCode(this @local?)
+#### func hashCode()
 
 ```cangjie
 public func hashCode(this @local?): Int64
@@ -9654,7 +9654,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### func hashCode(this @local!)
+#### func hashCode()
 
 ```cangjie
 public func hashCode(this @local!): Int64
@@ -9743,7 +9743,7 @@ main() {
 ```
 
 <!--Del-->
-#### func toString(this @local?)
+#### func toString()
 
 ```cangjie
 public exclave func toString(this @local?): String @local!
@@ -9907,7 +9907,7 @@ Ordering.LT
 ```
 
 <!--Del-->
-#### func compare(this @local?, UInt16 @local?)
+#### func compare(UInt16)
 
 ```cangjie
 public func compare(this @local?, other: UInt16 @local?): Ordering
@@ -9948,7 +9948,7 @@ Ordering.LT
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func ==(this @local!, UInt16 @local!)
+#### operator func ==(UInt16)
 
 ```cangjie
 public operator func ==(this @local!, other: UInt16 @local!): Bool
@@ -9989,7 +9989,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func ==(this @local?, UInt16 @local?)
+#### operator func ==(UInt16)
 
 ```cangjie
 public operator func ==(this @local?, other: UInt16 @local?): Bool
@@ -10030,7 +10030,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func !=(this @local!, UInt16 @local!)
+#### operator func !=(UInt16)
 
 ```cangjie
 public operator func !=(this @local!, other: UInt16 @local!): Bool
@@ -10071,7 +10071,7 @@ false
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func !=(this @local?, UInt16 @local?)
+#### operator func !=(UInt16)
 
 ```cangjie
 public operator func !=(this @local?, other: UInt16 @local?): Bool
@@ -10112,7 +10112,7 @@ false
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func <(this @local?, UInt16 @local?)
+#### operator func <(UInt16)
 
 ```cangjie
 public operator func <(this @local?, other: UInt16 @local?): Bool
@@ -10153,7 +10153,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func >(this @local?, UInt16 @local?)
+#### operator func >(UInt16)
 
 ```cangjie
 public operator func >(this @local?, other: UInt16 @local?): Bool
@@ -10194,7 +10194,7 @@ false
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func <=(this @local?, UInt16 @local?)
+#### operator func <=(UInt16)
 
 ```cangjie
 public operator func <=(this @local?, other: UInt16 @local?): Bool
@@ -10235,7 +10235,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func >=(this @local?, UInt16 @local?)
+#### operator func >=(UInt16)
 
 ```cangjie
 public operator func >=(this @local?, other: UInt16 @local?): Bool
@@ -10400,7 +10400,7 @@ UInt16值: 42
 ```
 
 <!--Del-->
-#### func hashCode(this @local?)
+#### func hashCode()
 
 ```cangjie
 public func hashCode(this @local?): Int64
@@ -10437,7 +10437,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### func hashCode(this @local!)
+#### func hashCode()
 
 ```cangjie
 public func hashCode(this @local!): Int64
@@ -10526,7 +10526,7 @@ UInt16值: 42
 ```
 
 <!--Del-->
-#### func toString(this @local?)
+#### func toString()
 
 ```cangjie
 public exclave func toString(this @local?): String @local!
@@ -10672,7 +10672,7 @@ Ordering.LT
 ```
 
 <!--Del-->
-#### func compare(this @local?, UInt32 @local?)
+#### func compare(UInt32)
 
 ```cangjie
 public func compare(this @local?, other: UInt32 @local?): Ordering
@@ -10713,7 +10713,7 @@ Ordering.LT
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func ==(this @local!, UInt32 @local!)
+#### operator func ==(UInt32)
 
 ```cangjie
 public operator func ==(this @local!, other: UInt32 @local!): Bool
@@ -10754,7 +10754,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func ==(this @local?, UInt32 @local?)
+#### operator func ==(UInt32)
 
 ```cangjie
 public operator func ==(this @local?, other: UInt32 @local?): Bool
@@ -10795,7 +10795,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func !=(this @local!, UInt32 @local!)
+#### operator func !=(UInt32)
 
 ```cangjie
 public operator func !=(this @local!, other: UInt32 @local!): Bool
@@ -10836,7 +10836,7 @@ false
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func !=(this @local?, UInt32 @local?)
+#### operator func !=(UInt32)
 
 ```cangjie
 public operator func !=(this @local?, other: UInt32 @local?): Bool
@@ -10877,7 +10877,7 @@ false
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func <(this @local?, UInt32 @local?)
+#### operator func <(UInt32)
 
 ```cangjie
 public operator func <(this @local?, other: UInt32 @local?): Bool
@@ -10918,7 +10918,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func >(this @local?, UInt32 @local?)
+#### operator func >(UInt32)
 
 ```cangjie
 public operator func >(this @local?, other: UInt32 @local?): Bool
@@ -10959,7 +10959,7 @@ false
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func <=(this @local?, UInt32 @local?)
+#### operator func <=(UInt32)
 
 ```cangjie
 public operator func <=(this @local?, other: UInt32 @local?): Bool
@@ -11000,7 +11000,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func >=(this @local?, UInt32 @local?)
+#### operator func >=(UInt32)
 
 ```cangjie
 public operator func >=(this @local?, other: UInt32 @local?): Bool
@@ -11154,7 +11154,7 @@ main() {
 ```
 
 <!--Del-->
-#### func hashCode(this @local?)
+#### func hashCode()
 
 ```cangjie
 public func hashCode(this @local?): Int64
@@ -11191,7 +11191,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### func hashCode(this @local!)
+#### func hashCode()
 
 ```cangjie
 public func hashCode(this @local!): Int64
@@ -11269,7 +11269,7 @@ main() {
 ```
 
 <!--Del-->
-#### func toString(this @local?)
+#### func toString()
 
 ```cangjie
 public exclave func toString(this @local?): String @local!
@@ -11415,7 +11415,7 @@ Ordering.LT
 ```
 
 <!--Del-->
-#### func compare(this @local?, UInt64 @local?)
+#### func compare(UInt64)
 
 ```cangjie
 public func compare(this @local?, other: UInt64 @local?): Ordering
@@ -11456,7 +11456,7 @@ Ordering.LT
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func ==(this @local!, UInt64 @local!)
+#### operator func ==(UInt64)
 
 ```cangjie
 public operator func ==(this @local!, other: UInt64 @local!): Bool
@@ -11497,7 +11497,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func ==(this @local?, UInt64 @local?)
+#### operator func ==(UInt64)
 
 ```cangjie
 public operator func ==(this @local?, other: UInt64 @local?): Bool
@@ -11538,7 +11538,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func !=(this @local!, UInt64 @local!)
+#### operator func !=(UInt64)
 
 ```cangjie
 public operator func !=(this @local!, other: UInt64 @local!): Bool
@@ -11579,7 +11579,7 @@ false
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func !=(this @local?, UInt64 @local?)
+#### operator func !=(UInt64)
 
 ```cangjie
 public operator func !=(this @local?, other: UInt64 @local?): Bool
@@ -11620,7 +11620,7 @@ false
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func <(this @local?, UInt64 @local?)
+#### operator func <(UInt64)
 
 ```cangjie
 public operator func <(this @local?, other: UInt64 @local?): Bool
@@ -11661,7 +11661,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func >(this @local?, UInt64 @local?)
+#### operator func >(UInt64)
 
 ```cangjie
 public operator func >(this @local?, other: UInt64 @local?): Bool
@@ -11702,7 +11702,7 @@ false
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func <=(this @local?, UInt64 @local?)
+#### operator func <=(UInt64)
 
 ```cangjie
 public operator func <=(this @local?, other: UInt64 @local?): Bool
@@ -11743,7 +11743,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func >=(this @local?, UInt64 @local?)
+#### operator func >=(UInt64)
 
 ```cangjie
 public operator func >=(this @local?, other: UInt64 @local?): Bool
@@ -11897,7 +11897,7 @@ main() {
 ```
 
 <!--Del-->
-#### func hashCode(this @local?)
+#### func hashCode()
 
 ```cangjie
 public func hashCode(this @local?): Int64
@@ -11934,7 +11934,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### func hashCode(this @local!)
+#### func hashCode()
 
 ```cangjie
 public func hashCode(this @local!): Int64
@@ -12012,7 +12012,7 @@ main() {
 ```
 
 <!--Del-->
-#### func toString(this @local?)
+#### func toString()
 
 ```cangjie
 public exclave func toString(this @local?): String @local!
@@ -12158,7 +12158,7 @@ Ordering.LT
 ```
 
 <!--Del-->
-#### func compare(this @local?, UInt8 @local?)
+#### func compare(UInt8)
 
 ```cangjie
 public func compare(this @local?, other: UInt8 @local?): Ordering
@@ -12199,7 +12199,7 @@ Ordering.LT
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func ==(this @local!, UInt8 @local!)
+#### operator func ==(UInt8)
 
 ```cangjie
 public operator func ==(this @local!, other: UInt8 @local!): Bool
@@ -12240,7 +12240,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func ==(this @local?, UInt8 @local?)
+#### operator func ==(UInt8)
 
 ```cangjie
 public operator func ==(this @local?, other: UInt8 @local?): Bool
@@ -12281,7 +12281,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func !=(this @local!, UInt8 @local!)
+#### operator func !=(UInt8)
 
 ```cangjie
 public operator func !=(this @local!, other: UInt8 @local!): Bool
@@ -12322,7 +12322,7 @@ false
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func !=(this @local?, UInt8 @local?)
+#### operator func !=(UInt8)
 
 ```cangjie
 public operator func !=(this @local?, other: UInt8 @local?): Bool
@@ -12363,7 +12363,7 @@ false
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func <(this @local?, UInt8 @local?)
+#### operator func <(UInt8)
 
 ```cangjie
 public operator func <(this @local?, other: UInt8 @local?): Bool
@@ -12404,7 +12404,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func >(this @local?, UInt8 @local?)
+#### operator func >(UInt8)
 
 ```cangjie
 public operator func >(this @local?, other: UInt8 @local?): Bool
@@ -12445,7 +12445,7 @@ false
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func <=(this @local?, UInt8 @local?)
+#### operator func <=(UInt8)
 
 ```cangjie
 public operator func <=(this @local?, other: UInt8 @local?): Bool
@@ -12486,7 +12486,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func >=(this @local?, UInt8 @local?)
+#### operator func >=(UInt8)
 
 ```cangjie
 public operator func >=(this @local?, other: UInt8 @local?): Bool
@@ -12640,7 +12640,7 @@ main() {
 ```
 
 <!--Del-->
-#### func hashCode(this @local?)
+#### func hashCode()
 
 ```cangjie
 public func hashCode(this @local?): Int64
@@ -12677,7 +12677,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### func hashCode(this @local!)
+#### func hashCode()
 
 ```cangjie
 public func hashCode(this @local!): Int64
@@ -12755,7 +12755,7 @@ main() {
 ```
 
 <!--Del-->
-#### func toString(this @local?)
+#### func toString()
 
 ```cangjie
 public exclave func toString(this @local?): String @local!
@@ -12901,7 +12901,7 @@ Ordering.LT
 ```
 
 <!--Del-->
-#### func compare(this @local?, UIntNative @local?)
+#### func compare(UIntNative)
 
 ```cangjie
 public func compare(this @local?, other: UIntNative @local?): Ordering
@@ -12942,7 +12942,7 @@ Ordering.LT
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func ==(this @local!, UIntNative @local!)
+#### operator func ==(UIntNative)
 
 ```cangjie
 public operator func ==(this @local!, other: UIntNative @local!): Bool
@@ -12983,7 +12983,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func ==(this @local?, UIntNative @local?)
+#### operator func ==(UIntNative)
 
 ```cangjie
 public operator func ==(this @local?, other: UIntNative @local?): Bool
@@ -13024,7 +13024,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func !=(this @local!, UIntNative @local!)
+#### operator func !=(UIntNative)
 
 ```cangjie
 public operator func !=(this @local!, other: UIntNative @local!): Bool
@@ -13065,7 +13065,7 @@ false
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func !=(this @local?, UIntNative @local?)
+#### operator func !=(UIntNative)
 
 ```cangjie
 public operator func !=(this @local?, other: UIntNative @local?): Bool
@@ -13106,7 +13106,7 @@ false
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func <(this @local?, UIntNative @local?)
+#### operator func <(UIntNative)
 
 ```cangjie
 public operator func <(this @local?, other: UIntNative @local?): Bool
@@ -13147,7 +13147,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func >(this @local?, UIntNative @local?)
+#### operator func >(UIntNative)
 
 ```cangjie
 public operator func >(this @local?, other: UIntNative @local?): Bool
@@ -13188,7 +13188,7 @@ false
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func <=(this @local?, UIntNative @local?)
+#### operator func <=(UIntNative)
 
 ```cangjie
 public operator func <=(this @local?, other: UIntNative @local?): Bool
@@ -13229,7 +13229,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func >=(this @local?, UIntNative @local?)
+#### operator func >=(UIntNative)
 
 ```cangjie
 public operator func >=(this @local?, other: UIntNative @local?): Bool
@@ -13383,7 +13383,7 @@ main() {
 ```
 
 <!--Del-->
-#### func hashCode(this @local?)
+#### func hashCode()
 
 ```cangjie
 public func hashCode(this @local?): Int64
@@ -13420,7 +13420,7 @@ true
 <!--DelEnd-->
 
 <!--Del-->
-#### func hashCode(this @local!)
+#### func hashCode()
 
 ```cangjie
 public func hashCode(this @local!): Int64
@@ -13498,7 +13498,7 @@ The string representation is: 12345
 ```
 
 <!--Del-->
-#### func toString(this @local?)
+#### func toString()
 
 ```cangjie
 public exclave func toString(this @local?): String @local!
@@ -13596,7 +13596,7 @@ main() {
 ```
 
 <!--Del-->
-#### func hashCode(this @local?)
+#### func hashCode()
 
 ```cangjie
 public func hashCode(this @local?): Int64
@@ -13632,7 +13632,7 @@ main() {
 <!--DelEnd-->
 
 <!--Del-->
-#### func hashCode(this @local!)
+#### func hashCode()
 
 ```cangjie
 public func hashCode(this @local!): Int64
@@ -13711,7 +13711,7 @@ The string representation is: ()
 ```
 
 <!--Del-->
-#### func toString(this @local?)
+#### func toString()
 
 ```cangjie
 public exclave func toString(this @local?): String @local!

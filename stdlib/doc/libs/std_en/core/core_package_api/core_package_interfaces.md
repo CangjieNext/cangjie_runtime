@@ -653,7 +653,7 @@ Returns:
 - [Array](core_package_structs.md#struct-arrayt)\<T> - The resulting array after conversion.
 
 <!--Del-->
-### func isEmpty(this @local?)
+### func isEmpty()
 
 ```cangjie
 func isEmpty(this @local?): Bool
@@ -700,7 +700,7 @@ empty isEmpty: true
 
 <!--DelEnd-->
 <!--Del-->
-### func toArray(this @local?)
+### func toArray()
 
 ```cangjie
 func toArray(this @local?): Array<T> @local?
@@ -747,7 +747,7 @@ size=3
 <!--DelEnd-->
 
 <!--Del-->
-### func toArray(this @local!)
+### func toArray()
 
 ```cangjie
 func toArray(this @local!): Array<T> @local!
@@ -916,7 +916,7 @@ Returns:
 - [Bool](core_package_intrinsics.md#bool) - Returns `true` if greater than or equal, otherwise `false`.
 
 <!--Del-->
-### func compare(this @local?, T @local?)
+### func compare(T)
 
 ```cangjie
 func compare(this @local?, other: T @local?): Ordering
@@ -963,7 +963,7 @@ compare: Ordering.LT
 
 <!--DelEnd-->
 <!--Del-->
-### func ==(this @local?, T @local?)
+### func ==(T)
 
 ```cangjie
 operator func ==(this @local?, other: T @local?): Bool
@@ -1008,7 +1008,7 @@ a == c: false
 
 <!--DelEnd-->
 <!--Del-->
-### func <(this @local?, T @local?)
+### func <(T)
 
 ```cangjie
 operator func <(this @local?, other: T @local?): Bool
@@ -1052,7 +1052,7 @@ c < a: false
 
 <!--DelEnd-->
 <!--Del-->
-### func >(this @local?, T @local?)
+### func >(T)
 
 ```cangjie
 operator func >(this @local?, other: T @local?): Bool
@@ -1096,7 +1096,7 @@ a > c: false
 
 <!--DelEnd-->
 <!--Del-->
-### func <=(this @local?, T @local?)
+### func <=(T)
 
 ```cangjie
 operator func <=(this @local?, other: T @local?): Bool
@@ -1140,7 +1140,7 @@ c <= a: false
 
 <!--DelEnd-->
 <!--Del-->
-### func >=(this @local?, T @local?)
+### func >=(T)
 
 ```cangjie
 operator func >=(this @local?, other: T @local?): Bool
@@ -1364,7 +1364,7 @@ Returns:
 - [Bool](core_package_intrinsics.md#bool) - Returns `true` if equal, otherwise `false`.
 
 <!--Del-->
-### operator func ==(this @local!, T @local!)
+### operator func ==(T)
 
 ```cangjie
 operator func ==(this @local!, other: T @local!): Bool
@@ -1415,7 +1415,7 @@ caught: Current Type does not implement '==' method for its @local! instance
 <!--DelEnd-->
 
 <!--Del-->
-### operator func ==(this @local?, T @local?)
+### operator func ==(T)
 
 ```cangjie
 operator func ==(this @local?, other: T @local?): Bool
@@ -1501,7 +1501,7 @@ Returns:
 
 
 <!--Del-->
-### operator func !=(this @local!, T @local!)
+### operator func !=(T)
 
 ```cangjie
 operator func !=(this @local!, other: T @local!): Bool
@@ -1552,7 +1552,7 @@ caught: Current Type does not implement '!=' method for its @local! instance
 <!--DelEnd-->
 
 <!--Del-->
-### operator func !=(this @local?, T @local?)
+### operator func !=(T)
 
 ```cangjie
 operator func !=(this @local?, other: T @local?): Bool
@@ -1678,7 +1678,7 @@ Returns:
 - [Int64](core_package_intrinsics.md#int64) - Returns the hash value of the instance type.
 
 <!--Del-->
-### func hashCode(this @local?)
+### func hashCode()
 
 ```cangjie
 func hashCode(this @local?): Int64
@@ -1724,7 +1724,7 @@ h=1
 <!--DelEnd-->
 
 <!--Del-->
-### func hashCode(this @local!)
+### func hashCode()
 
 ```cangjie
 func hashCode(this @local!): Int64
@@ -2008,7 +2008,7 @@ Returns:
 - [Iterator](core_package_classes.md#class-iteratort)\<E> - The iterator.
 
 <!--Del-->
-### func iterator(this @local!)
+### func iterator()
 
 ```cangjie
 func iterator(this @local!): Iterator<E> @local!
@@ -2058,7 +2058,7 @@ first=1
 <!--DelEnd-->
 
 <!--Del-->
-### func iterator(this @local?)
+### func iterator()
 
 ```cangjie
 func iterator(this @local?): Iterator<E> @local?
@@ -2185,7 +2185,7 @@ Returns:
 - [Bool](core_package_intrinsics.md#bool) - Returns true if not equal, otherwise returns false.
 
 <!--Del-->
-### operator func !=(this @local!, T @local!)
+### operator func !=(T)
 
 ```cangjie
 operator func !=(this @local!, other: T @local!): Bool
@@ -2243,7 +2243,7 @@ caught: Current Type does not implement '!=' method for its @local! instance
 <!--DelEnd-->
 
 <!--Del-->
-### operator func !=(this @local?, T @local?)
+### operator func !=(T)
 
 ```cangjie
 operator func !=(this @local?, other: T @local?): Bool
@@ -2389,7 +2389,7 @@ Returns:
 
 - [String](core_package_structs.md#struct-string) - Returns the string representation of the instance type.
 <!--Del-->
-### func toString(this @local?)
+### func toString()
 
 ```cangjie
 func toString(this @local?): String @local!

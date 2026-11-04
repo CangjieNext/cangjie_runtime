@@ -292,7 +292,7 @@ Function: Retrieves the byte count of data from the file header to the file tail
 Type: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64)
 
 <!--Del-->
-### prop length `@local!`
+### prop length
 
 ```cangjie
 public prop length: Int64 @local!
@@ -383,7 +383,7 @@ Exceptions:
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Throws an exception if the path is an empty string or contains null characters.
 
 <!--Del-->
-### init(this @local!, String, OpenMode)
+### init(String, OpenMode)
 
 ```cangjie
 public exclave init(this @local!, path: String @local!, mode: OpenMode @local!)
@@ -528,7 +528,7 @@ public static func createTemp(directoryPath: Path): File
 Function: Creates a temporary file under the specified directory.
 
 <!--Del-->
-### static func readFrom(String @local!)
+### static func readFrom(String)
 
 ```cangjie
 public static exclave func readFrom(path: String @local!): Array<Byte> @local!
@@ -589,7 +589,7 @@ Content: 74, 75, 76
 
 <!--DelEnd-->
 <!--Del-->
-### func close(this @local!)
+### func close()
 
 ```cangjie
 public exclave func close(this @local!): Unit
@@ -643,7 +643,7 @@ File is closed after close: true
 <!--DelEnd-->
 
 <!--Del-->
-### func flush(this @local?)
+### func flush()
 
 ```cangjie
 public func flush(this @local?): Unit
@@ -699,7 +699,7 @@ File is open after flush: true
 <!--DelEnd-->
 
 <!--Del-->
-### func isClosed(this @local?)
+### func isClosed()
 
 ```cangjie
 public func isClosed(this @local?): Bool
@@ -760,7 +760,7 @@ File is closed after close: true
 <!--DelEnd-->
 
 <!--Del-->
-### func read(this @local!, Array\<Byte> @local!)
+### func read(Array\<Byte>)
 
 ```cangjie
 public exclave func read(this @local!, buffer: Array<Byte> @local!): Int64
@@ -832,7 +832,7 @@ Content: 89, 90, 91
 <!--DelEnd-->
 
 <!--Del-->
-### func seek(this @local!, SeekPosition)
+### func seek(SeekPosition)
 
 ```cangjie
 public func seek(this @local!, sp: SeekPosition): Int64

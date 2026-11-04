@@ -40,7 +40,7 @@ Returns:
 - [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - Number of bytes read.
 
 <!--Del-->
-### func read(this @local!, Array\<Byte> @local!)
+### func read(Array\<Byte>)
 
 ```cangjie
 func read(this @local!, buffer: Array<Byte> @local!): Int64
@@ -132,7 +132,7 @@ Parameters:
 - buffer: [Array](../../core/core_package_api/core_package_structs.md#struct-arrayt)\<[Byte](../../core/core_package_api/core_package_types.md#type-byte)> - Buffer containing data to be written to the output stream.
 
 <!--Del-->
-### func write(this @local!, Array\<Byte> @local!)
+### func write(Array\<Byte>)
 
 ```cangjie
 func write(this @local!, buffer: Array<Byte> @local!): Unit
@@ -208,7 +208,7 @@ Function: Returns the total amount of data in the current stream (in bytes).
 Type: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64)
 
 <!--Del-->
-### prop length `@local!`
+### prop length
 
 ```cangjie
 prop length: Int64 @local!
@@ -263,7 +263,7 @@ Function: Returns the current cursor position.
 Type: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64)
 
 <!--Del-->
-### prop position `@local!`
+### prop position
 
 ```cangjie
 prop position: Int64 @local!
@@ -323,7 +323,7 @@ Function: Returns the amount of unread data in the current stream (in bytes).
 Type: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64)
 
 <!--Del-->
-### prop remainLength `@local!`
+### prop remainLength
 
 ```cangjie
 prop remainLength: Int64 @local!
@@ -388,7 +388,7 @@ Returns:
 
 - [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - Returns the offset (in bytes) from the start of the stream data to the new position.
 <!--Del-->
-### func seek(this @local!, SeekPosition)
+### func seek(SeekPosition)
 
 ```cangjie
 func seek(this @local!, sp: SeekPosition): Int64

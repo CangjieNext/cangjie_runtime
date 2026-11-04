@@ -390,7 +390,7 @@ main() {
 ```
 
 <!--Del-->
-### func getOrThrow(this @local!, () -> Exception)
+### func getOrThrow(() -> Exception)
 
 ```cangjie
 public exclave func getOrThrow(this @local!, exception: () -> Exception): T @local!
@@ -493,7 +493,7 @@ main() {
 ```
 
 <!--Del-->
-### func getOrThrow(this @local!)
+### func getOrThrow()
 
 ```cangjie
 public exclave func getOrThrow(this @local!): T @local!
@@ -582,7 +582,7 @@ None is None: true
 ```
 
 <!--Del-->
-### func isNone(this @local?)
+### func isNone()
 
 ```cangjie
 public func isNone(this @local?): Bool
@@ -665,7 +665,7 @@ None is Some: false
 ```
 
 <!--Del-->
-### func isSome(this @local?)
+### func isSome()
 
 ```cangjie
 public func isSome(this @local?): Bool
@@ -1018,7 +1018,7 @@ Some(42)和Some(24)的哈希码是否相等: false
 ```
 
 <!--Del-->
-#### func hashCode(this @local?)
+#### func hashCode()
 
 ```cangjie
 public func hashCode(this @local?): Int64
@@ -1228,7 +1228,7 @@ GT.compare(GT): Ordering.EQ
 ```
 
 <!--Del-->
-#### func compare(this @local?, Ordering @local?)
+#### func compare(Ordering)
 
 ```cangjie
 public func compare(this @local?, other: Ordering @local?): Ordering
@@ -1278,7 +1278,7 @@ EQ.compare(EQ): Ordering.EQ
 <!--DelEnd-->
 <!--Del-->
 
-#### operator func ==(this @local?, Ordering @local?)
+#### operator func ==(Ordering)
 
 ```cangjie
 public operator func ==(this @local?, other: Ordering @local?): Bool
@@ -1323,7 +1323,7 @@ lt == gt: false
 <!--DelEnd-->
 <!--Del-->
 
-#### operator func !=(this @local?, Ordering @local?)
+#### operator func !=(Ordering)
 
 ```cangjie
 public operator func !=(this @local?, other: Ordering @local?): Bool
@@ -1368,7 +1368,7 @@ lt != gt: true
 <!--DelEnd-->
 <!--Del-->
 
-#### operator func <(this @local?, Ordering @local?)
+#### operator func <(Ordering)
 
 ```cangjie
 public operator func <(this @local?, other: Ordering @local?): Bool
@@ -1412,7 +1412,7 @@ gt < lt: false
 <!--DelEnd-->
 <!--Del-->
 
-#### operator func >(this @local?, Ordering @local?)
+#### operator func >(Ordering)
 
 ```cangjie
 public operator func >(this @local?, other: Ordering @local?): Bool
@@ -1456,7 +1456,7 @@ lt > gt: false
 <!--DelEnd-->
 <!--Del-->
 
-#### operator func <=(this @local?, Ordering @local?)
+#### operator func <=(Ordering)
 
 ```cangjie
 public operator func <=(this @local?, other: Ordering @local?): Bool
@@ -1500,7 +1500,7 @@ eq <= lt: false
 <!--DelEnd-->
 <!--Del-->
 
-#### operator func >=(this @local?, Ordering @local?)
+#### operator func >=(Ordering)
 
 ```cangjie
 public operator func >=(this @local?, other: Ordering @local?): Bool
@@ -1596,7 +1596,7 @@ LT的哈希值: 1
 ```
 
 <!--Del-->
-#### func hashCode(this @local?)
+#### func hashCode()
 
 ```cangjie
 public func hashCode(this @local?): Int64
@@ -1637,7 +1637,7 @@ h=1
 
 <!--DelEnd-->
 <!--Del-->
-#### func hashCode(this @local!)
+#### func hashCode()
 
 ```cangjie
 public func hashCode(this @local!): Int64
@@ -1736,7 +1736,7 @@ LT转换为字符串: Ordering.LT
 ```
 
 <!--Del-->
-#### func toString(this @local?)
+#### func toString()
 
 ```cangjie
 public func toString(this @local?): String @local!

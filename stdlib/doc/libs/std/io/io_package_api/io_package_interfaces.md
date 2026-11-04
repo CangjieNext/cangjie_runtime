@@ -27,7 +27,7 @@ func read(buffer: Array<Byte>): Int64
 - [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - 读取的数据的字节数。
 
 <!--Del-->
-### func read(this @local!, Array\<Byte> @local!)
+### func read(Array\<Byte>)
 
 ```cangjie
 func read(this @local!, buffer: Array<Byte> @local!): Int64
@@ -132,7 +132,7 @@ func write(buffer: Array<Byte>): Unit
 - buffer: [Array](../../core/core_package_api/core_package_structs.md#struct-arrayt)\<[Byte](../../core/core_package_api/core_package_types.md#type-byte)> - 缓冲区，用于存放待写入输出流的数据。
 
 <!--Del-->
-### func write(this @local!, Array\<Byte> @local!)
+### func write(Array\<Byte>)
 
 ```cangjie
 func write(this @local!, buffer: Array<Byte> @local!): Unit
@@ -208,7 +208,7 @@ prop length: Int64
 类型：[Int64](../../core/core_package_api/core_package_intrinsics.md#int64)
 
 <!--Del-->
-### prop length `@local!`
+### prop length
 
 ```cangjie
 prop length: Int64 @local!
@@ -263,7 +263,7 @@ prop position: Int64
 类型：[Int64](../../core/core_package_api/core_package_intrinsics.md#int64)
 
 <!--Del-->
-### prop position `@local!`
+### prop position
 
 ```cangjie
 prop position: Int64 @local!
@@ -323,7 +323,7 @@ prop remainLength: Int64
 类型：[Int64](../../core/core_package_api/core_package_intrinsics.md#int64)
 
 <!--Del-->
-### prop remainLength `@local!`
+### prop remainLength
 
 ```cangjie
 prop remainLength: Int64 @local!
@@ -389,7 +389,7 @@ func seek(sp: SeekPosition): Int64
 - [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - 返回流中数据的起点到移动后位置的偏移量（以字节为单位）。
 
 <!--Del-->
-### func seek(this @local!, SeekPosition)
+### func seek(SeekPosition)
 
 ```cangjie
 func seek(this @local!, sp: SeekPosition): Int64

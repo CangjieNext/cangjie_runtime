@@ -1149,7 +1149,7 @@ Execution Result:
 ```
 
 <!--Del-->
-### init(this @local!)
+### init()
 
 ```cangjie
 public exclave init(this @local!)
@@ -1270,7 +1270,7 @@ Error: The capacity must be greater than or equal to 0: -1024.
 ```
 
 <!--Del-->
-### init(this @local!, Int64)
+### init(Int64)
 
 ```cangjie
 public exclave init(this @local!, capacity: Int64)
@@ -1508,7 +1508,7 @@ Error: The buffer is empty.
 ```
 
 <!--Del-->
-### func read(this @local!, Array\<Byte> @local!)
+### func read(Array\<Byte>)
 
 ```cangjie
 public exclave func read(this @local!, buffer: Array<Byte> @local!): Int64
@@ -1678,7 +1678,7 @@ Error:The maximum value for capacity expansion cannot exceed the maximum value o
 ```
 
 <!--Del-->
-### func reserve(this @local!, Int64)
+### func reserve(Int64)
 
 ```cangjie
 public exclave func reserve(this @local!, additional: Int64): Unit
@@ -1812,7 +1812,7 @@ Error: Can't move the position before the beginning of the stream.
 ```
 
 <!--Del-->
-### func seek(this @local!, SeekPosition)
+### func seek(SeekPosition)
 
 ```cangjie
 public func seek(this @local!, sp: SeekPosition): Int64
@@ -1962,7 +1962,7 @@ Hello World
 ```
 
 <!--Del-->
-### func write(this @local!, Array\<Byte>)
+### func write(Array\<Byte>)
 
 ```cangjie
 public exclave func write(this @local!, buffer: Array<Byte>): Unit
@@ -2014,7 +2014,7 @@ Content: 77, 78
 <!--DelEnd-->
 
 <!--Del-->
-### func write(this @local!, Array\<Byte> @local!)
+### func write(Array\<Byte>)
 
 ```cangjie
 public exclave func write(this @local!, buffer: Array<Byte> @local!): Unit

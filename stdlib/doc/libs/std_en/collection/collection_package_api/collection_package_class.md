@@ -706,7 +706,7 @@ Capacity after adding 17 elements: 24
 
 <!--Del-->
 
-### prop capacity @local?
+### prop capacity
 
 ```cangjie
 public prop capacity: Int64 @local?
@@ -787,7 +787,7 @@ First element of empty list: None
 
 <!--Del-->
 
-### prop first `@local!`
+### prop first
 
 ```cangjie
 public prop first: ?T @local!
@@ -829,7 +829,7 @@ first=1
 
 <!--Del-->
 
-### prop first @local?
+### prop first
 
 ```cangjie
 public prop first: ?T @local?
@@ -916,7 +916,7 @@ Last element of empty list: None
 
 <!--Del-->
 
-### prop last `@local!`
+### prop last
 
 ```cangjie
 public prop last: ?T @local!
@@ -958,7 +958,7 @@ last=1
 
 <!--Del-->
 
-### prop last @local?
+### prop last
 
 ```cangjie
 public prop last: ?T @local?
@@ -1041,7 +1041,7 @@ Size after adding 2 elements: 2
 
 <!--Del-->
 
-### prop size @local?
+### prop size
 
 ```cangjie
 public prop size: Int64 @local?
@@ -1231,7 +1231,7 @@ List size: 5
 
 <!--Del-->
 
-### init(this @local!)
+### init()
 
 ```cangjie
 public exclave init(this @local!)
@@ -1266,7 +1266,7 @@ size=0
 
 <!--Del-->
 
-### init(this @local!, Int64)
+### init(Int64)
 
 ```cangjie
 public exclave init(this @local!, capacity: Int64)
@@ -1310,7 +1310,7 @@ cap>=16: true
 
 <!--Del-->
 
-### init(this @local!, Int64, (Int64) -> T @local!)
+### init(Int64, (Int64) -> T)
 
 ```cangjie
 public exclave init(this @local!, size: Int64, initElement: ((Int64) -> T @local!) @local?)
@@ -1355,7 +1355,7 @@ size=3 v2=4
 
 <!--Del-->
 
-### init(this @local!, Collection\<T> @local!)
+### init(Collection\<T>)
 
 ```cangjie
 public exclave init(this @local!, elements: Collection<T> @local!)
@@ -1403,7 +1403,7 @@ size=3
 
 <!--Del-->
 
-### init(this @local?, Array\<T> @local?)
+### init(Array\<T>)
 
 ```cangjie
 public exclave init(this @local?, elements: Array<T> @local?)
@@ -1450,7 +1450,7 @@ size=3
 
 <!--Del-->
 
-### init(this @local?, Int64, (Int64) -> T @local?)
+### init(Int64, (Int64) -> T)
 
 ```cangjie
 public exclave init(this @local?, size: Int64, initElement: ((Int64) -> T @local?) @local?)
@@ -1495,7 +1495,7 @@ size=3
 
 <!--Del-->
 
-### init(this @local?, Collection\<T> @local?)
+### init(Collection\<T>)
 
 ```cangjie
 public exclave init(this @local?, elements: Collection<T> @local?)
@@ -1778,7 +1778,7 @@ List size: 3
 
 <!--Del-->
 
-### func add(this @local!, Collection\<T> @local!)
+### func add(Collection\<T>)
 
 ```cangjie
 public exclave func add(this @local!, all!: Collection<T> @local!): Unit
@@ -1828,7 +1828,7 @@ last=4
 
 <!--Del-->
 
-### func add(this @local!, Collection\<T> @local!, Int64)
+### func add(Collection\<T>, Int64)
 
 ```cangjie
 public exclave func add(this @local!, all!: Collection<T> @local!, at!: Int64): Unit
@@ -1884,7 +1884,7 @@ at1=2
 
 <!--Del-->
 
-### func add(this @local!, T @local!)
+### func add(T)
 
 ```cangjie
 public exclave func add(this @local!, element: T @local!): Unit
@@ -1928,7 +1928,7 @@ last=2
 
 <!--Del-->
 
-### func add(this @local!, T @local!, Int64)
+### func add(T, Int64)
 
 ```cangjie
 public exclave func add(this @local!, element: T @local!, at!: Int64): Unit
@@ -1998,7 +1998,7 @@ Returns:
 
 <!--Del-->
 
-### func all(this @local?, (T @local?) -> Bool)
+### func all((T) -> Bool)
 
 ```cangjie
 public func all(this @local?, predicate: ((T @local?) -> Bool) @local?): Bool
@@ -2069,7 +2069,7 @@ Returns:
 
 <!--Del-->
 
-### func any(this @local?, (T @local?) -> Bool)
+### func any((T) -> Bool)
 
 ```cangjie
 public func any(this @local?, predicate: ((T @local?) -> Bool) @local?): Bool
@@ -2163,7 +2163,7 @@ Is list empty: true
 
 <!--Del-->
 
-### func clear(this @local!)
+### func clear()
 
 ```cangjie
 public exclave func clear(this @local!): Unit
@@ -2255,7 +2255,7 @@ Cloned list remains unchanged: [1, 2, 3]
 
 <!--Del-->
 
-### func clone(this @local!)
+### func clone()
 
 ```cangjie
 public exclave func clone(this @local!): ArrayList<T> @local!
@@ -2300,7 +2300,7 @@ Cloned list last element: 2
 
 <!--Del-->
 
-### func clone(this @local?)
+### func clone()
 
 ```cangjie
 public exclave func clone(this @local?): ArrayList<T> @local?
@@ -2370,7 +2370,7 @@ Returns:
 
 <!--Del-->
 
-### func filter(this @local!, (T @local?) -> Bool)
+### func filter((T) -> Bool)
 
 ```cangjie
 public exclave func filter(this @local!, predicate: ((T @local?) -> Bool) @local?): ArrayList<T> @local!
@@ -2441,7 +2441,7 @@ Returns:
 
 <!--Del-->
 
-### func filterMap\<R>(this @local!, (T @local!) -> ?R @local!)
+### func filterMap\<R>((T) -> ?R)
 
 ```cangjie
 public exclave func filterMap<R>(this @local!, transform: ((T @local!) -> Option<R> @local!) @local?): ArrayList<R> @local!
@@ -2521,7 +2521,7 @@ Returns:
 
 <!--Del-->
 
-### func flatMap\<R>(this @local!, (T @local!) -> ArrayList\<R> @local!)
+### func flatMap\<R>((T) -> ArrayList\<R>)
 
 ```cangjie
 public exclave func flatMap<R>(this @local!, transform: ((T @local!) -> ArrayList<R> @local!) @local?): ArrayList<R> @local!
@@ -2600,7 +2600,7 @@ Returns:
 
 <!--Del-->
 
-### func fold\<R>(this @local!, R @local!, (R @local!, T @local!) -> R @local!)
+### func fold\<R>(R, (R, T) -> R)
 
 ```cangjie
 public exclave func fold<R>(this @local!, initial: R @local!, operation: ((R @local!, T @local!) -> R @local!) @local?): R @local!
@@ -2713,7 +2713,7 @@ Element at index 5: None
 
 <!--Del-->
 
-### func get(this @local!, Int64)
+### func get(Int64)
 
 ```cangjie
 public exclave func get(this @local!, index: Int64): ?T @local!
@@ -2762,7 +2762,7 @@ g=10
 
 <!--Del-->
 
-### func get(this @local?, Int64)
+### func get(Int64)
 
 ```cangjie
 public exclave func get(this @local?, index: Int64): ?T @local?
@@ -2914,7 +2914,7 @@ Returns:
 
 <!--Del-->
 
-### func intersperse(this @local!, T @local!)
+### func intersperse(T)
 
 ```cangjie
 public exclave func intersperse(this @local!, separator: T @local!): ArrayList<T> @local!
@@ -3003,7 +3003,7 @@ Is non-empty list empty: false
 
 <!--Del-->
 
-### func isEmpty(this @local?)
+### func isEmpty()
 
 ```cangjie
 public func isEmpty(this @local?): Bool
@@ -3093,7 +3093,7 @@ Output:
 
 <!--Del-->
 
-### func iterator(this @local!)
+### func iterator()
 
 ```cangjie
 public exclave func iterator(this @local!): Iterator<T> @local!
@@ -3141,7 +3141,7 @@ first=1
 
 <!--Del-->
 
-### func iterator(this @local?)
+### func iterator()
 
 ```cangjie
 public exclave func iterator(this @local?): Iterator<T> @local?
@@ -3215,7 +3215,7 @@ Returns:
 
 <!--Del-->
 
-### func map\<R>(this @local!, (T @local!) -> R @local!)
+### func map\<R>((T) -> R)
 
 ```cangjie
 public exclave func map<R>(this @local!, transform: ((T @local!) -> R @local!) @local?): ArrayList<R> @local!
@@ -3285,7 +3285,7 @@ Returns:
 
 <!--Del-->
 
-### func none(this @local?, (T @local?) -> Bool)
+### func none((T) -> Bool)
 
 ```cangjie
 public func none(this @local?, predicate: ((T @local?) -> Bool) @local?): Bool
@@ -3356,7 +3356,7 @@ Returns:
 
 <!--Del-->
 
-### func reduce(this @local!, (T @local!, T @local!) -> T @local!)
+### func reduce((T, T) -> T)
 
 ```cangjie
 public exclave func reduce(this @local!, operation: ((T @local!, T @local!) -> T @local!) @local?): Option<T> @local!
@@ -3460,7 +3460,7 @@ List size after removal: 2
 
 <!--Del-->
 
-### func remove(this @local!, Int64)
+### func remove(Int64)
 
 ```cangjie
 public exclave func remove(this @local!, at!: Int64): T @local!
@@ -3565,7 +3565,7 @@ List size after removal: 4
 
 <!--Del-->
 
-### func remove(this @local!, Range\<Int64>)
+### func remove(Range\<Int64>)
 
 ```cangjie
 public exclave func remove(this @local!, range: Range<Int64>): Unit
@@ -3667,7 +3667,7 @@ List size after removal: 3
 
 <!--Del-->
 
-### func removeIf(this @local!, (T @local!) -> Bool)
+### func removeIf((T) -> Bool)
 
 ```cangjie
 public exclave func removeIf(this @local!, predicate: ((T @local!) -> Bool) @local?): Unit
@@ -3810,7 +3810,7 @@ After reversal: [3, 2, 1, 0]
 
 <!--Del-->
 
-### func reverse(this @local!)
+### func reverse()
 
 ```cangjie
 public exclave func reverse(this @local!): Unit
@@ -3882,7 +3882,7 @@ Exceptions:
 
 <!--Del-->
 
-### func skip(this @local!, Int64)
+### func skip(Int64)
 
 ```cangjie
 public exclave func skip(this @local!, count: Int64): ArrayList<T> @local!
@@ -4001,7 +4001,7 @@ Sliced list size: 3
 
 <!--Del-->
 
-### func slice(this @local!, Range\<Int64>)
+### func slice(Range\<Int64>)
 
 ```cangjie
 public exclave func slice(this @local!, range: Range<Int64>): ArrayList<T> @local!
@@ -4055,7 +4055,7 @@ sl=2
 
 <!--Del-->
 
-### func slice(this @local?, Range\<Int64>)
+### func slice(Range\<Int64>)
 
 ```cangjie
 public exclave func slice(this @local?, range: Range<Int64>): ArrayList<T> @local?
@@ -4252,7 +4252,7 @@ Exceptions:
 
 <!--Del-->
 
-### func step(this @local!, Int64)
+### func step(Int64)
 
 ```cangjie
 public exclave func step(this @local!, count: Int64): ArrayList<T> @local!
@@ -4336,7 +4336,7 @@ Exceptions:
 
 <!--Del-->
 
-### func take(this @local!, Int64)
+### func take(Int64)
 
 ```cangjie
 public exclave func take(this @local!, count: Int64): ArrayList<T> @local!
@@ -4438,7 +4438,7 @@ Array size: 4
 
 <!--Del-->
 
-### func toArray(this @local!)
+### func toArray()
 
 ```cangjie
 public exclave func toArray(this @local!): Array<T> @local!
@@ -4483,7 +4483,7 @@ arr=1
 
 <!--Del-->
 
-### func toArray(this @local?)
+### func toArray()
 
 ```cangjie
 public exclave func toArray(this @local?): Array<T> @local?
@@ -4585,7 +4585,7 @@ Modified list: [10, 25, 30]
 
 <!--Del-->
 
-### operator func \[](this @local!, Int64)
+### operator func \[](Int64)
 
 ```cangjie
 public exclave operator func [](this @local!, index: Int64): T @local!
@@ -4635,7 +4635,7 @@ idx1=20
 
 <!--Del-->
 
-### operator func \[](this @local?, Int64)
+### operator func \[](Int64)
 
 ```cangjie
 public exclave operator func [](this @local?, index: Int64): T @local?
@@ -4738,7 +4738,7 @@ Element at index 1: 25
 
 <!--Del-->
 
-### operator func \[](this @local!, Int64, T @local!)
+### operator func \[](Int64, T)
 
 ```cangjie
 public exclave operator func [](this @local!, index: Int64, value!: T @local!): Unit
@@ -4848,7 +4848,7 @@ Sliced list size: 3
 
 <!--Del-->
 
-### operator func \[](this @local!, Range\<Int64>)
+### operator func \[](Range\<Int64>)
 
 ```cangjie
 public exclave operator func [](this @local!, range: Range<Int64>): ArrayList<T> @local!
@@ -4900,7 +4900,7 @@ sl=1
 
 <!--Del-->
 
-### operator func \[](this @local?, Range\<Int64>)
+### operator func \[](Range\<Int64>)
 
 ```cangjie
 public exclave operator func [](this @local?, range: Range<Int64>): ArrayList<T> @local?
@@ -4977,7 +4977,7 @@ Returns:
 
 <!--Del-->
 
-#### func enumerate(this @local!)
+#### func enumerate()
 
 ```cangjie
 public exclave func enumerate(this @local!): ArrayList<(Int64, T)> @local!
@@ -5048,7 +5048,7 @@ Returns:
 
 <!--Del-->
 
-#### func zip\<R>(this @local!, ArrayList\<R> @local!)
+#### func zip\<R>(ArrayList\<R>)
 
 ```cangjie
 public exclave func zip<R>(this @local!, other: ArrayList<R> @local!): ArrayList<(T, R)> @local!
@@ -5203,7 +5203,7 @@ list1 != list3: false
 
 <!--Del-->
 
-#### operator func !=(this @local?, ArrayList\<T> @local?)
+#### operator func !=(ArrayList\<T>)
 
 ```cangjie
 public operator func !=(this @local?, other: ArrayList<T> @local?): Bool
@@ -5308,7 +5308,7 @@ list1 == list3: false
 
 <!--Del-->
 
-#### operator func ==(this @local?, ArrayList\<T> @local?)
+#### operator func ==(ArrayList\<T>)
 
 ```cangjie
 public operator func ==(this @local?, other: ArrayList<T> @local?): Bool
@@ -6870,7 +6870,7 @@ Specified capacity: 32
 
 <!--Del-->
 
-### prop capacity @local?
+### prop capacity
 
 ```cangjie
 public prop capacity: Int64 @local?
@@ -6953,7 +6953,7 @@ Size after adding elements: 2
 
 <!--Del-->
 
-### prop size @local?
+### prop size
 
 ```cangjie
 public prop size: Int64 @local?
@@ -7218,7 +7218,7 @@ Value for key 'second': 10
 
 <!--Del-->
 
-### init(this @local!)
+### init()
 
 ```cangjie
 public exclave init(this @local!)
@@ -7253,7 +7253,7 @@ empty=true
 
 <!--Del-->
 
-### init(this @local!, Array\<(K, V)> @local!)
+### init(Array\<(K, V)>)
 
 ```cangjie
 public exclave init(this @local!, elements: Array<(K, V)> @local!)
@@ -7294,7 +7294,7 @@ size=2
 
 <!--Del-->
 
-### init(this @local?, Array\<(K, V)> @local?)
+### init(Array\<(K, V)>)
 
 ```cangjie
 public exclave init(this @local?, elements: Array<(K, V)> @local?)
@@ -7349,7 +7349,7 @@ caught IllegalArgumentException
 
 <!--Del-->
 
-### init(this @local!, Collection\<(K, V)> @local!)
+### init(Collection\<(K, V)>)
 
 ```cangjie
 public exclave init(this @local!, elements: Collection<(K, V)> @local!)
@@ -7392,7 +7392,7 @@ size=2
 
 <!--Del-->
 
-### init(this @local?, Collection\<(K, V)> @local?)
+### init(Collection\<(K, V)>)
 
 ```cangjie
 public exclave init(this @local?, elements: Collection<(K, V)> @local?)
@@ -7446,7 +7446,7 @@ size=1
 
 <!--Del-->
 
-### init(this @local!, Int64)
+### init(Int64)
 
 ```cangjie
 public exclave init(this @local!, capacity: Int64)
@@ -7490,7 +7490,7 @@ cap>=32: true
 
 <!--Del-->
 
-### init(this @local!, Int64, (Int64) -> (K, V) @local!)
+### init(Int64, (Int64) -> (K, V))
 
 ```cangjie
 public exclave init(this @local!, size: Int64, initElement: (Int64) -> (K, V) @local!)
@@ -7535,7 +7535,7 @@ size=2
 
 <!--Del-->
 
-### init(this @local?, Int64, (Int64) -> (K, V) @local?)
+### init(Int64, (Int64) -> (K, V))
 
 ```cangjie
 public exclave init(this @local?, size: Int64, initElement: (Int64) -> (K, V) @local?)
@@ -7692,7 +7692,7 @@ Current value for 'first': 200
 
 <!--Del-->
 
-### func add(this @local!, Collection\<(K, V)> @local!)
+### func add(Collection\<(K, V)>)
 
 ```cangjie
 public exclave func add(this @local!, all!: Collection<(K, V)> @local!)
@@ -7736,7 +7736,7 @@ size=2
 
 <!--Del-->
 
-### func add(this @local!, K @local!, V @local!)
+### func add(K, V)
 
 ```cangjie
 public exclave func add(this @local!, key: K @local!, value: V @local!): Option<V> @local!
@@ -7815,7 +7815,7 @@ Returns:
 
 <!--Del-->
 
-### func all(this @local?, (K @local?, V @local?) -> Bool)
+### func all((K, V) -> Bool)
 
 ```cangjie
 public func all(this @local?, predicate: ((K @local?, V @local?) -> Bool) @local?): Bool
@@ -7886,7 +7886,7 @@ Returns:
 
 <!--Del-->
 
-### func any(this @local?, (K @local?, V @local?) -> Bool)
+### func any((K, V) -> Bool)
 
 ```cangjie
 public func any(this @local?, predicate: ((K @local?, V @local?) -> Bool) @local?) : Bool
@@ -7980,7 +7980,7 @@ Is empty after clearing: true
 
 <!--Del-->
 
-### func clear(this @local!)
+### func clear()
 
 ```cangjie
 public exclave func clear(this @local!)
@@ -8069,7 +8069,7 @@ Cloned HashMap size after modification: 3
 
 <!--Del-->
 
-### func clone(this @local!)
+### func clone()
 
 ```cangjie
 public exclave func clone(this @local!): HashMap<K, V> @local!
@@ -8209,7 +8209,7 @@ Contains key 'orange': false
 
 <!--Del-->
 
-### func contains(this @local?, Collection\<K> @local?)
+### func contains(Collection\<K>)
 
 ```cangjie
 public func contains(this @local?, all!: Collection<K> @local?): Bool
@@ -8262,7 +8262,7 @@ all=false
 
 <!--Del-->
 
-### func contains(this @local?, K @local?)
+### func contains(K)
 
 ```cangjie
 public func contains(this @local?, key: K @local?): Bool
@@ -8365,7 +8365,7 @@ Modified value for key 'key1': 150
 
 <!--Del-->
 
-### func entryView(this @local!, K @local!)
+### func entryView(K)
 
 ```cangjie
 public exclave func entryView(this @local!, key: K @local!): MapEntryView<K, V> @local!
@@ -8411,7 +8411,7 @@ hasValue=true
 
 <!--Del-->
 
-### func entryView(this @local?, K @local!)
+### func entryView(K)
 
 ```cangjie
 public exclave func entryView(this @local?, key: K @local!): MapEntryView<K, V> @local?
@@ -8490,7 +8490,7 @@ Returns:
 
 <!--Del-->
 
-### func filter(this @local!, (K @local?, V @local?) -> Bool)
+### func filter((K, V) -> Bool)
 
 ```cangjie
 public exclave func filter(this @local!, predicate: ((K @local?, V @local?) -> Bool) @local?): HashMap<K, V> @local!
@@ -8558,7 +8558,7 @@ Returns:
 
 <!--Del-->
 
-### func fold\<R>(this @local!, R @local!, (R @local!, K @local?, V @local?) -> R @local!)
+### func fold\<R>(R, (R, K, V) -> R)
 
 ```cangjie
 public exclave func fold<R>(this @local!, initial: R @local!, operation: ((R @local!, K @local?, V @local?) -> R @local!) @local?): R @local!
@@ -8622,7 +8622,7 @@ Parameters:
 
 <!--Del-->
 
-### func forEach(this @local?, (K @local?, V @local?) -> Unit)
+### func forEach((K, V) -> Unit)
 
 ```cangjie
 public func forEach(this @local?, action: ((K @local?, V @local?) -> Unit) @local?)
@@ -8719,7 +8719,7 @@ Key 'height' does not exist
 
 <!--Del-->
 
-### func get(this @local!, K @local?)
+### func get(K)
 
 ```cangjie
 public exclave func get(this @local!, key: K @local?): ?V @local!
@@ -8768,7 +8768,7 @@ v=100
 
 <!--Del-->
 
-### func get(this @local?, K @local?)
+### func get(K)
 
 ```cangjie
 public exclave func get(this @local?, key: K @local?): Option<V> @local?
@@ -8867,7 +8867,7 @@ Is empty after clearing: true
 
 <!--Del-->
 
-### func isEmpty(this @local?)
+### func isEmpty()
 
 ```cangjie
 public func isEmpty(this @local?): Bool
@@ -8961,7 +8961,7 @@ Number of elements iterated: 3
 
 <!--Del-->
 
-### func iterator(this @local!)
+### func iterator()
 
 ```cangjie
 public exclave func iterator(this @local!): HashMapIterator<K, V> @local!
@@ -9009,7 +9009,7 @@ first=(1, 100)
 
 <!--Del-->
 
-### func iterator(this @local?)
+### func iterator()
 
 ```cangjie
 public exclave func iterator(this @local?): HashMapIterator<K, V> @local?
@@ -9108,7 +9108,7 @@ Contains key 'b'
 
 <!--Del-->
 
-### func keys(this @local!)
+### func keys()
 
 ```cangjie
 public exclave func keys(this @local!): EquatableCollection<K> @local!
@@ -9153,7 +9153,7 @@ has1=true
 
 <!--Del-->
 
-### func keys(this @local?)
+### func keys()
 
 ```cangjie
 public exclave func keys(this @local?): EquatableCollection<K> @local?
@@ -9243,7 +9243,7 @@ Returns:
 
 <!--Del-->
 
-### func mapValues\<R>(this @local!, (K @local?, V @local?) -> R @local!)
+### func mapValues\<R>((K, V) -> R)
 
 ```cangjie
 public exclave func mapValues<R>(this @local!, transform: ((K @local?, V @local?) -> R @local!) @local?): HashMap<K, R> @local!
@@ -9295,7 +9295,7 @@ v=20
 
 <!--Del-->
 
-### func mapValues\<R>(this @local!, (V @local?) -> R @local!)
+### func mapValues\<R>((V) -> R)
 
 ```cangjie
 public exclave func mapValues<R>(this @local!, transform: ((V @local?) -> R @local!) @local?): HashMap<K, R> @local!
@@ -9367,7 +9367,7 @@ Returns:
 
 <!--Del-->
 
-### func none(this @local?, (K @local?, V @local?) -> Bool)
+### func none((K, V) -> Bool)
 
 ```cangjie
 public func none(this @local?, predicate: ((K @local?, V @local?) -> Bool) @local?) : Bool
@@ -9438,7 +9438,7 @@ Returns:
 
 <!--Del-->
 
-### func reduce(this @local!, (V @local!, V @local?) -> V @local!)
+### func reduce((V, V) -> V)
 
 ```cangjie
 public exclave func reduce(this @local!, operation: ((V @local!, V @local?) -> V @local!) @local?): Option<V> @local!
@@ -9597,7 +9597,7 @@ Size after removal: 2
 
 <!--Del-->
 
-### func remove(this @local!, Collection\<K> @local?)
+### func remove(Collection\<K>)
 
 ```cangjie
 public exclave func remove(this @local!, all!: Collection<K> @local?)
@@ -9642,7 +9642,7 @@ size=1
 
 <!--Del-->
 
-### func remove(this @local!, K @local?)
+### func remove(K)
 
 ```cangjie
 public exclave func remove(this @local!, key: K @local?): Option<V> @local!
@@ -9751,7 +9751,7 @@ Key 'b' still exists with value: 2
 
 <!--Del-->
 
-### func removeIf(this @local!, (K @local?, V @local?) -> Bool)
+### func removeIf((K, V) -> Bool)
 
 ```cangjie
 public exclave func removeIf(this @local!, predicate: ((K @local?, V @local?) -> Bool) @local?)
@@ -9856,7 +9856,7 @@ Size after adding elements: 30
 
 <!--Del-->
 
-### func reserve(this @local!, Int64)
+### func reserve(Int64)
 
 ```cangjie
 public exclave func reserve(this @local!, additional: Int64)
@@ -9946,7 +9946,7 @@ Key: c, Value: 3
 
 <!--Del-->
 
-### func toArray(this @local!)
+### func toArray()
 
 ```cangjie
 public exclave func toArray(this @local!): Array<(K, V)> @local!
@@ -9991,7 +9991,7 @@ size=1
 
 <!--Del-->
 
-### func toArray(this @local?)
+### func toArray()
 
 ```cangjie
 public exclave func toArray(this @local?): Array<(K, V)> @local?
@@ -10098,7 +10098,7 @@ All values:
 
 <!--Del-->
 
-### func values(this @local!)
+### func values()
 
 ```cangjie
 public exclave func values(this @local!): Collection<V> @local!
@@ -10143,7 +10143,7 @@ empty=false
 
 <!--Del-->
 
-### func values(this @local?)
+### func values()
 
 ```cangjie
 public exclave func values(this @local?): Collection<V> @local?
@@ -10290,7 +10290,7 @@ Value of 'second': 200
 
 <!--Del-->
 
-### operator func \[](this @local!, K @local?)
+### operator func \[](K)
 
 ```cangjie
 public exclave operator func [](this @local!, key: K @local?): V @local!
@@ -10341,7 +10341,7 @@ v=100
 
 <!--Del-->
 
-### operator func \[](this @local!, K @local!, V @local!)
+### operator func \[](K, V)
 
 ```cangjie
 public exclave operator func [](this @local!, key: K @local!, value!: V @local!): Unit
@@ -10384,7 +10384,7 @@ size=1
 
 <!--Del-->
 
-### operator func [](this @local?, K @local?)
+### operator func [](K)
 
 ```cangjie
 public exclave operator func [](this @local?, key: K @local?): V @local?
@@ -10506,7 +10506,7 @@ map1 == map3: false
 
 <!--Del-->
 
-### operator func ==(this @local?, HashMap\<K, V> @local?)
+### operator func ==(HashMap\<K, V>)
 
 ```cangjie
 public operator func ==(this @local?, right: HashMap<K, V> @local?): Bool
@@ -10666,7 +10666,7 @@ String representation of HashMap: [(apple, 5), (banana, 3), (orange, 8)]
 
 <!--Del-->
 
-### func toString(this @local?)
+### func toString()
 
 ```cangjie
 public exclave func toString(this @local?): String @local!
@@ -10769,7 +10769,7 @@ HashMapIterator created successfully
 
 <!--Del-->
 
-### init(this @local!, HashMap\<K, V> @local!)
+### init(HashMap\<K, V>)
 
 ```cangjie
 public exclave init(this @local!, map: HashMap<K, V> @local!)
@@ -10814,7 +10814,7 @@ first=(1, 100)
 
 <!--Del-->
 
-### init(this @local?, HashMap\<K, V> @local?)
+### init(HashMap\<K, V>)
 
 ```cangjie
 public exclave init(this @local?, map: HashMap<K, V> @local?)
@@ -10912,7 +10912,7 @@ Successfully retrieved element
 
 <!--Del-->
 
-### func next(this @local!)
+### func next()
 
 ```cangjie
 public exclave func next(this @local!): ?(K, V) @local!
@@ -10969,7 +10969,7 @@ end
 
 <!--Del-->
 
-### func next(this @local?)
+### func next()
 
 ```cangjie
 public exclave func next(this @local?): ?(K, V) @local?
@@ -11420,7 +11420,7 @@ Contains 'banana'
 
 <!--Del-->
 
-### init(this @local!)
+### init()
 
 ```cangjie
 public exclave init(this @local!)
@@ -11455,7 +11455,7 @@ empty=true
 
 <!--Del-->
 
-### init(this @local!, Int64)
+### init(Int64)
 
 ```cangjie
 public exclave init(this @local!, capacity: Int64)
@@ -11591,7 +11591,7 @@ Set size: 1
 
 <!--Del-->
 
-### func add(this @local!, T @local!)
+### func add(T)
 
 ```cangjie
 public exclave func add(this @local!, element: T @local!): Bool
@@ -11638,7 +11638,7 @@ has5=true
 
 <!--Del-->
 
-### func add(this @local!, HashSet\<T> @local!)
+### func add(HashSet\<T>)
 
 ```cangjie
 public exclave func add(this @local!, all!: HashSet<T> @local!): Unit
@@ -11943,7 +11943,7 @@ Does not contain 'grape'
 
 <!--Del-->
 
-### func contains(this @local!, T @local!)
+### func contains(T)
 
 ```cangjie
 public exclave func contains(this @local!, element: T @local!): Bool
@@ -12098,7 +12098,7 @@ Size after clearing: 0
 
 <!--Del-->
 
-### func isEmpty(this @local?)
+### func isEmpty()
 
 ```cangjie
 public func isEmpty(this @local?): Bool
@@ -12207,7 +12207,7 @@ Traversing with for-in loop:
 
 <!--Del-->
 
-### func iterator(this @local!)
+### func iterator()
 
 ```cangjie
 public exclave func iterator(this @local!): Iterator<T> @local!
@@ -12256,7 +12256,7 @@ first=5
 
 <!--Del-->
 
-### func iterator(this @local?)
+### func iterator()
 
 ```cangjie
 func iterator(this @local?): Iterator<T> @local?
@@ -12897,7 +12897,7 @@ Element verification:
 
 <!--Del-->
 
-### func toArray(this @local!)
+### func toArray()
 
 ```cangjie
 public exclave func toArray(this @local!): Array<T> @local!
@@ -16743,7 +16743,7 @@ Returns:
 public func backward(mark: K, inclusive!: Bool = true): Iterator<(K, V)>
 ```
 
-Function: Obtains an iterator that traverses from the first node with a key less than or equal to `mark` in descending order to [first](./collection_package_class.md#prop-first-3). If the node's key equals `mark`, the `inclusive!` parameter determines whether to include that node.
+Function: Obtains an iterator that traverses from the first node with a key less than or equal to `mark` in descending order to [first](./collection_package_class.md#prop-first-5). If the node's key equals `mark`, the `inclusive!` parameter determines whether to include that node.
 
 Parameters:
 
@@ -17213,7 +17213,7 @@ Parameters:
 public func forward(mark: K, inclusive!: Bool = true): Iterator<(K, V)>
 ```
 
-Function: Obtains an iterator that traverses from the first node with a key greater than or equal to `mark` in ascending order until [last](./collection_package_class.md#prop-last-3). If the node's key equals `mark`, the `inclusive!` parameter determines whether to include that node.
+Function: Obtains an iterator that traverses from the first node with a key greater than or equal to `mark` in ascending order until [last](./collection_package_class.md#prop-last-5). If the node's key equals `mark`, the `inclusive!` parameter determines whether to include that node.
 
 Parameters:
 
@@ -18939,7 +18939,7 @@ Returns:
 public func backward(mark: T, inclusive!: Bool = true): Iterator<T>
 ```
 
-Function: Obtains an iterator that traverses from the first node with a key less than or equal to `mark` in descending order to [first](./collection_package_class.md#prop-first-4). If the node's key equals `mark`, the `inclusive!` parameter determines whether to include the node.
+Function: Obtains an iterator that traverses from the first node with a key less than or equal to `mark` in descending order to [first](./collection_package_class.md#prop-first-6). If the node's key equals `mark`, the `inclusive!` parameter determines whether to include the node.
 
 Parameters:
 
@@ -19272,7 +19272,7 @@ Parameters:
 public func forward(mark: T, inclusive!: Bool = true): Iterator<T>
 ```
 
-Function: Obtains an iterator that traverses from the first element greater than or equal to `mark` in ascending order to [last](./collection_package_class.md#prop-last-3). If the element equals `mark`, the `inclusive!` parameter determines whether to include the element.
+Function: Obtains an iterator that traverses from the first element greater than or equal to `mark` in ascending order to [last](./collection_package_class.md#prop-last-5). If the element equals `mark`, the `inclusive!` parameter determines whether to include the element.
 
 Parameters:
 

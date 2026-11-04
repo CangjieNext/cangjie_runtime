@@ -1136,7 +1136,7 @@ After the conversion of parse, "3.141592653589793" became 3.141593
 ```
 
 <!--Del-->
-#### static func parse(String @local?)
+#### static func parse(String)
 
 ```cangjie
 public static func parse(data: String @local?): Float64
@@ -2516,7 +2516,7 @@ After the conversion of parse, "7fffffffffffffff" in hexadecimal became 92233720
 ```
 
 <!--Del-->
-#### static func parse(String @local?)
+#### static func parse(String)
 
 ```cangjie
 public static func parse(data: String @local?): Int64
@@ -3072,7 +3072,7 @@ After the conversion of parse, "ffffffffffffffff" in hexadecimal became 18446744
 ```
 
 <!--Del-->
-#### static func parse(String @local?)
+#### static func parse(String)
 
 ```cangjie
 public static func parse(data: String @local?): UInt64

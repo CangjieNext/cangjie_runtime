@@ -87,7 +87,7 @@ Output:
 ```
 
 <!--Del-->
-### func next(this @local!)
+### func next()
 
 ```cangjie
 public exclave func next(this @local!): Option<T> @local!
@@ -137,7 +137,7 @@ next=3
 <!--DelEnd-->
 
 <!--Del-->
-### func next(this @local?)
+### func next()
 
 ```cangjie
 public exclave func next(this @local?): Option<T> @local?
@@ -628,7 +628,7 @@ box1 and box2 have same hashCode: true
 ```
 
 <!--Del-->
-#### func hashCode(this @local?)
+#### func hashCode()
 
 ```cangjie
 public func hashCode(this @local?): Int64
@@ -986,7 +986,7 @@ Abstract subclass initialized successfully
 ```
 
 <!--Del-->
-### init(this @local!)
+### init()
 
 ```cangjie
 public exclave init(this @local!)
@@ -1029,7 +1029,7 @@ Local iterator initialized successfully
 <!--DelEnd-->
 
 <!--Del-->
-### init(this @local?)
+### init()
 
 ```cangjie
 public exclave init(this @local?)
@@ -1119,7 +1119,7 @@ Fourth element from iter2: None
 ```
 
 <!--Del-->
-### func iterator(this @local!)
+### func iterator()
 
 ```cangjie
 public func iterator(this @local!): Iterator<T> @local!
@@ -1168,7 +1168,7 @@ first=1
 <!--DelEnd-->
 
 <!--Del-->
-### func iterator(this @local?)
+### func iterator()
 
 ```cangjie
 public func iterator(this @local?): Iterator<T> @local?
@@ -1257,7 +1257,7 @@ Output:
 ```
 
 <!--Del-->
-### func next(this @local!)
+### func next()
 
 ```cangjie
 public open func next(this @local!): ?T @local!
@@ -1316,7 +1316,7 @@ caught: Current Iterator does not implement 'next' method for its @local! instan
 <!--DelEnd-->
 
 <!--Del-->
-### func next(this @local?)
+### func next()
 
 ```cangjie
 public open func next(this @local?): ?T @local?
@@ -2003,7 +2003,7 @@ Execution result:
 public func isEmpty(): Bool
 ```
 
-Function: Determines whether the current iterator is empty. This method calls [next()](#func-next-1) and determines whether the current iterator is empty based on its return value. Therefore, if the current iterator is not empty, one element will be consumed.
+Function: Determines whether the current iterator is empty. This method calls [next()](#func-next-3) and determines whether the current iterator is empty based on its return value. Therefore, if the current iterator is not empty, one element will be consumed.
 
 Returns:
 
@@ -2583,7 +2583,7 @@ main(): Int64 {
 ```
 
 <!--Del-->
-### init(this @local!)
+### init()
 
 ```cangjie
 public exclave const init(this @local!)
@@ -2620,7 +2620,7 @@ refEq(o1, o2): false
 <!--DelEnd-->
 
 <!--Del-->
-### init(this @local?)
+### init()
 
 ```cangjie
 public exclave const init(this @local?)
@@ -3284,7 +3284,7 @@ After append - Content: 'Hello, World! Welcome!'
 ```
 
 <!--Del-->
-### init(this @local!)
+### init()
 
 ```cangjie
 public exclave init(this @local!)
@@ -3321,7 +3321,7 @@ Output:
 <!--DelEnd-->
 
 <!--Del-->
-### init(this @local!, Int64)
+### init(Int64)
 
 ```cangjie
 public exclave init(this @local!, capacity: Int64)
@@ -4100,7 +4100,7 @@ Size: 16
 ```
 
 <!--Del-->
-### func append(String @local?)
+### func append(String)
 
 ```cangjie
 public func append(str: String @local?): Unit
@@ -4141,7 +4141,7 @@ Output:
 <!--DelEnd-->
 
 <!--Del-->
-### func append(this @local!, String @local?)
+### func append(String)
 
 ```cangjie
 public exclave func append(this @local!, str: String @local?): Unit
@@ -4185,7 +4185,7 @@ Output:
 <!--DelEnd-->
 
 <!--Del-->
-### func append\<T>(this @local!, T @local?) where T <: ToString
+### func append\<T>(T) where T <: ToString
 
 ```cangjie
 public exclave func append<T>(this @local!, v: T @local?): Unit where T <: ToString
@@ -4456,7 +4456,7 @@ Type check: true
 ```
 
 <!--Del-->
-### func toString(this @local?)
+### func toString()
 
 ```cangjie
 public exclave func toString(this @local?): String @local!

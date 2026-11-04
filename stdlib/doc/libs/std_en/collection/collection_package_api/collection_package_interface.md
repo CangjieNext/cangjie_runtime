@@ -141,7 +141,7 @@ Returns:
 
 <!--Del-->
 
-### func contains(this @local?, Collection\<T> @local?)
+### func contains(Collection\<T>)
 
 ```cangjie
 func contains(this @local?, all!: Collection<T> @local?): Bool
@@ -194,7 +194,7 @@ all=true
 
 <!--Del-->
 
-### func contains(this @local?, T @local?)
+### func contains(T)
 
 ```cangjie
 func contains(this @local?, element: T @local?): Bool
@@ -317,7 +317,7 @@ Parameters:
 
 <!--Del-->
 
-### func add(this @local!, Collection\<T> @local!)
+### func add(Collection\<T>)
 
 ```cangjie
 func add(this @local!, all!: Collection<T> @local!): Unit
@@ -369,7 +369,7 @@ at1=2
 
 <!--Del-->
 
-### func add(this @local!, Collection\<T> @local!, Int64)
+### func add(Collection\<T>, Int64)
 
 ```cangjie
 func add(this @local!, all!: Collection<T> @local!, at!: Int64): Unit
@@ -424,7 +424,7 @@ at1=2
 
 <!--Del-->
 
-### func add(this @local!, T @local!)
+### func add(T)
 
 ```cangjie
 func add(this @local!, element: T @local!): Unit
@@ -471,7 +471,7 @@ size=2
 
 <!--Del-->
 
-### func add(this @local!, T @local!, Int64)
+### func add(T, Int64)
 
 ```cangjie
 func add(this @local!, element: T @local!, at!: Int64): Unit
@@ -530,7 +530,7 @@ Function: Removes all elements from this list.
 
 <!--Del-->
 
-### func clear(this @local!)
+### func clear()
 
 ```cangjie
 func clear(this @local!): Unit
@@ -605,7 +605,7 @@ Parameter:
 
 <!--Del-->
 
-### func remove(this @local!, Int64)
+### func remove(Int64)
 
 ```cangjie
 func remove(this @local!, at!: Int64): T @local!
@@ -660,7 +660,7 @@ size=2
 
 <!--Del-->
 
-### func remove(this @local!, Range\<Int64>)
+### func remove(Range\<Int64>)
 
 ```cangjie
 func remove(this @local!, range: Range<Int64>): Unit
@@ -725,7 +725,7 @@ Parameter:
 
 <!--Del-->
 
-### func removeIf(this @local!, (T @local!) -> Bool)
+### func removeIf((T) -> Bool)
 
 ```cangjie
 func removeIf(this @local!, predicate: ((T @local!) -> Bool) @local?): Unit
@@ -790,7 +790,7 @@ Parameters:
 
 <!--Del-->
 
-### operator func [](this @local!, Int64, T @local!)
+### operator func [](Int64, T)
 
 ```cangjie
 operator func [](this @local!, index: Int64, value!: T @local!): Unit
@@ -892,7 +892,7 @@ Returns:
 
 <!--Del-->
 
-### func add(this @local!, Collection\<(K, V)> @local!)
+### func add(Collection\<(K, V)>)
 
 ```cangjie
 func add(this @local!, all!: Collection<(K, V)> @local!): Unit
@@ -941,7 +941,7 @@ size=2
 
 <!--Del-->
 
-### func add(this @local!, K @local!, V @local!)
+### func add(K, V)
 
 ```cangjie
 func add(this @local!, key: K @local!, value: V @local!): ?V @local!
@@ -1020,7 +1020,7 @@ Returns:
 
 <!--Del-->
 
-### func addIfAbsent(this @local!, K @local!, V @local!)
+### func addIfAbsent(K, V)
 
 ```cangjie
 func addIfAbsent(this @local!, key: K @local!, value: V @local!): ?V @local!
@@ -1091,7 +1091,7 @@ Function: Clears all key-value pairs.
 
 <!--Del-->
 
-### func clear(this @local!)
+### func clear()
 
 ```cangjie
 func clear(this @local!): Unit
@@ -1154,7 +1154,7 @@ Returns:
 
 <!--Del-->
 
-### func entryView(this @local!, K @local!)
+### func entryView(K)
 
 ```cangjie
 func entryView(this @local!, k: K @local!): MapEntryView<K, V> @local!
@@ -1204,7 +1204,7 @@ hasValue=true
 
 <!--Del-->
 
-### func entryView(this @local?, K @local!)
+### func entryView(K)
 
 ```cangjie
 func entryView(this @local?, k: K @local!): MapEntryView<K, V> @local?
@@ -1287,7 +1287,7 @@ Returns:
 
 <!--Del-->
 
-### func remove(this @local!, Collection\<K> @local?)
+### func remove(Collection\<K>)
 
 ```cangjie
 func remove(this @local!, all!: Collection<K> @local?): Unit
@@ -1339,7 +1339,7 @@ size=1
 
 <!--Del-->
 
-### func remove(this @local!, K @local?)
+### func remove(K)
 
 ```cangjie
 func remove(this @local!, key: K @local?): Option<V> @local!
@@ -1407,7 +1407,7 @@ Parameter:
 
 <!--Del-->
 
-### func removeIf(this @local!, (K @local?, V @local?) -> Bool)
+### func removeIf((K, V) -> Bool)
 
 ```cangjie
 func removeIf(this @local!, predicate: ((K @local?, V @local?) -> Bool) @local?): Unit
@@ -1473,7 +1473,7 @@ Returns:
 
 <!--Del-->
 
-### func replace(this @local!, K @local!, V @local!)
+### func replace(K, V)
 
 ```cangjie
 func replace(this @local!, key: K @local!, value: V @local!): ?V @local!
@@ -1549,7 +1549,7 @@ Parameters:
 
 <!--Del-->
 
-### operator func [](this @local!, K @local!, V @local!)
+### operator func [](K, V)
 
 ```cangjie
 operator func [](this @local!, key: K @local!, value!: V @local!): Unit
@@ -1643,7 +1643,7 @@ key=a
 
 <!--Del-->
 
-### prop key @local?
+### prop key
 
 ```cangjie
 prop key: K @local?
@@ -1729,7 +1729,7 @@ after=2
 
 <!--Del-->
 
-### prop value `@local!`
+### prop value
 
 ```cangjie
 mut prop value: ?V @local!
@@ -2089,7 +2089,7 @@ first=1
 
 <!--Del-->
 
-### prop first `@local!`
+### prop first
 
 ```cangjie
 prop first: ?T @local!
@@ -2137,7 +2137,7 @@ first=10
 
 <!--Del-->
 
-### prop first @local?
+### prop first
 
 ```cangjie
 prop first: ?T @local?
@@ -2221,7 +2221,7 @@ last=3
 
 <!--Del-->
 
-### prop last `@local!`
+### prop last
 
 ```cangjie
 prop last: ?T @local!
@@ -2269,7 +2269,7 @@ last=20
 
 <!--Del-->
 
-### prop last @local?
+### prop last
 
 ```cangjie
 prop last: ?T @local?
@@ -2333,7 +2333,7 @@ Returns:
 
 <!--Del-->
 
-### func get(this @local!, Int64)
+### func get(Int64)
 
 ```cangjie
 func get(this @local!, index: Int64): ?T @local!
@@ -2394,7 +2394,7 @@ g5=none
 
 <!--Del-->
 
-### func get(this @local?, Int64)
+### func get(Int64)
 
 ```cangjie
 func get(this @local?, index: Int64): ?T @local?
@@ -2465,7 +2465,7 @@ Returns:
 
 <!--Del-->
 
-### operator func [](this @local!, Int64)
+### operator func [](Int64)
 
 ```cangjie
 operator func [](this @local!, index: Int64): T @local!
@@ -2516,7 +2516,7 @@ idx1=20
 
 <!--Del-->
 
-### operator func [](this @local?, Int64)
+### operator func [](Int64)
 
 ```cangjie
 operator func [](this @local?, index: Int64): T @local?
@@ -2621,7 +2621,7 @@ Returns:
 
 <!--Del-->
 
-### func contains(this @local?, Collection\<K> @local?)
+### func contains(Collection\<K>)
 
 ```cangjie
 func contains(this @local?, all!: Collection<K> @local?): Bool
@@ -2674,7 +2674,7 @@ all=true
 
 <!--Del-->
 
-### func contains(this @local?, K @local?)
+### func contains(K)
 
 ```cangjie
 func contains(this @local?, key: K @local?): Bool
@@ -2741,7 +2741,7 @@ Returns:
 
 <!--Del-->
 
-### func get(this @local!, K @local?)
+### func get(K)
 
 ```cangjie
 func get(this @local!, key: K @local?): ?V @local!
@@ -2801,7 +2801,7 @@ g9=none
 
 <!--Del-->
 
-### func get(this @local?, K @local?)
+### func get(K)
 
 ```cangjie
 func get(this @local?, key: K @local?): ?V @local?
@@ -2868,7 +2868,7 @@ Returns:
 
 <!--Del-->
 
-### func keys(this @local!)
+### func keys()
 
 ```cangjie
 func keys(this @local!): EquatableCollection<K> @local!
@@ -2918,7 +2918,7 @@ has1=true
 
 <!--Del-->
 
-### func keys(this @local?)
+### func keys()
 
 ```cangjie
 func keys(this @local?): EquatableCollection<K> @local?
@@ -2981,7 +2981,7 @@ Returns:
 
 <!--Del-->
 
-### func values(this @local!)
+### func values()
 
 ```cangjie
 func values(this @local!): Collection<V> @local!
@@ -3031,7 +3031,7 @@ empty=false
 
 <!--Del-->
 
-### func values(this @local?)
+### func values()
 
 ```cangjie
 func values(this @local?): Collection<V> @local?
@@ -3098,7 +3098,7 @@ Returns:
 
 <!--Del-->
 
-### operator func [](this @local!, K @local?)
+### operator func [](K)
 
 ```cangjie
 operator func [](this @local!, key: K @local?): V @local!
@@ -3148,7 +3148,7 @@ v=100
 
 <!--Del-->
 
-### operator func [](this @local?, K @local?)
+### operator func [](K)
 
 ```cangjie
 operator func [](this @local?, key: K @local?): V @local?

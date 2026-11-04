@@ -29,7 +29,7 @@ Parent Type:
 - [Copyable](../../core/core_package_api/core_package_interfaces.md#interface-copyable)
 
 <!--Del-->
-### prop fileHandle @local?
+### prop fileHandle
 
 ```cangjie
 public prop fileHandle: IntNative @local?
@@ -159,7 +159,7 @@ This property is equivalent to `this.path.fileName`. For path resolution rules, 
 Type: [String](../../core/core_package_api/core_package_structs.md#struct-string)
 
 <!--Del-->
-### prop name @local?
+### prop name
 
 ```cangjie
 public prop name: String @local?
@@ -230,7 +230,7 @@ Function: Obtains the current file path, returned as a [Path](fs_package_structs
 Type: [Path](fs_package_structs.md#struct-path)
 
 <!--Del-->
-### prop path @local?
+### prop path
 
 ```cangjie
 public prop path: Path @local?
@@ -297,7 +297,7 @@ Exceptions:
 - [FSException](fs_package_exceptions.md#class-fsexception) - Thrown if an error occurs in the underlying interface during the operation.
 
 <!--Del-->
-### prop size @local?
+### prop size
 
 ```cangjie
 public prop size: Int64 @local?
@@ -387,7 +387,7 @@ Exceptions:
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown if the path is empty or contains a string terminator.
 
 <!--Del-->
-### init(this @local!, Path)
+### init(Path)
 
 ```cangjie
 public exclave init(this @local!, path: Path @local!)
@@ -444,7 +444,7 @@ File name: test_local_info_init_path.txt
 <!--DelEnd-->
 
 <!--Del-->
-### init(this @local!, String)
+### init(String)
 
 ```cangjie
 public exclave init(this @local!, path: String @local!)
@@ -830,7 +830,7 @@ Exceptions:
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown when the path is empty or contains a string terminator.
 
 <!--Del-->
-### prop fileName @local?
+### prop fileName
 
 ```cangjie
 public prop fileName: String @local?
@@ -938,7 +938,7 @@ Exceptions:
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown when the path is empty or contains a string terminator.
 
 <!--Del-->
-### prop parent `@local!`
+### prop parent
 
 ```cangjie
 public prop parent: Path @local!
@@ -997,7 +997,7 @@ Parameters:
 - rawPath: [String](../../core/core_package_api/core_package_structs.md#struct-string) - The path string.
 
 <!--Del-->
-### init(this @local!, String)
+### init(String)
 
 ```cangjie
 public exclave init(this @local!, rawPath: String @local!)
@@ -1065,7 +1065,7 @@ Exceptions:
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown when the path is empty or contains a string terminator.
 
 <!--Del-->
-### func isAbsolute(this @local?)
+### func isAbsolute()
 
 ```cangjie
 public func isAbsolute(this @local?): Bool
@@ -1125,7 +1125,7 @@ Returns:
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - Returns true if the current instance is an empty path; otherwise, false.
 
 <!--Del-->
-### func isEmpty(this @local?)
+### func isEmpty()
 
 ```cangjie
 public func isEmpty(this @local?): Bool
@@ -1237,7 +1237,7 @@ Exceptions:
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown when the current path is empty or either path is invalid.
 
 <!--Del-->
-### func join(this @local!, String)
+### func join(String)
 
 ```cangjie
 public func join(this @local!, path: String @local!): Path @local!
@@ -1295,7 +1295,7 @@ Joined path: ./dir/test_local_path.txt
 <!--DelEnd-->
 
 <!--Del-->
-### func join(this @local!, Path)
+### func join(Path)
 
 ```cangjie
 public func join(this @local!, path: Path @local!): Path @local!
@@ -1389,7 +1389,7 @@ Returns:
 - [String](../../core/core_package_api/core_package_structs.md#struct-string) - The path string of the [Path](fs_package_structs.md#struct-path).
 
 <!--Del-->
-### func toString(this @local?)
+### func toString()
 
 ```cangjie
 public exclave func toString(this @local?): String @local!

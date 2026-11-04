@@ -44,7 +44,7 @@ The first element of the array is 1
 ```
 
 <!--Del-->
-## func acquireArrayRawData\<T>(Array\<T> @local?) where T <: CType
+## func acquireArrayRawData\<T>(Array\<T>) where T <: CType
 
 ```cangjie
 public exclave unsafe func acquireArrayRawData<T>(arr: Array<T> @local?): CPointerHandle<T> @local? where T <: CType
@@ -873,7 +873,7 @@ I like Cangjie
 ```
 
 <!--Del-->
-## func print(String @local?, Bool)
+## func print(String, Bool)
 
 ```cangjie
 public func print(str: String @local?, flush!: Bool = false): Unit
@@ -1427,7 +1427,7 @@ I like programming
 ```
 
 <!--Del-->
-## func println(String @local?)
+## func println(String)
 
 ```cangjie
 public func println(str: String @local?): Unit
@@ -1700,7 +1700,7 @@ false
 ```
 
 <!--Del-->
-## func refEq(Object @local?, Object @local?)
+## func refEq(Object, Object)
 
 ```cangjie
 public func refEq(a: Object @local?, b: Object @local?): Bool
@@ -1783,7 +1783,7 @@ The first element of the array is 1
 ```
 
 <!--Del-->
-## func releaseArrayRawData\<T>(CPointerHandle\<T> @local?) where T <: CType
+## func releaseArrayRawData\<T>(CPointerHandle\<T>) where T <: CType
 
 ```cangjie
 public unsafe func releaseArrayRawData<T>(handle: CPointerHandle<T> @local?): Unit where T <: CType

@@ -48,7 +48,7 @@ None
 ```
 
 <!--Del-->
-### prop first `@local!`
+### prop first
 
 ```cangjie
 public prop first: Option<T> @local!
@@ -88,7 +88,7 @@ first=1
 <!--DelEnd-->
 
 <!--Del-->
-### prop first @local?
+### prop first
 
 ```cangjie
 public prop first: Option<T> @local?
@@ -161,7 +161,7 @@ None
 ```
 
 <!--Del-->
-### prop last `@local!`
+### prop last
 
 ```cangjie
 public prop last: Option<T> @local!
@@ -201,7 +201,7 @@ last=3
 <!--DelEnd-->
 
 <!--Del-->
-### prop last @local?
+### prop last
 
 ```cangjie
 public prop last: Option<T> @local?
@@ -359,7 +359,7 @@ Boolean array with repeated value: [true, true, true, true]
 ```
 
 <!--Del-->
-### init(this @local!)（const 修饰）
+### init()（const 修饰）
 
 ```cangjie
 public const init(this @local!)
@@ -391,7 +391,7 @@ Empty local array size: 0
 <!--DelEnd-->
 
 <!--Del-->
-### init(this @local?, Int64, (Int64) -> T)
+### init(Int64, (Int64) -> T)
 
 ```cangjie
 public init(this @local?, size: Int64, initElement: ((Int64) -> T @local?) @local?)
@@ -435,7 +435,7 @@ Local? array with initElement: 0 2 4
 <!--DelEnd-->
 
 <!--Del-->
-### init(this @local!, Int64, T)
+### init(Int64, T)
 
 ```cangjie
 public init(this @local!, size: Int64, repeat!: T @local!)
@@ -478,7 +478,7 @@ Repeated local array: 42 42 42
 <!--DelEnd-->
 
 <!--Del-->
-### init(this @local!, Int64, (Int64) -> T)
+### init(Int64, (Int64) -> T)
 
 ```cangjie
 public init(this @local!, size: Int64, initElement: ((Int64) -> T @local!) @local?)
@@ -541,7 +541,7 @@ Returns:
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - Returns true if all elements satisfy the condition, otherwise returns false.
 
 <!--Del-->
-### func all(this @local?, (T) -> Bool)
+### func all((T) -> Bool)
 
 ```cangjie
 public func all(this @local?, predicate: ((T @local?) -> Bool) @local?): Bool
@@ -602,7 +602,7 @@ Returns:
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - Whether any element satisfies the condition.
 
 <!--Del-->
-### func any(this @local?, (T) -> Bool)
+### func any((T) -> Bool)
 
 ```cangjie
 public func any(this @local?, predicate: ((T @local?) -> Bool) @local?): Bool
@@ -685,7 +685,7 @@ Cloned array: [10, 2, 3, 4, 5]
 ```
 
 <!--Del-->
-### func clone(this @local!)
+### func clone()
 
 ```cangjie
 public exclave func clone(this @local!): Array<T> @local!
@@ -722,7 +722,7 @@ Cloned array size: 3
 <!--DelEnd-->
 
 <!--Del-->
-### func clone(this @local!, Range\<Int64>)
+### func clone(Range\<Int64>)
 
 ```cangjie
 public exclave func clone(this @local!, range: Range<Int64>): Array<T> @local!
@@ -816,7 +816,7 @@ Output:
 ```
 
 <!--Del-->
-### func clone(this @local?)
+### func clone()
 
 ```cangjie
 public func clone(this @local?): Array<T> @local?
@@ -890,7 +890,7 @@ Output:
 ```
 
 <!--Del-->
-### func concat(this @local!, Array\<T>)
+### func concat(Array\<T>)
 
 ```cangjie
 public func concat(this @local!, other: Array<T> @local!): Array<T> @local!
@@ -1021,7 +1021,7 @@ Output:
 ```
 
 <!--Del-->
-### func copyTo(this @local!, Array\<T> @local!)
+### func copyTo(Array\<T>)
 
 ```cangjie
 public func copyTo(this @local!, dst: Array<T> @local!): Unit
@@ -1066,7 +1066,7 @@ dst=1 2 3
 <!--DelEnd-->
 
 <!--Del-->
-### func copyTo(this @local!, Array\<T> @local!, Int64, Int64, Int64)
+### func copyTo(Array\<T>, Int64, Int64, Int64)
 
 ```cangjie
 public exclave func copyTo(this @local!, dst: Array<T> @local!, srcStart: Int64, dstStart: Int64, copyLen: Int64): Unit
@@ -1161,7 +1161,7 @@ After partial fill: [1, -1, -1, -1, 5]
 ```
 
 <!--Del-->
-### func fill(this @local!, T)
+### func fill(T)
 
 ```cangjie
 public exclave func fill(this @local!, value: T @local!): Unit
@@ -1218,7 +1218,7 @@ Returns:
 - [Array](core_package_structs.md#struct-arrayt)\<T> - A new array containing elements that satisfy the predicate.
 
 <!--Del-->
-### func filter(this @local!, (T) -> Bool)
+### func filter((T) -> Bool)
 
 ```cangjie
 public func filter(this @local!, predicate: ((T @local?) -> Bool) @local?): Array<T> @local!
@@ -1279,7 +1279,7 @@ Returns:
 - [Array](core_package_structs.md#struct-arrayt)\<R> - A new array after filtering and mapping.
 
 <!--Del-->
-### func filterMap\<R>(this @local!, (T) -> ?R)
+### func filterMap\<R>((T) -> ?R)
 
 ```cangjie
 public func filterMap<R>(this @local!, transform: ((T @local!) -> Option<R> @local!) @local?): Array<R> @local!
@@ -1348,7 +1348,7 @@ Returns:
 - [Array](core_package_structs.md#struct-arrayt)\<R> - A new array after "map" and "flatten" operations.
 
 <!--Del-->
-### func flatMap\<R>(this @local!, (T) -> Array\<R>)
+### func flatMap\<R>((T) -> Array\<R>)
 
 ```cangjie
 public func flatMap<R>(this @local!, transform: ((T @local!) -> Array<R> @local!) @local?): Array<R> @local!
@@ -1414,7 +1414,7 @@ Returns:
 - R - The final computed value.
 
 <!--Del-->
-### func fold\<R>(this @local!, R, (R, T) -> R)
+### func fold\<R>(R, (R, T) -> R)
 
 ```cangjie
 public func fold<R>(this @local!, initial: R @local!, operation: ((R @local!, T @local!) -> R @local!) @local?): R @local!
@@ -1472,7 +1472,7 @@ Parameters:
 - action: (T) -> [Unit](../../core/core_package_api/core_package_intrinsics.md#unit) - The given action function.
 
 <!--Del-->
-### func forEach(this @local!, (T) -> Unit)
+### func forEach((T) -> Unit)
 
 ```cangjie
 public exclave func forEach(this @local!, action: ((T @local!) -> Unit) @local?): Unit
@@ -1548,7 +1548,7 @@ Some(0)
 ```
 
 <!--Del-->
-### func get(this @local!, Int64)
+### func get(Int64)
 
 ```cangjie
 public func get(this @local!, index: Int64): Option<T> @local!
@@ -1595,7 +1595,7 @@ got=2
 <!--DelEnd-->
 
 <!--Del-->
-### func get(this @local?, Int64)
+### func get(Int64)
 
 ```cangjie
 public func get(this @local?, index: Int64): Option<T> @local?
@@ -1661,7 +1661,7 @@ Returns:
 - [Array](core_package_structs.md#struct-arrayt)\<T> - A new array.
 
 <!--Del-->
-### func intersperse(this @local!, T)
+### func intersperse(T)
 
 ```cangjie
 public func intersperse(this @local!, separator: T @local!): Array<T> @local!
@@ -1748,7 +1748,7 @@ String array: [Number: 1, Number: 2, Number: 3, Number: 4, Number: 5]
 ```
 
 <!--Del-->
-### func map\<R>(this @local!, (T) -> R)
+### func map\<R>((T) -> R)
 
 ```cangjie
 public func map<R>(this @local!, transform: ((T @local!) -> R @local!) @local?): Array<R> @local!
@@ -1809,7 +1809,7 @@ Returns:
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - Whether none of the elements satisfy the condition.
 
 <!--Del-->
-### func none(this @local?, (T) -> Bool)
+### func none((T) -> Bool)
 
 ```cangjie
 public func none(this @local?, predicate: ((T @local?) -> Bool) @local?): Bool
@@ -1961,7 +1961,7 @@ Reversed string array: [Cangjie, World, Hello]
 ```
 
 <!--Del-->
-### func reverse(this @local!)
+### func reverse()
 
 ```cangjie
 public exclave func reverse(this @local!): Unit
@@ -2023,7 +2023,7 @@ Exceptions:
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown if count < 0.
 
 <!--Del-->
-### func skip(this @local!, Int64)
+### func skip(Int64)
 
 ```cangjie
 public func skip(this @local!, count: Int64): Array<T> @local!
@@ -2128,7 +2128,7 @@ Slice: [-1, 3, 4, 5]
 ```
 
 <!--Del-->
-### func slice(this @local!, Int64, Int64)
+### func slice(Int64, Int64)
 
 ```cangjie
 public func slice(this @local!, start: Int64, len: Int64): Array<T> @local!
@@ -2175,7 +2175,7 @@ Slice size: 3
 <!--DelEnd-->
 
 <!--Del-->
-### func slice(this @local?, Int64, Int64)
+### func slice(Int64, Int64)
 
 ```cangjie
 public func slice(this @local?, start: Int64, len: Int64): Array<T> @local?
@@ -2280,7 +2280,7 @@ Right slice: [3, 4, 5]
 ```
 
 <!--Del-->
-### func splitAt(this @local!, Int64)
+### func splitAt(Int64)
 
 ```cangjie
 public func splitAt(this @local!, mid: Int64): (Array<T>, Array<T>) @local!
@@ -2328,7 +2328,7 @@ Left size: 2, Right size: 3
 <!--DelEnd-->
 
 <!--Del-->
-### func repeat(this @local!, Int64)
+### func repeat(Int64)
 
 ```cangjie
 public func repeat(this @local!, n: Int64): Array<T> @local!
@@ -2399,7 +2399,7 @@ Exceptions:
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown if `count <= 0`.
 
 <!--Del-->
-### func step(this @local!, Int64)
+### func step(Int64)
 
 ```cangjie
 public func step(this @local!, count: Int64): Array<T> @local!
@@ -2495,7 +2495,7 @@ After swapping index 2 with itself: [1, 4, 3, 2, 5]
 ```
 
 <!--Del-->
-### func swap(this @local!, Int64, Int64)
+### func swap(Int64, Int64)
 
 ```cangjie
 public exclave func swap(this @local!, index1: Int64, index2: Int64): Unit
@@ -2563,7 +2563,7 @@ Exceptions:
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown if `count < 0`.
 
 <!--Del-->
-### func take(this @local!, Int64)
+### func take(Int64)
 
 ```cangjie
 public func take(this @local!, count: Int64): Array<T> @local!
@@ -2659,7 +2659,7 @@ Element at index 2: 30
 ```
 
 <!--Del-->
-### operator func \[](this @local!, Int64)
+### operator func \[](Int64)
 
 ```cangjie
 public operator func [](this @local!, index: Int64): T @local!
@@ -2705,7 +2705,7 @@ Element: 20
 <!--DelEnd-->
 
 <!--Del-->
-### operator func \[](this @local?, Int64)
+### operator func \[](Int64)
 
 ```cangjie
 public exclave operator func [](this @local?, index: Int64): T @local?
@@ -2797,7 +2797,7 @@ Array after setting index 0 to -1: [-1, 2, 100, 4, 5]
 ```
 
 <!--Del-->
-### operator func \[](this @local!, Int64, T)
+### operator func \[](Int64, T)
 
 ```cangjie
 public operator func [](this @local!, index: Int64, value!: T @local!): Unit
@@ -2886,7 +2886,7 @@ Execution Result:
 ```
 
 <!--Del-->
-### operator func \[](this @local!, Range\<Int64>)
+### operator func \[](Range\<Int64>)
 
 ```cangjie
 public exclave operator func [](this @local!, range: Range<Int64>): Array<T> @local!
@@ -2937,7 +2937,7 @@ Slice size: 3
 <!--DelEnd-->
 
 <!--Del-->
-### operator func \[](this @local?, Range\<Int64>)
+### operator func \[](Range\<Int64>)
 
 ```cangjie
 public exclave operator func [](this @local?, range: Range<Int64>): Array<T> @local?
@@ -3032,7 +3032,7 @@ Execution Result:
 ```
 
 <!--Del-->
-### operator func \[](this @local!, Range\<Int64>, Array\<T> @local!)
+### operator func \[](Range\<Int64>, Array\<T>)
 
 ```cangjie
 public operator func [](this @local!, range: Range<Int64>, value!: Array<T> @local!): Unit
@@ -3173,7 +3173,7 @@ Size of string array: 4
 ```
 
 <!--Del-->
-#### prop size @local?
+#### prop size
 
 ```cangjie
 public prop size: Int64 @local?
@@ -3254,7 +3254,7 @@ Is string array empty? false
 ```
 
 <!--Del-->
-#### func isEmpty(this @local?)
+#### func isEmpty()
 
 ```cangjie
 public func isEmpty(this @local?): Bool
@@ -3363,7 +3363,7 @@ Element: Cangjie
 ```
 
 <!--Del-->
-#### func iterator(this @local!)
+#### func iterator()
 
 ```cangjie
 public exclave func iterator(this @local!): Iterator<T> @local!
@@ -3407,7 +3407,7 @@ first=1
 <!--DelEnd-->
 
 <!--Del-->
-#### func iterator(this @local?)
+#### func iterator()
 
 ```cangjie
 public exclave func iterator(this @local?): Iterator<T> @local?
@@ -3514,7 +3514,7 @@ Copied string array: [Hi, World, Cangjie]
 ```
 
 <!--Del-->
-#### func toArray(this @local!)
+#### func toArray()
 
 ```cangjie
 public exclave func toArray(this @local!): Array<T> @local!
@@ -3555,7 +3555,7 @@ toArray size: 3
 <!--DelEnd-->
 
 <!--Del-->
-#### func toArray(this @local?)
+#### func toArray()
 
 ```cangjie
 public exclave func toArray(this @local?): Array<T> @local?
@@ -3679,7 +3679,7 @@ Some(1)
 ```
 
 <!--Del-->
-#### func indexOf(this @local?, Array\<T> @local?)
+#### func indexOf(Array\<T>)
 
 ```cangjie
 public func indexOf(this @local?, elements: Array<T> @local?): Option<Int64>
@@ -3761,7 +3761,7 @@ Some(4)
 ```
 
 <!--Del-->
-#### func indexOf(this @local?, Array\<T> @local?, Int64)
+#### func indexOf(Array\<T>, Int64)
 
 ```cangjie
 public func indexOf(this @local?, elements: Array<T> @local?, fromIndex: Int64): Option<Int64>
@@ -3862,7 +3862,7 @@ First occurrence of "Hello": Some(0)
 ```
 
 <!--Del-->
-#### func indexOf(this @local?, T @local?, Int64)
+#### func indexOf(T, Int64)
 
 ```cangjie
 public func indexOf(this @local?, element: T @local?, fromIndex: Int64): Option<Int64>
@@ -4031,7 +4031,7 @@ Last occurrence of [5, 6]: None
 ```
 
 <!--Del-->
-#### func lastIndexOf(this @local?, Array\<T> @local?)
+#### func lastIndexOf(Array\<T>)
 
 ```cangjie
 public func lastIndexOf(this @local?, elements: Array<T> @local?): Option<Int64>
@@ -4125,7 +4125,7 @@ Last occurrence of [2, 3] starting from index 2: Some(3)
 ```
 
 <!--Del-->
-#### func lastIndexOf(this @local?, Array\<T> @local?, Int64)
+#### func lastIndexOf(Array\<T>, Int64)
 
 ```cangjie
 public func lastIndexOf(this @local?, elements: Array<T> @local?, fromIndex: Int64): Option<Int64>
@@ -4226,7 +4226,7 @@ Last occurrence of "Hello": Some(4)
 ```
 
 <!--Del-->
-#### func lastIndexOf(this @local?, T @local?)
+#### func lastIndexOf(T)
 
 ```cangjie
 public func lastIndexOf(this @local?, element: T @local?): Option<Int64>
@@ -4329,7 +4329,7 @@ Last occurrence of "Hello" starting from index 2: Some(4)
 ```
 
 <!--Del-->
-#### func lastIndexOf(this @local?, T @local?, Int64)
+#### func lastIndexOf(T, Int64)
 
 ```cangjie
 public func lastIndexOf(this @local?, element: T @local?, fromIndex: Int64): Option<Int64>
@@ -4772,7 +4772,7 @@ Function: Extends the [Array](core_package_structs.md#struct-arrayt)\<T> type wh
 Since T is a Copyable type, reading and writing elements on an `@local?` receiver is safe and requires no `exclave` context.
 
 <!--Del-->
-#### operator func \[](this @local?, Int64, T)
+#### operator func \[](Int64, T)
 
 ```cangjie
 public operator func [](this @local?, index: Int64, value!: T): Unit
@@ -4815,7 +4815,7 @@ After set: 20
 <!--DelEnd-->
 
 <!--Del-->
-#### operator func \[](this @local?, Range\<Int64>, Array\<T> @local?)
+#### operator func \[](Range\<Int64>, Array\<T>)
 
 ```cangjie
 public operator func [](this @local?, range: Range<Int64>, value!: Array<T> @local?): Unit
@@ -4860,7 +4860,7 @@ After set: 10 11
 <!--DelEnd-->
 
 <!--Del-->
-#### func fill(this @local?, T)
+#### func fill(T)
 
 ```cangjie
 public func fill(this @local?, value: T): Unit
@@ -4898,7 +4898,7 @@ After fill: 0 0 0
 <!--DelEnd-->
 
 <!--Del-->
-#### func swap(this @local?, Int64, Int64)
+#### func swap(Int64, Int64)
 
 ```cangjie
 public func swap(this @local?, index1: Int64, index2: Int64): Unit
@@ -4941,7 +4941,7 @@ After swapping: 4 2
 <!--DelEnd-->
 
 <!--Del-->
-#### func reverse(this @local?)
+#### func reverse()
 
 ```cangjie
 public func reverse(this @local?): Unit
@@ -4978,7 +4978,7 @@ After reverse: 2 3
 <!--DelEnd-->
 
 <!--Del-->
-#### func copyTo(this @local?, Array\<T> @local?)
+#### func copyTo(Array\<T>)
 
 ```cangjie
 public func copyTo(this @local?, dst: Array<T> @local?): Unit
@@ -5023,7 +5023,7 @@ dst[2]=3
 <!--DelEnd-->
 
 <!--Del-->
-#### func copyTo(this @local?, Array\<T> @local?, Int64, Int64, Int64)
+#### func copyTo(Array\<T>, Int64, Int64, Int64)
 
 ```cangjie
 public func copyTo(this @local?, dst: Array<T> @local?, srcStart: Int64, dstStart: Int64, copyLen: Int64): Unit
@@ -5140,7 +5140,7 @@ toString() result: [[1, 2], [3, 4], [5, 6]]
 ```
 
 <!--Del-->
-#### func toString(this @local?)
+#### func toString()
 
 ```cangjie
 public exclave func toString(this @local?): String @local!
@@ -7927,7 +7927,7 @@ I like Cangjie
 ```
 
 <!--Del-->
-### static func mallocCString(String @local?)
+### static func mallocCString(String)
 
 ```cangjie
 public unsafe static func mallocCString(str: String @local?): CString
@@ -8481,7 +8481,7 @@ Range hash code: -198835925178762
 ```
 
 <!--Del-->
-#### func hashCode(this @local?)
+#### func hashCode()
 
 ```cangjie
 public func hashCode(this @local?): Int64
@@ -8524,7 +8524,7 @@ same=true
 <!--DelEnd-->
 
 <!--Del-->
-#### func hashCode(this @local!)
+#### func hashCode()
 
 ```cangjie
 public func hashCode(this @local!): Int64
@@ -8658,7 +8658,7 @@ Empty string size: 0
 ```
 
 <!--Del-->
-### prop size @local?
+### prop size
 
 ```cangjie
 public prop size: Int64 @local?
@@ -8802,7 +8802,7 @@ String size: 12
 ```
 
 <!--Del-->
-### init(this @local!)（const 修饰）
+### init()（const 修饰）
 
 ```cangjie
 public exclave const init(this @local!)
@@ -8834,7 +8834,7 @@ Empty local string size: 0
 <!--DelEnd-->
 
 <!--Del-->
-### init(this @local!, Array\<Rune> @local?)
+### init(Array\<Rune>)
 
 ```cangjie
 public exclave init(this @local!, value: Array<Rune> @local?)
@@ -8877,7 +8877,7 @@ Local string: 'ab'
 <!--DelEnd-->
 
 <!--Del-->
-### init(this @local!, Collection\<Rune> @local?)
+### init(Collection\<Rune>)
 
 ```cangjie
 public exclave init(this @local!, value: Collection<Rune> @local?)
@@ -8925,7 +8925,7 @@ Local string from collection: 'ab'
 <!--DelEnd-->
 
 <!--Del-->
-### init(this @local!, String @local?)
+### init(String)
 
 ```cangjie
 public exclave init(this @local!, value: String @local?)
@@ -8963,7 +8963,7 @@ Copied local string: 'xyz'
 <!--DelEnd-->
 
 <!--Del-->
-### init(String @local?)
+### init(String)
 
 ```cangjie
 public init(value: String @local?)
@@ -9059,7 +9059,7 @@ String size: 12
 ```
 
 <!--Del-->
-### static func fromUtf8(Array\<UInt8> @local?)
+### static func fromUtf8(Array\<UInt8>)
 
 ```cangjie
 public exclave static func fromUtf8(utf8Data: Array<UInt8> @local?): String @local!
@@ -9112,7 +9112,7 @@ s='hi'
 <!--DelEnd-->
 
 <!--Del-->
-### static func fromUtf8(Array\<UInt8> @local!)
+### static func fromUtf8(Array\<UInt8>)
 
 ```cangjie
 public exclave static func fromUtf8(utf8Data: Array<UInt8> @local!): String @local!
@@ -9203,7 +9203,7 @@ String size: 12
 ```
 
 <!--Del-->
-### static func fromUtf8Unchecked(Array\<UInt8> @local?)
+### static func fromUtf8Unchecked(Array\<UInt8>)
 
 ```cangjie
 public exclave unsafe static func fromUtf8Unchecked(utf8Data: Array<UInt8> @local?): String @local!
@@ -9257,7 +9257,7 @@ s='hi'
 <!--DelEnd-->
 
 <!--Del-->
-### static func fromUtf8Unchecked(Array\<UInt8> @local!)
+### static func fromUtf8Unchecked(Array\<UInt8>)
 
 ```cangjie
 public exclave unsafe static func fromUtf8Unchecked(utf8Data: Array<UInt8> @local!): String @local!
@@ -9342,7 +9342,7 @@ I like Cangjie
 ```
 
 <!--Del-->
-### static func join(Array\<String> @local!, String @local?)
+### static func join(Array\<String>, String)
 
 ```cangjie
 public exclave static func join(strArray: Array<String> @local!, delimiter!: String @local?): String @local!
@@ -9421,7 +9421,7 @@ Exceptions:
 - [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - Thrown when attempting to construct a string whose length exceeds [the maximum value of UInt32](./core_package_intrinsics.md#uint32).
 
 <!--Del-->
-### static func withRawData(Array\<UInt8> @local!)
+### static func withRawData(Array\<UInt8>)
 
 ```cangjie
 public exclave static unsafe func withRawData(rawData: Array<UInt8> @local!): String @local!
@@ -9503,7 +9503,7 @@ Are they equal? true
 ```
 
 <!--Del-->
-### func clone(this @local!)
+### func clone()
 
 ```cangjie
 public exclave func clone(this @local!): String @local!
@@ -9593,7 +9593,7 @@ Comparing 'apple' to 'apple': Ordering.EQ
 ```
 
 <!--Del-->
-### func compare(this @local?, String @local?)
+### func compare(String)
 
 ```cangjie
 public func compare(this @local?, str: String @local?): Ordering
@@ -9686,7 +9686,7 @@ Contains empty string: true
 ```
 
 <!--Del-->
-### func contains(this @local?, String @local?)
+### func contains(String)
 
 ```cangjie
 public func contains(this @local?, str: String @local?): Bool
@@ -9834,7 +9834,7 @@ String 1 ends with empty string: true
 ```
 
 <!--Del-->
-### func endsWith(this @local?, String @local?)
+### func endsWith(String)
 
 ```cangjie
 public func endsWith(this @local?, suffix: String @local?): Bool
@@ -9876,7 +9876,7 @@ endsWith=true
 <!--DelEnd-->
 
 <!--Del-->
-### func endsWith(this @local!, String @local?)
+### func endsWith(String)
 
 ```cangjie
 public exclave func endsWith(this @local!, suffix: String @local?): Bool
@@ -9987,7 +9987,7 @@ Equals ignore case (str1, str4): false
 ```
 
 <!--Del-->
-### func equalsIgnoreAsciiCase(this @local?, String @local?)
+### func equalsIgnoreAsciiCase(String)
 
 ```cangjie
 public func equalsIgnoreAsciiCase(this @local?, other: String @local?): Bool
@@ -10074,7 +10074,7 @@ Byte at index 100: None
 ```
 
 <!--Del-->
-### func get(this @local?, Int64)
+### func get(Int64)
 
 ```cangjie
 public func get(this @local?, index: Int64): Option<Byte>
@@ -10151,7 +10151,7 @@ hashCode: -255291815105879447
 ```
 
 <!--Del-->
-### func hashCode(this @local?)
+### func hashCode()
 
 ```cangjie
 public func hashCode(this @local?): Int64
@@ -10189,7 +10189,7 @@ equal hash: true
 <!--DelEnd-->
 
 <!--Del-->
-### func hashCode(this @local!)
+### func hashCode()
 
 ```cangjie
 public exclave func hashCode(this @local!): Int64
@@ -10425,7 +10425,7 @@ Index of 'World' from index 0: None
 ```
 
 <!--Del-->
-### func indexOf(this @local?, Byte)
+### func indexOf(Byte)
 
 ```cangjie
 public func indexOf(this @local?, b: Byte): Option<Int64>
@@ -10470,7 +10470,7 @@ Index of 'z': None
 <!--DelEnd-->
 
 <!--Del-->
-### func indexOf(this @local?, String @local?)
+### func indexOf(String)
 
 ```cangjie
 public func indexOf(this @local?, str: String @local?): Option<Int64>
@@ -10560,7 +10560,7 @@ String 4: '123456', is ASCII: true
 ```
 
 <!--Del-->
-### func isAscii(this @local?)
+### func isAscii()
 
 ```cangjie
 public func isAscii(this @local?): Bool
@@ -10656,7 +10656,7 @@ String 5: '
 ```
 
 <!--Del-->
-### func isAsciiBlank(this @local?)
+### func isAsciiBlank()
 
 ```cangjie
 public func isAsciiBlank(this @local?): Bool
@@ -10740,7 +10740,7 @@ String 3: ' ', is empty: false
 ```
 
 <!--Del-->
-### func isEmpty(this @local?)
+### func isEmpty()
 
 ```cangjie
 public func isEmpty(this @local?): Bool
@@ -10817,7 +10817,7 @@ Output:
 ```
 
 <!--Del-->
-### func iterator(this @local!)
+### func iterator()
 
 ```cangjie
 public exclave func iterator(this @local!): Iterator<Byte> @local!
@@ -10861,7 +10861,7 @@ first=72
 <!--DelEnd-->
 
 <!--Del-->
-### func iterator(this @local?)
+### func iterator()
 
 ```cangjie
 public exclave func iterator(this @local?): Iterator<Byte> @local?
@@ -11230,7 +11230,7 @@ Cangjie
 ```
 
 <!--Del-->
-### func lines(this @local!)
+### func lines()
 
 ```cangjie
 public exclave func lines(this @local!): Iterator<String> @local!
@@ -11275,7 +11275,7 @@ line=a
 <!--DelEnd-->
 
 <!--Del-->
-### func lines(this @local?)
+### func lines()
 
 ```cangjie
 public exclave func lines(this @local?): Iterator<String> @local?
@@ -11375,7 +11375,7 @@ String padded to smaller width: 'Hello'
 ```
 
 <!--Del-->
-### func padEnd(this @local!, Int64, String)
+### func padEnd(Int64, String)
 
 ```cangjie
 public exclave func padEnd(this @local!, totalWidth: Int64, padding!: String @local? = " "): String @local!
@@ -11484,7 +11484,7 @@ String padded to smaller width: 'Hello'
 ```
 
 <!--Del-->
-### func padStart(this @local!, Int64, String)
+### func padStart(Int64, String)
 
 ```cangjie
 public exclave func padStart(this @local!, totalWidth: Int64, padding!: String @local? = " "): String @local!
@@ -11595,7 +11595,7 @@ Raw data bytes:
 ```
 
 <!--Del-->
-### func rawData(this @local!)
+### func rawData()
 
 ```cangjie
 public exclave unsafe func rawData(this @local!): Array<Byte> @local!
@@ -11637,7 +11637,7 @@ size=2 first=104
 <!--DelEnd-->
 
 <!--Del-->
-### func rawData(this @local?)
+### func rawData()
 
 ```cangjie
 public exclave unsafe func rawData(this @local?): Array<Byte> @local?
@@ -11735,7 +11735,7 @@ After removing 'World': 'Hello, World'
 ```
 
 <!--Del-->
-### func removePrefix(this @local!, String @local?)
+### func removePrefix(String)
 
 ```cangjie
 public exclave func removePrefix(this @local!, prefix: String @local?): String @local!
@@ -11835,7 +11835,7 @@ After removing 'Hello': 'Hello, World'
 ```
 
 <!--Del-->
-### func removeSuffix(this @local!, String @local?)
+### func removeSuffix(String)
 
 ```cangjie
 public exclave func removeSuffix(this @local!, suffix: String @local?): String @local!
@@ -11940,7 +11940,7 @@ After replacing 'Hello' with empty string: ', World'
 ```
 
 <!--Del-->
-### func replace(this @local!, String @local?, String @local?)
+### func replace(String, String)
 
 ```cangjie
 public exclave func replace(this @local!, old: String @local?, new: String @local?): String @local!
@@ -12047,7 +12047,7 @@ Runes:
 ```
 
 <!--Del-->
-#### func runes(this @local!)
+#### func runes()
 
 ```cangjie
 public exclave func runes(this @local!): Iterator<Rune> @local!
@@ -12091,7 +12091,7 @@ r=a
 <!--DelEnd-->
 
 <!--Del-->
-#### func runes(this @local?)
+#### func runes()
 
 ```cangjie
 public exclave func runes(this @local?): Iterator<Rune> @local?
@@ -12269,7 +12269,7 @@ Split with maxSplits = -1:
 ```
 
 <!--Del-->
-#### func split(this @local!, String @local?, removeEmpty!)
+#### func split(String, removeEmpty!)
 
 ```cangjie
 public exclave func split(this @local!, str: String @local?, removeEmpty!: Bool = false): Array<String> @local!
@@ -12318,7 +12318,7 @@ n=3 last=c
 <!--DelEnd-->
 
 <!--Del-->
-#### func split(this @local!, String @local?, Int64, removeEmpty!)
+#### func split(String, Int64, removeEmpty!)
 
 ```cangjie
 public exclave func split(this @local!, str: String @local?, maxSplits: Int64, removeEmpty!: Bool = false): Array<String> @local!
@@ -12431,7 +12431,7 @@ String 1 starts with empty string: true
 ```
 
 <!--Del-->
-### func startsWith(this @local?, String @local?)
+### func startsWith(String)
 
 ```cangjie
 public func startsWith(this @local?, prefix: String @local?): Bool
@@ -12473,7 +12473,7 @@ startsWith=true
 <!--DelEnd-->
 
 <!--Del-->
-### func startsWith(this @local!, String @local?)
+### func startsWith(String)
 
 ```cangjie
 public exclave func startsWith(this @local!, prefix: String @local?): Bool
@@ -12565,7 +12565,7 @@ Byte array elements:
 ```
 
 <!--Del-->
-### func toArray(this @local!)
+### func toArray()
 
 ```cangjie
 public exclave func toArray(this @local!): Array<Byte> @local!
@@ -12606,7 +12606,7 @@ n=2 b0=104
 <!--DelEnd-->
 
 <!--Del-->
-### func toArray(this @local?)
+### func toArray()
 
 ```cangjie
 public exclave func toArray(this @local?): Array<Byte> @local?
@@ -12703,7 +12703,7 @@ To ASCII lower 4: '你好world'
 ```
 
 <!--Del-->
-### func toAsciiLower(this @local!)
+### func toAsciiLower()
 
 ```cangjie
 public exclave func toAsciiLower(this @local!): String @local!
@@ -12802,7 +12802,7 @@ To ASCII title 4: '你好World'
 ```
 
 <!--Del-->
-### func toAsciiTitle(this @local!)
+### func toAsciiTitle()
 
 ```cangjie
 public exclave func toAsciiTitle(this @local!): String @local!
@@ -12899,7 +12899,7 @@ To ASCII upper 4: '你好WORLD'
 ```
 
 <!--Del-->
-### func toAsciiUpper(this @local!)
+### func toAsciiUpper()
 
 ```cangjie
 public exclave func toAsciiUpper(this @local!): String @local!
@@ -12989,7 +12989,7 @@ Rune array elements:
 ```
 
 <!--Del-->
-### func toRuneArray(this @local!)
+### func toRuneArray()
 
 ```cangjie
 public exclave func toRuneArray(this @local!): Array<Rune> @local!
@@ -13067,7 +13067,7 @@ Are they equal? true
 ```
 
 <!--Del-->
-### func toString(this @local?)
+### func toString()
 
 ```cangjie
 public exclave func toString(this @local?): String @local!
@@ -13183,7 +13183,7 @@ Trimmed string 4: ''
 ```
 
 <!--Del-->
-### func trimAscii(this @local!)
+### func trimAscii()
 
 ```cangjie
 public exclave func trimAscii(this @local!): String @local!
@@ -13286,7 +13286,7 @@ Trimmed end string 4: ''
 ```
 
 <!--Del-->
-### func trimAsciiEnd(this @local!)
+### func trimAsciiEnd()
 
 ```cangjie
 public exclave func trimAsciiEnd(this @local!): String @local!
@@ -13389,7 +13389,7 @@ Trimmed start string 4: ''
 ```
 
 <!--Del-->
-### func trimAsciiStart(this @local!)
+### func trimAsciiStart()
 
 ```cangjie
 public exclave func trimAsciiStart(this @local!): String @local!
@@ -14163,7 +14163,7 @@ str[7..]: '世界'
 ```
 
 <!--Del-->
-### operator func \[](this @local?, Int64)
+### operator func \[](Int64)
 
 ```cangjie
 public operator const func [](this @local?, index: Int64): Byte
@@ -14208,7 +14208,7 @@ b=97
 <!--DelEnd-->
 
 <!--Del-->
-### operator func \[](this @local?, Range\<Int64>)
+### operator func \[](Range\<Int64>)
 
 ```cangjie
 public operator const func [](this @local?, range: Range<Int64>): String @local?
@@ -14259,7 +14259,7 @@ slice=el
 <!--DelEnd-->
 
 <!--Del-->
-### operator func \[](this @local!, Range\<Int64>)
+### operator func \[](Range\<Int64>)
 
 ```cangjie
 public exclave operator const func [](this @local!, range: Range<Int64>): String @local!
@@ -14310,7 +14310,7 @@ slice=el
 <!--DelEnd-->
 
 <!--Del-->
-### operator func ==(this @local!, String @local!)
+### operator func ==(String)
 
 ```cangjie
 public exclave operator const func ==(this @local!, other: String @local!): Bool
@@ -14352,7 +14352,7 @@ eq=true
 <!--DelEnd-->
 
 <!--Del-->
-### operator func ==(this @local?, String @local?)
+### operator func ==(String)
 
 ```cangjie
 public operator const func ==(this @local?, other: String @local?): Bool
@@ -14394,7 +14394,7 @@ eq=true
 <!--DelEnd-->
 
 <!--Del-->
-### operator func !=(this @local!, String @local!)
+### operator func !=(String)
 
 ```cangjie
 public exclave operator const func !=(this @local!, other: String @local!): Bool
@@ -14436,7 +14436,7 @@ ne=true
 <!--DelEnd-->
 
 <!--Del-->
-### operator func !=(this @local?, String @local?)
+### operator func !=(String)
 
 ```cangjie
 public operator const func !=(this @local?, other: String @local?): Bool
@@ -14478,7 +14478,7 @@ ne=true
 <!--DelEnd-->
 
 <!--Del-->
-### operator func <(this @local?, String @local?)
+### operator func <(String)
 
 ```cangjie
 public operator const func <(this @local?, other: String @local?): Bool
@@ -14520,7 +14520,7 @@ lt=true
 <!--DelEnd-->
 
 <!--Del-->
-### operator func <=(this @local?, String @local?)
+### operator func <=(String)
 
 ```cangjie
 public operator const func <=(this @local?, other: String @local?): Bool
@@ -14562,7 +14562,7 @@ le=true
 <!--DelEnd-->
 
 <!--Del-->
-### operator func >(this @local?, String @local?)
+### operator func >(String)
 
 ```cangjie
 public operator const func >(this @local?, other: String @local?): Bool
@@ -14604,7 +14604,7 @@ gt=true
 <!--DelEnd-->
 
 <!--Del-->
-### operator func >=(this @local?, String @local?)
+### operator func >=(String)
 
 ```cangjie
 public operator const func >=(this @local?, other: String @local?): Bool
@@ -14646,7 +14646,7 @@ ge=true
 <!--DelEnd-->
 
 <!--Del-->
-### operator func +(this @local!, String @local?)
+### operator func +(String)
 
 ```cangjie
 public exclave operator const func +(this @local!, other: String @local?): String @local!
@@ -14692,7 +14692,7 @@ cat=Hello!
 <!--DelEnd-->
 
 <!--Del-->
-### operator func *(this @local!, Int64)
+### operator func *(Int64)
 
 ```cangjie
 public exclave operator const func *(this @local!, count: Int64): String @local!

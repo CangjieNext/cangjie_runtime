@@ -576,7 +576,7 @@ func toArray(): Array<T>
 - [Array](core_package_structs.md#struct-arrayt)\<T> - 转换得到的数组。
 
 <!--Del-->
-### func isEmpty(this @local?)
+### func isEmpty()
 
 ```cangjie
 func isEmpty(this @local?): Bool
@@ -624,7 +624,7 @@ empty isEmpty: true
 <!--DelEnd-->
 <!--Del-->
 
-### func toArray(this @local?)
+### func toArray()
 
 ```cangjie
 func toArray(this @local?): Array<T> @local?
@@ -671,7 +671,7 @@ size=3
 <!--DelEnd-->
 <!--Del-->
 
-### func toArray(this @local!)
+### func toArray()
 
 ```cangjie
 func toArray(this @local!): Array<T> @local!
@@ -840,7 +840,7 @@ operator func >=(other: T): Bool
 - [Bool](core_package_intrinsics.md#bool) - 如果大于等于，返回 true，否则返回 false。
 
 <!--Del-->
-### func compare(this @local?, T @local?)
+### func compare(T)
 
 ```cangjie
 func compare(this @local?, other: T @local?): Ordering
@@ -888,7 +888,7 @@ compare: Ordering.LT
 <!--DelEnd-->
 <!--Del-->
 
-### func ==(this @local?, T @local?)
+### func ==(T)
 
 ```cangjie
 operator func ==(this @local?, other: T @local?): Bool
@@ -934,7 +934,7 @@ a == c: false
 <!--DelEnd-->
 <!--Del-->
 
-### func <(this @local?, T @local?)
+### func <(T)
 
 ```cangjie
 operator func <(this @local?, other: T @local?): Bool
@@ -979,7 +979,7 @@ c < a: false
 <!--DelEnd-->
 <!--Del-->
 
-### func >(this @local?, T @local?)
+### func >(T)
 
 ```cangjie
 operator func >(this @local?, other: T @local?): Bool
@@ -1024,7 +1024,7 @@ a > c: false
 <!--DelEnd-->
 <!--Del-->
 
-### func <=(this @local?, T @local?)
+### func <=(T)
 
 ```cangjie
 operator func <=(this @local?, other: T @local?): Bool
@@ -1069,7 +1069,7 @@ c <= a: false
 <!--DelEnd-->
 <!--Del-->
 
-### func >=(this @local?, T @local?)
+### func >=(T)
 
 ```cangjie
 operator func >=(this @local?, other: T @local?): Bool
@@ -1370,7 +1370,7 @@ operator func ==(other: T): Bool
 - [Bool](core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
 
 <!--Del-->
-### operator func ==(this @local!, T @local!)
+### operator func ==(T)
 
 ```cangjie
 operator func ==(this @local!, other: T @local!): Bool
@@ -1421,7 +1421,7 @@ caught: Current Type does not implement '==' method for its @local! instance
 <!--DelEnd-->
 <!--Del-->
 
-### operator func ==(this @local?, T @local?)
+### operator func ==(T)
 
 ```cangjie
 operator func ==(this @local?, other: T @local?): Bool
@@ -1506,7 +1506,7 @@ operator func !=(other: T): Bool
 - [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
 
 <!--Del-->
-### operator func !=(this @local!, T @local!)
+### operator func !=(T)
 
 ```cangjie
 operator func !=(this @local!, other: T @local!): Bool
@@ -1557,7 +1557,7 @@ caught: Current Type does not implement '!=' method for its @local! instance
 <!--DelEnd-->
 <!--Del-->
 
-### operator func !=(this @local?, T @local?)
+### operator func !=(T)
 
 ```cangjie
 operator func !=(this @local?, other: T @local?): Bool
@@ -1683,7 +1683,7 @@ func hashCode(): Int64
 - [Int64](core_package_intrinsics.md#int64) - 返回实例类型的哈希值。
 
 <!--Del-->
-### func hashCode(this @local?)
+### func hashCode()
 
 ```cangjie
 func hashCode(this @local?): Int64
@@ -1728,7 +1728,7 @@ h=1
 
 <!--DelEnd-->
 <!--Del-->
-### func hashCode(this @local!)
+### func hashCode()
 
 ```cangjie
 func hashCode(this @local!): Int64
@@ -2012,7 +2012,7 @@ func iterator(): Iterator<E>
 - [Iterator](core_package_classes.md#class-iteratort)\<E> - 迭代器。
 
 <!--Del-->
-### func iterator(this @local!)
+### func iterator()
 
 ```cangjie
 func iterator(this @local!): Iterator<E> @local!
@@ -2062,7 +2062,7 @@ first=1
 <!--DelEnd-->
 <!--Del-->
 
-### func iterator(this @local?)
+### func iterator()
 
 ```cangjie
 func iterator(this @local?): Iterator<E> @local?
@@ -2189,7 +2189,7 @@ operator func !=(other: T): Bool
 - [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
 
 <!--Del-->
-### operator func !=(this @local!, T @local!)
+### operator func !=(T)
 
 ```cangjie
 operator func !=(this @local!, other: T @local!): Bool
@@ -2247,7 +2247,7 @@ caught: Current Type does not implement '!=' method for its @local! instance
 <!--DelEnd-->
 
 <!--Del-->
-### operator func !=(this @local?, T @local?)
+### operator func !=(T)
 
 ```cangjie
 operator func !=(this @local?, other: T @local?): Bool
@@ -2395,7 +2395,7 @@ func toString(): String
 - [String](core_package_structs.md#struct-string) - 返回实例类型的字符串表示。
 
 <!--Del-->
-### func toString(this @local?)
+### func toString()
 
 ```cangjie
 func toString(this @local?): String @local!
