@@ -1,0 +1,28 @@
+std/doc/libs/std/ast/ast_package_api/ast_package_classes.md
+  h_6a43e5c473a09a 814
+std/doc/libs/std/ast/ast_package_api/ast_package_enums.md
+  h_6a43e5c473a09a 1543
+std/doc/libs/std/ast/ast_package_api/ast_package_structs.md
+  h_6a43e5c473a09a 239,248
+std/doc/libs/std/ast/ast_package_overview.md
+  h_6a43e5c473a09a 66,154
+std/doc/libs/std_en/ast/ast_package_api/ast_package_enums.md
+  h_6a43e5c473a09a 1541
+std/doc/libs/std_en/ast/ast_package_api/ast_package_structs.md
+  h_6a43e5c473a09a 239,248
+std/doc/libs/std_en/ast/ast_package_overview.md
+  h_6a43e5c473a09a 154
+std/libs/std/ast/token.cj
+  h_6a43e5c473a09a 63-64
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "667ea6a69cbcd0e75979d8da286675dea4f94bf1",
+  "prompts": {},
+  "humans": {
+    "h_6a43e5c473a09a": {
+      "author": "Xu Zhaoheng <xuzhaoheng1@huawei.com>"
+    }
+  }
+}
