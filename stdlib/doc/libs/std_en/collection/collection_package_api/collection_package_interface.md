@@ -1729,8 +1729,7 @@ after=2
 
 <!--Del-->
 
-<!-- markdownlint-disable-next-line MD026 -->
-### prop value @local!
+### prop value `@local!`
 
 ```cangjie
 mut prop value: ?V @local!
@@ -2090,8 +2089,7 @@ first=1
 
 <!--Del-->
 
-<!-- markdownlint-disable-next-line MD026 -->
-### prop first @local!
+### prop first `@local!`
 
 ```cangjie
 prop first: ?T @local!
@@ -2223,8 +2221,7 @@ last=3
 
 <!--Del-->
 
-<!-- markdownlint-disable-next-line MD026 -->
-### prop last @local!
+### prop last `@local!`
 
 ```cangjie
 prop last: ?T @local!

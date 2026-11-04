@@ -938,8 +938,7 @@ Exceptions:
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown when the path is empty or contains a string terminator.
 
 <!--Del-->
-<!-- markdownlint-disable-next-line MD026 -->
-### prop parent @local!
+### prop parent `@local!`
 
 ```cangjie
 public prop parent: Path @local!

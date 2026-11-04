@@ -208,8 +208,7 @@ Function: Returns the total amount of data in the current stream (in bytes).
 Type: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64)
 
 <!--Del-->
-<!-- markdownlint-disable-next-line MD026 -->
-### prop length @local!
+### prop length `@local!`
 
 ```cangjie
 prop length: Int64 @local!
@@ -264,8 +263,7 @@ Function: Returns the current cursor position.
 Type: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64)
 
 <!--Del-->
-<!-- markdownlint-disable-next-line MD026 -->
-### prop position @local!
+### prop position `@local!`
 
 ```cangjie
 prop position: Int64 @local!
@@ -325,8 +323,7 @@ Function: Returns the amount of unread data in the current stream (in bytes).
 Type: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64)
 
 <!--Del-->
-<!-- markdownlint-disable-next-line MD026 -->
-### prop remainLength @local!
+### prop remainLength `@local!`
 
 ```cangjie
 prop remainLength: Int64 @local!

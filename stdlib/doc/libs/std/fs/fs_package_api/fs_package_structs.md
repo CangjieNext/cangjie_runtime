@@ -1785,8 +1785,7 @@ Parent path: /home/user
 ```
 
 <!--Del-->
-<!-- markdownlint-disable-next-line MD026 -->
-### prop parent @local!
+### prop parent `@local!`
 
 ```cangjie
 public prop parent: Path @local!

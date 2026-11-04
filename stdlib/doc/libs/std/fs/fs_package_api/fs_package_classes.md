@@ -718,8 +718,7 @@ File length: 6
 ```
 
 <!--Del-->
-<!-- markdownlint-disable-next-line MD026 -->
-### prop length @local!
+### prop length `@local!`
 
 ```cangjie
 public prop length: Int64 @local!

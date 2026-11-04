@@ -292,8 +292,7 @@ Function: Retrieves the byte count of data from the file header to the file tail
 Type: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64)
 
 <!--Del-->
-<!-- markdownlint-disable-next-line MD026 -->
-### prop length @local!
+### prop length `@local!`
 
 ```cangjie
 public prop length: Int64 @local!

@@ -787,8 +787,7 @@ First element of empty list: None
 
 <!--Del-->
 
-<!-- markdownlint-disable-next-line MD026 -->
-### prop first @local!
+### prop first `@local!`
 
 ```cangjie
 public prop first: ?T @local!
@@ -917,8 +916,7 @@ Last element of empty list: None
 
 <!--Del-->
 
-<!-- markdownlint-disable-next-line MD026 -->
-### prop last @local!
+### prop last `@local!`
 
 ```cangjie
 public prop last: ?T @local!
