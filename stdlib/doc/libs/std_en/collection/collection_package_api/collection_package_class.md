@@ -348,6 +348,42 @@ Output:
 Is deque empty: true
 ```
 
+### func isEmpty()
+
+```cangjie
+public func isEmpty(): Bool
+```
+
+Function: Checks if this deque is empty.
+
+Returns:
+
+- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - Returns `true` if empty, otherwise `false`.
+
+Example:
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let deque1 = ArrayDeque<Int64>()
+    let deque2 = ArrayDeque<Int64>()
+    deque2.addLast(1)
+    
+    println("Is deque1 empty: ${deque1.isEmpty()}")  // true
+    println("Is deque2 empty: ${deque2.isEmpty()}")  // false
+    return 0
+}
+```
+
+Output:
+
+```text
+Is deque1 empty: true
+Is deque2 empty: false
+```
+
 ### func iterator()
 
 ```cangjie
@@ -386,42 +422,6 @@ Output:
 1
 2
 3
-```
-
-### func isEmpty()
-
-```cangjie
-public func isEmpty(): Bool
-```
-
-Function: Checks if this deque is empty.
-
-Returns:
-
-- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - Returns `true` if empty, otherwise `false`.
-
-Example:
-
-<!-- verify -->
-```cangjie
-import std.collection.*
-
-main() {
-    let deque1 = ArrayDeque<Int64>()
-    let deque2 = ArrayDeque<Int64>()
-    deque2.addLast(1)
-    
-    println("Is deque1 empty: ${deque1.isEmpty()}")  // true
-    println("Is deque2 empty: ${deque2.isEmpty()}")  // false
-    return 0
-}
-```
-
-Output:
-
-```text
-Is deque1 empty: true
-Is deque2 empty: false
 ```
 
 ### func removeFirst()
@@ -704,7 +704,7 @@ Initial capacity: 16
 Capacity after adding 17 elements: 24
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### prop capacity
 
@@ -744,7 +744,7 @@ Output:
 cap>=16: true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### prop first
 
@@ -785,7 +785,7 @@ First element: Some(1)
 First element of empty list: None
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### prop first
 
@@ -825,9 +825,9 @@ Output:
 first=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### prop first
 
@@ -873,7 +873,7 @@ Output:
 first=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### prop last
 
@@ -914,7 +914,7 @@ Last element: Some(2)
 Last element of empty list: None
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### prop last
 
@@ -954,9 +954,9 @@ Output:
 last=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### prop last
 
@@ -1002,7 +1002,7 @@ Output:
 last=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### prop size
 
@@ -1039,7 +1039,7 @@ Initial size: 0
 Size after adding 2 elements: 2
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### prop size
 
@@ -1076,7 +1076,7 @@ Output:
 size=2
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### init()
 
@@ -1229,7 +1229,7 @@ List contents: [0, 1, 4, 9, 16]
 List size: 5
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### init()
 
@@ -1262,9 +1262,9 @@ Output:
 size=0
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### init(Int64)
 
@@ -1306,9 +1306,9 @@ Output:
 cap>=16: true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### init(Int64, (Int64) -> T)
 
@@ -1351,9 +1351,9 @@ Output:
 size=3 v2=4
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### init(Collection\<T>)
 
@@ -1399,9 +1399,9 @@ Output:
 size=3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### init(Array\<T>)
 
@@ -1446,9 +1446,9 @@ Output:
 size=3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### init(Int64, (Int64) -> T)
 
@@ -1491,9 +1491,9 @@ Output:
 size=3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### init(Collection\<T>)
 
@@ -1546,7 +1546,7 @@ size=3
 first=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### static func of(Array\<T>)
 
@@ -1776,7 +1776,7 @@ List contents: [1, 2, 3]
 List size: 3
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func add(Collection\<T>)
 
@@ -1824,9 +1824,9 @@ size=4
 last=4
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func add(Collection\<T>, Int64)
 
@@ -1880,9 +1880,9 @@ size=5
 at1=2
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func add(T)
 
@@ -1924,9 +1924,9 @@ size=2
 last=2
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func add(T, Int64)
 
@@ -1974,7 +1974,7 @@ size=3
 at1=2
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func all((T) -> Bool)
 
@@ -1983,7 +1983,6 @@ public func all(predicate: (T) -> Bool): Bool
 ```
 
 Function: Determines whether all elements in this [ArrayList](collection_package_class.md#class-arraylistt) satisfy the given condition.
-
 
 > **Note：**
 >
@@ -1996,7 +1995,7 @@ Returns:
 
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - Returns true if all elements satisfy the condition, otherwise false.
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func all((T) -> Bool)
 
@@ -2045,7 +2044,7 @@ Output:
 allEven=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func any((T) -> Bool)
 
@@ -2054,7 +2053,6 @@ public func any(predicate: (T) -> Bool): Bool
 ```
 
 Function: Determines whether any element in this [ArrayList](collection_package_class.md#class-arraylistt) satisfies the given condition.
-
 
 > **Note：**
 >
@@ -2067,7 +2065,7 @@ Returns:
 
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - Returns true if any element satisfies the condition.
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func any((T) -> Bool)
 
@@ -2116,7 +2114,7 @@ Output:
 hasEven=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func clear()
 
@@ -2161,7 +2159,7 @@ List size after clearing: 0
 Is list empty: true
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func clear()
 
@@ -2203,7 +2201,7 @@ Size after clearing: 0
 isEmpty: true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func clone()
 
@@ -2253,7 +2251,7 @@ Modified original list: [1, 2, 3, 4]
 Cloned list remains unchanged: [1, 2, 3]
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func clone()
 
@@ -2296,9 +2294,9 @@ Cloned list size: 2
 Cloned list last element: 2
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func clone()
 
@@ -2347,15 +2345,15 @@ Output:
 size=0
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func filter((T) -> Bool)
+
 ```cangjie
 public func filter(predicate: (T) -> Bool): ArrayList<T>
 ```
 
 Function: Returns a new [ArrayList](collection_package_class.md#class-arraylistt)\<T> containing elements that satisfy the given predicate.
-
 
 > **Note：**
 >
@@ -2368,7 +2366,7 @@ Returns:
 
 - [ArrayList](collection_package_class.md#class-arraylistt)\<T> - A new collection containing elements that satisfy the condition.
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func filter((T) -> Bool)
 
@@ -2417,7 +2415,7 @@ size=2
 first=2
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func filterMap\<R>((T) -> ?R)
 
@@ -2426,7 +2424,6 @@ public func filterMap<R>(transform: (T) -> ?R): ArrayList<R>
 ```
 
 Function: Performs both filtering and mapping operations, returning a new [ArrayList](collection_package_class.md#class-arraylistt).
-
 
 > **Note：**
 >
@@ -2439,7 +2436,7 @@ Returns:
 
 - [ArrayList](collection_package_class.md#class-arraylistt)\<R> - A new filtered and mapped [ArrayList](collection_package_class.md#class-arraylistt).
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func filterMap\<R>((T) -> ?R)
 
@@ -2499,7 +2496,7 @@ first=1
 last=2
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func flatMap\<R>((T) -> ArrayList\<R>)
 
@@ -2508,7 +2505,6 @@ public func flatMap<R>(transform: (T) -> ArrayList<R>): ArrayList<R>
 ```
 
 Function: Applies a transform closure to each element of this [ArrayList](collection_package_class.md#class-arraylistt), where the closure returns a new [ArrayList](collection_package_class.md#class-arraylistt), then flattens and concatenates all returned ArrayLists into a single result [ArrayList](collection_package_class.md#class-arraylistt).
-
 
 > **Note：**
 >
@@ -2521,7 +2517,7 @@ Returns:
 
 - [ArrayList](collection_package_class.md#class-arraylistt)\<R> - A new "mapped" and "flattened" [ArrayList](collection_package_class.md#class-arraylistt).
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func flatMap\<R>((T) -> ArrayList\<R>)
 
@@ -2577,7 +2573,7 @@ first=1
 last=9
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func fold\<R>(R, (R, T) -> R)
 
@@ -2586,7 +2582,6 @@ public func fold<R>(initial: R, operation: (R, T) -> R): R
 ```
 
 Function: Accumulates values starting from the specified initial value, processing elements from left to right.
-
 
 > **Note：**
 >
@@ -2600,7 +2595,7 @@ Returns:
 
 - R - The final accumulated value.
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func fold\<R>(R, (R, T) -> R)
 
@@ -2648,7 +2643,7 @@ Output:
 product=24
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func forEach((T) -> Unit)
 
@@ -2657,7 +2652,6 @@ public func forEach(action: (T) -> Unit): Unit
 ```
 
 Function: Performs the given action on each element.
-
 
 > **Note：**
 >
@@ -2713,7 +2707,7 @@ Element at index 1: Some(20)
 Element at index 5: None
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func get(Int64)
 
@@ -2760,9 +2754,9 @@ Output:
 g=10
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func get(Int64)
 
@@ -2814,7 +2808,7 @@ Output:
 g=20
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func getRawArray()
 
@@ -2902,7 +2896,6 @@ public func intersperse(separator: T): ArrayList<T>
 
 Function: Returns a new [ArrayList](collection_package_class.md#class-arraylistt) with the given element inserted between every two existing elements.
 
-
 > **Note：**
 >
 > Unsupported platform：OpenHarmony
@@ -2914,7 +2907,7 @@ Returns:
 
 - [ArrayList](collection_package_class.md#class-arraylistt)\<T> - Returns a new [ArrayList](collection_package_class.md#class-arraylistt).
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func intersperse(T)
 
@@ -2964,7 +2957,7 @@ at1=0
 last=3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func isEmpty()
 
@@ -3003,7 +2996,7 @@ Is empty list empty: true
 Is non-empty list empty: false
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func isEmpty()
 
@@ -3049,7 +3042,7 @@ Output:
 isEmpty=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func iterator()
 
@@ -3093,7 +3086,7 @@ Output:
 3
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func iterator()
 
@@ -3139,9 +3132,9 @@ Output:
 first=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func iterator()
 
@@ -3193,7 +3186,7 @@ Output:
 first=7
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func map\<R>((T) -> R)
 
@@ -3202,7 +3195,6 @@ public func map<R>(transform: (T) -> R): ArrayList<R>
 ```
 
 Function: Applies a transformation to this [ArrayList](collection_package_class.md#class-arraylistt) and returns a new [ArrayList](collection_package_class.md#class-arraylistt).
-
 
 > **Note：**
 >
@@ -3215,7 +3207,7 @@ Returns:
 
 - [ArrayList](collection_package_class.md#class-arraylistt)\<R> - Returns a new [ArrayList](collection_package_class.md#class-arraylistt).
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func map\<R>((T) -> R)
 
@@ -3263,7 +3255,7 @@ size=3
 last=9
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func none((T) -> Bool)
 
@@ -3272,7 +3264,6 @@ public func none(predicate: (T) -> Bool): Bool
 ```
 
 Function: Determines whether none of the elements in the [ArrayList](collection_package_class.md#class-arraylistt) satisfy the given condition.
-
 
 > **Note：**
 >
@@ -3285,7 +3276,7 @@ Returns:
 
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - Whether none of the elements in the current [ArrayList](collection_package_class.md#class-arraylistt) satisfy the condition.
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func none((T) -> Bool)
 
@@ -3334,7 +3325,7 @@ Output:
 noneEven=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func reduce((T, T) -> T)
 
@@ -3343,7 +3334,6 @@ public func reduce(operation: (T, T) -> T): Option<T>
 ```
 
 Function: Computes from left to right using the first element as the initial value.
-
 
 > **Note：**
 >
@@ -3356,7 +3346,7 @@ Returns:
 
 - [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)\<T> - Returns the computation result.
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func reduce((T, T) -> T)
 
@@ -3407,7 +3397,7 @@ Output:
 max=5
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func remove(Int64)
 
@@ -3460,7 +3450,7 @@ List after removal: [1, 3]
 List size after removal: 2
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func remove(Int64)
 
@@ -3512,7 +3502,7 @@ removed=2
 size=2
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func remove(Range\<Int64>)
 
@@ -3565,7 +3555,7 @@ List after removal: [0, 3, 4, 5]
 List size after removal: 4
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func remove(Range\<Int64>)
 
@@ -3617,7 +3607,7 @@ size=3
 at1=3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func removeIf((T) -> Bool)
 
@@ -3667,7 +3657,7 @@ List after removing evens: [1, 3, 5]
 List size after removal: 3
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func removeIf((T) -> Bool)
 
@@ -3716,7 +3706,7 @@ size=2
 first=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func reserve(Int64)
 
@@ -3810,7 +3800,7 @@ Before reversal: [0, 1, 2, 3]
 After reversal: [3, 2, 1, 0]
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func reverse()
 
@@ -3854,7 +3844,7 @@ first=3
 last=0
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func skip(Int64)
 
@@ -3865,7 +3855,6 @@ public func skip(count: Int64): ArrayList<T>
 Function: Skips a specified number of elements and returns a new [ArrayList](collection_package_class.md#class-arraylistt).
 
 Throws an exception when count is less than or equal to 0. When count equals 0, it effectively skips no elements and returns a new [ArrayList](collection_package_class.md#class-arraylistt) containing all elements of the source [ArrayList](collection_package_class.md#class-arraylistt). When count is greater than 0 but less than the size of the source [ArrayList](collection_package_class.md#class-arraylistt), it skips the first count elements and returns a new [ArrayList](collection_package_class.md#class-arraylistt) containing the remaining elements. When count is greater than or equal to the size of the [ArrayList](collection_package_class.md#class-arraylistt), it returns an empty [ArrayList](collection_package_class.md#class-arraylistt).
-
 
 > **Note：**
 >
@@ -3882,7 +3871,7 @@ Exceptions:
 
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown when count < 0.
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func skip(Int64)
 
@@ -3938,7 +3927,7 @@ size=2
 first=3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func slice(Range\<Int64>)
 
@@ -4001,7 +3990,7 @@ Sliced list: [1, 2, 3]
 Sliced list size: 3
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func slice(Range\<Int64>)
 
@@ -4053,9 +4042,9 @@ Output:
 sl=2
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func slice(Range\<Int64>)
 
@@ -4110,7 +4099,7 @@ Output:
 sl=2
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func sortBy((T, T) -> Ordering) <sup>(deprecated)</sup>
 
@@ -4228,6 +4217,7 @@ After stable sorting: [4, 3, 2, 1]
 ```
 
 ### func step(Int64)
+
 ```cangjie
 public func step(count: Int64): ArrayList<T>
 ```
@@ -4235,7 +4225,6 @@ public func step(count: Int64): ArrayList<T>
 Function: Extracts elements from the [ArrayList](collection_package_class.md#class-arraylistt) at specified intervals and returns a new [ArrayList](collection_package_class.md#class-arraylistt).
 
 Throws an exception when count is less than or equal to 0.
-
 
 > **Note：**
 >
@@ -4252,7 +4241,7 @@ Exceptions:
 
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown when count <= 0.
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func step(Int64)
 
@@ -4309,9 +4298,10 @@ size=3
 last=4
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func take(Int64)
+
 ```cangjie
 public func take(count: Int64): ArrayList<T>
 ```
@@ -4319,7 +4309,6 @@ public func take(count: Int64): ArrayList<T>
 Function: Takes a specified number of elements from the array and returns a new array.
 
 Throws an exception when count is less than or equal to 0. When count equals 0, no elements are taken, and an empty array is returned. When count is greater than 0 but less than the size of the source array, the first count elements are taken and returned in a new array. When count is greater than or equal to the size of the array, all elements are taken and returned in a new array.
-
 
 > **Note：**
 >
@@ -4336,7 +4325,7 @@ Exceptions:
 
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown when count < 0.
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func take(Int64)
 
@@ -4392,7 +4381,7 @@ size=3
 last=2
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func toArray()
 
@@ -4438,7 +4427,7 @@ Array: [0, 1, 2, 3]
 Array size: 4
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func toArray()
 
@@ -4481,9 +4470,9 @@ Output:
 arr=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func toArray()
 
@@ -4530,7 +4519,7 @@ Output:
 size=0
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### operator func [](Int64)
 
@@ -4585,7 +4574,7 @@ Modified element at index 1: 25
 Modified list: [10, 25, 30]
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### operator func \[](Int64)
 
@@ -4633,9 +4622,9 @@ Output:
 idx1=20
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### operator func \[](Int64)
 
@@ -4687,7 +4676,7 @@ Output:
 idx1=20
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### operator func [](Int64, T)
 
@@ -4738,7 +4727,7 @@ List after modification: [10, 25, 30]
 Element at index 1: 25
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### operator func \[](Int64, T)
 
@@ -4784,7 +4773,7 @@ Output:
 at1=25
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### operator func [](Range\<Int64>)
 
@@ -4848,7 +4837,7 @@ Sliced list: [1, 2, 3]
 Sliced list size: 3
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### operator func \[](Range\<Int64>)
 
@@ -4898,9 +4887,9 @@ Output:
 sl=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### operator func \[](Range\<Int64>)
 
@@ -4955,7 +4944,7 @@ Output:
 sl=2
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend\<T> ArrayList\<T>
 
@@ -4977,7 +4966,7 @@ Returns:
 
 - [ArrayList](collection_package_class.md#class-arraylistt)\<([Int64](../../core/core_package_api/core_package_intrinsics.md#int64), T)> - Returns a new [ArrayList](collection_package_class.md#class-arraylistt) with indices.
 
-<!--Del-->
+<!--Del_sink-->
 
 #### func enumerate()
 
@@ -5025,7 +5014,7 @@ first idx=0
 first val=apple
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 #### func zip\<R>(ArrayList\<R>)
 
@@ -5034,7 +5023,6 @@ public func zip<R>(other: ArrayList<R>): ArrayList<(T, R)>
 ```
 
 Function: Merges two [ArrayList](collection_package_class.md#class-arraylistt)s into a new [ArrayList](collection_package_class.md#class-arraylistt) (length determined by the shorter [ArrayList](collection_package_class.md#class-arraylistt)).
-
 
 > **Note：**
 >
@@ -5048,7 +5036,7 @@ Returns:
 
 - [ArrayList](collection_package_class.md#class-arraylistt)\<(T, R)> - Returns a new [ArrayList](collection_package_class.md#class-arraylistt).
 
-<!--Del-->
+<!--Del_sink-->
 
 #### func zip\<R>(ArrayList\<R>)
 
@@ -5097,7 +5085,7 @@ size=1
 first=(1, 2)
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend\<T> ArrayList\<T> <: Equatable\<ArrayList\<T>> where T <: Equatable\<T>
 
@@ -5204,7 +5192,7 @@ list1 != list2: true
 list1 != list3: false
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 #### operator func !=(ArrayList\<T>)
 
@@ -5254,7 +5242,7 @@ ne1=true
 ne2=false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 #### operator func ==(ArrayList\<T>)
 
@@ -5309,7 +5297,7 @@ list1 == list2: true
 list1 == list3: false
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 #### operator func ==(ArrayList\<T>)
 
@@ -5358,7 +5346,7 @@ Output:
 eq=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend\<T> ArrayList\<T> <: SortExtension where T <: Comparable\<T> <sup>(deprecated)</sup>
 
@@ -5873,50 +5861,6 @@ Size after clearing: 0
 Is empty after clearing: true
 ```
 
-### func iterator()
-
-```cangjie
-public func iterator(): Iterator<T>
-```
-
-Function: Gets an iterator for elements in this queue in front-to-back order.
-
-Returns:
-
-- [Iterator](../../core/core_package_api/core_package_classes.md#class-iteratort)\<T> - An iterator for the elements.
-
-Example:
-
-<!-- verify -->
-```cangjie
-import std.collection.*
-
-main() {
-    let queue = ArrayQueue<Int64>()
-    
-    // Add elements
-    queue.add(1)
-    queue.add(2)
-    queue.add(3)
-    
-    // Iterate through queue
-    let iter = queue.iterator()
-    println(iter.next())
-    println(iter.next())
-    println(iter.next())
-    
-    return 0
-}
-```
-
-Output:
-
-```text
-Some(1)
-Some(2)
-Some(3)
-```
-
 ### func isEmpty()
 
 ```cangjie
@@ -5959,6 +5903,50 @@ Output:
 Is empty queue empty: true
 Is queue empty after adding: false
 Is queue empty after removing: true
+```
+
+### func iterator()
+
+```cangjie
+public func iterator(): Iterator<T>
+```
+
+Function: Gets an iterator for elements in this queue in front-to-back order.
+
+Returns:
+
+- [Iterator](../../core/core_package_api/core_package_classes.md#class-iteratort)\<T> - An iterator for the elements.
+
+Example:
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let queue = ArrayQueue<Int64>()
+    
+    // Add elements
+    queue.add(1)
+    queue.add(2)
+    queue.add(3)
+    
+    // Iterate through queue
+    let iter = queue.iterator()
+    println(iter.next())
+    println(iter.next())
+    println(iter.next())
+    
+    return 0
+}
+```
+
+Output:
+
+```text
+Some(1)
+Some(2)
+Some(3)
 ```
 
 ### func peek()
@@ -6062,9 +6050,12 @@ public func reserve(additional: Int64): Unit
 Function: Increases the capacity of this queue.
 
 Expands the queue by additional size. No expansion occurs when:
+
 1. additional ≤ 0
 2. Remaining capacity ≥ additional
+
 When expansion is needed, the new capacity will be the maximum between:
+
 1. Original capacity × 1.5 (rounded down)
 2. additional + used capacity
 
@@ -6306,7 +6297,7 @@ Initial size: 0
 Size after adding elements: 2
 ```
 
-### func init()
+### init()
 
 ```cangjie
 public init()
@@ -6340,7 +6331,7 @@ Initial capacity: 8
 Is empty: true
 ```
 
-### func init(Int64)
+### init(Int64)
 
 ```cangjie
 public init(capacity: Int64)
@@ -6871,7 +6862,7 @@ Initial capacity: 16
 Specified capacity: 32
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### prop capacity
 
@@ -6913,7 +6904,7 @@ Output:
 cap>=32: true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### prop size
 
@@ -6954,7 +6945,7 @@ Initial size: 0
 Size after adding elements: 2
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### prop size
 
@@ -6997,7 +6988,7 @@ Output:
 size=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### init()
 
@@ -7219,7 +7210,7 @@ HashMap size: 3
 Value for key 'second': 10
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### init()
 
@@ -7252,9 +7243,9 @@ Output:
 empty=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### init(Array\<(K, V)>)
 
@@ -7293,9 +7284,9 @@ Output:
 size=2
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### init(Array\<(K, V)>)
 
@@ -7348,9 +7339,9 @@ Output:
 caught IllegalArgumentException
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### init(Collection\<(K, V)>)
 
@@ -7391,9 +7382,9 @@ Output:
 size=2
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### init(Collection\<(K, V)>)
 
@@ -7445,9 +7436,9 @@ Output:
 size=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### init(Int64)
 
@@ -7489,9 +7480,9 @@ Output:
 cap>=32: true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### init(Int64, (Int64) -> (K, V))
 
@@ -7534,9 +7525,9 @@ Output:
 size=2
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### init(Int64, (Int64) -> (K, V))
 
@@ -7588,7 +7579,7 @@ Output:
 caught IllegalArgumentException
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func add(Collection\<(K, V)>)
 
@@ -7693,7 +7684,7 @@ Old value for replaced key 'first': 100
 Current value for 'first': 200
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func add(Collection\<(K, V)>)
 
@@ -7735,9 +7726,9 @@ Output:
 size=2
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func add(K, V)
 
@@ -7794,7 +7785,7 @@ r1=None
 r2=100
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func all((K, V) -> Bool)
 
@@ -7803,7 +7794,6 @@ public func all(predicate: (K, V) -> Bool): Bool
 ```
 
 Function: Determines whether all key-value pairs in the [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) satisfy the given condition.
-
 
 > **Note：**
 >
@@ -7816,7 +7806,7 @@ Returns:
 
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - Returns true if all key-value pairs satisfy the condition; otherwise, returns false.
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func all((K, V) -> Bool)
 
@@ -7865,7 +7855,7 @@ Output:
 r=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func any((K, V) -> Bool)
 
@@ -7874,7 +7864,6 @@ public func any(predicate: (K, V) -> Bool): Bool
 ```
 
 Function: Determines whether any key-value pair in the [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) satisfies the given condition.
-
 
 > **Note：**
 >
@@ -7887,7 +7876,7 @@ Returns:
 
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - Whether any key-value pair satisfies the condition.
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func any((K, V) -> Bool)
 
@@ -7936,7 +7925,7 @@ Output:
 r=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func clear()
 
@@ -7981,7 +7970,7 @@ Size after clearing: 0
 Is empty after clearing: true
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func clear()
 
@@ -8020,7 +8009,7 @@ Output:
 size=0
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func clone()
 
@@ -8070,7 +8059,7 @@ Original HashMap size after modification: 2
 Cloned HashMap size after modification: 3
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func clone()
 
@@ -8113,7 +8102,7 @@ Output:
 size=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func contains(Collection\<K>)
 
@@ -8210,7 +8199,7 @@ Contains key 'apple': true
 Contains key 'orange': false
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func contains(Collection\<K>)
 
@@ -8261,9 +8250,9 @@ Output:
 all=false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func contains(K)
 
@@ -8316,7 +8305,7 @@ Output:
 c=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func entryView(K)
 
@@ -8366,7 +8355,7 @@ Found key 'key1' with value: 100
 Modified value for key 'key1': 150
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func entryView(K)
 
@@ -8410,9 +8399,9 @@ Output:
 hasValue=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func entryView(K)
 
@@ -8470,15 +8459,15 @@ Output:
 caught UnimplementedException
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func filter((K, V) -> Bool)
+
 ```cangjie
 public func filter(predicate: (K, V) -> Bool): HashMap<K, V>
 ```
 
 Function: Returns a new [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek)\<K, V> containing key-value pairs that satisfy the given predicate.
-
 
 > **Note：**
 >
@@ -8491,7 +8480,7 @@ Returns:
 
 - [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek)\<K, V> - A new collection containing key-value pairs that satisfy the predicate.
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func filter((K, V) -> Bool)
 
@@ -8536,7 +8525,7 @@ Output:
 size=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func fold\<R>(R, (R, K, V) -> R)
 
@@ -8545,7 +8534,6 @@ public func fold<R>(initial: R, operation: (R, K, V) -> R): R
 ```
 
 Function: Accumulates values starting from the given initial value, processing from left to right.
-
 
 > **Note：**
 >
@@ -8559,7 +8547,7 @@ Returns:
 
 - R - The final accumulated value.
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func fold\<R>(R, (R, K, V) -> R)
 
@@ -8605,7 +8593,7 @@ Output:
 sum=30
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func forEach((K, V) -> Unit)
 
@@ -8615,7 +8603,6 @@ public func forEach(action: (K, V) -> Unit): Unit
 
 Function: Performs the given action on each key-value pair.
 
-
 > **Note：**
 >
 > Unsupported platform：OpenHarmony
@@ -8623,7 +8610,7 @@ Parameters:
 
 - action: (K, V) -> [Unit](../../core/core_package_api/core_package_intrinsics.md#unit) - The given action function.
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func forEach((K, V) -> Unit)
 
@@ -8667,7 +8654,7 @@ Output:
 k=1 v=100
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func get(K)
 
@@ -8720,7 +8707,7 @@ Value for key 'name': 100
 Key 'height' does not exist
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func get(K)
 
@@ -8767,9 +8754,9 @@ Output:
 v=100
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func get(K)
 
@@ -8821,7 +8808,7 @@ Output:
 v=100
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func isEmpty()
 
@@ -8868,7 +8855,7 @@ Is empty after adding elements: false
 Is empty after clearing: true
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func isEmpty()
 
@@ -8910,7 +8897,7 @@ Output:
 isEmpty=false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func iterator()
 
@@ -8962,7 +8949,7 @@ Output:
 Number of elements iterated: 3
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func iterator()
 
@@ -9008,9 +8995,9 @@ Output:
 first=(1, 100)
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func iterator()
 
@@ -9061,7 +9048,7 @@ Output:
 first=(1, 100)
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func keys()
 
@@ -9109,7 +9096,7 @@ Number of keys: 3
 Contains key 'b'
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func keys()
 
@@ -9152,9 +9139,9 @@ Output:
 has1=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func keys()
 
@@ -9202,7 +9189,7 @@ Output:
 has1=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func mapValues\<R>((K, V) -> R)
 
@@ -9211,7 +9198,6 @@ public func mapValues<R>(transform: (K, V) -> R): HashMap<K, R>
 ```
 
 Function: Transforms this [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) and returns a new [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek).
-
 
 > **Note：**
 >
@@ -9232,7 +9218,6 @@ public func mapValues<R>(transform: (V) -> R): HashMap<K, R>
 
 Function: Transforms this [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) and returns a new [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek).
 
-
 > **Note：**
 >
 > Unsupported platform：OpenHarmony
@@ -9244,7 +9229,7 @@ Returns:
 
 - [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek)\<K, R> - A new transformed HashMap.
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func mapValues\<R>((K, V) -> R)
 
@@ -9294,9 +9279,9 @@ size=2
 v=20
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func mapValues\<R>((V) -> R)
 
@@ -9346,7 +9331,7 @@ size=2
 v=20
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func none((K, V) -> Bool)
 
@@ -9355,7 +9340,6 @@ public func none(predicate: (K, V) -> Bool): Bool
 ```
 
 Function: Returns true if no key-value pairs satisfy the given predicate.
-
 
 > **Note：**
 >
@@ -9368,7 +9352,7 @@ Returns:
 
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - Whether no key-value pairs satisfy the condition.
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func none((K, V) -> Bool)
 
@@ -9417,7 +9401,7 @@ Output:
 r=false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func reduce((V, V) -> V)
 
@@ -9426,7 +9410,6 @@ public func reduce(operation: (V, V) -> V): Option<V>
 ```
 
 Function: Accumulates values using the first value as initial value, processing from left to right.
-
 
 > **Note：**
 >
@@ -9439,7 +9422,7 @@ Returns:
 
 - [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)\<V> - The result of accumulation.
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func reduce((V, V) -> V)
 
@@ -9487,7 +9470,7 @@ Output:
 sum=30
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func remove(Collection\<K>)
 
@@ -9598,7 +9581,7 @@ Key 'w' doesn't exist, returns None
 Size after removal: 2
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func remove(Collection\<K>)
 
@@ -9641,9 +9624,9 @@ Output:
 size=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func remove(K)
 
@@ -9693,7 +9676,7 @@ removed=100
 size=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func removeIf((K, V) -> Bool)
 
@@ -9752,7 +9735,7 @@ Size after removal: 2
 Key 'b' still exists with value: 2
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func removeIf((K, V) -> Bool)
 
@@ -9793,7 +9776,7 @@ Output:
 size=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func reserve(Int64)
 
@@ -9804,10 +9787,12 @@ public func reserve(additional: Int64): Unit
 Function: Expands the current [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek).
 
 Expands the [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) by the specified `additional` size. No expansion occurs if:
+
 - `additional` ≤ 0
 - The remaining capacity of [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) ≥ `additional`
 
 When expansion is needed, the new capacity is set to the maximum of:
+
 1. Original capacity × 1.5 (rounded down)
 2. `additional` + used capacity
 
@@ -9857,7 +9842,7 @@ Capacity after adding elements: 36
 Size after adding elements: 30
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func reserve(Int64)
 
@@ -9896,7 +9881,7 @@ Output:
 cap>=20: true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func toArray()
 
@@ -9947,7 +9932,7 @@ Key: b, Value: 2
 Key: c, Value: 3
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func toArray()
 
@@ -9990,9 +9975,9 @@ Output:
 size=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func toArray()
 
@@ -10048,7 +10033,7 @@ Output:
 caught UnimplementedException
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func values()
 
@@ -10099,7 +10084,7 @@ All values:
 30
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func values()
 
@@ -10142,9 +10127,9 @@ Output:
 empty=false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func values()
 
@@ -10192,7 +10177,7 @@ Output:
 empty=false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### operator func \[](K)
 
@@ -10291,7 +10276,7 @@ Value of 'first' after overwrite: 150
 Value of 'second': 200
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### operator func \[](K)
 
@@ -10340,9 +10325,9 @@ Output:
 v=100
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### operator func \[](K, V)
 
@@ -10383,9 +10368,9 @@ Output:
 size=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### operator func [](K)
 
@@ -10438,7 +10423,7 @@ Output:
 v=100
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend\<K, V> HashMap\<K, V> <: Equatable\<HashMap\<K, V>> where V <: Equatable\<V>
 
@@ -10507,9 +10492,9 @@ map1 == map2: true
 map1 == map3: false
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
-### operator func ==(HashMap\<K, V>)
+#### operator func ==(HashMap\<K, V>)
 
 ```cangjie
 public operator func ==(this @local?, right: HashMap<K, V> @local?): Bool
@@ -10556,7 +10541,7 @@ Output:
 eq=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 #### operator func !=(HashMap\<K, V>)
 
@@ -10667,9 +10652,9 @@ String representation of empty collection: []
 String representation of HashMap: [(apple, 5), (banana, 3), (orange, 8)]
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
-### func toString()
+#### func toString()
 
 ```cangjie
 public exclave func toString(this @local?): String @local!
@@ -10715,7 +10700,7 @@ Output:
 s=[(1, 100)]
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ## class HashMapIterator\<K, V> where K <: Hashable & Equatable\<K>
 
@@ -10770,7 +10755,7 @@ Output:
 HashMapIterator created successfully
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### init(HashMap\<K, V>)
 
@@ -10813,9 +10798,9 @@ Output:
 first=(1, 100)
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### init(HashMap\<K, V>)
 
@@ -10863,7 +10848,7 @@ Output:
 first=(1, 100)
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func next()
 
@@ -10913,7 +10898,7 @@ Output:
 Successfully retrieved element
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func next()
 
@@ -10968,9 +10953,9 @@ first=(1, 100)
 end
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func next()
 
@@ -11030,7 +11015,7 @@ first=(1, 100)
 end
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func remove()
 
@@ -11421,7 +11406,7 @@ HashSet size: 3
 Contains 'banana'
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### init()
 
@@ -11454,9 +11439,9 @@ Output:
 empty=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### init(Int64)
 
@@ -11498,7 +11483,7 @@ Output:
 empty=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func add(Collection\<T>)
 
@@ -11592,7 +11577,7 @@ Result of adding 'apple' again: false
 Set size: 1
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func add(T)
 
@@ -11637,9 +11622,9 @@ added=true
 has5=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func add(HashSet\<T>)
 
@@ -11683,7 +11668,7 @@ has1=true
 has2=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func all((T) -> Bool)
 
@@ -11692,7 +11677,6 @@ public func all(predicate: (T) -> Bool): Bool
 ```
 
 Function: Determines whether all elements in the [HashSet](collection_package_class.md#class-hashsett-where-t--hashable--equatablet) satisfy the given condition.
-
 
 > **Note：**
 >
@@ -11704,6 +11688,7 @@ Parameters:
 Returns:
 
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - Returns true if all elements satisfy the condition; otherwise, returns false.
+
 ### func any((T) -> Bool)
 
 ```cangjie
@@ -11711,7 +11696,6 @@ public func any(predicate: (T) -> Bool): Bool
 ```
 
 Function: Determines whether there exists any element in the [HashSet](collection_package_class.md#class-hashsett-where-t--hashable--equatablet) that satisfies the given condition.
-
 
 > **Note：**
 >
@@ -11944,7 +11928,7 @@ Does not contain 'grape'
 'banana': true
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func contains(T)
 
@@ -11989,15 +11973,15 @@ has5=true
 has6=false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func filter((T) -> Bool)
+
 ```cangjie
 public func filter(predicate: (T) -> Bool): HashSet<T>
 ```
 
 Function: Returns a new [HashSet](collection_package_class.md#class-hashsett-where-t--hashable--equatablet)\<T> containing elements that satisfy the given predicate.
-
 
 > **Note：**
 >
@@ -12010,6 +11994,25 @@ Returns:
 
 - [HashSet](collection_package_class.md#class-hashsett-where-t--hashable--equatablet)\<T> - Returns a new [HashSet](collection_package_class.md#class-hashsett-where-t--hashable--equatablet) containing elements that satisfy the condition.
 
+### func filterMap\<R>((T) -> ?R)
+
+```cangjie
+public func filterMap<R>(transform: (T) -> ?R): HashSet<R>
+```
+
+Function: Performs both filtering and mapping operations, returning a new [HashSet](collection_package_class.md#class-hashsett-where-t--hashable--equatablet).
+
+> **Note：**
+>
+> Unsupported platform：OpenHarmony
+Parameters:
+
+- transform: (T) -> ?R - The specified mapping function. A return value of Some corresponds to a predicate of true for filtering, while None indicates false.
+
+Returns:
+
+- [HashSet](collection_package_class.md#class-hashsett-where-t--hashable--equatablet)\<R> - Returns a new [HashSet](collection_package_class.md#class-hashsett-where-t--hashable--equatablet) after filtering and mapping.
+
 ### func fold\<R>(R, (R, T) -> R)
 
 ```cangjie
@@ -12017,7 +12020,6 @@ public func fold<R>(initial: R, operation: (R, T) -> R): R
 ```
 
 Function: Computes from left to right using the specified initial value.
-
 
 > **Note：**
 >
@@ -12038,7 +12040,6 @@ public func forEach(action: (T) -> Unit): Unit
 ```
 
 Function: Iterates over all elements, executing the given action.
-
 
 > **Note：**
 >
@@ -12099,7 +12100,7 @@ Empty after clearing: true
 Size after clearing: 0
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func isEmpty()
 
@@ -12147,7 +12148,7 @@ Output:
 empty=false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func iterator()
 
@@ -12208,7 +12209,7 @@ Traversing with for-in loop:
 - orange
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func iterator()
 
@@ -12255,9 +12256,9 @@ Output:
 first=5
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func iterator()
 
@@ -12311,7 +12312,7 @@ Output:
 caught IllegalStateException
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func map\<R>((T)->R)
 
@@ -12320,7 +12321,6 @@ public func map<R>(transform: (T) -> R): HashSet<R> where R <: Hashable & Equata
 ```
 
 Function: Maps all elements of type T in the current [HashSet](collection_package_class.md#class-hashsett-where-t--hashable--equatablet) to elements of type R according to the transform function, forming a new [HashSet](collection_package_class.md#class-hashsett-where-t--hashable--equatablet).
-
 
 > **Note：**
 >
@@ -12341,7 +12341,6 @@ public func none(predicate: (T) -> Bool): Bool
 
 Function: Determines whether none of the elements in the [HashSet](collection_package_class.md#class-hashsett-where-t--hashable--equatablet) satisfy the given condition.
 
-
 > **Note：**
 >
 > Unsupported platform：OpenHarmony
@@ -12360,7 +12359,6 @@ public func reduce(operation: (T, T) -> T): Option<T>
 ```
 
 Function: Computes from left to right using the first element as the initial value.
-
 
 > **Note：**
 >
@@ -12898,7 +12896,7 @@ Element verification:
 'orange' in array: true
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func toArray()
 
@@ -12942,7 +12940,7 @@ Output:
 arr=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### operator func &(ReadOnlySet\<T>)
 
@@ -13418,225 +13416,6 @@ Single-element set: [apple]
 Multi-element set: [apple, banana, orange]
 Numeric set: [1, 2, 3]
 Automatic toString call: [apple, banana, orange]
-```
-
-### func filterMap\<R>((T) -> ?R)
-
-```cangjie
-public func filterMap<R>(transform: (T) -> ?R): HashSet<R>
-```
-
-Function: Performs both filtering and mapping operations, returning a new [HashSet](collection_package_class.md#class-hashsett-where-t--hashable--equatablet).
-
-
-> **Note：**
->
-> Unsupported platform：OpenHarmony
-Parameters:
-
-- transform: (T) -> ?R - The specified mapping function. A return value of Some corresponds to a predicate of true for filtering, while None indicates false.
-
-Returns:
-
-- [HashSet](collection_package_class.md#class-hashsett-where-t--hashable--equatablet)\<R> - Returns a new [HashSet](collection_package_class.md#class-hashsett-where-t--hashable--equatablet) after filtering and mapping.
-
-## class LinkedListNode\<T>
-
-```cangjie
-public class LinkedListNode<T>
-```
-
-Function: [LinkedListNode](collection_package_class.md#class-linkedlistnodet) is a node in [LinkedList](collection_package_class.md#class-linkedlistt).
-
-Through [LinkedListNode](collection_package_class.md#class-linkedlistnodet), you can perform forward and backward traversal operations on [LinkedList](collection_package_class.md#class-linkedlistt), as well as access and modify element values.
-
-[LinkedListNode](collection_package_class.md#class-linkedlistnodet) can only be obtained via the 'nodeAt', 'firstNode', or 'lastNode' methods of the corresponding [LinkedList](collection_package_class.md#class-linkedlistt). When a node is removed from [LinkedList](collection_package_class.md#class-linkedlistt), it becomes a dangling node. Any operation on a dangling node will throw an '[IllegalStateException](../../core/core_package_api/core_package_exceptions.md#class-illegalstateexception)' exception.
-
-### prop next
-
-```cangjie
-public prop next: Option<LinkedListNode<T>>
-```
-
-Function: Gets the next node of the current node, returns None if there isn't one.
-
-Type: [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)\<[LinkedListNode](collection_package_class.md#class-linkedlistnodet)\<T>>
-
-Exceptions:
-
-- [IllegalStateException](../../core/core_package_api/core_package_exceptions.md#class-illegalstateexception) - Thrown if the node does not belong to any linked list instance.
-
-Example:
-
-<!-- verify -->
-```cangjie
-import std.collection.*
-
-main() {
-    let list = LinkedList<Int64>()
-    
-    // Add elements
-    list.addLast(10)
-    list.addLast(20)
-    list.addLast(30)
-    
-    // Get first node and check its next property
-    let firstNode = list.firstNode
-    if (let Some(node) <- firstNode) {
-        let nextNode = node.next
-        if (let Some(next) <- nextNode) {
-            println("Next node value: ${next.value}")
-        } else {
-            println("No next node")
-        }
-    } else {
-        println("List is empty")
-    }
-    
-    // Get last node and check its next property
-    let lastNode = list.lastNode
-    if (let Some(node) <- lastNode) {
-        let nextNode = node.next
-        if (let Some(next) <- nextNode) {
-            println("Next node value: ${next.value}")
-        } else {
-            println("No next node")
-        }
-    } else {
-        println("List is empty")
-    }
-    
-    return 0
-}
-```
-
-Output:
-
-```text
-Next node value: 20
-No next node
-```
-
-### prop prev
-
-```cangjie
-public prop prev: Option<LinkedListNode<T>>
-```
-
-Function: Gets the previous node of the current node, returns None if there isn't one.
-
-Type: [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)\<[LinkedListNode](collection_package_class.md#class-linkedlistnodet)\<T>>
-
-Exceptions:
-
-- [IllegalStateException](../../core/core_package_api/core_package_exceptions.md#class-illegalstateexception) - Thrown if the node does not belong to any linked list instance.
-
-Example:
-
-<!-- verify -->
-```cangjie
-import std.collection.*
-
-main() {
-    let list = LinkedList<Int64>()
-    
-    // Add elements
-    list.addLast(10)
-    list.addLast(20)
-    list.addLast(30)
-    
-    // Get last node and check its prev property
-    let lastNode = list.lastNode
-    if (let Some(node) <- lastNode) {
-        let prevNode = node.prev
-        if (let Some(prev) <- prevNode) {
-            println("Previous node value: ${prev.value}")
-        } else {
-            println("No previous node")
-        }
-    } else {
-        println("List is empty")
-    }
-    
-    // Get first node and check its prev property
-    let firstNode = list.firstNode
-    if (let Some(node) <- firstNode) {
-        let prevNode = node.prev
-        if (let Some(prev) <- prevNode) {
-            println("Previous node value: ${prev.value}")
-        } else {
-            println("No previous node")
-        }
-    } else {
-        println("List is empty")
-    }
-    
-    return 0
-}
-```
-
-Output:
-
-```text
-Previous node value: 20
-No previous node
-```
-
-### prop value
-
-```cangjie
-public mut prop value: T
-```
-
-Function: Gets or modifies the value of the element.
-
-Type: T
-
-Exceptions:
-
-- [IllegalStateException](../../core/core_package_api/core_package_exceptions.md#class-illegalstateexception) - Thrown if the node does not belong to any linked list instance.
-
-Example:
-
-<!-- verify -->
-```cangjie
-import std.collection.*
-
-main() {
-    let list = LinkedList<Int64>()
-    
-    // Add elements
-    list.addLast(10)
-    list.addLast(20)
-    list.addLast(30)
-    
-    // Get first node and access its value property
-    let firstNode = list.firstNode
-    if (let Some(node) <- firstNode) {
-        println("First node value: ${node.value}")
-        
-        // Modify node's value
-        node.value = 100
-        println("Modified first node value: ${node.value}")
-    } else {
-        println("List is empty")
-    }
-    
-    // Verify first node's value was modified
-    if (let Some(node) <- list.firstNode) {
-        println("Confirmed first node value: ${node.value}")
-    }
-    
-    return 0
-}
-```
-
-Output:
-
-```text
-First node value: 10
-Modified first node value: 100
-Confirmed first node value: 100
 ```
 
 ## class LinkedList\<T>
@@ -14138,287 +13917,6 @@ Last element: 40
 All elements in list: 0 10 20 30 40 
 ```
 
-### func addLast(T)
-
-```cangjie
-public func addLast(element: T): LinkedListNode<T>
-```
-
-Function: Adds an element at the tail position of the linked list and returns the node of this element.
-
-Parameters:
-
-- element: T - The element to be added to the linked list.
-
-Returns:
-
-- [LinkedListNode](collection_package_class.md#class-linkedlistnodet)\<T> - The node pointing to this element.
-
-Example:
-
-<!-- verify -->
-```cangjie
-import std.collection.*
-
-main() {
-    let list = LinkedList<String>()
-    
-    // Add element to empty list
-    let node1 = list.addLast("First")
-    println("List size after adding first element: ${list.size}")
-    println("Returned node value: ${node1.value}")
-    
-    // Add more elements
-    list.addLast("Second")
-    list.addLast("Third")
-    
-    println("List size after adding three elements: ${list.size}")
-    
-    // Verify element order
-    print("All elements in list: ")
-    for (element in list) {
-        print("${element} ")
-    }
-    println()
-    
-    // Verify last node
-    let lastValue = list.last
-    if (let Some(value) <- lastValue) {
-        println("Last element: ${value}")
-    }
-    
-    return 0
-}
-```
-
-Output:
-
-```text
-List size after adding first element: 1
-Returned node value: First
-List size after adding three elements: 3
-All elements in list: First Second Third 
-Last element: Third
-```
-
-### func backward(LinkedListNode\<T>)
-
-```cangjie
-public func backward(mark: LinkedListNode<T>): Iterator<T>
-```
-
-Function: Gets an iterator for all elements starting from the mark node to the head node of the corresponding linked list.
-
-Parameters:
-
-- mark: [LinkedListNode](collection_package_class.md#class-linkedlistnodet)\<T> - The starting element node.
-
-Returns:
-
-- [Iterator](../../core/core_package_api/core_package_classes.md#class-iteratort)\<T> - The iterator for corresponding elements.
-
-Exceptions:
-
-- [IllegalStateException](../../core/core_package_api/core_package_exceptions.md#class-illegalstateexception) - Thrown if the node doesn't belong to any linked list instance.
-
-Example:
-
-<!-- verify -->
-```cangjie
-import std.collection.*
-
-main() {
-    let list = LinkedList<Int64>()
-    
-    // Add elements
-    list.addLast(10)
-    list.addLast(20)
-    list.addLast(30)
-    list.addLast(40)
-    list.addLast(50)
-    
-    // Get a middle node (index 2, value 30)
-    let middleNode = list.nodeAt(2)
-    if (let Some(node) <- middleNode) {
-        println("Backward traversal starting from node value ${node.value}:")
-        
-        // Use backward method to traverse from middle node to head
-        let iterator = list.backward(node)
-        for (element in iterator) {
-            print("${element} ")
-        }
-        println()
-    }
-    
-    // Traverse backward from last node
-    let lastNode = list.lastNode
-    if (let Some(node) <- lastNode) {
-        println("Backward traversal starting from last node value ${node.value}:")
-        
-        let iterator = list.backward(node)
-        for (element in iterator) {
-            print("${element} ")
-        }
-        println()
-    }
-    
-    return 0
-}
-```
-
-Output:
-
-```text
-Backward traversal starting from node value 30:
-30 20 10 
-Backward traversal starting from last node value 50:
-50 40 30 20 10 
-```
-
-### func clear()
-
-```cangjie
-public func clear(): Unit
-```
-
-Function: Removes all elements from the linked list.
-
-Example:
-
-<!-- verify -->
-```cangjie
-import std.collection.*
-
-main() {
-    let list = LinkedList<String>()
-    
-    // Add some elements
-    list.addLast("Element1")
-    list.addLast("Element2")
-    list.addLast("Element3")
-    list.addLast("Element4")
-    
-    println("List size before clearing: ${list.size}")
-    println("Is empty before clearing: ${list.isEmpty()}")
-    
-    // Display elements before clearing
-    print("Elements before clearing: ")
-    for (element in list) {
-        print("${element} ")
-    }
-    println()
-    
-    // Clear all elements
-    list.clear()
-    
-    println("List size after clearing: ${list.size}")
-    println("Is empty after clearing: ${list.isEmpty()}")
-    
-    // Verify first and last elements are null
-    let firstValue = list.first
-    if (let Some(value) <- firstValue) {
-        println("First element: ${value}")
-    } else {
-        println("No first element")
-    }
-    
-    let lastValue = list.last
-    if (let Some(value) <- lastValue) {
-        println("Last element: ${value}")
-    } else {
-        println("No last element")
-    }
-    
-    return 0
-}
-```
-
-Execution Result:
-
-```text
-List size before clearing: 4
-Is empty before clearing: false
-Elements before clearing: Element1 Element2 Element3 Element4 
-List size after clearing: 0
-Is empty after clearing: true
-No first element
-No last element
-```
-
-### func forward(LinkedListNode\<T>)
-
-```cangjie
-public func forward(mark: LinkedListNode<T>): Iterator<T>
-```
-
-Function: Obtains an iterator for all elements starting from the mark node to the tail node of the corresponding linked list.
-
-Parameters:
-
-- mark: [LinkedListNode](collection_package_class.md#class-linkedlistnodet)\<T> - The starting element node.
-
-Returns:
-
-- [Iterator](../../core/core_package_api/core_package_classes.md#class-iteratort)\<T> - Iterator for corresponding elements.
-
-Exceptions:
-
-- [IllegalStateException](../../core/core_package_api/core_package_exceptions.md#class-illegalstateexception) - Thrown if the node does not belong to any linked list instance.
-
-Example:
-
-<!-- verify -->
-```cangjie
-import std.collection.*
-
-main() {
-    let list = LinkedList<Int64>()
-    
-    // Add elements
-    list.addLast(10)
-    list.addLast(20)
-    list.addLast(30)
-    list.addLast(40)
-    list.addLast(50)
-    
-    // Get first node and traverse forward from it
-    let firstNode = list.firstNode
-    if (let Some(node) <- firstNode) {
-        println("Forward traversal starting from node value ${node.value}:")
-        
-        let iterator = list.forward(node)
-        for (element in iterator) {
-            print("${element} ")
-        }
-        println()
-    }
-    
-    // Get a middle node (node at index 2 with value 30)
-    let middleNode = list.nodeAt(2)
-    if (let Some(node) <- middleNode) {
-        println("Forward traversal starting from node value ${node.value}:")
-        
-        // Use forward method to traverse from middle node to tail
-        let iterator = list.forward(node)
-        for (element in iterator) {
-            print("${element} ")
-        }
-        println()
-    }
-    
-    return 0
-}
-```
-
-Execution Result:
-
-```text
-Forward traversal starting from node value 10:
-10 20 30 40 50 
-Forward traversal starting from node value 30:
-30 40 50 
-```
-
 ### func addAfter(LinkedListNode\<T>,T)
 
 ```cangjie
@@ -14575,15 +14073,69 @@ List size: 4
 public func addFirst(element: T): LinkedListNode<T>
 ```
 
-Function: Inserts an element at the head of the linked list and returns the node of the inserted element.
+Function: Inserts an element at the head of the linked list and returns the node of that element.
 
 Parameters:
 
-- element: T - Element to be added to the linked list.
+- element: T - The element to be added to the list.
 
 Returns:
 
-- [LinkedListNode](collection_package_class.md#class-linkedlistnodet)\<T> - Node pointing to the element.
+- [LinkedListNode](collection_package_class.md#class-linkedlistnodet)\<T> - The node pointing to the element.
+
+Example:
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let list = LinkedList<String>()
+    
+    // Add first element to empty list
+    let node1 = list.addFirst("Third")
+    println("List size after adding first element: ${list.size}")
+    println("Returned node value: ${node1.value}")
+    
+    // Add more elements at the head
+    list.addFirst("Second")
+    list.addFirst("First")
+    
+    println("List size after adding three elements: ${list.size}")
+    
+    // Verify element order (last added is first)
+    print("All elements in list: ")
+    for (element in list) {
+        print("${element} ")
+    }
+    println()
+    
+    // Verify first node
+    let firstValue = list.first
+    if (let Some(value) <- firstValue) {
+        println("First element: ${value}")
+    }
+    
+    // Verify last node
+    let lastValue = list.last
+    if (let Some(value) <- lastValue) {
+        println("Last element: ${value}")
+    }
+    
+    return 0
+}
+```
+
+Execution Result:
+
+```text
+List size after adding first element: 1
+Returned node value: Third
+List size after adding three elements: 3
+All elements in list: First Second Third 
+First element: First
+Last element: Third
+```
 
 ### func addLast(T)
 
@@ -14591,15 +14143,62 @@ Returns:
 public func addLast(element: T): LinkedListNode<T>
 ```
 
-Function: Appends an element at the tail of the linked list and returns the node of the inserted element.
+Function: Adds an element at the tail position of the linked list and returns the node of this element.
 
 Parameters:
 
-- element: T - Element to be added to the linked list.
+- element: T - The element to be added to the linked list.
 
 Returns:
 
-- [LinkedListNode](collection_package_class.md#class-linkedlistnodet)\<T> - Node pointing to the element.
+- [LinkedListNode](collection_package_class.md#class-linkedlistnodet)\<T> - The node pointing to this element.
+
+Example:
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let list = LinkedList<String>()
+    
+    // Add element to empty list
+    let node1 = list.addLast("First")
+    println("List size after adding first element: ${list.size}")
+    println("Returned node value: ${node1.value}")
+    
+    // Add more elements
+    list.addLast("Second")
+    list.addLast("Third")
+    
+    println("List size after adding three elements: ${list.size}")
+    
+    // Verify element order
+    print("All elements in list: ")
+    for (element in list) {
+        print("${element} ")
+    }
+    println()
+    
+    // Verify last node
+    let lastValue = list.last
+    if (let Some(value) <- lastValue) {
+        println("Last element: ${value}")
+    }
+    
+    return 0
+}
+```
+
+Output:
+
+```text
+List size after adding first element: 1
+Returned node value: First
+List size after adding three elements: 3
+All elements in list: First Second Third 
+Last element: Third
+```
 
 ### func all((T) -> Bool)
 
@@ -14608,7 +14207,6 @@ public func all(predicate: (T) -> Bool): Bool
 ```
 
 Function: Determines whether all elements in the linked list satisfy the given condition.
-
 
 > **Note：**
 >
@@ -14629,7 +14227,6 @@ public func any(predicate: (T) -> Bool): Bool
 
 Function: Determines whether any element in the linked list satisfies the given condition.
 
-
 > **Note：**
 >
 > Unsupported platform：OpenHarmony
@@ -14647,7 +14244,7 @@ Returns:
 public func backward(mark: LinkedListNode<T>): Iterator<T>
 ```
 
-Function: Obtains an iterator for all elements starting from the mark node to the head node of the corresponding linked list.
+Function: Gets an iterator for all elements starting from the mark node to the head node of the corresponding linked list.
 
 Parameters:
 
@@ -14655,11 +14252,65 @@ Parameters:
 
 Returns:
 
-- [Iterator](../../core/core_package_api/core_package_classes.md#class-iteratort)\<T> - Iterator for corresponding elements.
+- [Iterator](../../core/core_package_api/core_package_classes.md#class-iteratort)\<T> - The iterator for corresponding elements.
 
 Exceptions:
 
-- [IllegalStateException](../../core/core_package_api/core_package_exceptions.md#class-illegalstateexception) - Thrown if the node does not belong to any linked list instance.
+- [IllegalStateException](../../core/core_package_api/core_package_exceptions.md#class-illegalstateexception) - Thrown if the node doesn't belong to any linked list instance.
+
+Example:
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let list = LinkedList<Int64>()
+    
+    // Add elements
+    list.addLast(10)
+    list.addLast(20)
+    list.addLast(30)
+    list.addLast(40)
+    list.addLast(50)
+    
+    // Get a middle node (index 2, value 30)
+    let middleNode = list.nodeAt(2)
+    if (let Some(node) <- middleNode) {
+        println("Backward traversal starting from node value ${node.value}:")
+        
+        // Use backward method to traverse from middle node to head
+        let iterator = list.backward(node)
+        for (element in iterator) {
+            print("${element} ")
+        }
+        println()
+    }
+    
+    // Traverse backward from last node
+    let lastNode = list.lastNode
+    if (let Some(node) <- lastNode) {
+        println("Backward traversal starting from last node value ${node.value}:")
+        
+        let iterator = list.backward(node)
+        for (element in iterator) {
+            print("${element} ")
+        }
+        println()
+    }
+    
+    return 0
+}
+```
+
+Output:
+
+```text
+Backward traversal starting from node value 30:
+30 20 10 
+Backward traversal starting from last node value 50:
+50 40 30 20 10 
+```
 
 ### func clear()
 
@@ -14669,13 +14320,75 @@ public func clear(): Unit
 
 Function: Removes all elements from the linked list.
 
+Example:
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let list = LinkedList<String>()
+    
+    // Add some elements
+    list.addLast("Element1")
+    list.addLast("Element2")
+    list.addLast("Element3")
+    list.addLast("Element4")
+    
+    println("List size before clearing: ${list.size}")
+    println("Is empty before clearing: ${list.isEmpty()}")
+    
+    // Display elements before clearing
+    print("Elements before clearing: ")
+    for (element in list) {
+        print("${element} ")
+    }
+    println()
+    
+    // Clear all elements
+    list.clear()
+    
+    println("List size after clearing: ${list.size}")
+    println("Is empty after clearing: ${list.isEmpty()}")
+    
+    // Verify first and last elements are null
+    let firstValue = list.first
+    if (let Some(value) <- firstValue) {
+        println("First element: ${value}")
+    } else {
+        println("No first element")
+    }
+    
+    let lastValue = list.last
+    if (let Some(value) <- lastValue) {
+        println("Last element: ${value}")
+    } else {
+        println("No last element")
+    }
+    
+    return 0
+}
+```
+
+Execution Result:
+
+```text
+List size before clearing: 4
+Is empty before clearing: false
+Elements before clearing: Element1 Element2 Element3 Element4 
+List size after clearing: 0
+Is empty after clearing: true
+No first element
+No last element
+```
+
 ### func filter((T) -> Bool)
+
 ```cangjie
 public func filter(predicate: (T) -> Bool): LinkedList<T>
 ```
 
 Function: Returns a new linked list containing elements that satisfy the filtering condition.
-
 
 > **Note：**
 >
@@ -14712,7 +14425,6 @@ public func flatMap<R>(transform: (T) -> LinkedList<R>): LinkedList<R>
 
 Function: Applies a transform closure to each element in the linked list, which returns a new linked list, then flattens and concatenates all returned linked lists into a single resulting linked list.
 
-
 > **Note：**
 >
 > Unsupported platform：OpenHarmony
@@ -14731,7 +14443,6 @@ public func fold<R>(initial: R, operation: (R, T) -> R): R
 ```
 
 Function: Computes from left to right using the specified initial value.
-
 
 > **Note：**
 >
@@ -14753,7 +14464,6 @@ public func forEach(action: (T) -> Unit): Unit
 
 Function: Iterates over all elements and executes the given action.
 
-
 > **Note：**
 >
 > Unsupported platform：OpenHarmony
@@ -14767,7 +14477,7 @@ Parameters:
 public func forward(mark: LinkedListNode<T>): Iterator<T>
 ```
 
-Function: Retrieves an iterator for all elements starting from the `mark` node to the tail node of the corresponding linked list.
+Function: Obtains an iterator for all elements starting from the mark node to the tail node of the corresponding linked list.
 
 Parameters:
 
@@ -14775,11 +14485,65 @@ Parameters:
 
 Returns:
 
-- [Iterator](../../core/core_package_api/core_package_classes.md#class-iteratort)\<T> - An iterator for the corresponding elements.
+- [Iterator](../../core/core_package_api/core_package_classes.md#class-iteratort)\<T> - Iterator for corresponding elements.
 
 Exceptions:
 
 - [IllegalStateException](../../core/core_package_api/core_package_exceptions.md#class-illegalstateexception) - Thrown if the node does not belong to any linked list instance.
+
+Example:
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let list = LinkedList<Int64>()
+    
+    // Add elements
+    list.addLast(10)
+    list.addLast(20)
+    list.addLast(30)
+    list.addLast(40)
+    list.addLast(50)
+    
+    // Get first node and traverse forward from it
+    let firstNode = list.firstNode
+    if (let Some(node) <- firstNode) {
+        println("Forward traversal starting from node value ${node.value}:")
+        
+        let iterator = list.forward(node)
+        for (element in iterator) {
+            print("${element} ")
+        }
+        println()
+    }
+    
+    // Get a middle node (node at index 2 with value 30)
+    let middleNode = list.nodeAt(2)
+    if (let Some(node) <- middleNode) {
+        println("Forward traversal starting from node value ${node.value}:")
+        
+        // Use forward method to traverse from middle node to tail
+        let iterator = list.forward(node)
+        for (element in iterator) {
+            print("${element} ")
+        }
+        println()
+    }
+    
+    return 0
+}
+```
+
+Execution Result:
+
+```text
+Forward traversal starting from node value 10:
+10 20 30 40 50 
+Forward traversal starting from node value 30:
+30 40 50 
+```
 
 ### func intersperse(T)
 
@@ -14788,7 +14552,6 @@ public func intersperse(separator: T): LinkedList<T>
 ```
 
 Function: Returns a new [LinkedList](collection_package_class.md#class-linkedlistt) with the given new element inserted between every two existing elements.
-
 
 > **Note：**
 >
@@ -14931,7 +14694,6 @@ public func map<R>(transform: (T) -> R): LinkedList<R>
 
 Function: Maps this [LinkedList](collection_package_class.md#class-linkedlistt) and returns a new [LinkedList](collection_package_class.md#class-linkedlistt).
 
-
 > **Note：**
 >
 > Unsupported platform：OpenHarmony
@@ -15040,7 +14802,6 @@ public func none(predicate: (T) -> Bool): Bool
 
 Function: Determines whether none of the elements in this linked list satisfy the given condition.
 
-
 > **Note：**
 >
 > Unsupported platform：OpenHarmony
@@ -15060,7 +14821,6 @@ public func reduce(operation: (T, T) -> T): Option<T>
 
 Function: Computes from left to right using the first element as the initial value.
 
-
 > **Note：**
 >
 > Unsupported platform：OpenHarmony
@@ -15071,254 +14831,6 @@ Parameters:
 Returns:
 
 - [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)\<T> - Returns the computation result.
-
-### func removeFirst()
-
-```cangjie
-public func removeFirst(): ?T
-```
-
-Function: Removes the first element of the linked list and returns its value.
-
-Returns:
-
-- ?T - The value of the removed element, or None if the linked list is empty.
-
-Example:
-
-<!-- verify -->
-```cangjie
-import std.collection.*
-
-main() {
-    let list = LinkedList<String>()
-    
-    // Attempt to remove from an empty linked list
-    let removedFromEmpty = list.removeFirst()
-    if (let Some(value) <- removedFromEmpty) {
-        println("Element removed from empty linked list: ${value}")
-    } else {
-        println("Cannot remove from an empty linked list")
-    }
-    
-    // Add some elements
-    list.addLast("First")
-    list.addLast("Second")
-    list.addLast("Third")
-    list.addLast("Fourth")
-    
-    println("Linked list before removal:")
-    for (element in list) {
-        print("${element} ")
-    }
-    println()
-    println("Linked list size before removal: ${list.size}")
-    
-    // Remove the first element
-    let removed1 = list.removeFirst()
-    if (let Some(value) <- removed1) {
-        println("First removed element: ${value}")
-    }
-    
-    println("Linked list after one removal:")
-    for (element in list) {
-        print("${element} ")
-    }
-    println()
-    println("Linked list size after removal: ${list.size}")
-    
-    // Remove the first element again
-    let removed2 = list.removeFirst()
-    if (let Some(value) <- removed2) {
-        println("Second removed element: ${value}")
-    }
-    
-    println("Final linked list:")
-    for (element in list) {
-        print("${element} ")
-    }
-    println()
-    println("Final linked list size: ${list.size}")
-    
-    return 0
-}
-```
-
-Output:
-
-```text
-Cannot remove from an empty linked list
-Linked list before removal:
-First Second Third Fourth 
-Linked list size before removal: 4
-First removed element: First
-Linked list after one removal:
-Second Third Fourth 
-Linked list size after removal: 3
-Second removed element: Second
-Final linked list:
-Third Fourth 
-Final linked list size: 2
-```
-
-### func removeLast()
-
-```cangjie
-public func removeLast(): ?T
-```
-
-Function: Removes the last element from the linked list and returns its value.
-
-Returns:
-
-- ?T - The value of the removed element, or None if the list is empty.
-
-Example:
-
-<!-- verify -->
-```cangjie
-import std.collection.*
-
-main() {
-    let list = LinkedList<String>()
-    
-    // Attempt to remove from an empty list
-    let removedFromEmpty = list.removeLast()
-    if (let Some(value) <- removedFromEmpty) {
-        println("Removed element from empty list: ${value}")
-    } else {
-        println("Cannot remove from empty list")
-    }
-    
-    // Add some elements
-    list.addLast("First")
-    list.addLast("Second")
-    list.addLast("Third")
-    list.addLast("Fourth")
-    
-    println("List before removal:")
-    for (element in list) {
-        print("${element} ")
-    }
-    println()
-    println("List size before removal: ${list.size}")
-    
-    // Remove the last element
-    let removed1 = list.removeLast()
-    if (let Some(value) <- removed1) {
-        println("Removed last element: ${value}")
-    }
-    
-    println("List after first removal:")
-    for (element in list) {
-        print("${element} ")
-    }
-    println()
-    println("List size after first removal: ${list.size}")
-    
-    // Remove the last element again
-    let removed2 = list.removeLast()
-    if (let Some(value) <- removed2) {
-        println("Removed last element again: ${value}")
-    }
-    
-    println("Final list:")
-    for (element in list) {
-        print("${element} ")
-    }
-    println()
-    println("Final list size: ${list.size}")
-    
-    return 0
-}
-```
-
-Execution Result:
-
-```text
-Cannot remove from empty list
-List before removal:
-First Second Third Fourth 
-List size before removal: 4
-Removed last element: Fourth
-List after first removal:
-First Second Third 
-List size after first removal: 3
-Removed last element again: Third
-Final list:
-First Second 
-Final list size: 2
-```
-
-### func addFirst(T)
-
-```cangjie
-public func addFirst(element: T): LinkedListNode<T>
-```
-
-Function: Inserts an element at the head of the linked list and returns the node of that element.
-
-Parameters:
-
-- element: T - The element to be added to the list.
-
-Returns:
-
-- [LinkedListNode](collection_package_class.md#class-linkedlistnodet)\<T> - The node pointing to the element.
-
-Example:
-
-<!-- verify -->
-```cangjie
-import std.collection.*
-
-main() {
-    let list = LinkedList<String>()
-    
-    // Add first element to empty list
-    let node1 = list.addFirst("Third")
-    println("List size after adding first element: ${list.size}")
-    println("Returned node value: ${node1.value}")
-    
-    // Add more elements at the head
-    list.addFirst("Second")
-    list.addFirst("First")
-    
-    println("List size after adding three elements: ${list.size}")
-    
-    // Verify element order (last added is first)
-    print("All elements in list: ")
-    for (element in list) {
-        print("${element} ")
-    }
-    println()
-    
-    // Verify first node
-    let firstValue = list.first
-    if (let Some(value) <- firstValue) {
-        println("First element: ${value}")
-    }
-    
-    // Verify last node
-    let lastValue = list.last
-    if (let Some(value) <- lastValue) {
-        println("Last element: ${value}")
-    }
-    
-    return 0
-}
-```
-
-Execution Result:
-
-```text
-List size after adding first element: 1
-Returned node value: Third
-List size after adding three elements: 3
-All elements in list: First Second Third 
-First element: First
-Last element: Third
-```
 
 ### func remove(LinkedListNode\<T>)
 
@@ -15414,6 +14926,95 @@ Third Fourth
 Final list size: 2
 ```
 
+### func removeFirst()
+
+```cangjie
+public func removeFirst(): ?T
+```
+
+Function: Removes the first element of the linked list and returns its value.
+
+Returns:
+
+- ?T - The value of the removed element, or None if the linked list is empty.
+
+Example:
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let list = LinkedList<String>()
+    
+    // Attempt to remove from an empty linked list
+    let removedFromEmpty = list.removeFirst()
+    if (let Some(value) <- removedFromEmpty) {
+        println("Element removed from empty linked list: ${value}")
+    } else {
+        println("Cannot remove from an empty linked list")
+    }
+    
+    // Add some elements
+    list.addLast("First")
+    list.addLast("Second")
+    list.addLast("Third")
+    list.addLast("Fourth")
+    
+    println("Linked list before removal:")
+    for (element in list) {
+        print("${element} ")
+    }
+    println()
+    println("Linked list size before removal: ${list.size}")
+    
+    // Remove the first element
+    let removed1 = list.removeFirst()
+    if (let Some(value) <- removed1) {
+        println("First removed element: ${value}")
+    }
+    
+    println("Linked list after one removal:")
+    for (element in list) {
+        print("${element} ")
+    }
+    println()
+    println("Linked list size after removal: ${list.size}")
+    
+    // Remove the first element again
+    let removed2 = list.removeFirst()
+    if (let Some(value) <- removed2) {
+        println("Second removed element: ${value}")
+    }
+    
+    println("Final linked list:")
+    for (element in list) {
+        print("${element} ")
+    }
+    println()
+    println("Final linked list size: ${list.size}")
+    
+    return 0
+}
+```
+
+Output:
+
+```text
+Cannot remove from an empty linked list
+Linked list before removal:
+First Second Third Fourth 
+Linked list size before removal: 4
+First removed element: First
+Linked list after one removal:
+Second Third Fourth 
+Linked list size after removal: 3
+Second removed element: Second
+Final linked list:
+Third Fourth 
+Final linked list size: 2
+```
+
 ### func removeIf((T)-> Bool)
 
 ```cangjie
@@ -15491,6 +15092,95 @@ List after removing even numbers:
 List size after removal: 4
 List after removing elements > 3:
 1 3 
+Final list size: 2
+```
+
+### func removeLast()
+
+```cangjie
+public func removeLast(): ?T
+```
+
+Function: Removes the last element from the linked list and returns its value.
+
+Returns:
+
+- ?T - The value of the removed element, or None if the list is empty.
+
+Example:
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let list = LinkedList<String>()
+    
+    // Attempt to remove from an empty list
+    let removedFromEmpty = list.removeLast()
+    if (let Some(value) <- removedFromEmpty) {
+        println("Removed element from empty list: ${value}")
+    } else {
+        println("Cannot remove from empty list")
+    }
+    
+    // Add some elements
+    list.addLast("First")
+    list.addLast("Second")
+    list.addLast("Third")
+    list.addLast("Fourth")
+    
+    println("List before removal:")
+    for (element in list) {
+        print("${element} ")
+    }
+    println()
+    println("List size before removal: ${list.size}")
+    
+    // Remove the last element
+    let removed1 = list.removeLast()
+    if (let Some(value) <- removed1) {
+        println("Removed last element: ${value}")
+    }
+    
+    println("List after first removal:")
+    for (element in list) {
+        print("${element} ")
+    }
+    println()
+    println("List size after first removal: ${list.size}")
+    
+    // Remove the last element again
+    let removed2 = list.removeLast()
+    if (let Some(value) <- removed2) {
+        println("Removed last element again: ${value}")
+    }
+    
+    println("Final list:")
+    for (element in list) {
+        print("${element} ")
+    }
+    println()
+    println("Final list size: ${list.size}")
+    
+    return 0
+}
+```
+
+Execution Result:
+
+```text
+Cannot remove from empty list
+List before removal:
+First Second Third Fourth 
+List size before removal: 4
+Removed last element: Fourth
+List after first removal:
+First Second Third 
+List size after first removal: 3
+Removed last element again: Third
+Final list:
+First Second 
 Final list size: 2
 ```
 
@@ -15584,7 +15274,6 @@ public func skip(count: Int64): LinkedList<T>
 Function: Skips a specified number of elements and returns a new linked list.
 
 Throws an exception when count is less than or equal to 0. When count equals 0, it effectively skips no elements and returns a new list containing all elements of the source list. When count is greater than 0 but less than the size of the source list, it skips the first 'count' elements and returns a new list containing the remaining elements. When count is greater than or equal to the size of the source list, returns an empty list.
-
 
 > **Note：**
 >
@@ -15702,6 +15391,7 @@ Last element of original list: 2
 ```
 
 ### func step(Int64)
+
 ```cangjie
 public func step(count: Int64): LinkedList<T>
 ```
@@ -15709,7 +15399,6 @@ public func step(count: Int64): LinkedList<T>
 Function: Extracts elements from the linked list at specified intervals and returns a new list.
 
 Throws an exception when count is less than or equal to 0.
-
 
 > **Note：**
 >
@@ -15727,6 +15416,7 @@ Exceptions:
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown when count <= 0.
 
 ### func take(Int64)
+
 ```cangjie
 public func take(count: Int64): LinkedList<T>
 ```
@@ -15734,7 +15424,6 @@ public func take(count: Int64): LinkedList<T>
 Function: Takes a specified number of elements from the linked list and returns a new list.
 
 Throws an exception when count is less than or equal to 0. When count equals 0, takes no elements and returns an empty list. When count is greater than 0 but less than the size of the source list, takes the first 'count' elements and returns a new list. When count is greater than or equal to the size of the source list, takes all elements and returns a new list.
-
 
 > **Note：**
 >
@@ -16064,7 +15753,6 @@ public func zip<R>(other: LinkedList<R>): LinkedList<(T, R)>
 
 Function: Combines two [LinkedList](./collection_package_class.md#class-linkedlistt) instances into a new [LinkedList](./collection_package_class.md#class-linkedlistt) (length determined by the shorter list).
 
-
 > **Note：**
 >
 > Unsupported platform：OpenHarmony
@@ -16164,6 +15852,205 @@ toString of number list: [10, 20, 30, 40]
 toString of string list: [Apple, Banana, Orange]
 Manual traversal of number list: [10, 20, 30, 40]
 Modified number list toString: [5, 10, 20, 30, 40, 50]
+```
+
+## class LinkedListNode\<T>
+
+```cangjie
+public class LinkedListNode<T>
+```
+
+Function: [LinkedListNode](collection_package_class.md#class-linkedlistnodet) is a node in [LinkedList](collection_package_class.md#class-linkedlistt).
+
+Through [LinkedListNode](collection_package_class.md#class-linkedlistnodet), you can perform forward and backward traversal operations on [LinkedList](collection_package_class.md#class-linkedlistt), as well as access and modify element values.
+
+[LinkedListNode](collection_package_class.md#class-linkedlistnodet) can only be obtained via the 'nodeAt', 'firstNode', or 'lastNode' methods of the corresponding [LinkedList](collection_package_class.md#class-linkedlistt). When a node is removed from [LinkedList](collection_package_class.md#class-linkedlistt), it becomes a dangling node. Any operation on a dangling node will throw an '[IllegalStateException](../../core/core_package_api/core_package_exceptions.md#class-illegalstateexception)' exception.
+
+### prop next
+
+```cangjie
+public prop next: Option<LinkedListNode<T>>
+```
+
+Function: Gets the next node of the current node, returns None if there isn't one.
+
+Type: [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)\<[LinkedListNode](collection_package_class.md#class-linkedlistnodet)\<T>>
+
+Exceptions:
+
+- [IllegalStateException](../../core/core_package_api/core_package_exceptions.md#class-illegalstateexception) - Thrown if the node does not belong to any linked list instance.
+
+Example:
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let list = LinkedList<Int64>()
+    
+    // Add elements
+    list.addLast(10)
+    list.addLast(20)
+    list.addLast(30)
+    
+    // Get first node and check its next property
+    let firstNode = list.firstNode
+    if (let Some(node) <- firstNode) {
+        let nextNode = node.next
+        if (let Some(next) <- nextNode) {
+            println("Next node value: ${next.value}")
+        } else {
+            println("No next node")
+        }
+    } else {
+        println("List is empty")
+    }
+    
+    // Get last node and check its next property
+    let lastNode = list.lastNode
+    if (let Some(node) <- lastNode) {
+        let nextNode = node.next
+        if (let Some(next) <- nextNode) {
+            println("Next node value: ${next.value}")
+        } else {
+            println("No next node")
+        }
+    } else {
+        println("List is empty")
+    }
+    
+    return 0
+}
+```
+
+Output:
+
+```text
+Next node value: 20
+No next node
+```
+
+### prop prev
+
+```cangjie
+public prop prev: Option<LinkedListNode<T>>
+```
+
+Function: Gets the previous node of the current node, returns None if there isn't one.
+
+Type: [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)\<[LinkedListNode](collection_package_class.md#class-linkedlistnodet)\<T>>
+
+Exceptions:
+
+- [IllegalStateException](../../core/core_package_api/core_package_exceptions.md#class-illegalstateexception) - Thrown if the node does not belong to any linked list instance.
+
+Example:
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let list = LinkedList<Int64>()
+    
+    // Add elements
+    list.addLast(10)
+    list.addLast(20)
+    list.addLast(30)
+    
+    // Get last node and check its prev property
+    let lastNode = list.lastNode
+    if (let Some(node) <- lastNode) {
+        let prevNode = node.prev
+        if (let Some(prev) <- prevNode) {
+            println("Previous node value: ${prev.value}")
+        } else {
+            println("No previous node")
+        }
+    } else {
+        println("List is empty")
+    }
+    
+    // Get first node and check its prev property
+    let firstNode = list.firstNode
+    if (let Some(node) <- firstNode) {
+        let prevNode = node.prev
+        if (let Some(prev) <- prevNode) {
+            println("Previous node value: ${prev.value}")
+        } else {
+            println("No previous node")
+        }
+    } else {
+        println("List is empty")
+    }
+    
+    return 0
+}
+```
+
+Output:
+
+```text
+Previous node value: 20
+No previous node
+```
+
+### prop value
+
+```cangjie
+public mut prop value: T
+```
+
+Function: Gets or modifies the value of the element.
+
+Type: T
+
+Exceptions:
+
+- [IllegalStateException](../../core/core_package_api/core_package_exceptions.md#class-illegalstateexception) - Thrown if the node does not belong to any linked list instance.
+
+Example:
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let list = LinkedList<Int64>()
+    
+    // Add elements
+    list.addLast(10)
+    list.addLast(20)
+    list.addLast(30)
+    
+    // Get first node and access its value property
+    let firstNode = list.firstNode
+    if (let Some(node) <- firstNode) {
+        println("First node value: ${node.value}")
+        
+        // Modify node's value
+        node.value = 100
+        println("Modified first node value: ${node.value}")
+    } else {
+        println("List is empty")
+    }
+    
+    // Verify first node's value was modified
+    if (let Some(node) <- list.firstNode) {
+        println("Confirmed first node value: ${node.value}")
+    }
+    
+    return 0
+}
+```
+
+Output:
+
+```text
+First node value: 10
+Modified first node value: 100
+Confirmed first node value: 100
 ```
 
 ## class TreeMap\<K, V> where K <: Comparable\<K>
@@ -16708,7 +16595,6 @@ public func all(predicate: (K, V) -> Bool): Bool
 
 Function: Determines whether all key-value pairs in [TreeMap](collection_package_class.md#class-treemapk-v-where-k--comparablek) satisfy the given condition.
 
-
 > **Note：**
 >
 > Unsupported platform：OpenHarmony
@@ -16727,7 +16613,6 @@ public func any(predicate: (K, V) -> Bool): Bool
 ```
 
 Function: Determines whether any key-value pair in [TreeMap](collection_package_class.md#class-treemapk-v-where-k--comparablek) satisfies the given condition.
-
 
 > **Note：**
 >
@@ -17155,12 +17040,12 @@ entryView provides reference view access to specific key-value pairs in TreeMap
 ```
 
 ### func filter((K, V) -> Bool)
+
 ```cangjie
 public func filter(predicate: (K, V) -> Bool): TreeMap<K, V>
 ```
 
 Function: Returns a new [TreeMap](collection_package_class.md#class-treemapk-v-where-k--comparablek)\<K, V> containing key-value pairs that satisfy the given predicate.
-
 
 > **Note：**
 >
@@ -17181,7 +17066,6 @@ public func fold<R>(initial: R, operation: (R, K, V) -> R): R
 
 Function: Computes from left to right using the specified initial value.
 
-
 > **Note：**
 >
 > Unsupported platform：OpenHarmony
@@ -17201,7 +17085,6 @@ public func forEach(action: (K, V) -> Unit): Unit
 ```
 
 Function: Iterates over all key-value pairs and executes the given action.
-
 
 > **Note：**
 >
@@ -17548,7 +17431,6 @@ public func mapValues<R>(transform: (K, V) -> R): TreeMap<K, R>
 
 Function: Maps this [TreeMap](collection_package_class.md#class-treemapk-v-where-k--comparablek) and returns a new [TreeMap](collection_package_class.md#class-treemapk-v-where-k--comparablek).
 
-
 > **Note：**
 >
 > Unsupported platform：OpenHarmony
@@ -17567,7 +17449,6 @@ public func mapValues<R>(transform: (V) -> R): TreeMap<K, R>
 ```
 
 Function: Maps this [TreeMap](collection_package_class.md#class-treemapk-v-where-k--comparablek)\<K, R> and returns a new [TreeMap](collection_package_class.md#class-treemapk-v-where-k--comparablek)\<K, R>.
-
 
 > **Note：**
 >
@@ -17588,7 +17469,6 @@ public func none(predicate: (K, V) -> Bool): Bool
 
 Function: Determines whether none of the key-value pairs in the [TreeMap](collection_package_class.md#class-treemapk-v-where-k--comparablek) satisfy the given condition.
 
-
 > **Note：**
 >
 > Unsupported platform：OpenHarmony
@@ -17608,7 +17488,6 @@ public func reduce(operation: (V, V) -> V): Option<V>
 
 Function: Computes from left to right using the first value as the initial value.
 
-
 > **Note：**
 >
 > Unsupported platform：OpenHarmony
@@ -17619,152 +17498,6 @@ Parameters:
 Returns:
 
 - [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)\<V> - Returns the computation result.
-
-### func removeFirst()
-
-```cangjie
-public func removeFirst(): ?(K, V)
-```
-
-Function: Removes the first element of the [TreeMap](collection_package_class.md#class-treemapk-v-where-k--comparablek).
-
-Returns:
-
-- ?(K, V) - If the first element exists, it is removed and returned wrapped in an [Option](../../core/core_package_api/core_package_enums.md#enum-optiont); otherwise, returns [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)\<(K, V)>.None.
-
-Example:
-
-<!-- verify -->
-```cangjie
-import std.collection.*
-
-main() {
-    let map = TreeMap<String, Int64>()
-    
-    // Remove first element from an empty TreeMap
-    let result1 = map.removeFirst()
-    if (let Some((key, value)) <- result1) {
-        println("Removed first element: (${key}, ${value})")
-    } else {
-        println("TreeMap is empty, cannot remove")
-    }
-    
-    // Add some elements
-    map.add("cherry", 30)
-    map.add("apple", 10)
-    map.add("banana", 20)
-    map.add("date", 40)
-    
-    println("\nTreeMap before removal: ${map}")
-    println("Size before removal: ${map.size}")
-    
-    // Remove the first element (first in lexicographical order)
-    let result2 = map.removeFirst()
-    if (let Some((key, value)) <- result2) {
-        println("Removed first element: (${key}, ${value})")
-    }
-    
-    println("TreeMap after removal: ${map}")
-    println("Size after removal: ${map.size}")
-    
-    // Remove the first element again
-    let result3 = map.removeFirst()
-    if (let Some((key, value)) <- result3) {
-        println("Removed first element again: (${key}, ${value})")
-    }
-    
-    println("Final TreeMap: ${map}")
-    
-    return 0
-}
-```
-
-Output:
-
-```text
-TreeMap is empty, cannot remove
-
-TreeMap before removal: [(apple, 10), (banana, 20), (cherry, 30), (date, 40)]
-Size before removal: 4
-Removed first element: (apple, 10)
-TreeMap after removal: [(banana, 20), (cherry, 30), (date, 40)]
-Size after removal: 3
-Removed first element again: (banana, 20)
-Final TreeMap: [(cherry, 30), (date, 40)]
-```
-
-### func removeLast()
-
-```cangjie
-public func removeLast(): ?(K, V)
-```
-
-Function: Removes the last element of the [TreeMap](collection_package_class.md#class-treemapk-v-where-k--comparablek).
-
-Returns:
-
-- ?(K, V) - If the last element exists, it is removed and returned wrapped in an [Option](../../core/core_package_api/core_package_enums.md#enum-optiont); otherwise, returns [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)\<(K, V)>.None.
-
-Example:
-
-<!-- verify -->
-```cangjie
-import std.collection.*
-
-main() {
-    let map = TreeMap<String, Int64>()
-    
-    // Remove last element from an empty TreeMap
-    let result1 = map.removeLast()
-    if (let Some((key, value)) <- result1) {
-        println("Removed last element: (${key}, ${value})")
-    } else {
-        println("TreeMap is empty, cannot remove")
-    }
-    
-    // Add some elements
-    map.add("cherry", 30)
-    map.add("apple", 10)
-    map.add("banana", 20)
-    map.add("date", 40)
-    
-    println("\nTreeMap before removal: ${map}")
-    println("Size before removal: ${map.size}")
-    
-    // Remove the last element (last in lexicographical order)
-    let result2 = map.removeLast()
-    if (let Some((key, value)) <- result2) {
-        println("Removed last element: (${key}, ${value})")
-    }
-    
-    println("TreeMap after removal: ${map}")
-    println("Size after removal: ${map.size}")
-    
-    // Remove the last element again
-    let result3 = map.removeLast()
-    if (let Some((key, value)) <- result3) {
-        println("Removed last element again: (${key}, ${value})")
-    }
-    
-    println("Final TreeMap: ${map}")
-    
-    return 0
-}
-```
-
-Output:
-
-```text
-TreeMap is empty, cannot remove
-
-TreeMap before removal: [(apple, 10), (banana, 20), (cherry, 30), (date, 40)]
-Size before removal: 4
-Removed last element: (date, 40)
-TreeMap after removal: [(apple, 10), (banana, 20), (cherry, 30)]
-Size after removal: 3
-Removed last element again: (cherry, 30)
-Final TreeMap: [(apple, 10), (banana, 20)]
-```
 
 ### func remove(K)
 
@@ -17948,6 +17681,79 @@ Final TreeMap: [(elderberry, 50)]
 Final size: 1
 ```
 
+### func removeFirst()
+
+```cangjie
+public func removeFirst(): ?(K, V)
+```
+
+Function: Removes the first element of the [TreeMap](collection_package_class.md#class-treemapk-v-where-k--comparablek).
+
+Returns:
+
+- ?(K, V) - If the first element exists, it is removed and returned wrapped in an [Option](../../core/core_package_api/core_package_enums.md#enum-optiont); otherwise, returns [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)\<(K, V)>.None.
+
+Example:
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let map = TreeMap<String, Int64>()
+    
+    // Remove first element from an empty TreeMap
+    let result1 = map.removeFirst()
+    if (let Some((key, value)) <- result1) {
+        println("Removed first element: (${key}, ${value})")
+    } else {
+        println("TreeMap is empty, cannot remove")
+    }
+    
+    // Add some elements
+    map.add("cherry", 30)
+    map.add("apple", 10)
+    map.add("banana", 20)
+    map.add("date", 40)
+    
+    println("\nTreeMap before removal: ${map}")
+    println("Size before removal: ${map.size}")
+    
+    // Remove the first element (first in lexicographical order)
+    let result2 = map.removeFirst()
+    if (let Some((key, value)) <- result2) {
+        println("Removed first element: (${key}, ${value})")
+    }
+    
+    println("TreeMap after removal: ${map}")
+    println("Size after removal: ${map.size}")
+    
+    // Remove the first element again
+    let result3 = map.removeFirst()
+    if (let Some((key, value)) <- result3) {
+        println("Removed first element again: (${key}, ${value})")
+    }
+    
+    println("Final TreeMap: ${map}")
+    
+    return 0
+}
+```
+
+Output:
+
+```text
+TreeMap is empty, cannot remove
+
+TreeMap before removal: [(apple, 10), (banana, 20), (cherry, 30), (date, 40)]
+Size before removal: 4
+Removed first element: (apple, 10)
+TreeMap after removal: [(banana, 20), (cherry, 30), (date, 40)]
+Size after removal: 3
+Removed first element again: (banana, 20)
+Final TreeMap: [(cherry, 30), (date, 40)]
+```
+
 ### func removeIf((K, V) -> Bool)
 
 ```cangjie
@@ -18039,6 +17845,79 @@ Size: 5
 After removing elements with keys starting with 'b':
 TreeMap: [(avocado, 15), (cherry, 30), (coconut, 35)]
 Size: 3
+```
+
+### func removeLast()
+
+```cangjie
+public func removeLast(): ?(K, V)
+```
+
+Function: Removes the last element of the [TreeMap](collection_package_class.md#class-treemapk-v-where-k--comparablek).
+
+Returns:
+
+- ?(K, V) - If the last element exists, it is removed and returned wrapped in an [Option](../../core/core_package_api/core_package_enums.md#enum-optiont); otherwise, returns [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)\<(K, V)>.None.
+
+Example:
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let map = TreeMap<String, Int64>()
+    
+    // Remove last element from an empty TreeMap
+    let result1 = map.removeLast()
+    if (let Some((key, value)) <- result1) {
+        println("Removed last element: (${key}, ${value})")
+    } else {
+        println("TreeMap is empty, cannot remove")
+    }
+    
+    // Add some elements
+    map.add("cherry", 30)
+    map.add("apple", 10)
+    map.add("banana", 20)
+    map.add("date", 40)
+    
+    println("\nTreeMap before removal: ${map}")
+    println("Size before removal: ${map.size}")
+    
+    // Remove the last element (last in lexicographical order)
+    let result2 = map.removeLast()
+    if (let Some((key, value)) <- result2) {
+        println("Removed last element: (${key}, ${value})")
+    }
+    
+    println("TreeMap after removal: ${map}")
+    println("Size after removal: ${map.size}")
+    
+    // Remove the last element again
+    let result3 = map.removeLast()
+    if (let Some((key, value)) <- result3) {
+        println("Removed last element again: (${key}, ${value})")
+    }
+    
+    println("Final TreeMap: ${map}")
+    
+    return 0
+}
+```
+
+Output:
+
+```text
+TreeMap is empty, cannot remove
+
+TreeMap before removal: [(apple, 10), (banana, 20), (cherry, 30), (date, 40)]
+Size before removal: 4
+Removed last element: (date, 40)
+TreeMap after removal: [(apple, 10), (banana, 20), (cherry, 30)]
+Size after removal: 3
+Removed last element again: (cherry, 30)
+Final TreeMap: [(apple, 10), (banana, 20)]
 ```
 
 ### func values()
@@ -18904,7 +18783,6 @@ public func all(predicate: (T) -> Bool): Bool
 
 Function: Determines whether all elements in the [TreeSet](collection_package_class.md#class-treesett-where-t--comparablet) satisfy the given condition.
 
-
 > **Note：**
 >
 > Unsupported platform：OpenHarmony
@@ -18923,7 +18801,6 @@ public func any(predicate: (T) -> Bool): Bool
 ```
 
 Function: Determines whether any element in the [TreeSet](collection_package_class.md#class-treesett-where-t--comparablet) satisfies the given condition.
-
 
 > **Note：**
 >
@@ -19198,12 +19075,12 @@ Contains all ['fig', 'grape']: false
 ```
 
 ### func filter((T) -> Bool)
+
 ```cangjie
 public func filter(predicate: (T) -> Bool): TreeSet<T>
 ```
 
 Function: Returns a new [TreeSet](collection_package_class.md#class-treesett-where-t--comparablet)\<T> containing elements that satisfy the given predicate.
-
 
 > **Note：**
 >
@@ -19240,7 +19117,6 @@ public func fold<R>(initial: R, operation: (R, T) -> R): R
 
 Function: Computes a value by applying an operation from left to right with the specified initial value.
 
-
 > **Note：**
 >
 > Unsupported platform：OpenHarmony
@@ -19260,7 +19136,6 @@ public func forEach(action: (T) -> Unit): Unit
 ```
 
 Function: Iterates over all elements and applies the given action.
-
 
 > **Note：**
 >
@@ -19330,7 +19205,6 @@ Forward traversal from cherry (exclusive):
   date
   elderberry
 ```
-
 
 ### func isEmpty()
 
@@ -19432,7 +19306,6 @@ public func map<R>(transform: (T) -> R): TreeSet<R> where R <: Comparable<R>
 
 Function: Transforms all elements of type T in the current [TreeSet](collection_package_class.md#class-treesett-where-t--comparablet) into elements of type R using the transform function, forming a new [TreeSet](collection_package_class.md#class-treesett-where-t--comparablet).
 
-
 > **Note：**
 >
 > Unsupported platform：OpenHarmony
@@ -19451,7 +19324,6 @@ public func none(predicate: (T) -> Bool): Bool
 ```
 
 Function: Determines whether none of the elements in the [TreeSet](collection_package_class.md#class-treesett-where-t--comparablet) satisfy the given condition.
-
 
 > **Note：**
 >
@@ -19472,7 +19344,6 @@ public func reduce(operation: (T, T) -> T): Option<T>
 
 Function: Uses the first element as the initial value and computes from left to right.
 
-
 > **Note：**
 >
 > Unsupported platform：OpenHarmony
@@ -19483,108 +19354,6 @@ Parameters:
 Returns:
 
 - [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)\<T> - Returns the computation result.
-
-### func removeFirst()
-
-```cangjie
-public func removeFirst(): ?T
-```
-
-Function: Removes the first element from the [TreeSet](collection_package_class.md#class-treesett-where-t--comparablet).
-
-Returns:
-
-- ?T - If the first element exists, removes it and returns the element wrapped in [Option](../../core/core_package_api/core_package_enums.md#enum-optiont); otherwise returns [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)\<T>.None.
-
-Example:
-
-<!-- verify -->
-```cangjie
-import std.collection.*
-
-main() {
-    let set = TreeSet<String>()
-    set.add("cherry")
-    set.add("apple") 
-    set.add("banana")
-    set.add("date")
-    
-    println("Original set: ${set}")
-    
-    // Remove first element
-    let first = set.removeFirst()
-    println("Removed first element: ${first}")
-    println("Set after removal: ${set}")
-    
-    // Remove next first element
-    let second = set.removeFirst()
-    println("Removed second element: ${second}")
-    println("Set after second removal: ${set}")
-    
-    return 0
-}
-```
-
-Execution Result:
-
-```text
-Original set: [apple, banana, cherry, date]
-Removed first element: Some(apple)
-Set after removal: [banana, cherry, date]
-Removed second element: Some(banana)
-Set after second removal: [cherry, date]
-```
-
-### func removeLast()
-
-```cangjie
-public func removeLast(): ?T
-```
-
-Function: Removes the last element from the [TreeSet](collection_package_class.md#class-treesett-where-t--comparablet).
-
-Returns:
-
-- ?T - If the last element exists, removes it and returns the element wrapped in [Option](../../core/core_package_api/core_package_enums.md#enum-optiont); otherwise returns [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)\<T>.None.
-
-Example:
-
-<!-- verify -->
-```cangjie
-import std.collection.*
-
-main() {
-    let set = TreeSet<String>()
-    set.add("cherry")
-    set.add("apple") 
-    set.add("banana")
-    set.add("date")
-    
-    println("Original set: ${set}")
-    
-    // Remove last element
-    let last = set.removeLast()
-    println("Removed last element: ${last}")
-    println("Set after removal: ${set}")
-    
-    // Remove next last element
-    let secondLast = set.removeLast()
-    println("Removed second last element: ${secondLast}")
-    println("Set after second removal: ${set}")
-    
-    return 0
-}
-```
-
-Execution Result:
-
-```text
-Original set: [apple, banana, cherry, date]
-Removed last element: Some(date)
-Set after removal: [apple, banana, cherry]
-Removed second last element: Some(cherry)
-Set after second removal: [apple, banana]
-```
 
 ### func remove(T)
 
@@ -19687,6 +19456,57 @@ Initial set: [apple, banana, cherry, date, elderberry]
 Set after removal: [apple, cherry, elderberry]
 ```
 
+### func removeFirst()
+
+```cangjie
+public func removeFirst(): ?T
+```
+
+Function: Removes the first element from the [TreeSet](collection_package_class.md#class-treesett-where-t--comparablet).
+
+Returns:
+
+- ?T - If the first element exists, removes it and returns the element wrapped in [Option](../../core/core_package_api/core_package_enums.md#enum-optiont); otherwise returns [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)\<T>.None.
+
+Example:
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let set = TreeSet<String>()
+    set.add("cherry")
+    set.add("apple") 
+    set.add("banana")
+    set.add("date")
+    
+    println("Original set: ${set}")
+    
+    // Remove first element
+    let first = set.removeFirst()
+    println("Removed first element: ${first}")
+    println("Set after removal: ${set}")
+    
+    // Remove next first element
+    let second = set.removeFirst()
+    println("Removed second element: ${second}")
+    println("Set after second removal: ${set}")
+    
+    return 0
+}
+```
+
+Execution Result:
+
+```text
+Original set: [apple, banana, cherry, date]
+Removed first element: Some(apple)
+Set after removal: [banana, cherry, date]
+Removed second element: Some(banana)
+Set after second removal: [cherry, date]
+```
+
 ### func removeIf((T) -> Bool)
 
 ```cangjie
@@ -19733,6 +19553,57 @@ Execution Result:
 ```text
 Initial set: [apple, banana, cherry, date, elderberry]
 Set after removing elements with length > 5: [apple, date]
+```
+
+### func removeLast()
+
+```cangjie
+public func removeLast(): ?T
+```
+
+Function: Removes the last element from the [TreeSet](collection_package_class.md#class-treesett-where-t--comparablet).
+
+Returns:
+
+- ?T - If the last element exists, removes it and returns the element wrapped in [Option](../../core/core_package_api/core_package_enums.md#enum-optiont); otherwise returns [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)\<T>.None.
+
+Example:
+
+<!-- verify -->
+```cangjie
+import std.collection.*
+
+main() {
+    let set = TreeSet<String>()
+    set.add("cherry")
+    set.add("apple") 
+    set.add("banana")
+    set.add("date")
+    
+    println("Original set: ${set}")
+    
+    // Remove last element
+    let last = set.removeLast()
+    println("Removed last element: ${last}")
+    println("Set after removal: ${set}")
+    
+    // Remove next last element
+    let secondLast = set.removeLast()
+    println("Removed second last element: ${secondLast}")
+    println("Set after second removal: ${set}")
+    
+    return 0
+}
+```
+
+Execution Result:
+
+```text
+Original set: [apple, banana, cherry, date]
+Removed last element: Some(date)
+Set after removal: [apple, banana, cherry]
+Removed second last element: Some(cherry)
+Set after second removal: [apple, banana]
 ```
 
 ### func retain(Set\<T>)

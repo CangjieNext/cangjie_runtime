@@ -47,7 +47,7 @@ Some(1)
 None
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### prop first
 
 ```cangjie
@@ -85,9 +85,9 @@ main() {
 first=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### prop first
 
 ```cangjie
@@ -125,7 +125,7 @@ main() {
 first=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### prop last
 
@@ -160,7 +160,7 @@ Some(3)
 None
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### prop last
 
 ```cangjie
@@ -198,9 +198,9 @@ main() {
 last=3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### prop last
 
 ```cangjie
@@ -238,9 +238,9 @@ main() {
 last=3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-### init()
+### const init()
 
 ```cangjie
 public const init()
@@ -268,6 +268,38 @@ main() {
 Empty array size: 0
 New array: [1, 2, 3]
 ```
+
+<!--Del_sink-->
+### const init()
+
+```cangjie
+public const init(this @local!)
+```
+
+功能：在 local region 中构造一个空数组。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local! = Array<Int64>() @local!
+    println("Empty local array size: ${arr.size}")
+}
+```
+
+运行结果：
+
+```text
+Empty local array size: 0
+```
+
+<!--DelEnd_sink-->
 
 ### init(Int64, (Int64) -> T)
 
@@ -358,39 +390,7 @@ String array with repeated value: [Hello, Hello, Hello]
 Boolean array with repeated value: [true, true, true, true]
 ```
 
-<!--Del-->
-### init()（const 修饰）
-
-```cangjie
-public const init(this @local!)
-```
-
-功能：在 local region 中构造一个空数组。
-
-> **注意：**
->
-> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
-> - 不支持平台：OpenHarmony。
-
-示例：
-
-<!-- verify -->
-```cangjie
-main() {
-    let arr: Array<Int64> @local! = Array<Int64>() @local!
-    println("Empty local array size: ${arr.size}")
-}
-```
-
-运行结果：
-
-```text
-Empty local array size: 0
-```
-
-<!--DelEnd-->
-
-<!--Del-->
+<!--Del_sink-->
 ### init(Int64, (Int64) -> T)
 
 ```cangjie
@@ -432,9 +432,9 @@ main() {
 Local? array with initElement: 0 2 4
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### init(Int64, T)
 
 ```cangjie
@@ -475,9 +475,9 @@ main() {
 Repeated local array: 42 42 42
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### init(Int64, (Int64) -> T)
 
 ```cangjie
@@ -519,7 +519,7 @@ main() {
 Local array with squares: 0 2 4
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 <!--Del-->
 ### func all((T) -> Bool)
@@ -573,7 +573,7 @@ main() {
 
 <!--DelEnd-->
 
-<!--Del-->
+<!--Del_sink-->
 ### func all((T) -> Bool)
 
 ```cangjie
@@ -613,7 +613,7 @@ main() {
 allEven=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 <!--Del-->
 ### func any((T) -> Bool)
@@ -667,7 +667,7 @@ main() {
 
 <!--DelEnd-->
 
-<!--Del-->
+<!--Del_sink-->
 ### func any((T) -> Bool)
 
 ```cangjie
@@ -707,7 +707,7 @@ main() {
 hasEven=false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func clone()
 
@@ -750,7 +750,7 @@ Original array: [1, 2, 3, 4, 5]
 Cloned array: [10, 2, 3, 4, 5]
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func clone()
 
 ```cangjie
@@ -785,9 +785,9 @@ main() {
 Cloned array size: 3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### func clone(Range\<Int64>)
 
 ```cangjie
@@ -835,7 +835,7 @@ main() {
 Cloned range size: 3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func clone(Range\<Int64>)
 
@@ -880,7 +880,7 @@ main() {
 ```text
 [1, 2, 3]
 ```
-<!--Del-->
+<!--Del_sink-->
 ### func clone()
 
 ```cangjie
@@ -919,7 +919,7 @@ main() {
 Cloned array size: 3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func concat(Array\<T>)
 
@@ -954,7 +954,7 @@ main() {
 [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func concat(Array\<T>)
 
 ```cangjie
@@ -995,7 +995,7 @@ main() {
 Concat size: 5
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func copyTo(Array\<T>)
 
@@ -1087,7 +1087,7 @@ main() {
 [0, 0, 2, 3, 4, 5]
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func copyTo(Array\<T>)
 
 ```cangjie
@@ -1130,9 +1130,9 @@ main() {
 dst=1 2 3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### func copyTo(Array\<T>, Int64, Int64, Int64)
 
 ```cangjie
@@ -1179,7 +1179,7 @@ main() {
 dst=1 2 3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func fill(T)
 
@@ -1227,7 +1227,7 @@ Before partial fill: [1, 2, 3, 4, 5]
 After partial fill: [1, -1, -1, -1, 5]
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func fill(T)
 
 ```cangjie
@@ -1263,7 +1263,7 @@ main() {
 After fill: 0 0 0
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 <!--Del-->
 ### func filter((T) -> Bool)
@@ -1311,7 +1311,7 @@ main() {
 
 <!--DelEnd-->
 
-<!--Del-->
+<!--Del_sink-->
 ### func filter((T) -> Bool)
 
 ```cangjie
@@ -1351,7 +1351,7 @@ main() {
 Even size: 2
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 <!--Del-->
 ### func filterMap\<R>((T) -> ?R)
@@ -1406,7 +1406,7 @@ main() {
 
 <!--DelEnd-->
 
-<!--Del-->
+<!--Del_sink-->
 ### func filterMap\<R>((T) -> ?R)
 
 ```cangjie
@@ -1454,7 +1454,7 @@ main() {
 Even size: 2
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 <!--Del-->
 ### func flatMap\<R>((T) -> Array\<R>)
@@ -1504,7 +1504,7 @@ main() {
 
 <!--DelEnd-->
 
-<!--Del-->
+<!--Del_sink-->
 ### func flatMap\<R>((T) -> Array\<R>)
 
 ```cangjie
@@ -1548,7 +1548,7 @@ main() {
 Repeated size: 6
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 <!--Del-->
 ### func fold\<R>(R, (R, T) -> R)
@@ -1597,7 +1597,7 @@ main() {
 
 <!--DelEnd-->
 
-<!--Del-->
+<!--Del_sink-->
 ### func fold\<R>(R, (R, T) -> R)
 
 ```cangjie
@@ -1638,7 +1638,7 @@ main() {
 Sum: 15
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 <!--Del-->
 ### func forEach((T) -> Unit)
@@ -1687,7 +1687,7 @@ main() {
 
 <!--DelEnd-->
 
-<!--Del-->
+<!--Del_sink-->
 ### func forEach((T) -> Unit)
 
 ```cangjie
@@ -1724,7 +1724,7 @@ b
 c
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func get(Int64)
 
@@ -1763,7 +1763,7 @@ main() {
 Some(0)
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func get(Int64)
 
 ```cangjie
@@ -1808,9 +1808,9 @@ main() {
 got=2
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### func get(Int64)
 
 ```cangjie
@@ -1855,7 +1855,7 @@ main() {
 got=2
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 <!--Del-->
 ### func intersperse(T)
@@ -1903,7 +1903,7 @@ main() {
 
 <!--DelEnd-->
 
-<!--Del-->
+<!--Del_sink-->
 ### func intersperse(T)
 
 ```cangjie
@@ -1943,7 +1943,7 @@ main() {
 Interspersed: 1 0 2 0 3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func map\<R>((T)->R)
 
@@ -1990,7 +1990,7 @@ Mapped array (each element + 1): [2, 3, 4, 5, 6]
 String array: [Number: 1, Number: 2, Number: 3, Number: 4, Number: 5]
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func map\<R>((T) -> R)
 
 ```cangjie
@@ -2030,7 +2030,7 @@ main() {
 Mapped size: 3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 <!--Del-->
 ### func none((T) -> Bool)
@@ -2084,7 +2084,7 @@ main() {
 
 <!--DelEnd-->
 
-<!--Del-->
+<!--Del_sink-->
 ### func none((T) -> Bool)
 
 ```cangjie
@@ -2124,7 +2124,7 @@ main() {
 noEven=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 <!--Del-->
 ### func reduce((T, T) -> T)
@@ -2226,6 +2226,52 @@ Repeated array (3 times): [1, 2, 3, 1, 2, 3, 1, 2, 3]
 Repeated string array (2 times): [Hello, World, Hello, World]
 ```
 
+<!--Del_sink-->
+### func repeat(Int64)
+
+```cangjie
+public func repeat(this @local!, n: Int64): Array<T> @local!
+```
+
+功能：将当前 `@local!` 数组中的元素重复 n 次，返回新的 `@local!` 数组。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local! - 接收者为 `@local!` 实例。
+- n: [Int64](core_package_intrinsics.md#int64) - 重复次数，取值范围为 [1, [Int64](core_package_intrinsics.md#int64).Max]。
+
+返回值：
+
+- [Array](core_package_structs.md#struct-arrayt)\<T> @local! - 重复 n 次后得到的 `@local!` 新数组。
+
+异常：
+
+- [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - 如果 n 小于等于 0，抛出异常。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local! = [1, 2, 3]
+    let repeated: Array<Int64> @local! = arr.repeat(2)
+    println("Repeated size: ${repeated.size}")
+}
+```
+
+运行结果：
+
+```text
+Repeated size: 6
+```
+
+<!--DelEnd_sink-->
+
 ### func reverse()
 
 ```cangjie
@@ -2267,7 +2313,7 @@ Original string array: [Hello, World, Cangjie]
 Reversed string array: [Cangjie, World, Hello]
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func reverse()
 
 ```cangjie
@@ -2302,7 +2348,7 @@ main() {
 After reverse: 2 1 3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 <!--Del-->
 ### func skip(Int64)
@@ -2367,7 +2413,7 @@ main() {
 
 <!--DelEnd-->
 
-<!--Del-->
+<!--Del_sink-->
 ### func skip(Int64)
 
 ```cangjie
@@ -2413,7 +2459,7 @@ main() {
 Skipped: 3 4 5
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func slice(Int64, Int64)
 
@@ -2472,7 +2518,7 @@ Original array: [0, 1, -1, 3, 4, 5, 6, 7, 8, 9]
 Slice: [-1, 3, 4, 5]
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func slice(Int64, Int64)
 
 ```cangjie
@@ -2517,9 +2563,9 @@ main() {
 Slice size: 3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### func slice(Int64, Int64)
 
 ```cangjie
@@ -2564,7 +2610,7 @@ main() {
 Slice size: 3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func splitAt(Int64)
 
@@ -2624,7 +2670,7 @@ Left slice: [-1, 1, 2]
 Right slice: [3, 4, 5]
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func splitAt(Int64)
 
 ```cangjie
@@ -2670,53 +2716,7 @@ main() {
 Left size: 2, Right size: 3
 ```
 
-<!--DelEnd-->
-
-<!--Del-->
-### func repeat(Int64)
-
-```cangjie
-public func repeat(this @local!, n: Int64): Array<T> @local!
-```
-
-功能：将当前 `@local!` 数组中的元素重复 n 次，返回新的 `@local!` 数组。
-
-> **注意：**
->
-> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
-> - 不支持平台：OpenHarmony。
-
-参数：
-
-- this @local! - 接收者为 `@local!` 实例。
-- n: [Int64](core_package_intrinsics.md#int64) - 重复次数，取值范围为 [1, [Int64](core_package_intrinsics.md#int64).Max]。
-
-返回值：
-
-- [Array](core_package_structs.md#struct-arrayt)\<T> @local! - 重复 n 次后得到的 `@local!` 新数组。
-
-异常：
-
-- [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - 如果 n 小于等于 0，抛出异常。
-
-示例：
-
-<!-- verify -->
-```cangjie
-main() {
-    let arr: Array<Int64> @local! = [1, 2, 3]
-    let repeated: Array<Int64> @local! = arr.repeat(2)
-    println("Repeated size: ${repeated.size}")
-}
-```
-
-运行结果：
-
-```text
-Repeated size: 6
-```
-
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 <!--Del-->
 ### func step(Int64)
@@ -2770,7 +2770,7 @@ main() {
 
 <!--DelEnd-->
 
-<!--Del-->
+<!--Del_sink-->
 ### func step(Int64)
 
 ```cangjie
@@ -2816,7 +2816,7 @@ main() {
 Stepped: 1 3 5
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func swap(Int64, Int64)
 
@@ -2866,7 +2866,7 @@ After swapping indices 1 and 3: [1, 4, 3, 2, 5]
 After swapping index 2 with itself: [1, 4, 3, 2, 5]
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func swap(Int64, Int64)
 
 ```cangjie
@@ -2907,7 +2907,7 @@ main() {
 After swapping: 4 2
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 <!--Del-->
 ### func take(Int64)
@@ -2967,7 +2967,7 @@ main() {
 
 <!--DelEnd-->
 
-<!--Del-->
+<!--Del_sink-->
 ### func take(Int64)
 
 ```cangjie
@@ -3013,7 +3013,7 @@ main() {
 Taken: 1 2
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### operator func \[](Int64)
 
@@ -3062,7 +3062,7 @@ Array: [10, 20, 30, 40, 50]
 Element at index 2: 30
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### operator func \[](Int64)
 
 ```cangjie
@@ -3106,9 +3106,9 @@ main() {
 Element: 20
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### operator func \[](Int64)
 
 ```cangjie
@@ -3152,7 +3152,7 @@ main() {
 Element: 20
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### operator func \[](Int64, T)
 
@@ -3200,7 +3200,7 @@ Array after setting index 2 to 100: [1, 2, 100, 4, 5]
 Array after setting index 0 to -1: [-1, 2, 100, 4, 5]
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### operator func \[](Int64, T)
 
 ```cangjie
@@ -3241,7 +3241,7 @@ main() {
 After set: 20
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### operator func \[](Range\<Int64>)
 
@@ -3289,7 +3289,7 @@ main() {
 [1, 2, 10]
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### operator func \[](Range\<Int64>)
 
 ```cangjie
@@ -3338,9 +3338,9 @@ main() {
 Slice size: 3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### operator func \[](Range\<Int64>)
 
 ```cangjie
@@ -3389,7 +3389,7 @@ main() {
 Slice size: 3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### operator func \[](Range\<Int64>, Array\<T>)
 
@@ -3435,7 +3435,7 @@ main() {
 [0, 10, 11, 3, 4, 5]
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### operator func \[](Range\<Int64>, Array\<T>)
 
 ```cangjie
@@ -3478,7 +3478,7 @@ main() {
 After set: 10 11
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend\<T> Array\<Array\<T>>
 
@@ -3685,7 +3685,7 @@ String array: [Hello, World, Cangjie, Language]
 Size of string array: 4
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### prop size
 
 ```cangjie
@@ -3717,7 +3717,7 @@ main() {
 Size of local array: 5
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 #### func isEmpty()
 
@@ -3766,7 +3766,7 @@ String array: [Hello, World]
 Is string array empty? false
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func isEmpty()
 
 ```cangjie
@@ -3807,7 +3807,7 @@ arr isEmpty=false
 empty isEmpty=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 #### func iterator()
 
@@ -3875,7 +3875,7 @@ Element: World
 Element: Cangjie
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func iterator()
 
 ```cangjie
@@ -3917,9 +3917,9 @@ main() {
 first=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### func iterator()
 
 ```cangjie
@@ -3961,7 +3961,7 @@ main() {
 first=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 #### func toArray()
 
@@ -4026,7 +4026,7 @@ Original string array: [Hello, World, Cangjie]
 Copied string array: [Hi, World, Cangjie]
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func toArray()
 
 ```cangjie
@@ -4065,9 +4065,9 @@ main() {
 toArray size: 3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### func toArray()
 
 ```cangjie
@@ -4106,7 +4106,7 @@ main() {
 toArray size: 3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend\<T> Array\<T> <: Equatable\<Array\<T>> where T <: Equatable\<T>
 
@@ -4191,7 +4191,7 @@ main(): Int64 {
 Some(1)
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func indexOf(Array\<T>)
 
 ```cangjie
@@ -4234,7 +4234,7 @@ main() {
 idx=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 #### func indexOf(Array\<T>, Int64)
 
@@ -4273,7 +4273,7 @@ main(): Int64 {
 Some(4)
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func indexOf(Array\<T>, Int64)
 
 ```cangjie
@@ -4317,7 +4317,7 @@ main() {
 idx=3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 #### func indexOf(T)
 
@@ -4374,7 +4374,7 @@ String array: [Hello, World, Hello, Cangjie]
 First occurrence of "Hello": Some(0)
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func indexOf(T, Int64)
 
 ```cangjie
@@ -4418,7 +4418,7 @@ main() {
 idx=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 #### func indexOf(T, Int64)
 
@@ -4543,7 +4543,7 @@ Last occurrence of [2, 3]: Some(6)
 Last occurrence of [5, 6]: None
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func lastIndexOf(Array\<T>)
 
 ```cangjie
@@ -4586,7 +4586,7 @@ main() {
 idx=3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 #### func lastIndexOf(Array\<T>, Int64)
 
@@ -4637,7 +4637,7 @@ Last occurrence of [2, 3] starting from index 4: None
 Last occurrence of [2, 3] starting from index 2: Some(3)
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func lastIndexOf(Array\<T>, Int64)
 
 ```cangjie
@@ -4681,7 +4681,7 @@ main() {
 idx=3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 #### func lastIndexOf(T)
 
@@ -4738,7 +4738,7 @@ String array: [Hello, World, Hello, Cangjie, Hello]
 Last occurrence of "Hello": Some(4)
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func lastIndexOf(T)
 
 ```cangjie
@@ -4781,7 +4781,7 @@ main() {
 idx=3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 #### func lastIndexOf(T, Int64)
 
@@ -4841,7 +4841,7 @@ String array: [Hello, World, Hello, Cangjie, Hello]
 Last occurrence of "Hello" starting from index 2: Some(4)
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func lastIndexOf(T, Int64)
 
 ```cangjie
@@ -4885,7 +4885,7 @@ main() {
 idx=3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 #### func removePrefix(Array\<T>)
 
@@ -5285,213 +5285,7 @@ extend<T> Array<T> where T <: Copyable
 
 由于 T 是 Copyable 类型，在 `@local?` 接收者上读写元素是安全的，无需 `exclave` 上下文。
 
-<!--Del-->
-#### operator func \[](Int64, T)
-
-```cangjie
-public operator func [](this @local?, index: Int64, value!: T): Unit
-```
-
-功能：将当前 `@local?` 数组中下标 index 处的元素设置为 value。
-
-> **注意：**
->
-> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
-> - 不支持平台：OpenHarmony。
-
-参数：
-
-- this @local? - 接收者为 `@local?` 实例。
-- index: [Int64](core_package_intrinsics.md#int64) - 要设置元素的下标。
-- value!: T - 要设置的元素值。
-
-异常：
-
-- [IndexOutOfBoundsException](core_package_exceptions.md#class-indexoutofboundsexception) - 如果 index 小于 0 或大于等于数组长度，抛出异常。
-
-示例：
-
-<!-- verify -->
-```cangjie
-main() {
-    let arr: Array<Int64> @local? = [1, 2, 3]
-    arr[1] = 20
-    println("After set: ${arr[1]}")
-}
-```
-
-运行结果：
-
-```text
-After set: 20
-```
-
-<!--DelEnd-->
-
-<!--Del-->
-#### operator func \[](Range\<Int64>, Array\<T>)
-
-```cangjie
-public operator func [](this @local?, range: Range<Int64>, value!: Array<T> @local?): Unit
-```
-
-功能：用指定的 `@local?` 数组对当前 `@local?` 数组一个连续范围的元素赋值。
-
-> **注意：**
->
-> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
-> - 不支持平台：OpenHarmony。
-
-参数：
-
-- this @local? - 接收者为 `@local?` 实例。
-- range: [Range](core_package_structs.md#struct-ranget-where-t--countablet--comparablet--equatablet)\<[Int64](core_package_intrinsics.md#int64)> - 赋值的范围，range 的步长为 1，赋值范围大小与 value 大小相同。
-- value!: [Array](core_package_structs.md#struct-arrayt)\<T> @local? - 用于赋值的 `@local?` 数组。
-
-异常：
-
-- [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - 如果 range 的 step 不等于 1，或 range 长度不等于 value 长度，抛出异常。
-- [IndexOutOfBoundsException](core_package_exceptions.md#class-indexoutofboundsexception) - 如果 range 表示的数组范围无效，抛出异常。
-
-示例：
-
-<!-- verify -->
-```cangjie
-main() {
-    let arr: Array<Int64> @local? = [0, 1, 2, 3]
-    let value: Array<Int64> @local! = [10, 11]
-    arr[1..3] = value
-    println("After set: ${arr[1]} ${arr[2]}")
-}
-```
-
-运行结果：
-
-```text
-After set: 10 11
-```
-
-<!--DelEnd-->
-
-<!--Del-->
-#### func fill(T)
-
-```cangjie
-public func fill(this @local?, value: T): Unit
-```
-
-功能：将当前 `@local?` 数组内所有元素都替换成指定的 value。
-
-> **注意：**
->
-> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
-> - 不支持平台：OpenHarmony。
-
-参数：
-
-- this @local? - 接收者为 `@local?` 实例。
-- value: T - 修改的目标值。
-
-示例：
-
-<!-- verify -->
-```cangjie
-main() {
-    let arr: Array<Int64> @local? = [1, 2, 3]
-    arr.fill(0)
-    println("After fill: ${arr[0]} ${arr[1]} ${arr[2]}")
-}
-```
-
-运行结果：
-
-```text
-After fill: 0 0 0
-```
-
-<!--DelEnd-->
-
-<!--Del-->
-#### func swap(Int64, Int64)
-
-```cangjie
-public func swap(this @local?, index1: Int64, index2: Int64): Unit
-```
-
-功能：将当前 `@local?` 数组中 index1 与 index2 处的元素交换位置。
-
-> **注意：**
->
-> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
-> - 不支持平台：OpenHarmony。
-
-参数：
-
-- this @local? - 接收者为 `@local?` 实例。
-- index1: [Int64](core_package_intrinsics.md#int64) - 待交换元素的第一个下标。
-- index2: [Int64](core_package_intrinsics.md#int64) - 待交换元素的第二个下标。
-
-异常：
-
-- [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - index1 / index2 小于 0 或大于等于 this.size。
-
-示例：
-
-<!-- verify -->
-```cangjie
-main() {
-    let arr: Array<Int64> @local? = [1, 2, 3, 4, 5]
-    arr.swap(1, 3)
-    println("After swapping: ${arr[1]} ${arr[3]}")
-}
-```
-
-运行结果：
-
-```text
-After swapping: 4 2
-```
-
-<!--DelEnd-->
-
-<!--Del-->
-#### func reverse()
-
-```cangjie
-public func reverse(this @local?): Unit
-```
-
-功能：将当前 `@local?` 数组中的元素反转。
-
-> **注意：**
->
-> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
-> - 不支持平台：OpenHarmony。
-
-参数：
-
-- this @local? - 接收者为 `@local?` 实例。
-
-示例：
-
-<!-- verify -->
-```cangjie
-main() {
-    let arr: Array<Int64> @local? = [3, 1, 2]
-    arr.reverse()
-    println("After reverse: ${arr[0]} ${arr[2]}")
-}
-```
-
-运行结果：
-
-```text
-After reverse: 2 3
-```
-
-<!--DelEnd-->
-
-<!--Del-->
+<!--Del_sink-->
 #### func copyTo(Array\<T>)
 
 ```cangjie
@@ -5534,9 +5328,9 @@ main() {
 dst[2]=3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### func copyTo(Array\<T>, Int64, Int64, Int64)
 
 ```cangjie
@@ -5583,7 +5377,213 @@ main() {
 dst[3]=3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
+
+<!--Del_sink-->
+#### func fill(T)
+
+```cangjie
+public func fill(this @local?, value: T): Unit
+```
+
+功能：将当前 `@local?` 数组内所有元素都替换成指定的 value。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+- value: T - 修改的目标值。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local? = [1, 2, 3]
+    arr.fill(0)
+    println("After fill: ${arr[0]} ${arr[1]} ${arr[2]}")
+}
+```
+
+运行结果：
+
+```text
+After fill: 0 0 0
+```
+
+<!--DelEnd_sink-->
+
+<!--Del_sink-->
+#### func reverse()
+
+```cangjie
+public func reverse(this @local?): Unit
+```
+
+功能：将当前 `@local?` 数组中的元素反转。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local? = [3, 1, 2]
+    arr.reverse()
+    println("After reverse: ${arr[0]} ${arr[2]}")
+}
+```
+
+运行结果：
+
+```text
+After reverse: 2 3
+```
+
+<!--DelEnd_sink-->
+
+<!--Del_sink-->
+#### func swap(Int64, Int64)
+
+```cangjie
+public func swap(this @local?, index1: Int64, index2: Int64): Unit
+```
+
+功能：将当前 `@local?` 数组中 index1 与 index2 处的元素交换位置。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+- index1: [Int64](core_package_intrinsics.md#int64) - 待交换元素的第一个下标。
+- index2: [Int64](core_package_intrinsics.md#int64) - 待交换元素的第二个下标。
+
+异常：
+
+- [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - index1 / index2 小于 0 或大于等于 this.size。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local? = [1, 2, 3, 4, 5]
+    arr.swap(1, 3)
+    println("After swapping: ${arr[1]} ${arr[3]}")
+}
+```
+
+运行结果：
+
+```text
+After swapping: 4 2
+```
+
+<!--DelEnd_sink-->
+
+<!--Del_sink-->
+#### operator func \[](Int64, T)
+
+```cangjie
+public operator func [](this @local?, index: Int64, value!: T): Unit
+```
+
+功能：将当前 `@local?` 数组中下标 index 处的元素设置为 value。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+- index: [Int64](core_package_intrinsics.md#int64) - 要设置元素的下标。
+- value!: T - 要设置的元素值。
+
+异常：
+
+- [IndexOutOfBoundsException](core_package_exceptions.md#class-indexoutofboundsexception) - 如果 index 小于 0 或大于等于数组长度，抛出异常。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local? = [1, 2, 3]
+    arr[1] = 20
+    println("After set: ${arr[1]}")
+}
+```
+
+运行结果：
+
+```text
+After set: 20
+```
+
+<!--DelEnd_sink-->
+
+<!--Del_sink-->
+#### operator func \[](Range\<Int64>, Array\<T>)
+
+```cangjie
+public operator func [](this @local?, range: Range<Int64>, value!: Array<T> @local?): Unit
+```
+
+功能：用指定的 `@local?` 数组对当前 `@local?` 数组一个连续范围的元素赋值。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+参数：
+
+- this @local? - 接收者为 `@local?` 实例。
+- range: [Range](core_package_structs.md#struct-ranget-where-t--countablet--comparablet--equatablet)\<[Int64](core_package_intrinsics.md#int64)> - 赋值的范围，range 的步长为 1，赋值范围大小与 value 大小相同。
+- value!: [Array](core_package_structs.md#struct-arrayt)\<T> @local? - 用于赋值的 `@local?` 数组。
+
+异常：
+
+- [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - 如果 range 的 step 不等于 1，或 range 长度不等于 value 长度，抛出异常。
+- [IndexOutOfBoundsException](core_package_exceptions.md#class-indexoutofboundsexception) - 如果 range 表示的数组范围无效，抛出异常。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local? = [0, 1, 2, 3]
+    let value: Array<Int64> @local! = [10, 11]
+    arr[1..3] = value
+    println("After set: ${arr[1]} ${arr[2]}")
+}
+```
+
+运行结果：
+
+```text
+After set: 10 11
+```
+
+<!--DelEnd_sink-->
 
 ### extend\<T> Array\<T> where T <: ToString
 
@@ -5653,7 +5653,7 @@ toString() result: [Hello, World, Cangjie]
 toString() result: [[1, 2], [3, 4], [5, 6]]
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func toString()
 
 ```cangjie
@@ -5694,7 +5694,7 @@ main() {
 [1, 2, 3]
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ## struct CPointerHandle\<T> where T <: CType
 
@@ -8436,7 +8436,7 @@ main() {
 ```text
 I like Cangjie
 ```
-<!--Del-->
+<!--Del_sink-->
 ### static func mallocCString(String)
 
 ```cangjie
@@ -8482,7 +8482,7 @@ main() {
 I like Cangjie
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ## struct Range\<T> where T <: Countable\<T> & Comparable\<T> & Equatable\<T>
 
@@ -8950,7 +8950,7 @@ Range hash code: -1988359251787629792
 Same range hash code: -1988359251787629792
 Same ranges have the same hash code
 ```
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -8992,9 +8992,9 @@ main() {
 same=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -9035,7 +9035,7 @@ main() {
 same=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ## struct String
 
@@ -9128,7 +9128,7 @@ String size (bytes): 13
 Empty string size: 0
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### prop size
 
 ```cangjie
@@ -9161,9 +9161,9 @@ main() {
 Local string size: 5
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-### init()
+### const init()
 
 ```cangjie
 public const init()
@@ -9192,6 +9192,38 @@ main() {
 String: ''
 String size (bytes): 0
 ```
+
+<!--Del_sink-->
+### const init()
+
+```cangjie
+public exclave const init(this @local!)
+```
+
+功能：在 local region 中构造一个空字符串。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local! = String() @local!
+    println("Empty local string size: ${s.size}")
+}
+```
+
+运行结果：
+
+```text
+Empty local string size: 0
+```
+
+<!--DelEnd_sink-->
 
 ### init(Array\<Rune>)
 
@@ -9272,39 +9304,7 @@ String from Collection<Rune>: 'Hello 世界'
 String size: 12
 ```
 
-<!--Del-->
-### init()（const 修饰）
-
-```cangjie
-public exclave const init(this @local!)
-```
-
-功能：在 local region 中构造一个空字符串。
-
-> **注意：**
->
-> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
-> - 不支持平台：OpenHarmony。
-
-示例：
-
-<!-- verify -->
-```cangjie
-main() {
-    let s: String @local! = String() @local!
-    println("Empty local string size: ${s.size}")
-}
-```
-
-运行结果：
-
-```text
-Empty local string size: 0
-```
-
-<!--DelEnd-->
-
-<!--Del-->
+<!--Del_sink-->
 ### init(Array\<Rune>)
 
 ```cangjie
@@ -9345,9 +9345,9 @@ main() {
 Local string: 'ab'
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### init(Collection\<Rune>)
 
 ```cangjie
@@ -9393,9 +9393,9 @@ main() {
 Local string from collection: 'ab'
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### init(String)
 
 ```cangjie
@@ -9431,9 +9431,9 @@ main() {
 Copied local string: 'xyz'
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### init(String)
 
 ```cangjie
@@ -9468,7 +9468,7 @@ main() {
 Heap string: 'abc'
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### static func checkUtf8Encoding(Array\<UInt8>)
 
@@ -9555,7 +9555,7 @@ String from UTF-8 bytes: 'Hello 世界'
 String size: 12
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### static func fromUtf8(Array\<UInt8>)
 
 ```cangjie
@@ -9606,9 +9606,9 @@ main() {
 s='hi'
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### static func fromUtf8(Array\<UInt8>)
 
 ```cangjie
@@ -9652,7 +9652,7 @@ main() {
 s='hi'
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### static func fromUtf8Unchecked(Array\<UInt8>)
 
@@ -9697,7 +9697,7 @@ main() {
 结果: 仓颉
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### static func fromUtf8Unchecked(Array\<UInt8>)
 
 ```cangjie
@@ -9749,9 +9749,9 @@ main() {
 s='hi'
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### static func fromUtf8Unchecked(Array\<UInt8>)
 
 ```cangjie
@@ -9796,7 +9796,7 @@ main() {
 s='hi'
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### static func join(Array\<String>, String)
 
@@ -9836,7 +9836,7 @@ main() {
 I like Cangjie
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### static func join(Array\<String>, String)
 
 ```cangjie
@@ -9880,7 +9880,7 @@ main() {
 s=I like Cangjie
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### static func withRawData(Array\<UInt8>)
 
@@ -9936,7 +9936,7 @@ main() {
 结果: 仓颉
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### static func withRawData(Array\<UInt8>)
 
 ```cangjie
@@ -9979,7 +9979,7 @@ main() {
 s='hi'
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func clone()
 
@@ -10018,7 +10018,7 @@ Cloned string: 'Hello, 世界'
 Are they equal? true
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func clone()
 
 ```cangjie
@@ -10057,7 +10057,7 @@ main() {
 len=5
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func compare(String)
 
@@ -10108,7 +10108,7 @@ Comparing 'banana' to 'apple': Ordering.GT
 Comparing 'apple' to 'apple': Ordering.EQ
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func compare(String)
 
 ```cangjie
@@ -10151,7 +10151,7 @@ main() {
 cmp=Ordering.LT
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func contains(String)
 
@@ -10201,7 +10201,7 @@ Contains 'World': false
 Contains empty string: true
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func contains(String)
 
 ```cangjie
@@ -10244,7 +10244,7 @@ c2=false
 c3=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func count(String)
 
@@ -10349,7 +10349,7 @@ Empty string ends with empty string: true
 String 1 ends with empty string: true
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func endsWith(String)
 
 ```cangjie
@@ -10389,9 +10389,9 @@ main() {
 endsWith=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### func endsWith(String)
 
 ```cangjie
@@ -10431,7 +10431,7 @@ main() {
 endsWith=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func equalsIgnoreAsciiCase(String): Bool
 
@@ -10502,7 +10502,7 @@ Equals ignore case (str6, str7): true
 Equals ignore case (str1, str4): false
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func equalsIgnoreAsciiCase(String)
 
 ```cangjie
@@ -10542,7 +10542,7 @@ main() {
 ignoreCaseEq=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func get(Int64)
 
@@ -10589,7 +10589,7 @@ Byte at index 7: Some(228)
 Byte at index 100: None
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func get(Int64)
 
 ```cangjie
@@ -10632,7 +10632,7 @@ main() {
 b=97
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func hashCode()
 
@@ -10666,7 +10666,7 @@ main() {
 hashCode: -255291815105879447
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func hashCode()
 
 ```cangjie
@@ -10702,9 +10702,9 @@ main() {
 equal hash: true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### func hashCode()
 
 ```cangjie
@@ -10740,7 +10740,7 @@ main() {
 equal hash: true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func indexOf(Byte)
 
@@ -10939,7 +10939,7 @@ Index of 'Hello' from index 1: Some(7)
 Index of 'llo' from index 5: Some(9)
 Index of 'World' from index 0: None
 ```
-<!--Del-->
+<!--Del_sink-->
 ### func indexOf(Byte)
 
 ```cangjie
@@ -10982,9 +10982,9 @@ Index of 'l': Some(2)
 Index of 'z': None
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### func indexOf(String)
 
 ```cangjie
@@ -11027,7 +11027,7 @@ Index of 'Hello': Some(0)
 Index of 'World': None
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func isAscii()
 
@@ -11074,7 +11074,7 @@ String 3: '', is ASCII: true
 String 4: '123456', is ASCII: true
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func isAscii()
 
 ```cangjie
@@ -11115,7 +11115,7 @@ s1 isAscii=true
 s2 isAscii=false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func isAsciiBlank()
 
@@ -11170,7 +11170,7 @@ String 5: '
  ', is ASCII blank: true
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func isAsciiBlank()
 
 ```cangjie
@@ -11211,7 +11211,7 @@ s1 isAsciiBlank=true
 s2 isAsciiBlank=false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func isEmpty()
 
@@ -11254,7 +11254,7 @@ String 2: 'Hello', is empty: false
 String 3: ' ', is empty: false
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func isEmpty()
 
 ```cangjie
@@ -11295,7 +11295,7 @@ isEmpty=true
 isEmpty2=false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func iterator()
 
@@ -11331,7 +11331,7 @@ main() {
 99
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func iterator()
 
 ```cangjie
@@ -11373,9 +11373,9 @@ main() {
 first=72
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### func iterator()
 
 ```cangjie
@@ -11417,7 +11417,7 @@ main() {
 first=72
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func lastIndexOf(Byte)
 
@@ -11744,7 +11744,7 @@ like
 Cangjie
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func lines()
 
 ```cangjie
@@ -11787,9 +11787,9 @@ main() {
 line=a
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### func lines()
 
 ```cangjie
@@ -11832,7 +11832,7 @@ main() {
 line=a
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func padEnd(Int64, String)
 
@@ -11889,7 +11889,7 @@ Padded string 2: 'World     '
 String padded to smaller width: 'Hello'
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func padEnd(Int64, String)
 
 ```cangjie
@@ -11941,7 +11941,7 @@ main() {
 padded=700
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func padStart(Int64, String)
 
@@ -11998,7 +11998,7 @@ Padded string 2: '     World'
 String padded to smaller width: 'Hello'
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func padStart(Int64, String)
 
 ```cangjie
@@ -12050,7 +12050,7 @@ main() {
 padded=--Hi
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func rawData()
 
@@ -12109,7 +12109,7 @@ Raw data bytes:
   Index 12: 140
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func rawData()
 
 ```cangjie
@@ -12149,9 +12149,9 @@ main() {
 size=2 first=104
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### func rawData()
 
 ```cangjie
@@ -12191,7 +12191,7 @@ main() {
 size=2 first=104
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func removePrefix(String)
 
@@ -12249,7 +12249,7 @@ Original string 1: 'Hello, World'
 After removing 'World': 'Hello, World'
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func removePrefix(String)
 
 ```cangjie
@@ -12291,7 +12291,7 @@ main() {
 removed=b
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func removeSuffix(String)
 
@@ -12349,7 +12349,7 @@ Original string 1: 'Hello, World'
 After removing 'Hello': 'Hello, World'
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func removeSuffix(String)
 
 ```cangjie
@@ -12391,7 +12391,7 @@ main() {
 removed=a
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func replace(String, String)
 
@@ -12454,7 +12454,7 @@ Original string 1: 'Hello, World'
 After replacing 'Hello' with empty string: ', World'
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func replace(String, String)
 
 ```cangjie
@@ -12500,7 +12500,7 @@ main() {
 replaced=Hello, Cangjie
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func runes()
 
@@ -12561,8 +12561,8 @@ Runes:
   Index 8: 界
 ```
 
-<!--Del-->
-#### func runes()
+<!--Del_sink-->
+### func runes()
 
 ```cangjie
 public exclave func runes(this @local!): Iterator<Rune> @local!
@@ -12603,10 +12603,10 @@ main() {
 r=a
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
-#### func runes()
+<!--Del_sink-->
+### func runes()
 
 ```cangjie
 public exclave func runes(this @local?): Iterator<Rune> @local?
@@ -12647,7 +12647,7 @@ main() {
 r=a
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func split(String, Bool)
 
@@ -12768,8 +12768,8 @@ main() {
  'three,four,five'
 ```
 
-<!--Del-->
-#### func split(String, removeEmpty!)
+<!--Del_sink-->
+### func split(String, removeEmpty!)
 
 ```cangjie
 public exclave func split(this @local!, str: String @local?, removeEmpty!: Bool = false): Array<String> @local!
@@ -12815,10 +12815,10 @@ main() {
 n=3 last=c
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
-#### func split(String, Int64, removeEmpty!)
+<!--Del_sink-->
+### func split(String, Int64, removeEmpty!)
 
 ```cangjie
 public exclave func split(this @local!, str: String @local?, maxSplits: Int64, removeEmpty!: Bool = false): Array<String> @local!
@@ -12870,7 +12870,7 @@ main() {
 n=3 last=three,four
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func startsWith(String)
 
@@ -12932,7 +12932,7 @@ Empty string starts with empty string: true
 String 1 starts with empty string: true
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func startsWith(String)
 
 ```cangjie
@@ -12972,9 +12972,9 @@ main() {
 startsWith=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### func startsWith(String)
 
 ```cangjie
@@ -13014,7 +13014,7 @@ main() {
 startsWith=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func toArray()
 
@@ -13069,7 +13069,7 @@ Byte array elements:
   Index 12: 140
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func toArray()
 
 ```cangjie
@@ -13108,9 +13108,9 @@ main() {
 n=2 b0=104
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### func toArray()
 
 ```cangjie
@@ -13149,7 +13149,7 @@ main() {
 n=2 b0=104
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func toAsciiLower()
 
@@ -13207,7 +13207,7 @@ Original string 4: '你好World'
 To ASCII lower 4: '你好world'
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func toAsciiLower()
 
 ```cangjie
@@ -13246,7 +13246,7 @@ main() {
 lower=abc
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func toAsciiTitle()
 
@@ -13306,7 +13306,7 @@ Original string 4: '你好world'
 To ASCII title 4: '你好World'
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func toAsciiTitle()
 
 ```cangjie
@@ -13345,7 +13345,7 @@ main() {
 title=Hello World
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func toAsciiUpper()
 
@@ -13403,7 +13403,7 @@ Original string 4: '你好world'
 To ASCII upper 4: '你好WORLD'
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func toAsciiUpper()
 
 ```cangjie
@@ -13442,7 +13442,7 @@ main() {
 upper=ABC
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func toRuneArray()
 
@@ -13493,7 +13493,7 @@ Rune array elements:
   Index 8: 界
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func toRuneArray()
 
 ```cangjie
@@ -13532,7 +13532,7 @@ main() {
 n=2 r0=a
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func toString()
 
@@ -13571,7 +13571,7 @@ String from toString(): 'Hello, World'
 Are they equal? true
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func toString()
 
 ```cangjie
@@ -13614,7 +13614,7 @@ main() {
 abc
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func trimAscii()
 
@@ -13687,7 +13687,7 @@ Original string 4: '
 Trimmed string 4: ''
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func trimAscii()
 
 ```cangjie
@@ -13726,7 +13726,7 @@ main() {
 t=Hello len=5
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func trimAsciiEnd()
 
@@ -13790,7 +13790,7 @@ Original string 4: '
 Trimmed end string 4: ''
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func trimAsciiEnd()
 
 ```cangjie
@@ -13829,7 +13829,7 @@ main() {
 e=' Hello' len=6
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func trimAsciiStart()
 
@@ -13893,7 +13893,7 @@ Original string 4: '
 Trimmed start string 4: ''
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func trimAsciiStart()
 
 ```cangjie
@@ -13932,7 +13932,7 @@ main() {
 p='Hello ' len=6
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func trimEnd((Rune)->Bool)
 
@@ -14658,7 +14658,7 @@ str[0..5]: 'Hello'
 str[7..]: '世界'
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### operator func \[](Int64)
 
 ```cangjie
@@ -14701,9 +14701,9 @@ main() {
 b=97
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### operator func \[](Range\<Int64>)
 
 ```cangjie
@@ -14752,9 +14752,9 @@ main() {
 slice=el
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### operator func \[](Range\<Int64>)
 
 ```cangjie
@@ -14803,9 +14803,9 @@ main() {
 slice=el
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### operator func ==(String)
 
 ```cangjie
@@ -14845,9 +14845,9 @@ main() {
 eq=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### operator func ==(String)
 
 ```cangjie
@@ -14887,9 +14887,9 @@ main() {
 eq=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### operator func !=(String)
 
 ```cangjie
@@ -14929,9 +14929,9 @@ main() {
 ne=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### operator func !=(String)
 
 ```cangjie
@@ -14971,9 +14971,9 @@ main() {
 ne=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### operator func <(String)
 
 ```cangjie
@@ -15013,9 +15013,9 @@ main() {
 lt=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### operator func <=(String)
 
 ```cangjie
@@ -15055,9 +15055,9 @@ main() {
 le=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### operator func >(String)
 
 ```cangjie
@@ -15097,9 +15097,9 @@ main() {
 gt=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### operator func >=(String)
 
 ```cangjie
@@ -15139,9 +15139,9 @@ main() {
 ge=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### operator func +(String)
 
 ```cangjie
@@ -15185,9 +15185,9 @@ main() {
 cat=Hello!
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### operator func *(Int64)
 
 ```cangjie
@@ -15231,4 +15231,4 @@ main() {
 rep=abab
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->

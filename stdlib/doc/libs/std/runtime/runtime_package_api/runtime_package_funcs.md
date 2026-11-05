@@ -170,7 +170,7 @@ main() {
 当前分配的堆内存大小: 255208 字节
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ## func getAllocatedLocalObjectSize()
 
 ```cangjie
@@ -210,7 +210,7 @@ main(): Unit {
 Local region size >= 0: true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ## func getBlockingThreadCount()
 
 ```cangjie

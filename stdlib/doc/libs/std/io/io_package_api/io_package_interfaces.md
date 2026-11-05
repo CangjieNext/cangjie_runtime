@@ -26,7 +26,7 @@ func read(buffer: Array<Byte>): Int64
 
 - [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - 读取的数据的字节数。
 
-<!--Del-->
+<!--Del_sink-->
 ### func read(Array\<Byte>)
 
 ```cangjie
@@ -85,7 +85,7 @@ Bytes read: 2
 Content: 65, 66
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ## interface IOStream
 
 ```cangjie
@@ -130,7 +130,7 @@ func write(buffer: Array<Byte>): Unit
 
 - buffer: [Array](../../core/core_package_api/core_package_structs.md#struct-arrayt)\<[Byte](../../core/core_package_api/core_package_types.md#type-byte)> - 缓冲区，用于存放待写入输出流的数据。
 
-<!--Del-->
+<!--Del_sink-->
 ### func write(Array\<Byte>)
 
 ```cangjie
@@ -181,7 +181,7 @@ main(): Unit {
 Content: 67, 68
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ## interface Seekable
 
 ```cangjie
@@ -205,7 +205,7 @@ prop length: Int64
 
 类型：[Int64](../../core/core_package_api/core_package_intrinsics.md#int64)
 
-<!--Del-->
+<!--Del_sink-->
 ### prop length
 
 ```cangjie
@@ -248,7 +248,7 @@ main(): Unit {
 Length: 3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### prop position
 
 ```cangjie
@@ -259,7 +259,7 @@ prop position: Int64
 
 类型：[Int64](../../core/core_package_api/core_package_intrinsics.md#int64)
 
-<!--Del-->
+<!--Del_sink-->
 ### prop position
 
 ```cangjie
@@ -307,7 +307,7 @@ Position before seek: 0
 Position after seek: 2
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### prop remainLength
 
 ```cangjie
@@ -318,7 +318,7 @@ prop remainLength: Int64
 
 类型：[Int64](../../core/core_package_api/core_package_intrinsics.md#int64)
 
-<!--Del-->
+<!--Del_sink-->
 ### prop remainLength
 
 ```cangjie
@@ -366,7 +366,7 @@ Remain length before seek: 3
 Remain length after seek: 1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### func seek(SeekPosition)
 
 ```cangjie
@@ -383,7 +383,7 @@ func seek(sp: SeekPosition): Int64
 
 - [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - 返回流中数据的起点到移动后位置的偏移量（以字节为单位）。
 
-<!--Del-->
+<!--Del_sink-->
 ### func seek(SeekPosition)
 
 ```cangjie
@@ -438,4 +438,4 @@ Position after seek: 0
 First byte: 78
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->

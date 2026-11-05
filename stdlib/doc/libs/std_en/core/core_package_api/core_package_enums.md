@@ -4,16 +4,16 @@
 
 ```cangjie
 public enum AnnotationKind {
-    | Type
-    | Parameter
-    | Init
-    | MemberProperty
-    | MemberFunction
-    | MemberVariable
     | EnumConstructor
+    | Extension
     | GlobalFunction
     | GlobalVariable
-    | Extension
+    | Init
+    | MemberFunction
+    | MemberProperty
+    | MemberVariable
+    | Parameter
+    | Type
     | ...
 }
 ```
@@ -36,14 +36,6 @@ Extension
 
 Function: Extension declaration.
 
-### Init
-
-```cangjie
-Init
-```
-
-Function: Constructor declaration.
-
 ### GlobalFunction
 
 ```cangjie
@@ -59,6 +51,14 @@ GlobalVariable
 ```
 
 Function: Global variable declaration.
+
+### Init
+
+```cangjie
+Init
+```
+
+Function: Constructor declaration.
 
 ### MemberFunction
 
@@ -389,7 +389,7 @@ Value obtained from Some: 42
 Caught exception: Value is None
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func getOrThrow(() -> Exception)
 
 ```cangjie
@@ -442,7 +442,7 @@ v=1
 caught: empty option
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### func getOrThrow()
 
 ```cangjie
@@ -491,7 +491,7 @@ Value obtained from Some: 42
 Caught NoneValueException
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func getOrThrow()
 
 ```cangjie
@@ -540,7 +540,7 @@ v=1
 caught NoneValueException
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### func isNone()
 
 ```cangjie
@@ -579,7 +579,7 @@ Some(42) is None: false
 None is None: true
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func isNone()
 
 ```cangjie
@@ -622,7 +622,7 @@ o isNone: false
 n isNone: true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### func isSome()
 
 ```cangjie
@@ -661,7 +661,7 @@ Some(42) is Some: true
 None is Some: false
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func isSome()
 
 ```cangjie
@@ -704,7 +704,7 @@ o isSome: true
 n isSome: false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### func map\<R>((T)->R)
 
 ```cangjie
@@ -951,7 +951,7 @@ Hash codes of Some(42) and Some(42) are equal: true
 Hash codes of Some(42) and Some(24) are equal: false
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -996,7 +996,7 @@ h=5
 h2=0
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### extend\<T> Option\<T> <: ToString where T <: ToString
 
 ```cangjie
@@ -1222,7 +1222,7 @@ LT.compare(GT): Ordering.LT
 GT.compare(GT): Ordering.EQ
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func compare(Ordering)
 
 ```cangjie
@@ -1269,9 +1269,9 @@ GT.compare(EQ): Ordering.GT
 EQ.compare(EQ): Ordering.EQ
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func ==(Ordering)
 
 ```cangjie
@@ -1313,9 +1313,9 @@ lt == lt2: true
 lt == gt: false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func !=(Ordering)
 
 ```cangjie
@@ -1357,9 +1357,9 @@ lt != lt2: false
 lt != gt: true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func <(Ordering)
 
 ```cangjie
@@ -1400,9 +1400,9 @@ lt < gt: true
 gt < lt: false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func >(Ordering)
 
 ```cangjie
@@ -1443,9 +1443,9 @@ gt > lt: true
 lt > gt: false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func <=(Ordering)
 
 ```cangjie
@@ -1486,9 +1486,9 @@ lt <= eq: true
 eq <= lt: false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func >=(Ordering)
 
 ```cangjie
@@ -1529,7 +1529,7 @@ gt >= eq: true
 eq >= gt: false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend Ordering <: Hashable
 
@@ -1584,7 +1584,7 @@ EQ hash value: 2
 LT hash value: 1
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -1623,9 +1623,9 @@ Execution Result:
 h=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -1663,7 +1663,7 @@ Execution Result:
 h=3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### extend Ordering <: ToString
 
 ```cangjie
@@ -1723,7 +1723,7 @@ EQ as string: Ordering.EQ
 LT as string: Ordering.LT
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func toString()
 
 ```cangjie
@@ -1763,14 +1763,14 @@ Execution Result:
 Ordering.LT
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ## enum ThreadState
 
 ```cangjie
 public enum ThreadState <: ToString {
+    | Pending
     | Ready
     | Running
-    | Pending
     | Terminated 
     | ...
 }
@@ -1781,6 +1781,14 @@ Function: Represents the state of a thread.
 Parent Types:
 
 - [ToString](core_package_interfaces.md#interface-tostring)
+
+### Pending
+
+```cangjie
+Pending
+```
+
+Function: Indicates that the thread is suspended.
 
 ### Ready
 
@@ -1797,14 +1805,6 @@ Running
 ```
 
 Function: Indicates that the thread is currently executing.
-
-### Pending
-
-```cangjie
-Pending
-```
-
-Function: Indicates that the thread is suspended.
 
 ### Terminated
 
@@ -1832,5 +1832,3 @@ Conversion results are as follows:
 Returns:
 
 - [String](core_package_structs.md#struct-string) - The converted string.
-
-

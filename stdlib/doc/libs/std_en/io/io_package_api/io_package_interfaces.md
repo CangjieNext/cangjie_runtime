@@ -39,7 +39,7 @@ Returns:
 
 - [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - Number of bytes read.
 
-<!--Del-->
+<!--Del_sink-->
 ### func read(Array\<Byte>)
 
 ```cangjie
@@ -98,7 +98,7 @@ Bytes read: 2
 Content: 65, 66
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ## interface OutputStream
 
 ```cangjie
@@ -130,7 +130,7 @@ Parameters:
 
 - buffer: [Array](../../core/core_package_api/core_package_structs.md#struct-arrayt)\<[Byte](../../core/core_package_api/core_package_types.md#type-byte)> - Buffer containing data to be written to the output stream.
 
-<!--Del-->
+<!--Del_sink-->
 ### func write(Array\<Byte>)
 
 ```cangjie
@@ -181,7 +181,7 @@ Output:
 Content: 67, 68
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ## interface Seekable
 
 ```cangjie
@@ -205,7 +205,7 @@ Function: Returns the total amount of data in the current stream (in bytes).
 
 Type: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64)
 
-<!--Del-->
+<!--Del_sink-->
 ### prop length
 
 ```cangjie
@@ -248,7 +248,7 @@ Output:
 Length: 3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### prop position
 
 ```cangjie
@@ -259,7 +259,7 @@ Function: Returns the current cursor position.
 
 Type: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64)
 
-<!--Del-->
+<!--Del_sink-->
 ### prop position
 
 ```cangjie
@@ -307,7 +307,7 @@ Position before seek: 0
 Position after seek: 2
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### prop remainLength
 
 ```cangjie
@@ -318,7 +318,7 @@ Function: Returns the amount of unread data in the current stream (in bytes).
 
 Type: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64)
 
-<!--Del-->
+<!--Del_sink-->
 ### prop remainLength
 
 ```cangjie
@@ -366,7 +366,7 @@ Remain length before seek: 3
 Remain length after seek: 1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### func seek(SeekPosition)
 
 ```cangjie
@@ -382,7 +382,7 @@ Parameters:
 Returns:
 
 - [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - Returns the offset (in bytes) from the start of the stream data to the new position.
-<!--Del-->
+<!--Del_sink-->
 ### func seek(SeekPosition)
 
 ```cangjie
@@ -437,4 +437,4 @@ Position after seek: 0
 First byte: 78
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->

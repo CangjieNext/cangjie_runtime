@@ -204,7 +204,7 @@ Execution Result:
 ```text
 Hello, World!
 ```
-<!--Del-->
+<!--Del_sink-->
 ## func readToEnd\<T>(T) where T <: InputStream & Seekable
 
 ```cangjie
@@ -259,4 +259,4 @@ Bytes read: 4
 Content: 72, 73, 74, 75
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->

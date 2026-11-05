@@ -86,7 +86,7 @@ Output:
 4
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func next()
 
 ```cangjie
@@ -133,9 +133,9 @@ next=2
 next=3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### func next()
 
 ```cangjie
@@ -182,7 +182,7 @@ next=2
 next=3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ## class Box\<T>
 
 ```cangjie
@@ -625,7 +625,7 @@ box3 hashCode: 100
 box1 and box2 have same hashCode: true
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -678,7 +678,7 @@ Output:
 caught: Current Type does not implement 'hashCode' method for its @local? instance
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### extend\<T> Box\<T> <: ToString where T <: ToString
 
 ```cangjie
@@ -982,7 +982,7 @@ Output:
 Abstract subclass initialized successfully
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### init()
 
 ```cangjie
@@ -1022,9 +1022,9 @@ Output:
 Local iterator initialized successfully
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### init()
 
 ```cangjie
@@ -1065,7 +1065,7 @@ Output:
 Local iterator initialized successfully
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### func iterator()
 
 ```cangjie
@@ -1113,7 +1113,7 @@ Third element from iter: Some(30)
 Fourth element from iter2: None
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func iterator()
 
 ```cangjie
@@ -1159,9 +1159,9 @@ refEq: true
 first=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### func iterator()
 
 ```cangjie
@@ -1207,7 +1207,7 @@ refEq: true
 first=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### func next()
 
 ```cangjie
@@ -1249,7 +1249,7 @@ Output:
 5
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func next()
 
 ```cangjie
@@ -1305,9 +1305,9 @@ Output:
 caught: Current Iterator does not implement 'next' method for its @local! instance
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### func next()
 
 ```cangjie
@@ -1364,7 +1364,7 @@ Output:
 caught: Current Iterator does not implement 'next' method for its @local? instance
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### extend\<T> Iterator\<T>
 
 ```cangjie
@@ -2555,7 +2555,7 @@ Parent type:
 
 - [Any](core_package_interfaces.md#interface-any)
 
-### init()
+### const init()
 
 ```cangjie
 public const init()
@@ -2573,8 +2573,8 @@ main(): Int64 {
 }
 ```
 
-<!--Del-->
-### init()
+<!--Del_sink-->
+### const init()
 
 ```cangjie
 public exclave const init(this @local!)
@@ -2607,10 +2607,10 @@ refEq(o1, o1): true
 refEq(o1, o2): false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
-### init()
+<!--Del_sink-->
+### const init()
 
 ```cangjie
 public exclave const init(this @local?)
@@ -2643,7 +2643,7 @@ refEq(o1, o1): true
 refEq(o1, o2): false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ## class RangeIterator\<T> <: Iterator\<T> where T <: Countable\<T> & Comparable\<T> & Equatable\<T>
 
 ```cangjie
@@ -3272,7 +3272,7 @@ After append - Size: 22
 After append - Content: 'Hello, World! Welcome!'
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### init()
 
 ```cangjie
@@ -3306,9 +3306,9 @@ Output:
 42
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### init(Int64)
 
 ```cangjie
@@ -3350,7 +3350,7 @@ Output:
 42
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### func append(Array\<Rune>)
 
 ```cangjie
@@ -4086,7 +4086,7 @@ Content: 'UInt8 value: 123'
 Size: 16
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func append(String)
 
 ```cangjie
@@ -4124,9 +4124,9 @@ Output:
 42
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### func append(String)
 
 ```cangjie
@@ -4167,9 +4167,9 @@ Output:
 427
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### func append\<T>(T) where T <: ToString
 
 ```cangjie
@@ -4207,7 +4207,7 @@ Output:
 123
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### func appendFromUtf8(Array\<Byte>)
 
 ```cangjie
@@ -4439,7 +4439,7 @@ Size: 13
 Type check: true
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func toString()
 
 ```cangjie
@@ -4482,7 +4482,7 @@ Output:
 42
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ## class Thread
 
 ```cangjie
@@ -4695,7 +4695,6 @@ Multiple registrations will overwrite previous handlers.
 When multiple threads terminate due to exceptions concurrently, the handler will be executed concurrently for each thread, so thread safety must be ensured in the handler.
 
 The handler's parameter is the uncaught [Error](core_package_exceptions.md#class-error).
-
 
 > **Note：**
 >

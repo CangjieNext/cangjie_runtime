@@ -139,7 +139,7 @@ func contains(element: T): Bool
 
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 包含返回 true，否则返回 false。
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func contains(Collection\<T>)
 
@@ -190,9 +190,9 @@ main() {
 all=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func contains(T)
 
@@ -240,7 +240,7 @@ main() {
 has1=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ## interface List\<T>
 
@@ -315,7 +315,7 @@ func add(element: T, at!: Int64): Unit
 - element: T - 要插入的 T 类型元素。
 - at!: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - 插入元素的目标索引。
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func add(Collection\<T>)
 
@@ -365,9 +365,9 @@ size=3
 at1=2
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func add(Collection\<T>, Int64)
 
@@ -420,9 +420,9 @@ size=5
 at1=2
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func add(T)
 
@@ -467,9 +467,9 @@ main() {
 size=2
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func add(T, Int64)
 
@@ -518,7 +518,7 @@ size=3
 at1=2
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func clear()
 
@@ -528,7 +528,7 @@ func clear(): Unit
 
 功能：从此列表中删除所有元素。
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func clear()
 
@@ -573,7 +573,7 @@ main() {
 size=0
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func remove(Int64)
 
@@ -603,7 +603,7 @@ func remove(range: Range<Int64>): Unit
 
 - range: [Range](../../core/core_package_api/core_package_structs.md#struct-ranget-where-t--countablet--comparablet--equatablet)\<[Int64](../../core/core_package_api/core_package_intrinsics.md#int64)> - 需要被删除的元素的范围。
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func remove(Int64)
 
@@ -656,9 +656,9 @@ removed=2
 size=2
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func remove(Range\<Int64>)
 
@@ -709,7 +709,7 @@ size=3
 at1=3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func removeIf((T) -> Bool)
 
@@ -723,7 +723,7 @@ func removeIf(predicate: (T) -> Bool): Unit
 
 - predicate: (T) ->[Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 传递判断删除的条件。
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func removeIf((T) -> Bool)
 
@@ -773,7 +773,7 @@ size=2
 first=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### operator func \[](Int64, T)
 
@@ -788,7 +788,7 @@ operator func [](index: Int64, value!: T): Unit
 - index: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - 要设置的索引值。
 - value!: T - 要设置的 T 类型的值。
 
-<!--Del-->
+<!--Del_sink-->
 
 ### operator func [](Int64, T)
 
@@ -834,7 +834,7 @@ main() {
 at1=25
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ## interface Map\<K, V>
 
@@ -890,7 +890,7 @@ func add(key: K, value: V): ?V
 
 - ?V - 如果赋值之前 key 存在，返回旧值，否则返回 None。
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func add(Collection\<(K, V)>)
 
@@ -937,9 +937,9 @@ main() {
 size=2
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func add(K, V)
 
@@ -999,7 +999,7 @@ prev=100
 size=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func addIfAbsent(K, V)
 
@@ -1018,7 +1018,7 @@ func addIfAbsent(key: K, value: V): ?V
 
 - ?V - 如果调用该函数时当前 [Map](collection_package_interface.md#interface-mapk-v) 中已有指定的 key，返回该 key 对应的旧值，否则返回 None。
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func addIfAbsent(K, V)
 
@@ -1079,7 +1079,7 @@ absent=none
 size=2
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func clear()
 
@@ -1089,7 +1089,7 @@ func clear(): Unit
 
 功能：清除所有键值对。
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func clear()
 
@@ -1134,7 +1134,7 @@ main() {
 size=0
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func entryView(K)
 
@@ -1152,7 +1152,7 @@ func entryView(k: K): MapEntryView<K, V>
 
 - [MapEntryView](#interface-mapentryviewk-v)\<K, V> - 键 k 对应的视图。
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func entryView(K)
 
@@ -1200,9 +1200,9 @@ main() {
 hasValue=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func entryView(K)
 
@@ -1255,7 +1255,7 @@ main() {
 caught UnimplementedException
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func remove(Collection\<K>)
 
@@ -1285,7 +1285,7 @@ func remove(key: K): Option<V>
 
 - [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)\<V> - 从 [Map](collection_package_interface.md#interface-mapk-v) 中移除的键对应的值。用 [Option](../../core/core_package_api/core_package_enums.md#enum-optiont) 封装。
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func remove(Collection\<K>)
 
@@ -1335,9 +1335,9 @@ main() {
 size=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func remove(K)
 
@@ -1391,7 +1391,7 @@ removed=100
 size=0
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func removeIf((K, V) -> Bool)
 
@@ -1405,7 +1405,7 @@ func removeIf(predicate: (K, V) -> Bool): Unit
 
 - predicate: (K, V) ->[Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 传递一个 lambda 表达式进行判断。
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func removeIf((K, V) -> Bool)
 
@@ -1452,7 +1452,7 @@ main() {
 size=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func replace(K, V)
 
@@ -1471,7 +1471,7 @@ func replace(key: K, value: V): ?V
 
 - ?V - 如果当前 [Map](collection_package_interface.md#interface-mapk-v) 中已有指定 key，返回其旧值。否则返回 None。
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func replace(K, V)
 
@@ -1532,7 +1532,7 @@ absent=none
 size=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### operator func \[](K, V)
 
@@ -1547,7 +1547,7 @@ operator func [](key: K, value!: V): Unit
 - key: K - 需要进行设置的键。
 - value!: V - 传递要设置的值。
 
-<!--Del-->
+<!--Del_sink-->
 
 ### operator func [](K, V)
 
@@ -1594,7 +1594,7 @@ size=1
 v=100
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ## interface MapEntryView\<K, V>
 
@@ -1641,7 +1641,7 @@ main() {
 key=a
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### prop key
 
@@ -1682,7 +1682,7 @@ main() {
 key=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### prop value
 
@@ -1727,7 +1727,7 @@ value=1
 after=2
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### prop value
 
@@ -1775,7 +1775,7 @@ v=200
 size=0
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ## interface OrderedMap\<K, V>
 
@@ -2085,7 +2085,7 @@ main() {
 first=1
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### prop first
 
@@ -2131,9 +2131,9 @@ main() {
 first=10
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### prop first
 
@@ -2179,7 +2179,7 @@ main() {
 first=10
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### prop last
 
@@ -2217,7 +2217,7 @@ main() {
 last=3
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### prop last
 
@@ -2263,9 +2263,9 @@ main() {
 last=20
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### prop last
 
@@ -2311,7 +2311,7 @@ main() {
 last=20
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func get(Int64)
 
@@ -2329,7 +2329,7 @@ func get(index: Int64): ?T
 
 - ?T - 返回指定位置的元素，如果 index 大小小于 0 或者大于等于此列表中的元素数量，返回 None。
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func get(Int64)
 
@@ -2388,9 +2388,9 @@ g0=10
 g5=none
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func get(Int64)
 
@@ -2443,7 +2443,7 @@ main() {
 g1=20
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### operator func \[](Int64)
 
@@ -2461,7 +2461,7 @@ operator func [](index: Int64): T
 
 - T - 索引位置的元素的值。
 
-<!--Del-->
+<!--Del_sink-->
 
 ### operator func [](Int64)
 
@@ -2510,9 +2510,9 @@ main() {
 idx1=20
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### operator func [](Int64)
 
@@ -2561,7 +2561,7 @@ main() {
 idx1=20
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ## interface ReadOnlyMap\<K, V>
 
@@ -2617,7 +2617,7 @@ func contains(key: K): Bool
 
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 如果存在，则返回 true；否则，返回 false。
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func contains(Collection\<K>)
 
@@ -2668,9 +2668,9 @@ main() {
 all=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func contains(K)
 
@@ -2719,7 +2719,7 @@ main() {
 has1=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func get(K)
 
@@ -2737,7 +2737,7 @@ func get(key: K): ?V
 
 - ?V - [ReadOnlyMap](collection_package_interface.md#interface-readonlymapk-v) 中与 Key 对应的值。
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func get(K)
 
@@ -2795,9 +2795,9 @@ g1=100
 g9=none
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func get(K)
 
@@ -2850,7 +2850,7 @@ main() {
 g1=100
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func keys()
 
@@ -2864,7 +2864,7 @@ func keys(): EquatableCollection<K>
 
 - [EquatableCollection](collection_package_interface.md#interface-equatablecollectiont)\<K> - 保存所有返回的 key。
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func keys()
 
@@ -2912,9 +2912,9 @@ main() {
 has1=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func keys()
 
@@ -2963,7 +2963,7 @@ main() {
 has1=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func values()
 
@@ -2977,7 +2977,7 @@ func values(): Collection<V>
 
 - [Collection](../../core/core_package_api/core_package_interfaces.md#interface-collectiont)\<V> - 保存所有返回的 value。
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func values()
 
@@ -3025,9 +3025,9 @@ main() {
 empty=false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func values()
 
@@ -3076,7 +3076,7 @@ main() {
 empty=false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### operator func \[](K)
 
@@ -3094,7 +3094,7 @@ operator func [](key: K): V
 
 - V - 与键对应的值。
 
-<!--Del-->
+<!--Del_sink-->
 
 ### operator func [](K)
 
@@ -3142,9 +3142,9 @@ main() {
 v=100
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### operator func [](K)
 
@@ -3193,7 +3193,7 @@ main() {
 v=10
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ## interface ReadOnlySet\<T>
 

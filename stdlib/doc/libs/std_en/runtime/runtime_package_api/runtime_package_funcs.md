@@ -56,7 +56,7 @@ Returns:
 
 - [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - The allocated heap size of Cangjie in bytes.
 
-<!--Del-->
+<!--Del_sink-->
 ## func getAllocatedLocalObjectSize()
 
 ```cangjie
@@ -98,7 +98,7 @@ Output:
 Local region size >= 0: true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ## func getBlockingThreadCount()
 
 ```cangjie

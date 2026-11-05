@@ -717,7 +717,7 @@ main(): Unit {
 File length: 6
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### prop length
 
 ```cangjie
@@ -766,7 +766,7 @@ main(): Unit {
 File length: 3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### init(Path, OpenMode)
 
 ```cangjie
@@ -867,7 +867,7 @@ main(): Unit {
 Was the file created successfully? true
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### init(String, OpenMode)
 
 ```cangjie
@@ -924,7 +924,7 @@ main(): Unit {
 Was the file created successfully? true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### static func appendTo(Path, Array\<Byte>)
 
 ```cangjie
@@ -1353,7 +1353,7 @@ main(): Unit {
 Is the file content correct? result: true
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### static func readFrom(String)
 
 ```cangjie
@@ -1412,7 +1412,7 @@ Bytes read: 3
 Content: 74, 75, 76
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### static func writeTo(Path, Array\<Byte>)
 
 ```cangjie
@@ -1662,7 +1662,7 @@ File is closed before close: false
 File is closed after close: true
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func close()
 
 ```cangjie
@@ -1713,7 +1713,7 @@ main(): Unit {
 File is closed after close: true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### func flush()
 
 ```cangjie
@@ -1750,7 +1750,7 @@ main(): Unit {
 }
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func flush()
 
 ```cangjie
@@ -1803,7 +1803,7 @@ main(): Unit {
 File is open after flush: true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### func isClosed()
 
 ```cangjie
@@ -1852,7 +1852,7 @@ File is closed before close: false
 File is closed after close: true
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func isClosed()
 
 ```cangjie
@@ -1910,7 +1910,7 @@ File is closed before close: false
 File is closed after close: true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### func read(Array\<Byte>)
 
 ```cangjie
@@ -1974,7 +1974,7 @@ Bytes read: 3
 Buffer content matches: true
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func read(Array\<Byte>)
 
 ```cangjie
@@ -2043,7 +2043,7 @@ Bytes read: 3
 Content: 89, 90, 91
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### func seek(SeekPosition)
 
 ```cangjie
@@ -2119,7 +2119,7 @@ First byte after seek: 65
 Last byte: 69
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func seek(SeekPosition)
 
 ```cangjie
@@ -2198,7 +2198,7 @@ Position after seek: 0
 First byte after seek: 65
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### func setLength(Int64)
 
 ```cangjie

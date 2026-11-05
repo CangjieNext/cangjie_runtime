@@ -57,7 +57,7 @@ File fileHandle: 3
 
 - [Copyable](../../core/core_package_api/core_package_interfaces.md#interface-copyable)
 
-<!--Del-->
+<!--Del_sink-->
 ### prop fileHandle
 
 ```cangjie
@@ -106,7 +106,7 @@ main(): Unit {
 Same handle on repeated reads: true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ## struct FileInfo
 
 ```cangjie
@@ -308,7 +308,7 @@ main(): Unit {
 File name: test_info_file.txt
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### prop name
 
 ```cangjie
@@ -356,7 +356,7 @@ main(): Unit {
 File name: test_local_info_name.txt
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### prop parentDirectory
 
 ```cangjie
@@ -437,7 +437,7 @@ main(): Unit {
 File path: /home/user/test_info_file.txt
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### prop path
 
 ```cangjie
@@ -484,7 +484,7 @@ main(): Unit {
 File name in path: test_local_info_path.txt
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### prop size
 
 ```cangjie
@@ -536,7 +536,7 @@ main(): Unit {
 File size: 4 bytes
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### prop size
 
 ```cangjie
@@ -591,7 +591,7 @@ main(): Unit {
 File size equals written bytes: true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### init(Path)
 
 ```cangjie
@@ -687,7 +687,7 @@ main(): Unit {
 File name: test_init_string.txt
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### init(Path)
 
 ```cangjie
@@ -741,9 +741,9 @@ main(): Unit {
 File name: test_local_info_init_path.txt
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### init(String)
 
 ```cangjie
@@ -796,7 +796,7 @@ main(): Unit {
 File name: test_local_info_init_string.txt
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### func canExecute()
 
 ```cangjie
@@ -1627,7 +1627,7 @@ main(): Unit {
 File name: test_file.txt
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### prop fileName
 
 ```cangjie
@@ -1669,7 +1669,7 @@ main(): Unit {
 File name: test_local_path.txt
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### prop fileNameWithoutExtension
 
 ```cangjie
@@ -1777,7 +1777,7 @@ main(): Unit {
 Parent path: /home/user
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### prop parent
 
 ```cangjie
@@ -1822,7 +1822,7 @@ main(): Unit {
 Parent path: ./dir
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### init(String)
 
 ```cangjie
@@ -1856,7 +1856,7 @@ main(): Unit {
 Path: /home/user/test_file.txt
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### init(String)
 
 ```cangjie
@@ -1894,7 +1894,7 @@ main(): Unit {
 Path: ./test_local_path.txt
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### func hashCode()
 
 ```cangjie
@@ -1974,7 +1974,7 @@ Path '/home/user/test_file.txt' is absolute: true
 Path './test_file.txt' is absolute: false
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func isAbsolute()
 
 ```cangjie
@@ -2020,7 +2020,7 @@ main(): Unit {
 Is absolute path: false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### func isEmpty()
 
 ```cangjie
@@ -2062,7 +2062,7 @@ Path '' is empty: true
 Path '/home/user/test_file.txt' is empty: false
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func isEmpty()
 
 ```cangjie
@@ -2108,7 +2108,7 @@ Empty path is empty: true
 Non-empty path is empty: false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### func isRelative()
 
 ```cangjie
@@ -2265,7 +2265,7 @@ Base path: /home/user
 Joined path: /home/user/documents/file.txt
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func join(String)
 
 ```cangjie
@@ -2319,9 +2319,9 @@ main(): Unit {
 Joined path: ./dir/test_local_path.txt
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### func join(Path)
 
 ```cangjie
@@ -2376,7 +2376,7 @@ main(): Unit {
 Joined path: ./dir/test_local_path.txt
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### func normalize()
 
 ```cangjie
@@ -2475,7 +2475,7 @@ Path: /home/user/documents/file.txt
 Path string: /home/user/documents/file.txt
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func toString()
 
 ```cangjie
@@ -2518,7 +2518,7 @@ main(): Unit {
 Path string: ./test_local_path.txt
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### operator func ==(Path)
 
 ```cangjie

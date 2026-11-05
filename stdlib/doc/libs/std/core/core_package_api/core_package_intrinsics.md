@@ -59,7 +59,7 @@ main() {
 1
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -94,9 +94,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -131,7 +131,7 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend Bool <: ToString
 
@@ -178,7 +178,7 @@ false
 true
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func toString()
 
 ```cangjie
@@ -213,7 +213,7 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ## CPointer\<T>
 
@@ -1727,7 +1727,7 @@ main() {
 Ordering.LT
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func compare(Float16)
 
 ```cangjie
@@ -1766,9 +1766,9 @@ main() {
 Ordering.LT
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func ==(Float16)
 
 ```cangjie
@@ -1807,9 +1807,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func ==(Float16)
 
 ```cangjie
@@ -1848,9 +1848,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func !=(Float16)
 
 ```cangjie
@@ -1889,9 +1889,9 @@ main() {
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func !=(Float16)
 
 ```cangjie
@@ -1930,9 +1930,9 @@ main() {
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func <(Float16)
 
 ```cangjie
@@ -1971,9 +1971,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func >(Float16)
 
 ```cangjie
@@ -2012,9 +2012,9 @@ main() {
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func <=(Float16)
 
 ```cangjie
@@ -2053,9 +2053,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func >=(Float16)
 
 ```cangjie
@@ -2094,7 +2094,7 @@ main() {
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend Float16 <: Hashable
 
@@ -2153,7 +2153,7 @@ main() {
 相等值的哈希值是否相同: true
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -2188,9 +2188,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -2225,7 +2225,7 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend Float16 <: ToString
 
@@ -2284,7 +2284,7 @@ main() {
 转换后的类型是否为 String: true
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func toString()
 
 ```cangjie
@@ -2319,7 +2319,7 @@ main() {
 1.500000
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ## Float32
 
@@ -2844,7 +2844,7 @@ main() {
 Ordering.LT
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func compare(Float32)
 
 ```cangjie
@@ -2883,9 +2883,9 @@ main() {
 Ordering.LT
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func ==(Float32)
 
 ```cangjie
@@ -2924,9 +2924,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func ==(Float32)
 
 ```cangjie
@@ -2965,9 +2965,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func !=(Float32)
 
 ```cangjie
@@ -3006,9 +3006,9 @@ main() {
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func !=(Float32)
 
 ```cangjie
@@ -3047,9 +3047,9 @@ main() {
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func <(Float32)
 
 ```cangjie
@@ -3088,9 +3088,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func >(Float32)
 
 ```cangjie
@@ -3129,9 +3129,9 @@ main() {
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func <=(Float32)
 
 ```cangjie
@@ -3170,9 +3170,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func >=(Float32)
 
 ```cangjie
@@ -3211,7 +3211,7 @@ main() {
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend Float32 <: Hashable
 
@@ -3270,7 +3270,7 @@ main() {
 相等值的哈希值是否相同: true
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -3305,9 +3305,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -3342,7 +3342,7 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend Float32 <: ToString
 
@@ -3401,7 +3401,7 @@ main() {
 转换后的类型是否为 String: true
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func toString()
 
 ```cangjie
@@ -3436,7 +3436,7 @@ main() {
 1.500000
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ## Float64
 
@@ -3961,7 +3961,7 @@ main() {
 Ordering.LT
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func compare(Float64)
 
 ```cangjie
@@ -4000,9 +4000,9 @@ main() {
 Ordering.LT
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func ==(Float64)
 
 ```cangjie
@@ -4041,9 +4041,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func ==(Float64)
 
 ```cangjie
@@ -4082,9 +4082,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func !=(Float64)
 
 ```cangjie
@@ -4123,9 +4123,9 @@ main() {
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func !=(Float64)
 
 ```cangjie
@@ -4164,9 +4164,9 @@ main() {
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func <(Float64)
 
 ```cangjie
@@ -4205,9 +4205,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func >(Float64)
 
 ```cangjie
@@ -4246,9 +4246,9 @@ main() {
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func <=(Float64)
 
 ```cangjie
@@ -4287,9 +4287,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func >=(Float64)
 
 ```cangjie
@@ -4328,7 +4328,7 @@ main() {
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend Float64 <: Hashable
 
@@ -4387,7 +4387,7 @@ main() {
 相等值的哈希值是否相同: true
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -4422,9 +4422,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -4459,7 +4459,7 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend Float64 <: ToString
 
@@ -4518,7 +4518,7 @@ main() {
 转换后的类型是否为 String: true
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func toString()
 
 ```cangjie
@@ -4553,7 +4553,7 @@ main() {
 1.500000
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ## Int16
 
@@ -4674,7 +4674,7 @@ main() {
 Ordering.LT
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func compare(Int16)
 
 ```cangjie
@@ -4713,9 +4713,9 @@ main() {
 Ordering.LT
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func ==(Int16)
 
 ```cangjie
@@ -4754,9 +4754,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func ==(Int16)
 
 ```cangjie
@@ -4795,9 +4795,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func !=(Int16)
 
 ```cangjie
@@ -4836,9 +4836,9 @@ main() {
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func !=(Int16)
 
 ```cangjie
@@ -4877,9 +4877,9 @@ main() {
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func <(Int16)
 
 ```cangjie
@@ -4918,9 +4918,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func >(Int16)
 
 ```cangjie
@@ -4959,9 +4959,9 @@ main() {
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func <=(Int16)
 
 ```cangjie
@@ -5000,9 +5000,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func >=(Int16)
 
 ```cangjie
@@ -5041,7 +5041,7 @@ main() {
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend Int16 <: Countable\<Int16>
 
@@ -5178,7 +5178,7 @@ main() {
 相等值的哈希值是否相同: true
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -5213,9 +5213,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -5250,7 +5250,7 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend Int16 <: ToString
 
@@ -5309,7 +5309,7 @@ main() {
 转换后的类型是否为 String: true
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func toString()
 
 ```cangjie
@@ -5344,7 +5344,7 @@ main() {
 100
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ## Int32
 
@@ -5465,7 +5465,7 @@ main() {
 Ordering.LT
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func compare(Int32)
 
 ```cangjie
@@ -5504,9 +5504,9 @@ main() {
 Ordering.LT
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func ==(Int32)
 
 ```cangjie
@@ -5545,9 +5545,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func ==(Int32)
 
 ```cangjie
@@ -5586,9 +5586,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func !=(Int32)
 
 ```cangjie
@@ -5627,9 +5627,9 @@ main() {
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func !=(Int32)
 
 ```cangjie
@@ -5668,9 +5668,9 @@ main() {
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func <(Int32)
 
 ```cangjie
@@ -5709,9 +5709,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func >(Int32)
 
 ```cangjie
@@ -5750,9 +5750,9 @@ main() {
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func <=(Int32)
 
 ```cangjie
@@ -5791,9 +5791,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func >=(Int32)
 
 ```cangjie
@@ -5832,7 +5832,7 @@ main() {
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend Int32 <: Countable\<Int32>
 
@@ -5963,7 +5963,7 @@ main() {
 相等值的哈希值是否相同: true
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -5998,9 +5998,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -6035,7 +6035,7 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend Int32 <: ToString
 
@@ -6094,7 +6094,7 @@ main() {
 转换后的类型是否为 String: true
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func toString()
 
 ```cangjie
@@ -6129,7 +6129,7 @@ main() {
 10
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ## Int64
 
@@ -6250,7 +6250,7 @@ main() {
 Ordering.LT
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func compare(Int64)
 
 ```cangjie
@@ -6289,9 +6289,9 @@ main() {
 Ordering.LT
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func ==(Int64)
 
 ```cangjie
@@ -6330,9 +6330,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func ==(Int64)
 
 ```cangjie
@@ -6371,9 +6371,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func !=(Int64)
 
 ```cangjie
@@ -6412,9 +6412,9 @@ main() {
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func !=(Int64)
 
 ```cangjie
@@ -6453,9 +6453,9 @@ main() {
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func <(Int64)
 
 ```cangjie
@@ -6494,9 +6494,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func >(Int64)
 
 ```cangjie
@@ -6535,9 +6535,9 @@ main() {
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func <=(Int64)
 
 ```cangjie
@@ -6576,9 +6576,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func >=(Int64)
 
 ```cangjie
@@ -6617,7 +6617,7 @@ main() {
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend Int64 <: Countable\<Int64>
 
@@ -6751,7 +6751,7 @@ Int64 值: 0
 hashCode: 0
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -6786,9 +6786,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -6823,7 +6823,7 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend Int64 <: ToString
 
@@ -6900,7 +6900,7 @@ Int64 最小值: -9223372036854775808
 转换为字符串: -9223372036854775808
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func toString()
 
 ```cangjie
@@ -6935,7 +6935,7 @@ main() {
 10
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ## Int8
 
@@ -7056,7 +7056,7 @@ main() {
 Ordering.LT
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func compare(Int8)
 
 ```cangjie
@@ -7095,9 +7095,9 @@ main() {
 Ordering.LT
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func ==(Int8)
 
 ```cangjie
@@ -7136,9 +7136,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func ==(Int8)
 
 ```cangjie
@@ -7177,9 +7177,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func !=(Int8)
 
 ```cangjie
@@ -7218,9 +7218,9 @@ main() {
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func !=(Int8)
 
 ```cangjie
@@ -7259,9 +7259,9 @@ main() {
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func <(Int8)
 
 ```cangjie
@@ -7300,9 +7300,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func >(Int8)
 
 ```cangjie
@@ -7341,9 +7341,9 @@ main() {
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func <=(Int8)
 
 ```cangjie
@@ -7382,9 +7382,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func >=(Int8)
 
 ```cangjie
@@ -7423,7 +7423,7 @@ main() {
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend Int8 <: Countable\<Int8>
 
@@ -7572,7 +7572,7 @@ Int8 最小值: -128
 hashCode: -128
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -7607,9 +7607,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -7644,7 +7644,7 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend Int8 <: ToString
 
@@ -7721,7 +7721,7 @@ Int8 最小值: -128
 转换为字符串: -128
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func toString()
 
 ```cangjie
@@ -7756,7 +7756,7 @@ main() {
 3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ## IntNative
 
@@ -7877,7 +7877,7 @@ main() {
 Ordering.LT
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func compare(IntNative)
 
 ```cangjie
@@ -7916,9 +7916,9 @@ main() {
 Ordering.LT
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func ==(IntNative)
 
 ```cangjie
@@ -7957,9 +7957,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func ==(IntNative)
 
 ```cangjie
@@ -7998,9 +7998,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func !=(IntNative)
 
 ```cangjie
@@ -8039,9 +8039,9 @@ main() {
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func !=(IntNative)
 
 ```cangjie
@@ -8080,9 +8080,9 @@ main() {
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func <(IntNative)
 
 ```cangjie
@@ -8121,9 +8121,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func >(IntNative)
 
 ```cangjie
@@ -8162,9 +8162,9 @@ main() {
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func <=(IntNative)
 
 ```cangjie
@@ -8203,9 +8203,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func >=(IntNative)
 
 ```cangjie
@@ -8244,7 +8244,7 @@ main() {
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend IntNative <: Countable\<IntNative>
 
@@ -8393,7 +8393,7 @@ IntNative 最小值: -9223372036854775808
 hashCode: -9223372036854775808
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -8428,9 +8428,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -8465,7 +8465,7 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend IntNative <: ToString
 
@@ -8542,7 +8542,7 @@ IntNative 最小值: -9223372036854775808
 转换为字符串: -9223372036854775808
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func toString()
 
 ```cangjie
@@ -8577,7 +8577,7 @@ main() {
 10
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ## Rune
 
@@ -8633,7 +8633,7 @@ A
 1
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### static func fromUtf8(Array\<UInt8>, Int64)
 
 ```cangjie
@@ -8679,7 +8679,7 @@ A
 1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 #### static func getPreviousFromUtf8(Array\<UInt8>, Int64)
 
@@ -8766,7 +8766,7 @@ main() {
 231
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### static func intoUtf8Array(Rune, Array\<UInt8>, Int64)
 
 ```cangjie
@@ -8813,7 +8813,7 @@ main() {
 231
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 #### static func utf8Size(Array\<UInt8>, Int64)
 
@@ -9416,7 +9416,7 @@ main() {
 Ordering.LT
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func compare(Rune)
 
 ```cangjie
@@ -9465,7 +9465,7 @@ main() {
 caught UnimplementedException
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend Rune <: Countable\<Rune>
 
@@ -9616,7 +9616,7 @@ main() {
 哈希值: 29233
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -9651,9 +9651,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -9688,7 +9688,7 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend Rune <: ToString
 
@@ -9742,7 +9742,7 @@ main() {
 转换为字符串: 爱
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func toString()
 
 ```cangjie
@@ -9777,7 +9777,7 @@ main() {
 A
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ## UInt16
 
@@ -9906,7 +9906,7 @@ main() {
 Ordering.LT
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func compare(UInt16)
 
 ```cangjie
@@ -9945,9 +9945,9 @@ main() {
 Ordering.LT
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func ==(UInt16)
 
 ```cangjie
@@ -9986,9 +9986,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func ==(UInt16)
 
 ```cangjie
@@ -10027,9 +10027,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func !=(UInt16)
 
 ```cangjie
@@ -10068,9 +10068,9 @@ main() {
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func !=(UInt16)
 
 ```cangjie
@@ -10109,9 +10109,9 @@ main() {
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func <(UInt16)
 
 ```cangjie
@@ -10150,9 +10150,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func >(UInt16)
 
 ```cangjie
@@ -10191,9 +10191,9 @@ main() {
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func <=(UInt16)
 
 ```cangjie
@@ -10232,9 +10232,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func >=(UInt16)
 
 ```cangjie
@@ -10273,7 +10273,7 @@ main() {
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend UInt16 <: Countable\<UInt16>
 
@@ -10399,7 +10399,7 @@ UInt16值: 42
 哈希值: 65535
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -10434,9 +10434,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -10471,7 +10471,7 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend UInt16 <: ToString
 
@@ -10525,7 +10525,7 @@ UInt16值: 42
 转换为字符串: 65535
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func toString()
 
 ```cangjie
@@ -10560,7 +10560,7 @@ main() {
 100
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ## UInt32
 
@@ -10671,7 +10671,7 @@ main() {
 Ordering.LT
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func compare(UInt32)
 
 ```cangjie
@@ -10710,9 +10710,9 @@ main() {
 Ordering.LT
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func ==(UInt32)
 
 ```cangjie
@@ -10751,9 +10751,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func ==(UInt32)
 
 ```cangjie
@@ -10792,9 +10792,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func !=(UInt32)
 
 ```cangjie
@@ -10833,9 +10833,9 @@ main() {
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func !=(UInt32)
 
 ```cangjie
@@ -10874,9 +10874,9 @@ main() {
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func <(UInt32)
 
 ```cangjie
@@ -10915,9 +10915,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func >(UInt32)
 
 ```cangjie
@@ -10956,9 +10956,9 @@ main() {
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func <=(UInt32)
 
 ```cangjie
@@ -10997,9 +10997,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func >=(UInt32)
 
 ```cangjie
@@ -11038,7 +11038,7 @@ main() {
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend UInt32 <: Countable\<UInt32>
 
@@ -11153,7 +11153,7 @@ main() {
 42
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -11188,9 +11188,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -11225,7 +11225,7 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend UInt32 <: ToString
 
@@ -11268,7 +11268,7 @@ main() {
 42
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func toString()
 
 ```cangjie
@@ -11303,7 +11303,7 @@ main() {
 10
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ## UInt64
 
@@ -11414,7 +11414,7 @@ main() {
 Ordering.LT
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func compare(UInt64)
 
 ```cangjie
@@ -11453,9 +11453,9 @@ main() {
 Ordering.LT
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func ==(UInt64)
 
 ```cangjie
@@ -11494,9 +11494,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func ==(UInt64)
 
 ```cangjie
@@ -11535,9 +11535,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func !=(UInt64)
 
 ```cangjie
@@ -11576,9 +11576,9 @@ main() {
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func !=(UInt64)
 
 ```cangjie
@@ -11617,9 +11617,9 @@ main() {
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func <(UInt64)
 
 ```cangjie
@@ -11658,9 +11658,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func >(UInt64)
 
 ```cangjie
@@ -11699,9 +11699,9 @@ main() {
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func <=(UInt64)
 
 ```cangjie
@@ -11740,9 +11740,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func >=(UInt64)
 
 ```cangjie
@@ -11781,7 +11781,7 @@ main() {
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend UInt64 <: Countable\<UInt64>
 
@@ -11896,7 +11896,7 @@ main() {
 42
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -11931,9 +11931,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -11968,7 +11968,7 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend UInt64 <: ToString
 
@@ -12011,7 +12011,7 @@ main() {
 42
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func toString()
 
 ```cangjie
@@ -12046,7 +12046,7 @@ main() {
 10
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ## UInt8
 
@@ -12157,7 +12157,7 @@ main() {
 Ordering.LT
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func compare(UInt8)
 
 ```cangjie
@@ -12196,9 +12196,9 @@ main() {
 Ordering.LT
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func ==(UInt8)
 
 ```cangjie
@@ -12237,9 +12237,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func ==(UInt8)
 
 ```cangjie
@@ -12278,9 +12278,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func !=(UInt8)
 
 ```cangjie
@@ -12319,9 +12319,9 @@ main() {
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func !=(UInt8)
 
 ```cangjie
@@ -12360,9 +12360,9 @@ main() {
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func <(UInt8)
 
 ```cangjie
@@ -12401,9 +12401,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func >(UInt8)
 
 ```cangjie
@@ -12442,9 +12442,9 @@ main() {
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func <=(UInt8)
 
 ```cangjie
@@ -12483,9 +12483,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func >=(UInt8)
 
 ```cangjie
@@ -12524,7 +12524,7 @@ main() {
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend UInt8 <: Countable\<UInt8>
 
@@ -12639,7 +12639,7 @@ main() {
 42
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -12674,9 +12674,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -12711,7 +12711,7 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend UInt8 <: ToString
 
@@ -12754,7 +12754,7 @@ main() {
 42
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func toString()
 
 ```cangjie
@@ -12789,7 +12789,7 @@ main() {
 3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ## UIntNative
 
@@ -12900,7 +12900,7 @@ main() {
 Ordering.LT
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func compare(UIntNative)
 
 ```cangjie
@@ -12939,9 +12939,9 @@ main() {
 Ordering.LT
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func ==(UIntNative)
 
 ```cangjie
@@ -12980,9 +12980,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func ==(UIntNative)
 
 ```cangjie
@@ -13021,9 +13021,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func !=(UIntNative)
 
 ```cangjie
@@ -13062,9 +13062,9 @@ main() {
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func !=(UIntNative)
 
 ```cangjie
@@ -13103,9 +13103,9 @@ main() {
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func <(UIntNative)
 
 ```cangjie
@@ -13144,9 +13144,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func >(UIntNative)
 
 ```cangjie
@@ -13185,9 +13185,9 @@ main() {
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func <=(UIntNative)
 
 ```cangjie
@@ -13226,9 +13226,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func >=(UIntNative)
 
 ```cangjie
@@ -13267,7 +13267,7 @@ main() {
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend UIntNative <: Countable
 
@@ -13382,7 +13382,7 @@ main() {
 42
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -13417,9 +13417,9 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -13454,7 +13454,7 @@ main() {
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend UIntNative <: ToString
 
@@ -13497,7 +13497,7 @@ main() {
 The string representation is: 12345
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func toString()
 
 ```cangjie
@@ -13532,7 +13532,7 @@ main() {
 10
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ## Unit
 
@@ -13595,7 +13595,7 @@ main() {
 0
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -13629,9 +13629,9 @@ main() {
 0
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -13665,7 +13665,7 @@ main() {
 0
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend Unit <: ToString
 
@@ -13710,7 +13710,7 @@ main() {
 The string representation is: ()
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func toString()
 
 ```cangjie
@@ -13745,4 +13745,4 @@ main() {
 ()
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->

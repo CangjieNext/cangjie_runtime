@@ -710,7 +710,7 @@ main() {
 添加17个元素后容量: 24
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### prop capacity
 
@@ -750,7 +750,7 @@ main() {
 cap>=16: true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### prop first
 
@@ -789,7 +789,7 @@ main() {
 空列表第一个元素: None
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### prop first
 
@@ -829,9 +829,9 @@ main() {
 first=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### prop first
 
@@ -877,7 +877,7 @@ main() {
 first=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### prop last
 
@@ -916,7 +916,7 @@ main() {
 空列表最后一个元素: None
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### prop last
 
@@ -956,9 +956,9 @@ main() {
 last=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### prop last
 
@@ -1004,7 +1004,7 @@ main() {
 last=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### prop size
 
@@ -1041,7 +1041,7 @@ main() {
 添加2个元素后大小: 2
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### prop size
 
@@ -1078,7 +1078,7 @@ main() {
 size=2
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### init()
 
@@ -1230,7 +1230,7 @@ main() {
 列表大小: 5
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### init()
 
@@ -1263,9 +1263,9 @@ main() {
 size=0
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### init(Int64)
 
@@ -1307,9 +1307,9 @@ main() {
 cap>=16: true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### init(Int64, (Int64) -> T)
 
@@ -1352,9 +1352,9 @@ main() {
 size=3 v2=4
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### init(Collection\<T>)
 
@@ -1400,9 +1400,9 @@ main() {
 size=3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### init(Array\<T>)
 
@@ -1447,9 +1447,9 @@ main() {
 size=3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### init(Int64, (Int64) -> T)
 
@@ -1492,9 +1492,9 @@ main() {
 size=3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### init(Collection\<T>)
 
@@ -1547,7 +1547,7 @@ size=3
 first=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### static func of(Array\<T>)
 
@@ -1761,7 +1761,7 @@ main() {
 列表大小: 3
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func add(Collection\<T>)
 
@@ -1809,9 +1809,9 @@ size=4
 last=4
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func add(Collection\<T>, Int64)
 
@@ -1865,9 +1865,9 @@ size=5
 at1=2
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func add(T)
 
@@ -1909,9 +1909,9 @@ size=2
 last=2
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func add(T, Int64)
 
@@ -1959,7 +1959,7 @@ size=3
 at1=2
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 <!--Del-->
 ### func all((T) -> Bool)
@@ -2016,7 +2016,7 @@ main() {
 
 <!--DelEnd-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func all((T) -> Bool)
 
@@ -2065,7 +2065,7 @@ main() {
 allEven=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 <!--Del-->
 ### func any((T) -> Bool)
@@ -2122,7 +2122,7 @@ main() {
 
 <!--DelEnd-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func any((T) -> Bool)
 
@@ -2171,7 +2171,7 @@ main() {
 hasEven=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func clear()
 
@@ -2213,7 +2213,7 @@ main() {
 列表是否为空: true
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func clear()
 
@@ -2255,7 +2255,7 @@ main() {
 是否为空: true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func clone()
 
@@ -2302,7 +2302,7 @@ main() {
 克隆列表保持不变: [1, 2, 3]
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func clone()
 
@@ -2345,9 +2345,9 @@ main() {
 克隆列表末尾元素: 2
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func clone()
 
@@ -2396,7 +2396,7 @@ main() {
 size=0
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 <!--Del-->
 ### func filter((T) -> Bool)
@@ -2447,7 +2447,7 @@ main() {
 
 <!--DelEnd-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func filter((T) -> Bool)
 
@@ -2496,7 +2496,7 @@ size=2
 first=2
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 <!--Del-->
 ### func filterMap\<R>((T) -> ?R)
@@ -2554,7 +2554,7 @@ main() {
 
 <!--DelEnd-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func filterMap\<R>((T) -> ?R)
 
@@ -2614,7 +2614,7 @@ first=1
 last=2
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 <!--Del-->
 ### func flatMap\<R>((T) -> ArrayList\<R>)
@@ -2667,7 +2667,7 @@ main() {
 
 <!--DelEnd-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func flatMap\<R>((T) -> ArrayList\<R>)
 
@@ -2723,7 +2723,7 @@ first=1
 last=9
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 <!--Del-->
 ### func fold\<R>(R, (R, T) -> R)
@@ -2775,7 +2775,7 @@ main() {
 
 <!--DelEnd-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func fold\<R>(R, (R, T) -> R)
 
@@ -2823,7 +2823,7 @@ main() {
 product=24
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 <!--Del-->
 ### func forEach((T) -> Unit)
@@ -2924,7 +2924,7 @@ main() {
 索引5处的元素: None
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func get(Int64)
 
@@ -2971,9 +2971,9 @@ main() {
 g=10
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func get(Int64)
 
@@ -3025,7 +3025,7 @@ main() {
 g=20
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func getRawArray()
 
@@ -3133,7 +3133,7 @@ main() {
 
 <!--DelEnd-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func intersperse(T)
 
@@ -3183,7 +3183,7 @@ at1=0
 last=3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func isEmpty()
 
@@ -3222,7 +3222,7 @@ main() {
 非空列表是否为空: false
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func isEmpty()
 
@@ -3268,7 +3268,7 @@ main() {
 isEmpty=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func iterator()
 
@@ -3308,7 +3308,7 @@ main() {
 3
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func iterator()
 
@@ -3354,9 +3354,9 @@ main() {
 first=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func iterator()
 
@@ -3408,7 +3408,7 @@ main() {
 first=7
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 <!--Del-->
 ### func map\<R>((T) -> R)
@@ -3465,7 +3465,7 @@ main() {
 
 <!--DelEnd-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func map\<R>((T) -> R)
 
@@ -3513,7 +3513,7 @@ size=3
 last=9
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 <!--Del-->
 ### func none((T) -> Bool)
@@ -3570,7 +3570,7 @@ main() {
 
 <!--DelEnd-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func none((T) -> Bool)
 
@@ -3619,7 +3619,7 @@ main() {
 noneEven=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 <!--Del-->
 ### func reduce((T, T) -> T)
@@ -3689,7 +3689,7 @@ main() {
 
 <!--DelEnd-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func reduce((T, T) -> T)
 
@@ -3740,7 +3740,7 @@ main() {
 max=5
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func remove(Int64)
 
@@ -3790,7 +3790,7 @@ main() {
 删除后的列表大小: 2
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func remove(Int64)
 
@@ -3842,7 +3842,7 @@ removed=2
 size=2
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func remove(Range\<Int64>)
 
@@ -3891,7 +3891,7 @@ main() {
 删除后的列表大小: 5
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func remove(Range\<Int64>)
 
@@ -3943,7 +3943,7 @@ size=3
 at1=3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func removeIf((T) -> Bool)
 
@@ -3989,7 +3989,7 @@ main() {
 删除后的列表大小: 3
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func removeIf((T) -> Bool)
 
@@ -4038,7 +4038,7 @@ size=2
 first=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func reserve(Int64)
 
@@ -4133,7 +4133,7 @@ main() {
 反转后: [3, 2, 1, 0]
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func reverse()
 
@@ -4177,7 +4177,7 @@ first=3
 last=0
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 <!--Del-->
 ### func skip(Int64)
@@ -4240,7 +4240,7 @@ main() {
 
 <!--DelEnd-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func skip(Int64)
 
@@ -4296,7 +4296,7 @@ size=2
 first=3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func slice(Range\<Int64>)
 
@@ -4360,7 +4360,7 @@ main() {
 通过 Range 构造函数切片: [2, 3, 4]
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func slice(Range\<Int64>)
 
@@ -4412,9 +4412,9 @@ main() {
 sl=2
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func slice(Range\<Int64>)
 
@@ -4469,7 +4469,7 @@ main() {
 sl=2
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func sortBy((T, T) -> Ordering) <sup>(deprecated)</sup>
 
@@ -4631,7 +4631,7 @@ main() {
 
 <!--DelEnd-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func step(Int64)
 
@@ -4688,7 +4688,7 @@ size=3
 last=4
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 <!--Del-->
 ### func take(Int64)
@@ -4751,7 +4751,7 @@ main() {
 
 <!--DelEnd-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func take(Int64)
 
@@ -4807,7 +4807,7 @@ size=3
 last=2
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func toArray()
 
@@ -4846,7 +4846,7 @@ main() {
 数组: [0, 1, 2, 3]
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func toArray()
 
@@ -4889,9 +4889,9 @@ main() {
 arr=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func toArray()
 
@@ -4938,7 +4938,7 @@ main() {
 size=0
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### operator func \[](Int64)
 
@@ -4990,7 +4990,7 @@ main() {
 修改后的列表: [10, 25, 30]
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### operator func \[](Int64)
 
@@ -5038,9 +5038,9 @@ main() {
 idx1=20
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### operator func \[](Int64)
 
@@ -5092,7 +5092,7 @@ main() {
 idx1=20
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### operator func \[](Int64, T)
 
@@ -5140,7 +5140,7 @@ main() {
 索引1处的元素: 25
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### operator func \[](Int64, T)
 
@@ -5186,7 +5186,7 @@ main() {
 at1=25
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### operator func \[](Range\<Int64>)
 
@@ -5246,7 +5246,7 @@ main() {
 切片列表大小: 3
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### operator func \[](Range\<Int64>)
 
@@ -5296,9 +5296,9 @@ main() {
 sl=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### operator func \[](Range\<Int64>)
 
@@ -5353,7 +5353,7 @@ main() {
 sl=2
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 <!--Del-->
 ### extend\<T> ArrayList\<T>
@@ -5650,7 +5650,7 @@ list1 != list2: true
 list1 != list3: false
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 #### operator func !=(ArrayList\<T>)
 
@@ -5700,7 +5700,7 @@ ne1=true
 ne2=false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 #### operator func ==(ArrayList\<T>)
 
@@ -5745,7 +5745,7 @@ list1 == list2: true
 list1 == list3: false
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 #### operator func ==(ArrayList\<T>)
 
@@ -5794,7 +5794,7 @@ main() {
 eq=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend\<T> ArrayList\<T> <: SortExtension where T <: Comparable\<T> <sup>(deprecated)</sup>
 
@@ -6021,10 +6021,6 @@ main() {
 ```text
 字符串: [1, 2, 3]
 ```
-
-### extend\<T> ArrayList\<T> <: ListOfCopyable\<T> where T \<: Copyable <sup>(已移除)</sup>
-
-该扩展已随 [ListOfCopyable](collection_package_interface.md) 接口一并移除（CJEEP-005 2026-10-13 修订）：`@local?` 修改类成员（add / remove / removeIf / clear / reverse / \[]=）不在 CJEEP-005 文档基线内，对应的 `@local!` 形式由 [ArrayList](#class-arraylistt) 类体直接提供。
 
 ## class ArrayQueue\<T>
 
@@ -6721,7 +6717,7 @@ main() {
 添加元素后大小: 2
 ```
 
-### func init()
+### init()
 
 ```cangjie
 public init()
@@ -6755,7 +6751,7 @@ main() {
 是否为空: true
 ```
 
-### func init(Int64)
+### init(Int64)
 
 ```cangjie
 public init(capacity: Int64)
@@ -7294,7 +7290,7 @@ main() {
 指定容量: 32
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### prop capacity
 
@@ -7336,7 +7332,7 @@ main() {
 cap>=32: true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### prop size
 
@@ -7377,7 +7373,7 @@ main() {
 添加元素后大小: 2
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### prop size
 
@@ -7420,7 +7416,7 @@ main() {
 size=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### init()
 
@@ -7646,7 +7642,7 @@ HashMap大小: 3
 键 'second' 对应的值: 10
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### init()
 
@@ -7679,9 +7675,9 @@ main() {
 empty=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### init(Array\<(K, V)>)
 
@@ -7720,9 +7716,9 @@ main() {
 size=2
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### init(Array\<(K, V)>)
 
@@ -7775,9 +7771,9 @@ main() {
 caught IllegalArgumentException
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### init(Collection\<(K, V)>)
 
@@ -7818,9 +7814,9 @@ main() {
 size=2
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### init(Collection\<(K, V)>)
 
@@ -7872,9 +7868,9 @@ main() {
 size=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### init(Int64)
 
@@ -7916,9 +7912,9 @@ main() {
 cap>=32: true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### init(Int64, (Int64) -> (K, V))
 
@@ -7961,9 +7957,9 @@ main() {
 size=2
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### init(Int64, (Int64) -> (K, V))
 
@@ -8015,7 +8011,7 @@ main() {
 caught IllegalArgumentException
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func add(Collection\<(K, V)>)
 
@@ -8120,7 +8116,7 @@ main() {
 当前 'first' 的值: 200
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func add(Collection\<(K, V)>)
 
@@ -8162,9 +8158,9 @@ main() {
 size=2
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func add(K, V)
 
@@ -8221,7 +8217,7 @@ r1=None
 r2=100
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 <!--Del-->
 ### func all((K, V) -> Bool)
@@ -8280,7 +8276,7 @@ main() {
 
 <!--DelEnd-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func all((K, V) -> Bool)
 
@@ -8329,7 +8325,7 @@ main() {
 r=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 <!--Del-->
 ### func any((K, V) -> Bool)
@@ -8388,7 +8384,7 @@ main() {
 
 <!--DelEnd-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func any((K, V) -> Bool)
 
@@ -8437,7 +8433,7 @@ main() {
 r=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### func clear()
 
 ```cangjie
@@ -8481,7 +8477,7 @@ main() {
 清除后是否为空: true
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func clear()
 
@@ -8520,7 +8516,7 @@ main() {
 size=0
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func clone()
 
@@ -8570,7 +8566,7 @@ main() {
 修改后克隆HashMap大小: 3
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func clone()
 
@@ -8613,7 +8609,7 @@ main() {
 size=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func contains(Collection\<K>)
 
@@ -8710,7 +8706,7 @@ main() {
 是否包含键 'orange': false
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func contains(Collection\<K>)
 
@@ -8761,9 +8757,9 @@ main() {
 all=false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func contains(K)
 
@@ -8816,7 +8812,7 @@ main() {
 c=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func entryView(K)
 
@@ -8866,7 +8862,7 @@ main() {
 修改后键 'key1' 的值为: 150
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func entryView(K)
 
@@ -8910,9 +8906,9 @@ main() {
 hasValue=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func entryView(K)
 
@@ -8970,7 +8966,7 @@ main() {
 caught UnimplementedException
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 <!--Del-->
 ### func filter((K, V) -> Bool)
@@ -9023,7 +9019,7 @@ main() {
 
 <!--DelEnd-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func filter((K, V) -> Bool)
 
@@ -9068,7 +9064,7 @@ main() {
 size=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 <!--Del-->
 ### func fold\<R>(R, (R, K, V) -> R)
@@ -9122,7 +9118,7 @@ main() {
 
 <!--DelEnd-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func fold\<R>(R, (R, K, V) -> R)
 
@@ -9168,7 +9164,7 @@ main() {
 sum=30
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 <!--Del-->
 ### func forEach((K, V) -> Unit)
@@ -9216,7 +9212,7 @@ main() {
 
 <!--DelEnd-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func forEach((K, V) -> Unit)
 
@@ -9260,7 +9256,7 @@ main() {
 k=1 v=100
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func get(K)
 
@@ -9313,7 +9309,7 @@ main() {
 键 'height' 不存在
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func get(K)
 
@@ -9360,9 +9356,9 @@ main() {
 v=100
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func get(K)
 
@@ -9414,7 +9410,7 @@ main() {
 v=100
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func isEmpty()
 
@@ -9461,7 +9457,7 @@ main() {
 清空后是否为空: true
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func isEmpty()
 
@@ -9503,7 +9499,7 @@ main() {
 isEmpty=false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func iterator()
 
@@ -9555,7 +9551,7 @@ main() {
 迭代器遍历元素个数: 3
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func iterator()
 
@@ -9601,9 +9597,9 @@ main() {
 first=(1, 100)
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func iterator()
 
@@ -9654,7 +9650,7 @@ main() {
 first=(1, 100)
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func keys()
 
@@ -9702,7 +9698,7 @@ main() {
 包含键 'b'
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func keys()
 
@@ -9745,9 +9741,9 @@ main() {
 has1=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func keys()
 
@@ -9795,7 +9791,7 @@ main() {
 has1=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 <!--Del-->
 ### func mapValues\<R>((K, V) -> R)
@@ -9897,7 +9893,7 @@ main() {
 
 <!--DelEnd-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func mapValues\<R>((K, V) -> R)
 
@@ -9947,9 +9943,9 @@ size=2
 v=20
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func mapValues\<R>((V) -> R)
 
@@ -9999,7 +9995,7 @@ size=2
 v=20
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 <!--Del-->
 ### func none((K, V) -> Bool)
@@ -10054,7 +10050,7 @@ main() {
 
 <!--DelEnd-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func none((K, V) -> Bool)
 
@@ -10103,7 +10099,7 @@ main() {
 r=false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 <!--Del-->
 ### func reduce((V, V) -> V)
@@ -10173,7 +10169,7 @@ main() {
 
 <!--DelEnd-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func reduce((V, V) -> V)
 
@@ -10221,7 +10217,7 @@ main() {
 sum=30
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### func remove(Collection\<K>)
 
 ```cangjie
@@ -10331,7 +10327,7 @@ main() {
 删除后大小: 2
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func remove(Collection\<K>)
 
@@ -10374,9 +10370,9 @@ main() {
 size=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func remove(K)
 
@@ -10426,7 +10422,7 @@ removed=100
 size=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func removeIf((K, V) -> Bool)
 
@@ -10485,7 +10481,7 @@ main() {
 键 'b' 仍存在，值为: 2
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func removeIf((K, V) -> Bool)
 
@@ -10526,7 +10522,7 @@ main() {
 size=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func reserve(Int64)
 
@@ -10590,7 +10586,7 @@ main() {
 添加元素后大小: 30
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func reserve(Int64)
 
@@ -10629,7 +10625,7 @@ main() {
 cap>=20: true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func toArray()
 
@@ -10680,7 +10676,7 @@ main() {
 键: c, 值: 3
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func toArray()
 
@@ -10723,9 +10719,9 @@ main() {
 size=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func toArray()
 
@@ -10781,7 +10777,7 @@ main() {
 caught UnimplementedException
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func values()
 
@@ -10832,7 +10828,7 @@ main() {
 30
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func values()
 
@@ -10875,9 +10871,9 @@ main() {
 empty=false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func values()
 
@@ -10925,7 +10921,7 @@ main() {
 empty=false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### operator func \[](K)
 
@@ -11024,7 +11020,7 @@ main() {
 'second' 的值: 200
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### operator func \[](K)
 
@@ -11073,9 +11069,9 @@ main() {
 v=100
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### operator func \[](K, V)
 
@@ -11116,9 +11112,9 @@ main() {
 size=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### operator func [](K)
 
@@ -11171,7 +11167,7 @@ main() {
 v=100
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend\<K, V> HashMap\<K, V> <: Equatable\<HashMap\<K, V>> where V <: Equatable\<V>
 
@@ -11293,9 +11289,9 @@ map1 == map2: true
 map1 == map3: false
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
-### operator func ==(HashMap\<K, V>)
+#### operator func ==(HashMap\<K, V>)
 
 ```cangjie
 public operator func ==(this @local?, right: HashMap<K, V> @local?): Bool
@@ -11342,7 +11338,7 @@ main() {
 eq=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend\<K, V> HashMap\<K, V> <: ToString where V <: ToString, K <: ToString
 
@@ -11400,9 +11396,9 @@ main() {
 HashMap的字符串表示: [(apple, 5), (banana, 3), (orange, 8)]
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
-### func toString()
+#### func toString()
 
 ```cangjie
 public exclave func toString(this @local?): String @local!
@@ -11448,7 +11444,7 @@ main() {
 s=[(1, 100)]
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ## class HashMapIterator\<K, V> where K <: Hashable & Equatable\<K>
 
@@ -11495,7 +11491,7 @@ main() {
 }
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### init(HashMap\<K, V>)
 
@@ -11538,9 +11534,9 @@ main() {
 first=(1, 100)
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### init(HashMap\<K, V>)
 
@@ -11588,7 +11584,7 @@ main() {
 first=(1, 100)
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func next()
 
@@ -11638,7 +11634,7 @@ main() {
 成功获取到元素: one, 1
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func next()
 
@@ -11693,9 +11689,9 @@ first=(1, 100)
 end
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func next()
 
@@ -11755,7 +11751,7 @@ first=(1, 100)
 end
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func remove()
 
@@ -12150,7 +12146,7 @@ HashSet大小: 3
 包含 'banana'
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### init()
 
@@ -12183,9 +12179,9 @@ main() {
 empty=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### init(Int64)
 
@@ -12227,7 +12223,7 @@ main() {
 empty=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func add(Collection\<T>)
 
@@ -12321,7 +12317,7 @@ main() {
 集合大小: 1
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func add(T)
 
@@ -12366,9 +12362,9 @@ added=true
 has5=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func add(HashSet\<T>)
 
@@ -12412,7 +12408,7 @@ has1=true
 has2=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 <!--Del-->
 ### func all((T) -> Bool)
@@ -12705,7 +12701,7 @@ main() {
 不包含 'grape'
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func contains(T)
 
@@ -12750,7 +12746,7 @@ has5=true
 has6=false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 <!--Del-->
 ### func filter((T) -> Bool)
@@ -13008,7 +13004,7 @@ main() {
 清空后大小: 0
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func isEmpty()
 
@@ -13056,7 +13052,7 @@ main() {
 empty=false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func iterator()
 
@@ -13100,7 +13096,7 @@ main() {
  orange
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func iterator()
 
@@ -13147,9 +13143,9 @@ main() {
 first=5
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func iterator()
 
@@ -13203,7 +13199,7 @@ main() {
 caught IllegalStateException
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 <!--Del-->
 ### func map\<R>((T)->R)
@@ -13708,7 +13704,7 @@ main() {
 数组元素: [apple, banana, orange]
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func toArray()
 
@@ -13752,7 +13748,7 @@ main() {
 arr=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### operator func &(ReadOnlySet\<T>)
 

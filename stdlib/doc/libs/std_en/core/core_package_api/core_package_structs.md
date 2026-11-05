@@ -47,7 +47,7 @@ Some(1)
 None
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### prop first
 
 ```cangjie
@@ -85,9 +85,9 @@ Output:
 first=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### prop first
 
 ```cangjie
@@ -125,7 +125,7 @@ Output:
 first=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### prop last
 
@@ -160,7 +160,7 @@ Some(3)
 None
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### prop last
 
 ```cangjie
@@ -198,9 +198,9 @@ Output:
 last=3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### prop last
 
 ```cangjie
@@ -238,9 +238,9 @@ Output:
 last=3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-### init()
+### const init()
 
 ```cangjie
 public const init()
@@ -268,6 +268,38 @@ Output:
 Empty array size: 0
 New array: [1, 2, 3]
 ```
+
+<!--Del_sink-->
+### const init()
+
+```cangjie
+public const init(this @local!)
+```
+
+Function: Constructs an empty array in a local region.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local! = Array<Int64>() @local!
+    println("Empty local array size: ${arr.size}")
+}
+```
+
+Output:
+
+```text
+Empty local array size: 0
+```
+
+<!--DelEnd_sink-->
 
 ### init(Int64, (Int64) -> T)
 
@@ -358,39 +390,7 @@ String array with repeated value: [Hello, Hello, Hello]
 Boolean array with repeated value: [true, true, true, true]
 ```
 
-<!--Del-->
-### init()（const 修饰）
-
-```cangjie
-public const init(this @local!)
-```
-
-Function: Constructs an empty array in a local region.
-
-> **Note:**
->
-> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
-> - Platform not supported: OpenHarmony.
-
-Example:
-
-<!-- verify -->
-```cangjie
-main() {
-    let arr: Array<Int64> @local! = Array<Int64>() @local!
-    println("Empty local array size: ${arr.size}")
-}
-```
-
-Output:
-
-```text
-Empty local array size: 0
-```
-
-<!--DelEnd-->
-
-<!--Del-->
+<!--Del_sink-->
 ### init(Int64, (Int64) -> T)
 
 ```cangjie
@@ -432,9 +432,9 @@ Output:
 Local? array with initElement: 0 2 4
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### init(Int64, T)
 
 ```cangjie
@@ -475,9 +475,9 @@ Output:
 Repeated local array: 42 42 42
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### init(Int64, (Int64) -> T)
 
 ```cangjie
@@ -519,7 +519,7 @@ Output:
 Local array with squares: 0 2 4
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func all((T) -> Bool)
 
@@ -540,7 +540,7 @@ Returns:
 
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - Returns true if all elements satisfy the condition, otherwise returns false.
 
-<!--Del-->
+<!--Del_sink-->
 ### func all((T) -> Bool)
 
 ```cangjie
@@ -580,7 +580,7 @@ Output:
 allEven=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func any((T) -> Bool)
 
@@ -601,7 +601,7 @@ Returns:
 
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - Whether any element satisfies the condition.
 
-<!--Del-->
+<!--Del_sink-->
 ### func any((T) -> Bool)
 
 ```cangjie
@@ -641,7 +641,7 @@ Output:
 hasEven=false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func clone()
 
@@ -684,7 +684,7 @@ Original array: [1, 2, 3, 4, 5]
 Cloned array: [10, 2, 3, 4, 5]
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func clone()
 
 ```cangjie
@@ -719,9 +719,9 @@ Output:
 Cloned array size: 3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### func clone(Range\<Int64>)
 
 ```cangjie
@@ -769,7 +769,7 @@ Output:
 Cloned range size: 3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func clone(Range\<Int64>)
 
@@ -815,7 +815,7 @@ Output:
 [1, 2, 3]
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func clone()
 
 ```cangjie
@@ -854,7 +854,7 @@ Output:
 Cloned array size: 3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func concat(Array\<T>)
 
@@ -889,7 +889,7 @@ Output:
 [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func concat(Array\<T>)
 
 ```cangjie
@@ -930,7 +930,7 @@ Output:
 Concat size: 5
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func copyTo(Array\<T>)
 
@@ -1020,7 +1020,7 @@ Output:
 [0, 0, 2, 3, 4, 5]
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func copyTo(Array\<T>)
 
 ```cangjie
@@ -1063,9 +1063,9 @@ Output:
 dst=1 2 3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### func copyTo(Array\<T>, Int64, Int64, Int64)
 
 ```cangjie
@@ -1112,7 +1112,7 @@ Output:
 dst=1 2 3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func fill(T)
 
@@ -1160,7 +1160,7 @@ Before partial fill: [1, 2, 3, 4, 5]
 After partial fill: [1, -1, -1, -1, 5]
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func fill(T)
 
 ```cangjie
@@ -1196,7 +1196,7 @@ Output:
 After fill: 0 0 0
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func filter((T) -> Bool)
 
@@ -1217,7 +1217,7 @@ Returns:
 
 - [Array](core_package_structs.md#struct-arrayt)\<T> - A new array containing elements that satisfy the predicate.
 
-<!--Del-->
+<!--Del_sink-->
 ### func filter((T) -> Bool)
 
 ```cangjie
@@ -1257,7 +1257,7 @@ Output:
 Even size: 2
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func filterMap\<R>((T) -> ?R)
 
@@ -1278,7 +1278,7 @@ Returns:
 
 - [Array](core_package_structs.md#struct-arrayt)\<R> - A new array after filtering and mapping.
 
-<!--Del-->
+<!--Del_sink-->
 ### func filterMap\<R>((T) -> ?R)
 
 ```cangjie
@@ -1326,7 +1326,7 @@ Output:
 Even size: 2
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func flatMap\<R>((T) -> Array\<R>)
 
@@ -1347,7 +1347,7 @@ Returns:
 
 - [Array](core_package_structs.md#struct-arrayt)\<R> - A new array after "map" and "flatten" operations.
 
-<!--Del-->
+<!--Del_sink-->
 ### func flatMap\<R>((T) -> Array\<R>)
 
 ```cangjie
@@ -1391,7 +1391,7 @@ Output:
 Repeated size: 6
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func fold\<R>(R, (R, T) -> R)
 
@@ -1413,7 +1413,7 @@ Returns:
 
 - R - The final computed value.
 
-<!--Del-->
+<!--Del_sink-->
 ### func fold\<R>(R, (R, T) -> R)
 
 ```cangjie
@@ -1454,7 +1454,7 @@ Output:
 Sum: 15
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func forEach((T) -> Unit)
 
@@ -1471,7 +1471,7 @@ Parameters:
 
 - action: (T) -> [Unit](../../core/core_package_api/core_package_intrinsics.md#unit) - The given action function.
 
-<!--Del-->
+<!--Del_sink-->
 ### func forEach((T) -> Unit)
 
 ```cangjie
@@ -1508,7 +1508,7 @@ b
 c
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func get(Int64)
 
@@ -1547,7 +1547,7 @@ Output:
 Some(0)
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func get(Int64)
 
 ```cangjie
@@ -1592,9 +1592,9 @@ Output:
 got=2
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### func get(Int64)
 
 ```cangjie
@@ -1639,7 +1639,7 @@ Output:
 got=2
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func intersperse(T)
 
@@ -1660,7 +1660,7 @@ Returns:
 
 - [Array](core_package_structs.md#struct-arrayt)\<T> - A new array.
 
-<!--Del-->
+<!--Del_sink-->
 ### func intersperse(T)
 
 ```cangjie
@@ -1700,7 +1700,7 @@ Output:
 Interspersed: 1 0 2 0 3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func map\<R>((T)->R)
 
@@ -1747,7 +1747,7 @@ Mapped array (each element + 1): [2, 3, 4, 5, 6]
 String array: [Number: 1, Number: 2, Number: 3, Number: 4, Number: 5]
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func map\<R>((T) -> R)
 
 ```cangjie
@@ -1787,7 +1787,7 @@ Output:
 Mapped size: 3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func none((T) -> Bool)
 
@@ -1808,7 +1808,7 @@ Returns:
 
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - Whether none of the elements satisfy the condition.
 
-<!--Del-->
+<!--Del_sink-->
 ### func none((T) -> Bool)
 
 ```cangjie
@@ -1848,7 +1848,7 @@ Output:
 noEven=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func reduce((T, T) -> T)
 
@@ -1919,6 +1919,52 @@ Repeated array (3 times): [1, 2, 3, 1, 2, 3, 1, 2, 3]
 Repeated string array (2 times): [Hello, World, Hello, World]
 ```
 
+<!--Del_sink-->
+### func repeat(Int64)
+
+```cangjie
+public func repeat(this @local!, n: Int64): Array<T> @local!
+```
+
+Function: Repeats the elements of the current `@local!` array n times and returns the new `@local!` array.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local! - The receiver is an `@local!` instance.
+- n: [Int64](core_package_intrinsics.md#int64) - The number of repetitions, valid range is [1, [Int64](core_package_intrinsics.md#int64).Max].
+
+Returns:
+
+- [Array](core_package_structs.md#struct-arrayt)\<T> @local! - The new `@local!` array obtained after repeating n times.
+
+Exceptions:
+
+- [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - Throws an exception if n is less than or equal to 0.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local! = [1, 2, 3]
+    let repeated: Array<Int64> @local! = arr.repeat(2)
+    println("Repeated size: ${repeated.size}")
+}
+```
+
+Output:
+
+```text
+Repeated size: 6
+```
+
+<!--DelEnd_sink-->
+
 ### func reverse()
 
 ```cangjie
@@ -1960,7 +2006,7 @@ Original string array: [Hello, World, Cangjie]
 Reversed string array: [Cangjie, World, Hello]
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func reverse()
 
 ```cangjie
@@ -1995,7 +2041,7 @@ Output:
 After reverse: 2 1 3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func skip(Int64)
 
@@ -2022,7 +2068,7 @@ Exceptions:
 
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown if count < 0.
 
-<!--Del-->
+<!--Del_sink-->
 ### func skip(Int64)
 
 ```cangjie
@@ -2068,7 +2114,7 @@ Output:
 Skipped: 3 4 5
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func slice(Int64, Int64)
 
@@ -2127,7 +2173,7 @@ Original array: [0, 1, -1, 3, 4, 5, 6, 7, 8, 9]
 Slice: [-1, 3, 4, 5]
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func slice(Int64, Int64)
 
 ```cangjie
@@ -2172,9 +2218,9 @@ Output:
 Slice size: 3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### func slice(Int64, Int64)
 
 ```cangjie
@@ -2219,7 +2265,7 @@ Output:
 Slice size: 3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func splitAt(Int64)
 
@@ -2279,7 +2325,7 @@ Left slice: [-1, 1, 2]
 Right slice: [3, 4, 5]
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func splitAt(Int64)
 
 ```cangjie
@@ -2325,53 +2371,7 @@ Output:
 Left size: 2, Right size: 3
 ```
 
-<!--DelEnd-->
-
-<!--Del-->
-### func repeat(Int64)
-
-```cangjie
-public func repeat(this @local!, n: Int64): Array<T> @local!
-```
-
-Function: Repeats the elements of the current `@local!` array n times and returns the new `@local!` array.
-
-> **Note:**
->
-> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
-> - Platform not supported: OpenHarmony.
-
-Parameters:
-
-- this @local! - The receiver is an `@local!` instance.
-- n: [Int64](core_package_intrinsics.md#int64) - The number of repetitions, valid range is [1, [Int64](core_package_intrinsics.md#int64).Max].
-
-Returns:
-
-- [Array](core_package_structs.md#struct-arrayt)\<T> @local! - The new `@local!` array obtained after repeating n times.
-
-Exceptions:
-
-- [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - Throws an exception if n is less than or equal to 0.
-
-Example:
-
-<!-- verify -->
-```cangjie
-main() {
-    let arr: Array<Int64> @local! = [1, 2, 3]
-    let repeated: Array<Int64> @local! = arr.repeat(2)
-    println("Repeated size: ${repeated.size}")
-}
-```
-
-Output:
-
-```text
-Repeated size: 6
-```
-
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func step(Int64)
 
@@ -2398,7 +2398,7 @@ Exceptions:
 
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown if `count <= 0`.
 
-<!--Del-->
+<!--Del_sink-->
 ### func step(Int64)
 
 ```cangjie
@@ -2444,7 +2444,7 @@ Output:
 Stepped: 1 3 5
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func swap(Int64, Int64)
 
@@ -2494,7 +2494,7 @@ After swapping indices 1 and 3: [1, 4, 3, 2, 5]
 After swapping index 2 with itself: [1, 4, 3, 2, 5]
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func swap(Int64, Int64)
 
 ```cangjie
@@ -2535,7 +2535,7 @@ Output:
 After swapping: 4 2
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func take(Int64)
 
@@ -2562,7 +2562,7 @@ Exceptions:
 
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown if `count < 0`.
 
-<!--Del-->
+<!--Del_sink-->
 ### func take(Int64)
 
 ```cangjie
@@ -2608,7 +2608,7 @@ Output:
 Taken: 1 2
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### operator func \[](Int64)
 
@@ -2658,7 +2658,7 @@ Array: [10, 20, 30, 40, 50]
 Element at index 2: 30
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### operator func \[](Int64)
 
 ```cangjie
@@ -2702,9 +2702,9 @@ Output:
 Element: 20
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### operator func \[](Int64)
 
 ```cangjie
@@ -2748,7 +2748,7 @@ Output:
 Element: 20
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### operator func \[](Int64, T)
 
@@ -2796,7 +2796,7 @@ Array after setting index 2 to 100: [1, 2, 100, 4, 5]
 Array after setting index 0 to -1: [-1, 2, 100, 4, 5]
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### operator func \[](Int64, T)
 
 ```cangjie
@@ -2837,7 +2837,7 @@ Output:
 After set: 20
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### operator func \[](Range\<Int64>)
 
@@ -2885,7 +2885,7 @@ Execution Result:
 [1, 2, 10]
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### operator func \[](Range\<Int64>)
 
 ```cangjie
@@ -2934,9 +2934,9 @@ Output:
 Slice size: 3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### operator func \[](Range\<Int64>)
 
 ```cangjie
@@ -2985,7 +2985,7 @@ Output:
 Slice size: 3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### operator func \[](Range\<Int64>, Array\<T>)
 
@@ -3031,7 +3031,7 @@ Execution Result:
 [0, 10, 11, 3, 4, 5]
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### operator func \[](Range\<Int64>, Array\<T>)
 
 ```cangjie
@@ -3074,7 +3074,7 @@ Output:
 After set: 10 11
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend\<T> Array\<T>
 
@@ -3115,6 +3115,7 @@ Parameters:
 Returns:
 
 - [Array](core_package_structs.md#struct-arrayt)\<(T, R)> - Returns a new array.
+
 ### extend\<T> Array\<T> <: Collection\<T>
 
 ```cangjie
@@ -3172,7 +3173,7 @@ String array: [Hello, World, Cangjie, Language]
 Size of string array: 4
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### prop size
 
 ```cangjie
@@ -3204,7 +3205,7 @@ Output:
 Size of local array: 5
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 #### func isEmpty()
 
@@ -3253,7 +3254,7 @@ String array: [Hello, World]
 Is string array empty? false
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func isEmpty()
 
 ```cangjie
@@ -3294,7 +3295,7 @@ arr isEmpty=false
 empty isEmpty=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 #### func iterator()
 
@@ -3362,7 +3363,7 @@ Element: World
 Element: Cangjie
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func iterator()
 
 ```cangjie
@@ -3404,9 +3405,9 @@ Output:
 first=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### func iterator()
 
 ```cangjie
@@ -3448,7 +3449,7 @@ Output:
 first=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 #### func toArray()
 
@@ -3513,7 +3514,7 @@ Original string array: [Hello, World, Cangjie]
 Copied string array: [Hi, World, Cangjie]
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func toArray()
 
 ```cangjie
@@ -3552,9 +3553,9 @@ Output:
 toArray size: 3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### func toArray()
 
 ```cangjie
@@ -3593,7 +3594,7 @@ Output:
 toArray size: 3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend\<T> Array\<T> <: Equatable\<Array\<T>> where T <: Equatable\<T>
 
@@ -3678,7 +3679,7 @@ Output:
 Some(1)
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func indexOf(Array\<T>)
 
 ```cangjie
@@ -3721,7 +3722,7 @@ Output:
 idx=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 #### func indexOf(Array\<T>, Int64)
 
@@ -3760,7 +3761,7 @@ Output:
 Some(4)
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func indexOf(Array\<T>, Int64)
 
 ```cangjie
@@ -3804,7 +3805,7 @@ Output:
 idx=3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 #### func indexOf(T)
 
@@ -3861,7 +3862,7 @@ String array: [Hello, World, Hello, Cangjie]
 First occurrence of "Hello": Some(0)
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func indexOf(T, Int64)
 
 ```cangjie
@@ -3905,7 +3906,7 @@ Output:
 idx=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 #### func indexOf(T, Int64)
 
@@ -4030,7 +4031,7 @@ Last occurrence of [2, 3]: Some(6)
 Last occurrence of [5, 6]: None
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func lastIndexOf(Array\<T>)
 
 ```cangjie
@@ -4073,7 +4074,7 @@ Output:
 idx=3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 #### func lastIndexOf(Array\<T>, Int64)
 
@@ -4124,7 +4125,7 @@ Last occurrence of [2, 3] starting from index 4: None
 Last occurrence of [2, 3] starting from index 2: Some(3)
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func lastIndexOf(Array\<T>, Int64)
 
 ```cangjie
@@ -4168,7 +4169,7 @@ Output:
 idx=3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 #### func lastIndexOf(T)
 
@@ -4225,7 +4226,7 @@ String array: [Hello, World, Hello, Cangjie, Hello]
 Last occurrence of "Hello": Some(4)
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func lastIndexOf(T)
 
 ```cangjie
@@ -4268,7 +4269,7 @@ Output:
 idx=3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 #### func lastIndexOf(T, Int64)
 
@@ -4328,7 +4329,7 @@ String array: [Hello, World, Hello, Cangjie, Hello]
 Last occurrence of "Hello" starting from index 2: Some(4)
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func lastIndexOf(T, Int64)
 
 ```cangjie
@@ -4372,7 +4373,7 @@ Output:
 idx=3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 #### func removePrefix(Array\<T>)
 
@@ -4771,213 +4772,7 @@ Function: Extends the [Array](core_package_structs.md#struct-arrayt)\<T> type wh
 
 Since T is a Copyable type, reading and writing elements on an `@local?` receiver is safe and requires no `exclave` context.
 
-<!--Del-->
-#### operator func \[](Int64, T)
-
-```cangjie
-public operator func [](this @local?, index: Int64, value!: T): Unit
-```
-
-Function: Sets the element at the specified index of the current `@local?` array to value.
-
-> **Note:**
->
-> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
-> - Platform not supported: OpenHarmony.
-
-Parameters:
-
-- this @local? - The receiver is an `@local?` instance.
-- index: [Int64](core_package_intrinsics.md#int64) - The index of the element to set.
-- value!: T - The element value to set.
-
-Exceptions:
-
-- [IndexOutOfBoundsException](core_package_exceptions.md#class-indexoutofboundsexception) - Throws an exception if index is less than 0 or greater than or equal to the array length.
-
-Example:
-
-<!-- verify -->
-```cangjie
-main() {
-    let arr: Array<Int64> @local? = [1, 2, 3]
-    arr[1] = 20
-    println("After set: ${arr[1]}")
-}
-```
-
-Output:
-
-```text
-After set: 20
-```
-
-<!--DelEnd-->
-
-<!--Del-->
-#### operator func \[](Range\<Int64>, Array\<T>)
-
-```cangjie
-public operator func [](this @local?, range: Range<Int64>, value!: Array<T> @local?): Unit
-```
-
-Function: Assigns the specified `@local?` array to a consecutive range of elements of the current `@local?` array.
-
-> **Note:**
->
-> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
-> - Platform not supported: OpenHarmony.
-
-Parameters:
-
-- this @local? - The receiver is an `@local?` instance.
-- range: [Range](core_package_structs.md#struct-ranget-where-t--countablet--comparablet--equatablet)\<[Int64](core_package_intrinsics.md#int64)> - The range to assign. The step of range is 1, and the size of the assignment range equals the size of value.
-- value!: [Array](core_package_structs.md#struct-arrayt)\<T> @local? - The `@local?` array used for assignment.
-
-Exceptions:
-
-- [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - Throws an exception if the step of range is not 1 or the length of range does not equal the length of value.
-- [IndexOutOfBoundsException](core_package_exceptions.md#class-indexoutofboundsexception) - Throws an exception if the array range represented by range is invalid.
-
-Example:
-
-<!-- verify -->
-```cangjie
-main() {
-    let arr: Array<Int64> @local? = [0, 1, 2, 3]
-    let value: Array<Int64> @local! = [10, 11]
-    arr[1..3] = value
-    println("After set: ${arr[1]} ${arr[2]}")
-}
-```
-
-Output:
-
-```text
-After set: 10 11
-```
-
-<!--DelEnd-->
-
-<!--Del-->
-#### func fill(T)
-
-```cangjie
-public func fill(this @local?, value: T): Unit
-```
-
-Function: Replaces all elements in the current `@local?` array with the specified value.
-
-> **Note:**
->
-> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
-> - Platform not supported: OpenHarmony.
-
-Parameters:
-
-- this @local? - The receiver is an `@local?` instance.
-- value: T - The target value to set.
-
-Example:
-
-<!-- verify -->
-```cangjie
-main() {
-    let arr: Array<Int64> @local? = [1, 2, 3]
-    arr.fill(0)
-    println("After fill: ${arr[0]} ${arr[1]} ${arr[2]}")
-}
-```
-
-Output:
-
-```text
-After fill: 0 0 0
-```
-
-<!--DelEnd-->
-
-<!--Del-->
-#### func swap(Int64, Int64)
-
-```cangjie
-public func swap(this @local?, index1: Int64, index2: Int64): Unit
-```
-
-Function: Swaps the elements at index1 and index2 in the current `@local?` array.
-
-> **Note:**
->
-> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
-> - Platform not supported: OpenHarmony.
-
-Parameters:
-
-- this @local? - The receiver is an `@local?` instance.
-- index1: [Int64](core_package_intrinsics.md#int64) - The first index of the elements to swap.
-- index2: [Int64](core_package_intrinsics.md#int64) - The second index of the elements to swap.
-
-Exceptions:
-
-- [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - index1 / index2 is less than 0 or greater than or equal to this.size.
-
-Example:
-
-<!-- verify -->
-```cangjie
-main() {
-    let arr: Array<Int64> @local? = [1, 2, 3, 4, 5]
-    arr.swap(1, 3)
-    println("After swapping: ${arr[1]} ${arr[3]}")
-}
-```
-
-Output:
-
-```text
-After swapping: 4 2
-```
-
-<!--DelEnd-->
-
-<!--Del-->
-#### func reverse()
-
-```cangjie
-public func reverse(this @local?): Unit
-```
-
-Function: Reverses the elements in the current `@local?` array.
-
-> **Note:**
->
-> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
-> - Platform not supported: OpenHarmony.
-
-Parameters:
-
-- this @local? - The receiver is an `@local?` instance.
-
-Example:
-
-<!-- verify -->
-```cangjie
-main() {
-    let arr: Array<Int64> @local? = [3, 1, 2]
-    arr.reverse()
-    println("After reverse: ${arr[0]} ${arr[2]}")
-}
-```
-
-Output:
-
-```text
-After reverse: 2 3
-```
-
-<!--DelEnd-->
-
-<!--Del-->
+<!--Del_sink-->
 #### func copyTo(Array\<T>)
 
 ```cangjie
@@ -5020,9 +4815,9 @@ Output:
 dst[2]=3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### func copyTo(Array\<T>, Int64, Int64, Int64)
 
 ```cangjie
@@ -5069,7 +4864,213 @@ Output:
 dst[3]=3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
+
+<!--Del_sink-->
+#### func fill(T)
+
+```cangjie
+public func fill(this @local?, value: T): Unit
+```
+
+Function: Replaces all elements in the current `@local?` array with the specified value.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local? - The receiver is an `@local?` instance.
+- value: T - The target value to set.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local? = [1, 2, 3]
+    arr.fill(0)
+    println("After fill: ${arr[0]} ${arr[1]} ${arr[2]}")
+}
+```
+
+Output:
+
+```text
+After fill: 0 0 0
+```
+
+<!--DelEnd_sink-->
+
+<!--Del_sink-->
+#### func reverse()
+
+```cangjie
+public func reverse(this @local?): Unit
+```
+
+Function: Reverses the elements in the current `@local?` array.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local? - The receiver is an `@local?` instance.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local? = [3, 1, 2]
+    arr.reverse()
+    println("After reverse: ${arr[0]} ${arr[2]}")
+}
+```
+
+Output:
+
+```text
+After reverse: 2 3
+```
+
+<!--DelEnd_sink-->
+
+<!--Del_sink-->
+#### func swap(Int64, Int64)
+
+```cangjie
+public func swap(this @local?, index1: Int64, index2: Int64): Unit
+```
+
+Function: Swaps the elements at index1 and index2 in the current `@local?` array.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local? - The receiver is an `@local?` instance.
+- index1: [Int64](core_package_intrinsics.md#int64) - The first index of the elements to swap.
+- index2: [Int64](core_package_intrinsics.md#int64) - The second index of the elements to swap.
+
+Exceptions:
+
+- [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - index1 / index2 is less than 0 or greater than or equal to this.size.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local? = [1, 2, 3, 4, 5]
+    arr.swap(1, 3)
+    println("After swapping: ${arr[1]} ${arr[3]}")
+}
+```
+
+Output:
+
+```text
+After swapping: 4 2
+```
+
+<!--DelEnd_sink-->
+
+<!--Del_sink-->
+#### operator func \[](Int64, T)
+
+```cangjie
+public operator func [](this @local?, index: Int64, value!: T): Unit
+```
+
+Function: Sets the element at the specified index of the current `@local?` array to value.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local? - The receiver is an `@local?` instance.
+- index: [Int64](core_package_intrinsics.md#int64) - The index of the element to set.
+- value!: T - The element value to set.
+
+Exceptions:
+
+- [IndexOutOfBoundsException](core_package_exceptions.md#class-indexoutofboundsexception) - Throws an exception if index is less than 0 or greater than or equal to the array length.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local? = [1, 2, 3]
+    arr[1] = 20
+    println("After set: ${arr[1]}")
+}
+```
+
+Output:
+
+```text
+After set: 20
+```
+
+<!--DelEnd_sink-->
+
+<!--Del_sink-->
+#### operator func \[](Range\<Int64>, Array\<T>)
+
+```cangjie
+public operator func [](this @local?, range: Range<Int64>, value!: Array<T> @local?): Unit
+```
+
+Function: Assigns the specified `@local?` array to a consecutive range of elements of the current `@local?` array.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Parameters:
+
+- this @local? - The receiver is an `@local?` instance.
+- range: [Range](core_package_structs.md#struct-ranget-where-t--countablet--comparablet--equatablet)\<[Int64](core_package_intrinsics.md#int64)> - The range to assign. The step of range is 1, and the size of the assignment range equals the size of value.
+- value!: [Array](core_package_structs.md#struct-arrayt)\<T> @local? - The `@local?` array used for assignment.
+
+Exceptions:
+
+- [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - Throws an exception if the step of range is not 1 or the length of range does not equal the length of value.
+- [IndexOutOfBoundsException](core_package_exceptions.md#class-indexoutofboundsexception) - Throws an exception if the array range represented by range is invalid.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let arr: Array<Int64> @local? = [0, 1, 2, 3]
+    let value: Array<Int64> @local! = [10, 11]
+    arr[1..3] = value
+    println("After set: ${arr[1]} ${arr[2]}")
+}
+```
+
+Output:
+
+```text
+After set: 10 11
+```
+
+<!--DelEnd_sink-->
 
 ### extend\<T> Array\<T> where T <: ToString
 
@@ -5139,7 +5140,7 @@ toString() result: [Hello, World, Cangjie]
 toString() result: [[1, 2], [3, 4], [5, 6]]
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func toString()
 
 ```cangjie
@@ -5180,7 +5181,7 @@ Output:
 [1, 2, 3]
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend\<T> Array\<Array\<T>>
 
@@ -7887,6 +7888,47 @@ Output:
 I like Cangjie
 ```
 
+### static func malloc\<T>(Int64) where T <: CType
+
+```cangjie
+public static func malloc<T>(count!: Int64 = 1): CPointer<T> where T <: CType
+```
+
+Function: Allocates a specified number of `T` instances on the heap and returns their starting pointer.
+
+The allocated memory length is [sizeOf](core_package_funcs.md#func-sizeoft-where-t--ctype)\<T>() * [count](../../collection/collection_package_api/collection_package_function.md#func-counttiterablet).
+
+Parameters:
+
+- count!: [Int64](core_package_intrinsics.md#int64) - An optional parameter, defaulting to 1, representing the number of T-type instances to allocate.
+
+Returns:
+
+- [CPointer](core_package_intrinsics.md#cpointert)\<T> - The allocated pointer of type T.
+
+Exceptions:
+
+- [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - Thrown when the input parameter is negative.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    var p = unsafe { LibC.malloc<Int64>(count: 1) }
+    unsafe { p.write(8) }
+    let value: Int64 = unsafe { p.read() }
+    println(value)
+    unsafe { LibC.free<Int64>(p) }
+}
+```
+
+Output:
+
+```text
+8
+```
+
 ### static func mallocCString(String)
 
 ```cangjie
@@ -7926,7 +7968,7 @@ Output:
 I like Cangjie
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### static func mallocCString(String)
 
 ```cangjie
@@ -7972,48 +8014,7 @@ Output:
 I like Cangjie
 ```
 
-<!--DelEnd-->
-
-### static func malloc\<T>(Int64) where T <: CType
-
-```cangjie
-public static func malloc<T>(count!: Int64 = 1): CPointer<T> where T <: CType
-```
-
-Function: Allocates a specified number of `T` instances on the heap and returns their starting pointer.
-
-The allocated memory length is [sizeOf](core_package_funcs.md#func-sizeoft-where-t--ctype)\<T>() * [count](../../collection/collection_package_api/collection_package_function.md#func-counttiterablet).
-
-Parameters:
-
-- count!: [Int64](core_package_intrinsics.md#int64) - An optional parameter, defaulting to 1, representing the number of T-type instances to allocate.
-
-Returns:
-
-- [CPointer](core_package_intrinsics.md#cpointert)\<T> - The allocated pointer of type T.
-
-Exceptions:
-
-- [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - Thrown when the input parameter is negative.
-
-Example:
-
-<!-- verify -->
-```cangjie
-main() {
-    var p = unsafe { LibC.malloc<Int64>(count: 1) }
-    unsafe { p.write(8) }
-    let value: Int64 = unsafe { p.read() }
-    println(value)
-    unsafe { LibC.free<Int64>(p) }
-}
-```
-
-Output:
-
-```text
-8
-```
+<!--DelEnd_sink-->
 
 ## struct Range\<T> where T <: Countable\<T> & Comparable\<T> & Equatable\<T>
 
@@ -8482,7 +8483,7 @@ Same range hash code: -1988359251787629792
 Same ranges have the same hash code
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -8524,9 +8525,9 @@ Output:
 same=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -8567,7 +8568,7 @@ Output:
 same=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ## struct String
 
@@ -8660,7 +8661,7 @@ String size (bytes): 13
 Empty string size: 0
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### prop size
 
 ```cangjie
@@ -8693,9 +8694,9 @@ Output:
 Local string size: 5
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-### init()
+### const init()
 
 ```cangjie
 public const init()
@@ -8724,6 +8725,38 @@ Output:
 String: ''
 String size (bytes): 0
 ```
+
+<!--Del_sink-->
+### const init()
+
+```cangjie
+public exclave const init(this @local!)
+```
+
+Function: Constructs an empty string in a local region.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let s: String @local! = String() @local!
+    println("Empty local string size: ${s.size}")
+}
+```
+
+Output:
+
+```text
+Empty local string size: 0
+```
+
+<!--DelEnd_sink-->
 
 ### init(Array\<Rune>)
 
@@ -8804,39 +8837,7 @@ String from Collection<Rune>: 'Hello 世界'
 String size: 12
 ```
 
-<!--Del-->
-### init()（const 修饰）
-
-```cangjie
-public exclave const init(this @local!)
-```
-
-Function: Constructs an empty string in a local region.
-
-> **Note:**
->
-> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
-> - Platform not supported: OpenHarmony.
-
-Example:
-
-<!-- verify -->
-```cangjie
-main() {
-    let s: String @local! = String() @local!
-    println("Empty local string size: ${s.size}")
-}
-```
-
-Output:
-
-```text
-Empty local string size: 0
-```
-
-<!--DelEnd-->
-
-<!--Del-->
+<!--Del_sink-->
 ### init(Array\<Rune>)
 
 ```cangjie
@@ -8877,9 +8878,9 @@ Output:
 Local string: 'ab'
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### init(Collection\<Rune>)
 
 ```cangjie
@@ -8925,9 +8926,9 @@ Output:
 Local string from collection: 'ab'
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### init(String)
 
 ```cangjie
@@ -8963,9 +8964,9 @@ Output:
 Copied local string: 'xyz'
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### init(String)
 
 ```cangjie
@@ -9000,7 +9001,7 @@ Output:
 Heap string: 'abc'
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### static func checkUtf8Encoding(Array\<UInt8>)
 
@@ -9061,7 +9062,7 @@ String from UTF-8 bytes: 'Hello 世界'
 String size: 12
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### static func fromUtf8(Array\<UInt8>)
 
 ```cangjie
@@ -9112,9 +9113,9 @@ Output:
 s='hi'
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### static func fromUtf8(Array\<UInt8>)
 
 ```cangjie
@@ -9158,7 +9159,7 @@ Output:
 s='hi'
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### static func fromUtf8Unchecked(Array\<UInt8>)
 
@@ -9205,7 +9206,7 @@ String from UTF-8 bytes (unchecked): 'Hello 世界'
 String size: 12
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### static func fromUtf8Unchecked(Array\<UInt8>)
 
 ```cangjie
@@ -9257,9 +9258,9 @@ Output:
 s='hi'
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### static func fromUtf8Unchecked(Array\<UInt8>)
 
 ```cangjie
@@ -9304,7 +9305,7 @@ Output:
 s='hi'
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### static func join(Array\<String>, String)
 
@@ -9344,7 +9345,7 @@ Output:
 I like Cangjie
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### static func join(Array\<String>, String)
 
 ```cangjie
@@ -9388,7 +9389,7 @@ Output:
 s=I like Cangjie
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### static func withRawData(Array\<UInt8>)
 
@@ -9423,7 +9424,7 @@ Exceptions:
 
 - [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - Thrown when attempting to construct a string whose length exceeds [the maximum value of UInt32](./core_package_intrinsics.md#uint32).
 
-<!--Del-->
+<!--Del_sink-->
 ### static func withRawData(Array\<UInt8>)
 
 ```cangjie
@@ -9466,7 +9467,7 @@ Output:
 s='hi'
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func clone()
 
@@ -9505,7 +9506,7 @@ Cloned string: 'Hello, 世界'
 Are they equal? true
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func clone()
 
 ```cangjie
@@ -9544,7 +9545,7 @@ Output:
 len=5
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func compare(String)
 
@@ -9595,7 +9596,7 @@ Comparing 'banana' to 'apple': Ordering.GT
 Comparing 'apple' to 'apple': Ordering.EQ
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func compare(String)
 
 ```cangjie
@@ -9638,7 +9639,7 @@ Output:
 cmp=Ordering.LT
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func contains(String)
 
@@ -9688,7 +9689,7 @@ Contains 'World': false
 Contains empty string: true
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func contains(String)
 
 ```cangjie
@@ -9731,7 +9732,7 @@ c2=false
 c3=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func count(String)
 
@@ -9836,7 +9837,7 @@ Empty string ends with empty string: true
 String 1 ends with empty string: true
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func endsWith(String)
 
 ```cangjie
@@ -9876,9 +9877,9 @@ Output:
 endsWith=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### func endsWith(String)
 
 ```cangjie
@@ -9918,7 +9919,7 @@ Output:
 endsWith=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func equalsIgnoreAsciiCase(String): Bool
 
@@ -9989,7 +9990,7 @@ Equals ignore case (str6, str7): true
 Equals ignore case (str1, str4): false
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func equalsIgnoreAsciiCase(String)
 
 ```cangjie
@@ -10029,7 +10030,7 @@ Output:
 ignoreCaseEq=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func get(Int64)
 
@@ -10076,7 +10077,7 @@ Byte at index 7: Some(228)
 Byte at index 100: None
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func get(Int64)
 
 ```cangjie
@@ -10119,7 +10120,7 @@ Output:
 b=97
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func hashCode()
 
@@ -10153,7 +10154,7 @@ Output:
 hashCode: -255291815105879447
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func hashCode()
 
 ```cangjie
@@ -10189,9 +10190,9 @@ Output:
 equal hash: true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### func hashCode()
 
 ```cangjie
@@ -10227,7 +10228,7 @@ Output:
 equal hash: true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func indexOf(Byte)
 
@@ -10427,7 +10428,7 @@ Index of 'llo' from index 5: Some(9)
 Index of 'World' from index 0: None
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func indexOf(Byte)
 
 ```cangjie
@@ -10470,9 +10471,9 @@ Index of 'l': Some(2)
 Index of 'z': None
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### func indexOf(String)
 
 ```cangjie
@@ -10515,7 +10516,7 @@ Index of 'Hello': Some(0)
 Index of 'World': None
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func isAscii()
 
@@ -10562,7 +10563,7 @@ String 3: '', is ASCII: true
 String 4: '123456', is ASCII: true
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func isAscii()
 
 ```cangjie
@@ -10603,7 +10604,7 @@ s1 isAscii=true
 s2 isAscii=false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func isAsciiBlank()
 
@@ -10658,7 +10659,7 @@ String 5: '
  ', is ASCII blank: true
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func isAsciiBlank()
 
 ```cangjie
@@ -10699,7 +10700,7 @@ s1 isAsciiBlank=true
 s2 isAsciiBlank=false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func isEmpty()
 
@@ -10742,7 +10743,7 @@ String 2: 'Hello', is empty: false
 String 3: ' ', is empty: false
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func isEmpty()
 
 ```cangjie
@@ -10783,7 +10784,7 @@ isEmpty=true
 isEmpty2=false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func iterator()
 
@@ -10819,7 +10820,7 @@ Output:
 99
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func iterator()
 
 ```cangjie
@@ -10861,9 +10862,9 @@ Output:
 first=72
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### func iterator()
 
 ```cangjie
@@ -10905,7 +10906,7 @@ Output:
 first=72
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func lastIndexOf(Byte)
 
@@ -11232,7 +11233,7 @@ like
 Cangjie
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func lines()
 
 ```cangjie
@@ -11275,9 +11276,9 @@ Output:
 line=a
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### func lines()
 
 ```cangjie
@@ -11320,7 +11321,7 @@ Output:
 line=a
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func padEnd(Int64, String)
 
@@ -11377,7 +11378,7 @@ Padded string 2: 'World     '
 String padded to smaller width: 'Hello'
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func padEnd(Int64, String)
 
 ```cangjie
@@ -11429,7 +11430,7 @@ Output:
 padded=700
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func padStart(Int64, String)
 
@@ -11486,7 +11487,7 @@ Padded string 2: '     World'
 String padded to smaller width: 'Hello'
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func padStart(Int64, String)
 
 ```cangjie
@@ -11538,7 +11539,7 @@ Output:
 padded=--Hi
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func rawData()
 
@@ -11597,7 +11598,7 @@ Raw data bytes:
   Index 12: 140
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func rawData()
 
 ```cangjie
@@ -11637,9 +11638,9 @@ Output:
 size=2 first=104
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### func rawData()
 
 ```cangjie
@@ -11679,7 +11680,7 @@ Output:
 size=2 first=104
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func removePrefix(String)
 
@@ -11737,7 +11738,7 @@ Original string 1: 'Hello, World'
 After removing 'World': 'Hello, World'
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func removePrefix(String)
 
 ```cangjie
@@ -11779,7 +11780,7 @@ Output:
 removed=b
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func removeSuffix(String)
 
@@ -11837,7 +11838,7 @@ Original string 1: 'Hello, World'
 After removing 'Hello': 'Hello, World'
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func removeSuffix(String)
 
 ```cangjie
@@ -11879,7 +11880,7 @@ Output:
 removed=a
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func replace(String, String)
 
@@ -11942,7 +11943,7 @@ Original string 1: 'Hello, World'
 After replacing 'Hello' with empty string: ', World'
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func replace(String, String)
 
 ```cangjie
@@ -11988,7 +11989,7 @@ Output:
 replaced=Hello, Cangjie
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func runes()
 
@@ -12049,8 +12050,8 @@ Runes:
   Index 8: 界
 ```
 
-<!--Del-->
-#### func runes()
+<!--Del_sink-->
+### func runes()
 
 ```cangjie
 public exclave func runes(this @local!): Iterator<Rune> @local!
@@ -12091,10 +12092,10 @@ Output:
 r=a
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
-#### func runes()
+<!--Del_sink-->
+### func runes()
 
 ```cangjie
 public exclave func runes(this @local?): Iterator<Rune> @local?
@@ -12135,7 +12136,7 @@ Output:
 r=a
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func split(String, Bool)
 
@@ -12271,8 +12272,8 @@ Split with maxSplits = -1:
   Element 4: 'five'
 ```
 
-<!--Del-->
-#### func split(String, removeEmpty!)
+<!--Del_sink-->
+### func split(String, removeEmpty!)
 
 ```cangjie
 public exclave func split(this @local!, str: String @local?, removeEmpty!: Bool = false): Array<String> @local!
@@ -12318,10 +12319,10 @@ Output:
 n=3 last=c
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
-#### func split(String, Int64, removeEmpty!)
+<!--Del_sink-->
+### func split(String, Int64, removeEmpty!)
 
 ```cangjie
 public exclave func split(this @local!, str: String @local?, maxSplits: Int64, removeEmpty!: Bool = false): Array<String> @local!
@@ -12373,7 +12374,7 @@ Output:
 n=3 last=three,four
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func startsWith(String)
 
@@ -12433,7 +12434,7 @@ Empty string starts with empty string: true
 String 1 starts with empty string: true
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func startsWith(String)
 
 ```cangjie
@@ -12473,9 +12474,9 @@ Output:
 startsWith=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### func startsWith(String)
 
 ```cangjie
@@ -12515,7 +12516,7 @@ Output:
 startsWith=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func toArray()
 
@@ -12567,7 +12568,7 @@ Byte array elements:
   Index 12: 140
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func toArray()
 
 ```cangjie
@@ -12606,9 +12607,9 @@ Output:
 n=2 b0=104
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### func toArray()
 
 ```cangjie
@@ -12647,7 +12648,7 @@ Output:
 n=2 b0=104
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func toAsciiLower()
 
@@ -12705,7 +12706,7 @@ Original string 4: '你好World'
 To ASCII lower 4: '你好world'
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func toAsciiLower()
 
 ```cangjie
@@ -12744,7 +12745,7 @@ Output:
 lower=abc
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func toAsciiTitle()
 
@@ -12804,7 +12805,7 @@ Original string 4: '你好world'
 To ASCII title 4: '你好World'
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func toAsciiTitle()
 
 ```cangjie
@@ -12843,7 +12844,7 @@ Output:
 title=Hello World
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func toAsciiUpper()
 
@@ -12901,7 +12902,7 @@ Original string 4: '你好world'
 To ASCII upper 4: '你好WORLD'
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func toAsciiUpper()
 
 ```cangjie
@@ -12940,7 +12941,7 @@ Output:
 upper=ABC
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func toRuneArray()
 
@@ -12991,7 +12992,7 @@ Rune array elements:
   Index 8: 界
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func toRuneArray()
 
 ```cangjie
@@ -13030,7 +13031,7 @@ Output:
 n=2 r0=a
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func toString()
 
@@ -13069,7 +13070,7 @@ String from toString(): 'Hello, World'
 Are they equal? true
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func toString()
 
 ```cangjie
@@ -13112,7 +13113,7 @@ Output:
 abc
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func trimAscii()
 
@@ -13185,7 +13186,7 @@ Original string 4: '
 Trimmed string 4: ''
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func trimAscii()
 
 ```cangjie
@@ -13224,7 +13225,7 @@ Output:
 t=Hello len=5
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func trimAsciiEnd()
 
@@ -13288,7 +13289,7 @@ Original string 4: '
 Trimmed end string 4: ''
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func trimAsciiEnd()
 
 ```cangjie
@@ -13327,7 +13328,7 @@ Output:
 e=' Hello' len=6
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func trimAsciiStart()
 
@@ -13391,7 +13392,7 @@ Original string 4: '
 Trimmed start string 4: ''
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func trimAsciiStart()
 
 ```cangjie
@@ -13430,7 +13431,7 @@ Output:
 p='Hello ' len=6
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func trimEnd((Rune)->Bool)
 
@@ -14165,7 +14166,7 @@ str[0..5]: 'Hello'
 str[7..]: '世界'
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### operator func \[](Int64)
 
 ```cangjie
@@ -14208,9 +14209,9 @@ Output:
 b=97
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### operator func \[](Range\<Int64>)
 
 ```cangjie
@@ -14259,9 +14260,9 @@ Output:
 slice=el
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### operator func \[](Range\<Int64>)
 
 ```cangjie
@@ -14310,9 +14311,9 @@ Output:
 slice=el
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### operator func ==(String)
 
 ```cangjie
@@ -14352,9 +14353,9 @@ Output:
 eq=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### operator func ==(String)
 
 ```cangjie
@@ -14394,9 +14395,9 @@ Output:
 eq=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### operator func !=(String)
 
 ```cangjie
@@ -14436,9 +14437,9 @@ Output:
 ne=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### operator func !=(String)
 
 ```cangjie
@@ -14478,9 +14479,9 @@ Output:
 ne=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### operator func <(String)
 
 ```cangjie
@@ -14520,9 +14521,9 @@ Output:
 lt=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### operator func <=(String)
 
 ```cangjie
@@ -14562,9 +14563,9 @@ Output:
 le=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### operator func >(String)
 
 ```cangjie
@@ -14604,9 +14605,9 @@ Output:
 gt=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### operator func >=(String)
 
 ```cangjie
@@ -14646,9 +14647,9 @@ Output:
 ge=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### operator func +(String)
 
 ```cangjie
@@ -14692,9 +14693,9 @@ Output:
 cat=Hello!
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### operator func *(Int64)
 
 ```cangjie
@@ -14738,4 +14739,4 @@ Output:
 rep=abab
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->

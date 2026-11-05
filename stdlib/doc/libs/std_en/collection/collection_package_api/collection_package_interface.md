@@ -139,7 +139,7 @@ Returns:
 
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - Returns true if the element is present, otherwise false.
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func contains(Collection\<T>)
 
@@ -190,9 +190,9 @@ Output:
 all=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func contains(T)
 
@@ -240,7 +240,7 @@ Output:
 has1=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ## interface List\<T>
 
@@ -315,7 +315,7 @@ Parameters:
 - element: T - The element of type T to be inserted.
 - at!: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - The target index for insertion.
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func add(Collection\<T>)
 
@@ -365,9 +365,9 @@ size=3
 at1=2
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func add(Collection\<T>, Int64)
 
@@ -420,9 +420,9 @@ size=5
 at1=2
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func add(T)
 
@@ -467,9 +467,9 @@ Output:
 size=2
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func add(T, Int64)
 
@@ -518,7 +518,7 @@ size=3
 at1=2
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func clear()
 
@@ -528,7 +528,7 @@ func clear(): Unit
 
 Function: Removes all elements from this list.
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func clear()
 
@@ -573,7 +573,7 @@ Output:
 size=0
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func remove(Int64)
 
@@ -603,7 +603,7 @@ Parameter:
 
 - range: [Range](../../core/core_package_api/core_package_structs.md#struct-ranget-where-t--countablet--comparablet--equatablet)\<[Int64](../../core/core_package_api/core_package_intrinsics.md#int64)> - The range of elements to be removed.
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func remove(Int64)
 
@@ -656,9 +656,9 @@ removed=2
 size=2
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func remove(Range\<Int64>)
 
@@ -709,7 +709,7 @@ size=3
 at1=3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func removeIf((T) -> Bool)
 
@@ -723,7 +723,7 @@ Parameter:
 
 - predicate: (T) ->[Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - The condition predicate for removal.
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func removeIf((T) -> Bool)
 
@@ -773,7 +773,7 @@ size=2
 first=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### operator func \[](Int64, T)
 
@@ -788,7 +788,7 @@ Parameters:
 - index: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - The index value to set.
 - value!: T - The value of type T to set.
 
-<!--Del-->
+<!--Del_sink-->
 
 ### operator func [](Int64, T)
 
@@ -834,7 +834,7 @@ Output:
 at1=25
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ## interface Map\<K, V>
 
@@ -890,7 +890,7 @@ Returns:
 
 - ?V - Returns the old value if the key previously existed, otherwise returns None.
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func add(Collection\<(K, V)>)
 
@@ -937,9 +937,9 @@ Output:
 size=2
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func add(K, V)
 
@@ -999,7 +999,7 @@ prev=100
 size=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func addIfAbsent(K, V)
 
@@ -1018,7 +1018,7 @@ Returns:
 
 - ?V - Returns the old value if the key was already present in the map, otherwise returns None.
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func addIfAbsent(K, V)
 
@@ -1079,7 +1079,7 @@ absent=none
 size=2
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func clear()
 
@@ -1089,7 +1089,7 @@ func clear(): Unit
 
 Function: Clears all key-value pairs.
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func clear()
 
@@ -1134,7 +1134,7 @@ Output:
 size=0
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func entryView(K)
 
@@ -1152,7 +1152,7 @@ Returns:
 
 - [MapEntryView](#interface-mapentryviewk-v)\<K, V> - The view corresponding to key k.
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func entryView(K)
 
@@ -1200,9 +1200,9 @@ Output:
 hasValue=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func entryView(K)
 
@@ -1255,7 +1255,7 @@ Output:
 caught UnimplementedException
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func remove(Collection\<K>)
 
@@ -1285,7 +1285,7 @@ Returns:
 
 - [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)\<V> - The value associated with the removed key, wrapped in Option.
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func remove(Collection\<K>)
 
@@ -1335,9 +1335,9 @@ Output:
 size=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func remove(K)
 
@@ -1391,7 +1391,7 @@ removed=100
 size=0
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func removeIf((K, V) -> Bool)
 
@@ -1405,7 +1405,7 @@ Parameter:
 
 - predicate: (K, V) ->[Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - The condition predicate for removal.
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func removeIf((K, V) -> Bool)
 
@@ -1452,7 +1452,7 @@ Output:
 size=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func replace(K, V)
 
@@ -1471,7 +1471,7 @@ Returns:
 
 - ?V - Returns the old value if the key was present in the map, otherwise returns None.
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func replace(K, V)
 
@@ -1532,7 +1532,7 @@ absent=none
 size=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### operator func \[](K, V)
 
@@ -1547,7 +1547,7 @@ Parameters:
 - key: K - The key to be set.
 - value!: V - The value to be set.
 
-<!--Del-->
+<!--Del_sink-->
 
 ### operator func [](K, V)
 
@@ -1594,7 +1594,7 @@ size=1
 v=100
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ## interface MapEntryView\<K, V>
 
@@ -1641,7 +1641,7 @@ Output:
 key=a
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### prop key
 
@@ -1682,7 +1682,7 @@ Output:
 key=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### prop value
 
@@ -1690,9 +1690,9 @@ key=1
 public mut prop value: ?V
 ```
 
-Function: Reads or modifies the value corresponding to the view in the original map.  
+Function: Reads or modifies the value corresponding to the view in the original map.
 
-When setting a non-null value, if the view's value does not exist, a new element will be added to the original map corresponding to this view.  
+When setting a non-null value, if the view's value does not exist, a new element will be added to the original map corresponding to this view.
 When set to `None`, the current Entry will be deleted. After deletion, the view can still be used.
 
 Type: ?V
@@ -1727,7 +1727,7 @@ value=1
 after=2
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### prop value
 
@@ -1775,7 +1775,7 @@ v=200
 size=0
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ## interface OrderedMap\<K, V>
 
@@ -1819,30 +1819,6 @@ Function: Gets the last element of the [OrderedMap](./collection_package_interfa
 
 Type: ?(K, V)
 
-### func removeFirst()
-
-```cangjie
-public func removeFirst(): ?(K, V)
-```
-
-Function: Removes the first element of the [OrderedMap](./collection_package_interface.md#interface-orderedmapk-v).
-
-Returns:
-
-- ?(K, V) - If the current [OrderedMap](./collection_package_interface.md#interface-orderedmapk-v) is not empty, returns the removed key-value pair encapsulated in [Option](../../core/core_package_api/core_package_enums.md#enum-optiont); otherwise, returns `None`.
-
-### func removeLast()
-
-```cangjie
-public func removeLast(): ?(K, V)
-```
-
-Function: Removes the last element of the [OrderedMap](./collection_package_interface.md#interface-orderedmapk-v).
-
-Returns:
-
-- ?(K, V) - If the current [OrderedMap](./collection_package_interface.md#interface-orderedmapk-v) is not empty, returns the removed key-value pair encapsulated in [Option](../../core/core_package_api/core_package_enums.md#enum-optiont); otherwise, returns `None`.
-
 ### func backward(K, Bool)
 
 ```cangjie
@@ -1876,6 +1852,30 @@ Parameters:
 Returns:
 
 - [Iterator](../../core/core_package_api/core_package_classes.md#class-iteratort)\<(K, V)> - The iterator.
+
+### func removeFirst()
+
+```cangjie
+public func removeFirst(): ?(K, V)
+```
+
+Function: Removes the first element of the [OrderedMap](./collection_package_interface.md#interface-orderedmapk-v).
+
+Returns:
+
+- ?(K, V) - If the current [OrderedMap](./collection_package_interface.md#interface-orderedmapk-v) is not empty, returns the removed key-value pair encapsulated in [Option](../../core/core_package_api/core_package_enums.md#enum-optiont); otherwise, returns `None`.
+
+### func removeLast()
+
+```cangjie
+public func removeLast(): ?(K, V)
+```
+
+Function: Removes the last element of the [OrderedMap](./collection_package_interface.md#interface-orderedmapk-v).
+
+Returns:
+
+- ?(K, V) - If the current [OrderedMap](./collection_package_interface.md#interface-orderedmapk-v) is not empty, returns the removed key-value pair encapsulated in [Option](../../core/core_package_api/core_package_enums.md#enum-optiont); otherwise, returns `None`.
 
 ## interface OrderedSet\<T>
 
@@ -1919,30 +1919,6 @@ Function: Gets the last element of the [OrderedSet](collection_package_interface
 
 Type: ?T
 
-### func removeFirst()
-
-```cangjie
-public func removeFirst(): ?T
-```
-
-Function: Removes the first element of the [OrderedSet](collection_package_interface.md#interface-orderedsett).
-
-Returns:
-
-- ?T - If the current [OrderedSet](collection_package_interface.md#interface-orderedsett) is not empty, returns the removed element encapsulated in [Option](../../core/core_package_api/core_package_enums.md#enum-optiont); otherwise, returns `None`.
-
-### func removeLast()
-
-```cangjie
-public func removeLast(): ?T
-```
-
-Function: Removes the last element of the [OrderedSet](collection_package_interface.md#interface-orderedsett).
-
-Returns:
-
-- ?T - If the current [OrderedSet](collection_package_interface.md#interface-orderedsett) is not empty, returns the removed element encapsulated in [Option](../../core/core_package_api/core_package_enums.md#enum-optiont); otherwise, returns `None`.
-
 ### func backward(T, Bool)
 
 ```cangjie
@@ -1976,6 +1952,30 @@ Parameters:
 Returns:
 
 - [Iterator](../../core/core_package_api/core_package_classes.md#class-iteratort)\<T> - The iterator.
+
+### func removeFirst()
+
+```cangjie
+public func removeFirst(): ?T
+```
+
+Function: Removes the first element of the [OrderedSet](collection_package_interface.md#interface-orderedsett).
+
+Returns:
+
+- ?T - If the current [OrderedSet](collection_package_interface.md#interface-orderedsett) is not empty, returns the removed element encapsulated in [Option](../../core/core_package_api/core_package_enums.md#enum-optiont); otherwise, returns `None`.
+
+### func removeLast()
+
+```cangjie
+public func removeLast(): ?T
+```
+
+Function: Removes the last element of the [OrderedSet](collection_package_interface.md#interface-orderedsett).
+
+Returns:
+
+- ?T - If the current [OrderedSet](collection_package_interface.md#interface-orderedsett) is not empty, returns the removed element encapsulated in [Option](../../core/core_package_api/core_package_enums.md#enum-optiont); otherwise, returns `None`.
 
 ## interface Queue\<T>
 
@@ -2087,7 +2087,7 @@ Output:
 first=1
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### prop first
 
@@ -2133,9 +2133,9 @@ Output:
 first=10
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### prop first
 
@@ -2181,7 +2181,7 @@ Output:
 first=10
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### prop last
 
@@ -2219,7 +2219,7 @@ Output:
 last=3
 ```
 
-<!--Del-->
+<!--Del_sink-->
 
 ### prop last
 
@@ -2265,9 +2265,9 @@ Output:
 last=20
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### prop last
 
@@ -2313,7 +2313,7 @@ Output:
 last=20
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func get(Int64)
 
@@ -2331,7 +2331,7 @@ Returns:
 
 - ?T - The element at the specified position. If the index is less than 0 or greater than or equal to the number of elements in this list, returns None.
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func get(Int64)
 
@@ -2390,9 +2390,9 @@ g0=10
 g5=none
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func get(Int64)
 
@@ -2445,7 +2445,7 @@ Output:
 g1=20
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### operator func \[](Int64)
 
@@ -2463,7 +2463,7 @@ Returns:
 
 - T - The value of the element at the specified index.
 
-<!--Del-->
+<!--Del_sink-->
 
 ### operator func [](Int64)
 
@@ -2512,9 +2512,9 @@ Output:
 idx1=20
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### operator func [](Int64)
 
@@ -2563,7 +2563,7 @@ Output:
 idx1=20
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ## interface ReadOnlyMap\<K, V>
 
@@ -2619,7 +2619,7 @@ Returns:
 
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - Returns true if the key exists; otherwise, returns false.
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func contains(Collection\<K>)
 
@@ -2670,9 +2670,9 @@ Output:
 all=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func contains(K)
 
@@ -2721,7 +2721,7 @@ Output:
 has1=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func get(K)
 
@@ -2739,7 +2739,7 @@ Returns:
 
 - ?V - The value corresponding to the key in the [ReadOnlyMap](collection_package_interface.md#interface-readonlymapk-v).
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func get(K)
 
@@ -2797,9 +2797,9 @@ g1=100
 g9=none
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func get(K)
 
@@ -2852,7 +2852,7 @@ Output:
 g1=100
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func keys()
 
@@ -2866,7 +2866,7 @@ Returns:
 
 - [EquatableCollection](collection_package_interface.md#interface-equatablecollectiont)\<K> - Contains all returned keys.
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func keys()
 
@@ -2914,9 +2914,9 @@ Output:
 has1=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func keys()
 
@@ -2965,7 +2965,7 @@ Output:
 has1=true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### func values()
 
@@ -2979,7 +2979,7 @@ Returns:
 
 - [Collection](../../core/core_package_api/core_package_interfaces.md#interface-collectiont)\<V> - Contains all returned values.
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func values()
 
@@ -3027,9 +3027,9 @@ Output:
 empty=false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func values()
 
@@ -3078,7 +3078,7 @@ Output:
 empty=false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### operator func \[](K)
 
@@ -3096,7 +3096,7 @@ Returns:
 
 - V - The value corresponding to the key.
 
-<!--Del-->
+<!--Del_sink-->
 
 ### operator func [](K)
 
@@ -3144,9 +3144,9 @@ Output:
 v=100
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### operator func [](K)
 
@@ -3195,7 +3195,7 @@ Output:
 v=10
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ## interface ReadOnlySet\<T>
 
@@ -3311,6 +3311,14 @@ Parameters:
 
 - all!: [Collection](../../core/core_package_api/core_package_interfaces.md#interface-collectiont)\<T> - The collection of elements to be added.
 
+### func clear()
+
+```cangjie
+func clear(): Unit
+```
+
+Description: Clears all key-value pairs.
+
 ### func remove(T)
 
 ```cangjie
@@ -3350,14 +3358,6 @@ Description: Takes a lambda expression and removes elements that satisfy the `tr
 Parameters:
 
 - predicate: (T) ->[Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - A lambda expression for evaluation.
-
-### func clear()
-
-```cangjie
-func clear(): Unit
-```
-
-Description: Clears all key-value pairs.
 
 ### func retain(Set\<T>)
 

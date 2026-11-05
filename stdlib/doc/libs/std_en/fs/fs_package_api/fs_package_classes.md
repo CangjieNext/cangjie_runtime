@@ -291,7 +291,7 @@ Function: Retrieves the byte count of data from the file header to the file tail
 
 Type: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64)
 
-<!--Del-->
+<!--Del_sink-->
 ### prop length
 
 ```cangjie
@@ -340,7 +340,7 @@ Output:
 File length: 3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### init(Path, OpenMode)
 
 ```cangjie
@@ -381,7 +381,7 @@ Exceptions:
 - [FSException](fs_package_exceptions.md#class-fsexception) - Throws an exception if the file does not exist when opened in read-only mode, the parent directory does not exist, or other reasons prevent file opening.
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Throws an exception if the path is an empty string or contains null characters.
 
-<!--Del-->
+<!--Del_sink-->
 ### init(String, OpenMode)
 
 ```cangjie
@@ -438,7 +438,7 @@ Output:
 Was the file created successfully? true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### static func appendTo(Path, Array\<Byte>)
 
 ```cangjie
@@ -525,7 +525,7 @@ public static func createTemp(directoryPath: Path): File
 
 Function: Creates a temporary file under the specified directory.
 
-<!--Del-->
+<!--Del_sink-->
 ### static func readFrom(String)
 
 ```cangjie
@@ -584,9 +584,9 @@ Bytes read: 3
 Content: 74, 75, 76
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### func close()
 
 ```cangjie
@@ -637,9 +637,9 @@ Output:
 File is closed after close: true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### func flush()
 
 ```cangjie
@@ -692,9 +692,9 @@ Output:
 File is open after flush: true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### func isClosed()
 
 ```cangjie
@@ -752,9 +752,9 @@ File is closed before close: false
 File is closed after close: true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### func read(Array\<Byte>)
 
 ```cangjie
@@ -823,9 +823,9 @@ Bytes read: 3
 Content: 89, 90, 91
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### func seek(SeekPosition)
 
 ```cangjie
@@ -904,7 +904,7 @@ Position after seek: 0
 First byte after seek: 65
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ## class HardLink
 

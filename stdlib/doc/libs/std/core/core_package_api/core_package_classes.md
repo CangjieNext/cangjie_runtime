@@ -86,7 +86,7 @@ main() {
 4
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func next()
 
 ```cangjie
@@ -133,9 +133,9 @@ next=2
 next=3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### func next()
 
 ```cangjie
@@ -182,7 +182,7 @@ next=2
 next=3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ## class Box\<T>
 
 ```cangjie
@@ -624,7 +624,7 @@ box3 hashCode: 100
 box1 and box2 have same hashCode: true
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -677,7 +677,7 @@ main() {
 caught: Current Type does not implement 'hashCode' method for its @local? instance
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### extend\<T> Box\<T> <: ToString where T <: ToString
 
 ```cangjie
@@ -982,7 +982,7 @@ public class MyIterator<T> <: Iterator<T> {
 抽象的子类完成了初始化
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### init()
 
 ```cangjie
@@ -1022,9 +1022,9 @@ public class MyIterator<T> <: Iterator<T> {
 局部迭代器初始化成功
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### init()
 
@@ -1066,7 +1066,7 @@ public class MyIterator<T> <: Iterator<T> {
 局部迭代器初始化成功
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### func iterator()
 
 ```cangjie
@@ -1114,7 +1114,7 @@ Iterators are the same object
 打印迭代器 iter2 的第四个元素: None
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func iterator()
 
 ```cangjie
@@ -1160,9 +1160,9 @@ refEq: true
 first=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func iterator()
 
@@ -1209,7 +1209,7 @@ refEq: true
 first=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### func next()
 
 ```cangjie
@@ -1251,7 +1251,7 @@ main(): Int64 {
 5
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func next()
 
 ```cangjie
@@ -1307,9 +1307,9 @@ public class MyIterator<T> <: Iterator<T> {
 caught: Current Iterator does not implement 'next' method for its @local! instance
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func next()
 
@@ -1367,7 +1367,7 @@ public class MyIterator<T> <: Iterator<T> {
 caught: Current Iterator does not implement 'next' method for its @local? instance
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### extend\<T> Iterator\<T>
 
 ```cangjie
@@ -2562,7 +2562,7 @@ public open class Object <: Any {
 
 - [Any](core_package_interfaces.md#interface-any)
 
-### init()
+### const init()
 
 ```cangjie
 public const init()
@@ -2580,8 +2580,8 @@ main(): Int64 {
 }
 ```
 
-<!--Del-->
-### init()
+<!--Del_sink-->
+### const init()
 
 ```cangjie
 public exclave const init(this @local!)
@@ -2614,11 +2614,11 @@ refEq(o1, o1): true
 refEq(o1, o2): false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
-### init()
+### const init()
 
 ```cangjie
 public exclave const init(this @local?)
@@ -2651,7 +2651,7 @@ refEq(o1, o1): true
 refEq(o1, o2): false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ## class RangeIterator\<T> <: Iterator\<T> where T <: Countable\<T> & Comparable\<T> & Equatable\<T>
 
 ```cangjie
@@ -3099,7 +3099,7 @@ Initial size: 0
 Initial content: ''
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### init()
 
 ```cangjie
@@ -3133,7 +3133,7 @@ main() {
 42
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### init(Array\<Rune>)
 
 ```cangjie
@@ -3315,7 +3315,7 @@ After append - Size: 22
 After append - Content: 'Hello, World! Welcome!'
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### init(Int64)
 
 ```cangjie
@@ -3357,7 +3357,7 @@ main() {
 42
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### func append(Array\<Rune>)
 
 ```cangjie
@@ -3823,7 +3823,7 @@ Content: 'Hello, World!'
 Size: 13
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func append(String)
 
 ```cangjie
@@ -3861,9 +3861,9 @@ main() {
 42
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func append(String)
 
@@ -3905,7 +3905,7 @@ main() {
 427
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### func append(StringBuilder)
 
 ```cangjie
@@ -4176,7 +4176,7 @@ Content: 'The answer is: 42'
 Size: 17
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func append\<T>(T) where T <: ToString
 
 ```cangjie
@@ -4214,7 +4214,7 @@ main() {
 123
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### func appendFromUtf8(Array\<Byte>)
 
 ```cangjie
@@ -4452,7 +4452,7 @@ Size: 13
 Type check: true
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func toString()
 
 ```cangjie
@@ -4495,7 +4495,7 @@ main() {
 42
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ## class Thread
 
 ```cangjie

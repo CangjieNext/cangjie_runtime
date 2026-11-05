@@ -43,7 +43,7 @@ Output:
 The first element of the array is 1
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ## func acquireArrayRawData\<T>(Array\<T>) where T <: CType
 
 ```cangjie
@@ -88,7 +88,7 @@ Output:
 The first element of the array is 1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ## func alignOf\<T>() where T <: CType
 
 ```cangjie
@@ -169,39 +169,6 @@ Output:
 NegativeArraySizeException is caught!
 ```
 
-## func eprintln(String)
-
-```cangjie
-public func eprintln(str: String): Unit
-```
-
-Function: Prints the specified string to the standard error text stream with a trailing newline.
-
-When an exception is thrown, the message will be printed to the standard error text stream (stderr) instead of standard output (stdout).
-
-Parameters:
-
-- str: [String](core_package_structs.md#struct-string) - The string to output.
-
-Example:
-
-<!-- verify -->
-```cangjie
-main() {
-    try {
-        throw NegativeArraySizeException("I am an Exception!")
-    } catch (e: NegativeArraySizeException) {
-        eprintln("NegativeArraySizeException is caught!")
-    }
-}
-```
-
-Output:
-
-```text
-NegativeArraySizeException is caught!
-```
-
 ## func eprint\<T>(T, Bool) where T <: ToString
 
 ```cangjie
@@ -251,6 +218,39 @@ Output:
 
 ```text
 width: 10, height: 20
+```
+
+## func eprintln(String)
+
+```cangjie
+public func eprintln(str: String): Unit
+```
+
+Function: Prints the specified string to the standard error text stream with a trailing newline.
+
+When an exception is thrown, the message will be printed to the standard error text stream (stderr) instead of standard output (stdout).
+
+Parameters:
+
+- str: [String](core_package_structs.md#struct-string) - The string to output.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    try {
+        throw NegativeArraySizeException("I am an Exception!")
+    } catch (e: NegativeArraySizeException) {
+        eprintln("NegativeArraySizeException is caught!")
+    }
+}
+```
+
+Output:
+
+```text
+NegativeArraySizeException is caught!
 ```
 
 ## func eprintln\<T>(T) where T <: ToString
@@ -870,7 +870,7 @@ Execution result:
 I like Cangjie
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ## func print(String, Bool)
 
 ```cangjie
@@ -907,7 +907,7 @@ Execution Result:
 123
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ## func print(UInt16, Bool)
 
 ```cangjie
@@ -1423,7 +1423,7 @@ I like Cangjie
 I like programming
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ## func println(String)
 
 ```cangjie
@@ -1458,7 +1458,7 @@ Execution Result:
 123
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ## func println(UInt16)
 
 ```cangjie
@@ -1695,7 +1695,7 @@ true
 false
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ## func refEq(Object, Object)
 
 ```cangjie
@@ -1742,7 +1742,7 @@ true
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ## func releaseArrayRawData\<T>(CPointerHandle\<T>) where T <: CType
 
 ```cangjie
@@ -1777,7 +1777,7 @@ Execution Result:
 The first element of the array is 1
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ## func releaseArrayRawData\<T>(CPointerHandle\<T>) where T <: CType
 
 ```cangjie
@@ -1816,7 +1816,7 @@ Execution Result:
 The first element of the array is 1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ## func sizeOf\<T>() where T <: CType
 
 ```cangjie

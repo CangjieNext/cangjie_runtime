@@ -525,46 +525,6 @@ byte2 (0x122) converted to uppercase: 0x90
 byte3 (0x48) converted to uppercase: 0x48 (unchanged)
 ```
 
-<!--Del-->
-## interface Copyable
-
-```cangjie
-public interface Copyable {}
-```
-
-Function: An empty interface that marks copyable types.
-
-Part of the local-mode extension families are constrained by `T <: Copyable` (for example, the `@local` member extensions of [Array](core_package_structs.md#struct-arrayt)); only types implementing this interface can use those local extension members.
-
-> **Note:**
->
-> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
-> - Platform not supported: OpenHarmony.
-
-Example:
-
-<!-- verify -->
-```cangjie
-main() {
-    // Int64 implements Copyable, enabling the constrained fill extension on a @local? array.
-    let arr: Array<Int64> @local? = [1, 2, 3]
-    arr.fill(0)
-    let f: Option<Int64> @local? = arr.first
-    match (f) {
-        case Some(v) => println("first=${v}")
-        case None => println("none")
-    }
-}
-```
-
-Output:
-
-```text
-first=0
-```
-
-<!--DelEnd-->
-
 ## interface CType
 
 ```cangjie
@@ -639,19 +599,7 @@ Returns:
 
 - [Bool](core_package_intrinsics.md#bool) - Returns `true` if empty, otherwise `false`.
 
-### func toArray()
-
-```cangjie
-func toArray(): Array<T>
-```
-
-Function: Converts the current collection to an array type.
-
-Returns:
-
-- [Array](core_package_structs.md#struct-arrayt)\<T> - The resulting array after conversion.
-
-<!--Del-->
+<!--Del_sink-->
 ### func isEmpty()
 
 ```cangjie
@@ -696,9 +644,21 @@ arr isEmpty: false
 empty isEmpty: true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+### func toArray()
+
+```cangjie
+func toArray(): Array<T>
+```
+
+Function: Converts the current collection to an array type.
+
+Returns:
+
+- [Array](core_package_structs.md#struct-arrayt)\<T> - The resulting array after conversion.
+
+<!--Del_sink-->
 ### func toArray()
 
 ```cangjie
@@ -742,9 +702,9 @@ Output:
 size=3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### func toArray()
 
 ```cangjie
@@ -790,7 +750,7 @@ Output:
 first=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ## interface Comparable\<T>
 
 ```cangjie
@@ -912,7 +872,7 @@ Returns:
 
 - [Bool](core_package_intrinsics.md#bool) - Returns `true` if greater than or equal, otherwise `false`.
 
-<!--Del-->
+<!--Del_sink-->
 ### func compare(T)
 
 ```cangjie
@@ -957,10 +917,10 @@ Output:
 compare: Ordering.LT
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
-### func ==(T)
+<!--Del_sink-->
+### operator func ==(T)
 
 ```cangjie
 operator func ==(this @local?, other: T @local?): Bool
@@ -1002,10 +962,10 @@ a == b: true
 a == c: false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
-### func <(T)
+<!--Del_sink-->
+### operator func <(T)
 
 ```cangjie
 operator func <(this @local?, other: T @local?): Bool
@@ -1046,10 +1006,10 @@ a < c: true
 c < a: false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
-### func >(T)
+<!--Del_sink-->
+### operator func >(T)
 
 ```cangjie
 operator func >(this @local?, other: T @local?): Bool
@@ -1090,10 +1050,10 @@ c > a: true
 a > c: false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
-### func <=(T)
+<!--Del_sink-->
+### operator func <=(T)
 
 ```cangjie
 operator func <=(this @local?, other: T @local?): Bool
@@ -1134,10 +1094,10 @@ a <= c: true
 c <= a: false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
-### func >=(T)
+<!--Del_sink-->
+### operator func >=(T)
 
 ```cangjie
 operator func >=(this @local?, other: T @local?): Bool
@@ -1178,7 +1138,48 @@ c >= a: true
 a >= c: false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
+
+<!--Del_sink-->
+## interface Copyable
+
+```cangjie
+public interface Copyable {}
+```
+
+Function: An empty interface that marks copyable types.
+
+Part of the local-mode extension families are constrained by `T <: Copyable` (for example, the `@local` member extensions of [Array](core_package_structs.md#struct-arrayt)); only types implementing this interface can use those local extension members.
+
+> **Note:**
+>
+> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
+> - Platform not supported: OpenHarmony.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    // Int64 implements Copyable, enabling the constrained fill extension on a @local? array.
+    let arr: Array<Int64> @local? = [1, 2, 3]
+    arr.fill(0)
+    let f: Option<Int64> @local? = arr.first
+    match (f) {
+        case Some(v) => println("first=${v}")
+        case None => println("none")
+    }
+}
+```
+
+Output:
+
+```text
+first=0
+```
+
+<!--DelEnd_sink-->
+
 ## interface Countable\<T>
 
 ```cangjie
@@ -1359,7 +1360,7 @@ Returns:
 
 - [Bool](core_package_intrinsics.md#bool) - Returns `true` if equal, otherwise `false`.
 
-<!--Del-->
+<!--Del_sink-->
 ### operator func ==(T)
 
 ```cangjie
@@ -1407,9 +1408,9 @@ Output:
 caught: Current Type does not implement '==' method for its @local! instance
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### operator func ==(T)
 
 ```cangjie
@@ -1459,7 +1460,7 @@ Output:
 caught: Current Type does not implement '==' method for its @local? instance
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ## interface Equatable\<T>
 
 ```cangjie
@@ -1495,8 +1496,7 @@ Returns:
 
 - [Bool](core_package_intrinsics.md#bool) - Returns `true` if not equal, otherwise `false`.
 
-
-<!--Del-->
+<!--Del_sink-->
 ### operator func !=(T)
 
 ```cangjie
@@ -1544,9 +1544,9 @@ Output:
 caught: Current Type does not implement '!=' method for its @local! instance
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### operator func !=(T)
 
 ```cangjie
@@ -1596,33 +1596,7 @@ Output:
 caught: Current Type does not implement '==' method for its @local? instance
 ```
 
-<!--DelEnd-->
-## interface GreaterOrEqual\<T>
-
-```cangjie
-public interface GreaterOrEqual<T> {
-    operator func >=(rhs: T): Bool
-}
-```
-
-Function: This interface represents the greater-than-or-equal-to operation.
-
-### operator func >=(T)
-
-```cangjie
-operator func >=(rhs: T): Bool
-```
-
-Function: Determines whether the current instance of type `T` is greater than or equal to the instance of type `T` pointed to by the parameter.
-
-Parameters:
-
-- rhs: T - Another instance to be compared with the current instance.
-
-Returns:
-
-- [Bool](core_package_intrinsics.md#bool) - Returns true if greater than or equal, otherwise returns false.
-
+<!--DelEnd_sink-->
 ## interface Greater\<T>
 
 ```cangjie
@@ -1649,6 +1623,32 @@ Returns:
 
 - [Bool](core_package_intrinsics.md#bool) - Returns true if greater, otherwise returns false.
 
+## interface GreaterOrEqual\<T>
+
+```cangjie
+public interface GreaterOrEqual<T> {
+    operator func >=(rhs: T): Bool
+}
+```
+
+Function: This interface represents the greater-than-or-equal-to operation.
+
+### operator func >=(T)
+
+```cangjie
+operator func >=(rhs: T): Bool
+```
+
+Function: Determines whether the current instance of type `T` is greater than or equal to the instance of type `T` pointed to by the parameter.
+
+Parameters:
+
+- rhs: T - Another instance to be compared with the current instance.
+
+Returns:
+
+- [Bool](core_package_intrinsics.md#bool) - Returns true if greater than or equal, otherwise returns false.
+
 ## interface Hashable
 
 ```cangjie
@@ -1673,7 +1673,7 @@ Returns:
 
 - [Int64](core_package_intrinsics.md#int64) - Returns the hash value of the instance type.
 
-<!--Del-->
+<!--Del_sink-->
 ### func hashCode()
 
 ```cangjie
@@ -1716,9 +1716,9 @@ Output:
 h=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### func hashCode()
 
 ```cangjie
@@ -1761,7 +1761,7 @@ Output:
 h=3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ## interface Hasher
 
 ```cangjie
@@ -2001,7 +2001,7 @@ Returns:
 
 - [Iterator](core_package_classes.md#class-iteratort)\<E> - The iterator.
 
-<!--Del-->
+<!--Del_sink-->
 ### func iterator()
 
 ```cangjie
@@ -2048,9 +2048,9 @@ Output:
 first=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### func iterator()
 
 ```cangjie
@@ -2097,33 +2097,7 @@ Output:
 first=1
 ```
 
-<!--DelEnd-->
-## interface LessOrEqual\<T>
-
-```cangjie
-public interface LessOrEqual<T> {
-    operator func <=(rhs: T): Bool
-}
-```
-
-Function: This interface represents the less-than-or-equal-to operation.
-
-### operator func <=(T)
-
-```cangjie
-operator func <=(rhs: T): Bool
-```
-
-Function: Determines whether the current instance of type `T` is less than or equal to the instance of type `T` pointed to by the parameter.
-
-Parameters:
-
-- rhs: T - Another instance to be compared with the current instance.
-
-Returns:
-
-- [Bool](core_package_intrinsics.md#bool) - Returns true if less than or equal, otherwise returns false.
-
+<!--DelEnd_sink-->
 ## interface Less\<T>
 
 ```cangjie
@@ -2149,6 +2123,32 @@ Parameters:
 Returns:
 
 - [Bool](core_package_intrinsics.md#bool) - Returns true if less, otherwise returns false.
+
+## interface LessOrEqual\<T>
+
+```cangjie
+public interface LessOrEqual<T> {
+    operator func <=(rhs: T): Bool
+}
+```
+
+Function: This interface represents the less-than-or-equal-to operation.
+
+### operator func <=(T)
+
+```cangjie
+operator func <=(rhs: T): Bool
+```
+
+Function: Determines whether the current instance of type `T` is less than or equal to the instance of type `T` pointed to by the parameter.
+
+Parameters:
+
+- rhs: T - Another instance to be compared with the current instance.
+
+Returns:
+
+- [Bool](core_package_intrinsics.md#bool) - Returns true if less than or equal, otherwise returns false.
 
 ## interface NotEqual\<T>
 
@@ -2176,7 +2176,7 @@ Returns:
 
 - [Bool](core_package_intrinsics.md#bool) - Returns true if not equal, otherwise returns false.
 
-<!--Del-->
+<!--Del_sink-->
 ### operator func !=(T)
 
 ```cangjie
@@ -2231,9 +2231,9 @@ Output:
 caught: Current Type does not implement '!=' method for its @local! instance
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### operator func !=(T)
 
 ```cangjie
@@ -2289,7 +2289,7 @@ Output:
 caught: Current Type does not implement '!=' method for its @local? instance
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ## interface Resource
 
 ```cangjie
@@ -2303,6 +2303,14 @@ Function: This interface is used for resource management, typically for closing 
 
 Types implementing this interface can achieve automatic resource release in `try-with-resource` syntax contexts.
 
+### func close()
+
+```cangjie
+func close(): Unit
+```
+
+Function: Closes the resource.
+
 ### func isClosed()
 
 ```cangjie
@@ -2315,13 +2323,7 @@ Returns:
 
 - [Bool](core_package_intrinsics.md#bool) - Returns true if already closed, otherwise returns false.
 
-### func close()
-
-```cangjie
-func close(): Unit
-```
-
-Function: Closes the resource.## interface ThreadContext
+## interface ThreadContext
 
 ```cangjie
 public interface ThreadContext {
@@ -2335,7 +2337,6 @@ Function: Cangjie thread context interface.
 When users create a `thread`, in addition to the default `spawn` expression parameters, they can also pass instances of different [ThreadContext](core_package_interfaces.md#interface-threadcontext) types to select different thread contexts, thereby controlling concurrent behavior to some extent.
 
 Currently, users are not allowed to implement the [ThreadContext](core_package_interfaces.md#interface-threadcontext) interface themselves. The Cangjie language provides `MainThreadContext` based on usage scenarios. For specific definitions, please refer to the terminal framework library.
-
 
 ### func end()
 
@@ -2378,7 +2379,7 @@ Function: Obtains the string representation of an instance type.
 Returns:
 
 - [String](core_package_structs.md#struct-string) - Returns the string representation of the instance type.
-<!--Del-->
+<!--Del_sink-->
 ### func toString()
 
 ```cangjie
@@ -2422,4 +2423,4 @@ Output:
 42
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->

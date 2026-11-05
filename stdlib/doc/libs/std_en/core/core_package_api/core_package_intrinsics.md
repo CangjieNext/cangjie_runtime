@@ -59,7 +59,7 @@ Execution result:
 1
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -94,9 +94,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -131,7 +131,7 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend Bool <: ToString
 
@@ -178,7 +178,7 @@ false
 true
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func toString()
 
 ```cangjie
@@ -213,7 +213,7 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ## CPointer\<T>
 
@@ -1660,7 +1660,7 @@ Output:
 Ordering.LT
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func compare(Float16)
 
 ```cangjie
@@ -1699,9 +1699,9 @@ Output:
 Ordering.LT
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func ==(Float16)
 
 ```cangjie
@@ -1740,9 +1740,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func ==(Float16)
 
 ```cangjie
@@ -1781,9 +1781,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func !=(Float16)
 
 ```cangjie
@@ -1822,9 +1822,9 @@ Output:
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func !=(Float16)
 
 ```cangjie
@@ -1863,9 +1863,9 @@ Output:
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func <(Float16)
 
 ```cangjie
@@ -1904,9 +1904,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func >(Float16)
 
 ```cangjie
@@ -1945,9 +1945,9 @@ Output:
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func <=(Float16)
 
 ```cangjie
@@ -1986,9 +1986,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func >=(Float16)
 
 ```cangjie
@@ -2027,7 +2027,7 @@ Output:
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend Float16
 
@@ -2153,7 +2153,7 @@ Hash value of 2.0f16: 396734039217596648
 Do equal values have the same hash: true
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -2188,9 +2188,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -2225,7 +2225,7 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend Float16 <: ToString
 
@@ -2284,7 +2284,7 @@ Execution Result:
 Is the converted type String: true
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func toString()
 
 ```cangjie
@@ -2319,7 +2319,7 @@ Output:
 1.500000
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ## Float32
 
@@ -2777,7 +2777,7 @@ Output:
 Ordering.LT
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func compare(Float32)
 
 ```cangjie
@@ -2816,9 +2816,9 @@ Output:
 Ordering.LT
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func ==(Float32)
 
 ```cangjie
@@ -2857,9 +2857,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func ==(Float32)
 
 ```cangjie
@@ -2898,9 +2898,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func !=(Float32)
 
 ```cangjie
@@ -2939,9 +2939,9 @@ Output:
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func !=(Float32)
 
 ```cangjie
@@ -2980,9 +2980,9 @@ Output:
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func <(Float32)
 
 ```cangjie
@@ -3021,9 +3021,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func >(Float32)
 
 ```cangjie
@@ -3062,9 +3062,9 @@ Output:
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func <=(Float32)
 
 ```cangjie
@@ -3103,9 +3103,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func >=(Float32)
 
 ```cangjie
@@ -3144,7 +3144,7 @@ Output:
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend Float32
 
@@ -3270,7 +3270,7 @@ Hash value of 2.0f32: 396734039217596648
 Do equal values have the same hash: true
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -3305,9 +3305,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -3342,7 +3342,7 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend Float32 <: ToString
 
@@ -3401,7 +3401,7 @@ Execution Result:
 Is converted type String: true
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func toString()
 
 ```cangjie
@@ -3436,7 +3436,7 @@ Output:
 1.500000
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ## Float64
 
@@ -3894,7 +3894,7 @@ Output:
 Ordering.LT
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func compare(Float64)
 
 ```cangjie
@@ -3933,9 +3933,9 @@ Output:
 Ordering.LT
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func ==(Float64)
 
 ```cangjie
@@ -3974,9 +3974,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func ==(Float64)
 
 ```cangjie
@@ -4015,9 +4015,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func !=(Float64)
 
 ```cangjie
@@ -4056,9 +4056,9 @@ Output:
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func !=(Float64)
 
 ```cangjie
@@ -4097,9 +4097,9 @@ Output:
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func <(Float64)
 
 ```cangjie
@@ -4138,9 +4138,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func >(Float64)
 
 ```cangjie
@@ -4179,9 +4179,9 @@ Output:
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func <=(Float64)
 
 ```cangjie
@@ -4220,9 +4220,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func >=(Float64)
 
 ```cangjie
@@ -4261,7 +4261,7 @@ Output:
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend Float64
 
@@ -4387,7 +4387,7 @@ Hash value of 2.0f64: 8889205371494514623
 Do equal values have the same hash: true
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -4422,9 +4422,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -4459,7 +4459,7 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend Float64 <: ToString
 
@@ -4518,7 +4518,7 @@ Execution result:
 Is converted type String: true
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func toString()
 
 ```cangjie
@@ -4553,7 +4553,7 @@ Output:
 1.500000
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ## Int16
 
@@ -4674,7 +4674,7 @@ Output:
 Ordering.LT
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func compare(Int16)
 
 ```cangjie
@@ -4713,9 +4713,9 @@ Output:
 Ordering.LT
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func ==(Int16)
 
 ```cangjie
@@ -4754,9 +4754,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func ==(Int16)
 
 ```cangjie
@@ -4795,9 +4795,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func !=(Int16)
 
 ```cangjie
@@ -4836,9 +4836,9 @@ Output:
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func !=(Int16)
 
 ```cangjie
@@ -4877,9 +4877,9 @@ Output:
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func <(Int16)
 
 ```cangjie
@@ -4918,9 +4918,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func >(Int16)
 
 ```cangjie
@@ -4959,9 +4959,9 @@ Output:
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func <=(Int16)
 
 ```cangjie
@@ -5000,9 +5000,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func >=(Int16)
 
 ```cangjie
@@ -5041,7 +5041,7 @@ Output:
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend Int16 <: Countable\<Int16>
 
@@ -5178,7 +5178,7 @@ Hash value of -100: -100
 Do equal values have the same hash: true
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -5213,9 +5213,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -5250,7 +5250,7 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend Int16 <: ToString
 
@@ -5309,7 +5309,7 @@ Output:
 Is converted type String: true
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func toString()
 
 ```cangjie
@@ -5344,7 +5344,7 @@ Output:
 100
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ## Int32
 
@@ -5465,7 +5465,7 @@ Output:
 Ordering.LT
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func compare(Int32)
 
 ```cangjie
@@ -5504,9 +5504,9 @@ Output:
 Ordering.LT
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func ==(Int32)
 
 ```cangjie
@@ -5545,9 +5545,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func ==(Int32)
 
 ```cangjie
@@ -5586,9 +5586,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func !=(Int32)
 
 ```cangjie
@@ -5627,9 +5627,9 @@ Output:
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func !=(Int32)
 
 ```cangjie
@@ -5668,9 +5668,9 @@ Output:
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func <(Int32)
 
 ```cangjie
@@ -5709,9 +5709,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func >(Int32)
 
 ```cangjie
@@ -5750,9 +5750,9 @@ Output:
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func <=(Int32)
 
 ```cangjie
@@ -5791,9 +5791,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func >=(Int32)
 
 ```cangjie
@@ -5832,7 +5832,7 @@ Output:
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend Int32 <: Countable\<Int32>
 
@@ -5963,7 +5963,7 @@ Hash value of -100: -100
 Do equal values have the same hash: true
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -5998,9 +5998,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -6035,7 +6035,7 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend Int32 <: ToString
 
@@ -6094,7 +6094,7 @@ Output:
 Is converted type String: true
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func toString()
 
 ```cangjie
@@ -6129,7 +6129,7 @@ Output:
 10
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ## Int64
 
@@ -6250,7 +6250,7 @@ Output:
 Ordering.LT
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func compare(Int64)
 
 ```cangjie
@@ -6289,9 +6289,9 @@ Output:
 Ordering.LT
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func ==(Int64)
 
 ```cangjie
@@ -6330,9 +6330,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func ==(Int64)
 
 ```cangjie
@@ -6371,9 +6371,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func !=(Int64)
 
 ```cangjie
@@ -6412,9 +6412,9 @@ Output:
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func !=(Int64)
 
 ```cangjie
@@ -6453,9 +6453,9 @@ Output:
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func <(Int64)
 
 ```cangjie
@@ -6494,9 +6494,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func >(Int64)
 
 ```cangjie
@@ -6535,9 +6535,9 @@ Output:
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func <=(Int64)
 
 ```cangjie
@@ -6576,9 +6576,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func >=(Int64)
 
 ```cangjie
@@ -6617,7 +6617,7 @@ Output:
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend Int64 <: Countable\<Int64>
 
@@ -6751,7 +6751,7 @@ Int64 value: 0
 hashCode: 0
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -6786,9 +6786,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -6823,7 +6823,7 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend Int64 <: ToString
 
@@ -6900,7 +6900,7 @@ Int64 minimum value: -9223372036854775808
 Converted string: -9223372036854775808
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func toString()
 
 ```cangjie
@@ -6935,7 +6935,7 @@ Output:
 10
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ## Int8
 
@@ -7056,7 +7056,7 @@ Output:
 Ordering.LT
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func compare(Int8)
 
 ```cangjie
@@ -7095,9 +7095,9 @@ Output:
 Ordering.LT
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func ==(Int8)
 
 ```cangjie
@@ -7136,9 +7136,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func ==(Int8)
 
 ```cangjie
@@ -7177,9 +7177,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func !=(Int8)
 
 ```cangjie
@@ -7218,9 +7218,9 @@ Output:
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func !=(Int8)
 
 ```cangjie
@@ -7259,9 +7259,9 @@ Output:
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func <(Int8)
 
 ```cangjie
@@ -7300,9 +7300,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func >(Int8)
 
 ```cangjie
@@ -7341,9 +7341,9 @@ Output:
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func <=(Int8)
 
 ```cangjie
@@ -7382,9 +7382,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func >=(Int8)
 
 ```cangjie
@@ -7423,7 +7423,7 @@ Output:
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend Int8 <: Countable\<Int8>
 
@@ -7572,7 +7572,7 @@ Int8 minimum value: -128
 hashCode: -128
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -7607,9 +7607,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -7644,7 +7644,7 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend Int8 <: ToString
 
@@ -7721,7 +7721,7 @@ Int8 minimum value: -128
 Converted to string: -128
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func toString()
 
 ```cangjie
@@ -7756,7 +7756,7 @@ Output:
 3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ## IntNative
 
@@ -7877,7 +7877,7 @@ Output:
 Ordering.LT
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func compare(IntNative)
 
 ```cangjie
@@ -7916,9 +7916,9 @@ Output:
 Ordering.LT
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func ==(IntNative)
 
 ```cangjie
@@ -7957,9 +7957,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func ==(IntNative)
 
 ```cangjie
@@ -7998,9 +7998,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func !=(IntNative)
 
 ```cangjie
@@ -8039,9 +8039,9 @@ Output:
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func !=(IntNative)
 
 ```cangjie
@@ -8080,9 +8080,9 @@ Output:
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func <(IntNative)
 
 ```cangjie
@@ -8121,9 +8121,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func >(IntNative)
 
 ```cangjie
@@ -8162,9 +8162,9 @@ Output:
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func <=(IntNative)
 
 ```cangjie
@@ -8203,9 +8203,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func >=(IntNative)
 
 ```cangjie
@@ -8244,7 +8244,7 @@ Output:
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend IntNative <: Countable\<IntNative>
 
@@ -8393,7 +8393,7 @@ IntNative minimum value: -9223372036854775808
 hashCode: -9223372036854775808
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -8428,9 +8428,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -8465,7 +8465,7 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend IntNative <: ToString
 
@@ -8542,7 +8542,7 @@ IntNative minimum value: -9223372036854775808
 Converted string: -9223372036854775808
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func toString()
 
 ```cangjie
@@ -8577,7 +8577,7 @@ Output:
 10
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ## Rune
 
@@ -8633,7 +8633,7 @@ A
 1
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### static func fromUtf8(Array\<UInt8>, Int64)
 
 ```cangjie
@@ -8679,7 +8679,7 @@ A
 1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 #### static func getPreviousFromUtf8(Array\<UInt8>, Int64)
 
@@ -8767,7 +8767,7 @@ Output:
 231
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### static func intoUtf8Array(Rune, Array\<UInt8>, Int64)
 
 ```cangjie
@@ -8814,7 +8814,7 @@ Output:
 231
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 #### static func utf8Size(Array\<UInt8>, Int64)
 
@@ -9419,7 +9419,7 @@ Output:
 Ordering.LT
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func compare(Rune)
 
 ```cangjie
@@ -9468,7 +9468,7 @@ Output:
 caught UnimplementedException
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend Rune <: Countable\<Rune>
 
@@ -9619,7 +9619,7 @@ Character: 爱
 Hash value: 29233
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -9654,9 +9654,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -9691,7 +9691,7 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend Rune <: ToString
 
@@ -9745,7 +9745,7 @@ Character: 爱
 Converted string: 爱
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func toString()
 
 ```cangjie
@@ -9780,7 +9780,7 @@ Output:
 A
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ## UInt16
 
@@ -9909,7 +9909,7 @@ Output:
 Ordering.LT
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func compare(UInt16)
 
 ```cangjie
@@ -9948,9 +9948,9 @@ Output:
 Ordering.LT
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func ==(UInt16)
 
 ```cangjie
@@ -9989,9 +9989,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func ==(UInt16)
 
 ```cangjie
@@ -10030,9 +10030,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func !=(UInt16)
 
 ```cangjie
@@ -10071,9 +10071,9 @@ Output:
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func !=(UInt16)
 
 ```cangjie
@@ -10112,9 +10112,9 @@ Output:
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func <(UInt16)
 
 ```cangjie
@@ -10153,9 +10153,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func >(UInt16)
 
 ```cangjie
@@ -10194,9 +10194,9 @@ Output:
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func <=(UInt16)
 
 ```cangjie
@@ -10235,9 +10235,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func >=(UInt16)
 
 ```cangjie
@@ -10276,7 +10276,7 @@ Output:
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend UInt16 <: Countable\<UInt16>
 
@@ -10402,7 +10402,7 @@ Maximum UInt16 value: 65535
 Hash value: 65535
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -10437,9 +10437,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -10474,7 +10474,7 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend UInt16 <: ToString
 
@@ -10528,7 +10528,7 @@ Maximum UInt16 value: 65535
 Converted string: 65535
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func toString()
 
 ```cangjie
@@ -10563,7 +10563,7 @@ Output:
 100
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ## UInt32
 
@@ -10674,7 +10674,7 @@ Output:
 Ordering.LT
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func compare(UInt32)
 
 ```cangjie
@@ -10713,9 +10713,9 @@ Output:
 Ordering.LT
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func ==(UInt32)
 
 ```cangjie
@@ -10754,9 +10754,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func ==(UInt32)
 
 ```cangjie
@@ -10795,9 +10795,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func !=(UInt32)
 
 ```cangjie
@@ -10836,9 +10836,9 @@ Output:
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func !=(UInt32)
 
 ```cangjie
@@ -10877,9 +10877,9 @@ Output:
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func <(UInt32)
 
 ```cangjie
@@ -10918,9 +10918,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func >(UInt32)
 
 ```cangjie
@@ -10959,9 +10959,9 @@ Output:
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func <=(UInt32)
 
 ```cangjie
@@ -11000,9 +11000,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func >=(UInt32)
 
 ```cangjie
@@ -11041,7 +11041,7 @@ Output:
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend UInt32 <: Countable\<UInt32>
 
@@ -11156,7 +11156,7 @@ Output:
 42
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -11191,9 +11191,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -11228,7 +11228,7 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend UInt32 <: ToString
 
@@ -11271,7 +11271,7 @@ Output:
 42
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func toString()
 
 ```cangjie
@@ -11306,7 +11306,7 @@ Output:
 10
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ## UInt64
 
@@ -11417,7 +11417,7 @@ Output:
 Ordering.LT
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func compare(UInt64)
 
 ```cangjie
@@ -11456,9 +11456,9 @@ Output:
 Ordering.LT
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func ==(UInt64)
 
 ```cangjie
@@ -11497,9 +11497,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func ==(UInt64)
 
 ```cangjie
@@ -11538,9 +11538,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func !=(UInt64)
 
 ```cangjie
@@ -11579,9 +11579,9 @@ Output:
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func !=(UInt64)
 
 ```cangjie
@@ -11620,9 +11620,9 @@ Output:
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func <(UInt64)
 
 ```cangjie
@@ -11661,9 +11661,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func >(UInt64)
 
 ```cangjie
@@ -11702,9 +11702,9 @@ Output:
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func <=(UInt64)
 
 ```cangjie
@@ -11743,9 +11743,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func >=(UInt64)
 
 ```cangjie
@@ -11784,7 +11784,7 @@ Output:
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend UInt64 <: Countable\<UInt64>
 
@@ -11899,7 +11899,7 @@ Output:
 42
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -11934,9 +11934,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -11971,7 +11971,7 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend UInt64 <: ToString
 
@@ -12014,7 +12014,7 @@ Output:
 42
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func toString()
 
 ```cangjie
@@ -12049,7 +12049,7 @@ Output:
 10
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ## UInt8
 
@@ -12160,7 +12160,7 @@ Output:
 Ordering.LT
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func compare(UInt8)
 
 ```cangjie
@@ -12199,9 +12199,9 @@ Output:
 Ordering.LT
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func ==(UInt8)
 
 ```cangjie
@@ -12240,9 +12240,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func ==(UInt8)
 
 ```cangjie
@@ -12281,9 +12281,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func !=(UInt8)
 
 ```cangjie
@@ -12322,9 +12322,9 @@ Output:
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func !=(UInt8)
 
 ```cangjie
@@ -12363,9 +12363,9 @@ Output:
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func <(UInt8)
 
 ```cangjie
@@ -12404,9 +12404,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func >(UInt8)
 
 ```cangjie
@@ -12445,9 +12445,9 @@ Output:
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func <=(UInt8)
 
 ```cangjie
@@ -12486,9 +12486,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func >=(UInt8)
 
 ```cangjie
@@ -12527,7 +12527,7 @@ Output:
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend UInt8 <: Countable\<UInt8>
 
@@ -12642,7 +12642,7 @@ Output:
 42
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -12677,9 +12677,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -12714,7 +12714,7 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend UInt8 <: ToString
 
@@ -12757,7 +12757,7 @@ Output:
 42
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func toString()
 
 ```cangjie
@@ -12792,7 +12792,7 @@ Output:
 3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ## UIntNative
 
@@ -12903,7 +12903,7 @@ Output:
 Ordering.LT
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func compare(UIntNative)
 
 ```cangjie
@@ -12942,9 +12942,9 @@ Output:
 Ordering.LT
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func ==(UIntNative)
 
 ```cangjie
@@ -12983,9 +12983,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func ==(UIntNative)
 
 ```cangjie
@@ -13024,9 +13024,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func !=(UIntNative)
 
 ```cangjie
@@ -13065,9 +13065,9 @@ Output:
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func !=(UIntNative)
 
 ```cangjie
@@ -13106,9 +13106,9 @@ Output:
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func <(UIntNative)
 
 ```cangjie
@@ -13147,9 +13147,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func >(UIntNative)
 
 ```cangjie
@@ -13188,9 +13188,9 @@ Output:
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func <=(UIntNative)
 
 ```cangjie
@@ -13229,9 +13229,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### operator func >=(UIntNative)
 
 ```cangjie
@@ -13270,7 +13270,7 @@ Output:
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend UIntNative <: Countable
 
@@ -13385,7 +13385,7 @@ Output:
 42
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -13420,9 +13420,9 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -13457,7 +13457,7 @@ Output:
 true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend UIntNative <: ToString
 
@@ -13500,7 +13500,7 @@ Output:
 The string representation is: 12345
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func toString()
 
 ```cangjie
@@ -13535,7 +13535,7 @@ Output:
 10
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ## Unit
 
@@ -13598,7 +13598,7 @@ Output:
 0
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -13632,9 +13632,9 @@ Output:
 0
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -13668,7 +13668,7 @@ Output:
 0
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ### extend Unit <: ToString
 
@@ -13713,7 +13713,7 @@ Output:
 The string representation is: ()
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func toString()
 
 ```cangjie
@@ -13748,4 +13748,4 @@ Output:
 ()
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->

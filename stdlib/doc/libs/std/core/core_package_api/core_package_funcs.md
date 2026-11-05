@@ -43,7 +43,7 @@ main() {
 The first element of the array is 1
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ## func acquireArrayRawData\<T>(Array\<T>) where T <: CType
 
 ```cangjie
@@ -88,7 +88,7 @@ main() {
 The first element of the array is 1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ## func alignOf\<T>() where T <: CType
 
 ```cangjie
@@ -876,7 +876,7 @@ main() {
 I like Cangjie
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ## func print(String, Bool)
 
 ```cangjie
@@ -913,7 +913,7 @@ main() {
 123
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ## func print(UInt16, Bool)
 
 ```cangjie
@@ -1429,7 +1429,7 @@ I like Cangjie
 I like programming
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ## func println(String)
 
 ```cangjie
@@ -1464,7 +1464,7 @@ main() {
 123
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ## func println(UInt16)
 
 ```cangjie
@@ -1701,7 +1701,7 @@ true
 false
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ## func refEq(Object, Object)
 
 ```cangjie
@@ -1748,7 +1748,7 @@ true
 false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ## func releaseArrayRawData\<T>(CPointerHandle\<T>) where T <: CType
 
 ```cangjie
@@ -1783,7 +1783,7 @@ main() {
 The first element of the array is 1
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ## func releaseArrayRawData\<T>(CPointerHandle\<T>) where T <: CType
 
 ```cangjie
@@ -1822,7 +1822,7 @@ main() {
 The first element of the array is 1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ## func sizeOf\<T>() where T <: CType
 
 ```cangjie

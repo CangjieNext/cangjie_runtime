@@ -563,19 +563,7 @@ func isEmpty(): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果为空返回 true，否则返回 false。
 
-### func toArray()
-
-```cangjie
-func toArray(): Array<T>
-```
-
-功能：将当前集合转为数组类型。
-
-返回值：
-
-- [Array](core_package_structs.md#struct-arrayt)\<T> - 转换得到的数组。
-
-<!--Del-->
+<!--Del_sink-->
 ### func isEmpty()
 
 ```cangjie
@@ -620,9 +608,21 @@ arr isEmpty: false
 empty isEmpty: true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+### func toArray()
+
+```cangjie
+func toArray(): Array<T>
+```
+
+功能：将当前集合转为数组类型。
+
+返回值：
+
+- [Array](core_package_structs.md#struct-arrayt)\<T> - 转换得到的数组。
+
+<!--Del_sink-->
 
 ### func toArray()
 
@@ -667,9 +667,9 @@ main() {
 size=3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func toArray()
 
@@ -716,7 +716,7 @@ main() {
 first=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ## interface Comparable\<T>
 
 ```cangjie
@@ -838,7 +838,7 @@ operator func >=(other: T): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果大于等于，返回 true，否则返回 false。
 
-<!--Del-->
+<!--Del_sink-->
 ### func compare(T)
 
 ```cangjie
@@ -883,11 +883,11 @@ main() {
 compare: Ordering.LT
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
-### func ==(T)
+### operator func ==(T)
 
 ```cangjie
 operator func ==(this @local?, other: T @local?): Bool
@@ -929,11 +929,11 @@ a == b: true
 a == c: false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
-### func <(T)
+### operator func <(T)
 
 ```cangjie
 operator func <(this @local?, other: T @local?): Bool
@@ -974,11 +974,11 @@ a < c: true
 c < a: false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
-### func >(T)
+### operator func >(T)
 
 ```cangjie
 operator func >(this @local?, other: T @local?): Bool
@@ -1019,11 +1019,11 @@ c > a: true
 a > c: false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
-### func <=(T)
+### operator func <=(T)
 
 ```cangjie
 operator func <=(this @local?, other: T @local?): Bool
@@ -1064,11 +1064,11 @@ a <= c: true
 c <= a: false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
-### func >=(T)
+### operator func >=(T)
 
 ```cangjie
 operator func >=(this @local?, other: T @local?): Bool
@@ -1109,9 +1109,9 @@ c >= a: true
 a >= c: false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ## interface Copyable
 
 ```cangjie
@@ -1149,7 +1149,7 @@ main() {
 first=0
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
 ## interface Countable\<T>
 
@@ -1367,7 +1367,7 @@ operator func ==(other: T): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果相等，返回 true，否则返回 false。
 
-<!--Del-->
+<!--Del_sink-->
 ### operator func ==(T)
 
 ```cangjie
@@ -1415,9 +1415,9 @@ main() {
 caught: Current Type does not implement '==' method for its @local! instance
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### operator func ==(T)
 
@@ -1468,7 +1468,7 @@ main() {
 caught: Current Type does not implement '==' method for its @local? instance
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ## interface Equatable\<T>
 
 ```cangjie
@@ -1504,7 +1504,7 @@ operator func !=(other: T): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
 
-<!--Del-->
+<!--Del_sink-->
 ### operator func !=(T)
 
 ```cangjie
@@ -1552,9 +1552,9 @@ main() {
 caught: Current Type does not implement '!=' method for its @local! instance
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### operator func !=(T)
 
@@ -1605,7 +1605,7 @@ main() {
 caught: Current Type does not implement '==' method for its @local? instance
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ## interface Greater\<T>
 
 ```cangjie
@@ -1682,7 +1682,7 @@ func hashCode(): Int64
 
 - [Int64](core_package_intrinsics.md#int64) - 返回实例类型的哈希值。
 
-<!--Del-->
+<!--Del_sink-->
 ### func hashCode()
 
 ```cangjie
@@ -1725,9 +1725,9 @@ main() {
 h=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### func hashCode()
 
 ```cangjie
@@ -1770,7 +1770,7 @@ main() {
 h=3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ## interface Hasher
 
 ```cangjie
@@ -2010,7 +2010,7 @@ func iterator(): Iterator<E>
 
 - [Iterator](core_package_classes.md#class-iteratort)\<E> - 迭代器。
 
-<!--Del-->
+<!--Del_sink-->
 ### func iterator()
 
 ```cangjie
@@ -2057,9 +2057,9 @@ main() {
 first=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 ### func iterator()
 
@@ -2107,7 +2107,7 @@ main() {
 first=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ## interface Less\<T>
 
 ```cangjie
@@ -2186,7 +2186,7 @@ operator func !=(other: T): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 如果不相等，返回 true，否则返回 false。
 
-<!--Del-->
+<!--Del_sink-->
 ### operator func !=(T)
 
 ```cangjie
@@ -2241,9 +2241,9 @@ main() {
 caught: Current Type does not implement '!=' method for its @local! instance
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### operator func !=(T)
 
 ```cangjie
@@ -2299,7 +2299,7 @@ main() {
 caught: Current Type does not implement '!=' method for its @local? instance
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ## interface Resource
 
 ```cangjie
@@ -2390,7 +2390,7 @@ func toString(): String
 
 - [String](core_package_structs.md#struct-string) - 返回实例类型的字符串表示。
 
-<!--Del-->
+<!--Del_sink-->
 ### func toString()
 
 ```cangjie
@@ -2434,4 +2434,4 @@ main() {
 42
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->

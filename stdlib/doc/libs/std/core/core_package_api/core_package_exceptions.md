@@ -77,142 +77,6 @@ main() {
 ArithmeticException的init(String)构造函数用于根据异常信息创建算术异常实例
 ```
 
-## class Error
-
-```cangjie
-public open class Error <: ToString {}
-```
-
-功能：[Error](core_package_exceptions.md#class-error) 是所有错误类的基类。该类不可被继承，不可初始化，但是可以被捕获到。
-
-父类型：
-
-- [ToString](core_package_interfaces.md#interface-tostring)
-
-### prop message
-
-```cangjie
-public open prop message: String
-```
-
-功能：获取错误信息。
-
-类型：[String](core_package_structs.md#struct-string)
-
-示例：
-
-<!-- compile -->
-```cangjie
-// 此示例只做展示，假设抛出 Error
-main() {
-    try {
-    // 假设出现内存错误或栈溢出错误
-    } catch (e: Error) {
-        println(e.message)
-    }
-}
-```
-
-### func getStackTrace()
-
-```cangjie
-public func getStackTrace(): Array<StackTraceElement>
-```
-
-功能：获取堆栈信息，每一条堆栈信息用一个 [StackTraceElement](core_package_classes.md#class-stacktraceelement) 实例表示，最终返回一个 [StackTraceElement](core_package_classes.md#class-stacktraceelement) 的数组。
-
-返回值：
-
-- [Array](core_package_structs.md#struct-arrayt)\<[StackTraceElement](core_package_classes.md#class-stacktraceelement)> - 堆栈信息数组。
-
-示例：
-
-<!-- compile -->
-```cangjie
-// 此示例只做展示，假设内部抛出 Error
-main() {
-    try {
-    // 假设出现内存错误，栈溢出错误，或者内部错误
-    } catch (e: Error) {
-        println(e.getStackTrace()[0].methodName)
-    }
-}
-```
-
-### func getStackTraceMessage()
-
-```cangjie
-public open func getStackTraceMessage(): String
-```
-
-功能：获取堆栈信息。
-
-返回值：
-
-- [String](core_package_structs.md#struct-string) - 堆栈信息。
-
-示例：
-
-<!-- compile -->
-```cangjie
-// 此示例只做展示，假设内部抛出 Error
-main() {
-    try {
-    // 假设出现内存错误，栈溢出错误，或者内部错误
-    } catch (e: Error) {
-        println(e.getStackTraceMessage())
-    }
-}
-```
-
-### func printStackTrace()
-
-```cangjie
-public open func printStackTrace(): Unit
-```
-
-功能：向控制台打印堆栈信息。
-
-示例：
-
-<!-- compile -->
-```cangjie
-// 此示例只做展示，假设内部抛出 Error
-main() {
-    try {
-    // 假设出现内存错误，栈溢出错误，或者内部错误
-    } catch (e: Error) {
-        println(e.printStackTrace())
-    }
-}
-```
-
-### func toString()
-
-```cangjie
-public open func toString(): String
-```
-
-功能：获取当前 [Error](core_package_exceptions.md#class-error) 实例的字符串值，包括类名和错误信息。
-
-返回值：
-
-- [String](core_package_structs.md#struct-string) - 错误信息字符串。
-
-示例：
-
-<!-- compile -->
-```cangjie
-// 此示例只做展示，假设内部抛出 Error
-main() {
-    try {
-    // 假设出现内存错误，栈溢出错误，或者内部错误
-    } catch (e: Error) {
-        println(e)
-    }
-}
-```
-
 ## class Exception
 
 <!--RP1-->
@@ -960,53 +824,6 @@ main() {
 }
 ```
 
-<!--Del-->
-## class LocalRegionOutOfMemoryError
-
-```cangjie
-public class LocalRegionOutOfMemoryError <: Error {}
-```
-
-功能：表示 local region 内存分配失败的错误。当运行时在 local region 中为对象分配内存失败时，抛出该错误。
-
-局部对象不占用仓颉堆，其内存使用量不计入 `getAllocatedHeapSize` 的统计结果。
-
-> **注意：**
->
-> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
-> - 不支持平台：OpenHarmony。
-
-父类型：
-
-- [Error](#class-error)
-
-示例：
-
-<!-- verify -->
-```cangjie
-func allocateAndPrint() {
-    // 在 local region 中分配小容量数组，正常情况下分配成功
-    let arr: Array<Int64> @local! = [1, 2, 3]
-    println("allocated: ${arr.size}")
-}
-
-main() {
-    try {
-        allocateAndPrint()
-    } catch (e: LocalRegionOutOfMemoryError) {
-        // local region 内存分配失败时抛出该错误
-        println("local region out of memory")
-    }
-}
-```
-
-运行结果：
-
-```text
-allocated: 3
-```
-
-<!--DelEnd-->
 ## class NegativeArraySizeException
 
 ```cangjie
@@ -1116,20 +933,6 @@ main() {
     let exception = NoneValueException("自定义异常信息")
 }
 ```
-
-## class OutOfMemoryError
-
-```cangjie
-public class OutOfMemoryError <: Error {}
-```
-
-功能：表示内存不足错误的错误类，该类不可被继承，不可初始化，但是可以被捕获到。
-
-父类型：
-
-- [Error](#class-error)
-
-<!-- associated_example -->
 
 ## class OverflowException
 
@@ -1241,40 +1044,6 @@ main() {
 }
 ```
 
-## class StackOverflowError
-
-```cangjie
-public class StackOverflowError <: Error {}
-```
-
-功能：表示堆栈溢出错误的错误类，该类不可被继承，不可初始化，但是可以被捕获到。
-
-父类型：
-
-- [Error](#class-error)
-
-### func printStackTrace()
-
-```cangjie
-public override func printStackTrace(): Unit
-```
-
-功能：向控制台打印堆栈信息。
-
-示例：
-
-<!-- compile -->
-```cangjie
-// 此示例只做展示，假设抛出 StackOverflowError
-main() {
-    try {
-    // 假设出现栈溢出错误
-    } catch (e: StackOverflowError) {
-        println(e.printStackTrace())
-    }
-}
-```
-
 ## class TimeoutException
 
 ```cangjie
@@ -1330,7 +1099,7 @@ main() {
 }
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ## class UnimplementedException
 
 ```cangjie
@@ -1443,7 +1212,7 @@ main() {
 UnimplementedException: test message
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ## class UnsupportedException
 
 ```cangjie
@@ -1496,5 +1265,237 @@ public init(message: String)
 main() {
     // 使用带消息的构造函数创建UnsupportedException实例
     let exception = UnsupportedException("自定义异常信息")
+}
+```
+
+## class Error
+
+```cangjie
+public open class Error <: ToString {}
+```
+
+功能：[Error](core_package_exceptions.md#class-error) 是所有错误类的基类。该类不可被继承，不可初始化，但是可以被捕获到。
+
+父类型：
+
+- [ToString](core_package_interfaces.md#interface-tostring)
+
+### prop message
+
+```cangjie
+public open prop message: String
+```
+
+功能：获取错误信息。
+
+类型：[String](core_package_structs.md#struct-string)
+
+示例：
+
+<!-- compile -->
+```cangjie
+// 此示例只做展示，假设抛出 Error
+main() {
+    try {
+    // 假设出现内存错误或栈溢出错误
+    } catch (e: Error) {
+        println(e.message)
+    }
+}
+```
+
+### func getStackTrace()
+
+```cangjie
+public func getStackTrace(): Array<StackTraceElement>
+```
+
+功能：获取堆栈信息，每一条堆栈信息用一个 [StackTraceElement](core_package_classes.md#class-stacktraceelement) 实例表示，最终返回一个 [StackTraceElement](core_package_classes.md#class-stacktraceelement) 的数组。
+
+返回值：
+
+- [Array](core_package_structs.md#struct-arrayt)\<[StackTraceElement](core_package_classes.md#class-stacktraceelement)> - 堆栈信息数组。
+
+示例：
+
+<!-- compile -->
+```cangjie
+// 此示例只做展示，假设内部抛出 Error
+main() {
+    try {
+    // 假设出现内存错误，栈溢出错误，或者内部错误
+    } catch (e: Error) {
+        println(e.getStackTrace()[0].methodName)
+    }
+}
+```
+
+### func getStackTraceMessage()
+
+```cangjie
+public open func getStackTraceMessage(): String
+```
+
+功能：获取堆栈信息。
+
+返回值：
+
+- [String](core_package_structs.md#struct-string) - 堆栈信息。
+
+示例：
+
+<!-- compile -->
+```cangjie
+// 此示例只做展示，假设内部抛出 Error
+main() {
+    try {
+    // 假设出现内存错误，栈溢出错误，或者内部错误
+    } catch (e: Error) {
+        println(e.getStackTraceMessage())
+    }
+}
+```
+
+### func printStackTrace()
+
+```cangjie
+public open func printStackTrace(): Unit
+```
+
+功能：向控制台打印堆栈信息。
+
+示例：
+
+<!-- compile -->
+```cangjie
+// 此示例只做展示，假设内部抛出 Error
+main() {
+    try {
+    // 假设出现内存错误，栈溢出错误，或者内部错误
+    } catch (e: Error) {
+        println(e.printStackTrace())
+    }
+}
+```
+
+### func toString()
+
+```cangjie
+public open func toString(): String
+```
+
+功能：获取当前 [Error](core_package_exceptions.md#class-error) 实例的字符串值，包括类名和错误信息。
+
+返回值：
+
+- [String](core_package_structs.md#struct-string) - 错误信息字符串。
+
+示例：
+
+<!-- compile -->
+```cangjie
+// 此示例只做展示，假设内部抛出 Error
+main() {
+    try {
+    // 假设出现内存错误，栈溢出错误，或者内部错误
+    } catch (e: Error) {
+        println(e)
+    }
+}
+```
+
+<!--Del_sink-->
+## class LocalRegionOutOfMemoryError
+
+```cangjie
+public class LocalRegionOutOfMemoryError <: Error {}
+```
+
+功能：表示 local region 内存分配失败的错误。当运行时在 local region 中为对象分配内存失败时，抛出该错误。
+
+局部对象不占用仓颉堆，其内存使用量不计入 `getAllocatedHeapSize` 的统计结果。
+
+> **注意：**
+>
+> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
+> - 不支持平台：OpenHarmony。
+
+父类型：
+
+- [Error](#class-error)
+
+示例：
+
+<!-- verify -->
+```cangjie
+func allocateAndPrint() {
+    // 在 local region 中分配小容量数组，正常情况下分配成功
+    let arr: Array<Int64> @local! = [1, 2, 3]
+    println("allocated: ${arr.size}")
+}
+
+main() {
+    try {
+        allocateAndPrint()
+    } catch (e: LocalRegionOutOfMemoryError) {
+        // local region 内存分配失败时抛出该错误
+        println("local region out of memory")
+    }
+}
+```
+
+运行结果：
+
+```text
+allocated: 3
+```
+
+<!--DelEnd_sink-->
+
+## class OutOfMemoryError
+
+```cangjie
+public class OutOfMemoryError <: Error {}
+```
+
+功能：表示内存不足错误的错误类，该类不可被继承，不可初始化，但是可以被捕获到。
+
+父类型：
+
+- [Error](#class-error)
+
+<!-- associated_example -->
+
+## class StackOverflowError
+
+```cangjie
+public class StackOverflowError <: Error {}
+```
+
+功能：表示堆栈溢出错误的错误类，该类不可被继承，不可初始化，但是可以被捕获到。
+
+父类型：
+
+- [Error](#class-error)
+
+### func printStackTrace()
+
+```cangjie
+public override func printStackTrace(): Unit
+```
+
+功能：向控制台打印堆栈信息。
+
+示例：
+
+<!-- compile -->
+```cangjie
+// 此示例只做展示，假设抛出 StackOverflowError
+main() {
+    try {
+    // 假设出现栈溢出错误
+    } catch (e: StackOverflowError) {
+        println(e.printStackTrace())
+    }
 }
 ```

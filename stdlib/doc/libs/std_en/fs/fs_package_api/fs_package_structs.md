@@ -28,7 +28,7 @@ Parent Type:
 
 - [Copyable](../../core/core_package_api/core_package_interfaces.md#interface-copyable)
 
-<!--Del-->
+<!--Del_sink-->
 ### prop fileHandle
 
 ```cangjie
@@ -77,7 +77,7 @@ Output:
 Same handle on repeated reads: true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ## struct FileInfo
 
 ```cangjie
@@ -157,7 +157,7 @@ This property is equivalent to `this.path.fileName`. For path resolution rules, 
 
 Type: [String](../../core/core_package_api/core_package_structs.md#struct-string)
 
-<!--Del-->
+<!--Del_sink-->
 ### prop name
 
 ```cangjie
@@ -206,7 +206,7 @@ Output:
 File name: test_local_info_name.txt
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### prop parentDirectory
 
 ```cangjie
@@ -227,7 +227,7 @@ Function: Obtains the current file path, returned as a [Path](fs_package_structs
 
 Type: [Path](fs_package_structs.md#struct-path)
 
-<!--Del-->
+<!--Del_sink-->
 ### prop path
 
 ```cangjie
@@ -275,7 +275,7 @@ Output:
 File name in path: test_local_info_path.txt
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### prop size
 
 ```cangjie
@@ -293,7 +293,7 @@ Exceptions:
 
 - [FSException](fs_package_exceptions.md#class-fsexception) - Thrown if an error occurs in the underlying interface during the operation.
 
-<!--Del-->
+<!--Del_sink-->
 ### prop size
 
 ```cangjie
@@ -347,7 +347,7 @@ Output:
 File size equals written bytes: true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### init(Path)
 
 ```cangjie
@@ -382,7 +382,7 @@ Exceptions:
 - [FSException](fs_package_exceptions.md#class-fsexception) - Thrown if the path is invalid.
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown if the path is empty or contains a string terminator.
 
-<!--Del-->
+<!--Del_sink-->
 ### init(Path)
 
 ```cangjie
@@ -436,9 +436,9 @@ Output:
 File name: test_local_info_init_path.txt
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### init(String)
 
 ```cangjie
@@ -491,7 +491,7 @@ Output:
 File name: test_local_info_init_string.txt
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### func canExecute()
 
 ```cangjie
@@ -571,22 +571,6 @@ Exceptions:
 
 - [FSException](fs_package_exceptions.md#class-fsexception) - Thrown if an error occurs in the underlying interface during the operation.
 
-### func isRegular()
-
-```cangjie
-public func isRegular(): Bool
-```
-
-Function: Determines whether the current file is a regular file.
-
-Returns:
-
-- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - true indicates a file; false indicates not a file.
-
-Exceptions:
-
-- [FSException](fs_package_exceptions.md#class-fsexception) - Thrown if an error occurs in the underlying interface during the operation.
-
 ### func isHidden()
 
 ```cangjie
@@ -613,6 +597,22 @@ Function: Determines whether the current file is read-only.
 Returns:
 
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - true indicates read-only; false indicates not read-only.
+
+Exceptions:
+
+- [FSException](fs_package_exceptions.md#class-fsexception) - Thrown if an error occurs in the underlying interface during the operation.
+
+### func isRegular()
+
+```cangjie
+public func isRegular(): Bool
+```
+
+Function: Determines whether the current file is a regular file.
+
+Returns:
+
+- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - true indicates a file; false indicates not a file.
 
 Exceptions:
 
@@ -823,7 +823,7 @@ Exceptions:
 
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown when the path is empty or contains a string terminator.
 
-<!--Del-->
+<!--Del_sink-->
 ### prop fileName
 
 ```cangjie
@@ -866,7 +866,7 @@ Output:
 File name: test_local_path.txt
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### prop fileNameWithoutExtension
 
 ```cangjie
@@ -930,7 +930,7 @@ Exceptions:
 
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown when the path is empty or contains a string terminator.
 
-<!--Del-->
+<!--Del_sink-->
 ### prop parent
 
 ```cangjie
@@ -975,7 +975,7 @@ Output:
 Parent path: ./dir
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### init(String)
 
 ```cangjie
@@ -988,7 +988,7 @@ Parameters:
 
 - rawPath: [String](../../core/core_package_api/core_package_structs.md#struct-string) - The path string.
 
-<!--Del-->
+<!--Del_sink-->
 ### init(String)
 
 ```cangjie
@@ -1026,7 +1026,7 @@ Output:
 Path: ./test_local_path.txt
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### func hashCode()
 
 ```cangjie
@@ -1055,7 +1055,7 @@ Exceptions:
 
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown when the path is empty or contains a string terminator.
 
-<!--Del-->
+<!--Del_sink-->
 ### func isAbsolute()
 
 ```cangjie
@@ -1101,7 +1101,7 @@ Output:
 Is absolute path: false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### func isEmpty()
 
 ```cangjie
@@ -1114,7 +1114,7 @@ Returns:
 
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - Returns true if the current instance is an empty path; otherwise, false.
 
-<!--Del-->
+<!--Del_sink-->
 ### func isEmpty()
 
 ```cangjie
@@ -1160,7 +1160,7 @@ Empty path is empty: true
 Non-empty path is empty: false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### func isRelative()
 
 ```cangjie
@@ -1225,7 +1225,7 @@ Exceptions:
 - [FSException](fs_package_exceptions.md#class-fsexception) - Thrown if the parameter `path` is absolute.
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown when the current path is empty or either path is invalid.
 
-<!--Del-->
+<!--Del_sink-->
 ### func join(String)
 
 ```cangjie
@@ -1279,9 +1279,9 @@ Output:
 Joined path: ./dir/test_local_path.txt
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### func join(Path)
 
 ```cangjie
@@ -1336,7 +1336,7 @@ Output:
 Joined path: ./dir/test_local_path.txt
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### func normalize()
 
 ```cangjie
@@ -1373,7 +1373,7 @@ Returns:
 
 - [String](../../core/core_package_api/core_package_structs.md#struct-string) - The path string of the [Path](fs_package_structs.md#struct-path).
 
-<!--Del-->
+<!--Del_sink-->
 ### func toString()
 
 ```cangjie
@@ -1416,7 +1416,7 @@ Output:
 Path string: ./test_local_path.txt
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### operator func ==(Path)
 
 ```cangjie

@@ -46,7 +46,7 @@ Exceptions:
 - [FSException](fs_package_exceptions.md#class-fsexception) - Thrown when the path does not exist or cannot be canonicalized.
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown when the path is empty or contains a string terminator.
 
-<!--Del-->
+<!--Del_sink-->
 ## func canonicalize(String)
 
 ```cangjie
@@ -105,9 +105,9 @@ Output:
 Canonical file name: test_local_canonicalize.txt
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ## func canonicalize(Path)
 
 ```cangjie
@@ -167,7 +167,7 @@ Output:
 Canonical file name: test_local_canonicalize_path.txt
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ## func copy(Path, Path, Bool)
 
 ```cangjie
@@ -250,7 +250,7 @@ Exceptions:
 
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown when the path is empty or contains a string terminator.
 
-<!--Del-->
+<!--Del_sink-->
 ## func exists(Path)
 
 ```cangjie
@@ -314,9 +314,9 @@ File exists after creation: true
 File exists after removal: false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ## func exists(String)
 
 ```cangjie
@@ -379,53 +379,7 @@ File exists after creation: true
 File exists after removal: false
 ```
 
-<!--DelEnd-->
-## func rename(Path, Path, Bool)
-
-```cangjie
-public func rename(sourcePath: Path, to!: Path, overwrite!: Bool = false): Unit
-```
-
-Function: Renames the file or directory specified by `sourcePath` to the name given by `to`. `sourcePath` must be an existing file or directory path. When `to` is an existing file or directory path, the specific behavior is determined by `overwrite`. If `overwrite` is `true`, the existing file or directory will be deleted before performing the rename operation; otherwise, an exception will be thrown.
-
-> **Note:**
->
-> When `overwrite` is `true`, an implicit behavior of `rename` is to delete the original file or directory at the target location. If the target location is a directory, all contents within the directory will be recursively deleted. Use with caution.
-
-Parameters:
-
-- sourcePath: [Path](./fs_package_structs.md#struct-path) - The path to be renamed.
-- to!: [Path](./fs_package_structs.md#struct-path) - The target path.
-- overwrite!: [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - Whether to overwrite the target path, default value is `false`.
-
-Exceptions:
-
-- [FSException](fs_package_exceptions.md#class-fsexception) - Thrown when the operating system fails to execute the rename method.
-- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown when the path is empty or contains a string terminator.
-
-## func rename(String, String, Bool)
-
-```cangjie
-public func rename(sourcePath: String, to!: String, overwrite!: Bool = false): Unit
-```
-
-Function: Renames the file or directory specified by `sourcePath` to the name given by `to`. `sourcePath` must be an existing file or directory path. When `to` is an existing file or directory path, the specific behavior is determined by `overwrite`. If `overwrite` is `true`, the existing file or directory will be deleted before performing the rename operation; if `overwrite` is `false`, an exception will be thrown.
-
-> **Note:**
->
-> When `overwrite` is `true`, an implicit behavior of `rename` is to delete the original file or directory at the target location. If the target location is a directory, all contents within the directory will be recursively deleted. Use with caution.
-
-Parameters:
-
-- sourcePath: [String](../../core/core_package_api/core_package_structs.md#struct-string) - The path to be renamed.
-- to!: [String](../../core/core_package_api/core_package_structs.md#struct-string) - The target path.
-- overwrite!: [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - Whether to overwrite the target path, default value is `false`.
-
-Exceptions:
-
-- [FSException](fs_package_exceptions.md#class-fsexception) - Thrown when the operating system fails to execute the rename method.
-- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown when the path is empty or contains a string terminator.
-
+<!--DelEnd_sink-->
 ## func remove(Path, Bool)
 
 ```cangjie
@@ -508,4 +462,50 @@ Returns:
 Exceptions:
 
 - [FSException](fs_package_exceptions.md#class-fsexception) - Thrown when deletion fails.
+- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown when the path is empty or contains a string terminator.
+
+## func rename(Path, Path, Bool)
+
+```cangjie
+public func rename(sourcePath: Path, to!: Path, overwrite!: Bool = false): Unit
+```
+
+Function: Renames the file or directory specified by `sourcePath` to the name given by `to`. `sourcePath` must be an existing file or directory path. When `to` is an existing file or directory path, the specific behavior is determined by `overwrite`. If `overwrite` is `true`, the existing file or directory will be deleted before performing the rename operation; otherwise, an exception will be thrown.
+
+> **Note:**
+>
+> When `overwrite` is `true`, an implicit behavior of `rename` is to delete the original file or directory at the target location. If the target location is a directory, all contents within the directory will be recursively deleted. Use with caution.
+
+Parameters:
+
+- sourcePath: [Path](./fs_package_structs.md#struct-path) - The path to be renamed.
+- to!: [Path](./fs_package_structs.md#struct-path) - The target path.
+- overwrite!: [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - Whether to overwrite the target path, default value is `false`.
+
+Exceptions:
+
+- [FSException](fs_package_exceptions.md#class-fsexception) - Thrown when the operating system fails to execute the rename method.
+- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown when the path is empty or contains a string terminator.
+
+## func rename(String, String, Bool)
+
+```cangjie
+public func rename(sourcePath: String, to!: String, overwrite!: Bool = false): Unit
+```
+
+Function: Renames the file or directory specified by `sourcePath` to the name given by `to`. `sourcePath` must be an existing file or directory path. When `to` is an existing file or directory path, the specific behavior is determined by `overwrite`. If `overwrite` is `true`, the existing file or directory will be deleted before performing the rename operation; if `overwrite` is `false`, an exception will be thrown.
+
+> **Note:**
+>
+> When `overwrite` is `true`, an implicit behavior of `rename` is to delete the original file or directory at the target location. If the target location is a directory, all contents within the directory will be recursively deleted. Use with caution.
+
+Parameters:
+
+- sourcePath: [String](../../core/core_package_api/core_package_structs.md#struct-string) - The path to be renamed.
+- to!: [String](../../core/core_package_api/core_package_structs.md#struct-string) - The target path.
+- overwrite!: [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - Whether to overwrite the target path, default value is `false`.
+
+Exceptions:
+
+- [FSException](fs_package_exceptions.md#class-fsexception) - Thrown when the operating system fails to execute the rename method.
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown when the path is empty or contains a string terminator.

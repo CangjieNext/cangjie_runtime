@@ -116,7 +116,7 @@ Original path: ./test/../test_canonicalize_string.txt
 Canonical paths match: true
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ## func canonicalize(String)
 
 ```cangjie
@@ -175,9 +175,9 @@ main(): Unit {
 Canonical file name: test_local_canonicalize.txt
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ## func canonicalize(Path)
 
 ```cangjie
@@ -237,7 +237,7 @@ main(): Unit {
 Canonical file name: test_local_canonicalize_path.txt
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ## func copy(Path, Path, Bool)
 
 ```cangjie
@@ -472,7 +472,7 @@ File exists before creation: false
 File exists after creation: true
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ## func exists(Path)
 
 ```cangjie
@@ -536,9 +536,9 @@ File exists after creation: true
 File exists after removal: false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ## func exists(String)
 
 ```cangjie
@@ -601,7 +601,7 @@ File exists after creation: true
 File exists after removal: false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ## func remove(Path, Bool)
 
 ```cangjie

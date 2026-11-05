@@ -389,7 +389,7 @@ main() {
 捕获到异常: Value is None
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func getOrThrow(() -> Exception)
 
 ```cangjie
@@ -442,7 +442,7 @@ v=1
 caught: empty option
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### func getOrThrow()
 
 ```cangjie
@@ -491,7 +491,7 @@ main() {
 捕获到NoneValueException异常
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func getOrThrow()
 
 ```cangjie
@@ -540,7 +540,7 @@ v=1
 caught NoneValueException
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### func isNone()
 
 ```cangjie
@@ -579,7 +579,7 @@ Some(42) is None: false
 None is None: true
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func isNone()
 
 ```cangjie
@@ -622,7 +622,7 @@ o isNone: false
 n isNone: true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### func isSome()
 
 ```cangjie
@@ -661,7 +661,7 @@ Some(42) is Some: true
 None is Some: false
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func isSome()
 
 ```cangjie
@@ -704,7 +704,7 @@ o isSome: true
 n isSome: false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### func map\<R>((T)->R)
 
 ```cangjie
@@ -1013,7 +1013,7 @@ Some(42)和Some(42)的哈希码是否相等: true
 Some(42)和Some(24)的哈希码是否相等: false
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -1058,7 +1058,7 @@ h=5
 h2=0
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### extend\<T> Option\<T> <: ToString where T <: ToString
 
 ```cangjie
@@ -1222,7 +1222,7 @@ LT.compare(GT): Ordering.LT
 GT.compare(GT): Ordering.EQ
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func compare(Ordering)
 
 ```cangjie
@@ -1269,9 +1269,9 @@ GT.compare(EQ): Ordering.GT
 EQ.compare(EQ): Ordering.EQ
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 #### operator func ==(Ordering)
 
@@ -1314,9 +1314,9 @@ lt == lt2: true
 lt == gt: false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 #### operator func !=(Ordering)
 
@@ -1359,9 +1359,9 @@ lt != lt2: false
 lt != gt: true
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 #### operator func <(Ordering)
 
@@ -1403,9 +1403,9 @@ lt < gt: true
 gt < lt: false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 #### operator func >(Ordering)
 
@@ -1447,9 +1447,9 @@ gt > lt: true
 lt > gt: false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 #### operator func <=(Ordering)
 
@@ -1491,9 +1491,9 @@ lt <= eq: true
 eq <= lt: false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 
 #### operator func >=(Ordering)
 
@@ -1535,7 +1535,7 @@ gt >= eq: true
 eq >= gt: false
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### extend Ordering <: Hashable
 
 ```cangjie
@@ -1589,7 +1589,7 @@ EQ的哈希值: 2
 LT的哈希值: 1
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -1628,9 +1628,9 @@ main() {
 h=1
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 #### func hashCode()
 
 ```cangjie
@@ -1668,7 +1668,7 @@ main() {
 h=3
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### extend Ordering <: ToString
 
 ```cangjie
@@ -1728,7 +1728,7 @@ EQ转换为字符串: Ordering.EQ
 LT转换为字符串: Ordering.LT
 ```
 
-<!--Del-->
+<!--Del_sink-->
 #### func toString()
 
 ```cangjie
@@ -1768,7 +1768,7 @@ main() {
 Ordering.LT
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ## enum ThreadState
 
 ```cangjie

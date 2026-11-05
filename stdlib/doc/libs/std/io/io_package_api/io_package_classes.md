@@ -1577,7 +1577,7 @@ main(): Unit {
 32
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### init()
 
 ```cangjie
@@ -1621,7 +1621,7 @@ Bytes read: 2
 Content: 72, 73
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### init(Array\<Byte>)
 
 ```cangjie
@@ -1699,7 +1699,7 @@ main(): Unit {
 Error: The capacity must be greater than or equal to 0: -1024.
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### init(Int64)
 
 ```cangjie
@@ -1760,7 +1760,7 @@ Content: 82, 83
 Caught: The capacity must be greater than or equal to 0: -1.
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### func bytes()
 
 ```cangjie
@@ -1936,7 +1936,7 @@ Hello
 Error: The buffer is empty.
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func read(Array\<Byte>)
 
 ```cangjie
@@ -1994,7 +1994,7 @@ Second read: 1
 Third read: 0
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### func readByte()
 
 ```cangjie
@@ -2108,7 +2108,7 @@ Error: The additional must be greater than or equal to 0.
 Error: The maximum value for capacity expansion cannot exceed the maximum value of Int64.
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func reserve(Int64)
 
 ```cangjie
@@ -2180,7 +2180,7 @@ Content: 84, 85
 Caught: The additional must be greater than or equal to 0.
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### func seek(SeekPosition)
 
 ```cangjie
@@ -2243,7 +2243,7 @@ World
 Error: Can't move the position before the beginning of the stream.
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func seek(SeekPosition)
 
 ```cangjie
@@ -2303,7 +2303,7 @@ Position after seek: 0
 First byte: 86
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### func setLength(Int64)
 
 ```cangjie
@@ -2394,7 +2394,7 @@ main(): Unit {
 Hello World
 ```
 
-<!--Del-->
+<!--Del_sink-->
 ### func write(Array\<Byte>)
 
 ```cangjie
@@ -2443,9 +2443,9 @@ Bytes read: 2
 Content: 77, 78
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 
-<!--Del-->
+<!--Del_sink-->
 ### func write(Array\<Byte>)
 
 ```cangjie
@@ -2494,7 +2494,7 @@ Bytes read: 2
 Content: 75, 76
 ```
 
-<!--DelEnd-->
+<!--DelEnd_sink-->
 ### func writeByte(Byte)
 
 ```cangjie
