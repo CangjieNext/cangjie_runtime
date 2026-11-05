@@ -1323,11 +1323,15 @@ Example:
 
 <!-- verify -->
 ```cangjie
-main() {
+func allocateAndPrint() {
     // Allocate a small array in the local region; the allocation normally succeeds
     let arr: Array<Int64> @local! = [1, 2, 3]
+    println("allocated: ${arr.size}")
+}
+
+main() {
     try {
-        println("allocated: ${arr.size}")
+        allocateAndPrint()
     } catch (e: LocalRegionOutOfMemoryError) {
         // This error is thrown when memory allocation in the local region fails
         println("local region out of memory")

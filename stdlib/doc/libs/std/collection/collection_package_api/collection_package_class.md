@@ -1481,7 +1481,7 @@ public exclave init(this @local?, size: Int64, initElement: ((Int64) -> T @local
 import std.collection.*
 
 main() {
-    let list: ArrayList<Int64> @local? = ArrayList<Int64>(3) { index => index * 2 }
+    let list: ArrayList<Int64> @local? = ArrayList<Int64>(3, { index => index * 2 }) @local?
     println("size=${list.size}")
 }
 ```
@@ -7995,7 +7995,7 @@ public exclave init(this @local?, size: Int64, initElement: (Int64) -> (K, V) @l
 import std.collection.*
 
 exclave func makeMap(): HashMap<Int64, Int64> @local? {
-    let m: HashMap<Int64, Int64> @local? = HashMap<Int64, Int64>(2) { index => (index, index * 10) }
+    let m: HashMap<Int64, Int64> @local? = HashMap<Int64, Int64>(2, { index => (index, index * 10) }) @local?
     m
 }
 
@@ -8012,7 +8012,7 @@ main() {
 运行结果：
 
 ```text
-size=2
+caught IllegalArgumentException
 ```
 
 <!--DelEnd-->

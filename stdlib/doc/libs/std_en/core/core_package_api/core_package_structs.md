@@ -8509,8 +8509,9 @@ Example:
 <!-- verify -->
 ```cangjie
 main() {
-    let r1 = Range<Int64>(1, 5, 1, true, false, false)
-    let r2 = Range<Int64>(1, 5, 1, true, false, false)
+    let ranges: Array<Range<Int64>> @local! = [1..5, 1..5]
+    let r1: Range<Int64> @local? = ranges[0]
+    let r2: Range<Int64> @local? = ranges[1]
     let h1 = r1.hashCode()
     let h2 = r2.hashCode()
     println("same=${h1 == h2}")
@@ -8552,8 +8553,8 @@ Example:
 <!-- verify -->
 ```cangjie
 main() {
-    let r1 = Range<Int64>(1, 5, 1, true, false, false)
-    let r2 = Range<Int64>(1, 5, 1, true, false, false)
+    let r1: Range<Int64> @local! = 1..5
+    let r2: Range<Int64> @local! = 1..5
     let h1 = r1.hashCode()
     let h2 = r2.hashCode()
     println("same=${h1 == h2}")

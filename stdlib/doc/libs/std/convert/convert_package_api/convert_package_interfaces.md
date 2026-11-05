@@ -1135,53 +1135,6 @@ main() {
 After the conversion of parse, "3.141592653589793" became 3.141593
 ```
 
-<!--Del-->
-#### static func parse(String)
-
-```cangjie
-public static func parse(data: String @local?): Float64
-```
-
-功能：将 [Float64](../../core/core_package_api/core_package_intrinsics.md#float64) 类型字面量的字符串转换为 [Float64](../../core/core_package_api/core_package_intrinsics.md#float64) 值，入参字符串支持 `@local!` 和 `@local?` 实参。
-
-> **注意：**
->
-> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
-> - 不支持平台：OpenHarmony。
-
-参数：
-
-- data: [String](../../core/core_package_api/core_package_structs.md#struct-string) @local? - 要转换的字符串，支持 `@local!` 和 `@local?` 实参。
-
-返回值：
-
-- [Float64](../../core/core_package_api/core_package_intrinsics.md#float64) - 返回转换后 [Float64](../../core/core_package_api/core_package_intrinsics.md#float64) 值。
-
-异常：
-
-- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 当字符串不符合浮点数语法时，抛出异常。
-
-示例：
-
-<!-- verify -->
-```cangjie
-import std.convert.*
-
-main() {
-    let data: String @local? = "3.14159"
-    let res = Float64.parse(String(data))
-
-    println("After the conversion of parse, \"3.14159\" became ${res}")
-}
-```
-
-运行结果：
-
-```text
-After the conversion of parse, "3.14159" became 3.141590
-```
-
-<!--DelEnd-->
 #### static func tryParse(String)
 
 ```cangjie
@@ -2385,53 +2338,6 @@ main(): Int64 {
 After the conversion of parse, "7fffffffffffffff" in hexadecimal became 9223372036854775807
 ```
 
-<!--Del-->
-#### static func parse(String)
-
-```cangjie
-public static func parse(data: String @local?): Int64
-```
-
-功能：将 [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) 类型字面量的字符串转换为 [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) 值，入参字符串支持 `@local!` 和 `@local?` 实参。
-
-> **注意：**
->
-> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
-> - 不支持平台：OpenHarmony。
-
-参数：
-
-- data: [String](../../core/core_package_api/core_package_structs.md#struct-string) @local? - 要转换的字符串，支持 `@local!` 和 `@local?` 实参。
-
-返回值：
-
-- [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - 返回转换后 [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) 值。
-
-异常：
-
-- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 当字符串为空，首位为 `+`，转换失败，转换后超出 [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) 范围，或字符串中含有无效的 UTF-8 字符时，抛出异常。
-
-示例：
-
-<!-- verify -->
-```cangjie
-import std.convert.*
-
-main() {
-    let data: String @local? = "-9223372036854775808"
-    let res = Int64.parse(String(data))
-
-    println("After the conversion of parse, \"-9223372036854775808\" became ${res}")
-}
-```
-
-运行结果：
-
-```text
-After the conversion of parse, "-9223372036854775808" became -9223372036854775808
-```
-
-<!--DelEnd-->
 #### static func tryParse(String, Int64)
 
 ```cangjie
@@ -2941,53 +2847,6 @@ main(): Int64 {
 After the conversion of parse, "ffffffffffffffff" in hexadecimal became 18446744073709551615
 ```
 
-<!--Del-->
-#### static func parse(String)
-
-```cangjie
-public static func parse(data: String @local?): UInt64
-```
-
-功能：将 [UInt64](../../core/core_package_api/core_package_intrinsics.md#uint64) 类型字面量的字符串转换为 [UInt64](../../core/core_package_api/core_package_intrinsics.md#uint64) 值，入参字符串支持 `@local!` 和 `@local?` 实参。
-
-> **注意：**
->
-> - 实验性 API，仅用于测试验证，规范和实现仍可能发生变化，请谨慎使用。
-> - 不支持平台：OpenHarmony。
-
-参数：
-
-- data: [String](../../core/core_package_api/core_package_structs.md#struct-string) @local? - 要转换的字符串，支持 `@local!` 和 `@local?` 实参。
-
-返回值：
-
-- [UInt64](../../core/core_package_api/core_package_intrinsics.md#uint64) - 返回转换后 [UInt64](../../core/core_package_api/core_package_intrinsics.md#uint64) 值。
-
-异常：
-
-- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 当字符串为空，首位为 `+` 或 `-`，转换失败，转换后超出 [UInt64](../../core/core_package_api/core_package_intrinsics.md#uint64) 范围，或字符串中含有无效的 UTF-8 字符时，抛出异常。
-
-示例：
-
-<!-- verify -->
-```cangjie
-import std.convert.*
-
-main() {
-    let data: String @local? = "18446744073709551615"
-    let res = UInt64.parse(String(data))
-
-    println("After the conversion of parse, \"18446744073709551615\" became ${res}")
-}
-```
-
-运行结果：
-
-```text
-After the conversion of parse, "18446744073709551615" became 18446744073709551615
-```
-
-<!--DelEnd-->
 #### static func tryParse(String, Int64)
 
 ```cangjie

@@ -1480,7 +1480,7 @@ Example:
 import std.collection.*
 
 main() {
-    let list: ArrayList<Int64> @local? = ArrayList<Int64>(3) { index => index * 2 }
+    let list: ArrayList<Int64> @local? = ArrayList<Int64>(3, { index => index * 2 }) @local?
     println("size=${list.size}")
 }
 ```
@@ -7568,7 +7568,7 @@ Example:
 import std.collection.*
 
 exclave func makeMap(): HashMap<Int64, Int64> @local? {
-    let m: HashMap<Int64, Int64> @local? = HashMap<Int64, Int64>(2) { index => (index, index * 10) }
+    let m: HashMap<Int64, Int64> @local? = HashMap<Int64, Int64>(2, { index => (index, index * 10) }) @local?
     m
 }
 
@@ -7585,7 +7585,7 @@ main() {
 Output:
 
 ```text
-size=2
+caught IllegalArgumentException
 ```
 
 <!--DelEnd-->

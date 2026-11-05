@@ -1135,53 +1135,6 @@ Execution Result:
 After the conversion of parse, "3.141592653589793" became 3.141593
 ```
 
-<!--Del-->
-#### static func parse(String)
-
-```cangjie
-public static func parse(data: String @local?): Float64
-```
-
-Function: Converts a string of [Float64](../../core/core_package_api/core_package_intrinsics.md#float64) literals to a [Float64](../../core/core_package_api/core_package_intrinsics.md#float64) value; `@local!` and `@local?` string arguments are supported.
-
-> **Note:**
->
-> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
-> - Platform not supported: OpenHarmony.
-
-Parameters:
-
-- data: [String](../../core/core_package_api/core_package_structs.md#struct-string) @local? - The string to be converted; `@local!` and `@local?` arguments are supported.
-
-Returns:
-
-- [Float64](../../core/core_package_api/core_package_intrinsics.md#float64) - Returns the converted [Float64](../../core/core_package_api/core_package_intrinsics.md#float64) value.
-
-Exceptions:
-
-- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown if the string does not comply with the floating point number syntax.
-
-Example:
-
-<!-- verify -->
-```cangjie
-import std.convert.*
-
-main() {
-    let data: String @local? = "3.14159"
-    let res = Float64.parse(String(data))
-
-    println("After the conversion of parse, \"3.14159\" became ${res}")
-}
-```
-
-Execution Result:
-
-```text
-After the conversion of parse, "3.14159" became 3.141590
-```
-
-<!--DelEnd-->
 #### static func tryParse(String)
 
 ```cangjie
@@ -1492,7 +1445,7 @@ Function: This extension primarily implements operations for converting string l
 
 Parent Type:
 
-- [Parsable](#interface-parsablet)\<[Int8](../../core/core_package_api/core极客时间_package_intrinsics.md#int8)>
+- [Parsable](#interface-parsablet)\<[Int8](../../core/core_package_api/core_package_intrinsics.md#int8)>
 
 #### static func parse(String)
 
@@ -1537,7 +1490,7 @@ After the conversion of parse, "-128" became -128
 #### static func tryParse(String)
 
 ```cangjie
-public static func tryParse(data极客时间: String): Option<Int8>
+public static func tryParse(data: String): Option<Int8>
 ```
 
 Function: Converts a string literal of type [Int8](../../core/core_package_api/core_package_intrinsics.md#int8) to an [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)\<[Int8](../../core/core_package_api/core_package_intrinsics.md#int8)> value.
@@ -1596,7 +1549,7 @@ Parameters:
 
 Returns:
 
-- [R极客时间une](../../core/core_package_api/core_package_intrinsics.md#rune) - Returns the converted [Rune](../../core/core_package_api/core_package_intrinsics.md#rune) value.
+- [Rune](../../core/core_package_api/core_package_intrinsics.md#rune) - Returns the converted [Rune](../../core/core_package_api/core_package_intrinsics.md#rune) value.
 
 Exceptions:
 
@@ -1716,7 +1669,7 @@ After the conversion of parse, "65535" became 65535
 public static func tryParse(data: String): Option<UInt16>
 ```
 
-Function: Converts a string literal of type [UInt16](../../core/core_package_api/core_package_intrinsics.md#uint16) to an [Option](../../core/core_package_api/core_package_enums.md极客时间#enum-optiont)\<[UInt16](../../core/core_package_api/core_package_intrinsics.md#uint16)> value.
+Function: Converts a string literal of type [UInt16](../../core/core_package_api/core_package_intrinsics.md#uint16) to an [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)\<[UInt16](../../core/core_package_api/core_package_intrinsics.md#uint16)> value.
 
 Parameters:
 
@@ -1804,7 +1757,7 @@ After the conversion of parse, "4294967295" became 4294967295
 public static func tryParse(data: String): Option<UInt32>
 ```
 
-Function: Converts a string literal of type [极客时间UInt32](../../core/core_package_api/core_package_intrinsics.md#uint32) to an [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)\<[UInt32](../../core/core_package_api/core_package_intrinsics.md#uint32)> value.
+Function: Converts a string literal of type [UInt32](../../core/core_package_api/core_package_intrinsics.md#uint32) to an [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)\<[UInt32](../../core/core_package_api/core_package_intrinsics.md#uint32)> value.
 
 Parameters:
 
@@ -2514,53 +2467,6 @@ Execution Result:
 After the conversion of parse, "7fffffffffffffff" in hexadecimal became 9223372036854775807
 ```
 
-<!--Del-->
-#### static func parse(String)
-
-```cangjie
-public static func parse(data: String @local?): Int64
-```
-
-Function: Converts a string of [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) literals to an [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) value; `@local!` and `@local?` string arguments are supported.
-
-> **Note:**
->
-> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
-> - Platform not supported: OpenHarmony.
-
-Parameters:
-
-- data: [String](../../core/core_package_api/core_package_structs.md#struct-string) @local? - The string to be converted; `@local!` and `@local?` arguments are supported.
-
-Returns:
-
-- [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - Returns the converted [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) value.
-
-Exceptions:
-
-- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown if the string is empty, if the string starts with `+`, if the conversion fails, if the value after conversion is out of the [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) range, or if there is an invalid UTF-8 code in the string.
-
-Example:
-
-<!-- verify -->
-```cangjie
-import std.convert.*
-
-main() {
-    let data: String @local? = "-9223372036854775808"
-    let res = Int64.parse(String(data))
-
-    println("After the conversion of parse, \"-9223372036854775808\" became ${res}")
-}
-```
-
-Execution Result:
-
-```text
-After the conversion of parse, "-9223372036854775808" became -9223372036854775808
-```
-
-<!--DelEnd-->
 #### static func tryParse(String, Int64)
 
 ```cangjie
@@ -3069,53 +2975,6 @@ Execution Result:
 After the conversion of parse, "ffffffffffffffff" in hexadecimal became 18446744073709551615
 ```
 
-<!--Del-->
-#### static func parse(String)
-
-```cangjie
-public static func parse(data: String @local?): UInt64
-```
-
-Function: Converts a string of [UInt64](../../core/core_package_api/core_package_intrinsics.md#uint64) literals to a [UInt64](../../core/core_package_api/core_package_intrinsics.md#uint64) value; `@local!` and `@local?` string arguments are supported.
-
-> **Note:**
->
-> - Experimental API, for test verification only; the specification and implementation may still change; use with caution.
-> - Platform not supported: OpenHarmony.
-
-Parameters:
-
-- data: [String](../../core/core_package_api/core_package_structs.md#struct-string) @local? - The string to be converted; `@local!` and `@local?` arguments are supported.
-
-Returns:
-
-- [UInt64](../../core/core_package_api/core_package_intrinsics.md#uint64) - Returns the converted [UInt64](../../core/core_package_api/core_package_intrinsics.md#uint64) value.
-
-Exceptions:
-
-- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown if the string is empty, if the string starts with `+` or `-`, if the conversion fails, if the value after conversion is out of the [UInt64](../../core/core_package_api/core_package_intrinsics.md#uint64) range, or if there is an invalid UTF-8 code in the string.
-
-Example:
-
-<!-- verify -->
-```cangjie
-import std.convert.*
-
-main() {
-    let data: String @local? = "18446744073709551615"
-    let res = UInt64.parse(String(data))
-
-    println("After the conversion of parse, \"18446744073709551615\" became ${res}")
-}
-```
-
-Execution Result:
-
-```text
-After the conversion of parse, "18446744073709551615" became 18446744073709551615
-```
-
-<!--DelEnd-->
 #### static func tryParse(String, Int64)
 
 ```cangjie
