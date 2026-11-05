@@ -264,8 +264,8 @@ private:
     DemangleInfo<T> DemangleGenericType();
     DemangleInfo<T> DemangleDefaultParamFunction();
     DemangleInfo<T> DemangleInnerFunction();
-    DemangleInfo<T> DemangleType();
-    DemangleInfo<T> DemangleGenericTypes();
+    DemangleInfo<T> DemangleType(bool relocateTrailingModal = false);
+    DemangleInfo<T> DemangleGenericTypes(bool relocateTrailingModal = false);
     DemangleInfo<T> DemangleFunctionParameterTypes();
     DemangleInfo<T> DemangleGlobalInit();
     DemangleInfo<T> DemangleParamInit();
@@ -303,16 +303,16 @@ private:
     void SkipChar(char ch);
 
     void SkipOptionalChar(char ch);
-    /// Whether the current character starts a <mode-set> leader (`Q` or `W`).
-    bool IsModeLeader() const;
-    /// Whether the current character is the <this-mode> leader `W`.
-    bool IsThisMode() const;
-    /// Parse a <mode-set> (`Q<payload>E` or `W<payload>E`) and return the demangled modal
+    /// Whether the current character starts a <modal-set> leader (`Q` or `W`).
+    bool IsModalLeader() const;
+    /// Whether the current character is the <this-modal> leader `W`.
+    bool IsThisModal() const;
+    /// Parse a <modal-set> (`Q<payload>E` or `W<payload>E`) and return the demangled modal
     /// suffix, e.g. " @ local!" / " @ local?". The caller must ensure the current char is a leader.
-    T DemangleModeSet();
-    /// If the current position holds a <mode-set> (`Q<payload>E` | `W<payload>E`), parse it and append the
+    T DemangleModalSet();
+    /// If the current position holds a <modal-set> (`Q<payload>E` | `W<payload>E`), parse it and append the
     /// demangled modal suffix to \p di.
-    void AppendModeTypeIfExists(DemangleInfo<T>& di);
+    void AppendModalTypeIfExists(DemangleInfo<T>& di);
 
     void SkipString(const char pattern[]);
     void ErrorLog(const char* msg) const;
