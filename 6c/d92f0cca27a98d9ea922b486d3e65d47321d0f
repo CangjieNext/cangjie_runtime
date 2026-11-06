@@ -1,0 +1,45 @@
+runtime/src/Heap/Allocator/RegionManager.cpp
+  s_c1dcf54aedf347::t_d2810175862993 64,959-960
+runtime/src/HeapManager.cpp
+  s_c1dcf54aedf347::t_73203204e70731 30-32,36-37
+runtime/src/Mutator/Mutator.h
+  s_c1dcf54aedf347::t_6828f1c3b1ab33 527-529,627
+runtime/src/Heap/Allocator/LocalObjectAllocator.cpp
+  s_c1dcf54aedf347::t_392c9070b29633 22-23,67-122,129,131,183,200,213,228-231,381,388,391-392,412,415-420,426,436,462-463,465,517,788,790,793-796,808-811
+runtime/src/CompilerCalls.h
+  s_c1dcf54aedf347::t_7aa80f873cb96d 202-204
+runtime/src/Common/TypeDef.h
+  s_c1dcf54aedf347::t_5f403fa889266b 73
+runtime/src/Heap/WCollector/TraceBarrier.cpp
+  s_c1dcf54aedf347::t_3ed84b922612e2 350,354
+runtime/src/Heap/Barrier/Barrier.cpp
+  s_c1dcf54aedf347::t_2fce58a509c590 251,256
+runtime/src/Inspector/CjHeapData.cpp
+  s_c1dcf54aedf347::t_83c5d733ea61c4 34-35,79,106
+runtime/src/Exception/Exception.cpp
+  s_c1dcf54aedf347::t_f72e5139ee5c5a 76-80
+runtime/src/Heap/Allocator/LocalObjectAllocator.h
+  s_c1dcf54aedf347::t_eecbb60d8155f7 67-68,83-84
+runtime/src/Heap/Allocator/LocalObjectUtil.h
+  s_c1dcf54aedf347::t_c21585beab6564 10-11,19-21,23-27
+runtime/src/Heap/WCollector/EnumBarrier.cpp
+  s_c1dcf54aedf347::t_5440eab3a60adf 376,380
+runtime/src/CompilerCalls.cpp
+  s_c1dcf54aedf347::t_5766df968f223e 1825-1827
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6cd92f0cca27a98d9ea922b486d3e65d47321d0f",
+  "prompts": {},
+  "sessions": {
+    "s_c1dcf54aedf347": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1a153-e138-7e02-95b5-5fde567424a4",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "kongbx <kongbingxin@huawei.com>"
+    }
+  }
+}
