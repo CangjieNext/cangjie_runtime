@@ -164,24 +164,68 @@ extend<T> BufferedInputStream<T> <: Seekable where T <: Seekable {
     /**
      * Seek to an offset, in bytes, in a stream.
      *
+     * The position is calculated based on the logical cursor of the stream,
+     * which takes the unread buffered data into account, i.e. the logical
+     * position equals the underlying stream position minus the length of
+     * the unread data in the buffer.
+     *
+     * If the target position falls inside the range covered by the buffer,
+     * only the buffer cursor is adjusted; otherwise the buffer is discarded
+     * and the underlying stream is seeked.
+     *
      * @params sp - Start position of the offset and size of the offset.
      *
      * @return the number of bytes in the stream from the beginning of the data to the cursor position.
      */
     public func seek(sp: SeekPosition): Int64 {
-        let pos = inputStream.seek(sp)
+        let avail = if (availLen < 0) { 0 } else { availLen }
+        let rawPos = inputStream.seek(Current(0))
+        match (sp) {
+            case Current(offset) => seekTo(rawPos - avail + offset)
+            case Begin(offset) => seekTo(offset)
+            case End(offset) =>
+                // The underlying stream is moved to the end and the buffer is invalidated.
+                let end = inputStream.seek(End(0))
+                curPos = 0
+                availLen = 0
+                let target = end + offset
+                if (target != end) {
+                    inputStream.seek(Begin(target))
+                }
+                target
+        }
+    }
+
+    /**
+     * Move the logical cursor to the absolute position @p target.
+     *
+     * @return the absolute position of the logical cursor after seeking.
+     */
+    private func seekTo(target: Int64): Int64 {
+        let avail = if (availLen < 0) { 0 } else { availLen }
+        let rawPos = inputStream.seek(Current(0))
+        // Buffer hit: the target falls inside the range covered by the buffer [rawPos - avail, rawPos],
+        // only the buffer cursor needs to be adjusted.
+        if (avail > 0 && target >= rawPos - avail && target <= rawPos) {
+            curPos += target - (rawPos - avail)
+            availLen = rawPos - target
+            return target
+        }
+        // Buffer miss: discard the buffered data and seek the underlying stream.
+        let pos = inputStream.seek(Begin(target))
         curPos = 0
         availLen = 0
-
         pos
     }
 
     /**
-     * @return the position of the current cursor in the stream.
+     * @return the logical position of the current cursor in the stream, taking
+     * the unread buffered data into account.
      */
     public prop position: Int64 {
         get() {
-            inputStream.seek(Current(0))
+            let avail = if (availLen < 0) { 0 } else { availLen }
+            inputStream.seek(Current(0)) - avail
         }
     }
 
@@ -190,10 +234,10 @@ extend<T> BufferedInputStream<T> <: Seekable where T <: Seekable {
      */
     public prop remainLength: Int64 {
         get() {
-            let oldPos = inputStream.seek(Current(0))
-            let length = inputStream.seek(End(0))
+            let oldPos = seek(Current(0))
+            let length = seek(End(0))
             if (length != oldPos) {
-                inputStream.seek(Begin(oldPos))
+                seek(Begin(oldPos))
             }
 
             length - oldPos
@@ -205,10 +249,10 @@ extend<T> BufferedInputStream<T> <: Seekable where T <: Seekable {
      */
     public prop length: Int64 {
         get() {
-            let oldPos = inputStream.seek(Current(0))
-            let length = inputStream.seek(End(0))
+            let oldPos = seek(Current(0))
+            let length = seek(End(0))
             if (length != oldPos) {
-                inputStream.seek(Begin(oldPos))
+                seek(Begin(oldPos))
             }
 
             length
