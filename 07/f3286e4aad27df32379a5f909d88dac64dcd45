@@ -1,0 +1,14 @@
+runtime/src/CangjieRuntime.cpp
+  h_4b284edf89e31b 278-281
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "07f3286e4aad27df32379a5f909d88dac64dcd45",
+  "prompts": {},
+  "humans": {
+    "h_4b284edf89e31b": {
+      "author": "xiaohan_1 <xiaohan24@huawei.com>"
+    }
+  }
+}
