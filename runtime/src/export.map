@@ -11,4 +11,5 @@ CANGJIE {
       unwindPCForRuntimeStubStart;unwindPCForRuntimeStubEnd;unwindPCForC2NStubExceptionReturn;
       CalleeSavedStubFrameSize;C2NStubFrameSize;*__stack_chk_fail*;unwindPCForExclusiveStub;
       unwindPCForExclusiveStubFull;
+      *CaptureCreator*;*CJThreadNewWithCreator*;*CJThreadGetCreatorFrame*;
 };
