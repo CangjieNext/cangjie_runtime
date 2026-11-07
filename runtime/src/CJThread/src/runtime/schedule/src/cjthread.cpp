@@ -19,6 +19,7 @@
 #include "Mutator/Mutator.inline.h"
 
 #include "cjthread.h"
+#include "ThreadCreatorInfo.h"
 #if defined(CANGJIE_SANITIZER_SUPPORT)
 #include "Sanitizer/SanitizerInterface.h"
 #endif
@@ -184,6 +185,10 @@ MRT_STATIC_INLINE int CJThreadInit(struct CJThread *newCJThread, struct ArgAttr 
     DulinkInit(&(newCJThread->schdDulink));
     atomic_store_explicit(&newCJThread->state, CJTHREAD_IDLE, std::memory_order_relaxed);
     newCJThread->name[0] = '\0';
+    // Clear the creator fields on every allocation/reuse path (stale values never observable).
+    newCJThread->creatorIp = 0;
+    newCJThread->creatorFuncStart = 0;
+    newCJThread->creatorFuncDesc = 0;
 
     return 0;
 }
@@ -1025,9 +1030,11 @@ CJThreadHandle ExclusiveCJThreadNew(CJThreadFunc func,
     return newCJThread;
 }
 
-/* Create a cjthread in the cjthread context. */
-CJThreadHandle CJThreadNew(ScheduleHandle schedule, const struct CJThreadAttr *attrUser, CJThreadFunc func,
-                           const void *argStart, unsigned int argSize, CJThreadCreateSource createSource)
+/* Create a cjthread, copying the creatorFrame's three values into the child's tail
+ * fields before publish (the parent-stack pointer is never stored). */
+CJThreadHandle CJThreadNewWithCreator(ScheduleHandle schedule, const struct CJThreadAttr *attrUser,
+                                      CJThreadFunc func, const void *argStart, unsigned int argSize,
+                                      CJThreadCreateSource createSource, const void *creatorFrame)
 {
     unsigned long long cjthreadId = CJThreadNewId();
 #ifdef __OHOS__
@@ -1048,6 +1055,14 @@ CJThreadHandle CJThreadNew(ScheduleHandle schedule, const struct CJThreadAttr *a
     }
     // Set cjthread id in CJThreadNew
     CJThreadSetId(newCJThread, cjthreadId);
+    // Copy before enqueue: the scheduler's queue/wake sync gives the child the happens-before.
+    if (creatorFrame != nullptr) {
+        const MapleRuntime::CreatorFrameInfo *info =
+            static_cast<const MapleRuntime::CreatorFrameInfo *>(creatorFrame);
+        newCJThread->creatorIp = info->ip;
+        newCJThread->creatorFuncStart = info->funcStart;
+        newCJThread->creatorFuncDesc = info->funcDesc;
+    }
     CJThreadBuf buf = (CJThreadGet() == nullptr || currentSchedule != targetSchedule ||
                        createSource == CJTHREAD_CREATE_SOURCE_SIGNAL) ? GLOBAL_BUF : LOCAL_BUF;
 #ifdef __OHOS__
@@ -1089,6 +1104,12 @@ CJThreadHandle CJThreadNew(ScheduleHandle schedule, const struct CJThreadAttr *a
     // Attempt to start a thread to perform scheduling.
     ProcessorWake(targetSchedule, nullptr);
     return newCJThread;
+}
+
+CJThreadHandle CJThreadNew(ScheduleHandle schedule, const struct CJThreadAttr *attrUser, CJThreadFunc func,
+                           const void *argStart, unsigned int argSize, CJThreadCreateSource createSource)
+{
+    return CJThreadNewWithCreator(schedule, attrUser, func, argStart, argSize, createSource, nullptr);
 }
 
 /* Submit tasks from an external thread to the scheduling framework. */
@@ -2316,3 +2337,14 @@ void CJThreadSetSanitizerContext(void *cjthread, void *state)
 #ifdef __cplusplus
 }
 #endif
+
+/* Declared in ThreadCreatorInfo.h; defined here where struct CJThread is visible. */
+MapleRuntime::CreatorFrameInfo MapleRuntime::CJThreadGetCreatorFrame()
+{
+    struct CJThread *cjthread = CJThreadGet();
+    if (cjthread == nullptr) {
+        return MapleRuntime::CreatorFrameInfo{};
+    }
+    return MapleRuntime::CreatorFrameInfo{cjthread->creatorIp, cjthread->creatorFuncStart,
+                                          cjthread->creatorFuncDesc};
+}
