@@ -41,6 +41,8 @@
 #endif
 #include "Sync/Sync.h"
 #include "UnwindStack/GcStackInfo.h"
+#include "UnwindStack/StackInfo.h"
+#include "ThreadCreatorInfo.h"
 #include "CpuProfiler/CpuProfiler.h"
 #ifdef __OHOS__
 #include "schedule.h"
@@ -561,7 +563,32 @@ extern "C" ArrayRef MCC_FillInStackTraceImpl(const TypeInfo* arrayInfo, const Ar
             liteFrameInfos.push_back(static_cast<uint64_t>(SofStackFlag::TOP_FOLDED));
         }
     }
-    MIndex size = liteFrameInfos.size();
+    // If the current thread was spawned and carries a creator frame, append its identity
+    // triple (tag bit set in the ip slot) as the last complete triple, keeping the SOF
+    // fold flag at the very end so the frontend arraySize/3 still decodes it and drops
+    // the flag. Append to a LOCAL copy only (PR#1972 review): liteFrameInfos references
+    // the ExceptionWrapper's vector, which the runtime-internal dump paths
+    // (ExceptionManager::DumpException, CFException::WriteBacktraceToBuffer) consume
+    // without tag awareness - the creator triple must live only in the pcArray.
+    MapleRuntime::CreatorFrameInfo creator = MapleRuntime::CJThreadGetCreatorFrame();
+    std::vector<uint64_t> pcArrayInfos;
+    if (creator.ip != 0) {
+        pcArrayInfos = liteFrameInfos;
+        const bool hasFoldFlag = (pcArrayInfos.size() % 3 == 1);
+        uint64_t foldFlag = 0;
+        if (hasFoldFlag) {
+            foldFlag = pcArrayInfos.back();
+            pcArrayInfos.pop_back();
+        }
+        pcArrayInfos.push_back(creator.ip | MapleRuntime::kThreadCreatorTagBit); // ip (tagged)
+        pcArrayInfos.push_back(creator.funcStart);                              // funcStart
+        pcArrayInfos.push_back(creator.funcDesc);                               // funcDesc
+        if (hasFoldFlag) {
+            pcArrayInfos.push_back(foldFlag);
+        }
+    }
+    const std::vector<uint64_t>& arrayInfos = (creator.ip != 0) ? pcArrayInfos : liteFrameInfos;
+    MIndex size = arrayInfos.size();
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
     if (UNLIKELY(ENABLE_LOG(EXCEPTION))) {
         MIndex arraySize = size;
@@ -571,8 +598,8 @@ extern "C" ArrayRef MCC_FillInStackTraceImpl(const TypeInfo* arrayInfo, const Ar
         DLOG(EXCEPTION, "fill in stack info");
         DLOG(EXCEPTION, "layer\tframePC\t\tframeFuncStart\tsize : %zu", (arraySize / frameInfoPairLen));
         for (int i = 0; i < arraySize; ++i) {
-            uint64_t framePC = liteFrameInfos[i];
-            uint64_t frameFuncStart = liteFrameInfos[++i];
+            uint64_t framePC = arrayInfos[i];
+            uint64_t frameFuncStart = arrayInfos[++i];
             DLOG(EXCEPTION, "#%x\t0x%x\t0x%x", ((i - 1) / frameInfoPairLen), framePC, frameFuncStart);
         }
     }
@@ -597,14 +624,57 @@ extern "C" ArrayRef MCC_FillInStackTraceImpl(const TypeInfo* arrayInfo, const Ar
         return nullptr;
     }
     for (MIndex i = 0; i < size; ++i) {
-        array->SetPrimitiveElement(i, static_cast<int64_t>(liteFrameInfos[i]));
+        array->SetPrimitiveElement(i, static_cast<int64_t>(arrayInfos[i]));
     }
     return array;
+}
+
+static ArrayRef CreateCharArrayFromCString(const TypeInfo* charArray, CString name);
+
+// Packs (className, methodName, fileName, lineNumber) into a StackTraceData, building all
+// three fields via CreateCharArrayFromCString and committing the raw-pointer regions once.
+static StackTraceData BuildStackTraceData(const TypeInfo* charArray, const CString& className,
+                                          const CString& methodName, const CString& fileName, int64_t lineNumber)
+{
+    StackTraceData data;
+    data.className = CreateCharArrayFromCString(charArray, className);
+    data.methodName = CreateCharArrayFromCString(charArray, methodName);
+    data.fileName = CreateCharArrayFromCString(charArray, fileName);
+    data.lineNumber = lineNumber;
+    AllocBuffer* buffer = AllocBuffer::GetAllocBuffer();
+    if (buffer != nullptr) {
+        buffer->CommitRawPointerRegions();
+    }
+    return data;
 }
 
 extern "C" StackTraceData MCC_DecodeStackTraceImpl(const uint64_t ip, const uint64_t pc, const uint64_t funcDesc,
                                                    const TypeInfo* charArray)
 {
+    if (ip & MapleRuntime::kThreadCreatorTagBit) {
+        // Creator line: the values travel with the exception object, so the shown creator
+        // is the creator of the thread that constructed this exception, independent of
+        // the decoding thread (also stable after that thread has exited). Strip the tag
+        // and run the ordinary frame decode, then render with the prefix; the funcDesc
+        // slot is a trusted pointer by the same convention as ordinary frames.
+        StackTraceElement stackTrace;
+        {
+            ScopedEnterSaferegion checkpoint(true);
+            StackInfo::GetStackTraceByLiteFrameInfo(ip & ~MapleRuntime::kThreadCreatorTagBit, pc, funcDesc,
+                                                    stackTrace);
+        }
+        // Repackage with the prefix: className::methodName, as an ordinary frame is named.
+        CString name = stackTrace.className.IsEmpty() ? stackTrace.methodName
+                                                      : (stackTrace.className + "::" + stackTrace.methodName);
+        if (name.IsEmpty()) {
+            // Defensive: undecodable name -> empty element, filtered by the frontend.
+            return BuildStackTraceData(charArray, CString(), CString(), CString(), 0);
+        }
+        CString fileNameStr = stackTrace.fileName.IsEmpty() ? CString("?") : stackTrace.fileName;
+        return BuildStackTraceData(charArray, CString(), CString("Thread created by: ") + name, fileNameStr,
+                                   stackTrace.lineNumber);
+    }
+
     StackTraceElement stackTrace;
     {
         ScopedEnterSaferegion checkpoint(true);
