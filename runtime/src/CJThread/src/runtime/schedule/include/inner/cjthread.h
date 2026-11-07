@@ -152,6 +152,16 @@ struct CJThread {
 #ifdef __OHOS__
     std::vector<unsigned long long> threadStackTopList;
 #endif
+    /* Creator-frame identity for spawn diagnostics (see runtime/src/ThreadCreatorInfo.h):
+     * the three values of the spawn call-site frame, copied by the parent before the
+     * cjthread is published and never modified afterwards; CJThreadInit clears them on
+     * every allocation/reuse path. Plain scalar fields so this header does not depend on
+     * the C++ CreatorFrameInfo type (cjthread.cpp assembles it). MUST stay the last
+     * members: earlier offsets are depended upon (e.g. `id` is baked into LLVM lock
+     * optimization, see its comment above). */
+    uintptr_t creatorIp;         /* call-site return address; 0 = not captured */
+    uintptr_t creatorFuncStart;  /* creator function start (stack-map lookup base) */
+    uint64_t creatorFuncDesc;    /* creator frame FuncDesc pointer value */
 };
 
 /**
