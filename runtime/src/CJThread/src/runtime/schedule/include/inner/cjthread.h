@@ -152,6 +152,10 @@ struct CJThread {
 #ifdef __OHOS__
     std::vector<unsigned long long> threadStackTopList;
 #endif
+    /* Creator-frame identity for spawn diagnostics (see ThreadCreatorInfo.h). */
+    uintptr_t creatorIp;         /* call-site return address; 0 = not captured */
+    uintptr_t creatorFuncStart;  /* creator function start */
+    uint64_t creatorFuncDesc;    /* creator frame FuncDesc pointer value */
 };
 
 /**
